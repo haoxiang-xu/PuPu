@@ -16,14 +16,13 @@ const CONTRACT = readReleaseArtifactContract(
   path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"),
 );
 
-function fixture(targetId, { omit = "", support = [], extra = [] } = {}) {
+function fixture(targetId, { omit = "", support = [], extra = [], version = "0.1.10" } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-package-output-"));
-  const version = "0.1.10";
   for (const asset of expectedTargetAssets(CONTRACT, version).filter((candidate) => candidate.target_id === targetId)) {
     if (asset.name !== omit) fs.writeFileSync(path.join(dir, asset.name), asset.name, "utf8");
   }
   const target = CONTRACT.targets.find((candidate) => candidate.id === targetId);
-  if (target.updater_channel) fs.writeFileSync(path.join(dir, target.updater_channel), "version: 0.1.10\n", "utf8");
+  if (target.updater_channel) fs.writeFileSync(path.join(dir, target.updater_channel), `version: ${version}\n`, "utf8");
   for (const fileName of support) fs.writeFileSync(path.join(dir, fileName), "builder support", "utf8");
   for (const fileName of extra) fs.writeFileSync(path.join(dir, fileName), "unexpected", "utf8");
   return { dir, version };
@@ -40,6 +39,16 @@ test("package output verifier requires the exact artifact set for each supported
     const { dir, version } = fixture(targetId);
     const result = run(targetId, dir, version);
     assert.equal(result.status, 0, result.stderr);
+  }
+});
+
+test("package output verifier requires full RC filenames on every supported target", () => {
+  for (const targetId of ["macos-arm64", "macos-x64", "windows-x64", "linux-x64"]) {
+    const { dir, version } = fixture(targetId, { version: "0.1.10-rc.1" });
+    const result = run(targetId, dir, version);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(fs.readdirSync(dir).some((name) => name.includes("0.1.10-rc.1")));
+    assert.equal(fs.readdirSync(dir).some((name) => name.includes("PuPu-0.1.10-") && !name.includes("-rc.1")), false);
   }
 });
 

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -26,6 +27,44 @@ _VALID_OPERATIONS = frozenset({"run", "rebase"})
 _PROCESS_OWNER_ID = uuid.uuid4().hex
 _MIGRATION_RECEIPT_SCHEMA = "pupu.session-guard-migration"
 _MIGRATION_RECEIPT_VERSION = 1
+_WINDOWS_BINARY_FLAG = getattr(os, "O_BINARY", 0)
+_SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS"
+_SESSION_GUARD_DIAGNOSTIC_PREFIX = (
+    "[session-guard] migration unavailable code="
+)
+_SESSION_GUARD_DIAGNOSTIC_CODES = frozenset(
+    {
+        "session_guard_import_unavailable",
+        "session_guard_process_identity_unavailable",
+        "session_guard_data_dir_unavailable",
+        "session_guard_legacy_probe_unavailable",
+        "session_guard_protocol_lock_open_unavailable",
+        "session_guard_protocol_lock_operation_unavailable",
+        "session_guard_protocol_lock_busy",
+        "session_guard_protocol_commit_unavailable",
+        "session_guard_protocol_corrupt",
+        "session_guard_protocol_incompatible",
+        "session_guard_unknown_unavailable",
+    }
+)
+_SESSION_GUARD_UNAVAILABLE_MESSAGE_CODES = {
+    "UNCHAIN_DATA_DIR is not configured": "session_guard_data_dir_unavailable",
+    "session guard directory is unavailable": "session_guard_data_dir_unavailable",
+    "existing execution state cannot be inspected": (
+        "session_guard_legacy_probe_unavailable"
+    ),
+    "session guard lock could not be opened": (
+        "session_guard_protocol_lock_open_unavailable"
+    ),
+    "session guard lock operation failed": (
+        "session_guard_protocol_lock_operation_unavailable"
+    ),
+    "session guard record could not be committed": (
+        "session_guard_protocol_commit_unavailable"
+    ),
+}
+_SESSION_GUARD_DIAGNOSTICS_EMITTED: set[str] = set()
+_SESSION_GUARD_DIAGNOSTICS_LOCK = threading.Lock()
 
 
 class SessionExecutionGuardError(RuntimeError):
@@ -69,6 +108,51 @@ class SessionExecutionGuardBusy(SessionExecutionGuardError):
             status_code=409,
             retryable=True,
         )
+
+
+def _session_guard_migration_diagnostic_code(
+    error: SessionExecutionGuardError,
+) -> str | None:
+    if error.code == "session_guard_stop_the_world_required":
+        return None
+    if error.code == "session_guard_process_identity_unavailable":
+        return "session_guard_process_identity_unavailable"
+    if error.code == "session_execution_in_progress":
+        return "session_guard_protocol_lock_busy"
+    if error.code in {
+        "session_guard_protocol_corrupt",
+        "session_guard_protocol_incompatible",
+    }:
+        return error.code
+    if error.code == "session_execution_guard_unavailable":
+        return _SESSION_GUARD_UNAVAILABLE_MESSAGE_CODES.get(
+            str(error),
+            "session_guard_unknown_unavailable",
+        )
+    return "session_guard_unknown_unavailable"
+
+
+def _emit_session_guard_migration_diagnostic(
+    error: SessionExecutionGuardError,
+) -> None:
+    if os.environ.get(_SESSION_GUARD_DIAGNOSTICS_ENV, "").strip() != "1":
+        return
+    code = _session_guard_migration_diagnostic_code(error)
+    if code not in _SESSION_GUARD_DIAGNOSTIC_CODES:
+        return
+    with _SESSION_GUARD_DIAGNOSTICS_LOCK:
+        if code in _SESSION_GUARD_DIAGNOSTICS_EMITTED:
+            return
+        _SESSION_GUARD_DIAGNOSTICS_EMITTED.add(code)
+    try:
+        print(
+            f"{_SESSION_GUARD_DIAGNOSTIC_PREFIX}{code}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except Exception:
+        # QA diagnostics must never interfere with the migration receipt.
+        pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -1016,6 +1100,13 @@ def _digest(value: str) -> str:
 
 
 def _process_identity(process_id: int) -> tuple[str, str]:
+    if os.name == "nt":  # pragma: no cover - exercised by packaged Windows smoke
+        # os.kill(pid, 0) is not a POSIX-style liveness probe on Windows.
+        # Signal zero is CTRL_C_EVENT there, so CPython tries to generate a
+        # console event that a no-console Electron sidecar cannot use. Use the
+        # native handle path for every Windows PID without signalling it.
+        return _windows_process_identity(process_id)
+
     try:
         os.kill(process_id, 0)
     except ProcessLookupError:
@@ -1036,8 +1127,6 @@ def _process_identity(process_id: int) -> tuple[str, str]:
         except (OSError, UnicodeError, IndexError, ValueError):
             return "unknown", ""
 
-    if os.name == "nt":  # pragma: no cover - exercised by packaged Windows smoke
-        return _windows_process_identity(process_id)
     try:
         completed = subprocess.run(
             ["ps", "-o", "lstart=", "-p", str(process_id)],
@@ -1066,19 +1155,71 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
         from ctypes import wintypes
 
         query_limited_information = 0x1000
-        handle = ctypes.windll.kernel32.OpenProcess(
-            query_limited_information,
-            False,
-            process_id,
+        synchronize = 0x00100000
+        wait_object_0 = 0x00000000
+        wait_timeout = 0x00000102
+        error_invalid_parameter = 87
+        kernel32 = ctypes.windll.kernel32
+        filetime_pointer = ctypes.POINTER(wintypes.FILETIME)
+        # ctypes defaults function results to c_int. That truncates a 64-bit
+        # Windows HANDLE before GetProcessTimes receives it, which makes a
+        # fresh sidecar fail closed while establishing its own identity.
+        kernel32.OpenProcess.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
         )
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes = (
+            wintypes.HANDLE,
+            filetime_pointer,
+            filetime_pointer,
+            filetime_pointer,
+            filetime_pointer,
+        )
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.WaitForSingleObject.argtypes = (
+            wintypes.HANDLE,
+            wintypes.DWORD,
+        )
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.GetLastError.argtypes = ()
+        kernel32.GetLastError.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        is_current_process = process_id == os.getpid()
+        if is_current_process:
+            # A pseudo-handle is always valid for the current process and
+            # avoids an access-checked OpenProcess call during sidecar import.
+            # It must not be passed to CloseHandle.
+            kernel32.GetCurrentProcess.argtypes = ()
+            kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+            handle = kernel32.GetCurrentProcess()
+        else:
+            handle = kernel32.OpenProcess(
+                query_limited_information | synchronize,
+                False,
+                process_id,
+            )
         if not handle:
+            if (
+                not is_current_process
+                and kernel32.GetLastError() == error_invalid_parameter
+            ):
+                return "dead", ""
             return "unknown", ""
         try:
+            if not is_current_process:
+                wait_result = kernel32.WaitForSingleObject(handle, 0)
+                if wait_result == wait_object_0:
+                    return "dead", ""
+                if wait_result != wait_timeout:
+                    return "unknown", ""
             creation = wintypes.FILETIME()
             exit_time = wintypes.FILETIME()
             kernel = wintypes.FILETIME()
             user = wintypes.FILETIME()
-            if not ctypes.windll.kernel32.GetProcessTimes(
+            if not kernel32.GetProcessTimes(
                 handle,
                 ctypes.byref(creation),
                 ctypes.byref(exit_time),
@@ -1089,15 +1230,22 @@ def _windows_process_identity(process_id: int) -> tuple[str, str]:
             ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
             return "alive", _digest(f"win:{process_id}:{ticks}")
         finally:
-            ctypes.windll.kernel32.CloseHandle(handle)
+            if not is_current_process:
+                kernel32.CloseHandle(handle)
     except Exception:
         return "unknown", ""
 
 
 @contextmanager
 def _exclusive_file_lock(path: Path) -> Iterator[None]:
+    open_flags = os.O_RDWR | os.O_CREAT
+    if os.name == "nt":
+        # msvcrt.locking requires the backing file descriptor to be opened
+        # in binary mode. Without this flag, a fresh Windows data directory
+        # makes the session-guard migration receipt fail closed at startup.
+        open_flags |= _WINDOWS_BINARY_FLAG
     try:
-        file_descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        file_descriptor = os.open(path, open_flags, 0o600)
     except OSError as exc:
         raise SessionExecutionGuardError(
             "session_execution_guard_unavailable",
@@ -1173,6 +1321,7 @@ def session_guard_migration_receipt() -> dict[str, Any]:
     try:
         _DEFAULT_REGISTRY.initialize_protocol()
     except SessionExecutionGuardError as exc:
+        _emit_session_guard_migration_diagnostic(exc)
         status = (
             "migration_required"
             if exc.code == "session_guard_stop_the_world_required"

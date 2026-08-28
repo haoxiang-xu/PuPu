@@ -7,6 +7,7 @@ import test from "node:test";
 import YAML from "yaml";
 
 import {
+  certificateExtractionArguments,
   createMacSigningEvidence,
   readAndValidateMacUpdaterMetadata,
   validateMacSigningEvidence,
@@ -20,6 +21,18 @@ const TARGET_ID = "macos-arm64";
 const SOURCE_COMMIT = "a".repeat(40);
 const UNCHAIN_REF = "b".repeat(40);
 const ZIP_NAME = `PuPu-${VERSION}-macos-arm64.zip`;
+const DMG_NAME = `PuPu-${VERSION}-macos-arm64.dmg`;
+
+test("macOS certificate extraction passes the output prefix as one codesign option", () => {
+  assert.deepEqual(
+    certificateExtractionArguments("/tmp/pupu-certificate-", "/tmp/PuPu.app"),
+    [
+      "--display",
+      "--extract-certificates=/tmp/pupu-certificate-",
+      "/tmp/PuPu.app",
+    ],
+  );
+});
 
 function artifact(format, name, sha256, sizeBytes) {
   return { format, name, sha256, size_bytes: sizeBytes };
@@ -174,34 +187,44 @@ test("macOS signing evidence resolves the checked-in contract before inspecting 
   }
 });
 
-test("macOS updater metadata binds the final ZIP version, SHA-512, size, and sole payload", () => {
+test("macOS updater metadata exactly binds the final ZIP and DMG package payloads", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-macos-updater-"));
   const zipName = ZIP_NAME;
+  const dmgName = DMG_NAME;
   const zipPath = path.join(root, zipName);
+  const dmgPath = path.join(root, dmgName);
   const metadataPath = path.join(root, "latest-mac.yml");
   const writeMetadata = (overrides = {}) => {
-    const payload = fs.readFileSync(zipPath);
-    const file = {
+    const zipFile = {
       url: zipName,
       sha512: hashFileSha512(zipPath),
-      size: payload.length,
-      ...overrides.file,
+      size: fs.statSync(zipPath).size,
+      ...overrides.zip,
+    };
+    const dmgFile = {
+      url: dmgName,
+      sha512: hashFileSha512(dmgPath),
+      size: fs.statSync(dmgPath).size,
+      ...overrides.dmg,
     };
     fs.writeFileSync(metadataPath, YAML.stringify({
       version: VERSION,
-      files: [file],
+      files: [zipFile, dmgFile],
       path: zipName,
-      sha512: file.sha512,
+      sha512: zipFile.sha512,
       ...overrides.root,
     }), "utf8");
   };
   try {
     fs.writeFileSync(zipPath, "signed ZIP bytes", "utf8");
+    fs.writeFileSync(dmgPath, "signed DMG bytes", "utf8");
     writeMetadata();
     assert.deepEqual(readAndValidateMacUpdaterMetadata({
       metadataPath,
       zipPath,
+      dmgPath,
       zipName,
+      dmgName,
       version: VERSION,
     }), {
       metadata_name: "latest-mac.yml",
@@ -210,14 +233,17 @@ test("macOS updater metadata binds the final ZIP version, SHA-512, size, and sol
       payload_size_bytes: fs.statSync(zipPath).size,
     });
 
-    writeMetadata({ file: { sha512: "stale-sha512" }, root: { sha512: "stale-sha512" } });
-    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, zipName, version: VERSION }), /real ZIP SHA-512/);
+    writeMetadata({ zip: { sha512: "stale-sha512" }, root: { sha512: "stale-sha512" } });
+    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, dmgPath, zipName, dmgName, version: VERSION }), /real ZIP SHA-512/);
+
+    writeMetadata({ dmg: { sha512: "stale-sha512" } });
+    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, dmgPath, zipName, dmgName, version: VERSION }), /real DMG SHA-512/);
 
     writeMetadata({ root: { version: "0.1.9" } });
-    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, zipName, version: VERSION }), /version must equal package version/);
+    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, dmgPath, zipName, dmgName, version: VERSION }), /version must equal package version/);
 
     writeMetadata({ root: { files: [{ url: zipName, sha512: hashFileSha512(zipPath), size: fs.statSync(zipPath).size }, { url: "unexpected.zip", sha512: hashFileSha512(zipPath), size: fs.statSync(zipPath).size }] } });
-    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, zipName, version: VERSION }), /must describe the final ZIP exactly once/);
+    assert.throws(() => readAndValidateMacUpdaterMetadata({ metadataPath, zipPath, dmgPath, zipName, dmgName, version: VERSION }), /must describe the final ZIP and DMG exactly once/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

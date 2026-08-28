@@ -129,6 +129,26 @@ test("artifact, manifest, provenance, and nonzero evidence are all blocking", ()
       .details,
     /zero or missing execution evidence/,
   );
+
+  const sessionGuardSmokeZero = buildJobReport({
+    platform: { name: "playwright-windows" },
+    unchain: unchainEvidence(),
+    requiredChecks: ["Session guard startup smoke"],
+    checks: [
+      {
+        name: "Session guard startup smoke",
+        outcome: "success",
+        executed_tests: 0,
+      },
+    ],
+  });
+  assert.equal(sessionGuardSmokeZero.deterministic_result.status, "failed");
+  assert.match(
+    sessionGuardSmokeZero.checks.find(
+      (check) => check.name === "Session guard startup smoke",
+    ).details,
+    /zero or missing execution evidence/,
+  );
 });
 
 test("lite merge passes with one deterministic artifact and required matrices", () => {

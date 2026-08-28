@@ -47,4 +47,5 @@ test("signing workflows isolate standalone credentials and OIDC to Windows jobs"
   assert.match(windowsPackage, /permissions:\s+contents: read\s+actions: read\s+id-token: write/);
   assert.match(packageMatrix, /if: \$\{\{ always\(\) && .*inputs\.qa_mode != 'lite'/);
   assert.match(sharedPackage, /persist-credentials: false/);
+  assert.equal(YAML.parse(sharedPackage).jobs.package.permissions, undefined);
 });

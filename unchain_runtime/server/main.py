@@ -7,6 +7,48 @@ import time
 
 _DURABLE_JOB_WORKER_FLAG = "--durable-job-worker"
 _VAULT_SINK_WORKER_FLAG = "--vault-sink-worker"
+_SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS"
+_SESSION_GUARD_DIAGNOSTIC_PREFIX = (
+    "[session-guard] migration unavailable code="
+)
+_SESSION_GUARD_STARTUP_DIAGNOSTIC_CODES = frozenset(
+    {
+        "session_guard_import_unavailable",
+        "session_guard_process_identity_unavailable",
+        "session_guard_unknown_unavailable",
+    }
+)
+_SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED: set[str] = set()
+
+
+def _emit_session_guard_startup_diagnostic(
+    error: Exception,
+    *,
+    phase: str,
+) -> None:
+    if os.environ.get(_SESSION_GUARD_DIAGNOSTICS_ENV, "").strip() != "1":
+        return
+    if getattr(error, "code", "") == "session_guard_process_identity_unavailable":
+        code = "session_guard_process_identity_unavailable"
+    elif phase == "import":
+        code = "session_guard_import_unavailable"
+    else:
+        code = "session_guard_unknown_unavailable"
+    if (
+        code not in _SESSION_GUARD_STARTUP_DIAGNOSTIC_CODES
+        or code in _SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED
+    ):
+        return
+    _SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED.add(code)
+    try:
+        print(
+            f"{_SESSION_GUARD_DIAGNOSTIC_PREFIX}{code}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except Exception:
+        # QA diagnostics must never interfere with sidecar startup.
+        pass
 
 
 def _dispatch_vault_sink_worker(argv: list[str]) -> int | None:
@@ -116,12 +158,15 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         from session_execution_guard import session_guard_migration_receipt
-
-        session_guard_migration_receipt()
-    except Exception:
-        # The health receipt remains the content-free authority. Startup stays
-        # available so the launcher can observe and safely retry migration.
-        pass
+    except Exception as exc:
+        _emit_session_guard_startup_diagnostic(exc, phase="import")
+    else:
+        try:
+            session_guard_migration_receipt()
+        except Exception as exc:
+            _emit_session_guard_startup_diagnostic(exc, phase="call")
+    # The health receipt remains the content-free authority. Startup stays
+    # available so the launcher can observe and safely retry migration.
 
     _initialize_vault_sink_transport()
     _log_outbound_tls_trust()

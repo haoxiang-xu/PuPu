@@ -32,6 +32,18 @@ jobs:
 
       - name: Checkout release environment verifier
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Reject prerelease tags before publish approval
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$PACKAGE_VERSION" \
+            --policy promotion >/dev/null
 
       - name: Require protected release-publish Environment
         env:
@@ -72,6 +84,16 @@ jobs:
       - name: Install release verifier dependencies
         run: npm ci
 
+      - name: Reconfirm stable promotion identity before Release access
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          node scripts/release-qa/release-candidate-ref.mjs \
+            --tag "$RELEASE_TAG" \
+            --package-version "$PACKAGE_VERSION" \
+            --policy promotion >/dev/null
+
       - name: Require dispatch from the exact release tag
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -101,6 +123,13 @@ jobs:
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
           CANDIDATE_RUN_ID="$(node -e 'const fs = require("fs"); const manifest = JSON.parse(fs.readFileSync("draft-assets/release-assets.v1.json", "utf8")); process.stdout.write(String(manifest?.release?.candidate_run_id || ""))')"
           QUALIFICATION_RUN_ID="$(node -e 'const fs = require("fs"); const receipt = JSON.parse(fs.readFileSync("draft-assets/release-qualification.v1.json", "utf8")); process.stdout.write(String(receipt?.qualification_run_id || ""))')"
+          QUALIFICATION_WORKFLOW_PATH="$(node scripts/release-qa/qualification-provenance.mjs \
+            --receipt draft-assets/release-qualification.v1.json \
+            --bootstrap-policy contracts/release/release-bootstrap-policy.v1.json \
+            --candidate-run-id "$CANDIDATE_RUN_ID" \
+            --qualification-run-id "$QUALIFICATION_RUN_ID" \
+            --release-tag "$RELEASE_TAG" \
+            --release-commit "$TAG_COMMIT")"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
@@ -112,12 +141,13 @@ jobs:
               --run-id "$QUALIFICATION_RUN_ID" \
               --tag "$RELEASE_TAG" \
               --commit "$TAG_COMMIT" \
-              --workflow-path .github/workflows/release-qualification.yml
+              --workflow-path "$QUALIFICATION_WORKFLOW_PATH"
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest draft-assets/release-assets.v1.json \
             --asset-dir draft-assets \
             --qa-report draft-assets/release-qa-report.json \
             --qualification draft-assets/release-qualification.v1.json \
+            --bootstrap-policy contracts/release/release-bootstrap-policy.v1.json \
             --require-qualification true \
             --require-restart-qualification true \
             --allow-extra release-assets.v1.json \

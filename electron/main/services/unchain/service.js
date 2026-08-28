@@ -31,6 +31,24 @@ const UNCHAIN_STOP_TERM_TIMEOUT_MS = 1200;
 const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
 const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
 const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
+const SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS";
+const SESSION_GUARD_DIAGNOSTIC_PREFIX =
+  "[session-guard] migration unavailable code=";
+const SESSION_GUARD_DIAGNOSTIC_CODES = new Set([
+  "session_guard_import_unavailable",
+  "session_guard_process_identity_unavailable",
+  "session_guard_data_dir_unavailable",
+  "session_guard_legacy_probe_unavailable",
+  "session_guard_protocol_lock_open_unavailable",
+  "session_guard_protocol_lock_operation_unavailable",
+  "session_guard_protocol_lock_busy",
+  "session_guard_protocol_commit_unavailable",
+  "session_guard_protocol_corrupt",
+  "session_guard_protocol_incompatible",
+  "session_guard_unknown_unavailable",
+]);
+const SESSION_GUARD_DIAGNOSTIC_PATTERN =
+  /^\[session-guard\] migration unavailable code=([a-z0-9_]+)$/;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
@@ -1105,6 +1123,7 @@ const createUnchainService = ({
   let unchainRuntimeContract = null;
   let unchainAuthToken = "";
   let activeVaultBrokerKey = "";
+  const relayedSessionGuardDiagnosticCodes = new Set();
   let unchainRestartTimer = null;
   let unchainIsStopping = false;
   let unchainPreserveStatusOnStop = false;
@@ -1595,6 +1614,7 @@ const createUnchainService = ({
 
   const waitForMisoReady = async () => {
     const startedAt = Date.now();
+    let lastTransientMigrationError = null;
 
     while (Date.now() - startedAt < UNCHAIN_BOOT_TIMEOUT_MS) {
       if (!unchainProcess || unchainProcess.killed) {
@@ -1607,14 +1627,22 @@ const createUnchainService = ({
           return { ready: true, error: null };
         }
       } catch (error) {
-        return { ready: false, error };
+        if (error?.code === "miso_session_guard_migration_unavailable") {
+          // A closed, well-formed `unavailable` receipt can be a transient
+          // lock/marker observation during cold startup. It never admits the
+          // runtime, but unlike an invalid receipt or migration_required it
+          // may be retried inside the existing bounded boot window.
+          lastTransientMigrationError = error;
+        } else {
+          return { ready: false, error };
+        }
       }
 
       // eslint-disable-next-line no-await-in-loop
       await sleep(UNCHAIN_HEALTH_RETRY_MS);
     }
 
-    return { ready: false, error: null };
+    return { ready: false, error: lastTransientMigrationError };
   };
 
   const getMisoStatusPayload = () => ({
@@ -4664,6 +4692,29 @@ const createUnchainService = ({
     }
   };
 
+  const relaySessionGuardDiagnostic = (line) => {
+    if (process.env[SESSION_GUARD_DIAGNOSTICS_ENV] !== "1") {
+      return;
+    }
+    const match =
+      typeof line === "string"
+        ? SESSION_GUARD_DIAGNOSTIC_PATTERN.exec(line)
+        : null;
+    const code = match?.[1] || "";
+    if (
+      !SESSION_GUARD_DIAGNOSTIC_CODES.has(code) ||
+      relayedSessionGuardDiagnosticCodes.has(code)
+    ) {
+      return;
+    }
+    relayedSessionGuardDiagnosticCodes.add(code);
+    try {
+      process.stderr.write(`${SESSION_GUARD_DIAGNOSTIC_PREFIX}${code}\n`);
+    } catch {
+      // QA diagnostics must never interfere with sidecar startup.
+    }
+  };
+
   const stringifyBridgeErrorValue = (value) => {
     if (typeof value === "string") {
       return value.trim();
@@ -4745,7 +4796,11 @@ const createUnchainService = ({
     let bufferedText = "";
 
     const emitLine = (line) => {
-      const normalizedLine = typeof line === "string" ? line.trim() : "";
+      const rawLine = typeof line === "string" ? line : "";
+      if (level === "stderr") {
+        relaySessionGuardDiagnostic(rawLine);
+      }
+      const normalizedLine = rawLine.trim();
       if (!normalizedLine) {
         return;
       }

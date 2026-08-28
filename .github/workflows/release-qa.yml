@@ -18,6 +18,13 @@ on:
           - release
           - release-candidate
         default: lite
+      qa_scope:
+        description: "Closed execution scope"
+        type: choice
+        options:
+          - standard
+          - windows-playwright
+        default: standard
       run_unchain_analysis:
         description: "Run optional Unchain advisory analysis"
         type: boolean
@@ -39,7 +46,7 @@ jobs:
       actions: read
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
       unchain_ref: ${{ github.event.inputs.unchain_ref || 'dev' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
@@ -48,10 +55,10 @@ jobs:
   release-candidate-environment-preflight:
     name: Release candidate environment preflight
     needs: deterministic-checks
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
     runs-on: ubuntu-latest
     env:
-      QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      QA_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
     steps:
       - name: Set up Node for release environment verifier
         if: env.QA_MODE == 'release-candidate'
@@ -73,15 +80,17 @@ jobs:
 
   playwright-electron:
     name: Playwright Electron (${{ matrix.os }})
+    needs: deterministic-checks
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright') && '["windows-latest"]' || (((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]')) }}
     permissions:
       contents: read
+      actions: read
     uses: ./.github/workflows/_shared-release-playwright.yml
     with:
-      qa_mode: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.qa_mode || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
+      qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
       runner_selector: ${{ matrix.os }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
@@ -92,7 +101,7 @@ jobs:
     needs:
       - deterministic-checks
       - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
     permissions:
       contents: read
       actions: read
@@ -125,7 +134,7 @@ jobs:
     needs:
       - deterministic-checks
       - release-candidate-environment-preflight
-    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    if: ${{ needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
     permissions:
       contents: read
       actions: read
@@ -148,7 +157,7 @@ jobs:
       - release-candidate-environment-preflight
       - package-non-windows
       - package-windows
-    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    if: ${{ always() && needs.deterministic-checks.result == 'success' && needs.release-candidate-environment-preflight.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.qa_scope != 'windows-playwright' && inputs.qa_mode != 'lite') || (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -165,7 +174,7 @@ jobs:
 
   final-report:
     name: Final Release QA Report
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.qa_scope != 'windows-playwright') }}
     needs:
       - deterministic-checks
       - playwright-electron

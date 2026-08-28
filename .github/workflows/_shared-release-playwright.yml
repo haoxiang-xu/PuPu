@@ -36,6 +36,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.release_tag }}
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Validate closed shared Playwright inputs
         shell: bash
@@ -61,8 +62,60 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install Node dependencies
         run: npm ci
+
+      - name: Resolve QA version
+        shell: bash
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          BUILD_VERSION="$PACKAGE_VERSION"
+          EXPECTED_VERSION=""
+          if [[ "$SOURCE_REF" == refs/tags/* ]]; then
+            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+              --tag "$RELEASE_TAG" \
+              --package-version "$PACKAGE_VERSION" \
+              --policy candidate)"
+            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+            EXPECTED_VERSION="$BUILD_VERSION"
+          fi
+          {
+            echo "QA_VERSION=$BUILD_VERSION"
+            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: Download the deterministic Unchain artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: .release-qa/unchain-artifact
+
+      - name: Verify and install the exact Unchain runtime
+        id: artifact_verify
+        shell: bash
+        run: |
+          WHEEL_PATH="$(find .release-qa/unchain-artifact -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          EVIDENCE_PATH=".release-qa/unchain-artifact/unchain-artifact.json"
+          if [ -z "$WHEEL_PATH" ] || [ ! -f "$EVIDENCE_PATH" ]; then
+            echo "::error title=Missing deterministic Unchain artifact::Playwright requires the wheel and evidence emitted by Deterministic QA"
+            exit 1
+          fi
+          python -m pip install --upgrade pip
+          python -m pip install -r unchain_runtime/server/requirements.txt
+          python -m pip install --force-reinstall --no-deps "$WHEEL_PATH"
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "$WHEEL_PATH" \
+            --evidence "$EVIDENCE_PATH" \
+            --python python \
+            --installed true
+          printf 'python_command=%s\n' "$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_OUTPUT"
+          printf 'evidence_path=%s\n' "$EVIDENCE_PATH" >> "$GITHUB_OUTPUT"
+          printf 'executed_tests=1\n' >> "$GITHUB_OUTPUT"
 
       - name: Install Electron runtime dependencies
         if: runner.os == 'Linux'
@@ -77,10 +130,24 @@ jobs:
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 
+      - name: Verify session guard startup
+        id: session_guard_smoke
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          UNCHAIN_DATA_DIR: ${{ runner.temp }}/pupu-session-guard-smoke
+          SESSION_GUARD_SMOKE_EVIDENCE_PATH: test-results/session-guard-smoke.json
+        run: |
+          "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-session-guard-smoke.py
+
       - name: Run Playwright Electron release smoke
         id: playwright
         continue-on-error: true
         shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          PUPU_SESSION_GUARD_DIAGNOSTICS: ${{ runner.os == 'Windows' && '1' || '0' }}
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a npm run test:e2e
@@ -92,6 +159,7 @@ jobs:
         id: playwright_evidence
         if: always()
         continue-on-error: true
+        shell: bash
         run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
 
       - name: Write Playwright QA report
@@ -99,11 +167,14 @@ jobs:
         env:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
-          QA_REQUIRED_CHECKS_JSON: '["Playwright Electron release smoke"]'
-          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*"]'
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Session guard startup smoke","Playwright Electron release smoke"]'
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*","test-results/session-guard-smoke.json"]'
           QA_CHECKS_JSON: |
             [
-              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Session guard startup smoke","command":"python scripts/release-qa/windows-session-guard-smoke.py","outcome":"${{ steps.session_guard_smoke.outcome }}","executed_tests":${{ steps.session_guard_smoke.outcome == 'success' && 1 || 0 }}},
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
 
@@ -125,3 +196,33 @@ jobs:
           path: |
             playwright-report/**/*
             test-results/playwright/**/*
+            test-results/session-guard-smoke.json
+
+      - name: Enforce Playwright QA result
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_VERIFY_OUTCOME: ${{ steps.artifact_verify.outcome }}
+          SESSION_GUARD_SMOKE_OUTCOME: ${{ steps.session_guard_smoke.outcome }}
+          PLAYWRIGHT_OUTCOME: ${{ steps.playwright.outcome }}
+          PLAYWRIGHT_EVIDENCE_OUTCOME: ${{ steps.playwright_evidence.outcome }}
+        run: |
+          failed=0
+          for required_outcome in \
+            "$ARTIFACT_VERIFY_OUTCOME" \
+            "$SESSION_GUARD_SMOKE_OUTCOME" \
+            "$PLAYWRIGHT_OUTCOME" \
+            "$PLAYWRIGHT_EVIDENCE_OUTCOME"
+          do
+            if [ "$required_outcome" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$SESSION_GUARD_SMOKE_OUTCOME" = "success" ] && [ ! -f test-results/session-guard-smoke.json ]; then
+            echo "::error title=Missing session guard evidence::successful startup smoke must retain test-results/session-guard-smoke.json"
+            failed=1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            echo "::error title=Playwright QA failed::artifact=$ARTIFACT_VERIFY_OUTCOME session-guard=$SESSION_GUARD_SMOKE_OUTCOME playwright=$PLAYWRIGHT_OUTCOME evidence=$PLAYWRIGHT_EVIDENCE_OUTCOME"
+            exit 1
+          fi

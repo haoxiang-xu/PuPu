@@ -35,6 +35,11 @@ test("release builds Unchain once and every test/package consumes the same bytes
   assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
   assert.match(sharedDeterministic, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
   assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
+  assert.match(
+    sharedDeterministic,
+    /Web build and version check[\s\S]*PUPU_BUILD_FEATURE_SNAPSHOT_PATH: \$\{\{ steps\.build_feature_snapshot\.outputs\.snapshot_path \}\}/,
+    "deterministic Web QA must consume the snapshot it produced",
+  );
   assert.match(workflow, /uses: \.\/\.github\/workflows\/_shared-release-package\.yml/);
   assert.match(sharedPackage, /Download the immutable Memory V2 build snapshot/);
   assert.match(sharedPackage, /Verify the downloaded Memory V2 build snapshot bytes/);

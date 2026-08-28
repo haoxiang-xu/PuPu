@@ -6,7 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -165,15 +165,56 @@ const requestJson = async (url, token = "") => {
   return { status: response.status, payload };
 };
 
-const terminateChild = async (child) => {
+const waitForChildExit = (child, timeoutMs) => new Promise((resolve) => {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    resolve(true);
+    return;
+  }
+  let settled = false;
+  const settle = (exited) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    child.off("exit", onExit);
+    resolve(exited);
+  };
+  const onExit = () => settle(true);
+  const timer = setTimeout(() => settle(false), timeoutMs);
+  child.once("exit", onExit);
+});
+
+export const terminateChild = async (
+  child,
+  {
+    gracefulTimeoutMs = 2_000,
+    forcedTimeoutMs = 2_000,
+    platform = process.platform,
+    runProcessTreeCommand = spawnSync,
+  } = {},
+) => {
   if (child.exitCode !== null || child.signalCode !== null) return;
+  if (platform === "win32") {
+    if (!Number.isSafeInteger(child.pid) || child.pid <= 1) {
+      throw new Error("packaged sidecar has no valid Windows process-tree root");
+    }
+    const result = runProcessTreeCommand(
+      "taskkill",
+      ["/PID", String(child.pid), "/T", "/F"],
+      { windowsHide: true, stdio: "ignore" },
+    );
+    if (result?.error || result?.status !== 0) {
+      throw new Error("packaged sidecar Windows process tree did not terminate");
+    }
+    if (!await waitForChildExit(child, forcedTimeoutMs)) {
+      throw new Error("packaged sidecar root did not exit after Windows process-tree termination");
+    }
+    return;
+  }
   child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    sleep(2_000),
-  ]);
-  if (child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGKILL");
+  if (await waitForChildExit(child, gracefulTimeoutMs)) return;
+  child.kill("SIGKILL");
+  if (!await waitForChildExit(child, forcedTimeoutMs)) {
+    throw new Error("packaged sidecar did not terminate after SIGKILL");
   }
 };
 
@@ -274,7 +315,12 @@ export async function runPackagedSidecarSmoke({
     };
   } finally {
     await terminateChild(child);
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(dataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
   }
 }
 

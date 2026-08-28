@@ -15,25 +15,58 @@ const assertValidYaml = (source, label) => {
 test("electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish", () => {
   const packageJson = JSON.parse(read("package.json"));
   const scripts = packageJson.scripts;
+  const packagedBuilds = [
+    ["build:electron", "npm run build:unchain"],
+    ["build:electron:mac", "npm run build:unchain:mac"],
+    ["build:electron:mac:unsigned", "npm run build:unchain:mac"],
+    ["build:electron:mac:release", "npm run build:unchain:mac"],
+    ["build:electron:mac:intel", "npm run build:unchain:mac:intel"],
+    ["build:electron:mac:intel:unsigned", "npm run build:unchain:mac:intel"],
+    ["build:electron:mac:intel:release", "npm run build:unchain:mac:intel"],
+    ["build:electron:linux", "npm run build:unchain:linux"],
+  ];
+  for (const [scriptName, unchainCommand] of packagedBuilds) {
+    const command = scripts[scriptName];
+    assert.match(command, /--publish never/, `${scriptName} must never implicitly publish`);
+    assert.doesNotMatch(
+      command,
+      /cross-env-shell/,
+      `${scriptName} must not use the command-dropping cross-env-shell wrapper`,
+    );
+    assert.match(
+      command,
+      /cross-env PUPU_VERSION_PREPARED=1 npm run build:web/,
+      `${scriptName} must make the controlled feature snapshot mandatory for the Web build`,
+    );
+
+    const orderedCommands = [
+      "npm run version:prepare-build",
+      unchainCommand,
+      "cross-env PUPU_VERSION_PREPARED=1 npm run build:web",
+      "npm run notices:check",
+      "electron-builder",
+    ];
+    let previousIndex = -1;
+    for (const expectedCommand of orderedCommands) {
+      const commandIndex = command.indexOf(expectedCommand);
+      assert.ok(
+        commandIndex > previousIndex,
+        `${scriptName} must execute ${expectedCommand} after the preceding package stage`,
+      );
+      previousIndex = commandIndex;
+    }
+  }
   for (const scriptName of [
-    "build:electron",
-    "build:electron:mac",
-    "build:electron:mac:unsigned",
-    "build:electron:mac:release",
-    "build:electron:mac:intel",
-    "build:electron:mac:intel:unsigned",
-    "build:electron:mac:intel:release",
     "build:win:chain",
     "build:win:chain:unsigned",
     "build:win:chain:unpacked",
-    "build:electron:linux",
   ]) {
     assert.match(scripts[scriptName], /--publish never/, `${scriptName} must never implicitly publish`);
   }
   assert.match(scripts["build:electron:win:unpacked"], /build:win:chain:unpacked/);
   assert.equal(packageJson.build.mac.artifactName, "${productName}-${version}-macos-${arch}.${ext}");
   assert.equal(packageJson.build.nsis.artifactName, "${productName}-${version}-windows-${arch}-setup.${ext}");
-  assert.equal(packageJson.build.linux.artifactName, "${productName}-${version}-linux-${arch}.${ext}");
+  assert.equal(packageJson.build.linux.artifactName, "${productName}-${version}-linux-x64.${ext}");
   assert.equal(packageJson.build.linux.publish, null, "Linux must not generate updater metadata before #200");
 });
 
@@ -58,9 +91,23 @@ test("release QA keeps its public candidate contract while delegating package ex
   assert.match(workflow, /release_tag: \$\{\{ github\.ref_name \}\}/);
   assert.match(sharedPackage, /environment: \$\{\{ inputs\.qa_mode == 'release-candidate' && 'release-signing' \|\| 'release-qa' \}\}/);
   assert.match(sharedPackage, /Validate closed shared package inputs/);
+  for (const [label, source] of [
+    ["deterministic", sharedDeterministic],
+    ["package", sharedPackage],
+    ["Playwright", sharedPlaywright],
+    ["report", sharedReport],
+  ]) {
+    assert.match(source, /release-candidate-ref\.mjs/, `${label} workflow must use the closed RC identity parser`);
+    assert.match(source, /effectiveVersion/, `${label} workflow must propagate the full effective RC version`);
+  }
   assert.match(sharedPackage, /build:electron:mac:release/);
   assert.match(sharedPackage, /build:electron:mac:intel:release/);
+  assert.match(sharedPackage, /--config\.mac\.bundleShortVersion="\$QA_BASE_VERSION"/);
+  assert.match(sharedPackage, /--config\.mac\.bundleVersion="\$QA_BASE_VERSION"/);
+  assert.match(sharedPackage, /CFBundleShortVersionString/);
+  assert.match(sharedPackage, /CFBundleVersion/);
   assert.match(sharedPackage, /build:electron:win:unpacked/);
+  assert.match(sharedPackage, /working-directory: pupu\n        shell: bash/, "Windows package commands use Bash syntax");
   assert.match(sharedPackage, /release-signing\.mjs/);
   assert.match(sharedPackage, /uses: \.\/pupu\/\.github\/actions\/windows-artifact-signing/);
   assert.match(sharedPackage, /name: pupu-package-\$\{\{ inputs\.platform_name \}\}/);
@@ -126,12 +173,13 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /--name pupu-release-candidate/);
   assert.match(workflow, /--name pupu-release-qualification/);
-  assert.match(workflow, /QUALIFICATION_RUN_ID: \$\{\{ inputs\.qualification_run_id \|\| inputs\.candidate_run_id \}\}/);
+  assert.match(workflow, /QUALIFICATION_RUN_ID: \$\{\{ inputs\.qualification_run_id \}\}/);
   assert.match(workflow, /gh api "repos\/\$GITHUB_REPOSITORY\/actions\/runs\/\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /gh api "repos\/\$GITHUB_REPOSITORY\/actions\/runs\/\$QUALIFICATION_RUN_ID"/);
   assert.match(workflow, /verify-actions-run-provenance\.mjs/);
   assert.match(workflow, /--workflow-path \.github\/workflows\/release-qa\.yml/);
   assert.match(workflow, /--workflow-path "\$QUALIFICATION_WORKFLOW_PATH"/);
+  assert.match(workflow, /qualification-provenance\.mjs/);
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--require-qualification true/);
   assert.match(workflow, /--require-restart-qualification true/);
@@ -139,9 +187,13 @@ test("stage workflow only promotes verified retained candidate bytes into a Draf
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
-  assert.match(workflow, /Run ID holding the installed qualification receipt/);
+  assert.match(workflow, /Distinct run ID holding an eligible update or v0\.1\.10 bootstrap qualification receipt/);
   assert.doesNotMatch(workflow, /#218/);
   assert.match(workflow, /gh release create/);
+  assert.match(workflow, /--policy promotion/);
+  for (const mutation of ["gh release create", "gh release edit", "gh release upload"]) {
+    assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf(mutation));
+  }
   assert.match(workflow, /--draft/);
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /gh release download/);
@@ -158,14 +210,19 @@ test("publish workflow has a protected manual transition and cannot rebuild or u
   assert.match(workflow, /confirmation/);
   assert.match(workflow, /CONFIRMATION.*PUBLISH/s);
   assert.match(workflow, /gh release download/);
+  assert.match(workflow, /--policy promotion/);
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release edit"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /actions\/runs\/\$CANDIDATE_RUN_ID/);
   assert.match(workflow, /actions\/runs\/\$QUALIFICATION_RUN_ID/);
   assert.match(workflow, /publish-draft:[\s\S]*?permissions:\s+contents: write\s+actions: read/);
-  assert.match(workflow, /--workflow-path \.github\/workflows\/release-qualification\.yml/);
+  assert.match(workflow, /qualification-provenance\.mjs/);
+  assert.match(workflow, /--workflow-path "\$QUALIFICATION_WORKFLOW_PATH"/);
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
   assert.match(workflow, /render-readme:/);
   assert.match(workflow, /needs: publish-draft/);
@@ -185,8 +242,11 @@ test("README workflow is explicitly called after publication and never regex-rew
   assert.match(workflow, /required: true/);
   assert.doesNotMatch(workflow, /\n  release:|github\.event\.release|workflow_run/);
   assert.match(workflow, /gh release download/);
+  assert.match(workflow, /--policy promotion/);
+  assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /update-readme-links\.cjs --manifest/);
   assert.match(workflow, /inputs\.release_tag/);
   assert.ok(workflow.indexOf("verify-release-candidate.mjs") < workflow.indexOf("update-readme-links.cjs"));

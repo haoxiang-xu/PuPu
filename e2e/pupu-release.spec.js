@@ -32,7 +32,11 @@ test("AI can observe and control the PuPu Electron app through UI and Test API",
     const startGate = appWindow.getByRole("button", {
       name: "Click anywhere to start",
     });
-    await expect(startGate).toBeVisible();
+    // Cold packaged starts include the Python sidecar and can legitimately
+    // exceed Playwright's default assertion timeout on macOS and Windows.
+    // The boot overlay is the product readiness boundary, so wait for it
+    // rather than interacting with the setup UI behind it.
+    await expect(startGate).toBeVisible({ timeout: 60_000 });
     await startGate.click();
     await expect(startGate).toBeHidden();
 

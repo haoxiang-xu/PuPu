@@ -40,6 +40,7 @@ const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const NONZERO_EVIDENCE_CHECKS = new Set([
   "Playwright Electron release smoke",
+  "Session guard startup smoke",
   "Unchain artifact continuity",
   "Unchain runtime protocol manifest",
   "Context V2 boundary contracts",

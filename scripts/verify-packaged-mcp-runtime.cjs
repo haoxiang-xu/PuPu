@@ -7,6 +7,7 @@ const { Arch } = require("electron-builder");
 const {
   DEFAULT_PINS_PATH,
   makeTreeDirectoriesWritable,
+  makeTreeOwnerWritable,
   prepareMcpRuntime,
   verifyMcpRuntime,
 } = require("./prepare-mcp-runtime.cjs");
@@ -241,8 +242,15 @@ async function verifyPackagedMcpRuntime(
         `target ${target}\n`,
     );
   }
-  // FPM recreates source directory modes before writing its staged package copy.
-  await makeTreeDirectoriesWritable(runtimeDir);
+  if (target.startsWith("darwin-")) {
+    // electron-osx-sign may classify non-ASCII runtime data as binary. codesign
+    // needs owner write access for every classified file, while the verified
+    // source runtime remains sealed outside the packaged app.
+    await makeTreeOwnerWritable(runtimeDir);
+  } else {
+    // FPM recreates source directory modes before writing its staged copy.
+    await makeTreeDirectoriesWritable(runtimeDir);
+  }
   process.stdout.write(
     `Packaged MCP runtime staged and verified: ${target} (${Object.entries(
       manifest.runtimes,

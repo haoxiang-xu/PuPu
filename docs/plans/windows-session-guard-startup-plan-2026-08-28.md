@@ -1,0 +1,213 @@
+# Plan · Windows session guard startup recovery
+
+## BC-010 — Electron userData → Python session-guard protocol marker
+
+Producer: Electron passes `UNCHAIN_DATA_DIR` to the Python sidecar. Consumer:
+the Python session guard creates and strictly validates its closed v1 protocol
+marker. The durable marker shape and migration receipt are unchanged. Windows
+must establish its own process identity with a handle-sized Win32 API result
+before it can write the marker. Windows never uses `os.kill(pid, 0)`: signal
+zero is `CTRL_C_EVENT` there, so CPython uses `GenerateConsoleCtrlEvent` rather
+than the POSIX no-op liveness semantics. The current sidecar process uses the
+non-closeable `GetCurrentProcess` pseudo-handle. Foreign-PID checks use
+`OpenProcess` with query and synchronize rights, `WaitForSingleObject`, and
+creation time; an exited or nonexistent PID is `dead`, while access or API
+uncertainty remains fail-closed as `unknown`.
+
+Admission is **CLOSED**. The protocol marker must have exactly `schema`,
+`protocol_version`, and `compatibility`; the launcher receipt must have exactly
+`schema`, `version`, `status`, and `protocol_version`. Unknown fields, an
+incompatible version, unreadable durable state, unavailable Win32 identity, or
+an unavailable lock all fail closed; the public receipt remains content-free and
+uses only `ready`, `migration_required`, or `unavailable`.
+
+The evidence binds the exact PuPu candidate to the one deterministic Unchain
+wheel SHA-256 and imported runtime-manifest digest recorded in the same Release
+QA report. The Windows smoke runs under the same Python interpreter installed
+from that wheel and is itself a required reported check; source revision is
+provenance only.
+
+## SEQ-010 — fresh start and restart
+
+With a fresh `UNCHAIN_DATA_DIR`, the actual `main.py` sidecar starts, exposes
+an authenticated `/health` receipt, and creates the exact protocol marker. A
+second registry in the same data directory validates the existing marker
+without migration. A Windows release runner executes this sequence with the
+same Python environment used by Electron Playwright and starts the smoke
+sidecar with `CREATE_NO_WINDOW`, matching the Electron-managed launch boundary.
+
+The required matrix is: fresh start; existing marker/repeat start; unavailable
+identity or lock (fail closed); a cold sidecar restart with durable resume/replay
+covered by the Windows Electron Playwright suite. The startup-only smoke is not
+evidence for a successful retry, resume, or external effect by itself.
+
+## Acceptance criteria
+
+- **AC-021:** Windows process identity binds `OpenProcess` and `CloseHandle`
+  as `HANDLE` APIs and successfully derives a stable identity token.
+- **AC-022:** A fresh Windows user-data directory produces the exact v1 marker;
+  restarting validates that marker and does not require migration.
+- **AC-023:** Invalid or unavailable Win32 identity/lock operations remain
+  fail-closed and do not loosen the receipt contract.
+- **AC-024:** Windows Playwright proves a cold app restart can restore pending
+  durable state after the startup smoke has passed, using the exact candidate,
+  wheel SHA-256, and imported runtime-manifest digest reported by Release QA.
+- **AC-025:** The startup smoke invokes the same `main.py` entrypoint and
+  authenticated health boundary as the sidecar; a direct registry import alone
+  is not accepted as release evidence.
+
+## BC-011 — transient health receipt → Electron startup admission
+
+Producer: the Python sidecar publishes the existing exact four-field
+`session_guard_migration` receipt through authenticated `/health`. Consumer:
+Electron validates the closed receipt and decides whether the sidecar may enter
+the ready state. The wire shape and status vocabulary remain unchanged.
+
+Admission remains **CLOSED**. `ready` admits startup, `migration_required`
+enters the existing one-shot stop-the-world sequence, and invalid shape/version
+fails immediately. A well-formed `unavailable` observation is fail-closed but
+retryable only inside Electron's bounded 60-second startup window; it never
+admits the runtime and a persistent failure remains terminal after the budget.
+
+## SEQ-011 — transient unavailable receipt recovery
+
+Starting from one live managed sidecar, Electron may observe a well-formed
+`unavailable` receipt while the durable guard marker/lock is temporarily not
+ready. Electron keeps the same process and identity, retries authenticated
+health, and admits only a later exact `ready` receipt. Invalid receipts and
+`migration_required` do not use this retry branch. If every receipt remains
+`unavailable` until the startup deadline, Electron stops the sidecar and keeps
+any durable migration intent for a later safe retry.
+
+- **AC-026:** `unavailable → ready` performs at least two health reads, spawns
+  exactly one sidecar, and reaches `ready` without creating migration intent.
+- **AC-027:** a permanently `unavailable` flagged start exhausts the bounded
+  budget, remains fail-closed, and retains the exact durable intent.
+- **AC-028:** malformed, unknown-field, wrong-version, and
+  `migration_required` receipts retain their existing immediate closed
+  handling; transient retry cannot loosen their admission policy.
+- **AC-029:** the cross-platform startup smoke uses a 60-second cold-start
+  budget matching Electron and reports only content-free last receipt status
+  on timeout.
+
+## BC-012 — session-guard failure → allowlisted QA diagnostic
+
+Producer: the Python session guard classifies an unavailable startup failure.
+Relay: Electron accepts only an exact diagnostic line emitted by the managed
+sidecar. Consumer: Windows Playwright retains that line in its Electron process
+log. This boundary is observability-only: it does not change the exact
+four-field migration receipt, status vocabulary, retry budget, or admission.
+
+Diagnostics are disabled by default and enabled only when
+`PUPU_SESSION_GUARD_DIAGNOSTICS=1`. Admission is **CLOSED**. The only canonical
+line is `[session-guard] migration unavailable code=<allowlisted-code>`, where
+the code is one of: `session_guard_import_unavailable`,
+`session_guard_process_identity_unavailable`,
+`session_guard_data_dir_unavailable`,
+`session_guard_legacy_probe_unavailable`,
+`session_guard_protocol_lock_open_unavailable`,
+`session_guard_protocol_lock_operation_unavailable`,
+`session_guard_protocol_lock_busy`,
+`session_guard_protocol_commit_unavailable`,
+`session_guard_protocol_corrupt`, `session_guard_protocol_incompatible`, or
+`session_guard_unknown_unavailable`. No exception text, path, environment
+value, errno, or credential may cross this relay.
+
+## SEQ-012 — unavailable startup diagnostic retention
+
+Windows QA starts the actual Electron-managed sidecar with a fresh user-data
+directory and diagnostic mode enabled. A guard failure keeps the public health
+receipt fail-closed while emitting at most one allowlisted diagnostic per code
+per process. Electron mirrors only the canonical line into retained process
+evidence. Retry or restart never converts a diagnostic into admission; outside
+QA diagnostic mode the same failure emits no diagnostic line.
+
+- **AC-030:** diagnostic mode preserves the exact v1 receipt and all existing
+  fail-closed startup behavior; disabled mode emits no diagnostic.
+- **AC-031:** every retained diagnostic is from the closed code allowlist and
+  contains no raw exception, path, errno, environment value, or secret;
+  arbitrary sidecar output is never mirrored.
+
+## BC-013 — internal QA outcomes → evidence and reusable-job result
+
+Producer: the shared Playwright workflow records artifact continuity,
+session-guard smoke, Electron Playwright, and nonzero-execution outcomes.
+Consumers: the job report/evidence artifacts, reusable workflow conclusion, and
+caller. Admission is **CLOSED**. `continue-on-error` is used only to finish
+evidence collection; report and evidence upload run before a final enforcement
+step, and every required outcome must be `success` for the reusable job to pass.
+
+## SEQ-013 — collect evidence, then fail closed
+
+Required checks run, the workflow writes and uploads all available evidence,
+including `test-results/session-guard-smoke.json`, and only then enforces the
+recorded outcomes. Missing, skipped, cancelled, timed-out, or failed checks are
+non-success and cannot be converted into a green job by evidence collection.
+
+- **AC-032:** failure of startup smoke, Playwright, or execution verification
+  still attempts report/evidence upload and then fails the reusable job.
+- **AC-033:** a successful startup smoke is accepted only when its JSON evidence
+  is declared by the report and included in the Playwright evidence artifact.
+- **AC-034:** shared package jobs have a 60-minute budget; timeout or
+  cancellation remains a non-success package result and propagates as NO-GO.
+  No post-timeout evidence upload is promised after forced runner termination.
+
+## BC-014 — targeted Windows dispatch → exact reusable QA chain
+
+Producer: the registered Release QA workflow accepts the closed dispatch scope
+`windows-playwright`. Consumers: Deterministic QA builds one immutable Unchain
+wheel and the shared Playwright workflow consumes it on `windows-latest` in the
+same run. The scope is **CLOSED**: it forces release-mode deterministic and
+Windows Playwright checks, passes the exact caller ref/SHA/ref name, and has no
+package, signing, notarization, publication, or promotion path.
+
+## SEQ-014 — targeted Windows repair verification
+
+A manual dispatch selects `windows-playwright`, runs Deterministic QA once, and
+then runs exactly one Windows shared Playwright job against the same-run wheel.
+Either reusable-job failure fails the workflow. A targeted pass is repair
+evidence only; the exact repaired revision must still pass the full Release QA
+matrix before rollout.
+
+- **AC-035:** targeted scope runs Deterministic QA followed by exactly one
+  `windows-latest` Playwright job with matching source identity and artifact.
+- **AC-036:** targeted scope fails closed and cannot reach package, signing,
+  Release creation, publication, or promotion.
+- **AC-037:** a targeted Windows pass does not satisfy full-matrix acceptance.
+- **AC-038:** Windows process identity dispatch never calls `os.kill(pid, 0)`;
+  a no-console `main.py` sidecar reaches the exact ready receipt and marker.
+- **AC-039:** a signaled or nonexistent foreign Windows PID is `dead` and can
+  be reclaimed; access denial, unexpected wait results, and Win32 API failure
+  remain `unknown` and fail closed. The hosted smoke exercises one real
+  no-console foreign process through `alive → exited → dead`.
+
+## Local evidence · 2026-08-28
+
+- AC-026/027/028: Electron handshake tests passed (93/93), including red-before-
+  green evidence for `unavailable → ready` and bounded permanent-unavailable
+  failure.
+- AC-029 and the Python producer boundary: health/guard tests passed (19/19).
+- Exact UI consumer path: the two release Playwright targets passed locally
+  (2/2).
+- Release reporting/workflow contracts passed (155/155).
+- Remote Release QA run `33182446197` tested PuPu
+  `ac49592637b23e7bf94a31ad904ae96565b370b2`. Deterministic QA, all package
+  targets, Ubuntu Playwright, and macOS Playwright passed. Windows Playwright
+  remained **NO-GO**: two required Electron tests timed out while the app
+  reported the exact fail-closed `unavailable` migration receipt. Diagnostic,
+  targeted-Windows, and repaired full-matrix evidence remain `PENDING`.
+- Local diagnostic/fail-closed implementation verification passed: Unchain
+  backend `2159 passed / 3 skipped`, the exact current Electron service suite
+  `86/86`, and Release QA contracts `156/156`. YAML parsing, JavaScript syntax,
+  and `git diff --check` passed. Hosted Windows diagnosis remains `PENDING` and
+  must use the exact pushed revision through `qa_scope=windows-playwright`;
+  this local evidence does not claim that the runner-specific root cause is
+  fixed.
+- Targeted Windows run `33206921939` tested PuPu
+  `fd22a139b5ba254cadb005a4bd585cec3373e369`. Its standalone startup smoke
+  passed, but all four actual Electron launches retained the sole diagnostic
+  `session_guard_process_identity_unavailable`. The renderer, preload boundary,
+  and test API were healthy; the managed no-console Python sidecar never
+  reached a ready receipt. This is red evidence for AC-038 and proves the old
+  shell-owned-console smoke was not representative. Hosted green evidence for
+  the direct Win32 dispatch remains `PENDING`.

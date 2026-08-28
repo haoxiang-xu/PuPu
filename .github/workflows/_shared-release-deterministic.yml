@@ -150,14 +150,23 @@ jobs:
         shell: bash
         run: |
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION=""
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            TAG_VERSION="${GITHUB_REF_NAME#v}"
+          BUILD_VERSION="$PACKAGE_VERSION"
+          EXPECTED_VERSION=""
+          RELEASE_LANE="branch"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+              --tag "$GITHUB_REF_NAME" \
+              --package-version "$PACKAGE_VERSION" \
+              --policy candidate)"
+            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+            EXPECTED_VERSION="$BUILD_VERSION"
+            RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"
           fi
-          BUILD_VERSION="${TAG_VERSION:-$PACKAGE_VERSION}"
           {
-            echo "QA_VERSION=$PACKAGE_VERSION"
-            echo "QA_EXPECTED_VERSION=$TAG_VERSION"
+            echo "QA_VERSION=$BUILD_VERSION"
+            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+            echo "QA_BASE_VERSION=$PACKAGE_VERSION"
+            echo "QA_RELEASE_LANE=$RELEASE_LANE"
             echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
           } >> "$GITHUB_ENV"
 
@@ -209,6 +218,7 @@ jobs:
         working-directory: pupu
         env:
           CI: true
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ steps.build_feature_snapshot.outputs.snapshot_path }}
         run: npm run build
 
       - name: Validate MCP registry
