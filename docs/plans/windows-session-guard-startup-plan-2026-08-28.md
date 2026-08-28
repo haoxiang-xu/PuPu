@@ -50,3 +50,49 @@ evidence for a successful retry, resume, or external effect by itself.
 - **AC-025:** The startup smoke invokes the same `main.py` entrypoint and
   authenticated health boundary as the sidecar; a direct registry import alone
   is not accepted as release evidence.
+
+## BC-011 — transient health receipt → Electron startup admission
+
+Producer: the Python sidecar publishes the existing exact four-field
+`session_guard_migration` receipt through authenticated `/health`. Consumer:
+Electron validates the closed receipt and decides whether the sidecar may enter
+the ready state. The wire shape and status vocabulary remain unchanged.
+
+Admission remains **CLOSED**. `ready` admits startup, `migration_required`
+enters the existing one-shot stop-the-world sequence, and invalid shape/version
+fails immediately. A well-formed `unavailable` observation is fail-closed but
+retryable only inside Electron's bounded 60-second startup window; it never
+admits the runtime and a persistent failure remains terminal after the budget.
+
+## SEQ-011 — transient unavailable receipt recovery
+
+Starting from one live managed sidecar, Electron may observe a well-formed
+`unavailable` receipt while the durable guard marker/lock is temporarily not
+ready. Electron keeps the same process and identity, retries authenticated
+health, and admits only a later exact `ready` receipt. Invalid receipts and
+`migration_required` do not use this retry branch. If every receipt remains
+`unavailable` until the startup deadline, Electron stops the sidecar and keeps
+any durable migration intent for a later safe retry.
+
+- **AC-026:** `unavailable → ready` performs at least two health reads, spawns
+  exactly one sidecar, and reaches `ready` without creating migration intent.
+- **AC-027:** a permanently `unavailable` flagged start exhausts the bounded
+  budget, remains fail-closed, and retains the exact durable intent.
+- **AC-028:** malformed, unknown-field, wrong-version, and
+  `migration_required` receipts retain their existing immediate closed
+  handling; transient retry cannot loosen their admission policy.
+- **AC-029:** the cross-platform startup smoke uses a 60-second cold-start
+  budget matching Electron and reports only content-free last receipt status
+  on timeout.
+
+## Local evidence · 2026-08-28
+
+- AC-026/027/028: Electron handshake tests passed (93/93), including red-before-
+  green evidence for `unavailable → ready` and bounded permanent-unavailable
+  failure.
+- AC-029 and the Python producer boundary: health/guard tests passed (19/19).
+- Exact UI consumer path: the two release Playwright targets passed locally
+  (2/2).
+- Release reporting/workflow contracts passed (155/155). Remote Windows and
+  macOS runner evidence remains `PENDING` until the patched commit is pushed
+  and a new Release QA run completes.

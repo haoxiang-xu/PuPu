@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 
-_STARTUP_TIMEOUT_SECONDS = 20
+_STARTUP_TIMEOUT_SECONDS = 60
 _EXPECTED_RECEIPT = {
     "schema": "pupu.session-guard-migration",
     "version": 1,
@@ -41,6 +41,7 @@ def _wait_for_ready_health(
     auth_token: str,
 ) -> None:
     deadline = time.monotonic() + _STARTUP_TIMEOUT_SECONDS
+    last_receipt_status = "unreachable"
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/health",
         headers={"x-unchain-auth": auth_token},
@@ -51,16 +52,27 @@ def _wait_for_ready_health(
         try:
             with urllib.request.urlopen(request, timeout=1) as response:
                 if response.status != 200:
-                    raise RuntimeError("sidecar health did not return success")
+                    last_receipt_status = f"http_{response.status}"
+                    time.sleep(0.1)
+                    continue
                 payload = json.loads(response.read().decode("utf-8"))
             if payload.get("status") != "ok":
-                raise RuntimeError("sidecar health payload was not ready")
-            if payload.get("session_guard_migration") != _EXPECTED_RECEIPT:
-                raise RuntimeError("sidecar session guard receipt was not ready")
-            return
+                last_receipt_status = "health_not_ready"
+            else:
+                receipt = payload.get("session_guard_migration")
+                if isinstance(receipt, dict):
+                    last_receipt_status = str(receipt.get("status") or "invalid")
+                else:
+                    last_receipt_status = "invalid"
+                if receipt == _EXPECTED_RECEIPT:
+                    return
         except (OSError, ValueError, urllib.error.URLError):
-            time.sleep(0.1)
-    raise RuntimeError("sidecar authenticated health did not become ready")
+            last_receipt_status = "unreachable"
+        time.sleep(0.1)
+    raise RuntimeError(
+        "sidecar authenticated health did not become ready "
+        f"(last_receipt_status={last_receipt_status})"
+    )
 
 
 def _stop(process: subprocess.Popen[bytes]) -> None:

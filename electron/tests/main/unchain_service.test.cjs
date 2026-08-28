@@ -4356,33 +4356,75 @@ describe("unchain service session guard migration handshake", () => {
     expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
   });
 
-  test("a failed flagged start retains its exact intent for a later safe retry", async () => {
+  test("transient unavailable receipt is retried within the startup budget", async () => {
     const unavailableReceipt = {
       schema: "pupu.session-guard-migration",
       version: 1,
       status: "unavailable",
       protocol_version: 1,
     };
+    const readyReceipt = { ...unavailableReceipt, status: "ready" };
     const harness = createPackagedMigrationHarness({
-      healthReceipts: [unavailableReceipt],
-      initialIntent: true,
+      healthReceipts: [unavailableReceipt, readyReceipt],
     });
 
     await harness.service.startMiso();
-    await new Promise((resolve) => setImmediate(resolve));
 
+    expect(global.fetch).toHaveBeenCalledTimes(2);
     expect(harness.spawn).toHaveBeenCalledTimes(1);
-    expect(harness.spawn.mock.calls[0][2].env).toMatchObject({
-      UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
-    });
-    expect(fs.readFileSync(migrationIntentPath(harness.userData), "utf8")).toBe(
-      exactIntentText,
-    );
     expect(harness.service.getMisoStatusPayload()).toMatchObject({
-      status: "error",
-      ready: false,
-      reason: "Miso session guard migration is unavailable",
+      status: "ready",
+      ready: true,
     });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+
+    harness.service.stopMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("a failed flagged start retains its exact intent for a later safe retry", async () => {
+    jest.useFakeTimers();
+    let now = 0;
+    const nowSpy = jest.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const unavailableReceipt = {
+        schema: "pupu.session-guard-migration",
+        version: 1,
+        status: "unavailable",
+        protocol_version: 1,
+      };
+      const harness = createPackagedMigrationHarness({
+        healthReceipts: [unavailableReceipt],
+        initialIntent: true,
+      });
+
+      const startup = harness.service.startMiso();
+      for (let elapsed = 0; elapsed <= 61000; elapsed += 250) {
+        // Let the mocked health promise settle and schedule the next retry
+        // before advancing the legacy Jest timer implementation.
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+        now += 250;
+        jest.advanceTimersByTime(250);
+      }
+      await startup;
+
+      expect(harness.spawn).toHaveBeenCalledTimes(1);
+      expect(harness.spawn.mock.calls[0][2].env).toMatchObject({
+        UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
+      });
+      expect(
+        fs.readFileSync(migrationIntentPath(harness.userData), "utf8"),
+      ).toBe(exactIntentText);
+      expect(harness.service.getMisoStatusPayload()).toMatchObject({
+        status: "error",
+        ready: false,
+        reason: "Miso session guard migration is unavailable",
+      });
+    } finally {
+      nowSpy.mockRestore();
+      jest.useRealTimers();
+    }
   });
 });
 

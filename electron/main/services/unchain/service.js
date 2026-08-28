@@ -1595,6 +1595,7 @@ const createUnchainService = ({
 
   const waitForMisoReady = async () => {
     const startedAt = Date.now();
+    let lastTransientMigrationError = null;
 
     while (Date.now() - startedAt < UNCHAIN_BOOT_TIMEOUT_MS) {
       if (!unchainProcess || unchainProcess.killed) {
@@ -1607,14 +1608,22 @@ const createUnchainService = ({
           return { ready: true, error: null };
         }
       } catch (error) {
-        return { ready: false, error };
+        if (error?.code === "miso_session_guard_migration_unavailable") {
+          // A closed, well-formed `unavailable` receipt can be a transient
+          // lock/marker observation during cold startup. It never admits the
+          // runtime, but unlike an invalid receipt or migration_required it
+          // may be retried inside the existing bounded boot window.
+          lastTransientMigrationError = error;
+        } else {
+          return { ready: false, error };
+        }
       }
 
       // eslint-disable-next-line no-await-in-loop
       await sleep(UNCHAIN_HEALTH_RETRY_MS);
     }
 
-    return { ready: false, error: null };
+    return { ready: false, error: lastTransientMigrationError };
   };
 
   const getMisoStatusPayload = () => ({

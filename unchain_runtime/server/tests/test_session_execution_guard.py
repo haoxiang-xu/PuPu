@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import multiprocessing
 import os
@@ -371,6 +372,63 @@ class SessionExecutionGuardTests(unittest.TestCase):
                 "startup_entrypoint": "main.py",
             },
         )
+
+    def test_session_guard_smoke_uses_product_budget_and_safe_timeout_status(self) -> None:
+        repo_root = SERVER_ROOT.parents[1]
+        smoke_path = (
+            repo_root / "scripts" / "release-qa" / "windows-session-guard-smoke.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "pupu_session_guard_smoke_contract",
+            smoke_path,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        smoke = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(smoke)
+
+        class FakeProcess:
+            @staticmethod
+            def poll():
+                return None
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read():
+                return json.dumps(
+                    {
+                        "status": "ok",
+                        "session_guard_migration": {
+                            **smoke._EXPECTED_RECEIPT,
+                            "status": "unavailable",
+                        },
+                    }
+                ).encode("utf-8")
+
+        self.assertEqual(smoke._STARTUP_TIMEOUT_SECONDS, 60)
+        with (
+            mock.patch.object(smoke.time, "monotonic", side_effect=[0, 0, 61]),
+            mock.patch.object(smoke.time, "sleep"),
+            mock.patch.object(smoke.urllib.request, "urlopen", return_value=FakeResponse()),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"^sidecar authenticated health did not become ready "
+                r"\(last_receipt_status=unavailable\)$",
+            ):
+                smoke._wait_for_ready_health(
+                    FakeProcess(),
+                    port=5879,
+                    auth_token="content-free-test-token",
+                )
 
     def test_parked_receipt_resume_and_cancel_require_exact_lineage(self) -> None:
         self.registry.acquire(
