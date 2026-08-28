@@ -560,6 +560,108 @@ describe("unchain service session memory replacement", () => {
     });
   });
 
+  test("relays only exact allowlisted session guard diagnostics to QA process evidence", async () => {
+    const originalDiagnostics = process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+    const stderrWrite = jest
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    let service = null;
+    try {
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "1";
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse());
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const harness = createStartupServiceHarness();
+      service = harness.service;
+
+      await service.startMiso();
+
+      expect(
+        harness.spawn.mock.calls[0][2].env.PUPU_SESSION_GUARD_DIAGNOSTICS,
+      ).toBe("1");
+      const exact =
+        "[session-guard] migration unavailable " +
+        "code=session_guard_process_identity_unavailable";
+      const second =
+        "[session-guard] migration unavailable " +
+        "code=session_guard_protocol_lock_open_unavailable";
+      harness.fakeProcess.stderr.emit(
+        "data",
+        [
+          exact,
+          exact,
+          "[session-guard] migration unavailable code=unknown_code",
+          `${second} C:\\private\\path errno=5`,
+          ` ${second}`,
+          "Traceback: token=private",
+          second,
+        ].join("\n") + "\n",
+      );
+
+      expect(stderrWrite.mock.calls.map(([line]) => line)).toEqual([
+        `${exact}\n`,
+        `${second}\n`,
+      ]);
+    } finally {
+      service?.stopMiso();
+      stderrWrite.mockRestore();
+      if (originalDiagnostics == null) {
+        delete process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+      } else {
+        process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = originalDiagnostics;
+      }
+    }
+  });
+
+  test("session guard diagnostic relay is disabled by default and cannot break startup", async () => {
+    const originalDiagnostics = process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+    const stderrWrite = jest
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => {
+        throw new Error("stderr unavailable");
+      });
+    let service = null;
+    try {
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "0";
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse());
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const disabledHarness = createStartupServiceHarness();
+      service = disabledHarness.service;
+      await service.startMiso();
+      disabledHarness.fakeProcess.stderr.emit(
+        "data",
+        "[session-guard] migration unavailable " +
+          "code=session_guard_import_unavailable\n",
+      );
+      expect(stderrWrite).not.toHaveBeenCalled();
+      service.stopMiso();
+
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "1";
+      const enabledHarness = createStartupServiceHarness();
+      service = enabledHarness.service;
+      await service.startMiso();
+      expect(() => {
+        enabledHarness.fakeProcess.stderr.emit(
+          "data",
+          "[session-guard] migration unavailable " +
+            "code=session_guard_unknown_unavailable\n",
+        );
+      }).not.toThrow();
+      expect(service.getMisoStatusPayload().ready).toBe(true);
+    } finally {
+      service?.stopMiso();
+      stderrWrite.mockRestore();
+      if (originalDiagnostics == null) {
+        delete process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+      } else {
+        process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = originalDiagnostics;
+      }
+    }
+  });
+
   test("startup only injects the bundled MCP runtime for packaged sidecars", async () => {
     const originalResourcesPath = process.resourcesPath;
     const originalMcpRuntimeDir = process.env.PUPU_MCP_RUNTIME_DIR;

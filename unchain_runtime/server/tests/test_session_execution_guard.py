@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from contextlib import redirect_stderr
 import importlib.util
+import io
 import json
 import multiprocessing
 import os
@@ -587,6 +589,295 @@ class SessionExecutionGuardTests(unittest.TestCase):
                 "compatibility": "exact",
             },
         )
+
+
+class SessionGuardMigrationDiagnosticTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_directory.cleanup)
+        guard._SESSION_GUARD_DIAGNOSTICS_EMITTED.clear()
+        self.addCleanup(guard._SESSION_GUARD_DIAGNOSTICS_EMITTED.clear)
+
+    def test_diagnostic_code_mapping_is_closed(self) -> None:
+        cases = (
+            (
+                "session_guard_process_identity_unavailable",
+                "private process detail",
+                "session_guard_process_identity_unavailable",
+            ),
+            (
+                "session_execution_in_progress",
+                "private lock detail",
+                "session_guard_protocol_lock_busy",
+            ),
+            (
+                "session_guard_protocol_corrupt",
+                "private marker detail",
+                "session_guard_protocol_corrupt",
+            ),
+            (
+                "session_guard_protocol_incompatible",
+                "private marker detail",
+                "session_guard_protocol_incompatible",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "UNCHAIN_DATA_DIR is not configured",
+                "session_guard_data_dir_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "session guard directory is unavailable",
+                "session_guard_data_dir_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "existing execution state cannot be inspected",
+                "session_guard_legacy_probe_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "session guard lock could not be opened",
+                "session_guard_protocol_lock_open_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "session guard lock operation failed",
+                "session_guard_protocol_lock_operation_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                "session guard record could not be committed",
+                "session_guard_protocol_commit_unavailable",
+            ),
+            (
+                "session_execution_guard_unavailable",
+                r"C:\\Users\\private errno=5 token=secret",
+                "session_guard_unknown_unavailable",
+            ),
+        )
+        for error_code, message, expected in cases:
+            with self.subTest(error_code=error_code, message=message):
+                error = guard.SessionExecutionGuardError(error_code, message)
+                self.assertEqual(
+                    guard._session_guard_migration_diagnostic_code(error),
+                    expected,
+                )
+
+        stop_world = guard.SessionExecutionGuardError(
+            "session_guard_stop_the_world_required",
+            "private migration detail",
+        )
+        self.assertIsNone(
+            guard._session_guard_migration_diagnostic_code(stop_world)
+        )
+
+    def test_real_unavailable_producers_map_to_closed_diagnostic_codes(
+        self,
+    ) -> None:
+        def registry(data_dir=None):
+            return guard.SessionExecutionGuardRegistry(
+                data_dir,
+                process_owner_id="diagnostic-owner",
+                process_pid=os.getpid(),
+                process_incarnation="diagnostic-incarnation",
+            )
+
+        with mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": ""},
+            clear=False,
+        ):
+            with self.assertRaises(guard.SessionExecutionGuardError) as missing:
+                registry().initialize_protocol()
+        self.assertEqual(
+            guard._session_guard_migration_diagnostic_code(missing.exception),
+            "session_guard_data_dir_unavailable",
+        )
+
+        lock_open_dir = Path(self.temp_directory.name) / "lock-open"
+        with mock.patch.object(guard.os, "open", side_effect=OSError("private")):
+            with self.assertRaises(guard.SessionExecutionGuardError) as lock_open:
+                registry(lock_open_dir).initialize_protocol()
+        self.assertEqual(
+            guard._session_guard_migration_diagnostic_code(lock_open.exception),
+            "session_guard_protocol_lock_open_unavailable",
+        )
+
+        lock_operation_path = Path(self.temp_directory.name) / "lock-operation"
+        descriptor = os.open(
+            lock_operation_path,
+            os.O_RDWR | os.O_CREAT,
+            0o600,
+        )
+
+        class FailingUnlockMsvcrt:
+            LK_NBLCK = 1
+            LK_UNLCK = 2
+
+            @staticmethod
+            def locking(_descriptor: int, mode: int, _length: int) -> None:
+                if mode == FailingUnlockMsvcrt.LK_UNLCK:
+                    raise OSError("private")
+
+        with (
+            mock.patch.object(guard.os, "name", "nt"),
+            mock.patch.object(guard, "_WINDOWS_BINARY_FLAG", 0x8000),
+            mock.patch.object(guard.os, "open", return_value=descriptor),
+            mock.patch.dict(sys.modules, {"msvcrt": FailingUnlockMsvcrt}),
+        ):
+            with self.assertRaises(guard.SessionExecutionGuardError) as lock_op:
+                with guard._exclusive_file_lock(lock_operation_path):
+                    pass
+        self.assertEqual(
+            guard._session_guard_migration_diagnostic_code(lock_op.exception),
+            "session_guard_protocol_lock_operation_unavailable",
+        )
+
+        legacy_dir = Path(self.temp_directory.name) / "legacy-probe"
+        (legacy_dir / "executions").mkdir(parents=True)
+        with mock.patch.object(Path, "rglob", side_effect=OSError("private")):
+            with self.assertRaises(guard.SessionExecutionGuardError) as legacy_probe:
+                registry(legacy_dir).initialize_protocol()
+        self.assertEqual(
+            guard._session_guard_migration_diagnostic_code(legacy_probe.exception),
+            "session_guard_legacy_probe_unavailable",
+        )
+
+        commit_dir = Path(self.temp_directory.name) / "commit"
+        with mock.patch.object(guard.os, "replace", side_effect=OSError("private")):
+            with self.assertRaises(guard.SessionExecutionGuardError) as commit:
+                registry(commit_dir).initialize_protocol()
+        self.assertEqual(
+            guard._session_guard_migration_diagnostic_code(commit.exception),
+            "session_guard_protocol_commit_unavailable",
+        )
+
+    def test_unavailable_receipt_emits_one_content_free_line_only_when_enabled(
+        self,
+    ) -> None:
+        class FailingRegistry:
+            @staticmethod
+            def initialize_protocol() -> None:
+                raise guard.SessionExecutionGuardError(
+                    "session_execution_guard_unavailable",
+                    r"C:\\Users\\private errno=5 token=secret",
+                )
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(guard, "_DEFAULT_REGISTRY", FailingRegistry()),
+            mock.patch.dict(
+                os.environ,
+                {"PUPU_SESSION_GUARD_DIAGNOSTICS": "1"},
+                clear=False,
+            ),
+            redirect_stderr(output),
+        ):
+            first = guard.session_guard_migration_receipt()
+            second = guard.session_guard_migration_receipt()
+
+        expected_receipt = {
+            "schema": "pupu.session-guard-migration",
+            "version": 1,
+            "status": "unavailable",
+            "protocol_version": 1,
+        }
+        self.assertEqual(first, expected_receipt)
+        self.assertEqual(second, expected_receipt)
+        self.assertEqual(
+            output.getvalue(),
+            "[session-guard] migration unavailable "
+            "code=session_guard_unknown_unavailable\n",
+        )
+        self.assertNotIn("Users", output.getvalue())
+        self.assertNotIn("token", output.getvalue())
+        self.assertNotIn("errno", output.getvalue())
+
+    def test_disabled_and_stop_world_paths_emit_no_unavailable_diagnostic(
+        self,
+    ) -> None:
+        class FailingRegistry:
+            error = guard.SessionExecutionGuardError(
+                "session_execution_guard_unavailable",
+                "UNCHAIN_DATA_DIR is not configured",
+            )
+
+            @classmethod
+            def initialize_protocol(cls) -> None:
+                raise cls.error
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(guard, "_DEFAULT_REGISTRY", FailingRegistry()),
+            mock.patch.dict(
+                os.environ,
+                {"PUPU_SESSION_GUARD_DIAGNOSTICS": "0"},
+                clear=False,
+            ),
+            redirect_stderr(output),
+        ):
+            self.assertEqual(
+                guard.session_guard_migration_receipt()["status"],
+                "unavailable",
+            )
+        self.assertEqual(output.getvalue(), "")
+
+        FailingRegistry.error = guard.SessionExecutionGuardError(
+            "session_guard_stop_the_world_required",
+            "existing execution data requires migration",
+        )
+        with (
+            mock.patch.object(guard, "_DEFAULT_REGISTRY", FailingRegistry()),
+            mock.patch.dict(
+                os.environ,
+                {"PUPU_SESSION_GUARD_DIAGNOSTICS": "1"},
+                clear=False,
+            ),
+            redirect_stderr(output),
+        ):
+            self.assertEqual(
+                guard.session_guard_migration_receipt()["status"],
+                "migration_required",
+            )
+        self.assertEqual(output.getvalue(), "")
+
+    def test_diagnostic_write_failure_does_not_change_the_receipt(self) -> None:
+        class FailingRegistry:
+            @staticmethod
+            def initialize_protocol() -> None:
+                raise guard.SessionExecutionGuardError(
+                    "session_execution_guard_unavailable",
+                    "session guard lock operation failed",
+                )
+
+        class FailingStderr:
+            @staticmethod
+            def write(_value: str) -> None:
+                raise OSError("stderr unavailable")
+
+            @staticmethod
+            def flush() -> None:
+                raise OSError("stderr unavailable")
+
+        with (
+            mock.patch.object(guard, "_DEFAULT_REGISTRY", FailingRegistry()),
+            mock.patch.object(guard.sys, "stderr", FailingStderr()),
+            mock.patch.dict(
+                os.environ,
+                {"PUPU_SESSION_GUARD_DIAGNOSTICS": "1"},
+                clear=False,
+            ),
+        ):
+            self.assertEqual(
+                guard.session_guard_migration_receipt(),
+                {
+                    "schema": "pupu.session-guard-migration",
+                    "version": 1,
+                    "status": "unavailable",
+                    "protocol_version": 1,
+                },
+            )
 
 
 if __name__ == "__main__":

@@ -85,6 +85,91 @@ any durable migration intent for a later safe retry.
   budget matching Electron and reports only content-free last receipt status
   on timeout.
 
+## BC-012 — session-guard failure → allowlisted QA diagnostic
+
+Producer: the Python session guard classifies an unavailable startup failure.
+Relay: Electron accepts only an exact diagnostic line emitted by the managed
+sidecar. Consumer: Windows Playwright retains that line in its Electron process
+log. This boundary is observability-only: it does not change the exact
+four-field migration receipt, status vocabulary, retry budget, or admission.
+
+Diagnostics are disabled by default and enabled only when
+`PUPU_SESSION_GUARD_DIAGNOSTICS=1`. Admission is **CLOSED**. The only canonical
+line is `[session-guard] migration unavailable code=<allowlisted-code>`, where
+the code is one of: `session_guard_import_unavailable`,
+`session_guard_process_identity_unavailable`,
+`session_guard_data_dir_unavailable`,
+`session_guard_legacy_probe_unavailable`,
+`session_guard_protocol_lock_open_unavailable`,
+`session_guard_protocol_lock_operation_unavailable`,
+`session_guard_protocol_lock_busy`,
+`session_guard_protocol_commit_unavailable`,
+`session_guard_protocol_corrupt`, `session_guard_protocol_incompatible`, or
+`session_guard_unknown_unavailable`. No exception text, path, environment
+value, errno, or credential may cross this relay.
+
+## SEQ-012 — unavailable startup diagnostic retention
+
+Windows QA starts the actual Electron-managed sidecar with a fresh user-data
+directory and diagnostic mode enabled. A guard failure keeps the public health
+receipt fail-closed while emitting at most one allowlisted diagnostic per code
+per process. Electron mirrors only the canonical line into retained process
+evidence. Retry or restart never converts a diagnostic into admission; outside
+QA diagnostic mode the same failure emits no diagnostic line.
+
+- **AC-030:** diagnostic mode preserves the exact v1 receipt and all existing
+  fail-closed startup behavior; disabled mode emits no diagnostic.
+- **AC-031:** every retained diagnostic is from the closed code allowlist and
+  contains no raw exception, path, errno, environment value, or secret;
+  arbitrary sidecar output is never mirrored.
+
+## BC-013 — internal QA outcomes → evidence and reusable-job result
+
+Producer: the shared Playwright workflow records artifact continuity,
+session-guard smoke, Electron Playwright, and nonzero-execution outcomes.
+Consumers: the job report/evidence artifacts, reusable workflow conclusion, and
+caller. Admission is **CLOSED**. `continue-on-error` is used only to finish
+evidence collection; report and evidence upload run before a final enforcement
+step, and every required outcome must be `success` for the reusable job to pass.
+
+## SEQ-013 — collect evidence, then fail closed
+
+Required checks run, the workflow writes and uploads all available evidence,
+including `test-results/session-guard-smoke.json`, and only then enforces the
+recorded outcomes. Missing, skipped, cancelled, timed-out, or failed checks are
+non-success and cannot be converted into a green job by evidence collection.
+
+- **AC-032:** failure of startup smoke, Playwright, or execution verification
+  still attempts report/evidence upload and then fails the reusable job.
+- **AC-033:** a successful startup smoke is accepted only when its JSON evidence
+  is declared by the report and included in the Playwright evidence artifact.
+- **AC-034:** shared package jobs have a 60-minute budget; timeout or
+  cancellation remains a non-success package result and propagates as NO-GO.
+  No post-timeout evidence upload is promised after forced runner termination.
+
+## BC-014 — targeted Windows dispatch → exact reusable QA chain
+
+Producer: the registered Release QA workflow accepts the closed dispatch scope
+`windows-playwright`. Consumers: Deterministic QA builds one immutable Unchain
+wheel and the shared Playwright workflow consumes it on `windows-latest` in the
+same run. The scope is **CLOSED**: it forces release-mode deterministic and
+Windows Playwright checks, passes the exact caller ref/SHA/ref name, and has no
+package, signing, notarization, publication, or promotion path.
+
+## SEQ-014 — targeted Windows repair verification
+
+A manual dispatch selects `windows-playwright`, runs Deterministic QA once, and
+then runs exactly one Windows shared Playwright job against the same-run wheel.
+Either reusable-job failure fails the workflow. A targeted pass is repair
+evidence only; the exact repaired revision must still pass the full Release QA
+matrix before rollout.
+
+- **AC-035:** targeted scope runs Deterministic QA followed by exactly one
+  `windows-latest` Playwright job with matching source identity and artifact.
+- **AC-036:** targeted scope fails closed and cannot reach package, signing,
+  Release creation, publication, or promotion.
+- **AC-037:** a targeted Windows pass does not satisfy full-matrix acceptance.
+
 ## Local evidence · 2026-08-28
 
 - AC-026/027/028: Electron handshake tests passed (93/93), including red-before-
@@ -93,6 +178,17 @@ any durable migration intent for a later safe retry.
 - AC-029 and the Python producer boundary: health/guard tests passed (19/19).
 - Exact UI consumer path: the two release Playwright targets passed locally
   (2/2).
-- Release reporting/workflow contracts passed (155/155). Remote Windows and
-  macOS runner evidence remains `PENDING` until the patched commit is pushed
-  and a new Release QA run completes.
+- Release reporting/workflow contracts passed (155/155).
+- Remote Release QA run `33182446197` tested PuPu
+  `ac49592637b23e7bf94a31ad904ae96565b370b2`. Deterministic QA, all package
+  targets, Ubuntu Playwright, and macOS Playwright passed. Windows Playwright
+  remained **NO-GO**: two required Electron tests timed out while the app
+  reported the exact fail-closed `unavailable` migration receipt. Diagnostic,
+  targeted-Windows, and repaired full-matrix evidence remain `PENDING`.
+- Local diagnostic/fail-closed implementation verification passed: Unchain
+  backend `2159 passed / 3 skipped`, the exact current Electron service suite
+  `86/86`, and Release QA contracts `156/156`. YAML parsing, JavaScript syntax,
+  and `git diff --check` passed. Hosted Windows diagnosis remains `PENDING` and
+  must use the exact pushed revision through `qa_scope=windows-playwright`;
+  this local evidence does not claim that the runner-specific root cause is
+  fixed.

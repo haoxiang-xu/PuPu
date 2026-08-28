@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -27,6 +28,43 @@ _PROCESS_OWNER_ID = uuid.uuid4().hex
 _MIGRATION_RECEIPT_SCHEMA = "pupu.session-guard-migration"
 _MIGRATION_RECEIPT_VERSION = 1
 _WINDOWS_BINARY_FLAG = getattr(os, "O_BINARY", 0)
+_SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS"
+_SESSION_GUARD_DIAGNOSTIC_PREFIX = (
+    "[session-guard] migration unavailable code="
+)
+_SESSION_GUARD_DIAGNOSTIC_CODES = frozenset(
+    {
+        "session_guard_import_unavailable",
+        "session_guard_process_identity_unavailable",
+        "session_guard_data_dir_unavailable",
+        "session_guard_legacy_probe_unavailable",
+        "session_guard_protocol_lock_open_unavailable",
+        "session_guard_protocol_lock_operation_unavailable",
+        "session_guard_protocol_lock_busy",
+        "session_guard_protocol_commit_unavailable",
+        "session_guard_protocol_corrupt",
+        "session_guard_protocol_incompatible",
+        "session_guard_unknown_unavailable",
+    }
+)
+_SESSION_GUARD_UNAVAILABLE_MESSAGE_CODES = {
+    "UNCHAIN_DATA_DIR is not configured": "session_guard_data_dir_unavailable",
+    "session guard directory is unavailable": "session_guard_data_dir_unavailable",
+    "existing execution state cannot be inspected": (
+        "session_guard_legacy_probe_unavailable"
+    ),
+    "session guard lock could not be opened": (
+        "session_guard_protocol_lock_open_unavailable"
+    ),
+    "session guard lock operation failed": (
+        "session_guard_protocol_lock_operation_unavailable"
+    ),
+    "session guard record could not be committed": (
+        "session_guard_protocol_commit_unavailable"
+    ),
+}
+_SESSION_GUARD_DIAGNOSTICS_EMITTED: set[str] = set()
+_SESSION_GUARD_DIAGNOSTICS_LOCK = threading.Lock()
 
 
 class SessionExecutionGuardError(RuntimeError):
@@ -70,6 +108,51 @@ class SessionExecutionGuardBusy(SessionExecutionGuardError):
             status_code=409,
             retryable=True,
         )
+
+
+def _session_guard_migration_diagnostic_code(
+    error: SessionExecutionGuardError,
+) -> str | None:
+    if error.code == "session_guard_stop_the_world_required":
+        return None
+    if error.code == "session_guard_process_identity_unavailable":
+        return "session_guard_process_identity_unavailable"
+    if error.code == "session_execution_in_progress":
+        return "session_guard_protocol_lock_busy"
+    if error.code in {
+        "session_guard_protocol_corrupt",
+        "session_guard_protocol_incompatible",
+    }:
+        return error.code
+    if error.code == "session_execution_guard_unavailable":
+        return _SESSION_GUARD_UNAVAILABLE_MESSAGE_CODES.get(
+            str(error),
+            "session_guard_unknown_unavailable",
+        )
+    return "session_guard_unknown_unavailable"
+
+
+def _emit_session_guard_migration_diagnostic(
+    error: SessionExecutionGuardError,
+) -> None:
+    if os.environ.get(_SESSION_GUARD_DIAGNOSTICS_ENV, "").strip() != "1":
+        return
+    code = _session_guard_migration_diagnostic_code(error)
+    if code not in _SESSION_GUARD_DIAGNOSTIC_CODES:
+        return
+    with _SESSION_GUARD_DIAGNOSTICS_LOCK:
+        if code in _SESSION_GUARD_DIAGNOSTICS_EMITTED:
+            return
+        _SESSION_GUARD_DIAGNOSTICS_EMITTED.add(code)
+    try:
+        print(
+            f"{_SESSION_GUARD_DIAGNOSTIC_PREFIX}{code}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except Exception:
+        # QA diagnostics must never interfere with the migration receipt.
+        pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -1211,6 +1294,7 @@ def session_guard_migration_receipt() -> dict[str, Any]:
     try:
         _DEFAULT_REGISTRY.initialize_protocol()
     except SessionExecutionGuardError as exc:
+        _emit_session_guard_migration_diagnostic(exc)
         status = (
             "migration_required"
             if exc.code == "session_guard_stop_the_world_required"

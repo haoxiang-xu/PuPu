@@ -95,6 +95,8 @@ jobs:
             --python python \
             --installed true
           printf 'python_command=%s\n' "$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_OUTPUT"
+          printf 'evidence_path=%s\n' "$EVIDENCE_PATH" >> "$GITHUB_OUTPUT"
+          printf 'executed_tests=1\n' >> "$GITHUB_OUTPUT"
 
       - name: Install Electron runtime dependencies
         if: runner.os == 'Linux'
@@ -126,6 +128,7 @@ jobs:
         shell: bash
         env:
           UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          PUPU_SESSION_GUARD_DIAGNOSTICS: ${{ runner.os == 'Windows' && '1' || '0' }}
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a npm run test:e2e
@@ -137,6 +140,7 @@ jobs:
         id: playwright_evidence
         if: always()
         continue-on-error: true
+        shell: bash
         run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
 
       - name: Write Playwright QA report
@@ -173,3 +177,33 @@ jobs:
           path: |
             playwright-report/**/*
             test-results/playwright/**/*
+            test-results/session-guard-smoke.json
+
+      - name: Enforce Playwright QA result
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_VERIFY_OUTCOME: ${{ steps.artifact_verify.outcome }}
+          SESSION_GUARD_SMOKE_OUTCOME: ${{ steps.session_guard_smoke.outcome }}
+          PLAYWRIGHT_OUTCOME: ${{ steps.playwright.outcome }}
+          PLAYWRIGHT_EVIDENCE_OUTCOME: ${{ steps.playwright_evidence.outcome }}
+        run: |
+          failed=0
+          for required_outcome in \
+            "$ARTIFACT_VERIFY_OUTCOME" \
+            "$SESSION_GUARD_SMOKE_OUTCOME" \
+            "$PLAYWRIGHT_OUTCOME" \
+            "$PLAYWRIGHT_EVIDENCE_OUTCOME"
+          do
+            if [ "$required_outcome" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$SESSION_GUARD_SMOKE_OUTCOME" = "success" ] && [ ! -f test-results/session-guard-smoke.json ]; then
+            echo "::error title=Missing session guard evidence::successful startup smoke must retain test-results/session-guard-smoke.json"
+            failed=1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            echo "::error title=Playwright QA failed::artifact=$ARTIFACT_VERIFY_OUTCOME session-guard=$SESSION_GUARD_SMOKE_OUTCOME playwright=$PLAYWRIGHT_OUTCOME evidence=$PLAYWRIGHT_EVIDENCE_OUTCOME"
+            exit 1
+          fi

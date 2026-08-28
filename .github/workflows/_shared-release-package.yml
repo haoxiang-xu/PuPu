@@ -40,6 +40,7 @@ jobs:
   package:
     name: Package ${{ inputs.platform_name }}
     runs-on: ${{ inputs.target_id == 'macos-arm64' && 'macos-latest' || inputs.target_id == 'macos-x64' && 'macos-15-intel' || inputs.target_id == 'windows-x64' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 60
     environment: ${{ inputs.qa_mode == 'release-candidate' && 'release-signing' || 'release-qa' }}
     env:
       QA_MODE: ${{ inputs.qa_mode }}
