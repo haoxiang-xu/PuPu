@@ -6,7 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -185,9 +185,31 @@ const waitForChildExit = (child, timeoutMs) => new Promise((resolve) => {
 
 export const terminateChild = async (
   child,
-  { gracefulTimeoutMs = 2_000, forcedTimeoutMs = 2_000 } = {},
+  {
+    gracefulTimeoutMs = 2_000,
+    forcedTimeoutMs = 2_000,
+    platform = process.platform,
+    runProcessTreeCommand = spawnSync,
+  } = {},
 ) => {
   if (child.exitCode !== null || child.signalCode !== null) return;
+  if (platform === "win32") {
+    if (!Number.isSafeInteger(child.pid) || child.pid <= 1) {
+      throw new Error("packaged sidecar has no valid Windows process-tree root");
+    }
+    const result = runProcessTreeCommand(
+      "taskkill",
+      ["/PID", String(child.pid), "/T", "/F"],
+      { windowsHide: true, stdio: "ignore" },
+    );
+    if (result?.error || result?.status !== 0) {
+      throw new Error("packaged sidecar Windows process tree did not terminate");
+    }
+    if (!await waitForChildExit(child, forcedTimeoutMs)) {
+      throw new Error("packaged sidecar root did not exit after Windows process-tree termination");
+    }
+    return;
+  }
   child.kill("SIGTERM");
   if (await waitForChildExit(child, gracefulTimeoutMs)) return;
   child.kill("SIGKILL");

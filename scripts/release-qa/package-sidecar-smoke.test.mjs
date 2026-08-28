@@ -155,6 +155,49 @@ test("packaged smoke waits for forced sidecar termination before cleanup", async
   assert.equal(child.signalCode, "SIGKILL");
 });
 
+test("packaged smoke terminates the complete Windows sidecar process tree", async () => {
+  const child = new EventEmitter();
+  child.pid = 4242;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kill = () => {
+    throw new Error("Windows must not send a parent-only signal");
+  };
+  const invocations = [];
+
+  await terminateChild(child, {
+    platform: "win32",
+    forcedTimeoutMs: 100,
+    runProcessTreeCommand: (command, args, options) => {
+      invocations.push({ command, args, options });
+      child.signalCode = "SIGKILL";
+      child.emit("exit", null, "SIGKILL");
+      return { status: 0 };
+    },
+  });
+
+  assert.deepEqual(invocations, [{
+    command: "taskkill",
+    args: ["/PID", "4242", "/T", "/F"],
+    options: { windowsHide: true, stdio: "ignore" },
+  }]);
+});
+
+test("packaged smoke fails closed when Windows process-tree termination fails", async () => {
+  const child = new EventEmitter();
+  child.pid = 4242;
+  child.exitCode = null;
+  child.signalCode = null;
+
+  await assert.rejects(
+    terminateChild(child, {
+      platform: "win32",
+      runProcessTreeCommand: () => ({ status: 1 }),
+    }),
+    /Windows process tree did not terminate/,
+  );
+});
+
 test("real child process smoke proves auth, health, status, and nonzero execution", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-sidecar-smoke-"));
   const fakeSidecar = path.join(root, "fake-sidecar.mjs");
