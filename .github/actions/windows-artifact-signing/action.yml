@@ -358,4 +358,9 @@ runs:
           }
         }
         $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $env:EVIDENCE_OUTPUT -Encoding utf8
+        node scripts/release-qa/canonicalize-windows-signing-evidence.mjs `
+          --evidence "$env:EVIDENCE_OUTPUT"
+        if ($LASTEXITCODE -ne 0) {
+          throw "Windows signing evidence canonicalization failed"
+        }
         "evidence_path=$([System.IO.Path]::GetFullPath($env:EVIDENCE_OUTPUT))" >> $env:GITHUB_OUTPUT
