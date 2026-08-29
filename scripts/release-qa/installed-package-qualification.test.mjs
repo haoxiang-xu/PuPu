@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildInstalledLaunchArguments,
+  buildInstalledProcessControl,
   validateInstalledPackageQualificationReport,
 } from "./installed-package-qualification.mjs";
 
@@ -85,6 +86,21 @@ test("installed qualification disables the Electron sandbox only for Linux CI la
     "--remote-debugging-port=9224",
     "--user-data-dir=C:\\pupu-user-data",
   ]);
+});
+
+test("installed qualification shuts down the complete Linux process group", () => {
+  assert.deepEqual(
+    buildInstalledProcessControl({ platform: "linux", pid: 4242 }),
+    { detached: true, shutdownPid: -4242 },
+  );
+  assert.deepEqual(
+    buildInstalledProcessControl({ platform: "darwin", pid: 4242 }),
+    { detached: false, shutdownPid: 4242 },
+  );
+  assert.deepEqual(
+    buildInstalledProcessControl({ platform: "win32", pid: 4242 }),
+    { detached: false, shutdownPid: 4242 },
+  );
 });
 
 test("installed qualification accepts the exact package forms for each target", () => {

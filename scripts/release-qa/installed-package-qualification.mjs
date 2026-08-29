@@ -138,6 +138,14 @@ export const buildInstalledLaunchArguments = ({ debugPort, userData, platform = 
   ...(platform === "linux" ? ["--no-sandbox"] : []),
 ];
 
+export const buildInstalledProcessControl = ({ platform = process.platform, pid = null } = {}) => {
+  const processGroup = platform === "linux";
+  return {
+    detached: processGroup,
+    shutdownPid: pid === null ? null : (processGroup ? -pid : pid),
+  };
+};
+
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
   .map((line) => line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/))
@@ -408,8 +416,10 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
     PUPU_TEST_API_DISABLE: "1",
   });
   const args = buildInstalledLaunchArguments({ debugPort, userData });
+  const processControl = buildInstalledProcessControl();
   const child = spawn(installed.executablePath, args, {
     cwd: installed.launchCwd,
+    detached: processControl.detached,
     env: environment,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -452,7 +462,7 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
       return sidecar || null;
     }, 60_000, "bundled Sidecar descendant");
 
-    installed.close(child.pid);
+    installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
     await waitFor(() => !processAlive(child.pid), 15_000, "controlled installed-app shutdown");
     await waitFor(() => {
       const rows = readProcessTable();
