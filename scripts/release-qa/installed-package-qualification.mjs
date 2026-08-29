@@ -131,6 +131,13 @@ const allocateLoopbackPort = () => new Promise((resolve, reject) => {
   });
 });
 
+export const buildInstalledLaunchArguments = ({ debugPort, userData, platform = process.platform }) => [
+  `--remote-debugging-port=${debugPort}`,
+  `--user-data-dir=${userData}`,
+  ...(platform === "darwin" ? ["--use-mock-keychain"] : []),
+  ...(platform === "linux" ? ["--no-sandbox"] : []),
+];
+
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
   .map((line) => line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/))
@@ -400,11 +407,7 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
     NODE_ENV: "production",
     PUPU_TEST_API_DISABLE: "1",
   });
-  const args = [
-    `--remote-debugging-port=${debugPort}`,
-    `--user-data-dir=${userData}`,
-    ...(process.platform === "darwin" ? ["--use-mock-keychain"] : []),
-  ];
+  const args = buildInstalledLaunchArguments({ debugPort, userData });
   const child = spawn(installed.executablePath, args, {
     cwd: installed.launchCwd,
     env: environment,
