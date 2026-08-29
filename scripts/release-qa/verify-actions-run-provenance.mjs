@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -50,8 +49,9 @@ export function assertGithubActionsRunProvenance({ run, runId, tag, commit, work
   if (run.head_branch !== expectedTag) {
     throw new Error("Actions run head branch does not match the release tag");
   }
-  if (typeof run.path !== "string" || !run.path.startsWith(`${expectedWorkflowPath}@`)) {
-    throw new Error(`Actions run workflow path must start with ${expectedWorkflowPath}@`);
+  const actualWorkflowPath = typeof run.path === "string" ? run.path.split("@", 1)[0] : "";
+  if (actualWorkflowPath !== expectedWorkflowPath) {
+    throw new Error(`Actions run workflow path must equal ${expectedWorkflowPath}`);
   }
   return run;
 }
@@ -70,9 +70,18 @@ function parseArgs(argv) {
   return args;
 }
 
-function main() {
+async function readStdin() {
+  process.stdin.setEncoding("utf8");
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+  return input;
+}
+
+async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const run = JSON.parse(fs.readFileSync(0, "utf8"));
+  const run = JSON.parse(await readStdin());
   assertGithubActionsRunProvenance({
     run,
     runId: args["run-id"] || "",
@@ -84,10 +93,8 @@ function main() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     console.error(`[release-provenance] ${error.message || String(error)}`);
-    process.exit(1);
-  }
+    process.exitCode = 1;
+  });
 }
