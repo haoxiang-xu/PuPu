@@ -221,6 +221,24 @@ const terminateProcesses = async (pids) => {
 
 const normalizePath = (value) => String(value || "").replaceAll("\\", "/").toLowerCase();
 
+export const selectInstalledCleanupPids = ({
+  rows,
+  observedPids,
+  candidateNeedle,
+  currentPid = process.pid,
+}) => {
+  const observed = observedPids instanceof Set
+    ? observedPids
+    : new Set(observedPids || []);
+  const normalizedCandidateNeedle = normalizePath(candidateNeedle);
+  return rows
+    .filter((row) => Number.isSafeInteger(row.pid) && row.pid > 1 && row.pid !== currentPid)
+    .filter((row) => observed.has(row.pid) || (
+      normalizedCandidateNeedle && normalizePath(row.command).includes(normalizedCandidateNeedle)
+    ))
+    .map((row) => row.pid);
+};
+
 const assertSnapshot = (asarPath) => {
   const bytes = Buffer.from(asar.extractFile(asarPath, "build/build_feature_flags.json"));
   const snapshot = JSON.parse(bytes.toString("utf8"));
@@ -464,10 +482,25 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
 
     installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
     await waitFor(() => !processAlive(child.pid), 15_000, "controlled installed-app shutdown");
+    const cleanupRows = readProcessTable();
+    const cleanupPids = selectInstalledCleanupPids({
+      rows: cleanupRows,
+      observedPids,
+      candidateNeedle,
+    });
+    if (cleanupPids.length > 0) {
+      console.log(
+        `[release-qualification] terminating residual installed candidate processes: ${cleanupPids.join(",")}`,
+      );
+      await terminateProcesses(cleanupPids);
+    }
     await waitFor(() => {
       const rows = readProcessTable();
-      return !rows.some((row) => observedPids.has(row.pid) ||
-        normalizePath(row.command).includes(candidateNeedle));
+      return selectInstalledCleanupPids({
+        rows,
+        observedPids,
+        candidateNeedle,
+      }).length === 0;
     }, 15_000, "installed candidate process cleanup");
     return {
       executed_tests: 4,
@@ -479,7 +512,12 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
   } finally {
     await browser?.close().catch(() => {});
     const rows = readProcessTable();
-    await terminateProcesses([child.pid, ...observedPids, ...descendantPids(rows, child.pid)]);
+    await terminateProcesses([
+      child.pid,
+      ...observedPids,
+      ...descendantPids(rows, child.pid),
+      ...selectInstalledCleanupPids({ rows, observedPids, candidateNeedle }),
+    ]);
   }
 };
 
