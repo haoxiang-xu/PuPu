@@ -116,7 +116,9 @@ jobs:
         run: |
           git fetch --no-tags origin "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
           FROM_COMMIT="$(git rev-list -n 1 "$FROM_TAG")"
-          FROM_VERSION="$(git show "$FROM_TAG:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')"
+          FROM_PACKAGE_JSON="$RUNNER_TEMP/from-package.json"
+          git show "$FROM_TAG:package.json" > "$FROM_PACKAGE_JSON"
+          FROM_VERSION="$(FROM_PACKAGE_JSON="$FROM_PACKAGE_JSON" node -p 'require(process.env.FROM_PACKAGE_JSON).version')"
           node scripts/release-qa/validate-update-fixture-source.mjs \
             --candidate-dir candidate \
             --from-tag "$FROM_TAG" \

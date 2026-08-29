@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -24,14 +23,25 @@ const parseArgs = (argv) => {
   return args;
 };
 
-try {
+const readStdin = async () => {
+  process.stdin.setEncoding("utf8");
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+  return input;
+};
+
+const main = async () => {
   const args = parseArgs(process.argv.slice(2));
-  const apiRelease = JSON.parse(fs.readFileSync(0, "utf8"));
+  const apiRelease = JSON.parse(await readStdin());
   const policy = readReleaseBootstrapPolicy(path.resolve(args.policy));
   const projection = projectLegacyReleaseApi(apiRelease, policy, args["legacy-tag-commit"]);
   writeJson(path.resolve(args.out), projection);
   console.log(`[release-bootstrap] verified legacy gap for ${projection.release.tag}`);
-} catch (error) {
+};
+
+main().catch((error) => {
   console.error(`[release-bootstrap] ${error.message || String(error)}`);
-  process.exit(1);
-}
+  process.exitCode = 1;
+});
