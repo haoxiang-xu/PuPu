@@ -38,6 +38,13 @@ const assertSharedActionContract = (action) => {
   assert.match(action, /signable_payload_file_count/);
   assert.match(action, /signer_subject/);
   assert.match(action, /signer_thumbprint/);
+  assert.match(action, /canonicalize-windows-signing-evidence\.mjs/);
+  assert.match(action, /--evidence "\$env:EVIDENCE_OUTPUT"/);
+  assert.ok(
+    action.indexOf("Set-Content -LiteralPath $env:EVIDENCE_OUTPUT") <
+      action.indexOf("canonicalize-windows-signing-evidence.mjs"),
+    "Windows signing evidence must be canonicalized only after the producer writes it",
+  );
   assert.equal(
     count(action, /uses: azure\/artifact-signing-action@v2/g),
     2,
