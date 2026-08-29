@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildInstalledLaunchArguments,
   buildInstalledProcessControl,
+  selectInstalledCleanupPids,
   validateInstalledPackageQualificationReport,
 } from "./installed-package-qualification.mjs";
 
@@ -100,6 +101,34 @@ test("installed qualification shuts down the complete Linux process group", () =
   assert.deepEqual(
     buildInstalledProcessControl({ platform: "win32", pid: 4242 }),
     { detached: false, shutdownPid: 4242 },
+  );
+});
+
+test("installed qualification cleans observed and candidate-owned residual processes", () => {
+  const rows = [
+    { pid: 100, ppid: 1, command: "/opt/pupu/PuPu.exe --type=renderer" },
+    { pid: 101, ppid: 1, command: "/usr/bin/unchain-server" },
+    { pid: 102, ppid: 1, command: "/opt/other/worker" },
+    { pid: 103, ppid: 1, command: "C:\\PUPU-INSTALLED\\PuPu.exe --type=gpu-process" },
+    { pid: 104, ppid: 1, command: "/opt/pupu/PuPu.exe" },
+  ];
+  assert.deepEqual(
+    selectInstalledCleanupPids({
+      rows,
+      observedPids: new Set([101, 102]),
+      candidateNeedle: "/opt/pupu",
+      currentPid: 104,
+    }),
+    [100, 101, 102],
+  );
+  assert.deepEqual(
+    selectInstalledCleanupPids({
+      rows,
+      observedPids: [],
+      candidateNeedle: "c:/pupu-installed",
+      currentPid: 999,
+    }),
+    [103],
   );
 });
 
