@@ -61,6 +61,27 @@ const makeSafeStorage = (overrides = {}) => ({
   ...overrides,
 });
 
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
+
+const providerFor = (execute) =>
+  Object.freeze({
+    prepare: jest.fn(async () =>
+      Object.freeze({
+        execute,
+        abort: jest.fn(() => true),
+        awaitDrained: jest.fn(async () => {}),
+      }),
+    ),
+  });
+
 const expectCode = async (run, code) => {
   let caught = null;
   try {
@@ -70,6 +91,7 @@ const expectCode = async (run, code) => {
   }
   expect(caught).not.toBeNull();
   expect(caught.code).toBe(code);
+  return caught;
 };
 
 const preparePayload = (overrides = {}) => ({
@@ -367,7 +389,7 @@ describeIfSqlite("memory vault one-time use state machine", () => {
     const vault = makeVault({
       safeStorage,
       confirmUse: async () => true,
-      sinkExecutors: { [SINK_KIND]: executor },
+      sinkExecutors: { [SINK_KIND]: providerFor(executor) },
     });
     const first = seed(vault);
     const second = seed(vault, {
@@ -433,7 +455,7 @@ describeIfSqlite("memory vault one-time use state machine", () => {
     const executor = jest.fn(async () => ({ data: "x".repeat(40 * 1024) }));
     const vault = makeVault({
       confirmUse: async () => true,
-      sinkExecutors: { [SINK_KIND]: executor },
+      sinkExecutors: { [SINK_KIND]: providerFor(executor) },
     });
     const stored = seed(vault);
     const identity = preparePayload({
@@ -490,13 +512,229 @@ describeIfSqlite("memory vault one-time use state machine", () => {
     db.close();
   });
 
+  test("an unregistered computer sink fails before decrypting", async () => {
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: providerFor(async () => ({})) },
+    });
+    const stored = seed(vault, { sinkKind: "computer_input" });
+    const identity = preparePayload({
+      handles: [{ field: "text", handle: stored.handle }],
+      sink_kind: "computer_input",
+    });
+    const prepared = vault.prepareUseIntent(identity);
+    const binding = bindingPayload(prepared, identity);
+    vault.bindPreparedUseIntent(binding);
+    await vault.confirmBoundUseIntent({
+      interactionId: binding.interaction_id,
+      rendererApproved: true,
+    });
+
+    await expectCode(
+      () => vault.executeUseIntent(executePayload(prepared, identity)),
+      "vault_sink_unavailable",
+    );
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+  });
+
+  test("executor prepare must reach READY before CAS or decrypt", async () => {
+    const ready = deferred();
+    const prepare = jest.fn(() => ready.promise);
+    const provider = Object.freeze({ prepare });
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: provider },
+    });
+    const { prepared, identity } = await approvedIntent(vault);
+
+    const execution = vault.executeUseIntent(executePayload(prepared, identity));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith({ sinkKind: SINK_KIND });
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+    const db = rawDb();
+    expect(
+      db
+        .prepare("SELECT status FROM vault_use_intents WHERE intent_id = ?")
+        .get(prepared.intent_id).status,
+    ).toBe("approved");
+
+    ready.resolve(Object.freeze({
+      execute: async () => ({ accepted: true }),
+      abort: () => {},
+      awaitDrained: async () => {},
+    }));
+    await execution;
+    db.close();
+  });
+
+  test("prepare rejection leaves the durable intent approved and never decrypts", async () => {
+    const prepare = jest.fn(async () => {
+      const error = new Error(`unsafe ${SECRET_A}`);
+      error.code = "vault_worker_spawn_failed";
+      throw error;
+    });
+    const provider = Object.freeze({ prepare });
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: provider },
+    });
+    const { prepared, identity } = await approvedIntent(vault);
+
+    const error = await expectCode(
+      () => vault.executeUseIntent(executePayload(prepared, identity)),
+      "vault_worker_spawn_failed",
+    );
+
+    expect(error.message).not.toContain(SECRET_A);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+    const db = rawDb();
+    expect(
+      db
+        .prepare("SELECT status FROM vault_use_intents WHERE intent_id = ?")
+        .get(prepared.intent_id).status,
+    ).toBe("approved");
+    expect(
+      db
+        .prepare("SELECT execute_operation_id FROM vault_use_intents WHERE intent_id = ?")
+        .get(prepared.intent_id).execute_operation_id,
+    ).toBeNull();
+    db.close();
+  });
+
+  test("concurrent replay of one operation shares exactly one prepared lease", async () => {
+    const ready = deferred();
+    const execute = jest.fn(async () => ({ accepted: true }));
+    const abort = jest.fn(() => true);
+    const awaitDrained = jest.fn(async () => {});
+    const provider = Object.freeze({
+      prepare: jest.fn(() => ready.promise),
+    });
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: provider },
+    });
+    const { prepared, identity } = await approvedIntent(vault);
+    const payload = executePayload(prepared, identity);
+
+    const first = vault.executeUseIntent(payload);
+    const replay = vault.executeUseIntent(payload);
+    await Promise.resolve();
+    expect(provider.prepare).toHaveBeenCalledTimes(1);
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+
+    ready.resolve(Object.freeze({ execute, abort, awaitDrained }));
+    const [firstResult, replayResult] = await Promise.all([first, replay]);
+    expect(replayResult).toEqual(firstResult);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(safeStorage.decryptString).toHaveBeenCalledTimes(1);
+    expect(awaitDrained).toHaveBeenCalledTimes(1);
+  });
+
+  test("a different operation conflicts while prepare is pending", async () => {
+    const ready = deferred();
+    const execute = jest.fn(async () => ({ accepted: true }));
+    const provider = Object.freeze({
+      prepare: jest.fn(() => ready.promise),
+    });
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: provider },
+    });
+    const { prepared, identity } = await approvedIntent(vault);
+    const execution = vault.executeUseIntent(executePayload(prepared, identity));
+
+    await expectCode(
+      () =>
+        vault.executeUseIntent({
+          ...executePayload(prepared, identity),
+          operation_id: op("execute-other"),
+        }),
+      "vault_intent_conflict",
+    );
+    expect(provider.prepare).toHaveBeenCalledTimes(1);
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+
+    ready.resolve(
+      Object.freeze({
+        execute,
+        abort: jest.fn(() => true),
+        awaitDrained: jest.fn(async () => {}),
+      }),
+    );
+    await execution;
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancellation during prepare wins without decrypting or becoming indeterminate", async () => {
+    const ready = deferred();
+    const execute = jest.fn(async () => ({ accepted: true }));
+    const abort = jest.fn(() => true);
+    const awaitDrained = jest.fn(async () => {});
+    const provider = Object.freeze({
+      prepare: jest.fn(() => ready.promise),
+    });
+    const safeStorage = makeSafeStorage();
+    const vault = makeVault({
+      safeStorage,
+      confirmUse: async () => true,
+      sinkExecutors: { [SINK_KIND]: provider },
+    });
+    const { prepared, identity } = await approvedIntent(vault);
+    const execution = vault.executeUseIntent(executePayload(prepared, identity));
+    await Promise.resolve();
+
+    const cancelled = vault.cancelUseIntent({
+      version: 1,
+      operation_id: op("cancel-during-prepare"),
+      intent_id: prepared.intent_id,
+      owner_chat_id: identity.owner_chat_id,
+      session_id: identity.session_id,
+      attempt_id: identity.attempt_id,
+      run_id: identity.run_id,
+      call_id: identity.call_id,
+      interaction_id: "interaction-42",
+      reason_code: "run_cancelled",
+    });
+    expect(cancelled.status).toBe("cancelled");
+
+    ready.resolve(Object.freeze({ execute, abort, awaitDrained }));
+    await expect(execution).rejects.toMatchObject({
+      code: "vault_intent_conflict",
+    });
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(awaitDrained).toHaveBeenCalledTimes(1);
+    expect(execute).not.toHaveBeenCalled();
+    expect(safeStorage.decryptString).not.toHaveBeenCalled();
+    const db = rawDb();
+    expect(
+      db
+        .prepare("SELECT status FROM vault_use_intents WHERE intent_id = ?")
+        .get(prepared.intent_id).status,
+    ).toBe("cancelled");
+    db.close();
+  });
+
   test("executor failure becomes durable indeterminate and is never replayed", async () => {
     const executor = jest.fn(async () => {
       throw new Error(`unsafe ${SECRET_A}`);
     });
     const vault = makeVault({
       confirmUse: async () => true,
-      sinkExecutors: { [SINK_KIND]: executor },
+      sinkExecutors: { [SINK_KIND]: providerFor(executor) },
     });
     const stored = seed(vault);
     const identity = preparePayload({
@@ -607,7 +845,9 @@ describeIfSqlite("memory vault one-time use state machine", () => {
   test("chat deletion atomically removes only use state and is naturally idempotent", async () => {
     const vault = makeVault({
       confirmUse: async () => true,
-      sinkExecutors: { [SINK_KIND]: async () => ({ accepted: true }) },
+      sinkExecutors: {
+        [SINK_KIND]: providerFor(async () => ({ accepted: true })),
+      },
     });
     const deletedChatSecret = seed(vault);
     const retainedChatSecret = seed(vault, {
@@ -757,22 +997,26 @@ describeIfSqlite("memory vault one-time use state machine", () => {
       "vault_sink_registry_empty",
     );
     await expectCode(
-      () => vault.configureSinkExecutors({ executors: {}, close: () => 0 }),
+      () => vault.configureSinkExecutors({ providers: {}, close: () => 0 }),
       "vault_sink_registry_empty",
     );
     // Still unconfigured, so the broker still refuses.
     await expectCode(() => vault.startSinkBroker(), "vault_sink_unavailable");
   });
 
-  test("configureSinkExecutors rejects unknown sink kinds and non-function executors", async () => {
+  test("configureSinkExecutors rejects unknown sink kinds and invalid providers", async () => {
     const vault = makeVault({ confirmUse: async () => true });
     for (const bad of [
       null,
       "registry",
       [],
-      { not_a_sink_kind: async () => ({}) },
+      { not_a_sink_kind: providerFor(async () => ({})) },
       { [SINK_KIND]: "not-a-function" },
-      { executors: { [SINK_KIND]: async () => ({}) }, close: "nope" },
+      { [SINK_KIND]: { prepare: "not-a-function" } },
+      {
+        providers: { [SINK_KIND]: providerFor(async () => ({})) },
+        close: "nope",
+      },
     ]) {
       await expectCode(
         () => vault.configureSinkExecutors(bad),
@@ -788,14 +1032,15 @@ describeIfSqlite("memory vault one-time use state machine", () => {
   test("configureSinkExecutors is one-shot and locks once the broker has started", async () => {
     const vault = makeVault({ confirmUse: async () => true });
     const executor = jest.fn(async () => ({ accepted: true }));
+    const provider = providerFor(executor);
 
-    expect(vault.configureSinkExecutors({ [SINK_KIND]: executor })).toEqual({
+    expect(vault.configureSinkExecutors({ [SINK_KIND]: provider })).toEqual({
       ok: true,
       sinkKinds: [SINK_KIND],
     });
     // Second call before the broker starts.
     await expectCode(
-      () => vault.configureSinkExecutors({ [SINK_KIND]: executor }),
+      () => vault.configureSinkExecutors({ [SINK_KIND]: provider }),
       "vault_sink_executors_already_configured",
     );
 
@@ -804,13 +1049,13 @@ describeIfSqlite("memory vault one-time use state machine", () => {
 
     // Any call after the broker has started — no swap window mid-flight.
     await expectCode(
-      () => vault.configureSinkExecutors({ [SINK_KIND]: executor }),
+      () => vault.configureSinkExecutors({ [SINK_KIND]: provider }),
       "vault_sink_executors_locked",
     );
     // Stopping the broker does not reopen the window.
     await vault.stopSinkBroker();
     await expectCode(
-      () => vault.configureSinkExecutors({ [SINK_KIND]: executor }),
+      () => vault.configureSinkExecutors({ [SINK_KIND]: provider }),
       "vault_sink_executors_locked",
     );
   });
@@ -819,7 +1064,7 @@ describeIfSqlite("memory vault one-time use state machine", () => {
     const order = [];
     const executor = jest.fn(async () => ({ accepted: true }));
     const registry = {
-      executors: { [SINK_KIND]: executor },
+      providers: { [SINK_KIND]: providerFor(executor) },
       close: jest.fn(() => {
         order.push("drain-executors");
         return 1;
@@ -842,7 +1087,9 @@ describeIfSqlite("memory vault one-time use state machine", () => {
   test("a throwing registry drain never blocks the db close", () => {
     const vault = makeVault({ confirmUse: async () => true });
     vault.configureSinkExecutors({
-      executors: { [SINK_KIND]: async () => ({ accepted: true }) },
+      providers: {
+        [SINK_KIND]: providerFor(async () => ({ accepted: true })),
+      },
       close: () => {
         throw new Error("kill failed");
       },

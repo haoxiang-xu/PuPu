@@ -141,6 +141,19 @@ jobs:
         run: |
           "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-session-guard-smoke.py
 
+      - name: Probe Windows Vault supervisor native containment
+        id: vault_supervisor_native_probe
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH: test-results/vault-supervisor-native.json
+        run: |
+          "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-vault-supervisor-native-probe.py
+          EXECUTED_TESTS="$("$UNCHAIN_PYTHON_BIN" -c 'import json, os; value=json.load(open(os.environ["VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH"], encoding="utf-8"))["executed_tests"]; assert isinstance(value, int) and value > 0; print(value)')"
+          printf 'executed_tests=%s\n' "$EXECUTED_TESTS" >> "$GITHUB_OUTPUT"
+
       - name: Run Playwright Electron release smoke
         id: playwright
         continue-on-error: true
@@ -168,12 +181,13 @@ jobs:
           QA_PLATFORM_NAME: playwright-${{ runner.os }}
           QA_PLATFORM_COMMAND: npm run test:e2e
           QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
-          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Session guard startup smoke","Playwright Electron release smoke"]'
-          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*","test-results/session-guard-smoke.json"]'
+          QA_REQUIRED_CHECKS_JSON: ${{ runner.os == 'Windows' && '["Unchain artifact continuity","Session guard startup smoke","Windows Vault supervisor native probe","Playwright Electron release smoke"]' || '["Unchain artifact continuity","Session guard startup smoke","Playwright Electron release smoke"]' }}
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*","test-results/session-guard-smoke.json","test-results/vault-supervisor-native.json"]'
           QA_CHECKS_JSON: |
             [
               {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"Session guard startup smoke","command":"python scripts/release-qa/windows-session-guard-smoke.py","outcome":"${{ steps.session_guard_smoke.outcome }}","executed_tests":${{ steps.session_guard_smoke.outcome == 'success' && 1 || 0 }}},
+              {"name":"Windows Vault supervisor native probe","command":"python scripts/release-qa/windows-vault-supervisor-native-probe.py","outcome":"${{ steps.vault_supervisor_native_probe.outcome }}","executed_tests":${{ steps.vault_supervisor_native_probe.outputs.executed_tests || 0 }}},
               {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}}
             ]
         run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
@@ -197,6 +211,7 @@ jobs:
             playwright-report/**/*
             test-results/playwright/**/*
             test-results/session-guard-smoke.json
+            test-results/vault-supervisor-native.json
 
       - name: Enforce Playwright QA result
         if: always()
@@ -204,6 +219,7 @@ jobs:
         env:
           ARTIFACT_VERIFY_OUTCOME: ${{ steps.artifact_verify.outcome }}
           SESSION_GUARD_SMOKE_OUTCOME: ${{ steps.session_guard_smoke.outcome }}
+          VAULT_SUPERVISOR_NATIVE_OUTCOME: ${{ steps.vault_supervisor_native_probe.outcome }}
           PLAYWRIGHT_OUTCOME: ${{ steps.playwright.outcome }}
           PLAYWRIGHT_EVIDENCE_OUTCOME: ${{ steps.playwright_evidence.outcome }}
         run: |
@@ -222,7 +238,16 @@ jobs:
             echo "::error title=Missing session guard evidence::successful startup smoke must retain test-results/session-guard-smoke.json"
             failed=1
           fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            if [ "$VAULT_SUPERVISOR_NATIVE_OUTCOME" != "success" ]; then
+              failed=1
+            fi
+            if [ "$VAULT_SUPERVISOR_NATIVE_OUTCOME" = "success" ] && [ ! -f test-results/vault-supervisor-native.json ]; then
+              echo "::error title=Missing Vault supervisor evidence::successful Windows native probe must retain test-results/vault-supervisor-native.json"
+              failed=1
+            fi
+          fi
           if [ "$failed" -ne 0 ]; then
-            echo "::error title=Playwright QA failed::artifact=$ARTIFACT_VERIFY_OUTCOME session-guard=$SESSION_GUARD_SMOKE_OUTCOME playwright=$PLAYWRIGHT_OUTCOME evidence=$PLAYWRIGHT_EVIDENCE_OUTCOME"
+            echo "::error title=Playwright QA failed::artifact=$ARTIFACT_VERIFY_OUTCOME session-guard=$SESSION_GUARD_SMOKE_OUTCOME vault-supervisor-native=$VAULT_SUPERVISOR_NATIVE_OUTCOME playwright=$PLAYWRIGHT_OUTCOME evidence=$PLAYWRIGHT_EVIDENCE_OUTCOME"
             exit 1
           fi

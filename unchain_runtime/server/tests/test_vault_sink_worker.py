@@ -367,6 +367,7 @@ def test_computer_requires_darwin_and_verified_secure_ax_writer():
     )
     writer.assert_called_once_with(SECRET)
     assert result == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": True,
         "sink_kind": "computer_input",
         "result": {"status": "secure_field_updated"},
@@ -657,6 +658,7 @@ def test_worker_protocol_emits_one_static_framed_error_and_no_stderr():
     assert len(process.stdout) == size + 4
     payload = json.loads(process.stdout[4:].decode("utf-8"))
     assert payload == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": False,
         "error": {"code": "vault_worker_protocol_error"},
     }
@@ -693,6 +695,7 @@ def test_worker_protocol_executes_one_valid_intent_without_plaintext_output():
     assert len(process.stdout) == size + 4
     response = json.loads(process.stdout[4:].decode("utf-8"))
     assert response["ok"] is True
+    assert response["version"] == worker.PROTOCOL_VERSION
     assert response["result"]["stdout"].strip() == worker.REDACTION_MARKER
     _assert_no_secret(response)
 
@@ -710,7 +713,84 @@ def test_worker_protocol_never_serializes_raw_executor_exception():
     size = struct.unpack(">I", response[:4])[0]
     payload = json.loads(response[4:4 + size].decode("utf-8"))
     assert payload == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": False,
         "error": {"code": "vault_worker_failed"},
     }
     _assert_no_secret(payload)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value.pop("version"),
+        lambda value: value.pop("toolkit_metadata"),
+        lambda value: value.__setitem__("unexpected", True),
+    ],
+    ids=["missing-version", "missing-toolkit-metadata", "unknown-key"],
+)
+def test_worker_request_requires_exact_top_level_v1_contract(mutate):
+    request = _payload(
+        "shell_secret_env",
+        field="TOKEN",
+        audit={"action": "run", "command": "true", "secret_fields": ["TOKEN"]},
+    )
+    mutate(request)
+
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_intent(request)
+
+    assert captured.value.code == "vault_invalid_request"
+
+
+def test_worker_request_requires_exact_mcp_toolkit_metadata_contract():
+    request = _mcp_payload()
+    del request["toolkit_metadata"]["schema_fingerprint"]
+
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_intent(request)
+
+    assert captured.value.code == "vault_invalid_request"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"version": 1, "ok": True, "sink_kind": "shell_secret_env"},
+        {"version": 1, "ok": False, "error": {"code": "vault_worker_failed", "extra": True}},
+        {"version": True, "ok": False, "error": {"code": "vault_worker_failed"}},
+    ],
+)
+def test_worker_response_requires_exact_versioned_closed_union(response):
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_response(response)
+
+    assert captured.value.code == "vault_worker_failed"
+
+
+def test_worker_rejects_trailing_stdin_before_executor_call():
+    request = json.dumps(
+        _payload(
+            "shell_secret_env",
+            field="TOKEN",
+            audit={"action": "run", "command": "true", "secret_fields": ["TOKEN"]},
+        )
+    ).encode("utf-8")
+    input_stream = io.BytesIO(struct.pack(">I", len(request)) + request + b"x")
+    output_stream = io.BytesIO()
+    calls = []
+
+    assert worker.process_one_frame(
+        input_stream,
+        output_stream,
+        executor=lambda payload: calls.append(payload) or {"ok": True},
+    ) == 0
+
+    assert calls == []
+    raw = output_stream.getvalue()
+    size = struct.unpack(">I", raw[:4])[0]
+    assert json.loads(raw[4:4 + size].decode("utf-8")) == {
+        "version": worker.PROTOCOL_VERSION,
+        "ok": False,
+        "error": {"code": "vault_worker_protocol_error"},
+    }

@@ -8,8 +8,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const readRepoFile = (relativePath) =>
   fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 
-// The first three tests intentionally describe unfixed W0 baseline gaps. The
-// snapshot, smoke, protocol-parity, and stop-policy tests are green regression guards whose
+// Remaining RED tests describe unfixed W0 baseline gaps. The snapshot, smoke,
+// lease ordering, protocol-parity, and stop-policy tests are green regression guards whose
 // preceding red states are preserved in the W0 direct-plan record and #195 comments.
 test("W0-03 GREEN: release build requires an explicit feature snapshot", () => {
   const source = readRepoFile("scripts/build-web.cjs");
@@ -32,17 +32,22 @@ test("W0-03 GREEN: packaged sidecar smoke reuses the immutable build snapshot", 
   assert.match(source, /validateSnapshotRolloutProjection/);
 });
 
-test("W0 RED: Vault decrypts before a Windows containment admission can reject", () => {
+test("W1-03 GREEN: Vault prepares before CAS and decrypts only before lease execute", () => {
   const source = readRepoFile("electron/main/services/memory_vault/service.js");
+  const prepare = source.indexOf("lease = await provider.prepare({ sinkKind: row.sink_kind })");
+  const claim = source.indexOf("const claimResult = db", prepare);
   const decrypt = source.indexOf("plaintext: decryptCiphertextForSink(handleRow.ciphertext)");
-  const execute = source.indexOf("const executorResult = await executor({", decrypt);
+  const execute = source.indexOf("const executorResult = await lease.execute({", decrypt);
 
-  assert.ok(decrypt >= 0, "red baseline must locate Vault decryption");
-  assert.ok(execute >= 0, "red baseline must locate the executor invocation");
+  assert.ok(prepare >= 0, "must locate no-secret lease preparation");
+  assert.ok(claim >= 0, "must locate the durable execution CAS");
+  assert.ok(decrypt >= 0, "must locate Vault decryption");
+  assert.ok(execute >= 0, "must locate the prepared lease invocation");
   assert.ok(
-    decrypt < execute,
-    "the current baseline decrypts before the executor can enforce containment",
+    prepare < claim && claim < decrypt && decrypt < execute,
+    "required order is prepare -> CAS -> decrypt -> lease.execute",
   );
+  assert.doesNotMatch(source, /const executorResult = await executor\(/);
 });
 
 test("W0 RED: release Playwright launches source Electron, not an installed candidate", () => {

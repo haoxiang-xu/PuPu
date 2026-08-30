@@ -349,12 +349,12 @@ const createMemoryVaultService = ({
       );
     }
     // Two accepted shapes: the production registry object
-    // ({executors, close}) produced by createVaultSinkExecutors, and a bare
-    // sink_kind → fn map (the test seam). "executors" is not a sink kind, so
+    // ({providers, close}) produced by createVaultSinkExecutors, and a bare
+    // sink_kind → provider map (the test seam). "providers" is not a sink kind, so
     // the two can never be confused.
     const isRegistryObject =
-      typeof registry.executors === "object" && registry.executors !== null;
-    const executors = isRegistryObject ? registry.executors : registry;
+      typeof registry.providers === "object" && registry.providers !== null;
+    const executors = isRegistryObject ? registry.providers : registry;
     const close = isRegistryObject ? registry.close : null;
     if (
       executors === null ||
@@ -376,8 +376,13 @@ const createMemoryVaultService = ({
         "vault_sink_registry_empty",
       );
     }
-    for (const [sinkKind, executor] of entries) {
-      if (!SINK_KIND_SET.has(sinkKind) || typeof executor !== "function") {
+    for (const [sinkKind, provider] of entries) {
+      if (
+        !SINK_KIND_SET.has(sinkKind) ||
+        !isPlainObject(provider) ||
+        Object.keys(provider).length !== 1 ||
+        typeof provider.prepare !== "function"
+      ) {
         throw errorWithCode(
           "sink executor registry is invalid",
           "vault_sink_registry_invalid",
@@ -385,7 +390,7 @@ const createMemoryVaultService = ({
       }
     }
     return {
-      executors: Object.freeze(Object.fromEntries(entries)),
+      providers: Object.freeze(Object.fromEntries(entries)),
       close: typeof close === "function" ? close : null,
     };
   };
@@ -408,9 +413,9 @@ const createMemoryVaultService = ({
     }
     const normalized = normalizeSinkExecutorRegistry(registry);
     sinkExecutorRegistry = normalized;
-    sinkExecutorMap = normalized.executors;
+    sinkExecutorMap = normalized.providers;
     sinkExecutorsConfigured = true;
-    return { ok: true, sinkKinds: Object.keys(normalized.executors).sort() };
+    return { ok: true, sinkKinds: Object.keys(normalized.providers).sort() };
   };
 
   // Synchronous, idempotent drain of every live worker process group. Must stay
@@ -433,7 +438,7 @@ const createMemoryVaultService = ({
     const seedIsEmptyMap =
       typeof sinkExecutors === "object" &&
       !Array.isArray(sinkExecutors) &&
-      typeof sinkExecutors.executors !== "object" &&
+      typeof sinkExecutors.providers !== "object" &&
       Object.keys(sinkExecutors).length === 0;
     if (!seedIsEmptyMap) configureSinkExecutors(sinkExecutors);
   }
@@ -1555,6 +1560,19 @@ const createMemoryVaultService = ({
         "vault_intent_conflict",
       );
     }
+    // Reserve before inspecting durable execution state or awaiting prepare.
+    // This is the process-local fence that prevents two READY leases for one
+    // intent while its database row is still approved.
+    const existingFlight = executionInFlight.get(row.intent_id);
+    if (existingFlight) {
+      if (existingFlight.operationId !== identity.operation_id) {
+        throw errorWithCode(
+          "execution operation conflicts with the in-flight intent",
+          "vault_intent_conflict",
+        );
+      }
+      return existingFlight.promise;
+    }
     if (
       row.execute_operation_id &&
       row.execute_operation_id !== identity.operation_id
@@ -1575,8 +1593,6 @@ const createMemoryVaultService = ({
       );
     }
     if (row.status === "executing") {
-      const existingFlight = executionInFlight.get(row.intent_id);
-      if (existingFlight) return existingFlight;
       throw errorWithCode(
         "vault use is already executing",
         "vault_use_in_progress",
@@ -1594,42 +1610,71 @@ const createMemoryVaultService = ({
         "vault_intent_conflict",
       );
     }
-    const executor =
+    const provider =
       sinkExecutorsConfigured &&
       Object.prototype.hasOwnProperty.call(sinkExecutorMap, row.sink_kind)
         ? sinkExecutorMap[row.sink_kind]
         : null;
-    if (typeof executor !== "function") {
+    if (!isPlainObject(provider) || typeof provider.prepare !== "function") {
       // Crucially, no decryption occurs on this branch.
       throw errorWithCode(
-        "no reviewed executor is registered for this sink",
+        "no reviewed executor provider is registered for this sink",
         "vault_sink_unavailable",
       );
     }
 
-    const executionPromise = (async () => {
-      const executionStart = Date.now();
-      const claimed = db
-        .prepare(
-          "UPDATE vault_use_intents " +
-            "SET execute_operation_id = ?, status = 'executing', updated_at = ? " +
-            "WHERE intent_id = ? AND status = 'approved' " +
-            "AND (execute_operation_id IS NULL OR execute_operation_id = ?)",
-        )
-        .run(
-          identity.operation_id,
-          executionStart,
-          row.intent_id,
-          identity.operation_id,
-        );
-      if (Number(claimed.changes) !== 1) {
-        throw errorWithCode(
-          "vault use execution claim changed concurrently",
-          "vault_intent_conflict",
-        );
-      }
-      let effectStarted = false;
+    let resolveExecution;
+    let rejectExecution;
+    const executionPromise = new Promise((resolve, reject) => {
+      resolveExecution = resolve;
+      rejectExecution = reject;
+    });
+    executionInFlight.set(row.intent_id, {
+      operationId: identity.operation_id,
+      promise: executionPromise,
+    });
+
+    const runExecution = async () => {
+      let lease = null;
+      let claimed = false;
       try {
+        lease = await provider.prepare({ sinkKind: row.sink_kind });
+        if (
+          !isPlainObject(lease) ||
+          Object.keys(lease).sort().join("\0") !==
+            ["abort", "awaitDrained", "execute"].join("\0") ||
+          typeof lease.execute !== "function" ||
+          typeof lease.abort !== "function" ||
+          typeof lease.awaitDrained !== "function"
+        ) {
+          throw errorWithCode(
+            "sink executor lease is invalid",
+            "vault_sink_registry_invalid",
+          );
+        }
+
+        const executionStart = Date.now();
+        const claimResult = db
+          .prepare(
+            "UPDATE vault_use_intents " +
+              "SET execute_operation_id = ?, status = 'executing', updated_at = ? " +
+              "WHERE intent_id = ? AND status = 'approved' " +
+              "AND (execute_operation_id IS NULL OR execute_operation_id = ?)",
+          )
+          .run(
+            identity.operation_id,
+            executionStart,
+            row.intent_id,
+            identity.operation_id,
+          );
+        if (Number(claimResult.changes) !== 1) {
+          throw errorWithCode(
+            "vault use execution claim changed concurrently",
+            "vault_intent_conflict",
+          );
+        }
+        claimed = true;
+
         const storedHandles = JSON.parse(row.handles_json);
         const handleRows = resolveUseHandleRows({
           ownerChatId: row.owner_chat_id,
@@ -1641,10 +1686,9 @@ const createMemoryVaultService = ({
           field: handleRow.field,
           plaintext: decryptCiphertextForSink(handleRow.ciphertext),
         }));
-        effectStarted = true;
         // The executor is main-process-only. Its result crosses HTTP only after
         // recursive secret/handle redaction, type filtering and a 32KiB bound.
-        const executorResult = await executor({
+        const executorResult = await lease.execute({
           intentId: row.intent_id,
           interactionId: row.interaction_id,
           ownerChatId: row.owner_chat_id,
@@ -1658,6 +1702,10 @@ const createMemoryVaultService = ({
           schemaFingerprint: row.schema_fingerprint,
           secrets,
         });
+        // A response is not a completed external effect until the one-shot
+        // process boundary has drained. W2 strengthens this from a POSIX
+        // process-group proof to a Windows Job-tree proof.
+        await lease.awaitDrained();
         const safeResultJson = sanitizeVaultExecutorResult({
           result: executorResult,
           plaintexts: secrets.map((item) => item.plaintext),
@@ -1675,11 +1723,35 @@ const createMemoryVaultService = ({
           receipt,
           false,
         );
-      } catch (_error) {
-        // Once executing has been persisted, any failure is treated as
-        // indeterminate. Even a pre-effect decrypt failure stays fail-closed;
-        // the `effectStarted` flag is intentionally not exposed or persisted.
-        void effectStarted;
+      } catch (error) {
+        if (lease) {
+          try {
+            lease.abort();
+          } catch (_abortError) {
+            // Static state handling below remains authoritative.
+          }
+          try {
+            await lease.awaitDrained();
+          } catch (_drainError) {
+            // A failed post-CAS drain is indeterminate; a pre-CAS failure keeps
+            // the durable winner unchanged.
+          }
+        }
+        if (!claimed) {
+          if (
+            error &&
+            typeof error.code === "string" &&
+            /^vault_[a-z0-9_]{1,80}$/.test(error.code)
+          ) {
+            throw errorWithCode("vault sink preparation failed", error.code);
+          }
+          throw errorWithCode(
+            "vault sink preparation failed",
+            "vault_sink_unavailable",
+          );
+        }
+        // Once executing has been persisted, every failure is conservative:
+        // indeterminate and never automatically replayed.
         try {
           const latest = getUseIntent(row.intent_id);
           if (latest && latest.status === "executing") {
@@ -1698,12 +1770,13 @@ const createMemoryVaultService = ({
           "vault_use_indeterminate",
         );
       }
-    })();
-    executionInFlight.set(row.intent_id, executionPromise);
+    };
+
+    runExecution().then(resolveExecution, rejectExecution);
     try {
       return await executionPromise;
     } finally {
-      if (executionInFlight.get(row.intent_id) === executionPromise) {
+      if (executionInFlight.get(row.intent_id)?.promise === executionPromise) {
         executionInFlight.delete(row.intent_id);
       }
     }

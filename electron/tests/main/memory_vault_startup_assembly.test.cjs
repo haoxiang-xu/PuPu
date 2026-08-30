@@ -200,7 +200,9 @@ describe("vault sink worker startup assembly", () => {
     mockState.vaultClose = null;
     mockState.resolveEntrypoint = () => VALID_ENTRYPOINT;
     mockState.createExecutors = () => ({
-      executors: { shell_secret_env: async () => ({}) },
+      providers: {
+        shell_secret_env: { prepare: async () => ({}) },
+      },
       close: () => record("executors:close"),
       activeChildCount: () => 0,
       isClosed: () => false,
@@ -243,7 +245,9 @@ describe("vault sink worker startup assembly", () => {
     mockState.createExecutors = (options) => {
       captured = options;
       return {
-        executors: { shell_secret_env: async () => ({}) },
+        providers: {
+          shell_secret_env: { prepare: async () => ({}) },
+        },
         close: () => {},
         activeChildCount: () => 0,
         isClosed: () => false,
@@ -380,7 +384,9 @@ describe("vault sink worker startup assembly", () => {
 
   test("a throwing registry drain never blocks quit", async () => {
     mockState.createExecutors = () => ({
-      executors: { shell_secret_env: async () => ({}) },
+      providers: {
+        shell_secret_env: { prepare: async () => ({}) },
+      },
       close: () => {
         throw new Error("kill failed");
       },

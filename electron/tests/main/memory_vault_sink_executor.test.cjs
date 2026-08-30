@@ -1,6 +1,7 @@
 const {
   createVaultSinkExecutor,
   createVaultSinkExecutors,
+  parseSupervisorControlFrame,
   VAULT_SINK_KINDS,
   VAULT_SINK_WORKER_MAX_RESPONSE_BYTES,
 } = require("../../main/services/memory_vault/vault_sink_executor");
@@ -20,6 +21,7 @@ process.stdin.on("end", () => {
   const plaintexts = request.plaintext_bindings.map((item) => item.plaintext);
   process.stderr.write(plaintexts.join(""));
   const result = {
+    version: request.version,
     ok: true,
     sink_kind: request.sink_kind,
     result: {
@@ -68,6 +70,7 @@ process.stdin.on("end", () => {
   const descendant = childProcess.spawn("/bin/sleep", ["30"], {stdio: "ignore"});
   descendant.unref();
   const response = {
+    version: request.version,
     ok: true,
     sink_kind: request.sink_kind,
     result: {descendant_pid: descendant.pid},
@@ -120,7 +123,56 @@ const mcpPayload = () => ({
   secrets: [{ field: "token", plaintext: SECRET }],
 });
 
+const executePrepared = async (provider, payload) => {
+  const lease = await provider.prepare({ sinkKind: payload.sinkKind });
+  try {
+    return await lease.execute(payload);
+  } finally {
+    lease.abort();
+    await lease.awaitDrained();
+  }
+};
+
 describe("memory vault sink executor", () => {
+  test("strictly consumes the W2 supervisor READY/error control union", () => {
+    const readyBody = Buffer.from(
+      '{"containment":"win32_job_list_v1","kind":"ready","protocol":1}',
+      "utf8",
+    );
+    const ready = Buffer.alloc(4 + readyBody.length);
+    ready.writeUInt32BE(readyBody.length, 0);
+    readyBody.copy(ready, 4);
+
+    expect(parseSupervisorControlFrame(ready)).toEqual({ kind: "ready" });
+    const errorBody = Buffer.from(
+      '{"code":"vault_worker_job_setup_failed","kind":"error","protocol":1}',
+      "utf8",
+    );
+    const error = Buffer.alloc(4 + errorBody.length);
+    error.writeUInt32BE(errorBody.length, 0);
+    errorBody.copy(error, 4);
+    expect(parseSupervisorControlFrame(error)).toEqual({
+      code: "vault_worker_job_setup_failed",
+      kind: "error",
+    });
+
+    for (const malformed of [
+      ready.subarray(0, ready.length - 1),
+      Buffer.concat([ready, Buffer.from("x")]),
+      Buffer.concat([
+        Buffer.from([0, 0, 0, readyBody.length]),
+        Buffer.from(
+          '{"containment":"win32_job_list_v1","kind":"ready","protocol":2}',
+          "utf8",
+        ),
+      ]),
+    ]) {
+      expect(() => parseSupervisorControlFrame(malformed)).toThrow(
+        expect.objectContaining({ code: "vault_worker_ready_protocol_error" }),
+      );
+    }
+  });
+
   test("uses one framed process, stdin-only plaintext, and a minimal worker env", async () => {
     const environmentSource = {
       PATH: process.env.PATH || "/usr/bin:/bin",
@@ -132,15 +184,15 @@ describe("memory vault sink executor", () => {
     const spawn = jest.fn((...spawnArguments) =>
       childProcess.spawn(...spawnArguments),
     );
-    const executor = createVaultSinkExecutor({
+    const provider = createVaultSinkExecutor({
       ...entrypoint(framedChildScript),
       environmentSource,
       timeoutMs: 5000,
       spawn,
     });
 
-    const first = await executor(shellPayload());
-    const second = await executor(shellPayload());
+    const first = await executePrepared(provider, shellPayload());
+    const second = await executePrepared(provider, shellPayload());
 
     expect(first.ok).toBe(true);
     expect(first.result).toMatchObject({
@@ -179,13 +231,13 @@ describe("memory vault sink executor", () => {
 
   test("derives exact MCP toolkit metadata without forwarding service identity", async () => {
     const resolveEntrypoint = jest.fn(async () => entrypoint(framedChildScript));
-    const executor = createVaultSinkExecutor({
+    const provider = createVaultSinkExecutor({
       resolveEntrypoint,
       environmentSource: {},
       timeoutMs: 5000,
     });
 
-    const response = await executor(mcpPayload());
+    const response = await executePrepared(provider, mcpPayload());
 
     expect(resolveEntrypoint).toHaveBeenCalledTimes(1);
     expect(response.result.audit_arguments).toEqual(
@@ -212,10 +264,61 @@ describe("memory vault sink executor", () => {
     expect(registry.activeChildCount()).toBe(0);
     expect(registry.isClosed()).toBe(false);
 
-    const executors = registry.executors;
-    expect(Object.keys(executors).sort()).toEqual([...VAULT_SINK_KINDS].sort());
-    expect(new Set(Object.values(executors)).size).toBe(1);
-    expect(Object.isFrozen(executors)).toBe(true);
+    const providers = registry.providers;
+    expect(Object.keys(providers).sort()).toEqual([...VAULT_SINK_KINDS].sort());
+    expect(new Set(Object.values(providers)).size).toBe(1);
+    expect(Object.isFrozen(providers)).toBe(true);
+  });
+
+  test("prepare writes zero stdin bytes and returns a one-shot lease", async () => {
+    let stdinEnd = null;
+    const spawn = jest.fn((...spawnArguments) => {
+      const child = childProcess.spawn(...spawnArguments);
+      stdinEnd = jest.spyOn(child.stdin, "end");
+      return child;
+    });
+    const registry = createVaultSinkExecutors({
+      ...entrypoint(framedChildScript),
+      environmentSource: {},
+      timeoutMs: 5000,
+      spawn,
+    });
+
+    const lease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(stdinEnd).not.toHaveBeenCalled();
+    expect(registry.activeChildCount()).toBe(1);
+
+    const execution = lease.execute(shellPayload());
+    await expect(lease.execute(shellPayload())).rejects.toMatchObject({
+      code: "vault_worker_unavailable",
+    });
+    await expect(execution).resolves.toMatchObject({ ok: true });
+    await lease.awaitDrained();
+    expect(stdinEnd).toHaveBeenCalledTimes(1);
+    expect(registry.activeChildCount()).toBe(0);
+  });
+
+  test("close after READY but before execute aborts and drains the lease", async () => {
+    const registry = createVaultSinkExecutors({
+      ...entrypoint("process.stdin.resume();setTimeout(()=>{},60000);"),
+      environmentSource: {},
+      timeoutMs: 5000,
+    });
+    const lease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+
+    expect(registry.close()).toBe(1);
+    expect(registry.activeChildCount()).toBe(1);
+    await lease.awaitDrained();
+    expect(registry.activeChildCount()).toBe(0);
+    await expect(lease.execute(shellPayload())).rejects.toMatchObject({
+      code: "vault_worker_unavailable",
+    });
+    expect(registry.close()).toBe(0);
   });
 
   test("registry tracks live worker process groups and empties on every terminal path", async () => {
@@ -225,11 +328,15 @@ describe("memory vault sink executor", () => {
       timeoutMs: 5000,
     });
 
-    const pending = registry.executors.shell_secret_env(shellPayload());
+    const lease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+    const pending = lease.execute(shellPayload());
     // Tracked while in flight, released once the worker reaches its terminal
     // path — otherwise close() would grow unboundedly across a long session.
     expect(registry.activeChildCount()).toBe(1);
     await expect(pending).resolves.toMatchObject({ ok: true });
+    await lease.awaitDrained();
     expect(registry.activeChildCount()).toBe(0);
 
     const failing = createVaultSinkExecutors({
@@ -238,7 +345,7 @@ describe("memory vault sink executor", () => {
       timeoutMs: 5000,
     });
     await expect(
-      failing.executors.shell_secret_env(shellPayload()),
+      executePrepared(failing.providers.shell_secret_env, shellPayload()),
     ).rejects.toMatchObject({ code: "vault_worker_failed" });
     expect(failing.activeChildCount()).toBe(0);
   });
@@ -253,19 +360,24 @@ describe("memory vault sink executor", () => {
       timeoutMs: 20000,
     });
 
-    const pending = registry.executors.shell_secret_env(shellPayload());
+    const lease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+    const pending = lease.execute(shellPayload());
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(registry.activeChildCount()).toBe(1);
 
     // Synchronous: will-quit does not await promises.
     const terminated = registry.close();
     expect(terminated).toBe(1);
-    expect(registry.activeChildCount()).toBe(0);
+    expect(registry.activeChildCount()).toBe(1);
     expect(registry.isClosed()).toBe(true);
 
     await expect(pending).rejects.toMatchObject({
       message: expect.not.stringContaining(SECRET),
     });
+    await registry.awaitDrained();
+    expect(registry.activeChildCount()).toBe(0);
 
     // A drained registry never frames plaintext again.
     const spawn = jest.fn();
@@ -276,7 +388,9 @@ describe("memory vault sink executor", () => {
     });
     closedRegistry.close();
     await expect(
-      closedRegistry.executors.shell_secret_env(shellPayload()),
+      closedRegistry.providers.shell_secret_env.prepare({
+        sinkKind: "shell_secret_env",
+      }),
     ).rejects.toMatchObject({
       code: "vault_worker_unavailable",
       message: expect.not.stringContaining(SECRET),
@@ -302,7 +416,7 @@ describe("memory vault sink executor", () => {
       },
       {
         script: responseChildScript(
-          "({ok:true,sink_kind:request.sink_kind,result:{status:'safe'}})",
+          "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{status:'safe'}})",
           "Buffer.from('x')",
         ),
         code: "vault_worker_protocol_error",
@@ -313,19 +427,19 @@ describe("memory vault sink executor", () => {
       },
       {
         script: responseChildScript(
-          "({ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext}})",
+          "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext}})",
         ),
         code: "vault_worker_secret_leak",
       },
       {
         script: responseChildScript(
-          "({ok:true,sink_kind:request.sink_kind,result:{echo:[...Buffer.from(request.plaintext_bindings[0].plaintext)].map(b=>'%'+b.toString(16).padStart(2,'0')).join('')}})",
+          "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:[...Buffer.from(request.plaintext_bindings[0].plaintext)].map(b=>'%'+b.toString(16).padStart(2,'0')).join('')}})",
         ),
         code: "vault_worker_secret_leak",
       },
       {
         script: responseChildScript(
-          "({ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext.replace('✓',String.fromCharCode(92)+'u2713')}})",
+          "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext.replace('✓',String.fromCharCode(92)+'u2713')}})",
         ),
         code: "vault_worker_secret_leak",
       },
@@ -337,8 +451,31 @@ describe("memory vault sink executor", () => {
         environmentSource: {},
         timeoutMs: 5000,
       });
-      await expect(executor(shellPayload())).rejects.toMatchObject({
+      await expect(
+        executePrepared(executor, shellPayload()),
+      ).rejects.toMatchObject({
         code: item.code,
+        message: expect.not.stringContaining(SECRET),
+      });
+    }
+  });
+
+  test("rejects non-versioned and non-closed worker response unions", async () => {
+    const cases = [
+      "({ok:true,sink_kind:request.sink_kind,result:{status:'safe'}})",
+      "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{status:'safe'},extra:true})",
+      "({version:request.version,ok:false,error:{code:'vault_worker_failed'},sink_kind:request.sink_kind})",
+      "({version:request.version + 1,ok:false,error:{code:'vault_worker_failed'}})",
+    ];
+
+    for (const expression of cases) {
+      const executor = createVaultSinkExecutor({
+        ...entrypoint(responseChildScript(expression)),
+        environmentSource: {},
+        timeoutMs: 5000,
+      });
+      await expect(executePrepared(executor, shellPayload())).rejects.toMatchObject({
+        code: "vault_worker_protocol_error",
         message: expect.not.stringContaining(SECRET),
       });
     }
@@ -348,13 +485,15 @@ describe("memory vault sink executor", () => {
     const failureExecutor = createVaultSinkExecutor({
       ...entrypoint(
         responseChildScript(
-          "({ok:false,error:{code:'vault_mcp_schema_mismatch'}})",
+          "({version:request.version,ok:false,error:{code:'vault_mcp_schema_mismatch'}})",
         ),
       ),
       environmentSource: {},
       timeoutMs: 5000,
     });
-    await expect(failureExecutor(shellPayload())).rejects.toMatchObject({
+    await expect(
+      executePrepared(failureExecutor, shellPayload()),
+    ).rejects.toMatchObject({
       code: "vault_mcp_schema_mismatch",
       message: "[vault_mcp_schema_mismatch] vault sink worker failed",
     });
@@ -365,7 +504,9 @@ describe("memory vault sink executor", () => {
       timeoutMs: 1000,
     });
     const started = Date.now();
-    await expect(timeoutExecutor(shellPayload())).rejects.toMatchObject({
+    await expect(
+      executePrepared(timeoutExecutor, shellPayload()),
+    ).rejects.toMatchObject({
       code: "vault_worker_timeout",
       message: expect.not.stringContaining(SECRET),
     });
@@ -380,7 +521,7 @@ describe("memory vault sink executor", () => {
       timeoutMs: 5000,
     });
 
-    const response = await executor(shellPayload());
+    const response = await executePrepared(executor, shellPayload());
     const descendantPid = response.result.descendant_pid;
     let state = "";
     const deadline = Date.now() + 3000;
@@ -406,7 +547,7 @@ describe("memory vault sink executor", () => {
     const payload = shellPayload();
     payload.secrets = [{ field: "TOKEN", plaintext: "\ud800" }];
 
-    const response = await executor(payload);
+    const response = await executePrepared(executor, payload);
 
     expect(response.ok).toBe(true);
     expect(response.result.plaintext_lengths).toEqual([3]);
@@ -415,13 +556,13 @@ describe("memory vault sink executor", () => {
     const leakingExecutor = createVaultSinkExecutor({
       ...entrypoint(
         responseChildScript(
-          "({ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext}})",
+          "({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:request.plaintext_bindings[0].plaintext}})",
         ),
       ),
       environmentSource: {},
       timeoutMs: 5000,
     });
-    await expect(leakingExecutor(payload)).rejects.toMatchObject({
+    await expect(executePrepared(leakingExecutor, payload)).rejects.toMatchObject({
       code: "vault_worker_secret_leak",
     });
   });
@@ -435,15 +576,69 @@ describe("memory vault sink executor", () => {
       spawn,
     });
 
-    await expect(executor(shellPayload())).rejects.toMatchObject({
+    await expect(
+      executor.prepare({ sinkKind: "shell_secret_env" }),
+    ).rejects.toMatchObject({
       code: "vault_worker_containment_unavailable",
       message: expect.not.stringContaining(SECRET),
     });
     expect(spawn).not.toHaveBeenCalled();
   });
 
-  test("rejects plaintext or encoded plaintext in audit data before spawn", async () => {
+  test("Windows registry admits only a complete capability and W0-approved sink set", () => {
     const spawn = jest.fn();
+    const registry = createVaultSinkExecutors({
+      ...entrypoint(framedChildScript),
+      environmentSource: {},
+      platform: "win32",
+      spawn,
+      windowsSinkCapability: {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: [],
+        protocol: 1,
+      },
+    });
+
+    // W0 currently approves no Windows sinks, so the registry must not expose
+    // a provider that could ever receive plaintext.
+    expect(Object.keys(registry.providers)).toEqual([]);
+    expect(spawn).not.toHaveBeenCalled();
+
+    for (const capability of [
+      {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: ["shell_secret_env", "shell_secret_env"],
+        protocol: 1,
+      },
+      {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: ["not_a_sink"],
+        protocol: 1,
+      },
+      {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: ["computer_input"],
+        protocol: 1,
+      },
+    ]) {
+      expect(() =>
+        createVaultSinkExecutors({
+          ...entrypoint(framedChildScript),
+          environmentSource: {},
+          platform: "win32",
+          windowsSinkCapability: capability,
+        }),
+      ).toThrow(expect.objectContaining({ code: "vault_sink_capability_invalid" }));
+    }
+  });
+
+  test("rejects plaintext or encoded plaintext in audit data before framing", async () => {
+    let stdinEnd = null;
+    const spawn = jest.fn((...spawnArguments) => {
+      const child = childProcess.spawn(...spawnArguments);
+      stdinEnd = jest.spyOn(child.stdin, "end");
+      return child;
+    });
     const executor = createVaultSinkExecutor({
       ...entrypoint(framedChildScript),
       environmentSource: {},
@@ -452,11 +647,12 @@ describe("memory vault sink executor", () => {
     const payload = shellPayload();
     payload.auditArguments.note = Buffer.from(SECRET, "utf8").toString("base64");
 
-    await expect(executor(payload)).rejects.toMatchObject({
+    await expect(executePrepared(executor, payload)).rejects.toMatchObject({
       code: "vault_audit_contains_plaintext",
       message: expect.not.stringContaining(SECRET),
     });
-    expect(spawn).not.toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(stdinEnd).not.toHaveBeenCalled();
   });
 
   test("rejects relative or NUL-bearing MCP runtime paths", () => {
@@ -482,7 +678,7 @@ describe("memory vault sink executor", () => {
       createVaultSinkExecutor({
         ...entrypoint(
           responseChildScript(
-            `({ok:true,sink_kind:request.sink_kind,result:{echo:${encodeExpression}}})`,
+            `({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:${encodeExpression}}})`,
           ),
         ),
         environmentSource: {},
@@ -506,7 +702,7 @@ describe("memory vault sink executor", () => {
 
     for (const [name, expression] of Object.entries(encodings)) {
       test(`detects a ${name}-encoded secret in the worker response`, async () => {
-        await expect(leakingExecutorFor(expression)(shellPayload())).rejects.toMatchObject(
+        await expect(executePrepared(leakingExecutorFor(expression), shellPayload())).rejects.toMatchObject(
           { code: "vault_worker_secret_leak" },
         );
       });
@@ -516,13 +712,13 @@ describe("memory vault sink executor", () => {
       const executor = createVaultSinkExecutor({
         ...entrypoint(
           responseChildScript(
-            '({ok:true,sink_kind:request.sink_kind,result:{echo:"delivered to #alerts"}})',
+            '({version:request.version,ok:true,sink_kind:request.sink_kind,result:{echo:"delivered to #alerts"}})',
           ),
         ),
         environmentSource: {},
         timeoutMs: 5000,
       });
-      const response = await executor(shellPayload());
+      const response = await executePrepared(executor, shellPayload());
       expect(response.ok).toBe(true);
       expect(response.result.echo).toBe("delivered to #alerts");
     });

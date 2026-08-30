@@ -151,6 +151,28 @@ test("artifact, manifest, provenance, and nonzero evidence are all blocking", ()
   );
 });
 
+test("Windows Vault supervisor native probe requires nonzero evidence", () => {
+  const report = buildJobReport({
+    platform: { name: "playwright-Windows" },
+    requiredChecks: ["Windows Vault supervisor native probe"],
+    checks: [
+      {
+        name: "Windows Vault supervisor native probe",
+        outcome: "success",
+        executed_tests: 0,
+      },
+    ],
+  });
+
+  assert.equal(report.deterministic_result.status, "failed");
+  assert.match(
+    report.checks.find(
+      (check) => check.name === "Windows Vault supervisor native probe",
+    ).details,
+    /zero or missing execution evidence/,
+  );
+});
+
 test("lite merge passes with one deterministic artifact and required matrices", () => {
   const merged = mergeReports([
     buildJobReport({
