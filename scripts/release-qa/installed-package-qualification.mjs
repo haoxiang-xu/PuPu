@@ -138,13 +138,10 @@ export const buildInstalledLaunchArguments = ({ debugPort, userData, platform = 
   ...(platform === "linux" ? ["--no-sandbox"] : []),
 ];
 
-export const buildInstalledProcessControl = ({ platform = process.platform, pid = null } = {}) => {
-  const processGroup = platform === "linux";
-  return {
-    detached: processGroup,
-    shutdownPid: pid === null ? null : (processGroup ? -pid : pid),
-  };
-};
+export const buildInstalledProcessControl = ({ pid = null } = {}) => ({
+  detached: false,
+  shutdownPid: pid,
+});
 
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
