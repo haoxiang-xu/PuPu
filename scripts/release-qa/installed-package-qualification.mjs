@@ -143,6 +143,16 @@ export const buildInstalledProcessControl = ({ pid = null } = {}) => ({
   shutdownPid: pid,
 });
 
+export const removeInstalledQualificationTempRoot = (
+  tempRoot,
+  { remove = fs.rmSync } = {},
+) => remove(tempRoot, {
+  recursive: true,
+  force: true,
+  maxRetries: 20,
+  retryDelay: 100,
+});
+
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
   .map((line) => line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/))
@@ -663,7 +673,7 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       package_forms: packageForms,
     }, { manifest, manifestDigest: manifest.manifest_digest, targetId });
   } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    removeInstalledQualificationTempRoot(tempRoot);
   }
 }
 

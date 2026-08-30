@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildInstalledLaunchArguments,
   buildInstalledProcessControl,
+  removeInstalledQualificationTempRoot,
   selectInstalledCleanupPids,
   validateInstalledPackageQualificationReport,
 } from "./installed-package-qualification.mjs";
@@ -101,6 +102,32 @@ test("installed qualification shuts down the main process before cleaning residu
   assert.deepEqual(
     buildInstalledProcessControl({ platform: "win32", pid: 4242 }),
     { detached: false, shutdownPid: 4242 },
+  );
+});
+
+test("installed qualification configures bounded temp cleanup retries without hiding permanent errors", () => {
+  let observed = null;
+  removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+    remove: (target, options) => {
+      observed = { target, options };
+    },
+  });
+  assert.deepEqual(observed, {
+    target: "C:\\qualification-temp",
+    options: {
+      recursive: true,
+      force: true,
+      maxRetries: 20,
+      retryDelay: 100,
+    },
+  });
+
+  const permanent = Object.assign(new Error("permission denied"), { code: "EACCES" });
+  assert.throws(
+    () => removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+      remove: () => { throw permanent; },
+    }),
+    permanent,
   );
 });
 
