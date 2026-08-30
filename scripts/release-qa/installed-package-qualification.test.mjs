@@ -89,10 +89,10 @@ test("installed qualification disables the Electron sandbox only for Linux CI la
   ]);
 });
 
-test("installed qualification shuts down the complete Linux process group", () => {
+test("installed qualification shuts down the main process before cleaning residuals", () => {
   assert.deepEqual(
     buildInstalledProcessControl({ platform: "linux", pid: 4242 }),
-    { detached: true, shutdownPid: -4242 },
+    { detached: false, shutdownPid: 4242 },
   );
   assert.deepEqual(
     buildInstalledProcessControl({ platform: "darwin", pid: 4242 }),
