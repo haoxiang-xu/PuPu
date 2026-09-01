@@ -8,10 +8,13 @@ use later: owned Win32 handles and a one-frame, static READY/error protocol.
 from __future__ import annotations
 
 import ctypes
+import ntpath
 import os
 import struct
+import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 
@@ -27,8 +30,58 @@ WAIT_OBJECT_0 = 0
 WAIT_TIMEOUT = 258
 TH32CS_SNAPPROCESS = 0x00000002
 MAX_PATH = 260
+HANDLE_FLAG_INHERIT = 0x00000001
+DUPLICATE_SAME_ACCESS = 0x00000002
+STD_INPUT_HANDLE = -10
+STD_OUTPUT_HANDLE = -11
+GENERIC_WRITE = 0x40000000
+FILE_SHARE_READ = 0x00000001
+FILE_SHARE_WRITE = 0x00000002
+OPEN_EXISTING = 3
+FILE_ATTRIBUTE_NORMAL = 0x00000080
+ERROR_INSUFFICIENT_BUFFER = 122
+PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x00020002
+PROC_THREAD_ATTRIBUTE_JOB_LIST = 0x0002000D
+STARTF_USESTDHANDLES = 0x00000100
+CREATE_UNICODE_ENVIRONMENT = 0x00000400
+EXTENDED_STARTUPINFO_PRESENT = 0x00080000
+CREATE_NO_WINDOW = 0x08000000
+WORKER_BOOTSTRAP_VERSION = "1"
+WORKER_BOOTSTRAP_VERSION_ENV = "PUPU_VAULT_WORKER_BOOTSTRAP_VERSION"
+WORKER_READY_EVENT_ENV = "PUPU_VAULT_WORKER_READY_EVENT"
 _MAX_SNAPSHOT_PROCESSES = 65536
 _MAX_WIN32_PID = 0xFFFFFFFF
+_MAX_COMMAND_LINE_CHARS = 32767
+_MINIMAL_WORKER_ENVIRONMENT = frozenset(
+    {
+        "ALLUSERSPROFILE",
+        "APPDATA",
+        "COMMONPROGRAMFILES",
+        "COMMONPROGRAMFILES(X86)",
+        "COMSPEC",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "NUMBER_OF_PROCESSORS",
+        "OS",
+        "PATH",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROCESSOR_IDENTIFIER",
+        "PROCESSOR_LEVEL",
+        "PROCESSOR_REVISION",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "PROGRAMFILES(X86)",
+        "PUBLIC",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "WINDIR",
+    }
+)
 READY_CONTROL_BODY = (
     b'{"containment":"win32_job_list_v1","kind":"ready","protocol":1}'
 )
@@ -72,6 +125,53 @@ class PROCESSENTRY32W(ctypes.Structure):
         ("pcPriClassBase", ctypes.c_int32),
         ("dwFlags", DWORD),
         ("szExeFile", ctypes.c_uint16 * MAX_PATH),
+    ]
+
+
+class SECURITY_ATTRIBUTES(ctypes.Structure):
+    _fields_ = [
+        ("nLength", DWORD),
+        ("lpSecurityDescriptor", ctypes.c_void_p),
+        ("bInheritHandle", BOOL),
+    ]
+
+
+class STARTUPINFOW(ctypes.Structure):
+    _fields_ = [
+        ("cb", DWORD),
+        ("lpReserved", ctypes.c_void_p),
+        ("lpDesktop", ctypes.c_void_p),
+        ("lpTitle", ctypes.c_void_p),
+        ("dwX", DWORD),
+        ("dwY", DWORD),
+        ("dwXSize", DWORD),
+        ("dwYSize", DWORD),
+        ("dwXCountChars", DWORD),
+        ("dwYCountChars", DWORD),
+        ("dwFillAttribute", DWORD),
+        ("dwFlags", DWORD),
+        ("wShowWindow", ctypes.c_uint16),
+        ("cbReserved2", ctypes.c_uint16),
+        ("lpReserved2", ctypes.c_void_p),
+        ("hStdInput", HANDLE),
+        ("hStdOutput", HANDLE),
+        ("hStdError", HANDLE),
+    ]
+
+
+class STARTUPINFOEXW(ctypes.Structure):
+    _fields_ = [
+        ("StartupInfo", STARTUPINFOW),
+        ("lpAttributeList", ctypes.c_void_p),
+    ]
+
+
+class PROCESS_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("hProcess", HANDLE),
+        ("hThread", HANDLE),
+        ("dwProcessId", DWORD),
+        ("dwThreadId", DWORD),
     ]
 
 
@@ -175,6 +275,145 @@ def _handle_value(handle: Any) -> int:
         return 0
 
 
+def _is_absolute_windows_path(value: str) -> bool:
+    return ntpath.isabs(value) or os.path.isabs(value)
+
+
+class _WorkerCommand:
+    """Absolute application identity plus a mutable-safe command-line value."""
+
+    def __init__(self, application: str, arguments: tuple[str, ...]) -> None:
+        self.application = application
+        self.arguments = arguments
+        self.command_line = subprocess.list2cmdline(arguments)
+
+
+def _validate_worker_command(command: Any) -> _WorkerCommand:
+    """Admit one internally consistent, absolute CreateProcessW command."""
+
+    if (
+        not isinstance(command, _WorkerCommand)
+        or not isinstance(command.application, str)
+        or not command.application
+        or "\x00" in command.application
+        or not _is_absolute_windows_path(command.application)
+        or not isinstance(command.arguments, tuple)
+        or not command.arguments
+        or any(
+            not isinstance(argument, str) or "\x00" in argument
+            for argument in command.arguments
+        )
+        or command.arguments[0] != command.application
+    ):
+        raise VaultSinkSupervisorError("vault_worker_spawn_failed")
+    expected_command_line = subprocess.list2cmdline(command.arguments)
+    if (
+        not isinstance(command.command_line, str)
+        or command.command_line != expected_command_line
+        or not 1 <= len(command.command_line) < _MAX_COMMAND_LINE_CHARS
+    ):
+        raise VaultSinkSupervisorError("vault_worker_spawn_failed")
+    return command
+
+
+def _build_worker_command(
+    *,
+    executable: str | None = None,
+    frozen: bool | None = None,
+    main_path: str | None = None,
+) -> _WorkerCommand:
+    resolved_executable = str(executable or sys.executable or "")
+    is_frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
+    if (
+        not resolved_executable
+        or "\x00" in resolved_executable
+        or not _is_absolute_windows_path(resolved_executable)
+    ):
+        raise VaultSinkSupervisorError("vault_worker_spawn_failed")
+
+    arguments: tuple[str, ...]
+    if is_frozen:
+        arguments = (resolved_executable, "--vault-sink-worker")
+    else:
+        resolved_main = str(
+            main_path or (Path(__file__).resolve().parent / "main.py")
+        )
+        if (
+            not resolved_main
+            or "\x00" in resolved_main
+            or not _is_absolute_windows_path(resolved_main)
+        ):
+            raise VaultSinkSupervisorError("vault_worker_spawn_failed")
+        arguments = (
+            resolved_executable,
+            resolved_main,
+            "--vault-sink-worker",
+        )
+
+    return _validate_worker_command(
+        _WorkerCommand(resolved_executable, arguments)
+    )
+
+
+class _WorkerEnvironment:
+    """Minimal mapping and its exact double-NUL Unicode wire representation."""
+
+    def __init__(self, values: dict[str, str]) -> None:
+        self.values = values
+        entries = [
+            f"{key}={value}"
+            for key, value in sorted(
+                values.items(),
+                key=lambda item: item[0].casefold(),
+            )
+        ]
+        self.block = "\x00".join(entries) + "\x00\x00"
+        self.buffer = (ctypes.c_wchar * len(self.block))(*self.block)
+
+
+def _build_worker_environment(
+    environment: Mapping[str, str] | None = None,
+    *,
+    ready_event_handle: Any,
+) -> _WorkerEnvironment:
+    ready_value = _handle_value(ready_event_handle)
+    if ready_value in {0, INVALID_HANDLE_VALUE}:
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+
+    source = os.environ if environment is None else environment
+    admitted: dict[str, str] = {}
+    seen_names: set[str] = set()
+    for key, value in source.items():
+        if not isinstance(key, str):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        folded = key.casefold()
+        if folded in seen_names:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        seen_names.add(folded)
+        if (
+            key.upper() == "PYINSTALLER_RESET_ENVIRONMENT"
+            or key.upper().startswith("PUPU_VAULT_")
+            or (
+                key.upper() not in _MINIMAL_WORKER_ENVIRONMENT
+                and not key.upper().startswith("_PYI_")
+            )
+        ):
+            continue
+        if (
+            not isinstance(value, str)
+            or not key
+            or "=" in key
+            or "\x00" in key
+            or "\x00" in value
+        ):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        admitted[key] = value
+
+    admitted[WORKER_BOOTSTRAP_VERSION_ENV] = WORKER_BOOTSTRAP_VERSION
+    admitted[WORKER_READY_EVENT_ENV] = str(ready_value)
+    return _WorkerEnvironment(admitted)
+
+
 class _OwnedHandle:
     """One Win32 HANDLE with an exact close-once ownership rule."""
 
@@ -219,6 +458,93 @@ def _close_owned_handles(handles: list[_OwnedHandle]) -> int:
     return closed
 
 
+class _ProtocolHandles:
+    """Non-inheritable duplicates of Electron's original stdin/stdout."""
+
+    def __init__(self, *, stdin: _OwnedHandle, stdout: _OwnedHandle) -> None:
+        self.stdin = stdin
+        self.stdout = stdout
+
+    def close(self) -> int:
+        return _close_owned_handles([self.stdin, self.stdout])
+
+    def __enter__(self) -> "_ProtocolHandles":
+        return self
+
+    def __exit__(self, _type: Any, _value: Any, _traceback: Any) -> None:
+        self.close()
+
+
+class _ReadyEventPair:
+    """Supervisor Event plus the worker's inheritable duplicate."""
+
+    def __init__(
+        self,
+        *,
+        supervisor: _OwnedHandle,
+        child: _OwnedHandle,
+    ) -> None:
+        self.supervisor = supervisor
+        self.child = child
+
+    def close(self) -> int:
+        return _close_owned_handles([self.supervisor, self.child])
+
+
+class _AttributeList:
+    """STARTUPINFOEX storage; this is not a kernel handle."""
+
+    def __init__(
+        self,
+        *,
+        buffer: Any,
+        job_handles: Any,
+        inherited_handles: Any,
+        delete: Callable[[Any], None],
+    ) -> None:
+        self.buffer = buffer
+        self.job_handles = job_handles
+        self.inherited_handles = inherited_handles
+        self._delete = delete
+        self._closed = False
+
+    @property
+    def pointer(self) -> int:
+        if self._closed:
+            return 0
+        return int(ctypes.cast(self.buffer, ctypes.c_void_p).value or 0)
+
+    def close(self) -> bool:
+        if self._closed:
+            return False
+        pointer = self.pointer
+        self._closed = True
+        self._delete(ctypes.c_void_p(pointer))
+        return True
+
+
+class _SpawnedWorker:
+    """Handles retained by the supervisor after atomic worker creation."""
+
+    def __init__(
+        self,
+        *,
+        process: _OwnedHandle,
+        ready_event: _OwnedHandle,
+    ) -> None:
+        self.process = process
+        self.ready_event = ready_event
+
+    def close(self) -> int:
+        return _close_owned_handles([self.process, self.ready_event])
+
+    def __enter__(self) -> "_SpawnedWorker":
+        return self
+
+    def __exit__(self, _type: Any, _value: Any, _traceback: Any) -> None:
+        self.close()
+
+
 class _VerifiedParentChain:
     """Stable Electron/direct-parent/supervisor handles after verification."""
 
@@ -258,6 +584,8 @@ class _Win32Api:
         platform: str | None = None,
         kernel32: Any | None = None,
         pointer_size: int | None = None,
+        get_osfhandle: Callable[[int], int] | None = None,
+        get_last_error: Callable[[], int] | None = None,
     ) -> None:
         resolved_platform = sys.platform if platform is None else platform
         resolved_pointer_size = (
@@ -272,6 +600,10 @@ class _Win32Api:
             or ctypes.sizeof(HANDLE) != 8
             or ctypes.sizeof(FILETIME) != 8
             or ctypes.sizeof(PROCESSENTRY32W) != 568
+            or ctypes.sizeof(SECURITY_ATTRIBUTES) != 24
+            or ctypes.sizeof(STARTUPINFOW) != 104
+            or ctypes.sizeof(STARTUPINFOEXW) != 112
+            or ctypes.sizeof(PROCESS_INFORMATION) != 24
         ):
             raise VaultSinkSupervisorError("vault_worker_containment_unsupported")
         if kernel32 is None:
@@ -282,6 +614,18 @@ class _Win32Api:
                     "vault_worker_containment_unsupported"
                 ) from None
         self._kernel32 = kernel32
+        self._get_osfhandle = get_osfhandle
+        self._get_last_error = get_last_error
+        if self._get_osfhandle is None and kernel32 is not None:
+            try:
+                import msvcrt
+
+                self._get_osfhandle = msvcrt.get_osfhandle
+            except ImportError:
+                pass
+        if self._get_last_error is None:
+            self._get_last_error = getattr(ctypes, "get_last_error", None)
+        self._spawn_api_bound = False
         try:
             kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
             kernel32.CreateJobObjectW.restype = HANDLE
@@ -338,6 +682,517 @@ class _Win32Api:
             raise VaultSinkSupervisorError(
                 "vault_worker_containment_unsupported"
             ) from None
+
+    def _ensure_spawn_api(self) -> None:
+        if self._spawn_api_bound:
+            return
+        kernel32 = self._kernel32
+        try:
+            kernel32.GetCurrentProcess.argtypes = []
+            kernel32.GetCurrentProcess.restype = HANDLE
+            kernel32.GetStdHandle.argtypes = [DWORD]
+            kernel32.GetStdHandle.restype = HANDLE
+            kernel32.DuplicateHandle.argtypes = [
+                HANDLE,
+                HANDLE,
+                HANDLE,
+                ctypes.POINTER(HANDLE),
+                DWORD,
+                BOOL,
+                DWORD,
+            ]
+            kernel32.DuplicateHandle.restype = BOOL
+            kernel32.GetHandleInformation.argtypes = [
+                HANDLE,
+                ctypes.POINTER(DWORD),
+            ]
+            kernel32.GetHandleInformation.restype = BOOL
+            kernel32.CreateEventW.argtypes = [
+                ctypes.c_void_p,
+                BOOL,
+                BOOL,
+                ctypes.c_wchar_p,
+            ]
+            kernel32.CreateEventW.restype = HANDLE
+            kernel32.CreateFileW.argtypes = [
+                ctypes.c_wchar_p,
+                DWORD,
+                DWORD,
+                ctypes.POINTER(SECURITY_ATTRIBUTES),
+                DWORD,
+                DWORD,
+                HANDLE,
+            ]
+            kernel32.CreateFileW.restype = HANDLE
+            kernel32.InitializeProcThreadAttributeList.argtypes = [
+                ctypes.c_void_p,
+                DWORD,
+                DWORD,
+                ctypes.POINTER(ctypes.c_size_t),
+            ]
+            kernel32.InitializeProcThreadAttributeList.restype = BOOL
+            kernel32.UpdateProcThreadAttribute.argtypes = [
+                ctypes.c_void_p,
+                DWORD,
+                ctypes.c_size_t,
+                ctypes.c_void_p,
+                ctypes.c_size_t,
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_size_t),
+            ]
+            kernel32.UpdateProcThreadAttribute.restype = BOOL
+            kernel32.DeleteProcThreadAttributeList.argtypes = [ctypes.c_void_p]
+            kernel32.DeleteProcThreadAttributeList.restype = None
+            kernel32.CreateProcessW.argtypes = [
+                ctypes.c_wchar_p,
+                ctypes.POINTER(ctypes.c_wchar),
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                BOOL,
+                DWORD,
+                ctypes.c_void_p,
+                ctypes.c_wchar_p,
+                ctypes.c_void_p,
+                ctypes.POINTER(PROCESS_INFORMATION),
+            ]
+            kernel32.CreateProcessW.restype = BOOL
+        except (AttributeError, TypeError):
+            raise VaultSinkSupervisorError(
+                "vault_worker_containment_unsupported"
+            ) from None
+        self._spawn_api_bound = True
+
+    def _assert_handle_inheritance(
+        self,
+        handle: Any,
+        *,
+        expected: bool,
+    ) -> None:
+        self._ensure_spawn_api()
+        value = _handle_value(handle)
+        if value in {0, INVALID_HANDLE_VALUE}:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        flags = DWORD()
+        if not self._kernel32.GetHandleInformation(
+            HANDLE(value),
+            ctypes.byref(flags),
+        ):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        observed = bool(int(flags.value) & HANDLE_FLAG_INHERIT)
+        if observed is not expected:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+
+    def _duplicate_handle(
+        self,
+        source_handle: Any,
+        *,
+        inheritable: bool,
+    ) -> _OwnedHandle:
+        self._ensure_spawn_api()
+        source_value = _handle_value(source_handle)
+        if source_value in {0, INVALID_HANDLE_VALUE}:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        current_process = self._kernel32.GetCurrentProcess()
+        duplicated = HANDLE()
+        if not self._kernel32.DuplicateHandle(
+            current_process,
+            HANDLE(source_value),
+            current_process,
+            ctypes.byref(duplicated),
+            DWORD(0),
+            BOOL(inheritable),
+            DWORD(DUPLICATE_SAME_ACCESS),
+        ):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        owned = _OwnedHandle(duplicated, close=self._close_handle)
+        try:
+            self._assert_handle_inheritance(
+                owned.value,
+                expected=inheritable,
+            )
+            return owned
+        except Exception:
+            owned.close()
+            raise
+
+    def _capture_protocol_handles(self) -> _ProtocolHandles:
+        """Duplicate original CRT/std handles before any supervisor dup2."""
+
+        self._ensure_spawn_api()
+        if self._get_osfhandle is None:
+            raise VaultSinkSupervisorError(
+                "vault_worker_containment_unsupported"
+            )
+        opened: list[_OwnedHandle] = []
+        try:
+            raw_stdin = _handle_value(self._get_osfhandle(0))
+            raw_stdout = _handle_value(self._get_osfhandle(1))
+            std_stdin = _handle_value(
+                self._kernel32.GetStdHandle(DWORD(STD_INPUT_HANDLE & 0xFFFFFFFF))
+            )
+            std_stdout = _handle_value(
+                self._kernel32.GetStdHandle(DWORD(STD_OUTPUT_HANDLE & 0xFFFFFFFF))
+            )
+            if (
+                raw_stdin in {0, INVALID_HANDLE_VALUE}
+                or raw_stdout in {0, INVALID_HANDLE_VALUE}
+                or raw_stdin != std_stdin
+                or raw_stdout != std_stdout
+            ):
+                raise VaultSinkSupervisorError(
+                    "vault_worker_handle_setup_failed"
+                )
+            child_stdin_source = self._duplicate_handle(
+                raw_stdin,
+                inheritable=False,
+            )
+            opened.append(child_stdin_source)
+            child_stdout_source = self._duplicate_handle(
+                raw_stdout,
+                inheritable=False,
+            )
+            opened.append(child_stdout_source)
+            return _ProtocolHandles(
+                stdin=child_stdin_source,
+                stdout=child_stdout_source,
+            )
+        except Exception:
+            _close_owned_handles(opened)
+            raise
+
+    def _create_ready_event(self) -> _ReadyEventPair:
+        self._ensure_spawn_api()
+        raw_event = self._kernel32.CreateEventW(
+            None,
+            BOOL(True),
+            BOOL(False),
+            None,
+        )
+        supervisor_event = _OwnedHandle(
+            raw_event,
+            close=self._close_handle,
+        )
+        child_event: _OwnedHandle | None = None
+        try:
+            self._assert_handle_inheritance(
+                supervisor_event.value,
+                expected=False,
+            )
+            child_event = self._duplicate_handle(
+                supervisor_event.value,
+                inheritable=True,
+            )
+            return _ReadyEventPair(
+                supervisor=supervisor_event,
+                child=child_event,
+            )
+        except Exception:
+            if child_event is not None:
+                child_event.close()
+            supervisor_event.close()
+            raise
+
+    def _create_inheritable_nul(self) -> _OwnedHandle:
+        self._ensure_spawn_api()
+        security = SECURITY_ATTRIBUTES()
+        security.nLength = ctypes.sizeof(SECURITY_ATTRIBUTES)
+        security.bInheritHandle = BOOL(True)
+        raw_handle = self._kernel32.CreateFileW(
+            "NUL",
+            DWORD(GENERIC_WRITE),
+            DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE),
+            ctypes.byref(security),
+            DWORD(OPEN_EXISTING),
+            DWORD(FILE_ATTRIBUTE_NORMAL),
+            None,
+        )
+        if _handle_value(raw_handle) in {0, INVALID_HANDLE_VALUE}:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        owned = _OwnedHandle(raw_handle, close=self._close_handle)
+        try:
+            self._assert_handle_inheritance(owned.value, expected=True)
+            return owned
+        except Exception:
+            owned.close()
+            raise
+
+    def _build_attribute_list(
+        self,
+        job: _OwnedHandle,
+        inherited_handles: list[_OwnedHandle],
+    ) -> _AttributeList:
+        self._ensure_spawn_api()
+        if len(inherited_handles) != 4:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        values = [handle.value for handle in inherited_handles]
+        if len(set(values)) != 4:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        self._assert_handle_inheritance(job.value, expected=False)
+        for handle in inherited_handles:
+            self._assert_handle_inheritance(handle.value, expected=True)
+        if self._get_last_error is None:
+            raise VaultSinkSupervisorError(
+                "vault_worker_containment_unsupported"
+            )
+
+        required_size = ctypes.c_size_t()
+        sizing_result = self._kernel32.InitializeProcThreadAttributeList(
+            None,
+            DWORD(2),
+            DWORD(0),
+            ctypes.byref(required_size),
+        )
+        sizing_error = int(self._get_last_error())
+        if (
+            sizing_result
+            or sizing_error != ERROR_INSUFFICIENT_BUFFER
+            or required_size.value <= 0
+        ):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+
+        buffer = ctypes.create_string_buffer(required_size.value)
+        if not self._kernel32.InitializeProcThreadAttributeList(
+            ctypes.cast(buffer, ctypes.c_void_p),
+            DWORD(2),
+            DWORD(0),
+            ctypes.byref(required_size),
+        ):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+
+        job_handles = (HANDLE * 1)(job.value)
+        child_handles = (HANDLE * 4)(*values)
+        attribute_list = _AttributeList(
+            buffer=buffer,
+            job_handles=job_handles,
+            inherited_handles=child_handles,
+            delete=self._kernel32.DeleteProcThreadAttributeList,
+        )
+        try:
+            if not self._kernel32.UpdateProcThreadAttribute(
+                ctypes.c_void_p(attribute_list.pointer),
+                DWORD(0),
+                ctypes.c_size_t(PROC_THREAD_ATTRIBUTE_JOB_LIST),
+                ctypes.cast(job_handles, ctypes.c_void_p),
+                ctypes.c_size_t(ctypes.sizeof(job_handles)),
+                None,
+                None,
+            ):
+                raise VaultSinkSupervisorError(
+                    "vault_worker_handle_setup_failed"
+                )
+            if not self._kernel32.UpdateProcThreadAttribute(
+                ctypes.c_void_p(attribute_list.pointer),
+                DWORD(0),
+                ctypes.c_size_t(PROC_THREAD_ATTRIBUTE_HANDLE_LIST),
+                ctypes.cast(child_handles, ctypes.c_void_p),
+                ctypes.c_size_t(ctypes.sizeof(child_handles)),
+                None,
+                None,
+            ):
+                raise VaultSinkSupervisorError(
+                    "vault_worker_handle_setup_failed"
+                )
+            return attribute_list
+        except Exception:
+            attribute_list.close()
+            raise
+
+    def _spawn_contained_worker(
+        self,
+        protocol: _ProtocolHandles,
+        job: _OwnedHandle,
+        *,
+        environment: Mapping[str, str] | None = None,
+        executable: str | None = None,
+        frozen: bool | None = None,
+        main_path: str | None = None,
+    ) -> _SpawnedWorker:
+        """Create the worker atomically in Job and retain only supervisor handles."""
+
+        try:
+            command = _build_worker_command(
+                executable=executable,
+                frozen=frozen,
+                main_path=main_path,
+            )
+        except Exception:
+            if isinstance(job, _OwnedHandle):
+                job.close()
+            raise
+        return self._spawn_contained_command(
+            protocol,
+            job,
+            command=command,
+            environment=environment,
+        )
+
+    def _spawn_contained_command(
+        self,
+        protocol: _ProtocolHandles,
+        job: _OwnedHandle,
+        *,
+        command: _WorkerCommand,
+        environment: Mapping[str, str] | None = None,
+    ) -> _SpawnedWorker:
+        """Shared atomic kernel path for the worker and no-secret native probe."""
+
+        ready_pair: _ReadyEventPair | None = None
+        transient_handles: list[_OwnedHandle] = []
+        attribute_list: _AttributeList | None = None
+        process: _OwnedHandle | None = None
+        thread: _OwnedHandle | None = None
+        succeeded = False
+        try:
+            self._ensure_spawn_api()
+            if (
+                not isinstance(protocol, _ProtocolHandles)
+                or not isinstance(job, _OwnedHandle)
+                or not job.value
+            ):
+                raise VaultSinkSupervisorError(
+                    "vault_worker_handle_setup_failed"
+                )
+            command = _validate_worker_command(command)
+            ready_pair = self._create_ready_event()
+            child_stdin = self._duplicate_handle(
+                protocol.stdin.value,
+                inheritable=True,
+            )
+            transient_handles.append(child_stdin)
+            child_stdout = self._duplicate_handle(
+                protocol.stdout.value,
+                inheritable=True,
+            )
+            transient_handles.append(child_stdout)
+            child_stderr = self._create_inheritable_nul()
+            transient_handles.append(child_stderr)
+            inherited_handles = [
+                child_stdin,
+                child_stdout,
+                child_stderr,
+                ready_pair.child,
+            ]
+
+            worker_environment = _build_worker_environment(
+                environment,
+                ready_event_handle=ready_pair.child.value,
+            )
+            attribute_list = self._build_attribute_list(
+                job,
+                inherited_handles,
+            )
+            startup_info = STARTUPINFOEXW()
+            startup_info.StartupInfo.cb = ctypes.sizeof(STARTUPINFOEXW)
+            startup_info.StartupInfo.dwFlags = STARTF_USESTDHANDLES
+            startup_info.StartupInfo.hStdInput = child_stdin.value
+            startup_info.StartupInfo.hStdOutput = child_stdout.value
+            startup_info.StartupInfo.hStdError = child_stderr.value
+            startup_info.lpAttributeList = attribute_list.pointer
+            process_info = PROCESS_INFORMATION()
+            command_buffer = ctypes.create_unicode_buffer(command.command_line)
+            creation_flags = (
+                EXTENDED_STARTUPINFO_PRESENT
+                | CREATE_UNICODE_ENVIRONMENT
+                | CREATE_NO_WINDOW
+            )
+            if not self._kernel32.CreateProcessW(
+                command.application,
+                command_buffer,
+                None,
+                None,
+                BOOL(True),
+                DWORD(creation_flags),
+                ctypes.cast(worker_environment.buffer, ctypes.c_void_p),
+                None,
+                ctypes.byref(startup_info),
+                ctypes.byref(process_info),
+            ):
+                raise VaultSinkSupervisorError("vault_worker_spawn_failed")
+
+            process = _OwnedHandle(
+                process_info.hProcess,
+                close=self._close_handle,
+            )
+            thread = _OwnedHandle(
+                process_info.hThread,
+                close=self._close_handle,
+            )
+            thread.close()
+            thread = None
+            _close_owned_handles(transient_handles)
+            transient_handles = []
+            ready_pair.child.close()
+            attribute_list.close()
+            attribute_list = None
+
+            if not self.process_is_in_job(process.value, job):
+                raise VaultSinkSupervisorError(
+                    "vault_worker_attestation_failed"
+                )
+            worker = _SpawnedWorker(
+                process=process,
+                ready_event=ready_pair.supervisor,
+            )
+            process = None
+            ready_pair = None
+            succeeded = True
+            return worker
+        except VaultSinkSupervisorError:
+            raise
+        except Exception:
+            raise VaultSinkSupervisorError("vault_worker_spawn_failed") from None
+        finally:
+            cleanup_error: Exception | None = None
+
+            def close_for_cleanup(resource: Any) -> None:
+                nonlocal cleanup_error
+                if resource is None:
+                    return
+                try:
+                    resource.close()
+                except Exception as error:
+                    if cleanup_error is None:
+                        cleanup_error = error
+
+            close_for_cleanup(thread)
+            close_for_cleanup(attribute_list)
+            for transient in reversed(transient_handles):
+                close_for_cleanup(transient)
+            close_for_cleanup(process)
+            close_for_cleanup(ready_pair)
+            if not succeeded and isinstance(job, _OwnedHandle):
+                close_for_cleanup(job)
+            if cleanup_error is not None and sys.exc_info()[0] is None:
+                raise cleanup_error
+
+    def wait_for_handle_for_probe(
+        self,
+        handle: Any,
+        timeout_ms: int,
+    ) -> int:
+        """Bounded no-secret probe wait with a closed result domain."""
+
+        value = _handle_value(handle)
+        if (
+            value in {0, INVALID_HANDLE_VALUE}
+            or not isinstance(timeout_ms, int)
+            or isinstance(timeout_ms, bool)
+            or not 0 <= timeout_ms <= 0xFFFFFFFF
+        ):
+            raise VaultSinkSupervisorError(
+                "vault_worker_attestation_failed"
+            )
+        result = int(
+            self._kernel32.WaitForSingleObject(
+                HANDLE(value),
+                DWORD(timeout_ms),
+            )
+        )
+        if result not in {WAIT_OBJECT_0, WAIT_TIMEOUT}:
+            raise VaultSinkSupervisorError(
+                "vault_worker_attestation_failed"
+            )
+        return result
 
     def _close_handle(self, value: int) -> None:
         if value in {0, INVALID_HANDLE_VALUE}:

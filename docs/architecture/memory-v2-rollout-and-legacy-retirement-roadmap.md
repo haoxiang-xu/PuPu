@@ -1243,7 +1243,7 @@ process identity；若 parent-chain/creation-time 任一验证失败即 fail clo
   installed PyInstaller topology 和 worker spawn 仍为 `NOT_RUN`，不得据此注册 Windows
   sink provider。
 
-**W2-03c Windows native-probe record（2026-08-30，实机入口已接线、结果仍 NOT_RUN）**
+**W2-03c Windows native-probe record（2026-08-30，真实 Windows runner PASS）**
 
 - `BC-W2-004`：producer 是真实 Windows x64 `kernel32`、Toolhelp process table 与一个
   不含 secret 的短生命周期 Python probe child；consumer 是
@@ -1266,9 +1266,20 @@ process identity；若 parent-chain/creation-time 任一验证失败即 fail clo
   evidence；nested Job 不兼容即为 Windows `NO-GO`，不得 silent fallback 或设置
   breakaway。
 - evidence：fake-kernel membership/error mapping 与 workflow/report contract 已本地 PASS；
-  macOS 原生入口仅验证为 `SKIP`。截至记录时尚未从包含本 slice 的 commit 触发
-  `windows-latest`，故真实 Windows 三项仍为 `NOT_RUN / BLOCKING`，不能视为 Windows
-  qualification，也不改变 zero-provider / Shadow 状态。
+  macOS 原生入口仅验证为 `SKIP`。GitHub Actions run `33329863616` 在精确 PuPu commit
+  `d53c78adfcde7ed28c3ef2aedac1d45e3be938cc` 的 `windows-latest` job
+  `99307304025` 执行并保留 `pupu.windows-vault-supervisor-native-probe.v1` evidence：
+  `executed_tests=3`、`platform=win32-x64`、`kernel32_loaded=true`、
+  `parent_chain_mode=dev`、`runner_outer_job=true`、
+  `nested_job_membership_attested=true`、`kill_on_close_observed=true`。Windows job report
+  以相同 commit、Unchain wheel
+  `sha256:fb6bf65a605f92648bfc24f2c7302a0489a60145f42b184c41ce8b43e663fb7a`
+  与 runtime manifest
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`
+  报告该 required check `passed` 且 test count 为 3；final enforcement PASS。
+  因而 W2-03c 的真实 ABI、dev parent-chain、outer/nested Job 与 kill-on-close slice
+  从 `NOT_RUN / BLOCKING` 提升为 `PASS`。这不是 installed PyInstaller topology、
+  W2-04 atomic spawn 或完整 Windows qualification，且不改变 zero-provider / Shadow 状态。
 
 #### W2-04：精确 handles 与原子 worker 创建
 
@@ -1313,6 +1324,122 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
 不可继承、第一条 worker 可观察指令前已入 Job、descendant breakaway 负向尝试。
 不允许“child 先跑，再 Assign”；若未来需 suspended fallback，必须定义独立
 `win32_suspended_assign_v1` 并在 direct Plan 重新评估。
+
+**W2-04 direct implementation contract（2026-08-30，Windows 继续 Shadow）**
+
+- `BC-W2-005`：producer 是 supervisor 捕获的 Electron stdin/stdout、唯一 ready
+  Event child duplicate、inheritable NUL stderr、unnamed kill-on-close Job、reviewed
+  environment 与 absolute worker command；strict consumer 是 Windows
+  `CreateProcessW(STARTUPINFOEXW)`。wire shape 固定为两个 creation attributes：
+  `JOB_LIST=[hJob]` 与
+  `HANDLE_LIST=[childStdin,childStdout,childNul,childReadyEvent]`；admission 为
+  `CLOSED + VERSIONED`，bootstrap version 固定为 `1`。四个 child handles 必须逐个
+  验证 `HANDLE_FLAG_INHERIT`，Job 与 supervisor Event 必须验证为 non-inheritable；
+  unknown/missing/duplicate handle、错 bootstrap version、非 absolute executable、
+  非双 NUL Unicode environment 或任一 partial Win32 failure 都 fail closed。Job/list/
+  command/environment backing storage 的 lifetime 必须覆盖 `CreateProcessW`；attribute
+  list 只由 `DeleteProcThreadAttributeList` 销毁，不能当 kernel handle 关闭。
+- `WSEQ-W2-005`：`capture+duplicate original protocol handles -> redirect safety remains
+  outside this slice -> create supervisor/child Event pair -> duplicate child stdio -> create
+  inheritable NUL -> verify exact inherit flags -> initialize two-attribute list -> update JOB_LIST
+  -> update HANDLE_LIST -> build mutable command + sorted minimal Unicode env -> CreateProcessW
+  with bInheritHandles=TRUE -> close child duplicates/thread/list -> IsProcessInJob(child,hJob)
+  -> retain child process + supervisor Event`。任何 pre-return fault 都关闭本 slice 已取得
+  的 handles；spawn/attestation fault 还必须关闭 Job 触发 kill-on-close，不得 fallback 到
+  post-spawn `AssignProcessToJobObject`。
+- `WAC-W2-005`：fake-kernel red/green 必须证明 Unicode/空格/长路径 quoting、最小
+  environment 的 case-insensitive ordering 与双 NUL、Electron PID/secret/
+  `PYINSTALLER_RESET_ENVIRONMENT` 排除、唯一四 handle allowlist、decoy inheritable
+  handle 排除、Job/supervisor Event 不可继承、sizing probe 的 expected
+  insufficient-buffer、两个 attributes 的 exact `cbSize`、mutable command、固定 creation
+  flags、spawn 后 cleanup 与独立 membership attestation。initialize/update/spawn/
+  attestation 的 fault matrix 必须逐项 closed-fail 且不泄漏 handle。真实 Windows atomic
+  first-instruction、descendant breakaway 与 exact installed PyInstaller topology 仍须后续
+  retained evidence；这些 cell 为 `NOT_RUN` 时不得解除 Shadow。
+
+**W2-04a source-foundation record（2026-08-30，非 Windows runtime qualification）**
+
+- `_capture_protocol_handles` 交叉验证 CRT fd 与 `GetStdHandle`，只保留 non-inheritable
+  duplicates；`_create_ready_event` 分离 non-inheritable supervisor Event 与唯一
+  inheritable child duplicate，stderr 使用带明确继承属性的 `NUL` handle。
+- `_build_worker_command` 固定 absolute application、frozen same-exe/dev absolute
+  `main.py` 与 Windows quoting；`_build_worker_environment` 只投影 reviewed Windows
+  allowlist 和 `_PYI_*`，移除 `PUPU_VAULT_*`、sidecar secret/unreviewed env 与
+  `PYINSTALLER_RESET_ENVIRONMENT`，再加入固定 version/Event，并产生按 key
+  case-insensitive 排序、exact double-NUL 的 Unicode block。
+- `_build_attribute_list` 要求四个互异 inheritable handles 与 non-inheritable Job，严格
+  执行 expected insufficient-buffer sizing probe，再依次写入一项 Job list 和四项 handle
+  list；buffer 与两个 HANDLE backing arrays 保活，且只用
+  `DeleteProcThreadAttributeList` 清理。
+- `_spawn_contained_worker` 使用 mutable Unicode command buffer、
+  `STARTUPINFOEXW.cb=sizeof(STARTUPINFOEXW)`、`STARTF_USESTDHANDLES`、
+  `bInheritHandles=TRUE` 与固定三个 creation flags 调 `CreateProcessW`；返回后立即关闭
+  child duplicates、thread 与 attribute list，再独立调用 `IsProcessInJob`。任一 fault
+  关闭全部 partial resources 与 Job，不存在 post-spawn assignment/shell fallback。
+- evidence：初始 red 为新增 W2-04 契约 `9 failed`；green 为 W2-04 `10 passed`，
+  supervisor/worker/dispatcher focused `61 passed`，sidecar full suite `2203 passed / 3
+  skipped / 3556 subtests passed`，release-QA `194 passed`，long-run harness `62 passed`；
+  Python compile、`git diff --check` PASS，macOS native entry 仍为显式 `SKIP` 且不生成
+  evidence。GitNexus 中 builder/list 为 LOW；capture/spawn 是 production-unwired
+  `UNKNOWN`，text search 只发现本模块定义与新 isolated tests，不能把它解释为已接线。
+- 本 record 只接受 fake-kernel/source foundation。真实 Windows API load 后的 atomic
+  worker create、first-instruction membership、breakaway denial、installed PyInstaller
+  topology、W2-05 bootstrap/dispatcher 与 plaintext flow 仍为 `NOT_RUN / BLOCKING`；
+  Windows 继续 zero-provider / Shadow / NO-GO。
+
+**W2-04b direct native-probe record（2026-08-31，source-ready，真实 Windows 仍 NOT_RUN）**
+
+- `BC-W2-006`：producer 是真实 Windows x64 `_spawn_contained_command` 的无 secret
+  probe child、kernel32 Job/Event/handle-list 状态与 probe writer；strict consumer 是独立
+  `verify-windows-vault-supervisor-native-evidence.py` 及 Windows QA report。evidence 升级为
+  closed schema `pupu.windows-vault-supervisor-native-probe.v2`，固定
+  `executed_tests=4`，并只发布 platform/mode 与 Boolean/count attestation；禁止 PID、
+  HANDLE value、path、argv、environment value 或 Win32 diagnostics。missing/extra key、
+  v1/wrong version、非 Boolean、wrong count 都必须在 report 前 fail closed。
+- `WSEQ-W2-006`：`retain W2-03 three probes -> create inheritable decoy Event omitted from
+  HANDLE_LIST -> capture protocol handles -> create kill-on-close Job -> build no-secret Python
+  probe command -> atomic CreateProcessW with JOB_LIST + exact four-handle HANDLE_LIST -> child
+  attempts decoy SetEvent and CREATE_BREAKAWAY_FROM_JOB -> child signals only the allowlisted ready
+  Event after breakaway denial -> parent attests Job membership + decoy remains unsignaled + child
+  remains live -> close sole Job handle -> observe process-handle signaled -> strict-validate v2
+  evidence -> publish report`。任一 timeout、unexpected decoy signal、breakaway success、
+  membership false、child early exit、Job-close survivor 或 validator drift 都不得发布 PASS。
+- `WAC-W2-006`：fake producer tests 必须锁定 command 无 secret、Event/Job close 顺序、
+  decoy negative 与 v2 exact keys；独立 validator tests 必须拒绝 missing/extra/wrong-type/
+  v1/zero-or-wrong-count。真实 `windows-latest` evidence 必须同时为
+  `atomic_job_list_spawn_attested=true`、`exact_handle_list_attested=true`、
+  `breakaway_denied=true`、`job_handle_non_inheritable=true`、
+  `supervisor_event_non_inheritable=true`、`child_inherited_handle_count=4` 与
+  `atomic_kill_on_close_observed=true`。该 probe 不接 dispatcher、不读取 Vault frame，
+  不能作为 W2-05 bootstrap 或 installed PyInstaller qualification。
+- implementation：supervisor 的 worker 与 native probe 共用同一个
+  `_spawn_contained_command` kernel path；入口会重新验证 absolute application、argument
+  tuple、`argv[0]` identity、NUL、canonical `list2cmdline` 与 Win32 command-line 上限，避免
+  probe 直建 command 时绕过 worker builder。无 secret child 在 READY 前先验证 omitted
+  decoy Event 不可用并尝试 `CREATE_BREAKAWAY_FROM_JOB`；只有 breakaway 被 access-denied
+  后才 signal allowlisted Event。父进程再验证 decoy 未 signal、child 尚存活、Job membership
+  仍成立，并以 sole Job close 后 process handle signal 证明 atomic kill-on-close。
+- evidence producer/consumer：producer 固定写 canonical、sorted、单换行 JSON；独立 validator
+  限制 4096 bytes、拒绝 duplicate key 与非 canonical bytes，并对 v2 exact key set、四项
+  executed tests、Boolean 类型/真值、outer-Job Boolean 与 exact inherited-handle count=4
+  做 closed validation。Windows workflow 只消费 validator 的固定 count，不再直接读取任意
+  `executed_tests > 0`。
+- local evidence：初始 red 为 producer `2 failed / 2 passed`，workflow contract `1 failed`；
+  green focused Python `80 passed`，workflow contract `1 passed`，sidecar full suite
+  `2222 passed / 3 skipped`，release-QA `195 passed`，long-run harness `62 passed`；Python
+  compile、workflow YAML parse、`git diff --check` PASS。macOS native entry 明确 `SKIP` 且不
+  生成 evidence。full suite 唯一 warning 是既有异步测试 cleanup 缺少
+  `UNCHAIN_DATA_DIR`，未造成失败且不触及本 slice。
+- graph review：重新索引后 `_validate_worker_command`、production
+  `_Win32Api._spawn_contained_command`、`_probe_atomic_job_list_spawn` 与
+  `validate_evidence_bytes` upstream risk 均为 LOW、零 affected process；全 worktree tracked
+  change detection 为 LOW、零 affected process。GitNexus 的 change detector 不包含未跟踪
+  test/validator files，故这些文件另由 exact symbol impact、text-search call sites 与上述测试
+  覆盖，不能把 omission 当作 unused 证明。
+- gate：截至本记录，包含 v2 producer/validator 的 commit 尚未在真实 `windows-latest` 运行，
+  所以 `atomic_job_list_spawn_attested`、exact handle inheritance、breakaway denial 与 atomic
+  kill-on-close 均为 `NOT_RUN / BLOCKING`。不得复用 W2-03c v1 evidence，不得接 dispatcher，
+  Windows 继续 zero-provider / Shadow / NO-GO。
 
 #### W2-05：inner worker bootstrap 与入口分派
 
