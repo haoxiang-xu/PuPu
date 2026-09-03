@@ -96,6 +96,7 @@ _REQUIRED_PROTOCOLS = (
                 "provider_call_set_union",
                 "provider_call_usage_v1",
                 "run_bundle_v1",
+                "run_bundle_v2",
             }
         ),
     ),

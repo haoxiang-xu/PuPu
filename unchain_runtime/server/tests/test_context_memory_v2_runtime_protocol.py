@@ -451,6 +451,21 @@ def test_live_interaction_rebase_feature_is_required() -> None:
     assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
+def test_run_bundle_v2_feature_is_required() -> None:
+    manifest = _producer_manifest()
+    run_bundle = _protocol(manifest, "run_bundle")
+    run_bundle["features"].remove("run_bundle_v2")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="all",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
 def test_tool_output_management_feature_is_required() -> None:
     manifest = _producer_manifest()
     context_memory = _protocol(manifest, "context_memory")

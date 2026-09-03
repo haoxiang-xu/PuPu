@@ -301,6 +301,17 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
   };
   optionalBody.manifest_digest = computeRuntimeManifestDigest(optionalBody);
   assert.doesNotThrow(() => validateRuntimeManifestForRelease(optionalBody));
+  assert.throws(
+    () => validateRuntimeManifestForRelease(runtimeManifest({
+      protocolFeatures: {
+        ...REQUIRED_RUNTIME_PROTOCOLS,
+        run_bundle: REQUIRED_RUNTIME_PROTOCOLS.run_bundle.filter(
+          (feature) => feature !== "run_bundle_v2",
+        ),
+      },
+    })),
+    /run_bundle\.run_bundle_v2/,
+  );
 });
 
 test("release evidence rejects missing provider-turn and RunBundle features", () => {

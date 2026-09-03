@@ -27,9 +27,11 @@ from unchain.providers.turn_ownership import (  # noqa: E402
 )
 from unchain.run_bundle import (  # noqa: E402
     RunBundleReducer,
+    RunDescriptor,
     RunIdentity,
     RunLifecycle,
 )
+from unchain.run_bundle_v2 import CompactRunBundle  # noqa: E402
 
 
 class _Result:
@@ -406,3 +408,180 @@ def test_memory_off_graph_uses_one_ledger_for_cold_continuation_and_diagnostics(
         execution_id=continued_bundle["identity"]["execution_id"],
         root_run_id=continued_bundle["identity"]["root_run_id"],
     ) == ()
+
+
+def _ollama_graph_agent_builder(captured, send_calls):
+    """Build the fake Ollama-backed agent the graph adapter asks for.
+
+    Same shape as the inline builder in
+    ``test_memory_off_graph_uses_one_ledger_for_cold_continuation_and_diagnostics``:
+    every provider send is recorded in ``send_calls`` and every ``agent.run``
+    call is recorded in ``captured``.
+    """
+
+    class _OllamaResponse:
+        status_code = 200
+
+        def __init__(self, text):
+            self.text = text
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def raise_for_status(self):
+            return None
+
+        def iter_lines(self):
+            yield json.dumps(
+                {
+                    "message": {"content": self.text},
+                    "done": True,
+                    "prompt_eval_count": 2,
+                    "eval_count": 1,
+                }
+            )
+
+        def read(self):
+            return b""
+
+    def build_agent(**kwargs):
+        instructions = kwargs["recipe"].agent.prompt
+
+        def stream_factory(method, url, **request_kwargs):
+            send_calls.append(
+                {
+                    "method": method,
+                    "url": url,
+                    **copy.deepcopy(request_kwargs),
+                }
+            )
+            return _OllamaResponse(instructions)
+
+        model_io = OllamaModelIO(
+            model=kwargs["model"],
+            stream_factory=stream_factory,
+        )
+        agent = Agent(
+            name="memory-off-graph-step",
+            instructions=instructions,
+            provider=kwargs["provider"],
+            model=kwargs["model"],
+            model_io_factory=lambda _spec, _context: model_io,
+        )
+        original_run = agent.run
+
+        def recording_run(**run_kwargs):
+            captured.append(copy.copy(run_kwargs))
+            return original_run(**run_kwargs)
+
+        agent.run = recording_run
+        return agent
+
+    return build_agent
+
+
+def test_memory_off_graph_claims_compact_v2_predecessor_on_cold_continuation(
+    tmp_path,
+    monkeypatch,
+):
+    """A compact v2 predecessor is claimable exactly once by a fresh graph run.
+
+    The predecessor is persisted through the same production ledger the
+    adapter uses, the continued run's bundle records ``continued_from_run_id``,
+    survives a cold reopen, and a second claim by the same successor is
+    idempotent instead of minting a second lineage.
+    """
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    captured = []
+    send_calls = []
+    predecessor_identity = RunIdentity(
+        execution_id="execution-graph-v2-continuation",
+        attempt_id="graph-suspended-v2",
+        root_run_id="graph-suspended-v2",
+        run_id="graph-suspended-v2",
+        parent_run_id=None,
+        relation="root",
+    )
+    predecessor, details = CompactRunBundle.from_facts(
+        identity=predecessor_identity,
+        lifecycle=RunLifecycle(
+            status="cancelled",
+            started_at="2026-08-14T00:00:00.000000000Z",
+            completed_at="2026-08-14T00:00:01.000000000Z",
+        ),
+        descriptor=RunDescriptor(),
+        revision=1,
+        receipts=(),
+        metric_events=(),
+        children=(),
+    )
+    production_ownership_factory_for_agent().bind(
+        identity=predecessor_identity
+    ).ledger.persist_compact_bundle_with_details(
+        bundle=predecessor,
+        details=details,
+    )
+
+    with mock.patch.object(
+        adapter,
+        "_UnchainAgent",
+        object,
+    ), mock.patch.object(
+        adapter,
+        "_build_developer_agent",
+        side_effect=_ollama_graph_agent_builder(captured, send_calls),
+    ), mock.patch.object(
+        adapter,
+        "_build_requested_toolkits",
+        return_value=[],
+    ), mock.patch.object(
+        adapter,
+        "get_durable_jobs_runtime",
+        return_value=None,
+    ):
+        continued_events = list(
+            adapter._stream_recipe_graph_events(
+                recipe=_two_step_recipe(),
+                message="continue",
+                history=[],
+                attachments=[],
+                options={
+                    "modelId": "ollama:test",
+                    "_run_bundle_continued_from_run_id": "graph-suspended-v2",
+                },
+                session_id="execution-graph-v2-continuation",
+                run_id_override="graph-root-continued-v2",
+            )
+        )
+
+    assert len(send_calls) == 2
+    continued_summary = next(
+        event
+        for event in continued_events
+        if event.get("type") == "stream_summary"
+    )
+    continued_bundle = continued_summary["bundle"]
+    assert continued_bundle["identity"]["run_id"] == "graph-root-continued-v2"
+    assert continued_bundle["lifecycle"]["continued_from_run_id"] == (
+        "graph-suspended-v2"
+    )
+
+    cold_factory = PupuProductionProviderTurnOwnershipFactory(
+        root_directory=tmp_path / STORE_DIRECTORY,
+    )
+    successor_identity = RunIdentity.from_dict(continued_bundle["identity"])
+    cold_continued = cold_factory.bind(identity=successor_identity)
+    durable = cold_continued.ledger.list_bundles(
+        root_run_id=continued_bundle["identity"]["root_run_id"],
+        run_id=continued_bundle["identity"]["run_id"],
+        attempt_id=continued_bundle["identity"]["attempt_id"],
+    )
+    assert len(durable) == 1
+    assert durable[0].to_dict() == continued_bundle
+    assert cold_continued.ledger.claim_continuation(
+        successor=successor_identity,
+        requested_run_id="graph-suspended-v2",
+    ) == predecessor

@@ -76,6 +76,7 @@ const UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS = Object.freeze([
       "provider_call_set_union",
       "provider_call_usage_v1",
       "run_bundle_v1",
+      "run_bundle_v2",
     ]),
     id: "run_bundle",
     major: 1,

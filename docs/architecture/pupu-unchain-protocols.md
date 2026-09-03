@@ -74,7 +74,7 @@ Manifest 顶层是 CLOSED shape：`{manifest_digest, protocols, runtime, schema}
 | `context_memory` | `1.0+` | `artifact_handoff`, `canonical_journal`, `context_compiler`, `interaction_resolution_compat`, `long_term_promotion`, `memory_curator`, `memory_toolkit`, `memory_workspace` |
 | `durable_interaction` | `1.0+` | `cancel_pending`, `expected_interaction_id_cas`, `fresh_run_lineage`, `host_controlled_resume` |
 | `provider_turn_ownership` | `1.0+` | `atomic_receipt_cas`, `auxiliary_calls`, `enforce_mode`, `graph_runs`, `memory_off`, `subagent_runs` |
-| `run_bundle` | `1.0+` | `canonical_metrics`, `completion_diagnostics_ref`, `continuation_claim`, `immutable_pricing_snapshot`, `provider_call_set_union`, `provider_call_usage_v1`, `run_bundle_v1` |
+| `run_bundle` | `1.0+` | `canonical_metrics`, `completion_diagnostics_ref`, `continuation_claim`, `immutable_pricing_snapshot`, `provider_call_set_union`, `provider_call_usage_v1`, `run_bundle_v1`, `run_bundle_v2` |
 
 Sidecar 内部 status wire 固定使用：`runtime_protocol_ready`、`runtime_protocol_reason`、`runtime_protocol_verification`、`runtime_protocol_immutable`、`runtime_protocol_manifest`、`unchain_revision`、`unchain_runtime_source`。成功态是 `true / unchain_runtime_protocol_compatible / runtime_protocol / true / <full manifest>`；off 态是 `true / protocol_not_required / not_required / false / null`。Electron 在 main 内独立重算并消费完整 manifest，对 renderer 的一般状态投影只披露 digest/verification，不披露 source path 或完整 manifest。revision/source 两项在所有状态都只是遥测；consumer 不能从它们推导 ready。
 

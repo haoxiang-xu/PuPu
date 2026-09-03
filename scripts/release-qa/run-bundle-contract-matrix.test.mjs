@@ -25,6 +25,18 @@ const PRODUCTION_OWNERSHIP_SELECTORS = Object.freeze([
   "tests/test_production_run_ownership_wiring.py::test_memory_off_root_receives_the_generic_production_factory",
   "tests/test_production_run_ownership_wiring.py::test_shadow_root_receives_generic_factory_but_active_omits_it",
   "tests/test_production_run_ownership_wiring.py::test_memory_off_graph_uses_one_ledger_for_cold_continuation_and_diagnostics",
+  "tests/test_production_run_ownership_wiring.py::test_memory_off_graph_claims_compact_v2_predecessor_on_cold_continuation",
+]);
+const RUN_BUNDLE_V2_SELECTORS = Object.freeze([
+  "tests/test_run_bundle_ledger_runtime.py::test_compact_v2_full_envelope_enforces_exact_canonical_byte_limit",
+  "tests/test_run_bundle_ledger_runtime.py::test_sqlite_requires_one_way_revision_advance_from_v1_to_v2",
+  "tests/test_run_bundle_ledger_runtime.py::test_continuation_claims_compact_v2_predecessor_idempotently",
+  "tests/test_run_bundle_ledger_runtime.py::test_compact_v2_details_ref_rejects_durable_fact_tampering",
+  "tests/test_run_bundle_ledger_runtime.py::test_completion_merge_hydrates_v2_root_facts_without_double_counting",
+  "tests/test_run_bundle_ledger_runtime.py::test_compact_v2_child_roundtrips_through_subagent_state_and_root_union",
+  "tests/test_run_bundle_adapter.py::test_graph_merge_hydrates_compact_v2_child_from_official_ledger",
+  "tests/test_run_bundle_ledger.py::test_schema_transition_is_one_way_and_v2_must_advance_v1",
+  "tests/test_run_bundle_ledger.py::test_reads_fail_closed_on_same_revision_dual_schema_collision",
 ]);
 
 test("RunBundle release gate freezes exact cross-boundary P0 selectors", () => {
@@ -44,6 +56,13 @@ test("RunBundle release gate freezes exact cross-boundary P0 selectors", () => {
     assert.ok(
       PUPU_RUN_BUNDLE_TESTS.includes(selector),
       `missing production ownership selector: ${selector}`,
+    );
+  }
+  for (const selector of RUN_BUNDLE_V2_SELECTORS) {
+    assert.ok(
+      UNCHAIN_RUN_BUNDLE_TESTS.includes(selector) ||
+        PUPU_RUN_BUNDLE_TESTS.includes(selector),
+      `missing RunBundle v2 selector: ${selector}`,
     );
   }
   for (const { file, name } of [

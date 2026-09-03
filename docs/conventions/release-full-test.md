@@ -124,7 +124,17 @@ This currently covers:
 - Electron main/preload/Test API Jest;
 - Python sidecar pytest;
 - exact Context V2 and RunBundle contract matrices against the immutable
-  Unchain wheel and its matching clean test-source revision;
+  Unchain wheel and its matching clean test-source revision, including the
+  resume scenarios frozen for issue #197:
+  - live tool-confirmation cycles inside one attempt rebase without a
+    fabricated `graph.step.resume.admitted` (Unchain scan + rebase; PuPu
+    sidecar resend acknowledgement and cold replay);
+  - late, foreign, duplicate, or non-canonical resume admissions stay
+    non-retryable with zero writes;
+  - RunBundle v1 to v2 one-way schema transition and dual-schema collision
+    reads fail closed;
+  - cold continuation claims a compact v2 predecessor exactly once (Unchain
+    ledger and PuPu graph wiring);
 - MCP registry validation;
 - production web build and version generation;
 - release-QA script tests;

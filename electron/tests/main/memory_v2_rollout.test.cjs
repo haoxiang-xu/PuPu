@@ -67,6 +67,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "provider_call_set_union",
       "provider_call_usage_v1",
       "run_bundle_v1",
+      "run_bundle_v2",
     ]),
   }),
 ]);
@@ -447,6 +448,7 @@ describe("Memory V2 runtime protocol admission", () => {
     ["interaction_resolution_compat", "context_memory"],
     ["tool_output_management_v1", "context_memory"],
     ["expected_interaction_id_cas", "durable_interaction"],
+    ["run_bundle_v2", "run_bundle"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {
     const protocols = cloneProtocols();
     const protocol = protocols.find((item) => item.id === protocolId);
