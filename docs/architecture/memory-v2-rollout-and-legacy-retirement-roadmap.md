@@ -1387,7 +1387,7 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
   topology、W2-05 bootstrap/dispatcher 与 plaintext flow 仍为 `NOT_RUN / BLOCKING`；
   Windows 继续 zero-provider / Shadow / NO-GO。
 
-**W2-04b direct native-probe record（2026-08-31，source-ready，真实 Windows 仍 NOT_RUN）**
+**W2-04b direct native-probe record（2026-09-02，真实 Windows 行为已观测，证据串行化仍 BLOCKING）**
 
 - `BC-W2-006`：producer 是真实 Windows x64 `_spawn_contained_command` 的无 secret
   probe child、kernel32 Job/Event/handle-list 状态与 probe writer；strict consumer 是独立
@@ -1436,10 +1436,26 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
   change detection 为 LOW、零 affected process。GitNexus 的 change detector 不包含未跟踪
   test/validator files，故这些文件另由 exact symbol impact、text-search call sites 与上述测试
   覆盖，不能把 omission 当作 unused 证明。
-- gate：截至本记录，包含 v2 producer/validator 的 commit 尚未在真实 `windows-latest` 运行，
-  所以 `atomic_job_list_spawn_attested`、exact handle inheritance、breakaway denial 与 atomic
-  kill-on-close 均为 `NOT_RUN / BLOCKING`。不得复用 W2-03c v1 evidence，不得接 dispatcher，
-  Windows 继续 zero-provider / Shadow / NO-GO。
+- hosted red evidence：manual `windows-playwright` run `33708049220` / Windows job
+  `100502767632` 精确测试 PuPu commit
+  `12526f7ef36853b42703e71db8a994452c8a5565`。Deterministic QA、session guard、Playwright
+  2 tests 与 nonzero evidence 均 PASS；native child 也生成全部预期 v2 attestation，包含
+  atomic Job-list spawn、exact four-handle list、breakaway denied、non-inheritable Job/Event
+  与 Job-close kill。但是 producer 使用 `Path.write_text`，Windows text mode 将 canonical
+  terminal LF 转换为 CRLF；retained artifact `9876170846` 中 evidence 为 483 bytes、末尾
+  `0d 0a`。独立 validator 正确拒绝 non-canonical bytes，job report artifact
+  `9876170262` 因而记录 native check `failed / executed_tests=0`，final enforcement FAIL。
+  该 run 是保留的跨平台 serialization red evidence，不得解释为 W2-04b PASS。
+- repair：producer 改用 explicit UTF-8 `write_bytes`，避免任何 host newline translation；
+  新增 binary-only writer 回归在修复前稳定为 `1 failed / 4 passed`，修复后 focused native/
+  supervisor/validator suite `81 passed`、workflow contract `1 passed`、release-QA `195 passed`、
+  long-run harness `62 passed`，compile 与 `git diff --check` PASS。post-fix `main` upstream
+  impact 为 LOW、零 affected process。
+- gate：包含 binary canonicalization repair 的 commit 尚未在真实 `windows-latest` 重跑，
+  因此 W2-04b 仍为 `BLOCKING`。必须由新的 exact run 同时取得 validator
+  `executed_tests=4`、Windows job report PASS 与 final enforcement PASS；不得复用本次
+  failed report 或 W2-03c v1 evidence，不得接 dispatcher。Windows 继续 zero-provider /
+  Shadow / NO-GO。
 
 #### W2-05：inner worker bootstrap 与入口分派
 

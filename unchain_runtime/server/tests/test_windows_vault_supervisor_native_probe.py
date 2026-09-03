@@ -165,6 +165,26 @@ class _AtomicFakeApi:
         raise AssertionError(f"unexpected handle {handle}")
 
 
+class _BinaryOnlyEvidencePath:
+    def __init__(self):
+        self.parent = self
+        self.created_parent = False
+        self.raw = None
+
+    def mkdir(self, *, parents, exist_ok):
+        assert parents is True
+        assert exist_ok is True
+        self.created_parent = True
+
+    def write_text(self, *_args, **_kwargs):
+        raise AssertionError("native evidence must bypass text newline translation")
+
+    def write_bytes(self, raw):
+        assert self.created_parent is True
+        assert isinstance(raw, bytes)
+        self.raw = raw
+
+
 def test_nested_probe_attests_outer_then_inner_and_observes_job_close(monkeypatch):
     events = []
     child = _FakeChild(events)
@@ -266,6 +286,43 @@ def test_main_publishes_the_exact_v2_closed_evidence(monkeypatch, tmp_path):
         "child_inherited_handle_count": 4,
         "atomic_kill_on_close_observed": True,
     }
+
+
+def test_main_writes_canonical_bytes_without_platform_newline_translation(
+    monkeypatch,
+):
+    evidence_path = _BinaryOnlyEvidencePath()
+    monkeypatch.setattr(probe.sys, "platform", "win32")
+    monkeypatch.setenv("VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH", "ignored")
+    monkeypatch.setattr(probe, "Path", lambda _value: evidence_path)
+    monkeypatch.setattr(probe.supervisor, "_Win32Api", object)
+    monkeypatch.setattr(probe, "_probe_empty_kill_on_close_job", lambda api: None)
+    monkeypatch.setattr(probe, "_probe_dev_parent_chain", lambda api: "dev")
+    monkeypatch.setattr(
+        probe,
+        "_probe_nested_job_membership_and_kill",
+        lambda api: True,
+    )
+    monkeypatch.setattr(
+        probe,
+        "_probe_atomic_job_list_spawn",
+        lambda api: {
+            "atomic_job_list_spawn_attested": True,
+            "exact_handle_list_attested": True,
+            "breakaway_denied": True,
+            "job_handle_non_inheritable": True,
+            "supervisor_event_non_inheritable": True,
+            "child_inherited_handle_count": 4,
+            "atomic_kill_on_close_observed": True,
+        },
+    )
+
+    probe.main()
+
+    assert evidence_path.raw is not None
+    assert evidence_path.raw.endswith(b"\n")
+    assert not evidence_path.raw.endswith(b"\r\n")
+    assert b"\r" not in evidence_path.raw
 
 
 def test_non_windows_main_skips_without_publishing_evidence(monkeypatch, tmp_path):

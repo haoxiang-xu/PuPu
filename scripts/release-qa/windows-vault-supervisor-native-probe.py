@@ -213,24 +213,25 @@ def main() -> None:
     atomic_evidence = _probe_atomic_job_list_spawn(api)
 
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
-    evidence_path.write_text(
-        json.dumps(
-            {
-                "schema": "pupu.windows-vault-supervisor-native-probe.v2",
-                "executed_tests": 4,
-                "platform": "win32-x64",
-                "kernel32_loaded": True,
-                "parent_chain_mode": parent_chain_mode,
-                "runner_outer_job": runner_has_outer_job,
-                "nested_job_membership_attested": True,
-                "kill_on_close_observed": True,
-                **atomic_evidence,
-            },
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    evidence_path.write_bytes(
+        (
+            json.dumps(
+                {
+                    "schema": "pupu.windows-vault-supervisor-native-probe.v2",
+                    "executed_tests": 4,
+                    "platform": "win32-x64",
+                    "kernel32_loaded": True,
+                    "parent_chain_mode": parent_chain_mode,
+                    "runner_outer_job": runner_has_outer_job,
+                    "nested_job_membership_attested": True,
+                    "kill_on_close_observed": True,
+                    **atomic_evidence,
+                },
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8")
     )
 
 
