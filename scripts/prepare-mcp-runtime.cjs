@@ -994,6 +994,7 @@ async function verifyMcpRuntime({
   target = detectHostTarget(),
   pinsPath = DEFAULT_PINS_PATH,
   outputDir = DEFAULT_OUTPUT_DIR,
+  verifyTreeChecksum = true,
 } = {}) {
   const safeOutputDir = assertSafeOutputDir(outputDir);
   const { pins, sha256: pinsSha256 } = await readPinsManifest(pinsPath);
@@ -1042,14 +1043,21 @@ async function verifyMcpRuntime({
       target,
       targetPin
     );
-    const treeSha256 = await sha256Tree(
-      path.join(safeOutputDir, runtimeName)
-    );
-    if (treeSha256 !== staged.staged_tree_sha256) {
+    if (!SHA256_RE.test(staged.staged_tree_sha256 || "")) {
       throw new Error(
-        `Staged ${runtimeName} tree checksum mismatch: ` +
-          `expected ${staged.staged_tree_sha256}, got ${treeSha256}`
+        `Staged ${runtimeName}.staged_tree_sha256 is invalid`
       );
+    }
+    if (verifyTreeChecksum) {
+      const treeSha256 = await sha256Tree(
+        path.join(safeOutputDir, runtimeName)
+      );
+      if (treeSha256 !== staged.staged_tree_sha256) {
+        throw new Error(
+          `Staged ${runtimeName} tree checksum mismatch: ` +
+            `expected ${staged.staged_tree_sha256}, got ${treeSha256}`
+        );
+      }
     }
     if (runtime.bootstrap) {
       const bootstrapRoot = resolveStagedPath(

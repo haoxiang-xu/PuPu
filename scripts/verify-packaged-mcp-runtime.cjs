@@ -6,6 +6,7 @@ const { promisify } = require("node:util");
 const { Arch } = require("electron-builder");
 const {
   DEFAULT_PINS_PATH,
+  sha256Tree,
   verifyMcpRuntime,
 } = require("./prepare-mcp-runtime.cjs");
 
@@ -229,20 +230,34 @@ async function verifyPackagedMcpRuntime(
   const target = targetFromAfterPackContext(context);
   const resourcesDir = context.packager.getResourcesDir(context.appOutDir);
   const runtimeDir = path.join(resourcesDir, "mcp_runtime");
-  const manifest = await verifyMcpRuntime({
+  // Windows Authenticode signing mutates packaged runtime executables.
+  const verifyTreeChecksum = !target.startsWith("win32-");
+  const verificationOptions = {
     target,
     pinsPath,
     outputDir: runtimeDir,
-  });
+    verifyTreeChecksum,
+  };
+  const manifest = await verifyMcpRuntime(verificationOptions);
   const hostTarget = currentHostTarget();
   if (hostTarget === target) {
+    const preSmokeTreeSha256 = verifyTreeChecksum
+      ? ""
+      : await sha256Tree(runtimeDir);
     await smokePackagedMcpRuntime(runtimeDir, manifest, { executeFile });
-    // The smoke must not write bytecode or any other cache into the app bundle.
-    await verifyMcpRuntime({
-      target,
-      pinsPath,
-      outputDir: runtimeDir,
-    });
+    if (verifyTreeChecksum) {
+      // The smoke must not write bytecode or any other cache into the app bundle.
+      await verifyMcpRuntime(verificationOptions);
+    } else {
+      const postSmokeTreeSha256 = await sha256Tree(runtimeDir);
+      if (postSmokeTreeSha256 !== preSmokeTreeSha256) {
+        throw new Error(
+          "Packaged MCP runtime smoke mutated signed Windows resources: " +
+            `before ${preSmokeTreeSha256}, after ${postSmokeTreeSha256}`
+        );
+      }
+      await verifyMcpRuntime(verificationOptions);
+    }
   } else if (requireNativeSmoke) {
     throw new Error(
       `Native MCP runtime smoke is required, but build host ${hostTarget} ` +
