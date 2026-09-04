@@ -28,6 +28,7 @@ const WINDOWS_SINK_CAPABILITY_CONTAINMENT = "win32_job_list_v1";
 const WINDOWS_W0_APPROVED_SINK_KINDS = Object.freeze([]);
 const VAULT_SINK_SUPERVISOR_CONTROL_PROTOCOL = 1;
 const VAULT_SINK_SUPERVISOR_CONTROL_MAX_BYTES = 256;
+const VAULT_SINK_SUPERVISOR_READY_TIMEOUT_MS = 10 * 1000;
 const VAULT_SINK_SUPERVISOR_READY_BODY = Buffer.from(
   '{"containment":"win32_job_list_v1","kind":"ready","protocol":1}',
   "utf8",
@@ -190,11 +191,17 @@ const normalizeEntrypoint = (entrypoint) => {
   return { command, args: [...args], cwd, dataDir, mcpRuntimeDir };
 };
 
-const minimalWorkerEnv = ({ dataDir, mcpRuntimeDir, environmentSource }) => {
+const minimalWorkerEnv = ({
+  dataDir,
+  mcpRuntimeDir,
+  environmentSource,
+  electronPid = null,
+}) => {
   const source = isPlainObject(environmentSource) ? environmentSource : {};
   const env = Object.create(null);
   env.UNCHAIN_DATA_DIR = dataDir;
   if (mcpRuntimeDir) env.PUPU_MCP_RUNTIME_DIR = mcpRuntimeDir;
+  if (electronPid !== null) env.PUPU_VAULT_ELECTRON_PID = electronPid;
   for (const key of SAFE_ENV_KEYS) {
     if (typeof source[key] === "string" && source[key]) env[key] = source[key];
   }
@@ -204,6 +211,25 @@ const minimalWorkerEnv = ({ dataDir, mcpRuntimeDir, environmentSource }) => {
     }
   }
   return env;
+};
+
+const supervisorArgsFor = (args) => {
+  if (
+    !Array.isArray(args) ||
+    args.length < 1 ||
+    args.at(-1) !== "--vault-sink-worker" ||
+    args.filter((item) => item === "--vault-sink-worker").length !== 1
+  ) {
+    throw workerError("vault_worker_unavailable");
+  }
+  return [...args.slice(0, -1), "--vault-sink-supervisor"];
+};
+
+const normalizeElectronPid = (value) => {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 0xffffffff) {
+    throw workerError("vault_worker_unavailable");
+  }
+  return String(value);
 };
 
 // Encoding coverage lives in ./secret_variants so this leak check, the Vault
@@ -333,6 +359,73 @@ const terminateChild = (child, platform, processKill) => {
   }
 };
 
+const awaitSupervisorReady = (child, timeoutMs) =>
+  new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    const chunks = [];
+    let size = 0;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      child.stdout.removeListener("data", onData);
+      child.removeListener("error", onError);
+      child.removeListener("close", onClose);
+      for (const chunk of chunks) chunk.fill(0);
+      chunks.length = 0;
+      if (error) reject(error);
+      else resolve();
+    };
+    const onError = () => finish(workerError("vault_worker_spawn_failed"));
+    const onClose = () => finish(workerError("vault_worker_spawn_failed"));
+    const onData = (chunk) => {
+      const bytes = Buffer.from(chunk);
+      if (settled) {
+        bytes.fill(0);
+        return;
+      }
+      size += bytes.length;
+      if (size > VAULT_SINK_SUPERVISOR_CONTROL_MAX_BYTES + 4) {
+        bytes.fill(0);
+        finish(workerError("vault_worker_ready_protocol_error"));
+        return;
+      }
+      chunks.push(bytes);
+      const frame = Buffer.concat(chunks, size);
+      try {
+        if (frame.length < 4) return;
+        const bodyLength = frame.readUInt32BE(0);
+        if (
+          bodyLength < 1 ||
+          bodyLength > VAULT_SINK_SUPERVISOR_CONTROL_MAX_BYTES ||
+          frame.length > bodyLength + 4
+        ) {
+          finish(workerError("vault_worker_ready_protocol_error"));
+          return;
+        }
+        if (frame.length !== bodyLength + 4) return;
+        const control = parseSupervisorControlFrame(frame);
+        if (control.kind !== "ready") {
+          finish(workerError(control.code));
+          return;
+        }
+        finish(null);
+      } catch (error) {
+        finish(error?.code ? error : workerError("vault_worker_ready_protocol_error"));
+      } finally {
+        frame.fill(0);
+      }
+    };
+    child.stdout.on("data", onData);
+    child.once("error", onError);
+    child.once("close", onClose);
+    timer = setTimeout(
+      () => finish(workerError("vault_worker_ready_timeout")),
+      timeoutMs,
+    );
+  });
+
 // Registry-scoped bookkeeping for every live worker process group.
 //
 // A one-shot worker normally reaps its own group on the terminal path, but an
@@ -360,6 +453,17 @@ const createChildTracker = ({ platform, processKill } = {}) => {
     },
     remove: (child) => {
       children.delete(child);
+    },
+    // Suspend/cancel stops only the currently leased workers. Unlike close(),
+    // it deliberately leaves the registry open so a later resumed session
+    // receives a fresh supervisor and cannot reuse an old lease.
+    abortActive: () => {
+      let terminated = 0;
+      for (const child of children.keys()) {
+        terminateChild(child, resolvedPlatform, resolvedKill);
+        terminated += 1;
+      }
+      return terminated;
     },
     close: () => {
       closed = true;
@@ -524,21 +628,29 @@ const prepareFramedWorkerLease = async ({
   platform,
   processKill,
   tracker,
+  electronPid,
 }) => {
   let child;
   try {
-    child = spawn(entrypoint.command, entrypoint.args, {
-      cwd: entrypoint.cwd || undefined,
-      env: minimalWorkerEnv({
-        dataDir: entrypoint.dataDir,
-        mcpRuntimeDir: entrypoint.mcpRuntimeDir,
-        environmentSource,
-      }),
-      stdio: ["pipe", "pipe", "ignore"],
-      shell: false,
-      windowsHide: true,
-      detached: platform !== "win32",
-    });
+    child = spawn(
+      entrypoint.command,
+      platform === "win32"
+        ? supervisorArgsFor(entrypoint.args)
+        : entrypoint.args,
+      {
+        cwd: entrypoint.cwd || undefined,
+        env: minimalWorkerEnv({
+          dataDir: entrypoint.dataDir,
+          mcpRuntimeDir: entrypoint.mcpRuntimeDir,
+          environmentSource,
+          electronPid,
+        }),
+        stdio: ["pipe", "pipe", "ignore"],
+        shell: false,
+        windowsHide: true,
+        detached: platform !== "win32",
+      },
+    );
   } catch (_error) {
     throw workerError("vault_worker_spawn_failed");
   }
@@ -573,8 +685,6 @@ const prepareFramedWorkerLease = async ({
       terminateChild(child, platform, processKill);
     }
   };
-  child.stdout.on("data", preExecuteStdout);
-
   const readyPromise = new Promise((resolve, reject) => {
     const onSpawn = () => {
       spawned = true;
@@ -602,6 +712,10 @@ const prepareFramedWorkerLease = async ({
 
   try {
     await readyPromise;
+    if (platform === "win32") {
+      await awaitSupervisorReady(child, VAULT_SINK_SUPERVISOR_READY_TIMEOUT_MS);
+    }
+    child.stdout.on("data", preExecuteStdout);
   } catch (error) {
     child.stdout.removeListener("data", preExecuteStdout);
     terminateChild(child, platform, processKill);
@@ -677,6 +791,7 @@ const createVaultSinkExecutor = ({
   timeoutMs,
   platform = process.platform,
   processKill = process.kill.bind(process),
+  electronPid = process.pid,
   // Shared, registry-scoped process-group bookkeeping. Omitted → this executor
   // owns a private tracker so a standalone executor behaves identically.
   tracker,
@@ -703,12 +818,6 @@ const createVaultSinkExecutor = ({
       ) {
         throw workerError("vault_invalid_request");
       }
-      // On Windows, child.kill() does not contain descendants. Refuse before
-      // starting a process or accepting any plaintext until W2 installs the
-      // reviewed Job Object supervisor.
-      if (platform === "win32") {
-        throw workerError("vault_worker_containment_unavailable");
-      }
       if (resolvedTracker.isClosed()) {
         throw workerError("vault_worker_unavailable");
       }
@@ -727,6 +836,8 @@ const createVaultSinkExecutor = ({
         platform,
         processKill,
         tracker: resolvedTracker,
+        electronPid:
+          platform === "win32" ? normalizeElectronPid(electronPid) : null,
       });
     },
   });
@@ -760,6 +871,7 @@ const createVaultSinkExecutors = (options = {}) => {
   );
   return Object.freeze({
     providers,
+    abortActive: () => tracker.abortActive(),
     close: () => tracker.close(),
     awaitDrained: () => tracker.awaitDrained(),
     activeChildCount: () => tracker.size(),

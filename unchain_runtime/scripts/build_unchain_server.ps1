@@ -26,6 +26,7 @@ if ($TargetOS -ne "windows") {
 
 $MIN_PYTHON_MAJOR = 3
 $MIN_PYTHON_MINOR = 12
+$PYINSTALLER_VERSION = "6.22.1"
 
 function Test-Python312Command {
   param(
@@ -172,7 +173,7 @@ if ($env:UNCHAIN_BUILD_SKIP_INSTALL -ne "1") {
   Write-Host "Installing dependencies into build venv ..."
   & $VENV_PIP install `
     -r (Join-Path $ROOT_DIR "unchain_runtime\server\requirements.txt") `
-    "pyinstaller>=6.10"
+    "pyinstaller==$PYINSTALLER_VERSION"
   if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
   & $VENV_PIP install --force-reinstall --no-deps $UNCHAIN_ARTIFACT_PATH
   if ($LASTEXITCODE -ne 0) { Write-Error "Unchain wheel install failed"; exit 1 }
@@ -201,6 +202,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 # Validate required modules
 $depCheck = @"
 import importlib.util
+import os
 import re
 required_modules = ["flask", "openai", "anthropic", "PyInstaller", "qdrant_client"]
 missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
@@ -208,10 +210,10 @@ if missing:
     print("Missing required Python modules in build environment:", ", ".join(missing))
     raise SystemExit(1)
 import PyInstaller
-match = re.match(r"^(\d+)\.(\d+)", PyInstaller.__version__)
-if match is None or tuple(map(int, match.groups())) < (6, 10):
+expected_pyinstaller_version = "$PYINSTALLER_VERSION"
+if PyInstaller.__version__ != expected_pyinstaller_version:
     print(
-        "PyInstaller 6.10+ is required for durable worker process isolation; "
+        f"PyInstaller {expected_pyinstaller_version} is required for durable worker process isolation; "
         f"found {PyInstaller.__version__}"
     )
     raise SystemExit(1)
@@ -277,6 +279,9 @@ $pyinstallerArgs = @(
   "--hidden-import", "unchain.memory",
   "--hidden-import", "unchain.memory.manager",
   "--hidden-import", "unchain.memory.qdrant",
+  # main.py imports these private entries lazily, so freeze them explicitly.
+  "--hidden-import", "durable_job_runtime",
+  "--hidden-import", "vault_sink_job_supervisor",
   "--hidden-import", "vault_sink_worker",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",

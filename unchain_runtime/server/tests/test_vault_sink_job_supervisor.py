@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import io
 import struct
 import sys
 from pathlib import Path
@@ -13,6 +14,334 @@ if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
 import vault_sink_job_supervisor as supervisor  # noqa: E402
+
+
+class _LifecycleDriver:
+    def __init__(self, polls, *, active_counts=(0,), attest=True, terminate=True):
+        self.polls = list(polls)
+        self.active_counts = iter(active_counts)
+        self.attest = attest
+        self.terminate = terminate
+        self.calls = []
+
+    def poll(self, names):
+        self.calls.append(("poll", tuple(names)))
+        return set(self.polls.pop(0)) if self.polls else set()
+
+    def attest_worker(self):
+        self.calls.append("attest")
+        return self.attest
+
+    def emit_ready(self):
+        self.calls.append("ready")
+
+    def terminate_job(self):
+        self.calls.append("terminate")
+        return self.terminate
+
+    def active_process_count(self):
+        self.calls.append("active")
+        return next(self.active_counts)
+
+    def close(self):
+        self.calls.append("close")
+
+
+class _FakeClock:
+    def __init__(self):
+        self.now = 0.0
+        self.sleeps = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def test_lifecycle_pre_ready_process_death_wins_over_ready_event():
+    driver = _LifecycleDriver([{"electron", "ready_event"}])
+
+    assert supervisor.run_lifecycle(driver) is False
+    assert driver.calls == [
+        ("poll", ("electron", "parent", "worker", "ready_event")),
+        "terminate",
+        "active",
+        "close",
+    ]
+
+
+def test_lifecycle_rechecks_processes_after_ready_event_before_emitting_ready():
+    driver = _LifecycleDriver([{"ready_event"}, {"worker"}])
+
+    assert supervisor.run_lifecycle(driver) is False
+    assert "ready" not in driver.calls
+    assert driver.calls[-3:] == ["terminate", "active", "close"]
+
+
+def test_lifecycle_ready_then_worker_exit_terminates_and_drains():
+    driver = _LifecycleDriver([{"ready_event"}, set(), {"worker"}], active_counts=(2, 0))
+    clock = _FakeClock()
+
+    assert supervisor.run_lifecycle(
+        driver,
+        monitor_polls=2,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    ) is True
+    assert clock.sleeps == [0.025]
+    assert driver.calls == [
+        ("poll", ("electron", "parent", "worker", "ready_event")),
+        ("poll", ("electron", "parent", "worker")),
+        "attest",
+        "ready",
+        ("poll", ("electron", "parent", "worker")),
+        "terminate",
+        "active",
+        "active",
+        "close",
+    ]
+
+
+def test_lifecycle_keeps_monitoring_after_ready_until_worker_exits():
+    driver = _LifecycleDriver(
+        [{"ready_event"}, set(), set(), {"worker"}],
+        active_counts=(0,),
+    )
+
+    assert supervisor.run_lifecycle(driver, monitor_polls=3) is True
+    assert driver.calls.count(("poll", ("electron", "parent", "worker"))) == 3
+
+
+def test_lifecycle_parent_or_electron_death_after_ready_never_reports_drain_success():
+    for death in ("electron", "parent", {"worker", "parent"}):
+        observed = {death} if isinstance(death, str) else death
+        driver = _LifecycleDriver([{"ready_event"}, set(), observed])
+        assert supervisor.run_lifecycle(driver, monitor_polls=1) is False
+
+
+def test_lifecycle_terminate_or_drain_failure_closes_and_fails():
+    terminate_failure = _LifecycleDriver([{"worker"}], terminate=False)
+    clock = _FakeClock()
+
+    class NeverDrained(_LifecycleDriver):
+        def active_process_count(self):
+            self.calls.append("active")
+            return 1
+
+    drain_timeout = NeverDrained([{"worker"}])
+
+    assert supervisor.run_lifecycle(terminate_failure) is False
+    assert terminate_failure.calls[-1] == "close"
+    assert supervisor.run_lifecycle(
+        drain_timeout,
+        drain_timeout_ms=50,
+        drain_poll_interval_ms=20,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    ) is False
+    assert clock.sleeps == [0.02, 0.02, pytest.approx(0.01)]
+    assert drain_timeout.calls[-1] == "close"
+
+
+def test_lifecycle_query_failure_closes_and_fails():
+    class QueryFailureDriver(_LifecycleDriver):
+        def active_process_count(self):
+            raise RuntimeError("query failed")
+
+    driver = QueryFailureDriver([{"worker"}])
+    assert supervisor.run_lifecycle(driver) is False
+    assert driver.calls[-1] == "close"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"drain_timeout_ms": 0},
+        {"drain_timeout_ms": True},
+        {"drain_poll_interval_ms": -1},
+        {"monitor_polls": 0},
+    ],
+)
+def test_lifecycle_rejects_invalid_deadline_configuration(kwargs):
+    driver = _LifecycleDriver([{"worker"}])
+
+    with pytest.raises(supervisor.VaultSinkSupervisorError) as captured:
+        supervisor.run_lifecycle(driver, **kwargs)
+
+    assert captured.value.code == "vault_worker_ready_timeout"
+    assert driver.calls == []
+
+
+def test_lifecycle_win32_primitives_use_closed_wait_terminate_and_accounting_domains():
+    kernel32 = _FakeKernel32()
+    kernel32.WaitForMultipleObjects = _FakeFunction(supervisor.WAIT_OBJECT_0 + 1)
+    kernel32.TerminateJobObject = _FakeFunction(1)
+
+    def query(_job, class_id, info, _size, _returned):
+        if int(class_id.value) == supervisor.JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION:
+            accounting = ctypes.cast(
+                info,
+                ctypes.POINTER(supervisor.JOBOBJECT_BASIC_ACCOUNTING_INFORMATION),
+            ).contents
+            accounting.ActiveProcesses = 3
+        return 1
+
+    kernel32.QueryInformationJobObject = _FakeFunction(query)
+    api = supervisor._Win32Api(platform="win32", kernel32=kernel32, pointer_size=8)
+    job = supervisor._OwnedHandle(0x1234, close=lambda _value: None)
+
+    assert api.wait_for_handles([0x1111, 0x2222], 0) == 1
+    assert api.active_process_count(job) == 3
+    api.terminate_job(job)
+
+    kernel32.TerminateJobObject.result = 0
+    with pytest.raises(supervisor.VaultSinkSupervisorError):
+        api.terminate_job(job)
+
+
+def test_lifecycle_driver_rechecks_all_handles_and_closes_job_last():
+    calls = []
+    state = {"job_alive": True}
+
+    class Api:
+        def wait_for_handles(self, handles, timeout_ms):
+            calls.append(("wait", tuple(handle.value for handle in handles), timeout_ms))
+            return None
+
+        def process_is_in_job(self, _process, _job):
+            return True
+
+    def close(name):
+        def close_handle(_value):
+            calls.append(("close", name, state["job_alive"]))
+            if name == "job":
+                state["job_alive"] = False
+
+        return close_handle
+
+    parents = supervisor._VerifiedParentChain(
+        electron=supervisor._OwnedHandle(1, close=close("electron")),
+        direct_parent=supervisor._OwnedHandle(2, close=close("parent")),
+        supervisor=supervisor._OwnedHandle(3, close=close("supervisor")),
+        mode="dev",
+    )
+    worker = supervisor._SpawnedWorker(
+        process=supervisor._OwnedHandle(4, close=close("worker")),
+        ready_event=supervisor._OwnedHandle(5, close=close("event")),
+    )
+    job = supervisor._OwnedHandle(6, close=close("job"))
+    driver = supervisor._SupervisorLifecycleDriver(
+        api=Api(), parents=parents, job=job, worker=worker,
+        emit_ready=lambda: calls.append("ready"), wait_timeout_ms=50,
+    )
+
+    assert driver.poll(("electron", "parent", "worker", "ready_event")) == set()
+    driver.close()
+    assert calls[-6:] == [
+        ("close", "event", True), ("close", "worker", True),
+        ("close", "supervisor", True), ("close", "parent", True),
+        ("close", "electron", True), ("close", "job", True),
+    ]
+    assert state["job_alive"] is False
+
+
+def test_outer_supervisor_requires_lifecycle_success_and_writes_ready(monkeypatch):
+    calls = []
+
+    class Resource:
+        def __init__(self, name):
+            self.name = name
+
+        def close(self):
+            calls.append(("close", self.name))
+
+    protocol = Resource("protocol")
+    parents = Resource("parents")
+    job = Resource("job")
+    worker = Resource("worker")
+
+    class Api:
+        def _capture_protocol_handles(self):
+            calls.append("capture")
+            return protocol
+
+        def open_verified_parent_chain(self, pid):
+            calls.append(("parents", pid))
+            return parents
+
+        def create_kill_on_close_job(self):
+            calls.append("job")
+            return job
+
+        def _spawn_contained_worker(self, observed_protocol, observed_job):
+            calls.append(("spawn", observed_protocol, observed_job))
+            return worker
+
+    class Driver:
+        def __init__(self, **kwargs):
+            self.emit_ready = kwargs["emit_ready"]
+            self._resources = (worker, parents, job)
+
+        def close(self):
+            for resource in self._resources:
+                resource.close()
+
+    def lifecycle(driver):
+        driver.emit_ready()
+        driver.close()
+        return True
+
+    monkeypatch.setattr(supervisor, "_SupervisorLifecycleDriver", Driver)
+    monkeypatch.setattr(supervisor, "run_lifecycle", lifecycle)
+    stream = io.BytesIO()
+
+    assert supervisor.run_supervisor(
+        api=Api(),
+        environment={"PUPU_VAULT_ELECTRON_PID": "4242"},
+        control_stream=stream,
+    ) is True
+    assert stream.getvalue() == supervisor.ready_control_frame()
+    assert calls == [
+        "capture",
+        ("parents", "4242"),
+        "job",
+        ("spawn", protocol, job),
+        ("close", "worker"),
+        ("close", "parents"),
+        ("close", "job"),
+        ("close", "protocol"),
+    ]
+
+
+def test_outer_supervisor_main_returns_nonzero_on_failure(monkeypatch):
+    monkeypatch.setattr(supervisor, "run_supervisor", lambda: False)
+    assert supervisor.main() == 2
+
+    monkeypatch.setattr(
+        supervisor,
+        "run_supervisor",
+        lambda: (_ for _ in ()).throw(RuntimeError("no details")),
+    )
+    assert supervisor.main() == 2
+
+
+class _BootstrapApi:
+    def __init__(self, *, in_job=True, signal_result=True):
+        self.in_job = in_job
+        self.signal_result = signal_result
+        self.calls = []
+
+    def attest_current_process_in_job(self):
+        self.calls.append("attest")
+        if not self.in_job:
+            raise supervisor.VaultSinkSupervisorError("vault_worker_attestation_failed")
+
+    def signal_and_close_ready_event(self, handle):
+        self.calls.append(("signal", handle))
+        if not self.signal_result:
+            raise supervisor.VaultSinkSupervisorError("vault_worker_handle_setup_failed")
 
 
 class _FakeFunction:
@@ -205,6 +534,75 @@ def test_decimal_pid_admission_is_closed_and_bounded():
         with pytest.raises(supervisor.VaultSinkSupervisorError) as captured:
             supervisor.parse_decimal_pid(invalid)
         assert captured.value.code == "vault_worker_parent_unavailable"
+
+
+def test_inner_worker_bootstrap_consumes_env_before_attest_restore_signal(monkeypatch):
+    environment = {
+        supervisor.WORKER_BOOTSTRAP_VERSION_ENV: supervisor.WORKER_BOOTSTRAP_VERSION,
+        supervisor.WORKER_READY_EVENT_ENV: "42",
+        "_PYI_APPLICATION_HOME_DIR": "C:\\temp",
+    }
+    api = _BootstrapApi()
+    calls = []
+
+    supervisor.bootstrap_inner_worker(
+        environment=environment,
+        api=api,
+        restore_environment=lambda: calls.append("restore"),
+    )
+
+    assert api.calls == ["attest", ("signal", 42)]
+    assert calls == ["restore"]
+    assert supervisor.WORKER_BOOTSTRAP_VERSION_ENV not in environment
+    assert supervisor.WORKER_READY_EVENT_ENV not in environment
+    assert environment["_PYI_APPLICATION_HOME_DIR"] == "C:\\temp"
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        {},
+        {supervisor.WORKER_BOOTSTRAP_VERSION_ENV: "2", supervisor.WORKER_READY_EVENT_ENV: "42"},
+        {supervisor.WORKER_BOOTSTRAP_VERSION_ENV: "1", supervisor.WORKER_READY_EVENT_ENV: "0"},
+        {
+            supervisor.WORKER_BOOTSTRAP_VERSION_ENV: "1",
+            supervisor.WORKER_READY_EVENT_ENV: "42",
+            "pupu_vault_worker_ready_event": "43",
+        },
+    ],
+)
+def test_inner_worker_bootstrap_rejects_before_restore_or_signal(environment):
+    api = _BootstrapApi()
+    restored = []
+
+    with pytest.raises(supervisor.VaultSinkSupervisorError):
+        supervisor.bootstrap_inner_worker(
+            environment=dict(environment),
+            api=api,
+            restore_environment=lambda: restored.append(True),
+        )
+
+    assert api.calls == []
+    assert restored == []
+
+
+def test_inner_worker_bootstrap_does_not_signal_if_restore_fails():
+    environment = {
+        supervisor.WORKER_BOOTSTRAP_VERSION_ENV: "1",
+        supervisor.WORKER_READY_EVENT_ENV: "42",
+    }
+    api = _BootstrapApi()
+
+    with pytest.raises(RuntimeError):
+        supervisor.bootstrap_inner_worker(
+            environment=environment,
+            api=api,
+            restore_environment=lambda: (_ for _ in ()).throw(RuntimeError("fail")),
+        )
+
+    assert api.calls == ["attest"]
+    assert supervisor.WORKER_BOOTSTRAP_VERSION_ENV not in environment
+    assert supervisor.WORKER_READY_EVENT_ENV not in environment
 
 
 def test_kill_on_close_job_is_set_then_queried_before_use():

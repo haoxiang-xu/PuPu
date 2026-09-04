@@ -199,6 +199,21 @@ class DurableJobRuntimeTests(unittest.TestCase):
         self.assertNotIn("PYINSTALLER_RESET_ENVIRONMENT", canonical)
         fake_windll.kernel32.SetDllDirectoryW.assert_called_once_with(None)
 
+    def test_frozen_windows_fails_closed_when_dll_restore_fails(self) -> None:
+        fake_windll = mock.Mock()
+        fake_windll.kernel32.SetDllDirectoryW.return_value = 0
+        with mock.patch.object(sys, "frozen", True, create=True), mock.patch.object(
+            sys,
+            "platform",
+            "win32",
+        ), mock.patch("ctypes.windll", fake_windll, create=True), mock.patch.dict(
+            os.environ,
+            {"PATH": r"C:\\Windows\\System32"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "frozen_dll_directory_restore_failed"):
+                durable_job_runtime.restore_frozen_job_environment()
+
     def test_frozen_runtime_uses_private_worker_entry_and_wrapper_only_reset(
         self,
     ) -> None:

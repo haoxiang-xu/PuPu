@@ -249,6 +249,14 @@ if (!gotSingleInstanceLock) {
   };
 
   const stopActiveExecutionsForLifecycle = (reason) => {
+    // Suspend is not quit: abort only the active one-shot leases, leaving the
+    // permanently-closed registry path reserved for will-quit. The Job's
+    // parent watch / kill-on-close remains the Windows containment authority.
+    try {
+      vaultSinkExecutorRegistry?.abortActive?.();
+    } catch (_error) {
+      // Lifecycle shutdown continues even if the direct-child signal races.
+    }
     void unchainService.stopActiveMisoExecutionsForLifecycle({ reason });
   };
 

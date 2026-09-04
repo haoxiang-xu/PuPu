@@ -121,6 +121,13 @@ def test_redactor_covers_strings_bytes_nested_values_and_exceptions():
     ) == worker.REDACTION_MARKER.encode("ascii")
 
 
+def test_windows_direct_main_refuses_before_protocol_read(monkeypatch):
+    monkeypatch.setattr(worker.sys, "platform", "win32")
+    with mock.patch.object(worker, "process_one_frame") as process_one_frame:
+        assert worker.main() == 1
+    process_one_frame.assert_not_called()
+
+
 def test_shell_env_executes_foreground_and_redacts_all_encodings():
     script = (
         "import base64,json,os,sys,urllib.parse;"

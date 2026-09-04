@@ -176,7 +176,7 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
   );
 
   let spawnCount = 0;
-  const executor = createVaultSinkExecutor({
+  const windowsRegistry = createVaultSinkExecutors({
     args: ["-e", "process.exit(0)"],
     command: process.execPath,
     dataDir: "/tmp/pupu-w0-contract",
@@ -187,12 +187,7 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
       throw new Error("must not spawn");
     },
   });
-  for (const sinkKind of contract.vault_sink.recognized_kinds) {
-    await assert.rejects(
-      executor.prepare({ sinkKind }),
-      (error) => error?.code === "vault_worker_containment_unavailable",
-    );
-  }
+  assert.deepEqual(Object.keys(windowsRegistry.providers), []);
   assert.equal(spawnCount, 0);
 
   const unknownSinkExecutor = createVaultSinkExecutor({

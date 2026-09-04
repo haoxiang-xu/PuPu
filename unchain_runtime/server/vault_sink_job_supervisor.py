@@ -13,7 +13,8 @@ import os
 import struct
 import subprocess
 import sys
-from collections.abc import Callable, Mapping
+import time
+from collections.abc import Callable, Mapping, MutableMapping
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ from typing import Any
 CONTROL_PROTOCOL = 1
 MAX_CONTROL_FRAME_BYTES = 256
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION = 1
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK = 0x00001000
@@ -28,6 +30,8 @@ PROCESS_QUERY_LIMITED_INFORMATION = 0x00001000
 SYNCHRONIZE = 0x00100000
 WAIT_OBJECT_0 = 0
 WAIT_TIMEOUT = 258
+WAIT_FAILED = 0xFFFFFFFF
+MAXIMUM_WAIT_OBJECTS = 64
 TH32CS_SNAPPROCESS = 0x00000002
 MAX_PATH = 260
 HANDLE_FLAG_INHERIT = 0x00000001
@@ -49,6 +53,9 @@ CREATE_NO_WINDOW = 0x08000000
 WORKER_BOOTSTRAP_VERSION = "1"
 WORKER_BOOTSTRAP_VERSION_ENV = "PUPU_VAULT_WORKER_BOOTSTRAP_VERSION"
 WORKER_READY_EVENT_ENV = "PUPU_VAULT_WORKER_READY_EVENT"
+DEFAULT_DRAIN_TIMEOUT_MS = 5_000
+DEFAULT_DRAIN_POLL_INTERVAL_MS = 25
+DEFAULT_READY_WAIT_TIMEOUT_MS = 15_000
 _MAX_SNAPSHOT_PROCESSES = 65536
 _MAX_WIN32_PID = 0xFFFFFFFF
 _MAX_COMMAND_LINE_CHARS = 32767
@@ -211,6 +218,19 @@ class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
     ]
 
 
+class JOBOBJECT_BASIC_ACCOUNTING_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("TotalUserTime", ctypes.c_int64),
+        ("TotalKernelTime", ctypes.c_int64),
+        ("ThisPeriodTotalUserTime", ctypes.c_int64),
+        ("ThisPeriodTotalKernelTime", ctypes.c_int64),
+        ("TotalPageFaultCount", DWORD),
+        ("TotalProcesses", DWORD),
+        ("ActiveProcesses", DWORD),
+        ("TotalTerminatedProcesses", DWORD),
+    ]
+
+
 class VaultSinkSupervisorError(RuntimeError):
     """Static code that is safe to cross the supervisor control boundary."""
 
@@ -222,6 +242,99 @@ class VaultSinkSupervisorError(RuntimeError):
             normalized = "vault_worker_ready_protocol_error"
         super().__init__(normalized)
         self.code = normalized
+
+
+def run_lifecycle(
+    driver: Any,
+    *,
+    drain_timeout_ms: int = DEFAULT_DRAIN_TIMEOUT_MS,
+    drain_poll_interval_ms: int = DEFAULT_DRAIN_POLL_INTERVAL_MS,
+    monitor_polls: int | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Run the no-plaintext lifecycle and return whether worker drain succeeded."""
+
+    if (
+        not isinstance(drain_timeout_ms, int)
+        or isinstance(drain_timeout_ms, bool)
+        or drain_timeout_ms < 1
+        or not isinstance(drain_poll_interval_ms, int)
+        or isinstance(drain_poll_interval_ms, bool)
+        or drain_poll_interval_ms < 1
+        or (
+            monitor_polls is not None
+            and (
+                not isinstance(monitor_polls, int)
+                or isinstance(monitor_polls, bool)
+                or monitor_polls < 1
+            )
+        )
+    ):
+        raise VaultSinkSupervisorError("vault_worker_ready_timeout")
+    process_names = ("electron", "parent", "worker")
+    pre_ready_names = (*process_names, "ready_event")
+    try:
+        pre_ready = set(driver.poll(pre_ready_names))
+        if pre_ready & set(process_names):
+            _terminate_and_drain(
+                driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
+            )
+            return False
+        if "ready_event" not in pre_ready:
+            _terminate_and_drain(
+                driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
+            )
+            return False
+        # A death observed in the zero-time recheck wins over a same-tick READY.
+        if set(driver.poll(process_names)):
+            _terminate_and_drain(
+                driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
+            )
+            return False
+        if driver.attest_worker() is not True:
+            _terminate_and_drain(
+                driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
+            )
+            return False
+        driver.emit_ready()
+        polls = 0
+        while monitor_polls is None or polls < monitor_polls:
+            observed = set(driver.poll(process_names))
+            polls += 1
+            if not observed:
+                continue
+            drained = _terminate_and_drain(
+                driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
+            )
+            return drained and observed == {"worker"}
+        return False
+    except Exception:
+        return False
+    finally:
+        try:
+            driver.close()
+        except Exception:
+            pass
+
+
+def _terminate_and_drain(
+    driver: Any,
+    timeout_ms: int,
+    poll_interval_ms: int,
+    monotonic: Callable[[], float],
+    sleep: Callable[[float], None],
+) -> bool:
+    if driver.terminate_job() is not True:
+        return False
+    deadline = monotonic() + (timeout_ms / 1_000)
+    while True:
+        if driver.active_process_count() == 0:
+            return True
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            return False
+        sleep(min(poll_interval_ms / 1_000, remaining))
 
 
 def _frame(body: bytes) -> bytes:
@@ -264,6 +377,74 @@ def parse_decimal_pid(value: Any) -> int:
     if pid > _MAX_WIN32_PID:
         raise VaultSinkSupervisorError("vault_worker_parent_unavailable")
     return pid
+
+
+def _parse_decimal_handle(value: Any) -> int:
+    """Admit the one inherited READY handle without accepting aliases."""
+
+    if (
+        not isinstance(value, str)
+        or not value
+        or not value.isascii()
+        or not value.isdecimal()
+        or value[0] == "0"
+    ):
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+    handle = int(value, 10)
+    if handle > 0xFFFFFFFFFFFFFFFF:
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+    return handle
+
+
+def _consume_worker_bootstrap(
+    environment: MutableMapping[str, str],
+) -> int:
+    """Read and scrub the closed worker bootstrap before protocol I/O."""
+
+    expected = {
+        WORKER_BOOTSTRAP_VERSION_ENV.casefold(),
+        WORKER_READY_EVENT_ENV.casefold(),
+    }
+    found: dict[str, list[tuple[str, str]]] = {name: [] for name in expected}
+    for key, value in list(environment.items()):
+        if not isinstance(key, str):
+            continue
+        folded = key.casefold()
+        if folded in expected:
+            found[folded].append((key, value))
+    for entries in found.values():
+        for key, _value in entries:
+            environment.pop(key, None)
+
+    version_entries = found[WORKER_BOOTSTRAP_VERSION_ENV.casefold()]
+    event_entries = found[WORKER_READY_EVENT_ENV.casefold()]
+    if len(version_entries) != 1 or len(event_entries) != 1:
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+    if version_entries[0][1] != WORKER_BOOTSTRAP_VERSION:
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+    return _parse_decimal_handle(event_entries[0][1])
+
+
+def bootstrap_inner_worker(
+    *,
+    environment: MutableMapping[str, str] | None = None,
+    api: Any | None = None,
+    restore_environment: Callable[[], None] | None = None,
+) -> None:
+    """Attest the inner worker and signal READY before it may read stdin."""
+
+    resolved_environment = os.environ if environment is None else environment
+    if not isinstance(resolved_environment, MutableMapping):
+        raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+    ready_event = _consume_worker_bootstrap(resolved_environment)
+    resolved_api = _Win32Api() if api is None else api
+    resolved_api.attest_current_process_in_job()
+    if restore_environment is None:
+        from durable_job_runtime import restore_frozen_job_environment
+
+        restore_environment = restore_frozen_job_environment
+    restore_environment()
+    resolved_api.signal_and_close_ready_event(ready_event)
 
 
 def _handle_value(handle: Any) -> int:
@@ -575,6 +756,72 @@ class _VerifiedParentChain:
         self.close()
 
 
+class _SupervisorLifecycleDriver:
+    """Bind the pure lifecycle to owned Win32 resources without plaintext I/O."""
+
+    def __init__(
+        self,
+        *,
+        api: "_Win32Api",
+        parents: _VerifiedParentChain,
+        job: _OwnedHandle,
+        worker: _SpawnedWorker,
+        emit_ready: Callable[[], None],
+        wait_timeout_ms: int,
+    ) -> None:
+        self._api = api
+        self._parents = parents
+        self._job = job
+        self._worker = worker
+        self._emit_ready = emit_ready
+        self._wait_timeout_ms = wait_timeout_ms
+
+    def poll(self, names: tuple[str, ...]) -> set[str]:
+        handles = {
+            "electron": self._parents.electron,
+            "parent": self._parents.direct_parent,
+            "worker": self._worker.process,
+            "ready_event": self._worker.ready_event,
+        }
+        selected = [handles[name] for name in names]
+        first = self._api.wait_for_handles(selected, self._wait_timeout_ms)
+        observed: set[str] = set()
+        if first is not None:
+            observed.add(names[first])
+        # Recheck every handle at zero timeout, making process death win over
+        # a concurrently signalled READY Event regardless of wait ordering.
+        for name, handle in zip(names, selected):
+            if self._api.wait_for_handles([handle], 0) == 0:
+                observed.add(name)
+        return observed
+
+    def attest_worker(self) -> bool:
+        return self._api.process_is_in_job(self._worker.process.value, self._job)
+
+    def emit_ready(self) -> None:
+        self._emit_ready()
+
+    def terminate_job(self) -> bool:
+        try:
+            self._api.terminate_job(self._job)
+            return True
+        except VaultSinkSupervisorError:
+            return False
+
+    def active_process_count(self) -> int:
+        return self._api.active_process_count(self._job)
+
+    def close(self) -> None:
+        errors: list[Exception] = []
+        for resource in (self._worker, self._parents, self._job):
+            try:
+                resource.close()
+            except Exception as error:
+                errors.append(error)
+        if errors:
+            raise errors[0]
+
+
 class _Win32Api:
     """Narrow ctypes ABI layer. It only loads kernel32 on supported hosts."""
 
@@ -626,6 +873,8 @@ class _Win32Api:
         if self._get_last_error is None:
             self._get_last_error = getattr(ctypes, "get_last_error", None)
         self._spawn_api_bound = False
+        self._inner_worker_api_bound = False
+        self._lifecycle_api_bound = False
         try:
             kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
             kernel32.CreateJobObjectW.restype = HANDLE
@@ -761,6 +1010,37 @@ class _Win32Api:
                 "vault_worker_containment_unsupported"
             ) from None
         self._spawn_api_bound = True
+
+    def _ensure_inner_worker_api(self) -> None:
+        if self._inner_worker_api_bound:
+            return
+        try:
+            self._kernel32.SetEvent.argtypes = [HANDLE]
+            self._kernel32.SetEvent.restype = BOOL
+        except (AttributeError, TypeError):
+            raise VaultSinkSupervisorError(
+                "vault_worker_containment_unsupported"
+            ) from None
+        self._inner_worker_api_bound = True
+
+    def _ensure_lifecycle_api(self) -> None:
+        if self._lifecycle_api_bound:
+            return
+        try:
+            self._kernel32.WaitForMultipleObjects.argtypes = [
+                DWORD,
+                ctypes.POINTER(HANDLE),
+                BOOL,
+                DWORD,
+            ]
+            self._kernel32.WaitForMultipleObjects.restype = DWORD
+            self._kernel32.TerminateJobObject.argtypes = [HANDLE, DWORD]
+            self._kernel32.TerminateJobObject.restype = BOOL
+        except (AttributeError, TypeError):
+            raise VaultSinkSupervisorError(
+                "vault_worker_containment_unsupported"
+            ) from None
+        self._lifecycle_api_bound = True
 
     def _assert_handle_inheritance(
         self,
@@ -1194,6 +1474,55 @@ class _Win32Api:
             )
         return result
 
+    def wait_for_handles(self, handles: list[Any], timeout_ms: int) -> int | None:
+        """Wait for exactly one handle index or timeout; every other result fails."""
+
+        self._ensure_lifecycle_api()
+        if (
+            not isinstance(timeout_ms, int)
+            or isinstance(timeout_ms, bool)
+            or not 0 <= timeout_ms <= 0xFFFFFFFF
+            or not 1 <= len(handles) <= MAXIMUM_WAIT_OBJECTS
+        ):
+            raise VaultSinkSupervisorError("vault_worker_ready_timeout")
+        values = [_handle_value(handle) for handle in handles]
+        if any(value in {0, INVALID_HANDLE_VALUE} for value in values):
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        result = int(
+            self._kernel32.WaitForMultipleObjects(
+                DWORD(len(values)),
+                (HANDLE * len(values))(*values),
+                BOOL(False),
+                DWORD(timeout_ms),
+            )
+        )
+        if result == WAIT_TIMEOUT:
+            return None
+        if WAIT_OBJECT_0 <= result < WAIT_OBJECT_0 + len(values):
+            return result - WAIT_OBJECT_0
+        raise VaultSinkSupervisorError("vault_worker_ready_timeout")
+
+    def terminate_job(self, job: _OwnedHandle) -> None:
+        self._ensure_lifecycle_api()
+        if not isinstance(job, _OwnedHandle) or not job.value:
+            raise VaultSinkSupervisorError("vault_worker_job_setup_failed")
+        if not self._kernel32.TerminateJobObject(HANDLE(job.value), DWORD(1)):
+            raise VaultSinkSupervisorError("vault_worker_job_setup_failed")
+
+    def active_process_count(self, job: _OwnedHandle) -> int:
+        if not isinstance(job, _OwnedHandle) or not job.value:
+            raise VaultSinkSupervisorError("vault_worker_job_setup_failed")
+        accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
+        if not self._kernel32.QueryInformationJobObject(
+            HANDLE(job.value),
+            DWORD(JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION),
+            ctypes.byref(accounting),
+            DWORD(ctypes.sizeof(accounting)),
+            None,
+        ):
+            raise VaultSinkSupervisorError("vault_worker_job_setup_failed")
+        return int(accounting.ActiveProcesses)
+
     def _close_handle(self, value: int) -> None:
         if value in {0, INVALID_HANDLE_VALUE}:
             return
@@ -1279,6 +1608,27 @@ class _Win32Api:
         ):
             raise VaultSinkSupervisorError("vault_worker_attestation_failed")
         return bool(result.value)
+
+    def attest_current_process_in_job(self) -> None:
+        """Require the worker to be in some Job before protocol I/O."""
+
+        self._ensure_spawn_api()
+        current_process = self._kernel32.GetCurrentProcess()
+        if not self.process_is_in_job(current_process, None):
+            raise VaultSinkSupervisorError("vault_worker_attestation_failed")
+
+    def signal_and_close_ready_event(self, handle: Any) -> None:
+        """Set exactly the inherited READY Event and relinquish it."""
+
+        self._ensure_inner_worker_api()
+        value = _handle_value(handle)
+        if value in {0, INVALID_HANDLE_VALUE}:
+            raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        try:
+            if not self._kernel32.SetEvent(HANDLE(value)):
+                raise VaultSinkSupervisorError("vault_worker_handle_setup_failed")
+        finally:
+            self._close_handle(value)
 
     def open_live_process(self, pid_text: Any) -> _OwnedHandle:
         """Open only the minimum liveness handle and reject an exited PID."""
@@ -1425,3 +1775,78 @@ class _Win32Api:
         except Exception:
             _close_owned_handles(opened)
             raise
+
+
+def _write_control_frame(frame: bytes, stream: Any | None = None) -> None:
+    """Write one static control frame without ever touching worker plaintext."""
+
+    target = sys.stdout.buffer if stream is None else stream
+    if not isinstance(frame, bytes) or not hasattr(target, "write"):
+        raise VaultSinkSupervisorError("vault_worker_ready_protocol_error")
+    target.write(frame)
+    if hasattr(target, "flush"):
+        target.flush()
+
+
+def run_supervisor(
+    *,
+    api: _Win32Api | None = None,
+    environment: Mapping[str, str] | None = None,
+    control_stream: Any | None = None,
+    wait_timeout_ms: int = DEFAULT_READY_WAIT_TIMEOUT_MS,
+) -> bool:
+    """Run the no-plaintext outer supervisor over Electron's stdin/stdout pipe."""
+
+    if (
+        not isinstance(wait_timeout_ms, int)
+        or isinstance(wait_timeout_ms, bool)
+        or wait_timeout_ms < 1
+    ):
+        raise VaultSinkSupervisorError("vault_worker_ready_timeout")
+    resolved_environment = os.environ if environment is None else environment
+    if not isinstance(resolved_environment, Mapping):
+        raise VaultSinkSupervisorError("vault_worker_parent_unavailable")
+    resolved_api = _Win32Api() if api is None else api
+    protocol: _ProtocolHandles | None = None
+    parents: _VerifiedParentChain | None = None
+    job: _OwnedHandle | None = None
+    worker: _SpawnedWorker | None = None
+    try:
+        protocol = resolved_api._capture_protocol_handles()
+        parents = resolved_api.open_verified_parent_chain(
+            resolved_environment.get("PUPU_VAULT_ELECTRON_PID", "")
+        )
+        job = resolved_api.create_kill_on_close_job()
+        worker = resolved_api._spawn_contained_worker(protocol, job)
+        driver = _SupervisorLifecycleDriver(
+            api=resolved_api,
+            parents=parents,
+            job=job,
+            worker=worker,
+            emit_ready=lambda: _write_control_frame(
+                ready_control_frame(), control_stream
+            ),
+            wait_timeout_ms=wait_timeout_ms,
+        )
+        # Ownership transfers to the lifecycle driver, which closes Job last.
+        parents = None
+        job = None
+        worker = None
+        return run_lifecycle(driver)
+    finally:
+        for resource in (worker, parents, job, protocol):
+            if resource is None:
+                continue
+            try:
+                resource.close()
+            except Exception:
+                pass
+
+
+def main() -> int:
+    """Outer private entry: success requires READY, exit 0, and Job drain."""
+
+    try:
+        return 0 if run_supervisor() else 2
+    except Exception:
+        return 2

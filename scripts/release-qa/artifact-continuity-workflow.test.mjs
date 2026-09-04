@@ -49,6 +49,11 @@ test("release builds Unchain once and every test/package consumes the same bytes
   assert.match(sharedPackage, /UNCHAIN_ARTIFACT_EVIDENCE_PATH/);
   assert.match(sharedPackage, /package-sidecar-smoke\.mjs/);
   assert.match(sharedPackage, /--snapshot "\$PUPU_BUILD_FEATURE_SNAPSHOT_PATH"/);
+  assert.match(sharedPackage, /Probe packaged Windows Vault supervisor containment/);
+  assert.match(sharedPackage, /windows-packaged-vault-supervisor-probe\.py/);
+  assert.match(sharedPackage, /verify-windows-packaged-vault-supervisor-evidence\.py/);
+  assert.match(sharedPackage, /packaged Windows Vault supervisor containment/);
+  assert.match(sharedPackage, /steps\.packaged_vault_supervisor\.outcome/);
   assert.match(sharedPackage, /executed_tests/);
   assert.match(sharedPackage, /--bytes-only true/);
   assert.match(
@@ -153,4 +158,19 @@ test("active AI release review requires artifact and protocol continuity, never 
     prompt,
     /tested Unchain SHA|exact SHA|runtime lock|compatibility SHA/i,
   );
+});
+
+test("all sidecar builders pin PyInstaller and freeze the private vault entries", () => {
+  for (const relativePath of [
+    "unchain_runtime/scripts/build_unchain_server.sh",
+    "unchain_runtime/scripts/build_unchain_server.ps1",
+  ]) {
+    const source = fs.readFileSync(path.join(ROOT, relativePath), "utf8");
+    assert.match(source, /PYINSTALLER_VERSION[=\s]+["']?6\.22\.1/);
+    assert.match(source, /pyinstaller==\$?PYINSTALLER_VERSION/);
+    assert.doesNotMatch(source, /pyinstaller>=/);
+    assert.match(source, /hidden-import[", ]+durable_job_runtime/);
+    assert.match(source, /hidden-import[", ]+vault_sink_job_supervisor/);
+    assert.match(source, /hidden-import[", ]+vault_sink_worker/);
+  }
 });

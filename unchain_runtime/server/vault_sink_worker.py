@@ -1130,7 +1130,11 @@ def process_one_frame(
         return 1
 
 
-def main() -> int:
+def main(*, containment_attested: bool = False) -> int:
+    # W2-07 consumes this attestation to gate Windows shell/MCP execution.
+    # Keep the default false so direct invocation can never gain that authority.
+    if sys.platform == "win32" and containment_attested is not True:
+        return 1
     protocol_output: BinaryIO | None = None
     try:
         protocol_output = os.fdopen(os.dup(sys.stdout.fileno()), "wb")

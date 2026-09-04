@@ -6,6 +6,8 @@ const {
   VAULT_SINK_WORKER_MAX_RESPONSE_BYTES,
 } = require("../../main/services/memory_vault/vault_sink_executor");
 const childProcess = require("child_process");
+const { EventEmitter } = require("events");
+const { PassThrough } = require("stream");
 
 const SECRET = "wrapper-secret +/✓";
 const DATA_DIR = "/tmp/pupu-vault-worker-data";
@@ -321,6 +323,28 @@ describe("memory vault sink executor", () => {
     expect(registry.close()).toBe(0);
   });
 
+  test("abortActive terminates current leases without permanently closing the registry", async () => {
+    const registry = createVaultSinkExecutors({
+      ...entrypoint("process.stdin.resume();setTimeout(()=>{},60000);"),
+      environmentSource: {},
+      timeoutMs: 5000,
+    });
+    const lease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+
+    expect(registry.abortActive()).toBe(1);
+    expect(registry.isClosed()).toBe(false);
+    await lease.awaitDrained();
+    expect(registry.activeChildCount()).toBe(0);
+
+    const freshLease = await registry.providers.shell_secret_env.prepare({
+      sinkKind: "shell_secret_env",
+    });
+    freshLease.abort();
+    await freshLease.awaitDrained();
+  });
+
   test("registry tracks live worker process groups and empties on every terminal path", async () => {
     const registry = createVaultSinkExecutors({
       ...entrypoint(framedChildScript),
@@ -567,22 +591,52 @@ describe("memory vault sink executor", () => {
     });
   });
 
-  test("fails closed on Windows before spawning until tree containment exists", async () => {
-    const spawn = jest.fn();
+  test("Windows requires exact supervisor READY before it can receive plaintext", async () => {
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.kill = jest.fn();
+    const spawn = jest.fn(() => {
+      queueMicrotask(() => {
+        child.emit("spawn");
+        const body = Buffer.from(
+          '{"containment":"win32_job_list_v1","kind":"ready","protocol":1}',
+          "utf8",
+        );
+        const frame = Buffer.alloc(4 + body.length);
+        frame.writeUInt32BE(body.length, 0);
+        body.copy(frame, 4);
+        child.stdout.write(frame);
+      });
+      return child;
+    });
     const executor = createVaultSinkExecutor({
-      ...entrypoint(framedChildScript),
+      command: process.execPath,
+      args: ["-e", "unused", "--vault-sink-worker"],
+      cwd: null,
+      dataDir: DATA_DIR,
+      mcpRuntimeDir: MCP_RUNTIME_DIR,
       environmentSource: {},
       platform: "win32",
       spawn,
+      electronPid: 4242,
     });
 
-    await expect(
-      executor.prepare({ sinkKind: "shell_secret_env" }),
-    ).rejects.toMatchObject({
-      code: "vault_worker_containment_unavailable",
-      message: expect.not.stringContaining(SECRET),
+    const lease = await executor.prepare({ sinkKind: "shell_secret_env" });
+    expect(spawn.mock.calls[0][1]).toEqual([
+      "-e",
+      "unused",
+      "--vault-sink-supervisor",
+    ]);
+    expect(spawn.mock.calls[0][2].env).toMatchObject({
+      PUPU_VAULT_ELECTRON_PID: "4242",
+      UNCHAIN_DATA_DIR: DATA_DIR,
     });
-    expect(spawn).not.toHaveBeenCalled();
+    expect(child.stdin.read()).toBeNull();
+
+    lease.abort();
+    child.emit("close", 2);
+    await lease.awaitDrained();
   });
 
   test("Windows registry admits only a complete capability and W0-approved sink set", () => {

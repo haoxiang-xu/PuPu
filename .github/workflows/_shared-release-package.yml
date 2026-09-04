@@ -262,6 +262,27 @@ jobs:
             --snapshot "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" \
             --out packaged-sidecar-smoke.json
 
+      - name: Probe packaged Windows Vault supervisor containment
+        id: packaged_vault_supervisor
+        if: always() && inputs.target_id == 'windows-x64' && steps.package.outcome == 'success'
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+        run: |
+          SIDECAR_BINARY="unchain_runtime/dist/windows/unchain-server.exe"
+          EVIDENCE_PATH="packaged-vault-supervisor.json"
+          python scripts/release-qa/windows-packaged-vault-supervisor-probe.py \
+            --sidecar "$SIDECAR_BINARY" \
+            --artifact-evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+            --out "$EVIDENCE_PATH"
+          EXECUTED_TESTS="$(python scripts/release-qa/verify-windows-packaged-vault-supervisor-evidence.py \
+            "$EVIDENCE_PATH" \
+            --sidecar "$SIDECAR_BINARY" \
+            --artifact-evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH")"
+          printf 'executed_tests=%s\n' "$EXECUTED_TESTS" >> "$GITHUB_OUTPUT"
+
       - name: Prepare Windows payload for Artifact Signing
         id: windows_payload
         if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.package.outcome == 'success' && steps.sidecar_smoke.outcome == 'success'
@@ -341,12 +362,13 @@ jobs:
           QA_PLATFORM_NAME: ${{ inputs.platform_name }}
           QA_PLATFORM_COMMAND: ${{ steps.package.outputs.command }}
           QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
-          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","packaged sidecar protocol smoke"]'
-          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*","packaged-sidecar-smoke.json","windows-signing-evidence.v1.json"]'
+          QA_REQUIRED_CHECKS_JSON: '${{ inputs.target_id == ''windows-x64'' && ''["Unchain artifact continuity","packaged sidecar protocol smoke","packaged Windows Vault supervisor containment"]'' || ''["Unchain artifact continuity","packaged sidecar protocol smoke"]'' }}'
+          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*","packaged-sidecar-smoke.json","packaged-vault-supervisor.json","windows-signing-evidence.v1.json"]'
           QA_CHECKS_JSON: |
             [
               {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
               {"name":"packaged sidecar protocol smoke","command":"node scripts/release-qa/package-sidecar-smoke.mjs","outcome":"${{ steps.sidecar_smoke.outcome }}","executed_tests":${{ steps.sidecar_smoke.outputs.executed_tests || 0 }}},
+              {"name":"packaged Windows Vault supervisor containment","command":"python scripts/release-qa/windows-packaged-vault-supervisor-probe.py","outcome":"${{ steps.packaged_vault_supervisor.outcome }}","executed_tests":${{ steps.packaged_vault_supervisor.outputs.executed_tests || 0 }}},
               {"name":"release signing and notarization verification","command":"native signature/notarization verifier","outcome":"${{ steps.release_signing.outcome }}"},
               {"name":"package build","command":"${{ steps.package.outputs.command }}","outcome":"${{ steps.package.outcome }}"}
             ]
@@ -393,6 +415,10 @@ jobs:
           fi
           if [ "${{ steps.sidecar_smoke.outcome }}" != "success" ]; then
             echo "::error title=Packaged sidecar smoke failed::${{ inputs.platform_name }} did not start and pass authenticated protocol checks"
+            exit 1
+          fi
+          if [ "${{ inputs.target_id }}" = "windows-x64" ] && [ "${{ steps.packaged_vault_supervisor.outcome }}" != "success" ]; then
+            echo "::error title=Packaged Vault supervisor containment failed::Windows onefile supervisor did not prove same-exe READY, strict worker protocol, and Job tree drain"
             exit 1
           fi
           if [ "$QA_MODE" = "release-candidate" ] && [ "${{ steps.release_signing.outcome }}" != "success" ]; then

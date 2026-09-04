@@ -1387,7 +1387,7 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
   topology、W2-05 bootstrap/dispatcher 与 plaintext flow 仍为 `NOT_RUN / BLOCKING`；
   Windows 继续 zero-provider / Shadow / NO-GO。
 
-**W2-04b direct native-probe record（2026-09-02，真实 Windows 行为已观测，证据串行化仍 BLOCKING）**
+**W2-04b direct native-probe record（2026-09-02，真实 Windows PASS，仍保持 Shadow）**
 
 - `BC-W2-006`：producer 是真实 Windows x64 `_spawn_contained_command` 的无 secret
   probe child、kernel32 Job/Event/handle-list 状态与 probe writer；strict consumer 是独立
@@ -1451,11 +1451,25 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
   supervisor/validator suite `81 passed`、workflow contract `1 passed`、release-QA `195 passed`、
   long-run harness `62 passed`，compile 与 `git diff --check` PASS。post-fix `main` upstream
   impact 为 LOW、零 affected process。
-- gate：包含 binary canonicalization repair 的 commit 尚未在真实 `windows-latest` 重跑，
-  因此 W2-04b 仍为 `BLOCKING`。必须由新的 exact run 同时取得 validator
-  `executed_tests=4`、Windows job report PASS 与 final enforcement PASS；不得复用本次
-  failed report 或 W2-03c v1 evidence，不得接 dispatcher。Windows 继续 zero-provider /
-  Shadow / NO-GO。
+- hosted green evidence：manual `windows-playwright` run `33710634717` / Windows job
+  `100510434451` 精确测试 repair commit
+  `8849c54131bac2b0af5b88a178c4557f5c5332f9`。Deterministic QA、exact Unchain artifact
+  continuity、session guard、native probe、Playwright 2 tests、nonzero evidence、report upload
+  与 final enforcement 全部 PASS；预检和所有 package jobs 按 closed scope 跳过。job report
+  artifact `9876979505` 将 native check 记录为 `passed / executed_tests=4`，并绑定 Unchain
+  wheel `sha256:5e825968e8164cfc6994f9a6fcd34b2cdc6f274fb2cad6e88ccba8631d143816`
+  与 runtime manifest
+  `sha256:a9b70a1ba8616fd13f91adfbb3cca90b53670abac038996dc413ce5c4252787d`。
+- retained v2：evidence artifact `9876979814` 中 native JSON 为 482 bytes、terminal byte
+  仅 `0a`，SHA-256
+  `a94689f3c6440d1b33677dd02d38fb01e6c4bec90eae6230f159291587b82378`；仓库 strict
+  validator 离线重验返回 4。closed evidence 同时证明 `platform=win32-x64`、dev
+  parent-chain、outer/nested Job、atomic Job-list spawn、exact four-handle list、breakaway
+  denied、Job/supervisor Event non-inheritable 与两个 kill-on-close observations 全部为 true。
+- gate：W2-04b 的真实 Windows atomic spawn / exact inherited handles / breakaway denial /
+  canonical evidence slice 由上述 exact run 提升为 `PASS`。该证据仍不是 installed
+  PyInstaller topology、W2-05 bootstrap/dispatcher、Vault plaintext flow 或完整 Windows
+  qualification；不得据此注册 provider。Windows 继续 zero-provider / Shadow / NO-GO。
 
 #### W2-05：inner worker bootstrap 与入口分派
 
@@ -1487,7 +1501,81 @@ environment buffer 必须持续存活到 `CreateProcessW` 返回并调用
 测试必须分别证明 source Python 与 packaged exe dispatcher 顺序，且 direct worker
 `stdin read count=0`。
 
+**W2-05 cross-boundary implementation contract（2026-09-02，Windows 继续 Shadow）**
+
+- `BC-W2-007`：producer 是 outer same-exe supervisor 的 exact argv dispatcher 与
+  W2-04 已 allowlist 的 child environment；consumer 是 inner
+  `--vault-sink-worker` bootstrap。wire 仅为固定 version `1` 和唯一 inherited READY
+  Event decimal handle，且 worker 不接收 Job/PID/secret。inner worker 在读 stdin 前
+  必须保留 bootloader `_PYI_*`、预加载执行时依赖、consume+delete 两个 bootstrap env、
+  用 `IsProcessInJob(current, NULL)` 确认 membership、恢复 frozen DLL environment，
+  `SetEvent` 并 close handle；任何异常均 closed-fail，不能进入 plaintext protocol。
+- `WSEQ-W2-007`：`main exact supervisor dispatch -> supervisor bootstrap (no frozen
+  restore) -> atomic W2-04 spawn -> inner preload -> validate+consume bootstrap ->
+  membership attestation -> frozen restore postcondition -> SetEvent+close ->
+  worker main(containment_attested=True) -> stdin read`。direct worker、wrong argv、
+  non-Windows、missing/duplicate/wrong bootstrap、invalid/non-Job Event 及 restore failure
+  都在 stdin read 前 exit nonzero；这项不启动 provider，也不传 plaintext。
+- `WAC-W2-007`：source/PyInstaller dispatcher 顺序必须先于 Flask 与 durable worker；
+  outer supervisor 不得调用 frozen restore，inner 禁止设置 reset env，bootstrap 成功后
+  不得留存 `PUPU_VAULT_*` control env 或 inherited Event。定向 fake-kernel tests 必须
+  锁定 `stdin read count=0` 的全部 red paths、only-once `SetEvent/CloseHandle` 和
+  `containment_attested=False` 的 direct default。installed PyInstaller topology、outer
+  wait/drain、Windows sink execution 和 release enablement 仍为 NOT_RUN / NO-GO。
+
+**W2-05 source-foundation record（2026-09-02，未接 provider）**
+
+- `main.py` 现将 exact Windows `--vault-sink-supervisor` 置于 Vault worker、durable
+  worker 与 Flask 前分派；该 private outer entry 在 W2-06 drain state machine 到位前固定
+  非零退出，不能提前启动可用 provider。Windows inner worker 则只在 bootstrap success 后以
+  `containment_attested=True` 调入，direct `vault_sink_worker.main()` 的默认 false 在任何
+  stdin protocol read 前拒绝。
+- bootstrap 使用 case-insensitive exact-once version/Event env consume-and-scrub，保留
+  `_PYI_*`，先 attestation、再 checked `SetDllDirectoryW(None)` restore、最后
+  `SetEvent`/close；缺失、重复、错误 version、无效 handle、非 Job 和 restore failure
+  均不 signal READY，也不进入 stdin。
+- evidence：带 exact local Unchain wheel 的 targeted suite `85 passed`，涵盖 dispatcher
+  priority、direct no-read、bootstrap ordering/scrub/red matrix、spawn foundation、worker
+  protocol 与 Windows DLL restore false return；Python compile 与 `git diff --check` PASS。
+  真实 Windows/package topology、outer spawn+wait/drain pair 与 plaintext sink 仍未运行，
+  Windows 保持 zero-provider / Shadow / NO-GO。
+
 #### W2-06：supervisor wait/drain 状态机
+
+**W2-06 cross-boundary implementation contract（2026-09-03，Windows 继续 Shadow）**
+
+- `BC-W2-008`：producer 是 supervisor 持有的 Electron/direct-parent/worker/READY Event
+  handles 与 sole `hJob`；consumer 是仅含 `ready|failed` 结果的 outer lifecycle。任何
+  process-death、wait/query/terminate failure 或 cleanup timeout 都不产生 READY/success，
+  并由 close `hJob` 保留 kill-on-close 最终 authority。
+- `WSEQ-W2-008`：`CHILD_CREATED -> pre-ready wait (electron,parent,worker,event) ->
+  zero-time recheck + membership -> READY_SENT -> monitored wait -> terminate Job ->
+  ActiveProcesses==0 -> close handles/job -> CLOSED`。同 tick death 优先于 Event；worker
+  normal exit 同样 terminate Job。只在 exact response/EOF/Node close 的 W2-08 consumer
+  另行证明后才可映射 supervisor exit 0。
+- `WAC-W2-008`：wait domain、priority、post-Event recheck、terminate/query failure、
+  deadline、duplicate close、partial init 与 hard-kill close-handle fallback 必须逐项
+  fake-kernel closed-fail。此 slice 不接 control writer、Electron lease、provider 或
+  plaintext，Windows 继续 zero-provider / Shadow / NO-GO。
+
+**W2-06 source-foundation record（2026-09-03，未接 provider）**
+
+- supervisor lifecycle 已以纯 driver 状态机和 `_SupervisorLifecycleDriver` 双层实现：
+  后者仅绑定 owned Electron/direct-parent/worker/Event/Job handles，不读取 protocol
+  stdin/stdout 或明文。pre-ready Event 后对全部 handles zero-time recheck，任何 process
+  death 优先；READY 后持续监视，只有独立 worker exit 后 Job drain 到 zero 才返回 lifecycle
+  success；Electron/parent death、同 tick mixed death、timeout、terminate/query failure 均
+  closed-fail。`TerminateJobObject` 后以 monotonic 5 秒 deadline、25ms bounded interval
+  轮询 `ActiveProcesses`（最后一次 sleep 截断至剩余预算），不再用可瞬时耗尽的计数循环；
+  close 中严格最后关闭 Job，使 deadline/query failure 仍由 kill-on-close 收尾。
+- `_Win32Api` 已封装 `WaitForMultipleObjects`、`TerminateJobObject` 与
+  `JobObjectBasicAccountingInformation.ActiveProcesses`；非明确 signal/timeout、非法
+  handle、terminate/query failure 均 closed-fail。W2-08 才会提供 control writer、response
+  EOF/Node close 成功条件和 outer main 实际 lifecycle 启动。
+- evidence：repair 后 supervisor/spawn/main/worker focused suite `98 passed`，Python compile 与
+  `git diff --check` PASS；GitNexus working-tree audit 为 low、0 affected processes。
+  真实 Windows/package wait-drain、outer main wiring、Electron lease 与 plaintext sink
+  仍为 NOT_RUN，Windows 继续 zero-provider / Shadow / NO-GO。
 
 建议状态：
 
@@ -1546,6 +1634,22 @@ terminate/query failure、重复 close、partial init 与 hard kill sentinel。
 READY、CAS、decrypt/write、response/cleanup 各边界，以及 Electron/bootloader
 hard kill 和 suspend/resume。
 
+**W2-08 source-foundation record（2026-09-03，Windows 继续 Shadow）**
+
+- Windows executor 现在只把同一受控 entrypoint 的末尾
+  `--vault-sink-worker` 改为 `--vault-sink-supervisor`，并只在最小环境中传入严格的
+  decimal `PUPU_VAULT_ELECTRON_PID`；inner worker 环境仍会 scrub 全部
+  `PUPU_VAULT_*`，PID 只用于 supervisor 取得并验证 liveness handle，不能作为持久
+  identity 或明文通道。
+- Electron 在 spawn 后、CAS/decrypt/frame/write 前，以 10 秒上限严格消费唯一的 canonical
+  READY control frame；任何 error、close、oversize、trailing bytes 或 timeout 都不产生 lease。
+  worker response 仍必须经过现有 exact response + stdout EOF + Node `close` code 0 +
+  `awaitDrained()` 路径才可完成。
+- registry 的 `close()` 仍为不可逆的 will-quit hard stop；新增 `abortActive()` 只用于
+  suspend 中止当前 leases，不会重新打开旧 lease 或 registry。真实 Windows/package、hard-kill
+  sentinel、Electron lease 全链路与 plaintext sink 仍为 NOT_RUN，Windows 保持
+  zero-provider / Shadow / NO-GO。
+
 #### W2-09：PyInstaller/package 接入
 
 - `unchain_runtime/scripts/build_unchain_server.ps1` 收入 supervisor module；
@@ -1559,6 +1663,16 @@ hard kill 和 suspend/resume。
   只有一层；只要求从 `CreateProcessW` 得到的根与所有 descendants 都在 Job；
 - 若 self-spawn/extraction 不稳定、任一 bootloader 逃出 Job 或性能超预算且证明是
   supervisor 架构所致，才回到 direct Plan 评估独立 native launcher。
+
+W2-09 source/package foundation 已完成（2026-09-03）：Windows PowerShell 与
+macOS/Linux shell builder 均固定 `PyInstaller==6.22.1`，并显式冻结
+`durable_job_runtime`、`vault_sink_job_supervisor` 与 `vault_sink_worker` 三个
+lazy entry；版本校验使用 exact-version gate。macOS arm64 以 onefile 成功构建为
+单一 `unchain-server`（44 MB），并确认非 Windows 的 supervisor switch 按设计
+fail-closed（exit 2）。release-QA artifact continuity + packaged-sidecar smoke
+11/11 通过，相关 Electron 78/78、Python 82/82 通过。Windows build、真实
+package tree / Job / READY / kill soak 尚未执行，仍归 W2-10；因此 rollout 继续为
+zero-provider / Shadow / NO-GO。
 
 #### W2-10：packaged containment harness
 
@@ -1574,6 +1688,15 @@ cold restart；outer Job；100 次 mixed soak。synthetic secret 的 raw/base64/
 base64url/hex/percent variants 只允许出现在 sink contract 的目标槽位和租期；
 `shell_secret_env` 的目标进程 env 是显式例外。supervisor/bootloader/无关进程、
 argv/cwd/stdout/stderr/control/log/temp 和租期外必须为零。
+
+W2-10 harness source 已接入（2026-09-03）：Windows package job 现在对实际 onefile
+`unchain-server.exe` 运行 `--vault-sink-supervisor`；该 exe 必须完成 same-exe worker
+READY、对 malformed worker frame 产出 closed error、并以 Job tree-drain 的 exit 0
+结束。producer/strict consumer 均绑定 sidecar SHA、immutable wheel SHA 与 runtime
+manifest digest，任一不匹配或零执行数会失败 package job。该 harness 的 source/unit
+验证已通过；当前 macOS workspace 无 Windows x64 runner，且改动尚未成为远端 candidate，
+所以真实 package evidence 为 **NOT_RUN**。W2 因此仍是 `IMPLEMENTED_SHADOW / NO-GO`，
+不得据此解除 Windows rollout cap。
 
 W2 出口只代表真实 packaged supervisor/Job/READY/tree-zero 成立，状态记为
 `IMPLEMENTED_SHADOW`。不得在 W2 删除 Windows rollout cap。涉及
