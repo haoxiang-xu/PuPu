@@ -18,6 +18,7 @@ import {
 
 const REPOSITORY = "haoxiang-xu/PuPu";
 const TAG = "v0.1.10";
+const RC_TAG = "v0.1.10-rc.5";
 const COMMIT = "a".repeat(40);
 const UNCHAIN_REF = "b".repeat(40);
 const CANDIDATE_RUN_ID = "33291661782";
@@ -154,6 +155,27 @@ test("dispatch uses only the validated tuple and returns the exact URL produced 
     "-f", "run_unchain_analysis=true",
     "-f", `unchain_ref=${UNCHAIN_REF}`,
   ]]);
+});
+
+test("dispatch preserves an RC tag while rebuilding the stable package version", () => {
+  const seen = [];
+  const runner = (args) => {
+    seen.push(args);
+    return {
+      status: 0,
+      stdout: `https://github.com/${REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}\n`,
+      stderr: "",
+    };
+  };
+
+  const result = dispatchReleasePhase({
+    plan: planFor("candidate", { tag: RC_TAG }),
+    confirmation: "START_CANDIDATE",
+    runner,
+  });
+
+  assert.equal(result.ref, RC_TAG);
+  assert.equal(seen[0][6], RC_TAG);
 });
 
 test("dispatch cannot proceed on stale approval or fuzzy run discovery", () => {

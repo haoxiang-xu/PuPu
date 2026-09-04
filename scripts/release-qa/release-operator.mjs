@@ -138,6 +138,12 @@ const stableVersionTuple = (tag, label) => {
   return match.slice(1).map((part) => Number(part));
 };
 
+const packageVersionForReleaseRef = (ref) => {
+  const match = /^v(?<baseVersion>(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))(?:-rc\.[1-9]\d*)?$/.exec(ref);
+  if (!match) throw new Error("release operator plan ref must be vX.Y.Z or vX.Y.Z-rc.N");
+  return match.groups.baseVersion;
+};
+
 const compareVersionTuple = (left, right) => {
   for (let index = 0; index < left.length; index += 1) {
     if (left[index] !== right[index]) return left[index] - right[index];
@@ -237,7 +243,7 @@ const rebuildReleaseOperatorPlan = (plan) => {
     phase,
     repo: plan.repository,
     tag: ref,
-    packageVersion: ref.slice(1),
+    packageVersion: packageVersionForReleaseRef(ref),
   };
   if (phase === "candidate") options.unchainRef = plan.workflow_inputs.unchain_ref;
   if (phase === "qualification") {

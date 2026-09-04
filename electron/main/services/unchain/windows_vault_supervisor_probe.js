@@ -38,15 +38,16 @@ const normalizeEntrypoint = (entrypoint) => {
   const dataDir = entrypoint.dataDir;
   if (
     typeof command !== "string" ||
-    !path.isAbsolute(command) ||
+    !path.win32.isAbsolute(command) ||
     !Array.isArray(args) ||
     args.length < 1 ||
     args.at(-1) !== VAULT_SINK_WORKER_FLAG ||
     args.filter((item) => item === VAULT_SINK_WORKER_FLAG).length !== 1 ||
     args.some((item) => typeof item !== "string" || item.includes("\0")) ||
-    (cwd !== null && (typeof cwd !== "string" || !path.isAbsolute(cwd))) ||
+    (cwd !== null &&
+      (typeof cwd !== "string" || !path.win32.isAbsolute(cwd))) ||
     typeof dataDir !== "string" ||
-    !path.isAbsolute(dataDir)
+    !path.win32.isAbsolute(dataDir)
   ) {
     throw probeError("vault_worker_unavailable");
   }
