@@ -33,8 +33,8 @@ const OAuthAppRow = ({
   onDelete,
 }) => {
   const { t } = useTranslation();
-  const textColor = isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.72)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
   return (
     <div
       style={{
@@ -43,7 +43,7 @@ const OAuthAppRow = ({
         gap: 10,
         padding: "8px 0",
         borderBottom: `1px solid ${
-          isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+          "var(--pupu-overlay-ghost)"
         }`,
       }}
     >
@@ -127,8 +127,8 @@ const McpToolkitRow = ({
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
 
-  const textColor = isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.72)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
   const status = toolkit.status || "unknown";
   const isOAuth = toolkit.authType === "oauth";
   const authStatus = toolkit.authStatus || "missing";
@@ -204,7 +204,7 @@ const McpToolkitRow = ({
         gap: 10,
         padding: "9px 0",
         borderBottom: `1px solid ${
-          isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+          "var(--pupu-overlay-ghost)"
         }`,
       }}
     >
@@ -217,15 +217,13 @@ const McpToolkitRow = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: isDark
-            ? "rgba(255,255,255,0.05)"
-            : "rgba(0,0,0,0.04)",
+          backgroundColor: "var(--pupu-overlay-selected)",
         }}
       >
         <Icon
           src={iconName}
           style={{ width: 15, height: 15 }}
-          color={isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)"}
+          color={"var(--pupu-text-secondary)"}
         />
       </div>
 
@@ -518,7 +516,7 @@ const McpToolkitsSection = ({ isDark }) => {
     load();
   }, [deleteTarget, load]);
 
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const mutedColor = "var(--pupu-text-faint)";
   const countPill = (
     <span
       style={{
@@ -528,9 +526,9 @@ const McpToolkitsSection = ({ isDark }) => {
         padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
-          isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"
+          "var(--pupu-overlay-hover)"
         }`,
-        backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)",
+        backgroundColor: "var(--pupu-overlay-hover)",
         color: mutedColor,
         whiteSpace: "nowrap",
       }}
@@ -573,7 +571,7 @@ const McpToolkitsSection = ({ isDark }) => {
             padding: "28px 0",
             fontSize: 13,
             fontFamily,
-            color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            color: "var(--pupu-text-disabled)",
           }}
         >
           {t("local_storage.mcp_no_installed")}
@@ -629,9 +627,7 @@ const McpToolkitsSection = ({ isDark }) => {
             marginTop: 12,
             padding: "10px 12px",
             borderRadius: 8,
-            backgroundColor: isDark
-              ? "rgba(255,255,255,0.04)"
-              : "rgba(0,0,0,0.035)",
+            backgroundColor: "var(--pupu-overlay-ghost)",
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -642,7 +638,7 @@ const McpToolkitsSection = ({ isDark }) => {
               fontSize: 12,
               fontFamily,
               fontWeight: 500,
-              color: isDark ? "rgba(255,255,255,0.76)" : "rgba(0,0,0,0.72)",
+              color: "var(--pupu-text-secondary)",
             }}
           >
             {t("local_storage.mcp_oauth_app_update")}
@@ -714,9 +710,7 @@ const McpToolkitsSection = ({ isDark }) => {
             marginTop: 12,
             padding: "10px 12px",
             borderRadius: 8,
-            backgroundColor: isDark
-              ? "rgba(255,255,255,0.04)"
-              : "rgba(0,0,0,0.035)",
+            backgroundColor: "var(--pupu-overlay-ghost)",
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -727,7 +721,7 @@ const McpToolkitsSection = ({ isDark }) => {
               fontSize: 12,
               fontFamily,
               fontWeight: 500,
-              color: isDark ? "rgba(255,255,255,0.76)" : "rgba(0,0,0,0.72)",
+              color: "var(--pupu-text-secondary)",
             }}
           >
             {t("local_storage.mcp_update_secrets")}
@@ -746,7 +740,7 @@ const McpToolkitsSection = ({ isDark }) => {
                 fontSize: 12,
                 fontFamily,
                 borderRadius: 7,
-                color: isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.72)",
+                color: "var(--pupu-text-strong)",
                 paddingVertical: 7,
                 paddingHorizontal: 10,
               }}

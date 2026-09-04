@@ -1,0 +1,312 @@
+name: Shared Windows Restart Update Qualification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_run_id:
+        description: Exact successful Release 1 candidate run ID.
+        required: true
+        type: string
+      release_tag:
+        description: Exact immutable candidate tag.
+        required: true
+        type: string
+      tag_commit:
+        description: Exact immutable candidate commit.
+        required: true
+        type: string
+      from_tag:
+        description: Existing stable N-1 tag used only to build the isolated fixture.
+        required: true
+        type: string
+      from_version:
+        description: Version recorded by the immutable N-1 tag.
+        required: true
+        type: string
+      from_commit:
+        description: Commit recorded by the immutable N-1 tag.
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  windows-restart-update:
+    name: Qualify Windows signed N-1 to exact N restart update
+    runs-on: windows-latest
+    environment: release-signing
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TAG_COMMIT: ${{ inputs.tag_commit }}
+      FROM_TAG: ${{ inputs.from_tag }}
+      FROM_VERSION: ${{ inputs.from_version }}
+      FROM_COMMIT: ${{ inputs.from_commit }}
+      FEED_PORT: "38193"
+
+    steps:
+      - name: Validate closed Windows restart-update inputs
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Source identity mismatch::Windows restart-update qualification must run from the exact candidate tag commit"
+            exit 1
+          fi
+          if ! [[ "$FROM_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$FROM_VERSION" != "${FROM_TAG#v}" ] || ! [[ "$FROM_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Invalid N-1 fixture identity::from_tag, from_version, and from_commit must be the candidate-preflight values"
+            exit 1
+          fi
+          if [ "$CANDIDATE_RUN_ID" = "" ]; then
+            echo "::error title=Missing candidate run::Windows restart-update qualification requires an exact Release 1 candidate"
+            exit 1
+          fi
+
+      - name: Checkout exact candidate qualification tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          path: pupu
+          persist-credentials: false
+
+      - name: Checkout immutable N-1 fixture source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.from_tag }}
+          path: fixture-source
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            pupu/package-lock.json
+            fixture-source/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install candidate qualification dependencies
+        working-directory: pupu
+        run: npm ci
+
+      - name: Download and verify retained exact N candidate
+        working-directory: pupu
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir ../candidate
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest ../candidate/release-assets.v1.json \
+            --asset-dir ../candidate/assets \
+            --qa-report ../candidate/release-qa-report.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT" \
+            --candidate-run-id "$CANDIDATE_RUN_ID"
+
+      - name: Resolve immutable N-1 Unchain source from its published manifest
+        id: fixture_unchain
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous-release
+          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern release-assets.v1.json --dir previous-release
+          FROM_UNCHAIN_REVISION="$(node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync("previous-release/release-assets.v1.json", "utf8"));
+            const tag = process.env.FROM_TAG;
+            const version = process.env.FROM_VERSION;
+            const commit = process.env.FROM_COMMIT;
+            const revision = manifest?.unchain?.source_revision;
+            if (manifest?.schema !== "pupu.release-assets.v1" || manifest?.release?.tag !== tag ||
+                manifest?.release?.version !== version || manifest?.release?.commit !== commit ||
+                typeof revision !== "string" || !/^[0-9a-f]{40}$/.test(revision)) {
+              throw new Error("published N-1 release manifest does not bind the requested fixture source and immutable Unchain revision");
+            }
+            process.stdout.write(revision);
+          ')"
+          echo "unchain_revision=$FROM_UNCHAIN_REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout immutable N-1 Unchain source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: ${{ steps.fixture_unchain.outputs.unchain_revision }}
+          path: fixture-unchain
+          persist-credentials: false
+
+      - name: Verify immutable N-1 fixture prerequisites
+        shell: bash
+        run: |
+          if [ "$(git -C fixture-source rev-parse HEAD)" != "$FROM_COMMIT" ] || [ "$(git -C fixture-unchain rev-parse HEAD)" != "${{ steps.fixture_unchain.outputs.unchain_revision }}" ]; then
+            echo "::error title=Fixture source drift::N-1 source or Unchain revision changed after checkout"
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(fs.readFileSync("fixture-source/package.json", "utf8"));
+            for (const key of ["build:unchain:win", "build:web", "notices:check", "version:prepare-build"]) {
+              if (typeof p.scripts?.[key] !== "string" || !p.scripts[key]) {
+                throw new Error(`N-1 fixture source lacks required Windows build script: ${key}`);
+              }
+            }
+            if (!Array.isArray(p.build?.publish) || p.build.publish.length !== 1 || p.build.publish[0]?.provider !== "github") {
+              throw new Error("N-1 fixture source does not have the expected production GitHub updater provider");
+            }
+          '
+
+      - name: Install immutable N-1 build dependencies
+        working-directory: fixture-source
+        run: npm ci
+
+      - name: Write sole permitted signed-fixture configuration difference
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/write-qualification-fixture-build-config.mjs \
+            --package-json ../fixture-source/package.json \
+            --feed-url "http://127.0.0.1:${FEED_PORT}/" \
+            --out ../fixture-build-config.json
+
+      - name: Build unsigned unpacked N-1 Windows payload from immutable source
+        id: build_fixture
+        shell: pwsh
+        working-directory: fixture-source
+        env:
+          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
+          UNCHAIN_BUILD_VENV: ${{ runner.temp }}\pupu-fixture-unchain-${{ github.run_id }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          WIN_CSC_LINK: ""
+          CSC_LINK: ""
+          WIN_CSC_KEY_PASSWORD: ""
+          CSC_KEY_PASSWORD: ""
+        run: |
+          npm run version:prepare-build
+          npm run build:unchain:win
+          npm run build:web
+          npm run notices:check
+          npx electron-builder --win --x64 --dir --publish never --config "$env:GITHUB_WORKSPACE\fixture-build-config.json" --config.win.verifyUpdateCodeSignature=false
+          $payload = Join-Path $PWD "dist\win-unpacked"
+          if (-not (Test-Path -LiteralPath $payload -PathType Container)) {
+            throw "missing unsigned N-1 Windows payload: $payload"
+          }
+          "payload=$payload" >> $env:GITHUB_OUTPUT
+
+      - name: Validate unsigned fixture updater binding before signing
+        shell: pwsh
+        working-directory: pupu
+        env:
+          FIXTURE_PAYLOAD: ${{ steps.build_fixture.outputs.payload }}
+        run: |
+          $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
+            --app-update "$appUpdate" `
+            --feed-url "http://127.0.0.1:$env:FEED_PORT/"
+
+      - name: Prepare isolated N-1 payload for Azure Artifact Signing
+        id: fixture_paths
+        shell: pwsh
+        env:
+          FIXTURE_PAYLOAD: ${{ steps.build_fixture.outputs.payload }}
+        run: |
+          $signingRoot = Join-Path $env:RUNNER_TEMP "pupu-windows-restart-fixture-$env:GITHUB_RUN_ID"
+          $payload = Join-Path $signingRoot "payload"
+          if (Test-Path -LiteralPath $signingRoot) {
+            throw "stale Windows restart fixture root exists: $signingRoot"
+          }
+          New-Item -ItemType Directory -Path $signingRoot -Force | Out-Null
+          Move-Item -LiteralPath $env:FIXTURE_PAYLOAD -Destination $payload
+          "signing_root=$signingRoot" >> $env:GITHUB_OUTPUT
+          "payload=$payload" >> $env:GITHUB_OUTPUT
+
+      - name: Sign isolated N-1 payload and installer with Azure Artifact Signing
+        id: fixture_signing
+        uses: ./pupu/.github/actions/windows-artifact-signing
+        with:
+          working-directory: fixture-source
+          signing-root-path: ${{ steps.fixture_paths.outputs.signing_root }}
+          payload-path: ${{ steps.fixture_paths.outputs.payload }}
+          bootstrap-output-path: ${{ steps.fixture_paths.outputs.signing_root }}\bootstrap-installer
+          installer-path: ${{ github.workspace }}\fixture-source\dist\fixture-installer.exe
+          evidence-output: windows-signing-qualification.v1.json
+          evidence-schema: pupu.windows-signing-qualification.v1
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+      - name: Seal signed N-1 fixture identity
+        id: fixture_evidence
+        shell: pwsh
+        working-directory: pupu
+        env:
+          SIGNED_FIXTURE: ${{ github.workspace }}\fixture-source\dist\fixture-installer.exe
+        run: |
+          $signingEvidence = Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\fixture-source\windows-signing-qualification.v1.json" -Raw | ConvertFrom-Json
+          $installerEvidence = @($signingEvidence.signed_files | Where-Object { $_.path -eq $env:SIGNED_FIXTURE })
+          if ($installerEvidence.Count -ne 1) {
+            throw "Windows signing evidence must contain exactly the signed N-1 fixture installer"
+          }
+          node scripts/release-qa/restart-update-fixture-evidence.mjs `
+            --fixture "$env:SIGNED_FIXTURE" `
+            --target windows-x64 `
+            --from-tag "$env:FROM_TAG" `
+            --from-version "$env:FROM_VERSION" `
+            --from-commit "$env:FROM_COMMIT" `
+            --signer-subject "$($installerEvidence[0].signer_subject)" `
+            --signer-thumbprint "$($installerEvidence[0].signer_thumbprint)" `
+            --out windows-restart-fixture.v1.json
+          "fixture=$env:SIGNED_FIXTURE" >> $env:GITHUB_OUTPUT
+
+      - name: Run real signed N-1 to exact N Windows restart update
+        id: restart_update
+        continue-on-error: true
+        shell: pwsh
+        working-directory: pupu
+        env:
+          SIGNED_FIXTURE: ${{ steps.fixture_evidence.outputs.fixture }}
+        run: |
+          node scripts/release-qa/run-restart-update-qualification.mjs `
+            --candidate-dir "$env:GITHUB_WORKSPACE\candidate" `
+            --fixture "$env:SIGNED_FIXTURE" `
+            --fixture-evidence windows-restart-fixture.v1.json `
+            --target windows-x64 `
+            --feed-port "$env:FEED_PORT" `
+            --out restart-update-qualification.json `
+            --server-log qualification-feed-server.v1.json
+
+      - name: Upload Windows restart-update evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restart-update-qualification-windows-x64
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            pupu/restart-update-qualification.json
+            pupu/qualification-feed-server.v1.json
+            pupu/windows-restart-fixture.v1.json
+            fixture-source/windows-signing-qualification.v1.json
+
+      - name: Enforce real Windows restart-update result
+        if: always()
+        env:
+          RESTART_UPDATE_OUTCOME: ${{ steps.restart_update.outcome }}
+        run: |
+          if [ "$RESTART_UPDATE_OUTCOME" != "success" ]; then
+            echo "::error title=Windows restart update failed::signed N-1 did not complete the exact candidate restart-update lifecycle"
+            exit 1
+          fi

@@ -6,6 +6,9 @@ const { promisify } = require("node:util");
 const { Arch } = require("electron-builder");
 const {
   DEFAULT_PINS_PATH,
+  makeTreeDirectoriesWritable,
+  makeTreeOwnerWritable,
+  prepareMcpRuntime,
   sha256Tree,
   verifyMcpRuntime,
 } = require("./prepare-mcp-runtime.cjs");
@@ -20,12 +23,10 @@ function targetFromAfterPackContext(context) {
     typeof context?.arch === "number" ? Arch[context.arch] : context?.arch;
   const target = `${platform}-${arch}`;
   if (
-    !["darwin-arm64", "darwin-x64", "win32-x64", "linux-x64"].includes(
-      target
-    )
+    !["darwin-arm64", "darwin-x64", "win32-x64", "linux-x64"].includes(target)
   ) {
     throw new Error(
-      `Unsupported packaged MCP runtime target: ${platform}/${arch}`
+      `Unsupported packaged MCP runtime target: ${platform}/${arch}`,
     );
   }
   return target;
@@ -48,7 +49,9 @@ function resolveRuntimePath(runtimeDir, rawPath, label) {
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   ) {
-    throw new Error(`Packaged MCP runtime ${label} escapes its resource directory`);
+    throw new Error(
+      `Packaged MCP runtime ${label} escapes its resource directory`,
+    );
   }
   return resolved;
 }
@@ -58,10 +61,7 @@ async function runRuntimeCommand(
   label,
   command,
   args,
-  {
-    env = process.env,
-    expectedOutput,
-  } = {}
+  { env = process.env, expectedOutput } = {},
 ) {
   let result;
   try {
@@ -73,19 +73,21 @@ async function runRuntimeCommand(
       windowsHide: true,
     });
   } catch (error) {
-    const stderr = String(error?.stderr || "").trim().slice(0, 500);
+    const stderr = String(error?.stderr || "")
+      .trim()
+      .slice(0, 500);
     throw new Error(
       `Packaged MCP runtime ${label} failed to execute` +
-        (stderr ? `: ${stderr}` : "")
+        (stderr ? `: ${stderr}` : ""),
     );
   }
   const output = `${String(result?.stdout || "")}\n${String(
-    result?.stderr || ""
+    result?.stderr || "",
   )}`.trim();
   if (expectedOutput && !expectedOutput.test(output)) {
     throw new Error(
       `Packaged MCP runtime ${label} returned an unexpected version: ` +
-        `${output.slice(0, 500) || "(no output)"}`
+        `${output.slice(0, 500) || "(no output)"}`,
     );
   }
 }
@@ -93,9 +95,7 @@ async function runRuntimeCommand(
 async function smokePackagedMcpRuntime(
   runtimeDir,
   manifest,
-  {
-    executeFile = execFileAsync,
-  } = {}
+  { executeFile = execFileAsync } = {},
 ) {
   const runtimes = manifest?.runtimes || {};
   const node = runtimes.node || {};
@@ -104,26 +104,26 @@ async function smokePackagedMcpRuntime(
   const nodeCommand = resolveRuntimePath(
     runtimeDir,
     node.command,
-    "node command"
+    "node command",
   );
   const npxArgs = (node.args_prefix || []).map((arg, index) =>
     String(arg).startsWith("-")
       ? String(arg)
-      : resolveRuntimePath(runtimeDir, arg, `node args_prefix[${index}]`)
+      : resolveRuntimePath(runtimeDir, arg, `node args_prefix[${index}]`),
   );
   const uvCommand = resolveRuntimePath(runtimeDir, uv.command, "uv command");
   const pythonCommand = resolveRuntimePath(
     runtimeDir,
     python.command,
-    "python command"
+    "python command",
   );
   const pythonBootstrap = resolveRuntimePath(
     runtimeDir,
     python.bootstrap_dir,
-    "python bootstrap directory"
+    "python bootstrap directory",
   );
   const smokeRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "pupu-mcp-runtime-smoke-")
+    path.join(os.tmpdir(), "pupu-mcp-runtime-smoke-"),
   );
 
   try {
@@ -145,19 +145,13 @@ async function smokePackagedMcpRuntime(
     delete pythonEnv.SSL_CERT_FILE;
     delete pythonEnv.SSL_CERT_DIR;
 
-    await runRuntimeCommand(
-      executeFile,
-      "Node",
-      nodeCommand,
-      ["--version"],
-      {
-        env: nodeEnv,
-        expectedOutput: new RegExp(
-          `^${String(node.version || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-          "m"
-        ),
-      }
-    );
+    await runRuntimeCommand(executeFile, "Node", nodeCommand, ["--version"], {
+      env: nodeEnv,
+      expectedOutput: new RegExp(
+        `^${String(node.version || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "m",
+      ),
+    });
     await runRuntimeCommand(
       executeFile,
       "npx",
@@ -166,19 +160,13 @@ async function smokePackagedMcpRuntime(
       {
         env: nodeEnv,
         expectedOutput: /^\d+\.\d+\.\d+(?:[-+].*)?$/m,
-      }
+      },
     );
-    await runRuntimeCommand(
-      executeFile,
-      "uvx",
-      uvCommand,
-      ["--version"],
-      {
-        expectedOutput: new RegExp(
-          `\\b${String(uv.version || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`
-        ),
-      }
-    );
+    await runRuntimeCommand(executeFile, "uvx", uvCommand, ["--version"], {
+      expectedOutput: new RegExp(
+        `\\b${String(uv.version || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      ),
+    });
     await runRuntimeCommand(
       executeFile,
       "Python",
@@ -189,9 +177,9 @@ async function smokePackagedMcpRuntime(
         expectedOutput: new RegExp(
           `\\b${String(python.version || "")
             .split("+", 1)[0]
-            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
         ),
-      }
+      },
     );
     await runRuntimeCommand(
       executeFile,
@@ -208,7 +196,7 @@ async function smokePackagedMcpRuntime(
       {
         env: pythonEnv,
         expectedOutput: /^truststore\._api$/m,
-      }
+      },
     );
   } finally {
     await fs.rm(smokeRoot, { recursive: true, force: true });
@@ -220,9 +208,9 @@ async function verifyPackagedMcpRuntime(
   {
     pinsPath = DEFAULT_PINS_PATH,
     executeFile = execFileAsync,
-    requireNativeSmoke =
-      process.env.PUPU_REQUIRE_NATIVE_MCP_SMOKE === "1",
-  } = {}
+    stageMcpRuntime = prepareMcpRuntime,
+    requireNativeSmoke = process.env.PUPU_REQUIRE_NATIVE_MCP_SMOKE === "1",
+  } = {},
 ) {
   if (typeof context?.packager?.getResourcesDir !== "function") {
     throw new Error("afterPack context is missing packager.getResourcesDir");
@@ -232,13 +220,18 @@ async function verifyPackagedMcpRuntime(
   const runtimeDir = path.join(resourcesDir, "mcp_runtime");
   // Windows Authenticode signing mutates packaged runtime executables.
   const verifyTreeChecksum = !target.startsWith("win32-");
+  const manifest = await stageMcpRuntime({
+    target,
+    pinsPath,
+    outputDir: runtimeDir,
+  });
   const verificationOptions = {
     target,
     pinsPath,
     outputDir: runtimeDir,
     verifyTreeChecksum,
   };
-  const manifest = await verifyMcpRuntime(verificationOptions);
+  await verifyMcpRuntime(verificationOptions);
   const hostTarget = currentHostTarget();
   if (hostTarget === target) {
     const preSmokeTreeSha256 = verifyTreeChecksum
@@ -261,20 +254,29 @@ async function verifyPackagedMcpRuntime(
   } else if (requireNativeSmoke) {
     throw new Error(
       `Native MCP runtime smoke is required, but build host ${hostTarget} ` +
-        `cannot execute target ${target}`
+        `cannot execute target ${target}`,
     );
   } else {
     process.stderr.write(
       `Packaged MCP runtime native smoke skipped: host ${hostTarget}, ` +
-        `target ${target}\n`
+        `target ${target}\n`,
     );
   }
+  if (target.startsWith("darwin-")) {
+    // electron-osx-sign may classify non-ASCII runtime data as binary. codesign
+    // needs owner write access for every classified file, while the verified
+    // source runtime remains sealed outside the packaged app.
+    await makeTreeOwnerWritable(runtimeDir);
+  } else {
+    // FPM recreates source directory modes before writing its staged copy.
+    await makeTreeDirectoriesWritable(runtimeDir);
+  }
   process.stdout.write(
-    `Packaged MCP runtime verified: ${target} (${Object.entries(
-      manifest.runtimes
+    `Packaged MCP runtime staged and verified: ${target} (${Object.entries(
+      manifest.runtimes,
     )
       .map(([name, runtime]) => `${name} ${runtime.version}`)
-      .join(", ")})\n`
+      .join(", ")})\n`,
   );
 }
 

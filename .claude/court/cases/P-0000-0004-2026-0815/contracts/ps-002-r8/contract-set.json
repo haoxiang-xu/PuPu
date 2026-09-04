@@ -1,0 +1,21 @@
+{
+  "base_pair": {
+    "consumer_sha256": "sha256:278149476c4ce35ce7ec53ce67866c5ce117d927f2d42e787f208cdb719d7878",
+    "producer_sha256": "sha256:5dae9c3d1c6faf5cc1cfea8f5adf4687f0ab90965ed899191a7ab1a9419b5bf2"
+  },
+  "change_scope": [
+    "public fresh hint v2",
+    "runtime UTF-16 boundary admission and UTF-8 computation",
+    "producer-attested source_count authority",
+    "fresh availability code closure"
+  ],
+  "consumer": {
+    "path": "pupu-context-composition-consumer-v2.json",
+    "sha256": "sha256:c52de867d97ff1221ce3c920114cf8fd396ba71d162de0c0824422d9c2eceb1c"
+  },
+  "producer": {
+    "path": "unchain-context-composition-producer-v2.json",
+    "sha256": "sha256:37cbeda21ddb6882106dd8696353b9fe4de84652bdcfa4d1400e6fd308f4169c"
+  },
+  "schema": "pupu.context_composition.contract_set.v2"
+}

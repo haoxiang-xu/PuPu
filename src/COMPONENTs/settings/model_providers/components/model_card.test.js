@@ -211,7 +211,9 @@ describe("ModelCard — cloud-only models", () => {
     expect(lightBtn.querySelector('span[aria-hidden="true"]')).toBeTruthy();
     expect(lightBtn.style.cursor).toBe("not-allowed");
     expect(lightBtn.style.opacity).toBe("0.4");
-    expect(lightBtn.style.color).toBe("rgba(0, 0, 0, 0.85)");
+    /* The label colour is a semantic token now, and jsdom drops var() from
+       the CSSOM — the token binding is asserted by source scan below. What
+       stays assertable here is the affordance itself. */
     light.unmount();
 
     const dark = renderCard({ model: CLOUD_ONLY_MODEL }, { isDark: true });
@@ -222,7 +224,6 @@ describe("ModelCard — cloud-only models", () => {
     expect(darkBtn.querySelector('span[aria-hidden="true"]')).toBeTruthy();
     expect(darkBtn.style.cursor).toBe("not-allowed");
     expect(darkBtn.style.opacity).toBe("0.4");
-    expect(darkBtn.style.color).toBe("rgba(255, 255, 255, 0.9)");
   });
 
   it("gives the enabled pull button a dark-mode-visible hover colour", () => {
@@ -231,7 +232,7 @@ describe("ModelCard — cloud-only models", () => {
       light.container,
       "model_providers.pull",
     ).querySelector('span[aria-hidden="true"]');
-    expect(lightOverlay.style.backgroundColor).toBe("rgba(0, 0, 0, 0.06)");
+    expect(lightOverlay).toBeTruthy();
     light.unmount();
 
     const dark = renderCard({ model: SIZED_MODEL }, { isDark: true });
@@ -239,9 +240,7 @@ describe("ModelCard — cloud-only models", () => {
       dark.container,
       "model_providers.pull",
     ).querySelector('span[aria-hidden="true"]');
-    // The BUILTIN light-mode default (rgba(0,0,0,0.06)) is invisible on a dark
-    // card, so the card supplies its own.
-    expect(darkOverlay.style.backgroundColor).toBe("rgba(255, 255, 255, 0.1)");
+    expect(darkOverlay).toBeTruthy();
   });
 
   it("leaves cloud-tagged models that DO have local sizes pullable", () => {
@@ -279,5 +278,36 @@ describe("ModelCard — tags and description still render", () => {
     expect(screen.getByText("kimi-k3")).toBeInTheDocument();
     expect(screen.getByText("cloud")).toBeInTheDocument();
     expect(screen.getByText("vision")).toBeInTheDocument();
+  });
+});
+
+
+/* The card used to carry a hand-written light/dark pair for its label and for
+   the pull button's hover overlay. Both now come off the shared ladder, which
+   is what makes them survive a custom palette — and the mode split lives in
+   the variable rather than in this file. jsdom drops var() from the CSSOM, so
+   the binding is asserted here by source scan. */
+describe("model_card.js takes its neutrals from the semantic ladder", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "model_card.js"),
+    "utf8",
+  );
+
+  test("no hand-written neutral pair is left in the chrome", () => {
+    /* barFill is the progress mark, not chrome: it is a data value drawn on
+       the card and the ladder's fill steps top out far below the weight it
+       needs, so it keeps its own pair on purpose. */
+    const chrome = src
+      .split("\n")
+      .filter((line) => !/barFill/.test(line))
+      .join("\n");
+    expect(chrome).not.toMatch(
+      /isDark\s*\n?\s*\?\s*"rgba\(255,\s*255,\s*255,[^)]*\)"\s*\n?\s*:\s*"rgba\(0,\s*0,\s*0,/,
+    );
+  });
+
+  test("fills come from the overlay family and strokes from the border token", () => {
+    expect(src).toMatch(/var\(--pupu-overlay-(hover|active|selected|ghost)\)/);
+    expect(src).toMatch(/var\(--pupu-border\)/);
   });
 });

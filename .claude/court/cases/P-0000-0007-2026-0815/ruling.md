@@ -1,0 +1,347 @@
+# Ruling
+
+## R-0001 | 2026-08-16T13:19:36-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: S-0049, S-0050, S-0030, S-0042, S-0046；Chief Judge user message 2026-08-16 “批准” | utf8-sha256:8cbe697b157364a5b13646285b38409dc53ec5287deeb7913493e65b275cd14d
+- **authority basis**: Chief Judge 依宪法第一条直接作本案 canonical record remedy；不是 Procedural Judge standing catalog 的转授权，也不创造实体裁决主体
+- **procedural question**: 是否在 `record.md` 原字节完全不改的前提下，以 hash-bound、closed allowlist 的 prefix overlay 修复 S-0028 / S-0040 两项已确认且 append-only 无法清零的记录格式缺陷
+- **challenged record**: `record.md` 从首字节至 S-0050 末尾的精确 prefix
+- **result**: REMEDY_REQUIRED
+- **record errata schema**: `quorum.record_errata.v1`
+- **errata manifest**: `record-errata.S-0050.json` | sha256:9bed927485b8d679d3a78712101f4e8e89c86d0028bdcee2e670ec2ff54ba979
+- **preserved source prefix**: `record.preserved.through-S-0050.md` | bytes:277012 | sha256:62d6ba315522b9010a852e4737de3c0ffe9b1fd65a996996fadea57ba0a720b0
+- **canonical prefix**: `record.canonical.through-S-0050.md` | sha256:5e60d30a8dcd42114425ebea1e0e699da71421e552a15c059c9d6bc5f6b0d684
+- **cutoff event**: S-0050 | live `record.md` 的前 277012 bytes 必须与 preserved source prefix 逐字相同；cutoff 后 suffix 原样拼接到 canonical prefix 并由 frozen reference linter 真实检查
+- **event allowlist**: S-0028, S-0040 | 不得增删、替换、重排或隐式匹配第三个事件
+- **S-0028 raw / canonical event hashes**: sha256:0db80339084ad9c60a2afdb5d6d4e4c70746825301560a7b7a87a11735768ed3 / sha256:6cd47631554749fca8b234a6bc5aa50bb0959ba43563a34ee7b0c91ea122c186
+- **S-0028 exact patch**: 只对 `contribution` 执行 `REPLACE_FIELD_VALUE`；raw value sha256:8c9ee819dd3d7f2b5ed6d5b1da360ebdecc5301a3420599e0f64b8d941fe4b8a；canonical value 精确为 `SLOT-006, SEQ-007, AC-014`，sha256:f9c7bf122d646ca48ae774a9e3b621a91e8f1dcaa9296282b484e668e4798872；不得改变 heading、timestamp、speaker、type、target、HS-005、RETURNED、artifact 或任何其他字段
+- **S-0040 raw / canonical event hashes**: sha256:2b1033409c2293413c4bf0c934f52061bd4d277576636d0f189fbbf627671232 / sha256:9e009160bd8b1c56dbe198a13eae4e2a08cc85aef7625b9077c390c969a03db2
+- **S-0040 exact patch 1**: 在 `basis` 字段后执行 `INSERT_FIELD_AFTER`，新增字段 `decision effect`，值精确为 `登记 code-owner-devtools 对 P-0000-0007-2026-0815#PS-006 在 RS-001 与本事件 scope 所列范围内的 AGREE`，sha256:5811c8ee66ef6f816f28cdeba037c227e95599e9b60bd3385a45f62bd0150351
+- **S-0040 exact patch 2**: 执行 `RENAME_FIELD`，仅把字段名 `reviewed scope` 改为 `scope`；字段值逐字不变且 sha256:70732bbe00df661c44032f0e4b33271eb5f4a698de773ddc3f43cf688a6bb8d4
+- **S-0040 effect limit**: canonical 修复不使 S-0040 成为 RS-002 的当前 stance，不推翻 S-0042 的 successor review 处置；S-0046 仍是 code-owner-devtools 对 RS-002 / PS-007 的唯一 current successor stance
+- **tooling write_set**: `.claude/skills/case/quarantine_lint.py`, `.claude/skills/case/boundary_gate_selftest.py`
+- **court write_set**: `.claude/court/cases/P-0000-0007-2026-0815/record.preserved.through-S-0050.md`, `.claude/court/cases/P-0000-0007-2026-0815/record.canonical.through-S-0050.md`, `.claude/court/cases/P-0000-0007-2026-0815/record-errata.S-0050.json`, `.claude/court/cases/P-0000-0007-2026-0815/case.md` 的唯一 manifest pointer `record_errata_manifest: record-errata.S-0050.json`, 本 `ruling.md`, 以及 `record.md` cutoff 后一条 append-only `NOTICE: RECORD_ERRATA_ACTIVATED`
+- **activation order**: 先归档本 R-0001；再按冻结字节实现 tooling 与三个新数据文件；随后 Speaker 追加唯一 activation NOTICE；最后才在 `case.md` 写入 manifest pointer。任一步未完成时 overlay 均不得宣称生效
+- **tooling constraints**: case-local fail-closed prefix overlay；验证 live raw prefix、preserved prefix、canonical prefix、manifest、Chief authorization、allowlist、event identity、patch exactness及 cutoff 后 suffix；proposal quarantine 与 record errata 同时存在时须在同一次隔离组合后只调用一次 frozen reference linter
+- **authorization limit**: raw `record.md` 前 277012 bytes 永不修改；不得改变任何 owner stance、HS、RS、PS、BC、SEQ、AC 或其他历史事件的实体效力；不得恢复 S-0048 的 ruling-intake 效力；不得过滤、压制或按字符串忽略 linter error；不得修改 `.claude/skills/case/tools/quorum_lint/**` 或 frozen vendor/manifest；不得扩大上述 tool/court write_set；不得创建 PLAN_RULING、AS、SI、closure bundle 或 CLOSURE_COMMIT；不得修改 proposal、owner contribution 或任何生产代码；不得授权生产 action
+- **affected state**: drafting unchanged | current artifact 仍为 PS-007 历史前驱，PS-008 / RS-003 仍须依 S-0049 独立完成
+- **authorization effect**: 仅授权上述 closed procedural record remedy 的机械实现与激活；production authority NONE
+- **appeal to Chief**: RESERVED | 任一 frozen hash、path、allowlist、patch、write_set 或语义需要变化时停止并回 Chief，不得由实现者扩张
+- **stop condition**: record overlay 的 baseline、happy path、proposal+record composition、P7 red/intermediate、suffix/suffix-defect、raw/snapshot/manifest drift、authorization、path/schema、allowlist/event identity/patch exactness、ordering、vendor 与 global gate 测试全部通过；激活后 P7 在 drafting 状态只清除三条 record 格式错误，不把尚缺 boundary pair / PS-008 / RS-003 冒充 ruling PASS
+
+## R-0002 | 2026-08-16T17:06:54-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: R-0001, S-0051, canonical-sources.md:16, speaker-of-the-house.md:72；Chief Judge user message 2026-08-16 “批准” | utf8-sha256:8cbe697b157364a5b13646285b38409dc53ec5287deeb7913493e65b275cd14d
+- **authority basis**: Chief Judge 依宪法第一条直接处置本案 append-only integrity incident；不是 PLAN_RULING、CLOSURE_COMMIT 或生产 action 授权
+- **procedural question**: R-0001 activation NOTICE 在归档后被原地修改、且不存在 preserved pre-edit raw artifact 时，如何失效并隔离该 activation，同时保持原始案卷、R-0001 授权边界与后继重新激活权限不被伪造
+- **result**: REMEDY_REQUIRED
+- **activation validity**: INVALID
+- **r0001 disposition**: AUTHORIZATION_PRESERVED; ACTIVATION_FAILED
+- **s0051 disposition**: INVALID
+- **manifest pointer disposition**: INVALID; REMOVE_AFTER_S-0052_APPEND
+- **overlay state**: INACTIVE
+- **successor activation**: NOT_AUTHORIZED
+- **initial activation attempt**: bytes:277941 | sha256:UNKNOWN | preserved pre-edit raw artifact: NOT_AVAILABLE
+- **initial attested line 1**: "- **record errata manifest**: `record-errata.S-0050.json` | sha256:9bed927485b8d679d3a78712101f4e8e89c86d0028bdcee2e670ec2ff54ba979"
+- **initial attested line 2**: "- **preserved source prefix**: `record.preserved.through-S-0050.md` | bytes:277012 | sha256:62d6ba315522b9010a852e4737de3c0ffe9b1fd65a996996fadea57ba0a720b0"
+- **initial attested line 3**: "- **canonical prefix**: `record.canonical.through-S-0050.md` | sha256:5e60d30a8dcd42114425ebea1e0e699da71421e552a15c059c9d6bc5f6b0d684"
+- **initial evidence limit**: 上述三行只称 `initial attested lines`；不得称为 preserved source、raw artifact 或已知完整 initial record。初次 277941-byte 文件的 full SHA-256 必须保持 `UNKNOWN`，pre-edit raw artifact 必须保持 `NOT_AVAILABLE`
+- **observed current ruling before remedy**: bytes:5836 | sha256:ec4af9f3e760fc52c616b4e4385acdb0fd71956ea00218dfd8d5ab9c5b89451b | mtime:2026-08-16T13:20:25-07:00
+- **observed current case index before remedy**: bytes:15791 | sha256:7bc2a24433fdc8644cf3fa4de10213af18bd0f38ca4c6cb9d5bb12cc4a4d8063 | mtime:2026-08-16T13:53:26-07:00
+- **observed current record before remedy**: bytes:277935 | sha256:23dabdc5a0747bc7dcbfe54059a6494d45edb7762cf51e41177a3f16e65f8d91 | mtime:2026-08-16T13:54:47-07:00
+- **observed current s0051 suffix**: live `record.md` bytes 277013..277935 | bytes:923 | sha256:5f43d8596dbeb9ab4df7c74794d95f8ee1d44e3fadde6fe5bd7e0355369c75f2
+- **observed current composed record**: canonical prefix + current S-0051 suffix | bytes:268506 | sha256:4b81bf646780891dee824b4689831a63172dba108e6b35057cc92b00aef23121
+- **r0001 errata manifest**: record-errata.S-0050.json | bytes:1796 | sha256:9bed927485b8d679d3a78712101f4e8e89c86d0028bdcee2e670ec2ff54ba979 | mtime:2026-08-16T13:42:49-07:00
+- **r0001 preserved prefix**: record.preserved.through-S-0050.md | bytes:277012 | sha256:62d6ba315522b9010a852e4737de3c0ffe9b1fd65a996996fadea57ba0a720b0 | mtime:2026-08-16T13:42:49-07:00
+- **r0001 canonical prefix**: record.canonical.through-S-0050.md | bytes:267583 | sha256:5e60d30a8dcd42114425ebea1e0e699da71421e552a15c059c9d6bc5f6b0d684 | mtime:2026-08-16T13:42:49-07:00
+- **remedy event**: S-0052 | NOTICE | RECORD_ERRATA_ACTIVATION_INVALIDATED | APPEND_ONLY_INTEGRITY_INCIDENT
+- **S-0052 canonical payload schema**: 规范既有 event payload map；`event_id` 加下列 30 个字段，将 Markdown 字段名中的空格机械替换为下划线后，以 UTF-8、`ensure_ascii=false`、key lexicographic sort、无额外空白的 JSON 进行 canonical serialization
+- **S-0052 canonical payload**: bytes:3185
+- **S-0052 event payload hash**: sha256:4cc026c1ff64b22096bd5e1d02fea790084cbbdc2e9b3fcbdb78243afee48323
+- **S-0052 exact field order**: case, discussion type, procedure mode, speaker, type, target, basis, decision effect, notice kind, incident kind, incident sequence, initial activation attempt, initial attested line 1, initial attested line 2, initial attested line 3, observed current record before remedy, observed current s0051 suffix, observed current composed record, observed current case index before remedy, observed current ruling before remedy, r0001 errata manifest, r0001 preserved prefix, r0001 canonical prefix, r0001 disposition, s0051 disposition, manifest pointer disposition, overlay state, successor activation, authorization effect, production effect
+- **S-0052 Markdown rendering**: 按上述顺序将每项精确渲染为 `- **<field>**: <value>\n`；最后追加 `- **payload hash**: sha256:4cc026c1ff64b22096bd5e1d02fea790084cbbdc2e9b3fcbdb78243afee48323\n`
+- **S-0052 Markdown body**: bytes:3346 | sha256:adbb62ba2cccdfd10dcdafbccbb7d7f43d23f86522f30b018531bf9ec97e38f6
+- **S-0052 exact canonical JSON**:
+```json
+{"authorization_effect":"ONLY_S-0052_APPEND_AND_CASE_INDEX_POINTER_REMOVAL","basis":"R-0002; R-0001; S-0051; canonical-sources.md:16; speaker-of-the-house.md:72","case":"P-0000-0007-2026-0815","decision_effect":"Declare S-0051 invalid; preserve R-0001 authorization while recording activation failure; invalidate the existing manifest pointer; require pointer removal after this NOTICE; authorize neither successor reactivation nor production action","discussion_type":"proposal","event_id":"S-0052","incident_kind":"APPEND_ONLY_INTEGRITY_INCIDENT","incident_sequence":"S-0051 was appended with inline backticks in the three attested binding values; case.md manifest pointer was then written; the direct gate rejected the activation binding; while that pointer remained present, the archived S-0051 was edited in place to remove three backtick pairs (six bytes); the gate was rerun","initial_activation_attempt":"bytes:277941 | sha256:UNKNOWN | preserved pre-edit raw artifact: NOT_AVAILABLE","initial_attested_line_1":"- **record errata manifest**: `record-errata.S-0050.json` | sha256:9bed927485b8d679d3a78712101f4e8e89c86d0028bdcee2e670ec2ff54ba979","initial_attested_line_2":"- **preserved source prefix**: `record.preserved.through-S-0050.md` | bytes:277012 | sha256:62d6ba315522b9010a852e4737de3c0ffe9b1fd65a996996fadea57ba0a720b0","initial_attested_line_3":"- **canonical prefix**: `record.canonical.through-S-0050.md` | sha256:5e60d30a8dcd42114425ebea1e0e699da71421e552a15c059c9d6bc5f6b0d684","manifest_pointer_disposition":"INVALID; REMOVE_AFTER_THIS_NOTICE","notice_kind":"RECORD_ERRATA_ACTIVATION_INVALIDATED","observed_current_case_index_before_remedy":"bytes:15791 | sha256:7bc2a24433fdc8644cf3fa4de10213af18bd0f38ca4c6cb9d5bb12cc4a4d8063 | mtime:2026-08-16T13:53:26-07:00","observed_current_composed_record":"bytes:268506 | sha256:4b81bf646780891dee824b4689831a63172dba108e6b35057cc92b00aef23121","observed_current_record_before_remedy":"bytes:277935 | sha256:23dabdc5a0747bc7dcbfe54059a6494d45edb7762cf51e41177a3f16e65f8d91 | mtime:2026-08-16T13:54:47-07:00","observed_current_ruling_before_remedy":"bytes:5836 | sha256:ec4af9f3e760fc52c616b4e4385acdb0fd71956ea00218dfd8d5ab9c5b89451b | mtime:2026-08-16T13:20:25-07:00","observed_current_s0051_suffix":"bytes:923 | sha256:5f43d8596dbeb9ab4df7c74794d95f8ee1d44e3fadde6fe5bd7e0355369c75f2","overlay_state":"INACTIVE","procedure_mode":"collaboration","production_effect":"NONE","r0001_canonical_prefix":"record.canonical.through-S-0050.md | bytes:267583 | sha256:5e60d30a8dcd42114425ebea1e0e699da71421e552a15c059c9d6bc5f6b0d684 | mtime:2026-08-16T13:42:49-07:00","r0001_disposition":"AUTHORIZATION_PRESERVED; ACTIVATION_FAILED","r0001_errata_manifest":"record-errata.S-0050.json | bytes:1796 | sha256:9bed927485b8d679d3a78712101f4e8e89c86d0028bdcee2e670ec2ff54ba979 | mtime:2026-08-16T13:42:49-07:00","r0001_preserved_prefix":"record.preserved.through-S-0050.md | bytes:277012 | sha256:62d6ba315522b9010a852e4737de3c0ffe9b1fd65a996996fadea57ba0a720b0 | mtime:2026-08-16T13:42:49-07:00","s0051_disposition":"INVALID","speaker":"speaker-of-the-house","successor_activation":"NOT_AUTHORIZED","target":"S-0051","type":"NOTICE"}
+```
+- **hash semantics**: event payload hash 精确为 `SHA-256("quorum.closure.event.v1\0" || canonical_json_utf8)`；只复用法典既有 canonical event payload serialization/hash 算法。S-0052 heading timestamp 与 derived `payload hash` 字段不进入 payload；该算法复用不赋予 S-0052 closure、CLOSURE_COMMIT、PLAN_RULING 或 action 效力
+- **timestamp rule**: R-0002 使用归档前读取的真实、timezone-aware 墙钟；S-0052 heading 必须在 R-0002 归档后再次读取真实墙钟生成，并严格晚于 R-0002 与 S-0051。若秒级时钟尚未推进，等待真实下一秒；不得预填、倒签、人工加一秒或伪造未来时间
+- **exact write_set**: 本 `ruling.md` 只追加 R-0002；`record.md` 只在当前 277935 bytes 后追加唯一 S-0052；`case.md` 只删除唯一 `record_errata_manifest: record-errata.S-0050.json` 行、以 pointer-removal 时实际墙钟更新唯一 `updated_at`、并精确替换唯一 gate-state 行。tooling、vendor、proposal、manifest、prefix、canonical、owner contributions 与生产文件 write_set 均为 NONE
+- **exact case gate-state replacement**: `- **gate state**: GATE_BLOCKED_RECORD_ERRATA_ACTIVATION_INTEGRITY_INCIDENT | R-0001 authorization preserved but activation failed; S-0051 INVALID; manifest pointer removed; overlay INACTIVE; successor activation NOT_AUTHORIZED without a new Chief ruling; S-0028 / S-0040 raw record defects remain visible; PS-008 / RS-003 NOT_YET_CREATED`
+- **execution order**: (1) 写前重验全部冻结 bytes/hash/mtime、S-0051 suffix 与 composed hash；任一漂移即停止并回 Chief；(2) append-only 归档 R-0002；(3) 独立审计确认 R-0001 前 5836 bytes 不变且 R-0002 完整；(4) Speaker 读取真实墙钟后一次 append S-0052，不插入额外空白字节；(5) 重算 S-0052 payload/body 与 `record.md` prefix/suffix；(6) 验证通过后才进行三项 case mutation；(7) 再做独立门禁审计。不得跨阶段预写
+- **expected post-S-0052 record shape**: `-07:00` 秒级 heading 下完整 S-0052 为 3384 bytes；`record.md` 预期为 281319 bytes。完整文件 hash只在实际追加后作为 provenance 计算，不冒充预授权 event hash
+- **expected post-index case shape**: 上述三项 case mutation 后预期为 15894 bytes；完整 hash随真实 `updated_at` 归档后计算，不得预填
+- **authorization effect**: ONLY_S-0052_APPEND_AND_CASE_INDEX_POINTER_REMOVAL
+- **authorization limit**: 不得修改 S-0051、R-0001、tooling、vendor、proposal、manifest、preserved/canonical prefix、owner contribution 或生产代码；不得重建、猜测或冒充初次 277941-byte record 的 full hash；不得激活或解析 overlay；不得创建 successor activation、PS-008、RS-003、PLAN_RULING、AS、SI、closure bundle 或 CLOSURE_COMMIT；任一冻结事实或精确 body/write_set 需要变化时停止并回 Chief
+- **case state**: drafting unchanged
+- **PS-008 / RS-003**: NOT_YET_CREATED
+- **production authority**: NONE
+- **post-remedy gate expectation**: pointer 删除后 overlay 不解析，raw S-0028 / S-0040 缺陷重新可见；direct ruling lint 预期继续显示 boundary pair、S-0028 两项、S-0040 一项及尚无 APPROVED ACTION PLAN_RULING，不得描述为 P7 或 activation 通过；global gate 可因 `V1_PRE_GATE status=drafting` 通过，但不得描述为 activation 合法
+- **appeal to Chief**: RESERVED | 任一 baseline、hash、字段、时间规则、顺序、路径、write_set、语义或预期发生变化时停止并回 Chief，Speaker 不得自行扩大 remedy
+
+## R-0003 | 2026-08-16T18:00:04-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: R-0001, R-0002, S-0051, S-0052；Chief Judge user message 2026-08-16 “可以，我们现在可不可以准备开始修复了” | utf8-sha256:6a079625ac8a78765fa82ba47136bebbedcb7fa4859362e70b80d0f0d55de466
+- **authority basis**: Chief Judge 依宪法第一条直接授权本案 successor record-errata candidate 的封闭归档；本裁定不是 pointer activation、PLAN_RULING、CLOSURE_COMMIT 或生产 action 授权
+- **procedural question**: 在 R-0001 授权保持、S-0051 已由 R-0002 / S-0052 判为 INVALID、旧 pointer 已移除且 overlay INACTIVE 的前提下，是否可基于 immutable record through S-0052 归档一套全新的 hash-bound 三件套及一条尚未激活的 S-0053 candidate，供后续独立 R-0004 绑定实际 post-S-0053 bytes 后再决定 pointer activation
+- **challenged record**: live `record.md` 从首字节至 S-0052 末尾的精确 281319-byte prefix，以及 R-0001 两事件 patch allowlist 在 S-0051 integrity incident 后的 successor activation provenance
+- **result**: REMEDY_REQUIRED
+- **remedy**: 只归档下列 through-S-0052 preserved/canonical/manifest 三件套，并在独立审计通过后一次 append 精确 S-0053 candidate；S-0053 写入后 overlay 仍 INACTIVE、case pointer 仍 ABSENT，必须另由 Chief 以 R-0004 观察并冻结实际 event/full-record bytes 后才可授权 tooling/pointer activation
+- **record errata schema**: `quorum.record_errata.v1`
+- **immutable raw baseline**: live `record.md` through S-0052 | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor preserved source prefix**: `record.preserved.through-S-0052.md` | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor canonical prefix**: `record.canonical.through-S-0052.md` | bytes:271890 | sha256:41da7be64a4789379a103b64211b24991a29933dee1262d3e4d88b0834e73724
+- **successor errata manifest**: `record-errata.S-0052.json` | bytes:1796 | sha256:64f7d3af8a8642442e2aebd8eff266ca8863d7b0c4375b2a0c7e23ab99057df5
+- **cutoff event**: S-0052 | live `record.md` 的前 281319 bytes 必须与 successor preserved source prefix 逐字相同；cutoff 后 suffix 只可在 R-0004 另行授权的 parser/pointer activation 中与 successor canonical prefix 组合
+- **event allowlist**: S-0028, S-0040 | 与 R-0001 完全相同；不得增删、替换、重排或隐式匹配 S-0051、S-0052 或任何第三事件
+- **S-0028 raw / canonical event hashes**: sha256:0db80339084ad9c60a2afdb5d6d4e4c70746825301560a7b7a87a11735768ed3 / sha256:6cd47631554749fca8b234a6bc5aa50bb0959ba43563a34ee7b0c91ea122c186
+- **S-0028 exact patch**: 只对 `contribution` 执行 `REPLACE_FIELD_VALUE`；raw value sha256:8c9ee819dd3d7f2b5ed6d5b1da360ebdecc5301a3420599e0f64b8d941fe4b8a；canonical value 精确为 `SLOT-006, SEQ-007, AC-014`，sha256:f9c7bf122d646ca48ae774a9e3b621a91e8f1dcaa9296282b484e668e4798872；不得改变 heading、timestamp、speaker、type、target、HS-005、RETURNED、artifact 或任何其他字段
+- **S-0040 raw / canonical event hashes**: sha256:2b1033409c2293413c4bf0c934f52061bd4d277576636d0f189fbbf627671232 / sha256:9e009160bd8b1c56dbe198a13eae4e2a08cc85aef7625b9077c390c969a03db2
+- **S-0040 exact patch 1**: 在 `basis` 字段后执行 `INSERT_FIELD_AFTER`，新增字段 `decision effect`，值精确为 `登记 code-owner-devtools 对 P-0000-0007-2026-0815#PS-006 在 RS-001 与本事件 scope 所列范围内的 AGREE`，sha256:5811c8ee66ef6f816f28cdeba037c227e95599e9b60bd3385a45f62bd0150351
+- **S-0040 exact patch 2**: 执行 `RENAME_FIELD`，仅把字段名 `reviewed scope` 改为 `scope`；字段值逐字不变且 sha256:70732bbe00df661c44032f0e4b33271eb5f4a698de773ddc3f43cf688a6bb8d4
+- **patch semantic limit**: R-0001 的两项修复语义完全不变；canonical 修复不改变 owner stance、HS、RS、PS、BC、SEQ、AC 或任何历史事件实体效力，不恢复 S-0048 的 ruling-intake 效力
+- **activation lineage**: R-0001 AUTHORIZATION_PRESERVED / ACTIVATION_FAILED；S-0051 INVALID；R-0002 / S-0052 是 controlling invalidation remedy；S-0052 必须原字节保留在 successor raw 与 canonical prefix 中且不得被 patch、过滤或压制
+- **predecessor activation disposition**: S-0051 INVALID
+- **invalidation notice**: S-0052 CONTROLLING_AND_PRESERVED
+- **case pointer state**: ABSENT
+- **overlay state**: INACTIVE
+- **S-0053 event role**: CANDIDATE_ONLY_PENDING_R-0004_POINTER_RULING | 本事件不是 activation marker，不使 overlay 生效
+- **S-0053 canonical payload schema**: 规范既有 event payload map；`event_id` 加下列 22 个字段，将 Markdown 字段名中的空格机械替换为下划线后，以 UTF-8、`ensure_ascii=false`、key lexicographic sort、无额外空白的 JSON 进行 canonical serialization
+- **S-0053 exact field order**: case, discussion type, procedure mode, speaker, type, target, basis, decision effect, notice kind, candidate status, activation lineage, immutable raw baseline, record errata manifest, preserved source prefix, canonical prefix, predecessor activation disposition, invalidation notice, case pointer state, overlay state, authorization effect, successor work effect, production effect
+- **S-0053 canonical payload**: bytes:1633
+- **S-0053 event payload hash**: sha256:1a88b746fcbd6c2521f898b2dd8475a1c51123f091a0b4869c936c7d566a6bfe
+- **S-0053 exact canonical JSON**:
+```json
+{"activation_lineage":"R-0001 AUTHORIZATION_PRESERVED / ACTIVATION_FAILED; R-0002 INVALIDATED_S-0051; R-0003 CANDIDATE_ONLY","authorization_effect":"ONLY_CANDIDATE_APPEND; NO_POINTER","basis":"R-0003","candidate_status":"CANDIDATE_ONLY_PENDING_R-0004_POINTER_RULING","canonical_prefix":"record.canonical.through-S-0052.md | sha256:41da7be64a4789379a103b64211b24991a29933dee1262d3e4d88b0834e73724","case":"P-0000-0007-2026-0815","case_pointer_state":"ABSENT","decision_effect":"Archive the exact R-0003-authorized successor record errata activation candidate over the immutable record through S-0052; keep the overlay inactive and the case pointer absent until a later Chief pointer ruling binds the actual post-S-0053 bytes; authorize no successor PS/RS or production action","discussion_type":"proposal","event_id":"S-0053","immutable_raw_baseline":"record.md through S-0052 | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432","invalidation_notice":"S-0052 CONTROLLING_AND_PRESERVED","notice_kind":"RECORD_ERRATA_ACTIVATION_CANDIDATE","overlay_state":"INACTIVE","predecessor_activation_disposition":"S-0051 INVALID","preserved_source_prefix":"record.preserved.through-S-0052.md | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432","procedure_mode":"collaboration","production_effect":"NONE","record_errata_manifest":"record-errata.S-0052.json | sha256:64f7d3af8a8642442e2aebd8eff266ca8863d7b0c4375b2a0c7e23ab99057df5","speaker":"speaker-of-the-house","successor_work_effect":"PS-008 / RS-003 NOT_AUTHORIZED_BY_THIS_NOTICE","target":"R-0003","type":"NOTICE"}
+```
+- **S-0053 Markdown rendering**: 按上述顺序将每项精确渲染为 `- **<field>**: <value>\n`；最后追加 `- **payload hash**: sha256:1a88b746fcbd6c2521f898b2dd8475a1c51123f091a0b4869c936c7d566a6bfe\n`
+- **S-0053 Markdown body**: bytes:1770 | sha256:1462dde569d43975803bfd704fbd29b1ad7e7e527e709e9e629d1f48145477b0
+- **hash semantics**: event payload hash 精确为 `SHA-256("quorum.closure.event.v1\0" || canonical_json_utf8)`；只复用法典既有 canonical event payload serialization/hash 算法。S-0053 heading timestamp 与 derived `payload hash` 字段不进入 payload；该算法复用不赋予 S-0053 activation、closure、CLOSURE_COMMIT、PLAN_RULING 或 action 效力
+- **timestamp rule**: R-0003 使用归档前读取的真实、timezone-aware 墙钟；S-0053 heading 必须在 R-0003 独立审计与三件套校验完成后重新读取真实墙钟生成，并严格晚于 R-0003 与 S-0052。若秒级时钟尚未推进，等待真实下一秒；不得预填、倒签、人工加一秒或伪造未来时间
+- **exact write_set**: 本 `ruling.md` 只追加 R-0003；只新建 `.claude/court/cases/P-0000-0007-2026-0815/record.preserved.through-S-0052.md`、`.claude/court/cases/P-0000-0007-2026-0815/record.canonical.through-S-0052.md`、`.claude/court/cases/P-0000-0007-2026-0815/record-errata.S-0052.json`；`record.md` 只在当前 281319 bytes 后追加唯一 S-0053。`case.md`、`.claude/skills/case/quarantine_lint.py`、`.claude/skills/case/boundary_gate_selftest.py`、proposal、旧 manifest/prefix/canonical、owner contributions、vendor/frozen linter 与生产文件 write_set 均为 NONE
+- **execution order**: (1) 写前重验 ruling=17597 bytes / sha256:4a76e380222f7f8f3091228cd1318f17ce2479d5ad5b5fdd0dca114e73f574e4、record=281319 / sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432、case=15894 / sha256:0420af5fc0957393db03d8e68a5da6c0f4e59889fcf558aef439e6a40014ef81 且 pointer ABSENT / overlay INACTIVE；(2) append-only 归档 R-0003；(3) 独立审计确认前 17597 bytes 不变、R-0003 完整且未触及其他文件；(4) 仅机械生成并逐字节验证 successor preserved/canonical/manifest 三件套；(5) 再次独立核验 live record through S-0052 与三件套；(6) Speaker 重新读取真实墙钟后一次 append S-0053，不插入额外空白字节；(7) 重算 S-0053 payload/body/full-event 与 `record.md` prefix/suffix，确认 `case.md` 及 tooling 未变；(8) 停止并把实际 S-0053 timestamp、full-event bytes/hash 与 post-record bytes/hash 呈 Chief，等待独立 R-0004。不得跨阶段预写
+- **expected post-S-0053 record shape**: `-07:00` 秒级 heading 下完整 S-0053 为 1808 bytes；`record.md` 预期为 283127 bytes。实际 full-event 与完整文件 SHA-256 只在 append 后观察并留给 R-0004 冻结，不冒充预授权 event payload hash
+- **R-0004 prerequisite**: 必须观察并冻结实际 S-0053 heading timestamp、full-event bytes/hash、post-S-0053 record bytes/hash、三件套 hashes 与 case pointer ABSENT；R-0004 才可另行决定是否修改 parser/tooling、写入新 manifest pointer 并激活 overlay。R-0003/S-0053 不提供该权限
+- **authorization effect**: ONLY_THROUGH_S0052_THREE_PIECE_ARCHIVE_AND_S0053_CANDIDATE_APPEND
+- **authorization limit**: 不得修改 S-0051、S-0052、R-0001、R-0002、tooling、vendor/frozen linter、case pointer、case gate-state、proposal、旧 manifest/preserved/canonical、owner contribution 或生产代码；不得解析或激活 successor overlay；不得创建 PS-008、RS-003、PLAN_RULING、AS、SI、closure bundle 或 CLOSURE_COMMIT；任一 frozen baseline、hash、path、field order、body、write_set、时间规则、顺序或语义需要变化时停止并回 Chief
+- **case state**: drafting unchanged
+- **PS-008 / RS-003**: NOT_AUTHORIZED_BY_R-0003
+- **production authority**: NONE
+- **affected state**: case pointer ABSENT | overlay INACTIVE | drafting unchanged
+- **appeal to Chief**: RESERVED | 任一 baseline、hash、字段、时间规则、顺序、路径、write_set、语义或预期发生变化时停止并回 Chief，Speaker 不得自行扩大 remedy
+- **stop condition**: R-0003 归档后先停供独立审计；审计放行后只完成精确三件套与 S-0053 candidate 归档，并在记录实际 post-S-0053 provenance 后再次停止等待 R-0004。不得把 candidate、global pre-gate 或测试通过描述为 overlay activation、PS/RS authority 或生产授权
+## R-0004 | 2026-08-16T19:35:40-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: R-0001, R-0002, R-0003, S-0051, S-0052, S-0053；Chief Judge user message 2026-08-16 “批准” | utf8-sha256:8cbe697b157364a5b13646285b38409dc53ec5287deeb7913493e65b275cd14d
+- **approval quote binding**: exact UTF-8 text `批准` | bytes:6 | utf8-sha256:8cbe697b157364a5b13646285b38409dc53ec5287deeb7913493e65b275cd14d
+- **authority basis**: Chief Judge 依宪法第一条直接授权本案 successor record-errata tooling derivation 与 pointer activation；不是 PLAN_RULING、CLOSURE_COMMIT 或生产 action 授权
+- **procedural question**: 是否可在精确绑定 R-0003 / S-0053 实际归档字节、R-0004 自身 immutable parsed envelope、through-S-0052 三件套及唯一 case pointer 的前提下，激活 successor prefix overlay
+- **result**: REMEDY_REQUIRED
+- **activation decision**: SUCCESSOR_POINTER_ACTIVATION_AUTHORIZED
+- **record errata schema**: `quorum.record_errata.v1`
+- **activation profile**: P-0000-0007-2026-0815 | chief_authorization:R-0003 | candidate:S-0053 | pointer_authorization:R-0004
+- **immutable raw baseline**: record.md through S-0052 | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor preserved source prefix**: record.preserved.through-S-0052.md | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor canonical prefix**: record.canonical.through-S-0052.md | bytes:271890 | sha256:41da7be64a4789379a103b64211b24991a29933dee1262d3e4d88b0834e73724
+- **successor errata manifest**: record-errata.S-0052.json | bytes:1796 | sha256:64f7d3af8a8642442e2aebd8eff266ca8863d7b0c4375b2a0c7e23ab99057df5
+- **r0003 authorization envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:9985 | sha256:2baa8246ae72031014e3478416c74c690eaec85de2b3a251a47264c051242149
+- **observed ruling before activation**: ruling.md through R-0003 | bytes:29342 | sha256:19e244870cb1023ebab50d1c41ca2a410b705a8c0e6c4711852caf14a3f85024
+- **observed case before activation**: case.md | bytes:15894 | sha256:0420af5fc0957393db03d8e68a5da6c0f4e59889fcf558aef439e6a40014ef81 | pointer:ABSENT | overlay:INACTIVE
+- **observed s0053 heading timestamp**: 2026-08-16T18:04:32-07:00
+- **observed s0053 event payload**: bytes:1633 | sha256:1a88b746fcbd6c2521f898b2dd8475a1c51123f091a0b4869c936c7d566a6bfe
+- **observed s0053 markdown body**: bytes:1770 | sha256:1462dde569d43975803bfd704fbd29b1ad7e7e527e709e9e629d1f48145477b0
+- **observed s0053 full event**: bytes:1808 | sha256:a68cdb216b788340b88b2f04c0ede7158d3a6883ef8b4dc422b5435b61957d01
+- **observed post-s0053 record**: record.md | bytes:283127 | sha256:2f00f033c97deda801085736a6fb9270a7190ecb3ab0b7603f0964002efd5054
+- **observed post-s0053 composed record**: canonical through S-0052 + exact S-0053 suffix | bytes:273698 | sha256:c0766372d42ea1680fc049b6fc38edc71228f5c24a84f2eebd8d2507488dee50
+- **predecessor activation disposition**: S-0051 INVALID; record-errata.S-0050.json pointer ineligible when S-0052 is present
+- **controlling invalidation**: S-0052 CONTROLLING_AND_PRESERVED
+- **candidate notice**: S-0053 CANDIDATE_ONLY; unique first post-cutoff event
+- **tooling preimage**: quarantine_lint.py | bytes:39588 | sha256:3a60658007fe27cae0df946a8581bd5efc63f17665946163e48e0ecf4628a5e6; boundary_gate_selftest.py | bytes:41888 | sha256:b9c5903d21325d5ca55818189234059660b550fe55385a75c3564c84cd334d9b
+- **tooling template**: quarantine_lint.py | bytes:65348 | sha256:319bcf574f56292b3499f0d5d8be57980c984a128f2429b578f6066814ee1db8; boundary_gate_selftest.py | bytes:100325 | sha256:0b082698282351f47cc82c64e0d2fdd013fb555dba1dc34f129de19b13a7abdd
+- **tooling substitution placeholders**: quarantine_lint.py only | `0000-00-00T00:00:00+00:00` count:1 | `sha256:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR` count:1 | boundary_gate_selftest.py count:0
+- **r0004 authorization envelope algorithm**: recursive NFC canonical JSON of parsed {fields,id,timestamp}; ensure_ascii=false; separators=(comma,colon); sort_keys=true; UTF-8; lowercase SHA-256 rendered as sha256:<64 hex>
+- **tooling derivation**: only after R-0004 append and independent prefix audit, replace only the two exact placeholders with the archived R-0004 timestamp and computed R-0004 authorization envelope digest; no other template byte may differ
+- **derived tooling hashes**: POST_R0004_PROVENANCE_ONLY; each installed target must equal the deterministic template-substitution output
+- **tooling verification**: template selftest 64/64; frozen reference selftest 68/68; vendor tree hashes unchanged; global gate PASS while P7 remains V1_PRE_GATE status=drafting
+- **manifest pointer**: record_errata_manifest: record-errata.S-0052.json
+- **manifest pointer placement**: one unique frontmatter line immediately after boundary_protocol: v1
+- **active case gate-state**: GATE_BLOCKED_PENDING_PS_008 | successor record errata overlay ACTIVE under R-0004 / S-0053; S-0051 remains INVALID; S-0052 controlling invalidation preserved; S-0028 / S-0040 canonical projections active only for lint; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **case updated_at rule**: one unique timezone-aware value read from real wall clock after R-0004 archive and tooling verification; strictly later than R-0004; no prefill, backdate, manual increment or future synthesis
+- **exact case mutation**: insert the exact pointer immediately after boundary_protocol: v1; replace only the unique updated_at; replace only the unique preactivation gate-state; all other case.md bytes unchanged
+- **expected active case shape**: bytes:15902 | full SHA-256 is post-write provenance determined by the actual updated_at
+- **pointer activation conditions**: exact R-0003 envelope, through-S-0052 three-piece set, S-0053 first/unique/full bytes, actual post-record/composed bytes, exact R-0004 envelope, exact derived tooling, exact unique pointer placement, active gate-state and updated_at > R-0004 must all pass; pointer-present invalid state fails closed and never falls back to raw
+- **exact write_set**: append only this R-0004 to ruling.md; replace only .claude/skills/case/quarantine_lint.py and .claude/skills/case/boundary_gate_selftest.py with the authorized deterministic outputs; mutate only case.md as specified; optional one-time failure rollback may mutate only case.md as separately frozen below
+- **execution order**: verify all preimages and template hashes; append R-0004; audit the prior 29342 ruling bytes; derive and install exact tooling; verify reverse-normalized template hashes and derived output hashes; run all pointer-absent tests; reverify record/ruling/data/case; read a real later case timestamp and validate the exact final case bytes in isolation; write case.md once; run postchecks
+- **post-activation gate expectation**: direct P7 ruling lint reports exactly two remaining non-record blockers—boundary_revision_set exact pair and absence of APPROVED ACTION PLAN_RULING—with zero record-errata, S-0028 or S-0040 format errors; global gate still reports P7 as V1_PRE_GATE status=drafting
+- **rollback authority**: only if an activation-specific postcheck fails after pointer write, remove the exact pointer, replace only updated_at with a newly read real later timestamp, replace only the active gate-state with the frozen rollback gate-state, leave R-0004/tooling/record/data untouched, verify raw-record visibility, then stop; retry requires a new Chief ruling
+- **rollback case gate-state**: GATE_BLOCKED_RECORD_ERRATA_ACTIVATION_POSTCHECK_FAILED | R-0003 candidate preserved; R-0004 pointer authorization consumed but activation failed; manifest pointer removed; overlay INACTIVE; retry requires new Chief ruling; S-0051 remains INVALID; S-0052 / S-0053 preserved; S-0028 / S-0040 raw record defects visible; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **expected rollback case shape**: bytes:15951 | full SHA-256 is post-write provenance determined by rollback updated_at
+- **authorization effect**: ONLY_R0004_BOUND_TOOLING_DERIVATION_AND_SUCCESSOR_CASE_POINTER_ACTIVATION
+- **authorization limit**: record.md, S-0051, S-0052, S-0053, R-0001..R-0003, both old and successor three-piece artifacts, proposal, contributions, vendor/frozen linter and production files are immutable; no S-0054; no PS-008, RS-003, PLAN_RULING, AS, SI, closure bundle or CLOSURE_COMMIT; no production action
+- **affected state**: drafting unchanged | overlay ACTIVE only while the exact pointer and all activation bindings remain valid
+- **PS-008 / RS-003**: NOT_YET_CREATED
+- **production authority**: NONE
+- **appeal to Chief**: RESERVED | any baseline, template hash, placeholder count, derived diff, event/envelope binding, test expectation, pointer, gate-state, timestamp rule, path, write_set or postcheck drift stops execution
+- **stop condition**: successful exact pointer activation and expected two-error direct lint, or completed pointer-only rollback; never describe either candidate preparation or global pre-gate success as PLAN_RULING or production authority
+
+## R-0005 | 2026-08-16T20:55:11-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: R-0001, R-0002, R-0003, R-0004, S-0051, S-0052, S-0053；Chief Judge user message 2026-08-16 “批准 R-0005” | utf8-sha256:4f61d04cb0c4b59ec432dc09a0dce71a3abfe697883710ff57667f5c018be58a
+- **approval quote binding**: exact UTF-8 text `批准 R-0005` | bytes:13 | utf8-sha256:4f61d04cb0c4b59ec432dc09a0dce71a3abfe697883710ff57667f5c018be58a
+- **prior approval disposition**: R-0004 approval remains historical authority for the exact R-0004 package only; it is not reused or retroactively expanded for R-0005
+- **authority basis**: Chief Judge 依宪法第一条直接处置未消费的 R-0004 activation defect，并授权一套新的 exact-envelope-bound successor activation；不是 PLAN_RULING、CLOSURE_COMMIT 或生产 action 授权
+- **procedural question**: R-0004 在 tooling、pointer 或 case mutation 均未发生前暴露持续 gate-state admission 生命周期缺陷时，如何以 append-only successor ruling 将其明确设为不可消费，并授权能跨合法 PS-008 / RS-003 生命周期继续工作的最终 activation
+- **result**: REMEDY_REQUIRED
+- **observed r0004 heading timestamp**: 2026-08-16T19:35:40-07:00
+- **observed r0004 raw block**: bytes:9256 | sha256:c94d4c52d48b7397d54ff8308bc6a7843299a0832bf5b7eb26a23adf61b8c56c
+- **observed r0004 authorization envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:9122 | sha256:74e81eef5591c7b7eaa01f1af165f13e45c2bb493fe2ebd73e5f4032b7990eb4
+- **observed ruling through r0004**: ruling.md | bytes:38598 | sha256:3a5143ccbb484134bea0d2b63bc843d435811fa805144ea154d117342d6f3ae3
+- **r0004 defect**: its exact active gate-state was made a persistent overlay admission predicate even though legitimate PS-008 / RS-003 and later case lifecycle transitions must replace that state; consuming it would make the overlay reject an authorized future lifecycle transition
+- **r0004 consumption evidence**: case.md remains bytes:15894 / sha256:0420af5fc0957393db03d8e68a5da6c0f4e59889fcf558aef439e6a40014ef81 with pointer ABSENT; quarantine_lint.py remains bytes:39588 / sha256:3a60658007fe27cae0df946a8581bd5efc63f17665946163e48e0ecf4628a5e6; boundary_gate_selftest.py remains bytes:41888 / sha256:b9c5903d21325d5ca55818189234059660b550fe55385a75c3564c84cd334d9b; record.md remains unchanged
+- **r0004 disposition**: INELIGIBLE_FOR_ACTIVATION; UNCONSUMED
+- **r0004 tooling template disposition**: NEVER_INSTALL
+- **r0004 pointer authority**: NONE_AFTER_R0005
+- **r0004 preservation rule**: R-0004 raw bytes and parsed envelope remain immutable historical record; R-0005 supersedes only its unconsumed activation authority
+- **activation decision**: SUCCESSOR_POINTER_ACTIVATION_AUTHORIZED_UNDER_R0005_ONLY
+- **record errata schema**: `quorum.record_errata.v1`
+- **activation profile**: P-0000-0007-2026-0815 | chief_authorization:R-0003 | candidate:S-0053 | pointer_authorization:R-0005
+- **immutable raw baseline**: record.md through S-0052 | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor preserved source prefix**: record.preserved.through-S-0052.md | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor canonical prefix**: record.canonical.through-S-0052.md | bytes:271890 | sha256:41da7be64a4789379a103b64211b24991a29933dee1262d3e4d88b0834e73724
+- **successor errata manifest**: record-errata.S-0052.json | bytes:1796 | sha256:64f7d3af8a8642442e2aebd8eff266ca8863d7b0c4375b2a0c7e23ab99057df5
+- **r0003 authorization envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:9985 | sha256:2baa8246ae72031014e3478416c74c690eaec85de2b3a251a47264c051242149
+- **observed s0053 heading timestamp**: 2026-08-16T18:04:32-07:00
+- **observed s0053 event payload**: bytes:1633 | sha256:1a88b746fcbd6c2521f898b2dd8475a1c51123f091a0b4869c936c7d566a6bfe
+- **observed s0053 markdown body**: bytes:1770 | sha256:1462dde569d43975803bfd704fbd29b1ad7e7e527e709e9e629d1f48145477b0
+- **observed s0053 full event**: bytes:1808 | sha256:a68cdb216b788340b88b2f04c0ede7158d3a6883ef8b4dc422b5435b61957d01
+- **observed post-s0053 record**: record.md | bytes:283127 | sha256:2f00f033c97deda801085736a6fb9270a7190ecb3ab0b7603f0964002efd5054
+- **observed post-s0053 composed record**: canonical through S-0052 + exact S-0053 suffix | bytes:273698 | sha256:c0766372d42ea1680fc049b6fc38edc71228f5c24a84f2eebd8d2507488dee50
+- **predecessor activation disposition**: S-0051 INVALID; record-errata.S-0050.json pointer ineligible whenever controlling S-0052 / S-0053 lineage is present
+- **controlling invalidation**: S-0052 CONTROLLING_AND_PRESERVED
+- **candidate notice**: S-0053 CANDIDATE_ONLY; unique first post-cutoff event
+- **tooling preimage**: quarantine_lint.py | bytes:39588 | sha256:3a60658007fe27cae0df946a8581bd5efc63f17665946163e48e0ecf4628a5e6; boundary_gate_selftest.py | bytes:41888 | sha256:b9c5903d21325d5ca55818189234059660b550fe55385a75c3564c84cd334d9b
+- **tooling template**: quarantine_lint.py | bytes:75579 | sha256:79347648e1a0b4ed770d1936d949af31b025a8cafed80a793ea44f7a96fad6cb; boundary_gate_selftest.py | bytes:110766 | sha256:a2299180bde9259a5b890b351afddb9a09fd9a544a7709cdffcb5741ed2ce4b0; frozen candidate patch | bytes:117159 | sha256:9bea151e637f17a3b6143b5035500b0a1449f9f09b85808f48dba04c749921e3; frozen test log | bytes:10011 | sha256:cebce6819b83c2841f4b428a30b2c6e495ff1eb6811f61b27e7aa152dfe13317
+- **tooling substitution placeholders**: quarantine_lint.py only | `0000-00-00T00:00:00+00:00` count:1 | `sha256:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR` count:1 | boundary_gate_selftest.py count:0
+- **r0005 authorization envelope algorithm**: recursive NFC canonical JSON of parsed {fields,id,timestamp}; ensure_ascii=false; separators=(comma,colon); sort_keys=true; UTF-8; lowercase SHA-256 rendered as sha256:<64 hex>
+- **tooling derivation**: only after R-0005 append and independent prefix audit, replace only the two exact placeholders with the archived R-0005 timestamp and computed R-0005 authorization envelope digest; no other template byte may differ
+- **derived tooling hashes**: POST_R0005_PROVENANCE_ONLY; each installed target must equal the deterministic R-0005 template-substitution output
+- **tooling verification**: template selftest 68/68; frozen reference selftest 68/68; vendor tree hashes unchanged; global gate PASS while P7 remains V1_PRE_GATE status=drafting; independent audit route A GO P0=0/P1=0; independent audit route B GO P0=0/P1=0
+- **manifest pointer**: record_errata_manifest: record-errata.S-0052.json
+- **manifest pointer placement**: one unique frontmatter line immediately after boundary_protocol: v1
+- **initial active case gate-state**: GATE_BLOCKED_PENDING_PS_008 | successor record errata overlay ACTIVE under R-0005 / S-0053; S-0051 remains INVALID; S-0052 controlling invalidation preserved; S-0028 / S-0040 canonical projections active only for lint; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **initial gate-state scope**: the exact initial active case gate-state is required only for the first 15902-byte activation candidate, first case.md write and immediate post-activation audit; it is not a persistent overlay admission predicate
+- **ongoing case admission projection**: persistent overlay admission reads and constrains only case_id, boundary_protocol, the unique exact manifest pointer/path/placement, and one unique timezone-aware updated_at strictly later than archived R-0005; gate-state, status, current_owner, current_artifact_ref, review_snapshot_ref and all other lifecycle fields remain governed by later case authority and the frozen reference linter
+- **case updated_at rule**: the initial value is read from real wall clock after R-0005 archive and tooling verification and must be strictly later than R-0005; later authorized lifecycle updates may replace it only with another unique timezone-aware value still later than R-0005
+- **exact initial case mutation**: insert the exact pointer immediately after boundary_protocol: v1; replace only the unique updated_at; replace only the unique preactivation gate-state with the exact initial active gate-state; all other case.md bytes unchanged
+- **expected initial active case shape**: bytes:15902 | full SHA-256 is post-write provenance determined by actual updated_at; later authorized lifecycle mutations may change size/hash without invalidating overlay
+- **initial activation conditions**: exact R-0003, R-0004 and R-0005 envelopes; R-0004 INELIGIBLE/UNCONSUMED disposition; through-S-0052 three-piece set; S-0053 first/unique/full bytes; post-record/composed bytes; exact R-0005-derived tooling; exact initial case candidate/gate-state; pointer and updated_at > R-0005 must all pass before first write
+- **persistent activation conditions**: immutable ruling/event/data/tooling lineage plus ongoing case admission projection; a pointer-present invalid admission fails closed and never falls back to raw; pointer removal alone immediately makes overlay INACTIVE
+- **exact write_set**: append only this R-0005 to ruling.md; replace only .claude/skills/case/quarantine_lint.py and .claude/skills/case/boundary_gate_selftest.py with deterministic R-0005 outputs; mutate only case.md as specified; optional one-time failure rollback may mutate only case.md as frozen below
+- **execution order**: verify all live preimages and final template hashes; obtain the new exact R-0005 approval; append R-0005; audit the prior 38598 ruling bytes; derive and install exact R-0005 tooling; verify reverse-normalized template hashes and derived hashes; run all pointer-absent tests; reverify ruling/record/data/case; read a real later case timestamp; validate exact initial final case bytes in isolation; write case.md once; run postchecks
+- **post-activation gate expectation**: direct P7 ruling lint reports exactly two remaining non-record blockers—boundary_revision_set exact pair and absence of APPROVED ACTION PLAN_RULING—with zero record-errata, S-0028 or S-0040 format errors; global gate still reports P7 as V1_PRE_GATE status=drafting
+- **lifecycle continuation expectation**: a later authorized PS-008 / RS-003/status/current-ref/gate-state transition with a valid later updated_at preserves the same composed record and does not require a new record-errata ruling
+- **rollback authority**: only if an activation-specific postcheck fails after pointer write, remove the exact pointer, replace only updated_at with a newly read real later timestamp, replace only the initial active gate-state with the frozen rollback gate-state, leave R-0004/R-0005/tooling/record/data untouched, verify raw visibility, then stop; retry requires a new Chief ruling
+- **rollback case gate-state**: GATE_BLOCKED_RECORD_ERRATA_ACTIVATION_POSTCHECK_FAILED | R-0003 candidate preserved; R-0005 pointer authorization consumed but activation failed; manifest pointer removed; overlay INACTIVE; retry requires new Chief ruling; S-0051 remains INVALID; S-0052 / S-0053 preserved; S-0028 / S-0040 raw record defects visible; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **expected rollback case shape**: bytes:15951 | full SHA-256 is post-write provenance determined by rollback updated_at
+- **authorization effect**: ONLY_R0005_BOUND_TOOLING_DERIVATION_AND_SUCCESSOR_CASE_POINTER_ACTIVATION
+- **authorization limit**: record.md, S-0051, S-0052, S-0053, R-0001..R-0004, both old and successor three-piece artifacts, proposal, contributions, vendor/frozen linter and production files are immutable; no S-0054; no PS-008, RS-003, PLAN_RULING, AS, SI, closure bundle or CLOSURE_COMMIT; no production action
+- **affected state**: drafting unchanged | overlay ACTIVE only while the exact pointer and persistent activation conditions remain valid
+- **PS-008 / RS-003**: NOT_YET_CREATED
+- **production authority**: NONE
+- **appeal to Chief**: RESERVED | any R-0004 evidence, final template hash, placeholder count, derived diff, event/envelope binding, lifecycle projection, test expectation, pointer, timestamp rule, path, write_set or postcheck drift stops execution
+- **stop condition**: successful exact R-0005 pointer activation and expected two-error direct lint, or completed pointer-only rollback; never describe candidate preparation or global pre-gate success as PLAN_RULING or production authority
+
+## R-0006 | 2026-08-16T22:44:00-07:00
+- **ruling identity**: Chief Judge
+- **record type**: PROCEDURAL_RULING
+- **discussion type / procedure mode**: proposal | collaboration
+- **basis**: R-0001, R-0002, R-0003, R-0004, R-0005, S-0051, S-0052, S-0053, S-0054；Chief Judge user message 2026-08-16 “批准 R-0006” | utf8-sha256:13b0c24f1b2ebd34591e504a18a99e8dfe6ce965198ec9d218c21fccbec46b52
+- **approval quote binding**: exact UTF-8 text `批准 R-0006` | bytes:13 | utf8-sha256:13b0c24f1b2ebd34591e504a18a99e8dfe6ce965198ec9d218c21fccbec46b52
+- **prior approval disposition**: R-0005 approval was consumed by the attempted activation, which failed and was rolled back under R-0005; it is historical authority only and cannot be reused, reactivated or retroactively expanded for R-0006
+- **authority basis**: Chief Judge 依宪法第一条直接处置已消费且失败回滚的 R-0005 activation defect，并授权一套新的 exact-envelope-bound R-0006 successor activation；不是 PLAN_RULING、CLOSURE_COMMIT 或生产 action 授权
+- **procedural question**: R-0005 activation 已消费并在合法 S-0054 append 后因 successor delimiter 被错误计入 S-0053 standalone event 而失败回滚时，如何以 append-only successor ruling 允许结构合法的当前及未来 record suffix，同时保持 exact anchors、fail-closed pointer admission 与 one-call frozen lint
+- **result**: REMEDY_REQUIRED
+- **observed r0005 heading timestamp**: 2026-08-16T20:55:11-07:00
+- **observed r0005 raw block**: bytes:12551 | sha256:8a3528851850133620a85087fe83cb9588205ed3394706ab516e56c719f436ef
+- **observed r0005 authorization envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:12378 | sha256:5398eff2f2b997dc048af453477a80a8b297ac984b7ca0057834c40f869c3d66
+- **observed ruling through r0005**: ruling.md | bytes:51150 | sha256:a88bb9d3119aab3c6e2787430dc11d1cec664aa10f6b6f4393760d1a761476f4
+- **r0005 activation disposition**: CONSUMED_AND_FAILED; POINTER_ROLLED_BACK; NOT_REACTIVATABLE
+- **r0005 failure evidence**: case.md bytes:15951 / sha256:8818c5630d40e0f2d1384facce0921ebad1ca428907d3df04d0adb35b86fb9e7 / pointer ABSENT / updated_at:2026-08-16T21:22:42-07:00; record.md bytes:289717 / sha256:54997fc7b006260830c2b935eecdfa0d4f202770a328d25ed9c50f9297f31e21; R-0005 finalized tooling remains installed
+- **r0005 defect**: its S-0053 standalone-byte check used a heading-to-next-heading slice, so one legal pure empty-LF delimiter before S-0054 was counted as part of S-0053 and changed the measured item from 1808 to 1809 bytes even though zero-extra-LF and one-or-more pure empty-LF forms are all legal
+- **r0005 test gap**: its future-suffix positive test covered only the zero-extra-LF form, supplied an incomplete common envelope and mocked the frozen linter, so it did not cover one-or-more pure empty-LF delimiters or a mixed-delimiter legal event chain
+- **r0005 pointer authority**: NONE_AFTER_R0006
+- **r0005 tooling disposition**: HISTORICAL_FINAL_PREIMAGE_ONLY; NEVER_REACTIVATE_POINTER; REPLACE_ONLY_WITH_R0006_DERIVED_TOOLING
+- **r0005 preservation rule**: R-0005 raw bytes, parsed envelope, failed activation and rollback remain immutable historical record; R-0006 supersedes only any attempted reuse of its consumed pointer authority
+- **activation decision**: SUCCESSOR_POINTER_ACTIVATION_AUTHORIZED_UNDER_R0006_ONLY
+- **record errata schema**: `quorum.record_errata.v1`
+- **activation profile**: P-0000-0007-2026-0815 | chief_authorization:R-0003 | candidate:S-0053 | first_successor:S-0054 | pointer_authorization:R-0006
+- **immutable raw baseline**: record.md through S-0052 | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor preserved source prefix**: record.preserved.through-S-0052.md | bytes:281319 | sha256:0fed6177aaa2b3bf27126dfdaaf1dac3d3c9a9b88ba1d9d63decf198ae843432
+- **successor canonical prefix**: record.canonical.through-S-0052.md | bytes:271890 | sha256:41da7be64a4789379a103b64211b24991a29933dee1262d3e4d88b0834e73724
+- **successor errata manifest**: record-errata.S-0052.json | bytes:1796 | sha256:64f7d3af8a8642442e2aebd8eff266ca8863d7b0c4375b2a0c7e23ab99057df5
+- **r0003 authorization envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:9985 | sha256:2baa8246ae72031014e3478416c74c690eaec85de2b3a251a47264c051242149
+- **fixed s0053 heading timestamp**: 2026-08-16T18:04:32-07:00
+- **fixed s0053 full event**: standalone bytes:1808 | sha256:a68cdb216b788340b88b2f04c0ede7158d3a6883ef8b4dc422b5435b61957d01
+- **fixed post-s0053 record prefix**: record.md through standalone S-0053 | bytes:283127 | sha256:2f00f033c97deda801085736a6fb9270a7190ecb3ab0b7603f0964002efd5054
+- **fixed post-s0053 composed prefix**: canonical through S-0052 + standalone S-0053 | bytes:273698 | sha256:c0766372d42ea1680fc049b6fc38edc71228f5c24a84f2eebd8d2507488dee50
+- **observed s0054 heading timestamp**: 2026-08-16T21:18:06-07:00
+- **observed s0054 parsed envelope**: canonical JSON over parsed {fields,id,timestamp} | bytes:6545 | sha256:ea7c95a8f3101dc63082190fbb673268bb784985328e794317d8b2344ca83912
+- **observed s0054 full event**: standalone bytes:6589 | sha256:aba126149f64e0205ea8f7a4261a39e52fee3d68cd80b51f892457097bc24dea
+- **observed post-s0054 record**: record.md | bytes:289717 | sha256:54997fc7b006260830c2b935eecdfa0d4f202770a328d25ed9c50f9297f31e21
+- **observed post-s0054 composed record**: canonical through S-0052 + exact live suffix through S-0054 | bytes:280288 | sha256:deb90dd1f9dd7cde80c945c4fd2fe8dc68bb157c0db6e0d3cf309de58fd498ef
+- **future record suffix admission**: exact standalone S-0053 || PURE_LF* || exact standalone S-0054 || zero-or-more(PURE_LF* || strict future S event); each PURE_LF* is zero or more literal LF bytes after the preceding event's final LF, S-0053 and S-0054 are immutable anchors, and all delimiter bytes are explicitly consumed but excluded from event raw hashes
+- **future event delimiter**: every event raw ends in exactly one LF; between that final LF and the next heading zero or more additional bytes are legal only when every byte is LF; all delimiter bytes must be consumed and excluded from both adjacent event raws, while space/tab pseudo-empty lines and any trailing blank-only suffix fail closed
+- **future event identifier rule**: S-0054 is the exact first successor; every later heading is exact S-[0-9]{4}, unique and strictly increasing by numeric identifier from the preceding event
+- **future event timestamp rule**: S-0054 uses its exact frozen aware timestamp; every later heading timestamp is timezone-aware and strictly later than the preceding event timestamp
+- **future event common envelope**: first eight fields are exactly case, discussion type, procedure mode, speaker, type, target, basis, decision effect in that order; case=P-0000-0007-2026-0815, discussion type=proposal, procedure mode is collaboration/debate/full and all eight values are concrete under frozen meaningful-value rules
+- **future event field grammar**: UTF-8, Unicode NFC, LF-only, no BOM/CR/hidden text; each body item is one exact `- **name**: value` line or one eligible canonical-JSON attachment; normalized field names are nonempty and unique and the parsed field order/value map must exactly equal the frozen event parser result
+- **future event canonical json**: only a field whose name ends with exact lowercase suffix ` exact canonical JSON` may use empty header + ```json + one canonical JSON object line + ```; duplicate keys, arrays/scalars, NaN/Infinity, non-NFC, noncanonical encoding, extra lines or extra whitespace fail closed
+- **future event extension policy**: extension field names remain open exactly as the frozen speech/event parser is open; each extension is structurally parsed and preserved in raw order, common-field shadowing and normalized duplicates fail closed, and type-specific legality is decided only by the one frozen linter call
+- **future event raw preservation**: every admitted post-S-0052 byte, including each zero-or-more pure-LF delimiter, extension field and canonical-JSON attachment, is copied to composed record unchanged; event raw hashes exclude all preceding/following delimiter bytes and no filtering, normalization, rendering, reordering or fallback occurs
+- **overlay composition**: proposal quarantine and record errata resolve first in one isolated copy, then the frozen reference linter is called exactly once on canonical-through-S-0052 plus the exact admitted live suffix
+- **invalid pointer behavior**: any pointer-present manifest, ruling, anchor, suffix grammar, case projection, timestamp or tooling mismatch returns activation issues before frozen lint and never falls back to raw record
+- **pointer absent behavior**: an actually absent pointer keeps the overlay inactive and calls frozen lint exactly once on the raw case; pointer text outside the one exact frontmatter field is invalid, not absence
+- **future ruling continuation**: R-0006 is exact and unique immediately after exact ruling-through-R-0005 with one LF delimiter; later rulings require unique strictly increasing R ids and aware timestamps, canonical NFC field bodies, valid common ruling envelope and canonical JSON attachments, with no hidden bytes
+- **tooling preimage**: quarantine_lint.py | bytes:75579 | sha256:887a1bd9b6af7b1688e5472520b3bddcebad327f388c8f2ce08cabfe8590d102; boundary_gate_selftest.py | bytes:110766 | sha256:a2299180bde9259a5b890b351afddb9a09fd9a544a7709cdffcb5741ed2ce4b0
+- **tooling template**: quarantine_lint.py | bytes:113414 | sha256:61f36834ea263c1296dcd20ee656c2458a8103dd09a5877fb8bf7e5a718591be; boundary_gate_selftest.py | bytes:111756 | sha256:91c7eba98c20f4f2f218b21d749ccad8954bb31ebe0248485b08378a577949d5; frozen candidate patch | bytes:196813 | sha256:faac2c9fbd7fc725d34960fce902b3fbe011a4daa5083f57a869f5669436c5af; frozen test log | bytes:5855 | sha256:10781b7a561b4154af51b508ddb8869a91d549a8f3e3b3ed5da0b217095896be
+- **tooling substitution placeholders**: quarantine_lint.py only | `0000-00-00T00:00:00+00:00` count:1 | `sha256:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR` count:1 | boundary_gate_selftest.py count:0
+- **r0006 authorization envelope algorithm**: recursive NFC canonical JSON of parsed {fields,id,timestamp}; ensure_ascii=false; separators=(comma,colon); sort_keys=true; UTF-8; lowercase SHA-256 rendered as sha256: followed by exactly 64 lowercase hexadecimal characters
+- **tooling derivation**: only after R-0006 append and independent exact-prefix/raw-item audit, replace only the two exact placeholders with the archived R-0006 timestamp and computed R-0006 authorization envelope digest; no other template byte may differ
+- **derived tooling hashes**: POST_R0006_PROVENANCE_ONLY; each installed target must equal the deterministic R-0006 template-substitution output and reverse-normalize to the frozen template hash
+- **tooling verification**: candidate selftest 75/75; frozen reference selftest 68/68; vendor tree hashes unchanged; global gate PASS while P7 remains V1_PRE_GATE status=drafting; independent audit route A GO P0=0/P1=0; independent audit route B GO P0=0/P1=0
+- **manifest pointer**: record_errata_manifest: record-errata.S-0052.json
+- **manifest pointer placement**: one unique frontmatter line immediately after boundary_protocol: v1
+- **observed rollback case baseline**: case.md | bytes:15951 | sha256:8818c5630d40e0f2d1384facce0921ebad1ca428907d3df04d0adb35b86fb9e7 | updated_at:2026-08-16T21:22:42-07:00 | pointer ABSENT
+- **initial active case gate-state**: GATE_BLOCKED_PENDING_PS_008 | successor record errata overlay ACTIVE under R-0006 / S-0053; R-0005 activation consumed/failed and non-reactivatable; S-0054 and later structurally valid append-only record events preserved; S-0051 remains INVALID; S-0052 controlling invalidation preserved; S-0028 / S-0040 canonical projections active only for lint; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **initial gate-state scope**: the exact initial active case gate-state is required only for the first 16032-byte activation candidate, first case.md write and immediate post-activation audit; it is not a persistent overlay admission predicate
+- **ongoing case admission projection**: persistent overlay admission constrains only case_id, boundary_protocol, the unique exact manifest pointer/path/placement and one unique timezone-aware updated_at strictly later than archived R-0006; all lifecycle fields remain governed by later case authority and the frozen reference linter
+- **case updated_at rule**: the initial value is read from real wall clock after R-0006 archive and tooling verification and is strictly later than R-0006; later authorized lifecycle updates may replace it only with another unique timezone-aware value still later than R-0006
+- **exact initial case mutation**: starting only from the exact 15951-byte rollback baseline, insert the exact pointer immediately after boundary_protocol: v1, replace only the unique updated_at and replace only the unique rollback gate-state with the exact initial active gate-state; all other case.md bytes unchanged
+- **expected initial active case shape**: bytes:16032 | full SHA-256 is post-write provenance determined by actual updated_at; inverse removal/replacement must reconstruct bytes:15951 / sha256:8818c5630d40e0f2d1384facce0921ebad1ca428907d3df04d0adb35b86fb9e7
+- **initial activation conditions**: exact R-0001..R-0006 lineage; R-0005 CONSUMED_AND_FAILED/POINTER_ROLLED_BACK; exact through-S-0052 three-piece set; exact standalone S-0053 and S-0054; exact post-S-0054 raw/composed anchors; exact R-0006-derived tooling; exact initial case candidate, pointer and updated_at > R-0006 must all pass before first write
+- **persistent activation conditions**: immutable ruling/manifest/prefix/S-0053/S-0054/tooling lineage, strict lossless future ruling and record suffix admission and ongoing case projection; pointer-present invalid admission fails closed without raw fallback, while pointer removal alone makes overlay INACTIVE
+- **exact write_set**: append only this R-0006 to ruling.md; replace only .claude/skills/case/quarantine_lint.py and .claude/skills/case/boundary_gate_selftest.py with deterministic R-0006 outputs; mutate only case.md as specified; optional one-time failure rollback may mutate only case.md as frozen below
+- **execution order**: verify all live preimages and final template hashes; obtain exact R-0006 approval; append R-0006; audit the prior 51150 ruling bytes and exact R-0006 raw/envelope; derive and install exact tooling; reverse-normalize and verify hashes; run all pointer-absent and mutation tests; reverify ruling/record/data/case; read a real later case timestamp; validate exact initial case bytes in isolation; write case.md once with pointer last; run postchecks
+- **post-activation gate expectation**: direct P7 ruling lint reports exactly two remaining non-record blockers—boundary_revision_set exact pair and absence of APPROVED ACTION PLAN_RULING—with zero record-errata, S-0028, S-0040 or suffix-admission errors; global gate still reports P7 as V1_PRE_GATE status=drafting
+- **lifecycle continuation expectation**: later authorized S events, PS-008 / RS-003, status/current-ref/gate-state and case updated_at transitions preserve the same canonical prefix plus exact raw suffix without a new record-errata ruling when the strict suffix and case projection remain valid
+- **rollback authority**: only if an activation-specific postcheck fails after pointer write, remove the exact pointer, replace only updated_at with a newly read real later timestamp and replace only the initial active gate-state with the frozen R-0006 rollback gate-state; leave R-0001..R-0006, tooling, record and data untouched; verify raw visibility, then stop; retry requires a new Chief ruling
+- **rollback case gate-state**: GATE_BLOCKED_RECORD_ERRATA_ACTIVATION_POSTCHECK_FAILED | R-0003 candidate preserved; R-0005 activation consumed/failed and non-reactivatable; R-0006 pointer authorization consumed but activation failed; manifest pointer removed; overlay INACTIVE; retry requires new Chief ruling; S-0051 remains INVALID; S-0052 / S-0053 / S-0054 preserved; S-0028 / S-0040 raw record defects visible; PS-008 / RS-003 NOT_YET_CREATED; production authority NONE
+- **expected rollback case shape**: bytes:16017 | full SHA-256 is post-write provenance determined by rollback updated_at; only pointer/updated_at/gate-state may differ from the exact preactivation baseline
+- **authorization effect**: ONLY_R0006_BOUND_TOOLING_DERIVATION_AND_SUCCESSOR_CASE_POINTER_ACTIVATION
+- **authorization limit**: record.md through S-0054, R-0001..R-0005, both three-piece artifact sets, proposal, contributions, vendor/frozen linter and production files are immutable during activation; no S-0055 during the ceremony; no PS-008, RS-003, PLAN_RULING, AS, SI, closure bundle or CLOSURE_COMMIT; no production action
+- **affected state**: drafting unchanged | overlay ACTIVE only while the exact pointer and persistent activation conditions remain valid
+- **PS-008 / RS-003**: NOT_YET_CREATED
+- **production authority**: NONE
+- **appeal to Chief**: RESERVED | any baseline, template hash, placeholder count, raw/envelope binding, delimiter/event grammar, case projection, test expectation, pointer, timestamp, path, write_set or postcheck drift stops execution
+- **stop condition**: successful exact R-0006 pointer activation with expected two-error direct lint, or completed pointer-only rollback; never describe candidate preparation, global pre-gate success or record overlay activation as PLAN_RULING or production authority

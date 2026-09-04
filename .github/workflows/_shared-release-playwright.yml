@@ -1,0 +1,253 @@
+name: Shared Release Playwright
+
+on:
+  workflow_call:
+    inputs:
+      qa_mode:
+        description: "Closed QA mode: lite, release, or release-candidate."
+        required: true
+        type: string
+      runner_selector:
+        description: "Closed Playwright runner selector."
+        required: true
+        type: string
+      source_ref:
+        description: Exact caller Git ref.
+        required: true
+        type: string
+      source_sha:
+        description: Exact caller commit SHA.
+        required: true
+        type: string
+      release_tag:
+        description: Exact caller ref name.
+        required: true
+        type: string
+
+jobs:
+  playwright:
+    name: Playwright Electron (${{ inputs.runner_selector }})
+    runs-on: ${{ inputs.runner_selector == 'ubuntu-latest' && 'ubuntu-latest' || inputs.runner_selector == 'macos-latest' && 'macos-latest' || inputs.runner_selector == 'windows-latest' && 'windows-latest' || 'ubuntu-latest' }}
+    env:
+      QA_MODE: ${{ inputs.qa_mode }}
+      RUNNER_SELECTOR: ${{ inputs.runner_selector }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Validate closed shared Playwright inputs
+        shell: bash
+        run: |
+          if [ "$SOURCE_REF" != "$GITHUB_REF" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ] || [ "$RELEASE_TAG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error title=Source identity mismatch::shared Playwright inputs must match the caller ref, SHA, and ref name"
+            exit 1
+          fi
+          case "$QA_MODE:$RUNNER_SELECTOR" in
+            lite:ubuntu-latest) ;;
+            release:ubuntu-latest|release:macos-latest|release:windows-latest) ;;
+            release-candidate:ubuntu-latest|release-candidate:macos-latest|release-candidate:windows-latest) ;;
+            *) echo "::error title=Unsupported shared Playwright input tuple::$QA_MODE:$RUNNER_SELECTOR"; exit 1 ;;
+          esac
+
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Resolve QA version
+        shell: bash
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          BUILD_VERSION="$PACKAGE_VERSION"
+          EXPECTED_VERSION=""
+          if [[ "$SOURCE_REF" == refs/tags/* ]]; then
+            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+              --tag "$RELEASE_TAG" \
+              --package-version "$PACKAGE_VERSION" \
+              --policy candidate)"
+            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+            EXPECTED_VERSION="$BUILD_VERSION"
+          fi
+          {
+            echo "QA_VERSION=$BUILD_VERSION"
+            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: Download the deterministic Unchain artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: .release-qa/unchain-artifact
+
+      - name: Verify and install the exact Unchain runtime
+        id: artifact_verify
+        shell: bash
+        run: |
+          WHEEL_PATH="$(find .release-qa/unchain-artifact -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          EVIDENCE_PATH=".release-qa/unchain-artifact/unchain-artifact.json"
+          if [ -z "$WHEEL_PATH" ] || [ ! -f "$EVIDENCE_PATH" ]; then
+            echo "::error title=Missing deterministic Unchain artifact::Playwright requires the wheel and evidence emitted by Deterministic QA"
+            exit 1
+          fi
+          python -m pip install --upgrade pip
+          python -m pip install -r unchain_runtime/server/requirements.txt
+          python -m pip install --force-reinstall --no-deps "$WHEEL_PATH"
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "$WHEEL_PATH" \
+            --evidence "$EVIDENCE_PATH" \
+            --python python \
+            --installed true
+          printf 'python_command=%s\n' "$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_OUTPUT"
+          printf 'evidence_path=%s\n' "$EVIDENCE_PATH" >> "$GITHUB_OUTPUT"
+          printf 'executed_tests=1\n' >> "$GITHUB_OUTPUT"
+
+      - name: Install Electron runtime dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+
+      # Electron's SUID sandbox helper aborts on Linux runners unless it is
+      # root-owned with mode 4755 (the spawn in e2e/fixtures/pupu_app.js runs
+      # with sandboxing on).
+      - name: Configure Electron SUID sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Verify session guard startup
+        id: session_guard_smoke
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          UNCHAIN_DATA_DIR: ${{ runner.temp }}/pupu-session-guard-smoke
+          SESSION_GUARD_SMOKE_EVIDENCE_PATH: test-results/session-guard-smoke.json
+        run: |
+          "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-session-guard-smoke.py
+
+      - name: Probe Windows Vault supervisor native containment
+        id: vault_supervisor_native_probe
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH: test-results/vault-supervisor-native.json
+        run: |
+          "$UNCHAIN_PYTHON_BIN" scripts/release-qa/windows-vault-supervisor-native-probe.py
+          EXECUTED_TESTS="$("$UNCHAIN_PYTHON_BIN" scripts/release-qa/verify-windows-vault-supervisor-native-evidence.py "$VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH")"
+          printf 'executed_tests=%s\n' "$EXECUTED_TESTS" >> "$GITHUB_OUTPUT"
+
+      - name: Run Playwright Electron release smoke
+        id: playwright
+        continue-on-error: true
+        shell: bash
+        env:
+          UNCHAIN_PYTHON_BIN: ${{ steps.artifact_verify.outputs.python_command }}
+          PUPU_SESSION_GUARD_DIAGNOSTICS: ${{ runner.os == 'Windows' && '1' || '0' }}
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+
+      - name: Verify nonzero Playwright execution evidence
+        id: playwright_evidence
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: node scripts/release-qa/verify-playwright-execution.mjs --results test-results/playwright/results.json
+
+      - name: Write Playwright QA report
+        if: always()
+        env:
+          QA_PLATFORM_NAME: playwright-${{ runner.os }}
+          QA_PLATFORM_COMMAND: npm run test:e2e
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: ${{ runner.os == 'Windows' && '["Unchain artifact continuity","Session guard startup smoke","Windows Vault supervisor native probe","Playwright Electron release smoke"]' || '["Unchain artifact continuity","Session guard startup smoke","Playwright Electron release smoke"]' }}
+          QA_ARTIFACT_GLOBS_JSON: '["playwright-report/**/*","test-results/playwright/**/*","test-results/session-guard-smoke.json","test-results/vault-supervisor-native.json"]'
+          QA_CHECKS_JSON: |
+            [
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"Session guard startup smoke","command":"python scripts/release-qa/windows-session-guard-smoke.py","outcome":"${{ steps.session_guard_smoke.outcome }}","executed_tests":${{ steps.session_guard_smoke.outcome == 'success' && 1 || 0 }}},
+              {"name":"Windows Vault supervisor native probe","command":"python scripts/release-qa/windows-vault-supervisor-native-probe.py","outcome":"${{ steps.vault_supervisor_native_probe.outcome }}","executed_tests":${{ steps.vault_supervisor_native_probe.outputs.executed_tests || 0 }}},
+              {"name":"Playwright Electron release smoke","command":"npm run test:e2e","outcome":"${{ steps.playwright.outcome }}","executed_tests":${{ steps.playwright_evidence.outputs.executed_tests || 0 }}}
+            ]
+        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
+
+      - name: Upload Playwright QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-qa-job-report-playwright-${{ runner.os }}
+          path: release-qa-job-report.json
+          retention-days: 30
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence-${{ runner.os }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            playwright-report/**/*
+            test-results/playwright/**/*
+            test-results/session-guard-smoke.json
+            test-results/vault-supervisor-native.json
+
+      - name: Enforce Playwright QA result
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_VERIFY_OUTCOME: ${{ steps.artifact_verify.outcome }}
+          SESSION_GUARD_SMOKE_OUTCOME: ${{ steps.session_guard_smoke.outcome }}
+          VAULT_SUPERVISOR_NATIVE_OUTCOME: ${{ steps.vault_supervisor_native_probe.outcome }}
+          PLAYWRIGHT_OUTCOME: ${{ steps.playwright.outcome }}
+          PLAYWRIGHT_EVIDENCE_OUTCOME: ${{ steps.playwright_evidence.outcome }}
+        run: |
+          failed=0
+          for required_outcome in \
+            "$ARTIFACT_VERIFY_OUTCOME" \
+            "$SESSION_GUARD_SMOKE_OUTCOME" \
+            "$PLAYWRIGHT_OUTCOME" \
+            "$PLAYWRIGHT_EVIDENCE_OUTCOME"
+          do
+            if [ "$required_outcome" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$SESSION_GUARD_SMOKE_OUTCOME" = "success" ] && [ ! -f test-results/session-guard-smoke.json ]; then
+            echo "::error title=Missing session guard evidence::successful startup smoke must retain test-results/session-guard-smoke.json"
+            failed=1
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            if [ "$VAULT_SUPERVISOR_NATIVE_OUTCOME" != "success" ]; then
+              failed=1
+            fi
+            if [ "$VAULT_SUPERVISOR_NATIVE_OUTCOME" = "success" ] && [ ! -f test-results/vault-supervisor-native.json ]; then
+              echo "::error title=Missing Vault supervisor evidence::successful Windows native probe must retain test-results/vault-supervisor-native.json"
+              failed=1
+            fi
+          fi
+          if [ "$failed" -ne 0 ]; then
+            echo "::error title=Playwright QA failed::artifact=$ARTIFACT_VERIFY_OUTCOME session-guard=$SESSION_GUARD_SMOKE_OUTCOME vault-supervisor-native=$VAULT_SUPERVISOR_NATIVE_OUTCOME playwright=$PLAYWRIGHT_OUTCOME evidence=$PLAYWRIGHT_EVIDENCE_OUTCOME"
+            exit 1
+          fi

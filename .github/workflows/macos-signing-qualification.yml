@@ -1,0 +1,195 @@
+name: macOS Signing Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SIGN_MACOS_QUALIFICATION to build, notarize, and verify a non-publishing macOS qualification package"
+        required: true
+        type: string
+      expected_commit:
+        description: "Full immutable dev commit SHA that this qualification must build"
+        required: true
+        type: string
+      unchain_ref:
+        description: "Full immutable Unchain commit SHA used to build the bundled runtime"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  macos-signing-qualification:
+    name: Build, notarize, and verify macOS (${{ matrix.target_id }})
+    runs-on: ${{ matrix.runner }}
+    environment: macos-signing-qualification
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_id: macos-arm64
+            runner: macos-latest
+          - target_id: macos-x64
+            runner: macos-15-intel
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Require explicit immutable non-publishing signing inputs
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          QUALIFICATION_REF: ${{ github.ref }}
+          QUALIFICATION_SHA: ${{ github.sha }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          UNCHAIN_REF: ${{ inputs.unchain_ref }}
+        run: |
+          if [[ "$CONFIRMATION" != "SIGN_MACOS_QUALIFICATION" ]]; then
+            echo "confirmation must equal SIGN_MACOS_QUALIFICATION" >&2
+            exit 1
+          fi
+          if [[ "$QUALIFICATION_REF" != "refs/heads/dev" ]]; then
+            echo "qualification must run from refs/heads/dev" >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_commit must be a full immutable commit SHA" >&2
+            exit 1
+          fi
+          if [[ "$EXPECTED_COMMIT" != "$QUALIFICATION_SHA" ]]; then
+            echo "expected_commit must equal the dispatched commit" >&2
+            exit 1
+          fi
+          if [[ ! "$UNCHAIN_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "unchain_ref must be a full immutable commit SHA" >&2
+            exit 1
+          fi
+
+      - name: Checkout the selected source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_commit }}
+          persist-credentials: false
+
+      - name: Require protected isolated signing environment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          environment_payload="$RUNNER_TEMP/pupu-macos-signing-environment-${GITHUB_RUN_ID}.json"
+          gh api "repos/$GITHUB_REPOSITORY/environments/macos-signing-qualification" > "$environment_payload"
+          node scripts/release-qa/verify-github-environment.mjs \
+            --environment macos-signing-qualification < "$environment_payload"
+
+      - name: Checkout immutable Unchain source for the qualification build
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: ${{ inputs.unchain_ref }}
+          path: .qualification-unchain
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python runtime dependencies for wheel manifest inspection
+        run: python -m pip install -r unchain_runtime/server/requirements.txt
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Create controlled Memory V2 build snapshot
+        shell: bash
+        run: |
+          snapshot_root="$(mktemp -d "$RUNNER_TEMP/pupu-memory-snapshot-${GITHUB_RUN_ID}-XXXXXX")"
+          snapshot_path="$snapshot_root/build_feature_flags.snapshot.json"
+          node scripts/write-build-feature-snapshot.cjs \
+            --out "$snapshot_path" \
+            --profile contracts/memory-v2/release-profile.shadow.v1.json
+          echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshot_path" >> "$GITHUB_ENV"
+
+      - name: Resolve non-interactive build version
+        shell: bash
+        run: |
+          build_version="$(node -p "require('./package.json').version")"
+          if [[ -z "$build_version" ]]; then
+            echo "package.json did not provide a build version" >&2
+            exit 1
+          fi
+          echo "PUPU_BUILD_VERSION=$build_version" >> "$GITHUB_ENV"
+
+      - name: Require macOS signing and notarization credentials
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/release-qa/release-signing.mjs --platform macos
+
+      - name: Build signed and notarized macOS package
+        shell: bash
+        env:
+          TARGET_ID: ${{ matrix.target_id }}
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: ${{ inputs.unchain_ref }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          case "$TARGET_ID" in
+            macos-arm64) npm run build:electron:mac:release ;;
+            macos-x64) npm run build:electron:mac:intel:release ;;
+            *) echo "unsupported macOS qualification target: $TARGET_ID" >&2; exit 1 ;;
+          esac
+
+      - name: Write exact sanitized macOS signing evidence
+        shell: bash
+        env:
+          TARGET_ID: ${{ matrix.target_id }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          UNCHAIN_REF: ${{ inputs.unchain_ref }}
+        run: |
+          evidence_file="macos-signing-qualification-${TARGET_ID}.v1.json"
+          node scripts/release-qa/macos-signing-evidence.mjs \
+            --schema pupu.macos-signing-qualification.v1 \
+            --target "$TARGET_ID" \
+            --version "$PUPU_BUILD_VERSION" \
+            --source-ref "$GITHUB_REF" \
+            --source-sha "$GITHUB_SHA" \
+            --expected-commit "$EXPECTED_COMMIT" \
+            --unchain-ref "$UNCHAIN_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --dist-dir dist \
+            --out "$evidence_file"
+          echo "MACOS_SIGNING_EVIDENCE_FILE=$evidence_file" >> "$GITHUB_ENV"
+
+      - name: Reject sensitive signing material before evidence upload
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          node scripts/release-qa/secret-material-denylist.mjs \
+            --root "$GITHUB_WORKSPACE" \
+            --path "$MACOS_SIGNING_EVIDENCE_FILE"
+
+      - name: Upload sanitized macOS signing evidence only
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-signing-qualification-${{ matrix.target_id }}
+          path: ${{ env.MACOS_SIGNING_EVIDENCE_FILE }}
+          if-no-files-found: error
+          retention-days: 30

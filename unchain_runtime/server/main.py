@@ -6,6 +6,88 @@ import time
 
 
 _DURABLE_JOB_WORKER_FLAG = "--durable-job-worker"
+_VAULT_SINK_SUPERVISOR_FLAG = "--vault-sink-supervisor"
+_VAULT_SINK_WORKER_FLAG = "--vault-sink-worker"
+_SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS"
+_SESSION_GUARD_DIAGNOSTIC_PREFIX = (
+    "[session-guard] migration unavailable code="
+)
+_SESSION_GUARD_STARTUP_DIAGNOSTIC_CODES = frozenset(
+    {
+        "session_guard_import_unavailable",
+        "session_guard_process_identity_unavailable",
+        "session_guard_unknown_unavailable",
+    }
+)
+_SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED: set[str] = set()
+
+
+def _emit_session_guard_startup_diagnostic(
+    error: Exception,
+    *,
+    phase: str,
+) -> None:
+    if os.environ.get(_SESSION_GUARD_DIAGNOSTICS_ENV, "").strip() != "1":
+        return
+    if getattr(error, "code", "") == "session_guard_process_identity_unavailable":
+        code = "session_guard_process_identity_unavailable"
+    elif phase == "import":
+        code = "session_guard_import_unavailable"
+    else:
+        code = "session_guard_unknown_unavailable"
+    if (
+        code not in _SESSION_GUARD_STARTUP_DIAGNOSTIC_CODES
+        or code in _SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED
+    ):
+        return
+    _SESSION_GUARD_STARTUP_DIAGNOSTICS_EMITTED.add(code)
+    try:
+        print(
+            f"{_SESSION_GUARD_DIAGNOSTIC_PREFIX}{code}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except Exception:
+        # QA diagnostics must never interfere with sidecar startup.
+        pass
+
+
+def _dispatch_vault_sink_worker(argv: list[str]) -> int | None:
+    if not argv or argv[0] != _VAULT_SINK_WORKER_FLAG:
+        return None
+    if len(argv) != 1:
+        return 2
+
+    # Import every bundled worker dependency before restoring PyInstaller's
+    # process environment. The worker then owns stdin/stdout exclusively and
+    # exits after exactly one framed request; Flask is never imported here.
+    from vault_sink_worker import main as worker_main
+
+    if sys.platform == "win32":
+        from vault_sink_job_supervisor import bootstrap_inner_worker
+
+        try:
+            bootstrap_inner_worker()
+        except Exception:
+            return 2
+        return int(worker_main(containment_attested=True))
+
+    from durable_job_runtime import restore_frozen_job_environment
+
+    restore_frozen_job_environment()
+    return int(worker_main())
+
+
+def _dispatch_vault_sink_supervisor(argv: list[str]) -> int | None:
+    if not argv or argv[0] != _VAULT_SINK_SUPERVISOR_FLAG:
+        return None
+    if len(argv) != 1 or sys.platform != "win32":
+        return 2
+
+    from vault_sink_job_supervisor import main as supervisor_main
+
+    # The same-exe inner worker needs the bootloader's _PYI_* extraction state.
+    return int(supervisor_main())
 
 
 def _dispatch_durable_job_worker(argv: list[str]) -> int | None:
@@ -64,8 +146,31 @@ def _log_outbound_tls_trust() -> None:
         print(f"[unchain] outbound TLS trust: unavailable ({exc})", flush=True)
 
 
+def _initialize_vault_sink_transport() -> None:
+    """Consume Electron's one-use HMAC key pipe before any tool can spawn.
+
+    Vault availability is optional for sidecar startup, but malformed or
+    incomplete broker transport is latched unavailable and scrubbed by the
+    client initializer.  The raw failure is never logged because it could be
+    attacker-controlled transport data.
+    """
+
+    try:
+        from vault_sink_client import initialize_process_vault_sink_client
+
+        initialize_process_vault_sink_client(required=False)
+    except Exception:
+        print("[unchain] vault sink transport: unavailable", flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    worker_exit_code = _dispatch_vault_sink_supervisor(args)
+    if worker_exit_code is not None:
+        return worker_exit_code
+    worker_exit_code = _dispatch_vault_sink_worker(args)
+    if worker_exit_code is not None:
+        return worker_exit_code
     worker_exit_code = _dispatch_durable_job_worker(args)
     if worker_exit_code is not None:
         return worker_exit_code
@@ -77,6 +182,19 @@ def main(argv: list[str] | None = None) -> int:
     port = _read_port()
     expected_parent_pid = _read_parent_pid()
 
+    try:
+        from session_execution_guard import session_guard_migration_receipt
+    except Exception as exc:
+        _emit_session_guard_startup_diagnostic(exc, phase="import")
+    else:
+        try:
+            session_guard_migration_receipt()
+        except Exception as exc:
+            _emit_session_guard_startup_diagnostic(exc, phase="call")
+    # The health receipt remains the content-free authority. Startup stays
+    # available so the launcher can observe and safely retry migration.
+
+    _initialize_vault_sink_transport()
     _log_outbound_tls_trust()
 
     try:
@@ -101,6 +219,13 @@ def main(argv: list[str] | None = None) -> int:
 
     app = create_app()
     server = ThreadedFlaskServer(app, host=host, port=port)
+    from memory_v2_deletion_runner import MemoryV2DeletionRunner
+    from memory_v2_runtime import get_memory_v2_runtime
+
+    deletion_runner = MemoryV2DeletionRunner(
+        lambda: get_memory_v2_runtime(required=False),
+        worker_id=f"sidecar-deletion-{os.getpid()}",
+    )
 
     shutdown_event = threading.Event()
 
@@ -138,6 +263,20 @@ def main(argv: list[str] | None = None) -> int:
         ).start()
 
     try:
+        memory_v2_runtime = get_memory_v2_runtime(required=False)
+        if memory_v2_runtime is not None:
+            memory_v2_runtime.recover_startup()
+    except Exception:
+        # Recovery is fail-closed for deletion and fail-open for availability:
+        # a degraded cleanup pass must never prevent the sidecar from starting.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "[context_v2] startup recovery degraded"
+        )
+
+    try:
+        deletion_runner.start()
         server.start()
         print(f"[unchain] listening on http://{host}:{port}", flush=True)
         while not shutdown_event.is_set():
@@ -145,6 +284,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         shutdown_event.set()
     finally:
+        deletion_runner.stop()
         server.stop()
         print("[unchain] server stopped", flush=True)
 

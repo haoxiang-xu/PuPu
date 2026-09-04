@@ -1,0 +1,366 @@
+name: Windows Artifact Signing
+description: Sign an isolated Windows payload and its exact NSIS installer with Azure Artifact Signing.
+
+inputs:
+  working-directory:
+    description: Repository directory containing package.json.
+    required: true
+  signing-root-path:
+    description: Existing isolated root that contains the payload and signing catalogue.
+    required: true
+  payload-path:
+    description: Existing isolated win-unpacked payload beneath signing-root-path.
+    required: true
+  bootstrap-output-path:
+    description: Empty directory beneath signing-root-path used only to prime elevate.exe.
+    required: true
+  installer-path:
+    description: Exact installer path produced from the signed payload.
+    required: true
+  evidence-output:
+    description: Exact JSON evidence filename written in working-directory.
+    required: true
+  evidence-schema:
+    description: One of the two closed evidence schemas supported by this action.
+    required: true
+  package-version:
+    description: Required only for pupu.windows-release-candidate-signing.v1.
+    required: false
+    default: ""
+  target-id:
+    description: Required only for pupu.windows-release-candidate-signing.v1; must be windows-x64.
+    required: false
+    default: ""
+  azure-client-id:
+    description: Azure workload identity client ID supplied by the protected caller.
+    required: true
+  azure-tenant-id:
+    description: Azure tenant ID supplied by the protected caller.
+    required: true
+  azure-subscription-id:
+    description: Azure subscription ID supplied by the protected caller.
+    required: true
+  azure-endpoint:
+    description: Artifact Signing endpoint supplied by the protected caller.
+    required: true
+  azure-signing-account-name:
+    description: Artifact Signing account supplied by the protected caller.
+    required: true
+  azure-certificate-profile-name:
+    description: Artifact Signing certificate profile supplied by the protected caller.
+    required: true
+
+outputs:
+  evidence-path:
+    description: Absolute path of the signed evidence JSON.
+    value: ${{ steps.verify.outputs.evidence_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate closed signing inputs and prime elevation helper
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SIGNING_ROOT_PATH: ${{ inputs.signing-root-path }}
+        PAYLOAD_PATH: ${{ inputs.payload-path }}
+        BOOTSTRAP_OUTPUT_PATH: ${{ inputs.bootstrap-output-path }}
+        INSTALLER_PATH: ${{ inputs.installer-path }}
+        EVIDENCE_OUTPUT: ${{ inputs.evidence-output }}
+        EVIDENCE_SCHEMA: ${{ inputs.evidence-schema }}
+        PACKAGE_VERSION: ${{ inputs.package-version }}
+        TARGET_ID: ${{ inputs.target-id }}
+        CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      run: |
+        $workingDirectory = [System.IO.Path]::GetFullPath($PWD)
+        $signingRoot = [System.IO.Path]::GetFullPath($env:SIGNING_ROOT_PATH)
+        $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
+        $bootstrapOutput = [System.IO.Path]::GetFullPath($env:BOOTSTRAP_OUTPUT_PATH)
+        $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
+        $installerName = [System.IO.Path]::GetFileName($installerPath)
+        $evidenceOutput = [System.IO.Path]::GetFullPath((Join-Path $workingDirectory $env:EVIDENCE_OUTPUT))
+        $allowedSchemas = @(
+          "pupu.windows-release-candidate-signing.v1",
+          "pupu.windows-signing-qualification.v1"
+        )
+        if ($env:EVIDENCE_SCHEMA -notin $allowedSchemas) {
+          throw "unsupported Windows signing evidence schema: $env:EVIDENCE_SCHEMA"
+        }
+        if (-not (Test-Path -LiteralPath $signingRoot -PathType Container)) {
+          throw "missing isolated signing root: $signingRoot"
+        }
+        $signingRootPrefix = $signingRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+        foreach ($path in @($payload, $bootstrapOutput)) {
+          if (-not $path.StartsWith($signingRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "signing path must remain inside the isolated root: $path"
+          }
+        }
+        if (-not (Test-Path -LiteralPath $payload -PathType Container)) {
+          throw "missing unpacked Windows payload: $payload"
+        }
+        if (Test-Path -LiteralPath $bootstrapOutput) {
+          throw "bootstrap output unexpectedly already exists: $bootstrapOutput"
+        }
+        if ([System.IO.Path]::GetDirectoryName($evidenceOutput) -ne $workingDirectory) {
+          throw "evidence output must be a file in the working directory: $evidenceOutput"
+        }
+        if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
+          if ([string]::IsNullOrWhiteSpace($env:PACKAGE_VERSION) -or $env:TARGET_ID -ne "windows-x64" -or $env:EVIDENCE_OUTPUT -ne "windows-signing-evidence.v1.json") {
+            throw "release-candidate signing requires windows-x64, a package version, and windows-signing-evidence.v1.json"
+          }
+        } elseif ($env:PACKAGE_VERSION -ne "" -or $env:TARGET_ID -ne "" -or $env:EVIDENCE_OUTPUT -ne "windows-signing-qualification.v1.json") {
+          throw "qualification signing requires its closed evidence schema and filename"
+        }
+        npx electron-builder --win nsis --x64 --prepackaged "$payload" --publish never --config.directories.output="$bootstrapOutput" --config.nsis.artifactName="$installerName" --config.win.verifyUpdateCodeSignature=false
+        $elevateHelper = Join-Path $payload "resources/elevate.exe"
+        if (-not (Test-Path -LiteralPath $elevateHelper -PathType Leaf)) {
+          throw "Electron Builder did not add the expected elevation helper: $elevateHelper"
+        }
+
+    - name: Build the exact signing catalogue
+      id: catalogue
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SIGNING_ROOT_PATH: ${{ inputs.signing-root-path }}
+        PAYLOAD_PATH: ${{ inputs.payload-path }}
+      run: |
+        $signingRoot = [System.IO.Path]::GetFullPath($env:SIGNING_ROOT_PATH)
+        $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
+        $payloadFiles = @(Get-ChildItem -LiteralPath $payload -File -Recurse |
+          Where-Object { $_.Extension -in ".exe", ".dll" } |
+          Sort-Object { [System.IO.Path]::GetRelativePath($payload, $_.FullName) })
+        if ($payloadFiles.Count -eq 0) {
+          throw "unpacked Windows payload contains no .exe or .dll files"
+        }
+        $unsignedPayloadRelativePaths = @(
+          "resources\mcp_runtime\python\DLLs\tcl86t.dll",
+          "resources\mcp_runtime\python\DLLs\tk86t.dll"
+        )
+        $unsignedPayloadFiles = @($payloadFiles | Where-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -in $unsignedPayloadRelativePaths
+        })
+        $unsignedPayloadActualPaths = @($unsignedPayloadFiles | ForEach-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName)
+        })
+        $missingUnsignedPayloadPaths = @($unsignedPayloadRelativePaths | Where-Object {
+          $_ -notin $unsignedPayloadActualPaths
+        })
+        if ($missingUnsignedPayloadPaths.Count -ne 0 -or $unsignedPayloadFiles.Count -ne $unsignedPayloadRelativePaths.Count) {
+          throw "the controlled unsigned payload exception set did not match exactly: $($missingUnsignedPayloadPaths -join ', ')"
+        }
+        $signableFiles = @($payloadFiles | Where-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -notin $unsignedPayloadRelativePaths
+        })
+        $signableFiles | ForEach-Object { $_.IsReadOnly = $false }
+        $readOnlySignableFiles = @($signableFiles | Where-Object { $_.IsReadOnly })
+        if ($readOnlySignableFiles.Count -ne 0) {
+          throw "signing payload still contains read-only .exe or .dll files"
+        }
+        $signingCatalog = Join-Path $signingRoot "windows-payload-signing-files.txt"
+        $signableFiles | ForEach-Object {
+          [System.IO.Path]::GetRelativePath($signingRoot, $_.FullName)
+        } | Set-Content -LiteralPath $signingCatalog -Encoding utf8
+        "path=$signingCatalog" >> $env:GITHUB_OUTPUT
+
+    - name: Azure login for Windows Artifact Signing
+      uses: azure/login@v3
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        subscription-id: ${{ inputs.azure-subscription-id }}
+
+    - name: Sign unpacked Windows payload with Artifact Signing
+      uses: azure/artifact-signing-action@v2
+      with:
+        endpoint: ${{ inputs.azure-endpoint }}
+        signing-account-name: ${{ inputs.azure-signing-account-name }}
+        certificate-profile-name: ${{ inputs.azure-certificate-profile-name }}
+        files-catalog: ${{ steps.catalogue.outputs.path }}
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+        exclude-environment-credential: true
+        exclude-workload-identity-credential: true
+        exclude-managed-identity-credential: true
+        exclude-shared-token-cache-credential: true
+        exclude-visual-studio-credential: true
+        exclude-visual-studio-code-credential: true
+        exclude-azure-cli-credential: false
+        exclude-azure-powershell-credential: true
+        exclude-azure-developer-cli-credential: true
+        exclude-interactive-browser-credential: true
+
+    - name: Build installer from Azure-signed Windows payload
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PAYLOAD_PATH: ${{ inputs.payload-path }}
+        INSTALLER_PATH: ${{ inputs.installer-path }}
+        CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      run: |
+        $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
+        $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
+        $installerName = [System.IO.Path]::GetFileName($installerPath)
+        npx electron-builder --win nsis --x64 --prepackaged "$payload" --publish never --config.nsis.artifactName="$installerName" --config.win.verifyUpdateCodeSignature=false --config.nsis.packElevateHelper=false
+        if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+          throw "missing exact Windows installer after repackage: $installerPath"
+        }
+
+    - name: Sign Windows installer with Artifact Signing
+      uses: azure/artifact-signing-action@v2
+      with:
+        endpoint: ${{ inputs.azure-endpoint }}
+        signing-account-name: ${{ inputs.azure-signing-account-name }}
+        certificate-profile-name: ${{ inputs.azure-certificate-profile-name }}
+        files: ${{ inputs.installer-path }}
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+        exclude-environment-credential: true
+        exclude-workload-identity-credential: true
+        exclude-managed-identity-credential: true
+        exclude-shared-token-cache-credential: true
+        exclude-visual-studio-credential: true
+        exclude-visual-studio-code-credential: true
+        exclude-azure-cli-credential: false
+        exclude-azure-powershell-credential: true
+        exclude-azure-developer-cli-credential: true
+        exclude-interactive-browser-credential: true
+
+    - name: Rebuild updater blockmap and metadata from the signed installer
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INSTALLER_PATH: ${{ inputs.installer-path }}
+      run: |
+        $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
+        $metadataPath = Join-Path ([System.IO.Path]::GetDirectoryName($installerPath)) "latest.yml"
+        $blockmapPath = "$installerPath.blockmap"
+        $appBuilder = Join-Path $PWD "node_modules/app-builder-bin/win/x64/app-builder.exe"
+        if (-not (Test-Path -LiteralPath $appBuilder -PathType Leaf)) {
+          throw "missing Windows app-builder for post-sign blockmap regeneration: $appBuilder"
+        }
+        if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
+          throw "missing Windows updater metadata generated with the installer: $metadataPath"
+        }
+        Remove-Item -LiteralPath $blockmapPath -Force -ErrorAction SilentlyContinue
+        & $appBuilder blockmap --input "$installerPath" --output "$blockmapPath"
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $blockmapPath -PathType Leaf)) {
+          throw "could not regenerate the Windows updater blockmap from the signed installer"
+        }
+        node scripts/release-qa/refresh-windows-updater-metadata.mjs `
+          --installer "$installerPath" `
+          --metadata "$metadataPath"
+
+    - name: Verify every signable payload file and installer
+      id: verify
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PAYLOAD_PATH: ${{ inputs.payload-path }}
+        INSTALLER_PATH: ${{ inputs.installer-path }}
+        EVIDENCE_OUTPUT: ${{ inputs.evidence-output }}
+        EVIDENCE_SCHEMA: ${{ inputs.evidence-schema }}
+        PACKAGE_VERSION: ${{ inputs.package-version }}
+        TARGET_ID: ${{ inputs.target-id }}
+      run: |
+        $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
+        $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
+        $payloadFiles = @(Get-ChildItem -LiteralPath $payload -File -Recurse |
+          Where-Object { $_.Extension -in ".exe", ".dll" } |
+          Sort-Object { [System.IO.Path]::GetRelativePath($payload, $_.FullName) })
+        $unsignedPayloadRelativePaths = @(
+          "resources\mcp_runtime\python\DLLs\tcl86t.dll",
+          "resources\mcp_runtime\python\DLLs\tk86t.dll"
+        )
+        $unsignedPayloadFiles = @($payloadFiles | Where-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -in $unsignedPayloadRelativePaths
+        })
+        $unsignedPayloadActualPaths = @($unsignedPayloadFiles | ForEach-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName)
+        })
+        $missingUnsignedPayloadPaths = @($unsignedPayloadRelativePaths | Where-Object {
+          $_ -notin $unsignedPayloadActualPaths
+        })
+        if ($missingUnsignedPayloadPaths.Count -ne 0 -or $unsignedPayloadFiles.Count -ne $unsignedPayloadRelativePaths.Count) {
+          throw "the controlled unsigned payload exception set did not match exactly: $($missingUnsignedPayloadPaths -join ', ')"
+        }
+        if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+          throw "missing exact Windows installer for Authenticode verification: $installerPath"
+        }
+        $signablePayloadFiles = @($payloadFiles | Where-Object {
+          [System.IO.Path]::GetRelativePath($payload, $_.FullName) -notin $unsignedPayloadRelativePaths
+        })
+        $signedFiles = @($signablePayloadFiles) + @(Get-Item -LiteralPath $installerPath)
+        $signedEvidence = foreach ($file in $signedFiles) {
+          $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+          if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
+            throw "Authenticode status for $($file.FullName): $($signature.Status)"
+          }
+          $reportedPath = if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
+            [System.IO.Path]::GetRelativePath($PWD, $file.FullName)
+          } else {
+            $file.FullName
+          }
+          [ordered]@{
+            path = $reportedPath
+            sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            signer_subject = $signature.SignerCertificate.Subject
+            signer_thumbprint = $signature.SignerCertificate.Thumbprint
+          }
+        }
+        $unsignedPayloadExceptions = foreach ($file in $unsignedPayloadFiles) {
+          $relativePath = [System.IO.Path]::GetRelativePath($payload, $file.FullName)
+          $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+          [ordered]@{
+            path = $relativePath
+            sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            authenticode_status = $signature.Status.ToString()
+            reason = "upstream Tcl/Tk DLL rejected by SignTool as not Authenticode-compatible (0x800700C1)"
+          }
+        }
+        $report = [ordered]@{
+          schema = $env:EVIDENCE_SCHEMA
+          status = "passed"
+          source_revision = $env:GITHUB_SHA
+          payload_file_count = $payloadFiles.Count
+          signable_payload_file_count = $signablePayloadFiles.Count
+          installer_file_count = 1
+          unsigned_payload_exceptions = @($unsignedPayloadExceptions)
+          signed_files = @($signedEvidence)
+        }
+        if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
+          $report = [ordered]@{
+            schema = $report.schema
+            status = $report.status
+            candidate_run_id = $env:GITHUB_RUN_ID
+            source_revision = $report.source_revision
+            package_version = $env:PACKAGE_VERSION
+            target_id = $env:TARGET_ID
+            payload_file_count = $report.payload_file_count
+            signable_payload_file_count = $report.signable_payload_file_count
+            installer_file_count = $report.installer_file_count
+            unsigned_payload_exceptions = $report.unsigned_payload_exceptions
+            signed_files = $report.signed_files
+          }
+        } else {
+          $report = [ordered]@{
+            schema = $report.schema
+            status = $report.status
+            run_id = $env:GITHUB_RUN_ID
+            source_revision = $report.source_revision
+            payload_file_count = $report.payload_file_count
+            signable_payload_file_count = $report.signable_payload_file_count
+            installer_file_count = $report.installer_file_count
+            unsigned_payload_exceptions = $report.unsigned_payload_exceptions
+            signed_files = $report.signed_files
+          }
+        }
+        $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $env:EVIDENCE_OUTPUT -Encoding utf8
+        node scripts/release-qa/canonicalize-windows-signing-evidence.mjs `
+          --evidence "$env:EVIDENCE_OUTPUT"
+        if ($LASTEXITCODE -ne 0) {
+          throw "Windows signing evidence canonicalization failed"
+        }
+        "evidence_path=$([System.IO.Path]::GetFullPath($env:EVIDENCE_OUTPUT))" >> $env:GITHUB_OUTPUT

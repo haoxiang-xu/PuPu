@@ -344,17 +344,17 @@ const CustomProviderEditor = ({
   };
 
   /* ── palette ── */
-  const textColor = isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.82)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.45)";
-  const sectionColor = isDark ? "rgba(255,255,255,0.34)" : "rgba(0,0,0,0.34)";
-  const borderColor = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const sectionColor = "var(--pupu-text-faint)";
+  const borderColor = "var(--pupu-border)";
+  const dividerColor = "var(--pupu-border)";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const errorColor = isDark ? "#f87171" : "#dc2626";
   const warnColor = isDark ? "#fdba74" : "#c2410c";
   const successColor = "#4CAF50";
-  const segOnBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
-  const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const segOnBg = "var(--pupu-overlay-active)";
+  const actionBg = "var(--pupu-overlay-active)";
 
   const inputStyle = {
     width: "100%",
@@ -957,9 +957,7 @@ const CustomProviderEditor = ({
               marginTop: 12,
               padding: "8px 10px",
               borderRadius: 8,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.04)"
-                : "rgba(0,0,0,0.03)",
+              backgroundColor: "var(--pupu-overlay-ghost)",
             }}
           >
             {form.auth_key_label && (

@@ -13,6 +13,13 @@ import {
   TOKEN_USAGE_MIGRATION_MARKER_KEY,
 } from "./storage";
 
+const {
+  buildRunBundleV1,
+} = require("../../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+const {
+  canonicalize,
+} = require("../../../../electron/shared/run_bundle_v1");
+
 let lastBarChartProps = null;
 
 jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => {
@@ -312,5 +319,142 @@ describe("TokenUsageSettings — SQL mode (Phase 2)", () => {
 
     await waitFor(() => expect(api.queryTokenUsage).toHaveBeenCalledTimes(2));
     expect(api.queryTokenUsage.mock.calls[1][0].startMs).toBe(0);
+  });
+});
+
+describe("TokenUsageSettings — canonical RunBundle mode", () => {
+  const installRunBundleBridge = (bundles) => {
+    const records = bundles.map((bundle) => ({
+      bundle,
+      usageSlices: bundle.usage_slices.map((slice) =>
+        JSON.parse(canonicalize(slice)),
+      ),
+      createdAt: Date.parse("2026-08-13T20:00:01Z"),
+      updatedAt: Date.parse("2026-08-13T20:00:01Z"),
+    }));
+    window.runBundleStorageAPI = {
+      upsert: jest.fn(() => Promise.resolve({ ok: true })),
+      query: jest.fn(() => Promise.resolve({ ok: true, records })),
+      clear: jest.fn(() => Promise.resolve({ ok: true, cleared: records.length })),
+    };
+    return window.runBundleStorageAPI;
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    lastBarChartProps = null;
+    resetTokenUsageStorageForTests();
+  });
+
+  afterEach(() => {
+    resetTokenUsageStorageForTests();
+    delete window.runBundleStorageAPI;
+    delete window.settingsStorageAPI;
+  });
+
+  test("uses canonical per-call totals and ignores the legacy fallback", async () => {
+    setTokenUsageRecords([
+      {
+        timestamp: Date.now(),
+        provider: "legacy",
+        model: "legacy",
+        model_id: "legacy:model",
+        consumed_tokens: 9999,
+      },
+    ]);
+    const api = installRunBundleBridge([buildRunBundleV1()]);
+
+    renderTokenUsageSettings();
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "1.2k"));
+    expectStatCardValue("Input Tokens", "1.0k");
+    expectStatCardValue("Output Tokens", "200");
+    expectStatCardValue("Requests", "1");
+    expectStatCardValue("Top Model", "openai:gpt-5.6");
+    expect(api.query).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 5000, offset: 0 }),
+    );
+    expect(screen.queryByText("legacy:model")).not.toBeInTheDocument();
+  });
+
+  test("shows unavailable canonical counts as dashes rather than zero", async () => {
+    installRunBundleBridge([buildRunBundleV1({ unavailable: true })]);
+    renderTokenUsageSettings();
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "—"));
+    expectStatCardValue("Input Tokens", "—");
+    expectStatCardValue("Output Tokens", "—");
+    expectStatCardValue("Avg Consumed / Request", "—");
+    expectStatCardValue("Requests", "1");
+  });
+
+  test("shows an explicit unavailable state and retries a failed canonical query", async () => {
+    setTokenUsageRecords([
+      {
+        timestamp: Date.now(),
+        provider: "legacy",
+        model: "legacy",
+        model_id: "legacy:model",
+        consumed_tokens: 9999,
+      },
+    ]);
+    const api = installRunBundleBridge([buildRunBundleV1()]);
+    api.query.mockRejectedValueOnce(new Error("query failed"));
+
+    renderTokenUsageSettings();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("token-usage-query-error")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(
+        "Could not load token usage data. Your stored data has not been changed.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByTestId("token-usage-overview-grid")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+    expect(screen.queryByText("No token usage data yet")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "1.2k"));
+    expect(api.query).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("token-usage-query-error")).not.toBeInTheDocument();
+    expect(api.clear).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem("token_usage")).not.toBeNull();
+  });
+
+  test("keeps a successful empty canonical query distinct from an unavailable query", async () => {
+    const api = installRunBundleBridge([]);
+
+    renderTokenUsageSettings();
+
+    await waitFor(() => expect(api.query).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("token-usage-query-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("token-usage-overview-grid")).toBeInTheDocument();
+    expectStatCardValue("Requests", "0");
+    expect(lastBarChartProps.emptyMessage).toBe("No token usage data yet");
+  });
+
+  test("clear removes canonical bundles without deleting legacy evidence", async () => {
+    setTokenUsageRecords([
+      {
+        timestamp: Date.now(),
+        provider: "legacy",
+        model: "legacy",
+        model_id: "legacy:model",
+        consumed_tokens: 10,
+      },
+    ]);
+    const api = installRunBundleBridge([buildRunBundleV1()]);
+    renderTokenUsageSettings();
+    await waitFor(() => expectStatCardValue("Requests", "1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(api.clear).toHaveBeenCalledWith({});
+    expect(window.localStorage.getItem("token_usage")).not.toBeNull();
+    expectStatCardValue("Requests", "0");
   });
 });

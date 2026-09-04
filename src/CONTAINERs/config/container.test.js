@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import ConfigContainer from "./container";
 import { ConfigContext, EnvironmentContext } from "./context";
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { SEMANTIC_TOKEN_KEYS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 let mockSetWindowSize;
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => {
@@ -209,14 +211,7 @@ describe("ConfigContainer side menu persistence", () => {
   });
 
   test("provides the semantic highlight color when theme customization is enabled", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -232,17 +227,11 @@ describe("ConfigContainer side menu persistence", () => {
   });
 });
 
-const SEMANTIC_KEYS = [
-  "accent",
-  "background",
-  "sidebar",
-  "surface",
-  "text",
-  "textMuted",
-  "border",
-  "success",
-  "danger",
-];
+/* Was a hand-copied duplicate of the token list, which then had to be
+   edited in lockstep every time the taxonomy grew. Read the real one —
+   this assertion is about the container injecting the whole palette, not
+   about any particular arity. */
+const SEMANTIC_KEYS = SEMANTIC_TOKEN_KEYS;
 
 const SemanticProbe = () => {
   const { theme } = useContext(ConfigContext);
@@ -276,15 +265,8 @@ describe("ConfigContainer semantic palette", () => {
     themeBridge.setBackgroundColor.mockClear();
   });
 
-  test("injects theme.semantic with 8 default keys", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+  test("injects theme.semantic with the full default palette", async () => {
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -304,14 +286,12 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
         appearance: {
           theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
     render(
       <ConfigContainer>
         <SemanticProbe />
@@ -323,14 +303,7 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("writes --pupu-accent CSS variable to documentElement", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -348,9 +321,6 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: true,
-        },
         appearance: {
           theme: {
             preset: "default",
@@ -366,8 +336,9 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
-    const { container } = render(
+    render(
       <ConfigContainer>
         <LegacyThemeProbe />
       </ConfigContainer>,
@@ -388,9 +359,6 @@ describe("ConfigContainer semantic palette", () => {
       expect(
         document.documentElement.style.getPropertyValue("--pupu-background"),
       ).toBe("#abcdef");
-      expect(container.firstChild.style.getPropertyValue("background-color")).toBe(
-        "rgb(171, 205, 239)",
-      );
     });
   });
 
@@ -398,9 +366,6 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: {
-          enable_theme_color_customization: false,
-        },
         appearance: {
           theme: {
             preset: "default",
@@ -416,6 +381,7 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: false });
 
     render(
       <ConfigContainer>
@@ -488,12 +454,12 @@ describe("ConfigContainer boot-loading-gate integration", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
-        feature_flags: { enable_theme_color_customization: true },
         appearance: {
           theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
         },
       }),
     );
+    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -523,5 +489,40 @@ describe("ConfigContainer boot-loading-gate integration", () => {
     // The overlay itself is untouched beyond the bar width — release() is
     // chat.js's job (S3), not the container's.
     expect(document.getElementById("boot-overlay")).not.toBeNull();
+  });
+});
+
+/* jsdom's CSSOM drops any value containing var() — `style.background` comes
+   back as the empty string — so the shell's paint cannot be asserted through
+   the DOM. Same situation, same remedy as the armed-reset affordance in
+   theme_editor.test.js: scan the source.
+
+   What this protects: the shell must carry ONE background declaration whose
+   fallback lives inside the var(). A literal `backgroundColor` written next
+   to a `background: var(...)` shorthand writes the same CSSOM slot, and the
+   literal wins — pinning the shell to the JS `theme` object. `theme` only
+   moves when the theme editor commits, while --pupu-background moves on every
+   preview frame, so that collision is what made the area behind the message
+   list wait for the color picker to close (measured live: with the literal
+   present, setting --pupu-background left the shell at its old value; with it
+   removed, the shell followed immediately). */
+describe("container.js shell paints from --pupu-background alone", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "container.js"),
+    "utf8",
+  );
+  const shellStyle = src.slice(
+    src.indexOf("<ConfigContext.Provider value={configValue}>"),
+  );
+
+  test("the shell background is one var() declaration carrying its own fallback", () => {
+    expect(shellStyle).toMatch(
+      /background: `var\(--pupu-background, \$\{[\s\S]*?\}\)`/,
+    );
+  });
+
+  test("no literal backgroundColor competes with it on the shell element", () => {
+    const styleBlock = shellStyle.slice(0, shellStyle.indexOf("</div>"));
+    expect(styleBlock).not.toMatch(/^\s*backgroundColor:/m);
   });
 });

@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PuPu · Discover 星图 · 深化稿</title>
+<style>
+@font-face {
+  font-family: "JostLocal";
+  src: url("../../src/BUILTIN_COMPONENTs/fonts/Jost/Jost-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900; font-display: block;
+}
+
+:root {
+  --pd-page-bg: #08080a;
+  --pd-page-panel: #121215;
+  --pd-page-line: rgba(255,255,255,0.09);
+  --pd-page-text: rgba(255,255,255,0.93);
+  --pd-page-dim: rgba(255,255,255,0.54);
+  --pd-page-faint: rgba(255,255,255,0.32);
+  --pd-page-accent: #8fb6ff;
+  --pd-page-warn: #f0a868;
+  --pd-page-good: #6fd48d;
+
+  --pupu-background: #121212;
+  --pupu-text-rgb: 255,255,255;
+  --pupu-pill: #9aa8ff;
+  --pupu-pill-bg: rgba(124,140,248,0.12);
+  --pupu-quiet: rgba(255,255,255,0.045);
+
+  /* ── NIGHT SKY (dark theme) ── */
+  --sky-bg: radial-gradient(128% 96% at 50% 4%, #1a1e28, #0d0e12 72%);
+  --sky-neb: radial-gradient(38% 44% at 18% 26%, rgba(90,130,255,0.10), transparent 70%),
+             radial-gradient(34% 40% at 82% 74%, rgba(190,120,255,0.09), transparent 70%);
+  --sky-edge: rgba(255,255,255,0.05);
+  --sky-dust: #ffffff;
+  --sky-line: rgba(255,255,255,0.20);
+  --sky-line-on: rgba(160,195,255,0.62);
+  --sky-region: rgba(130,170,255,0.055);
+  --sky-live: #8fb6ff;
+  --sky-halo: rgba(115,160,255,0.30);
+  --sky-plate: #14161c;
+  --sky-ring: rgba(255,255,255,0.26);
+  --sky-ring-core: rgba(255,255,255,0.34);
+  --sky-label: #c8d6f5;
+  --sky-tag-bg: rgba(143,182,255,0.18);
+  --sky-tag-ink: #cfe0ff;
+}
+
+/* ── STAR CHART (light theme) ──
+   A printed celestial atlas, not a washed-out night sky. Ink on warm
+   paper: nothing glows, because paper does not glow. Same structure,
+   different material — that is what makes the metaphor survive the
+   theme switch instead of breaking. */
+[data-mock="light"] {
+  --pupu-background: #ffffff;
+  --pupu-text-rgb: 34,34,34;
+  --pupu-pill: #2563eb;
+  --pupu-pill-bg: rgba(37,99,235,0.08);
+  --pupu-quiet: rgba(0,0,0,0.035);
+
+  --sky-bg: radial-gradient(130% 100% at 50% 0%, #fdfcf8, #f2efe6 78%);
+  --sky-neb: radial-gradient(40% 46% at 18% 26%, rgba(120,110,80,0.05), transparent 70%),
+             radial-gradient(36% 42% at 82% 74%, rgba(90,100,130,0.05), transparent 70%);
+  --sky-edge: rgba(60,54,46,0.13);
+  --sky-dust: #3c362e;
+  --sky-line: rgba(60,54,46,0.30);
+  --sky-line-on: rgba(45,70,140,0.55);
+  --sky-region: rgba(60,54,46,0.045);
+  --sky-live: #2d4a94;
+  --sky-halo: rgba(45,74,148,0.16);
+  --sky-plate: #ffffff;
+  --sky-ring: rgba(60,54,46,0.38);
+  --sky-ring-core: rgba(60,54,46,0.42);
+  --sky-label: #4a4336;
+  --sky-tag-bg: rgba(45,74,148,0.12);
+  --sky-tag-ink: #26406f;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--pd-page-bg); color: var(--pd-page-text);
+  font-family: "JostLocal", "Jost", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+}
+.pd-wrap { max-width: 1500px; margin: 0 auto; padding: 0 40px 140px; }
+
+.pd-masthead { position: relative; padding: 78px 0 44px; overflow: hidden; }
+.pd-masthead::before {
+  content: ""; position: absolute; left: -100px; top: -110px; width: 700px; height: 420px;
+  background: radial-gradient(46% 58% at 32% 46%, rgba(115,160,255,0.22), transparent 70%),
+              radial-gradient(44% 54% at 72% 56%, rgba(190,120,255,0.13), transparent 70%);
+  filter: blur(52px); pointer-events: none;
+}
+.pd-masthead > * { position: relative; }
+.pd-kicker { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--pd-page-faint); margin-bottom: 20px; }
+.pd-back { color: var(--pd-page-accent); text-decoration: none; }
+.pd-back:hover { text-decoration: underline; }
+.pd-h1 { font-size: 54px; font-weight: 300; line-height: 1.08; margin: 0 0 20px; letter-spacing: -0.022em; }
+.pd-lede { font-size: 17.5px; color: var(--pd-page-dim); max-width: 820px; margin: 0; font-weight: 300; }
+.pd-lede strong { color: var(--pd-page-text); font-weight: 400; }
+
+.pd-toolbar {
+  position: sticky; top: 0; z-index: 30; background: rgba(8,8,10,0.9);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--pd-page-line);
+  display: flex; align-items: center; gap: 14px; padding: 13px 40px; margin: 0 -40px;
+}
+.pd-toolbar-title { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--pd-page-faint); }
+.pd-seg { display: flex; gap: 2px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 9px; margin-left: auto; }
+.pd-seg button {
+  font-family: inherit; font-size: 12.5px; border: 0; cursor: pointer; background: transparent;
+  color: var(--pd-page-dim); padding: 5px 17px; border-radius: 7px; transition: background .18s, color .18s;
+}
+.pd-seg button:hover { background: rgba(255,255,255,0.07); color: var(--pd-page-text); }
+.pd-seg button[aria-pressed="true"] { background: rgba(255,255,255,0.13); color: var(--pd-page-text); }
+
+.pd-section { padding: 74px 0 0; }
+.pd-section-label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pd-page-faint); margin-bottom: 12px; }
+.pd-h2 { font-size: 31px; font-weight: 300; margin: 0 0 16px; letter-spacing: -0.014em; }
+.pd-body { font-size: 15px; color: var(--pd-page-dim); max-width: 840px; font-weight: 300; }
+.pd-body strong { color: var(--pd-page-text); font-weight: 500; }
+.pd-body code, .pd-find code, .pd-notes code, .pd-cap code {
+  font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--pd-page-text);
+  background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px;
+}
+
+.pd-findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; margin-top: 28px; }
+.pd-find { background: var(--pd-page-panel); border: 1px solid var(--pd-page-line); border-radius: 14px; padding: 22px 24px; }
+.pd-find-tag { display: inline-block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; margin-bottom: 13px; }
+.pd-tag-block { background: rgba(240,168,104,0.14); color: var(--pd-page-warn); }
+.pd-tag-fact { background: rgba(143,182,255,0.15); color: var(--pd-page-accent); }
+.pd-tag-good { background: rgba(111,212,141,0.13); color: var(--pd-page-good); }
+.pd-find h3 { font-size: 16.5px; font-weight: 500; margin: 0 0 9px; }
+.pd-find p { font-size: 13.5px; color: var(--pd-page-dim); margin: 0; font-weight: 300; line-height: 1.65; }
+
+/* screen grid */
+.pd-screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(390px, 1fr)); gap: 30px; margin-top: 32px; }
+.pd-screen { }
+.pd-pad {
+  background: repeating-conic-gradient(rgba(255,255,255,0.02) 0% 25%, transparent 0% 50%) 50% / 22px 22px;
+  border: 1px solid var(--pd-page-line); border-radius: 18px; padding: 22px;
+  display: flex; justify-content: center; overflow: hidden;
+}
+.pd-pad .pk-modal { transform: scale(0.64); transform-origin: top center; margin-bottom: -216px; }
+.pd-pad-full { }
+.pd-pad-full .pk-modal { transform: none; margin-bottom: 0; }
+.pd-cap { margin-top: 16px; }
+.pd-cap b { display: block; font-size: 16px; font-weight: 500; margin-bottom: 5px; }
+.pd-cap span { font-size: 13.5px; color: var(--pd-page-dim); font-weight: 300; line-height: 1.6; display: block; }
+
+.pd-stage { display: grid; grid-template-columns: 660px 1fr; gap: 48px; align-items: start; margin-top: 30px; }
+@media (max-width: 1200px) { .pd-stage { grid-template-columns: 1fr; } }
+.pd-notes h4 { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--pd-page-faint); margin: 0 0 13px; font-weight: 400; }
+.pd-notes h4:not(:first-child) { margin-top: 30px; }
+.pd-notes ul { margin: 0; padding: 0; list-style: none; }
+.pd-notes li { font-size: 13.5px; color: var(--pd-page-dim); font-weight: 300; padding: 0 0 11px 18px; position: relative; line-height: 1.62; }
+.pd-notes li::before { content: ""; position: absolute; left: 0; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pd-page-faint); }
+.pd-notes li strong { color: var(--pd-page-text); font-weight: 500; }
+
+/* layout diagram */
+.pd-diagram { background: var(--pd-page-panel); border: 1px solid var(--pd-page-line); border-radius: 16px; padding: 30px; margin-top: 28px; }
+.pd-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 22px; margin-top: 24px; }
+.pd-step-n { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--pd-page-accent); margin-bottom: 8px; }
+.pd-step h5 { font-size: 15px; font-weight: 500; margin: 0 0 7px; }
+.pd-step p { font-size: 13px; color: var(--pd-page-dim); margin: 0; font-weight: 300; line-height: 1.6; }
+
+table.pd-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.pd-tbl th { text-align: left; padding: 13px 18px; font-weight: 500; border-bottom: 1px solid var(--pd-page-line); background: var(--pd-page-panel); }
+table.pd-tbl td { padding: 12px 18px; border-bottom: 1px solid var(--pd-page-line); color: var(--pd-page-dim); font-weight: 300; vertical-align: top; }
+table.pd-tbl td:first-child { color: var(--pd-page-text); font-weight: 400; white-space: nowrap; }
+
+/* ══════ the 600x600 modal ══════ */
+.pk-modal {
+  width: 600px; height: 600px; flex: 0 0 auto; background: var(--pupu-background);
+  color: rgba(var(--pupu-text-rgb),0.9); border-radius: 14px; overflow: hidden; display: flex;
+  font-family: "JostLocal", "Jost", sans-serif; font-size: 13px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.55); position: relative;
+}
+[data-mock="light"] .pk-modal { box-shadow: 0 30px 80px rgba(0,0,0,0.3); }
+.pk-side { width: 140px; flex-shrink: 0; padding: 16px 10px 10px; background: rgba(var(--pupu-text-rgb),0.035); border-right: 1px solid rgba(var(--pupu-text-rgb),0.06); display: flex; flex-direction: column; gap: 2px; }
+.pk-side-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(var(--pupu-text-rgb),0.3); padding: 8px 12px 12px; }
+.pk-nav { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-radius: 7px; font-size: 13px; color: rgba(var(--pupu-text-rgb),1); opacity: 0.65; }
+.pk-nav.pk-on { opacity: 1; }
+.pk-nav svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.pk-nav-count { margin-left: auto; font-size: 10.5px; font-weight: 500; background: rgba(var(--pupu-text-rgb),0.10); border-radius: 999px; padding: 1px 7px; }
+.pk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pk-head { flex-shrink: 0; padding: 20px 26px 0; }
+.pk-title { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; color: rgba(var(--pupu-text-rgb),0.90); }
+.pk-sub { font-size: 12px; font-weight: 300; color: rgba(var(--pupu-text-rgb),0.45); margin-top: 3px; }
+.pk-body { flex: 1; overflow: hidden; padding: 8px 26px 26px; position: relative; }
+.pk-close { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; opacity: 0.45; z-index: 4; color: rgba(var(--pupu-text-rgb),1); }
+.pk-close svg { width: 14px; height: 14px; }
+.pk-fold { position: absolute; left: 0; right: 0; bottom: 0; height: 26px; background: linear-gradient(to bottom, transparent, var(--pupu-background) 78%); pointer-events: none; }
+.pk-sec { display: flex; align-items: baseline; gap: 6px; padding: 11px 0 3px; }
+.pk-sec-l { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(var(--pupu-text-rgb),0.35); }
+.pk-sec-a { margin-left: auto; font-size: 10.5px; font-weight: 500; color: var(--pupu-pill); padding: 2px 6px; border-radius: 6px; }
+.pk-ic { border-radius: 9px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.pk-ic svg { display: block; }
+.pk-ic-plain { background: rgba(var(--pupu-text-rgb),0.06); }
+.pk-pill { font-size: 11px; font-weight: 500; padding: 3px 13px; border-radius: 999px; color: var(--pupu-pill); background: var(--pupu-pill-bg); flex: 0 0 auto; white-space: nowrap; }
+.pk-pill-open { color: rgba(var(--pupu-text-rgb),0.55); background: rgba(var(--pupu-text-rgb),0.07); }
+.pk-row { display: flex; align-items: center; gap: 11px; padding: 8px 0; }
+.pk-row + .pk-row { border-top: 1px solid rgba(var(--pupu-text-rgb),0.05); }
+.pk-row-txt { flex: 1; min-width: 0; }
+.pk-name { font-size: 12.5px; font-weight: 500; color: rgba(var(--pupu-text-rgb),0.90); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-desc { font-size: 10.5px; font-weight: 300; color: rgba(var(--pupu-text-rgb),0.44); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="pd-wrap">
+
+  <header class="pd-masthead">
+    <div class="pd-kicker">PuPu · Discover · 方案 8 深化 · <a class="pd-back" href="./index.html">← 回五个方案</a></div>
+    <h1 class="pd-h1">星图，细化</h1>
+    <p class="pd-lede">
+      上一稿我给星图列了三条反对意见：<strong>坐标要人工编排、不可扫描、亮色下隐喻不成立</strong>。
+      这一稿的任务就是把这三条解掉 —— 不是绕开。
+      下面先讲三个解法，再给六个真实状态。
+    </p>
+  </header>
+
+  <div class="pd-toolbar">
+    <span class="pd-toolbar-title">真实 600 × 600 · Dark = 夜空 / Light = 星图</span>
+    <div class="pd-seg" role="group" aria-label="主题切换">
+      <button type="button" data-theme="dark" aria-pressed="true">夜空 Dark</button>
+      <button type="button" data-theme="light" aria-pressed="false">星图 Light</button>
+    </div>
+  </div>
+
+  <!-- ═══ 三个反对意见 ═══ -->
+  <section class="pd-section">
+    <div class="pd-section-label">先解掉反对意见</div>
+    <h2 class="pd-h2">三条，逐条回答</h2>
+    <div class="pd-findings">
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-good">已解 · 结构</span>
+        <h3>不可扩展 → 这不是目录，是<em>你的</em>星空</h3>
+        <p>
+          原来的假设是"星图要装下 registry 全部条目"，那当然会崩。
+          换个定义：<strong>星空 = 策展（featured + essentials + collections）∪ 你装过的一切</strong>。
+          今天是 12 颗，涨到 40 个插件它还是十几颗 —— 因为策展位不会膨胀，
+          而你装过的东西<em>本来就该</em>出现在自己的天上。
+          目录仍然是 Store 那份平铺列表，"全部 18 颗 ›" 就是去那儿的门。
+          <br><br>
+          附带好处：新装的插件<strong>加入你的星空</strong>，这正好是"用户拥有的 agent 之家"那条定位的具象化。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-good">已解 · 交互</span>
+        <h3>不可扫描 → 搜索不过滤，搜索<em>调暗</em></h3>
+        <p>
+          顶部加搜索框，但它不把星图换成列表 —— 它把不匹配的星压到 16% 不透明度，
+          匹配的保持全亮并加一圈光环。
+          <strong>敲“文件”，整个 Workspace 星座自己亮出来</strong>，你顺带看见了它还缺两颗。
+          列表式搜索给你三行结果；这个给你三行结果<em>加上它们属于哪里</em>。
+        </p>
+      </div>
+      <div class="pd-find">
+        <span class="pd-find-tag pd-tag-good">已解 · 材质</span>
+        <h3>亮色崩了 → 换材质，不换结构</h3>
+        <p>
+          亮色下不做"变淡的夜空"，做<strong>印刷星图</strong>：暖白纸、墨线、实心墨点是已点亮、空心圈是未点亮，
+          星座区域用极淡的墨色晕染 —— 就是古典天文图册的画法。
+          <strong>纸不会发光</strong>，所以亮色版本里所有 glow 都换成了细墨环和一点投影。
+          同一套结构、同一套坐标，两种材质。右上角切一下就能对比。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 布局规则 ═══ -->
+  <section class="pd-section">
+    <div class="pd-section-label">坐标从哪来</div>
+    <h2 class="pd-h2">四步，确定性，无物理引擎</h2>
+    <p class="pd-body">
+      "人工摆坐标"是上一稿最实的一条反对。这里给出一个<strong>纯数据推导</strong>的规则：
+      同样的输入永远得到同样的天空，不需要 force-directed，也不需要每次渲染都跑一遍布局。
+    </p>
+    <div class="pd-diagram">
+      <div class="pd-steps">
+        <div class="pd-step">
+          <div class="pd-step-n">第一步</div>
+          <h5>星座自带形状</h5>
+          <p>
+            每个 collection 在 <code>plugin_store_curation.json</code> 里多存一个
+            <code>shape</code>：成员在 0–1 归一化空间里的相对位置。
+            collection 是编辑策展的，今天只有 3 个 —— 给它编个形状和写 blurb 是同一件事，不是新负担。
+          </p>
+        </div>
+        <div class="pd-step">
+          <div class="pd-step-n">第二步</div>
+          <h5>星座落进象限锚点</h5>
+          <p>
+            画布切 4 个锚点（左上 / 右上 / 左下 / 右下）。星座按 curation 顺序依次占位，
+            形状等比缩放贴进去。3 个星座占 3 个象限，剩下一个留给散星。
+          </p>
+        </div>
+        <div class="pd-step">
+          <div class="pd-step-n">第三步</div>
+          <h5>散星按 id 哈希散布</h5>
+          <p>
+            不属于任何星座的（featured、你装的其他东西）用 <code>toolkitId</code> 的哈希
+            算极坐标，落在空象限和缝隙里。
+            哈希是确定的，<strong>所以同一个插件永远在天上的同一个位置</strong> —— 用户会记住它在哪。
+          </p>
+        </div>
+        <div class="pd-step">
+          <div class="pd-step-n">第四步</div>
+          <h5>碰撞就沿半径外推</h5>
+          <p>
+            两颗星距离小于半径和 + 8px 就把后者沿极角往外推一格，最多重试 12 次。
+            12 颗星的规模下这一步基本不触发；它存在只是为了让规则在 30 颗时不出丑。
+          </p>
+        </div>
+      </div>
+      <p class="pd-body" style="margin-top:26px;font-size:13.5px">
+        <strong>为什么确定性重要：</strong>星图唯一的记忆价值就是"我记得 Memory 在右边那一片"。
+        每次打开位置都变的星图，等于一张每次重排的地图 —— 那就真的只剩装饰了。
+        这也顺带让截图可以做视觉回归：本页所有背景星尘走一个固定种子的 LCG，
+        <em>不是</em> <code>Math.random()</code>，两次渲染逐像素一致。
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ 主屏 ═══ -->
+  <section class="pd-section">
+    <div class="pd-section-label">主屏</div>
+    <h2 class="pd-h2">默认状态</h2>
+    <div class="pd-stage">
+      <div class="pd-pad pd-pad-full"><div class="pk-modal" id="skyDefault"></div></div>
+      <div class="pd-notes">
+        <h4>这一稿新加的东西</h4>
+        <ul>
+          <li><strong>星等。</strong>策展过的（featured / essentials）是 34px 大星，普通条目 30px，未点亮的 22 / 18px。上一稿所有星一样大，读起来是均匀噪点；现在有主次了。</li>
+          <li><strong>背景星尘。</strong>54 颗与数据无关的小点，纯氛围 —— 这是"一片天"和"一张关系图"的区别所在。固定种子，可做像素级回归。</li>
+          <li><strong>星云。</strong>两团极淡的径向光，一冷一暖，避免大面积纯色死黑。</li>
+          <li><strong>完整星座会被"晕染"。</strong>Web Research 两颗都亮了，于是连线变实线、加宽，并铺一层极淡的区域色 —— 古典星图给星官上色的画法。缺一颗的仍然是虚线。</li>
+          <li><strong>星座标签自带进度</strong>：完整的显示对勾，没完整的显示 <code>1/3</code>。</li>
+        </ul>
+        <h4>下半屏</h4>
+        <ul>
+          <li>三行星座进度，圆点数量与天上完全一致 —— 上一稿我写过一个"已点亮 9/18"的标题，但图上只画了 4 颗亮星，这次所有数字都能在图上数出来。</li>
+          <li>按钮文案从 GET 换成 <strong>“点亮”</strong>，星座行是 <strong>“补完 2”</strong>。词汇统一到隐喻里。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 状态 ═══ -->
+  <section class="pd-section">
+    <div class="pd-section-label">状态</div>
+    <h2 class="pd-h2">五个必须设计的时刻</h2>
+    <p class="pd-body">
+      一个交互式的图，真正的工作量不在默认态，在这些地方。以下每一张都是同一个组件的不同 props。
+    </p>
+    <div class="pd-screens">
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skyHover"></div></div>
+        <div class="pd-cap"><b>悬停</b><span>
+          悬停 MarkItDown：它和<em>同星座的其他成员</em>保持全亮，其余整片压到 16%，
+          名字标签贴着星出现。一次悬停回答两个问题 —— 这是什么，以及它跟谁是一伙的。
+        </span></div>
+      </div>
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skySelected"></div></div>
+        <div class="pd-cap"><b>选中</b><span>
+          点一颗星，下半屏换成它的卡片，星保持选中描边 —— <strong>不路由、不滑走整页</strong>。
+          卡片里带一行"它属于 Local Knowledge · 1/2"，把单颗星和星座的关系写死。
+        </span></div>
+      </div>
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skySearch"></div></div>
+        <div class="pd-cap"><b>搜索</b><span>
+          敲“文件”：三颗匹配的星保持全亮加光环，其余压暗，<strong>Workspace 星座整个显形</strong>。
+          下半屏同时给出三行常规结果，并多一个入口 —— “整个 Workspace 星座 ›”。
+        </span></div>
+      </div>
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skyLighting"></div></div>
+        <div class="pd-cap"><b>点亮的那一下</b><span>
+          这是整个方案的情绪回报。空心环变成带图标的亮星，两圈光晕向外扩散；
+          因为它补完了 Local Knowledge，连线由虚转实、区域晕染铺开，标题直接换成
+          <strong>“Local Knowledge 完整了”</strong>。装插件第一次有了完成感。
+        </span></div>
+      </div>
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skyCold"></div></div>
+        <div class="pd-cap"><b>冷启动</b><span>
+          一颗没装时最容易翻车 —— 一片空环会像坏掉。
+          所以这里给一句人话（“一颗都还没亮”）加一个具体的下一步：
+          <strong>点亮这四颗，三个星座里的两个就有形状了</strong>，四个图标直接排出来，一键装完。
+        </span></div>
+      </div>
+      <div class="pd-screen">
+        <div class="pd-pad"><div class="pk-modal" id="skyDefaultTwin"></div></div>
+        <div class="pd-cap"><b>切到亮色 = 印刷星图</b><span>
+          把右上角切成 Light 再看这一张。纸底、墨线、实心墨点，
+          所有 glow 都换成细墨环 —— 因为纸不发光。
+          <strong>结构和坐标一个字没改，只换了材质。</strong>
+        </span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 还没解决的 ═══ -->
+  <section class="pd-section">
+    <div class="pd-section-label">诚实的部分</div>
+    <h2 class="pd-h2">这一稿仍然没解决的四件事</h2>
+    <div style="overflow-x:auto;margin-top:26px;border:1px solid var(--pd-page-line);border-radius:12px">
+      <table class="pd-tbl">
+        <thead><tr><th>问题</th><th>现状</th><th>需要谁拍板 / 谁来做</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>星座形状要人编</td>
+            <td>规则第一步把"人工摆坐标"缩小成了"每个 collection 编一次形状"，但没有消灭它。3 个 collection 尚可，如果 collection 涨到 15 个，这是编辑负担。</td>
+            <td>可接受，但要写进 curation 的作业规范。也可以退化：不给 shape 就按成员数用正多边形兜底。</td>
+          </tr>
+          <tr>
+            <td>无障碍</td>
+            <td><strong>一张纯空间布局的图，对键盘和读屏是敌意的。</strong>本稿完全没做。最低限度需要：Tab 按星座顺序遍历、每颗星有 aria-label、以及一个"以列表查看"的等价开关。</td>
+            <td>这条不是可选项。要上就得连等价列表一起上 —— 也就是说方案 4（单栏）会变成它的无障碍后备，不是被淘汰的方案。</td>
+          </tr>
+          <tr>
+            <td>460px 的密度上限</td>
+            <td>12 颗在 408×296 里已经比较满。如果某天策展位翻倍，需要缩放/平移，而桌面端没有触控手势。</td>
+            <td>先定策展位上限（建议 ≤ 16 颗）。真要平移，代价比这一稿其余部分加起来都大。</td>
+          </tr>
+          <tr>
+            <td>动效成本</td>
+            <td>点亮动画是这个方案最大的卖点，也是唯一需要真动效工程的地方（扩散环、连线由虚转实、区域淡入）。静态稿里我只画了终帧。</td>
+            <td>需要一次真机实现才能判断值不值。建议先做静态版上线，动效作为第二步。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="pd-body" style="margin-top:26px">
+      我的建议：<strong>无障碍那条决定这个方案能不能做</strong>。
+      如果你接受"星图 + 一个等价列表视图"这个组合（也就是把方案 4 降级成 Discover 的第二视图），
+      那这一稿可以进入实现讨论；如果不接受，星图就只能停在概念稿。
+    </p>
+  </section>
+
+</div>
+
+<script src="./pd_icons.js"></script>
+<script src="./core.js"></script>
+<script src="./sky.js"></script>
+<script>
+(function () {
+  var S = window.PD_SKY;
+  var mount = {
+    skyDefault: S.skyDefault, skyDefaultTwin: S.skyDefault,
+    skyHover: S.skyHover, skySelected: S.skySelected,
+    skySearch: S.skySearch, skyLighting: S.skyLighting, skyCold: S.skyCold
+  };
+  Object.keys(mount).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = mount[id]();
+  });
+
+  var buttons = document.querySelectorAll(".pd-seg button");
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var mode = b.dataset.theme;
+      buttons.forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+      document.querySelectorAll(".pd-pad").forEach(function (p) {
+        if (mode === "light") p.setAttribute("data-mock", "light");
+        else p.removeAttribute("data-mock");
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

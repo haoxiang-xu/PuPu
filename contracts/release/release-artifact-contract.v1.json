@@ -1,0 +1,133 @@
+{
+  "schema": "pupu.release-artifact-contract.v1",
+  "product_name": "PuPu",
+  "targets": [
+    {
+      "id": "macos-arm64",
+      "os": "macos",
+      "arch": "arm64",
+      "status": "required",
+      "planned_release": null,
+      "updater_channel": "latest-mac.yml",
+      "artifacts": [
+        {
+          "role": "installer",
+          "format": "dmg",
+          "name_template": "PuPu-${version}-macos-arm64.dmg"
+        },
+        {
+          "role": "updater-payload",
+          "format": "zip",
+          "name_template": "PuPu-${version}-macos-arm64.zip"
+        },
+        {
+          "role": "updater-blockmap",
+          "format": "blockmap",
+          "name_template": "PuPu-${version}-macos-arm64.zip.blockmap"
+        }
+      ]
+    },
+    {
+      "id": "macos-x64",
+      "os": "macos",
+      "arch": "x64",
+      "status": "required",
+      "planned_release": null,
+      "updater_channel": "latest-mac.yml",
+      "artifacts": [
+        {
+          "role": "installer",
+          "format": "dmg",
+          "name_template": "PuPu-${version}-macos-x64.dmg"
+        },
+        {
+          "role": "updater-payload",
+          "format": "zip",
+          "name_template": "PuPu-${version}-macos-x64.zip"
+        },
+        {
+          "role": "updater-blockmap",
+          "format": "blockmap",
+          "name_template": "PuPu-${version}-macos-x64.zip.blockmap"
+        }
+      ]
+    },
+    {
+      "id": "windows-x64",
+      "os": "windows",
+      "arch": "x64",
+      "status": "required",
+      "planned_release": null,
+      "updater_channel": "latest.yml",
+      "artifacts": [
+        {
+          "role": "installer",
+          "format": "exe",
+          "name_template": "PuPu-${version}-windows-x64-setup.exe"
+        },
+        {
+          "role": "updater-blockmap",
+          "format": "blockmap",
+          "name_template": "PuPu-${version}-windows-x64-setup.exe.blockmap"
+        }
+      ]
+    },
+    {
+      "id": "linux-x64",
+      "os": "linux",
+      "arch": "x64",
+      "status": "required",
+      "planned_release": null,
+      "updater_channel": null,
+      "artifacts": [
+        {
+          "role": "installer",
+          "format": "AppImage",
+          "name_template": "PuPu-${version}-linux-x64.AppImage"
+        },
+        {
+          "role": "installer",
+          "format": "deb",
+          "name_template": "PuPu-${version}-linux-x64.deb"
+        }
+      ]
+    },
+    {
+      "id": "windows-arm64",
+      "os": "windows",
+      "arch": "arm64",
+      "status": "reserved",
+      "planned_release": "0.2.0",
+      "updater_channel": "latest.yml",
+      "artifacts": []
+    },
+    {
+      "id": "linux-arm64",
+      "os": "linux",
+      "arch": "arm64",
+      "status": "reserved",
+      "planned_release": "0.2.0",
+      "updater_channel": null,
+      "artifacts": []
+    }
+  ],
+  "updater_channels": [
+    {
+      "id": "macos",
+      "name": "latest-mac.yml",
+      "target_ids": [
+        "macos-arm64",
+        "macos-x64"
+      ],
+      "primary_target": "macos-x64"
+    },
+    {
+      "id": "windows",
+      "name": "latest.yml",
+      "target_ids": [
+        "windows-x64"
+      ],
+      "primary_target": "windows-x64"
+    }
+  ]
+}

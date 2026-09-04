@@ -1,0 +1,81 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+
+import YAML from "yaml";
+
+const ROOT = path.resolve(import.meta.dirname, "../..");
+const workflowPath = path.join(ROOT, ".github/workflows/windows-signing-qualification.yml");
+const workflow = fs.readFileSync(workflowPath, "utf8");
+const signingAction = fs.readFileSync(
+  path.join(ROOT, ".github/actions/windows-artifact-signing/action.yml"),
+  "utf8",
+);
+
+test("Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check", () => {
+  const document = YAML.parseDocument(workflow, { uniqueKeys: true });
+  assert.deepEqual(document.errors.map((error) => error.message), []);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /SIGN_WINDOWS_QUALIFICATION/);
+  assert.match(workflow, /qualification must run from refs\/heads\/dev/);
+  assert.match(workflow, /environment: windows-signing-qualification/);
+  assert.doesNotMatch(workflow, /environment: release-signing/);
+  assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /Require protected isolated signing environment/);
+  assert.match(workflow, /verify-github-environment\.mjs --environment windows-signing-qualification/);
+  assert.match(workflow, /\$env:RUNNER_TEMP/);
+  assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
+  assert.match(workflow, /Checkout Unchain source for the qualification build/);
+  assert.match(workflow, /repository: haoxiang-xu\/unchain/);
+  assert.match(workflow, /ref: dev/);
+  assert.match(workflow, /path: \.qualification-unchain/);
+  assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\/.qualification-unchain/);
+  assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_REF: dev/);
+  assert.match(workflow, /Install Python runtime dependencies for wheel manifest inspection/);
+  assert.match(workflow, /python -m pip install -r unchain_runtime\/server\/requirements\.txt/);
+  assert.match(workflow, /Create controlled Memory V2 build snapshot/);
+  assert.match(workflow, /write-build-feature-snapshot\.cjs/);
+  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
+  assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=\$snapshotPath/);
+  assert.match(workflow, /uses: \.\/\.github\/actions\/windows-artifact-signing/);
+  assert.doesNotMatch(workflow, /uses: azure\/(?:login|artifact-signing-action)/);
+  assert.match(workflow, /AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME/);
+  assert.match(workflow, /Resolve non-interactive build version/);
+  assert.match(workflow, /PUPU_BUILD_VERSION=\$buildVersion/);
+  assert.match(workflow, /package\.json did not provide a build version/);
+  assert.match(workflow, /build:electron:win:unpacked/);
+  assert.match(workflow, /evidence-schema: pupu\.windows-signing-qualification\.v1/);
+  assert.match(workflow, /evidence-output: windows-signing-qualification\.v1\.json/);
+  assert.doesNotMatch(workflow, /Get-AuthenticodeSignature/);
+  assert.equal((signingAction.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
+  assert.match(signingAction, /azure\/login@v3/);
+  assert.match(signingAction, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
+  assert.match(signingAction, /contains read-only \.exe or \.dll files/);
+  assert.match(signingAction, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);
+  assert.match(signingAction, /resources\\mcp_runtime\\python\\DLLs\\tk86t\.dll/);
+  assert.match(signingAction, /files-catalog:/);
+  assert.doesNotMatch(signingAction, /files-folder:/);
+  assert.match(signingAction, /Electron Builder did not add the expected elevation helper/);
+  assert.match(signingAction, /--config\.directories\.output="\$bootstrapOutput"/);
+  assert.match(signingAction, /--config\.nsis\.packElevateHelper=false/);
+  assert.match(signingAction, /controlled unsigned payload exception set did not match exactly/);
+  assert.match(signingAction, /unsigned_payload_exceptions/);
+  assert.match(signingAction, /signable_payload_file_count/);
+  assert.match(signingAction, /not Authenticode-compatible \(0x800700C1\)/);
+  assert.match(signingAction, /--prepackaged/);
+  assert.match(signingAction, /--publish never/);
+  assert.match(signingAction, /Get-AuthenticodeSignature/);
+  assert.match(signingAction, /Status -ne "Valid"/);
+  assert.match(workflow, /pupu\.windows-signing-qualification\.v1/);
+  assert.match(workflow, /name: windows-signing-qualification/);
+  assert.match(workflow, /path: windows-signing-qualification\.v1\.json/);
+  assert.match(workflow, /secret-material-denylist\.mjs/);
+  const evidenceUploadStep = workflow.slice(workflow.indexOf("- name: Upload signing qualification evidence only"));
+  assert.match(evidenceUploadStep, /if:\s*\$\{\{ success\(\) \}\}/);
+  assert.doesNotMatch(evidenceUploadStep, /if:\s*always\(\)/);
+  assert.doesNotMatch(workflow, /gh release (create|upload|edit|delete)/);
+  assert.doesNotMatch(workflow, /contents: write/);
+  assert.doesNotMatch(workflow, /path:\s*(dist|\$\{\{ github\.workspace \}\})\s*$/m);
+});

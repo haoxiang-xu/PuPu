@@ -1,0 +1,13 @@
+{
+  "schema": "pupu.memory-v2-release-profile.v1",
+  "feature_flags": {
+    "enable_memory_v2": true
+  },
+  "sidecar_environment": {
+    "PUPU_FEATURE_MEMORY_V2": "shadow",
+    "PUPU_MEMORY_V2_MODE": "shadow",
+    "PUPU_MEMORY_V2_CANARY_PERCENT": "5",
+    "PUPU_MEMORY_V2_READ_ONLY_DEGRADED": "0",
+    "PUPU_CONTEXT_V2_STORE_OWNER": "unchain"
+  }
+}

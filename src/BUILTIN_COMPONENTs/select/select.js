@@ -20,6 +20,7 @@ import useSelect, {
 } from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
 import { useTranslation } from "../mini_react/use_translation";
+import useReducedMotion from "../mini_react/use_reduced_motion";
 
 /* ── palette-rail provider icon (Button-style scale-in highlight) ── */
 const RailItem = ({
@@ -397,11 +398,14 @@ const SinkingSelect = ({
         minWidth: dropdownMinWidth - 12,
         maxWidth: dropdownMaxWidth - 12,
         padding: dropdown_theme?.padding ?? 6,
+        /* A dropdown is a popover, so it belongs to the SURFACE layer — the
+           old chain ended at the JS theme's background, which is both the
+           wrong layer and a value that only moves on commit. Explicit
+           per-call overrides still win. */
         backgroundColor:
           dropdown_style?.backgroundColor ??
           dropdown_theme?.backgroundColor ??
-          theme?.backgroundColor ??
-          "white",
+          "var(--pupu-surface)",
         border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
@@ -749,11 +753,14 @@ const FloatingSelect = ({
         gap: 6,
         minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
         padding: dropdown_theme?.padding ?? 6,
+        /* A dropdown is a popover, so it belongs to the SURFACE layer — the
+           old chain ended at the JS theme's background, which is both the
+           wrong layer and a value that only moves on commit. Explicit
+           per-call overrides still win. */
         backgroundColor:
           dropdown_style?.backgroundColor ??
           dropdown_theme?.backgroundColor ??
-          theme?.backgroundColor ??
-          "white",
+          "var(--pupu-surface)",
         border: "1px solid var(--pupu-menu-border, transparent)",
         borderRadius:
           dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
@@ -874,12 +881,15 @@ const Select = ({
   variant,
   palette_chip,
   palette_actions,
+  palette_footer,
   palette_rail = false,
+  keep_open_on_select,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const isPalette = variant === "palette";
+  const prefersReducedMotion = useReducedMotion();
   const tf = theme?.textfield || {};
   const dropdown_theme = theme?.select?.dropdown || {};
   const base_option_theme = theme?.select?.option || {};
@@ -952,6 +962,7 @@ const Select = ({
     open,
     on_open_change,
     on_group_toggle,
+    keep_open_on_select,
   });
 
   const {
@@ -1596,6 +1607,54 @@ const Select = ({
             <span style={{ flex: 1 }} />
           )}
           {palette_actions}
+        </div>
+      ) : null}
+
+      {/* palette variant: footer row — its own full-width line under the
+          chip/search header, for controls that belong to the current
+          selection rather than to the list (the model palette's effort
+          segment). Kept out of palette_actions because that slot shares one
+          flex line with the search input, which a multi-level segmented
+          control squeezes to nothing. */}
+      {isPalette ? (
+        /* Animated between present and absent rather than mounted and
+           unmounted: switching to a model with no footer content collapses
+           the row instead of snapping the whole panel to a new height. At
+           0fr the row occupies nothing and its separator is clipped away,
+           so a footer-less palette is byte-for-byte the old layout. */
+        <div
+          style={{
+            flexShrink: 0,
+            /* minWidth:0 is load-bearing, not tidiness: a grid item defaults
+               to min-width:auto, so footer content that cannot shrink below
+               its own min-content width (a row of nowrap cells) widens the
+               track and pushes itself out past the panel's right edge. */
+            minWidth: 0,
+            display: "grid",
+            gridTemplateRows: palette_footer != null ? "1fr" : "0fr",
+            transition: prefersReducedMotion
+              ? "none"
+              : "grid-template-rows 0.22s cubic-bezier(0.32, 1, 0.32, 1)",
+          }}
+        >
+          <div style={{ minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+            <div
+              style={{
+                borderTop: isDark
+                  ? "1px solid rgba(var(--pupu-text-rgb),0.08)"
+                  : "1px solid rgba(var(--pupu-text-rgb),0.07)",
+                /* Sides and bottom carry NO padding, so the panel's own 8px
+                   is the only gap on all three edges. Concentric rounding
+                   needs that gap equal everywhere — add padding on one side
+                   and the capsule's curve stops tracking the panel's on the
+                   others. Only the top is padded, separating the row from the
+                   rule above it. */
+                padding: "7px 0 0 0",
+              }}
+            >
+              {palette_footer}
+            </div>
+          </div>
         </div>
       ) : null}
 

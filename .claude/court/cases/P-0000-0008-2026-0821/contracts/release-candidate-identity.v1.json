@@ -1,0 +1,82 @@
+{
+  "schema": "pupu.memory_v2.release_candidate_identity.v1",
+  "status": "DRAFT_ONLY",
+  "case_id": "P-0000-0008-2026-0821",
+  "admission_policy": "CLOSED",
+  "purpose": "Defines the W0 identity chain that later Windows Active qualification must bind. This document does not materialize a candidate.",
+  "identity_chain": [
+    {
+      "stage": "payload_lineage",
+      "required_fields": [
+        "pupu_source_revision",
+        "unchain_wheel_sha256",
+        "runtime_manifest_digest"
+      ],
+      "forbidden_substitutes": [
+        "mutable checkout path",
+        "environment-only capability admission"
+      ]
+    },
+    {
+      "stage": "release_snapshot",
+      "required_fields": [
+        "snapshot_schema",
+        "snapshot_sha256",
+        "snapshot_fingerprint",
+        "controlled_profile_id"
+      ],
+      "invariant": "Produced once as exact bytes and reused unchanged by every downstream job."
+    },
+    {
+      "stage": "build_identity",
+      "required_fields": [
+        "payload_lineage_digest",
+        "snapshot_sha256",
+        "build_output_digest"
+      ]
+    },
+    {
+      "stage": "package_attestation",
+      "required_fields": [
+        "build_identity_digest",
+        "package_digest",
+        "platform",
+        "arch",
+        "sidecar_digest"
+      ]
+    },
+    {
+      "stage": "install_attestation",
+      "required_fields": [
+        "package_attestation_digest",
+        "installer_digest",
+        "installed_binary_digest",
+        "installed_smoke_receipt"
+      ],
+      "invariant": "A source Electron test or build-output sidecar smoke cannot satisfy this stage."
+    },
+    {
+      "stage": "evidence_envelope",
+      "required_fields": [
+        "install_attestation_digest",
+        "support_matrix_digest",
+        "expected_report_manifest_digest",
+        "report_inventory_digest",
+        "stable_required_check_context"
+      ]
+    }
+  ],
+  "fail_closed_conditions": [
+    "missing or malformed identity field",
+    "snapshot digest/fingerprint mismatch",
+    "downstream rematerialization of the snapshot",
+    "source-only or build-output-only Windows proof",
+    "missing/zero-execution/unknown report",
+    "required check absent or bypassable"
+  ],
+  "owner_confirmations": {
+    "code-owner-runtime": "FRAMING_ONLY",
+    "code-owner-electron": "PENDING_HANDOFF",
+    "code-owner-devtools": "PENDING_HANDOFF"
+  }
+}

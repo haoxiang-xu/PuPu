@@ -11,6 +11,10 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   const checks = buildLocalGateChecks({
     root: ROOT,
     python: "python3",
+    pythonPath: "/tmp/unchain.whl",
+    unchainArtifactPath: "/tmp/unchain.whl",
+    unchainArtifactEvidencePath: "/tmp/unchain-artifact.json",
+    unchainTestSourcePath: "/tmp/unchain-tests",
     version: "0.0.0-test",
   });
   const harnessChecks = checks.filter(
@@ -26,6 +30,36 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   assert.equal(
     checks.find((check) => check.name === "release QA script tests")?.command,
     "npm run test:release-qa:unit",
+  );
+  assert.deepEqual(
+    checks.find((check) => check.name === "Context V2 boundary contracts"),
+    {
+      name: "Context V2 boundary contracts",
+      command: "npm run test:context-v2-contract",
+      cwd: ROOT,
+      env: {
+        PYTHON: "python3",
+        UNCHAIN_ARTIFACT_PATH: "/tmp/unchain.whl",
+        UNCHAIN_ARTIFACT_EVIDENCE_PATH: "/tmp/unchain-artifact.json",
+        UNCHAIN_TEST_SOURCE_PATH: "/tmp/unchain-tests",
+        PYTHONPATH: "/tmp/unchain.whl",
+      },
+    },
+  );
+  assert.deepEqual(
+    checks.find((check) => check.name === "RunBundle v1 boundary contracts"),
+    {
+      name: "RunBundle v1 boundary contracts",
+      command: "npm run test:run-bundle-contract",
+      cwd: ROOT,
+      env: {
+        PYTHON: "python3",
+        UNCHAIN_ARTIFACT_PATH: "/tmp/unchain.whl",
+        UNCHAIN_ARTIFACT_EVIDENCE_PATH: "/tmp/unchain-artifact.json",
+        UNCHAIN_TEST_SOURCE_PATH: "/tmp/unchain-tests",
+        PYTHONPATH: "/tmp/unchain.whl",
+      },
+    },
   );
   assert.deepEqual(
     checks.find((check) => check.name === "Playwright Electron release smoke")
@@ -47,6 +81,15 @@ test("release QA paths both include the fixed long-run harness suite", () => {
   assert.equal(
     packageJson.scripts["test:release-qa"],
     "npm run test:release-qa:unit && npm run test:long-run-harness",
+  );
+  assert.equal(packageJson.scripts["test:quorum-boundary"], undefined);
+  assert.equal(
+    packageJson.scripts["test:context-v2-contract"],
+    "node scripts/release-qa/run-context-v2-contract.mjs",
+  );
+  assert.equal(
+    packageJson.scripts["test:run-bundle-contract"],
+    "node scripts/release-qa/run-run-bundle-contract.mjs",
   );
 
   const harnessCommand = packageJson.scripts["test:long-run-harness"];

@@ -16,6 +16,7 @@ const MessageActionBar = ({
   canDeleteMessage,
   onDeleteMessage,
   color,
+  resendPresentation = null,
 }) => {
   if (!showActionBar) {
     return null;
@@ -58,9 +59,15 @@ const MessageActionBar = ({
       {canResendMessage && (
         <Button
           prefix_icon="update"
-          disabled={disableActionButtons}
+          disabled={disableActionButtons || Boolean(resendPresentation)}
           onClick={() => onResendMessage(message)}
-          style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
+          title={resendPresentation?.phase || "Resend"}
+          style={{
+            color,
+            fontSize: 14,
+            iconSize: 14,
+            opacity: resendPresentation ? 1 : 0.5,
+          }}
         />
       )}
       {canDeleteMessage && (

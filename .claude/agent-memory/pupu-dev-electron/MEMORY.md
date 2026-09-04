@@ -1,4 +1,0 @@
-- [Team Roster](team_roster.md) — 我=平台与安全组 lead (辖 electron+守), 向 CTO 汇报; 含守的安全裁量越级红线 + IPC 共门 + 同步会班底
-- [MCP IPC Channel Inventory](mcp-ipc-channel-inventory.md) — exact 24 MCP IPC channels for U3 freeze; 9 missing from test-only parity manifests (the gap to close)
-- [Security Attack Surface](security-attack-surface.md) — SEC-001 自查: IPC 任意文件读写、token 漏进 avatar URL、SSE relay 不设防、dev-gate 用 NODE_ENV 而非 app.isPackaged
-- [Electron Test Twin Mechanics](electron-test-twin-mechanics.md) — .cjs 存全部测试体, .js 是 require 壳; test:electron 只跑 .cjs, test:frontend 跑 .js; 频道 parity 守卫在 ipc_channels.test.cjs

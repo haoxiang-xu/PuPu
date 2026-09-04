@@ -52,16 +52,28 @@ const BG_HINT = /background|[A-Za-z]Bg\b|\bbg\b/i;
 const OPAQUE_LITERAL =
   /#[0-9a-fA-F]{3,6}\b|rgb\([^)]*\)|rgba\([^)]*,\s*1(\.0+)?\s*\)/;
 
+const anchorMatchCount = (lines, anchor) =>
+  lines.filter((l) => l.includes(anchor)).length;
+
 const scan = (rel) => {
   const abs = path.join(process.cwd(), rel);
   const lines = fs.readFileSync(abs, "utf8").split("\n");
+  /* An anchor exempts a line only if it matches EXACTLY ONE line in the file.
+     Both failure directions are then closed: a rotted anchor (0 matches) and a
+     copy-pasted twin of an exempted site (2+ matches) each stop exempting
+     anything, so the new violation surfaces. The "path:line" form this
+     replaced was fail-OPEN on drift — a stale number silently exempted
+     whatever text later occupied that line. */
+  const uniqueAnchors = SHELL_BACKGROUND_ALLOWLIST.filter(
+    (e) => e.file === rel && anchorMatchCount(lines, e.anchor) === 1,
+  );
   const hits = [];
   lines.forEach((line, i) => {
     if (!BG_HINT.test(line)) return;
     if (line.includes("var(--pupu-")) return;
     if (!OPAQUE_LITERAL.test(line)) return;
+    if (uniqueAnchors.some((e) => line.includes(e.anchor))) return;
     const key = `${rel}:${i + 1}`;
-    if (SHELL_BACKGROUND_ALLOWLIST.includes(key)) return;
     hits.push(`${key}  ${line.trim()}`);
   });
   return hits;
@@ -70,4 +82,18 @@ const scan = (rel) => {
 test("no raw opaque background literals in shell files", () => {
   const violations = SHELL_FILES.flatMap(scan);
   expect(violations).toEqual([]);
+});
+
+// Exactly one, not at-least-one: 0 means the anchor rotted (the site moved or
+// was migrated — delete the entry), 2+ means the exempted idiom got copied to
+// a second site that nobody adjudicated (tighten the anchor, or justify and
+// split the entry). Either way the exemption stops applying until a human
+// looks, which is what keeps the allowlist honest.
+test("every allowlist entry anchors exactly one line in its file", () => {
+  const bad = SHELL_BACKGROUND_ALLOWLIST.map((e) => {
+    const abs = path.join(process.cwd(), e.file);
+    const n = anchorMatchCount(fs.readFileSync(abs, "utf8").split("\n"), e.anchor);
+    return n === 1 ? null : `${e.file} :: ${e.anchor} → ${n} matches`;
+  }).filter(Boolean);
+  expect(bad).toEqual([]);
 });

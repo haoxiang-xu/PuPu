@@ -56,7 +56,7 @@ const ConfirmDeleteApiKeyModal = ({
       style={{
         fontSize: 15,
         fontWeight: 600,
-        color: isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)",
+        color: "var(--pupu-text-strong)",
         marginBottom: 8,
         lineHeight: 1.3,
       }}
@@ -67,7 +67,7 @@ const ConfirmDeleteApiKeyModal = ({
     <div
       style={{
         fontSize: 13,
-        color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+        color: "var(--pupu-text-faint)",
         marginBottom: 24,
         lineHeight: 1.5,
       }}

@@ -23,6 +23,15 @@
 .env.test.local
 .env.production.local
 
+# Local signing credentials (never version these files).
+*.p12
+*.pfx
+AuthKey_*.p8
+apple-signing-password.txt
+codesign-password.txt
+notarization-password.txt
+p12-password.txt
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

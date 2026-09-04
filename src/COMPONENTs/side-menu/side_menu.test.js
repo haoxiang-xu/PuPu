@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import SideMenu from "./side_menu";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
+import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../settings/settings_modal_content", () => ({
   SettingsModalContent: () => {
@@ -67,14 +68,7 @@ describe("SideMenu", () => {
   });
 
   test("shows the Agents entry when only the agents flag is enabled", () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_user_access_to_agents: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_user_access_to_agents: true });
 
     renderSideMenu();
 
@@ -82,14 +76,7 @@ describe("SideMenu", () => {
   });
 
   test("shows the Agents entry when only the characters flag is enabled", () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: {
-          enable_user_access_to_characters: true,
-        },
-      }),
-    );
+    writeFeatureFlags({ enable_user_access_to_characters: true });
 
     renderSideMenu();
 
@@ -112,19 +99,12 @@ describe("SideMenu", () => {
     ["Settings", null],
     ["Plugins", null],
     ["Workspaces", null],
-    [
-      "Agents",
-      {
-        feature_flags: {
-          enable_user_access_to_agents: true,
-        },
-      },
-    ],
+    ["Agents", { enable_user_access_to_agents: true }],
   ])(
     "renders %s lazy loading spinner inside a single modal shell",
-    async (label, settings) => {
-      if (settings) {
-        window.localStorage.setItem("settings", JSON.stringify(settings));
+    async (label, featureFlags) => {
+      if (featureFlags) {
+        writeFeatureFlags(featureFlags);
       }
 
       renderSideMenu();

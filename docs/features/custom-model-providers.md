@@ -568,7 +568,7 @@ provider 行 [导出] → `buildProviderExportPayload(slug)` → Electron `showS
 - **pytest**：`_parse_custom_provider` 校验矩阵；factory（client_factory 收到 base_url/headers、`io.provider == 孪生名`、模型未声明 raise、内置回落分支不带 custom key）；`_build_payload` 协议分支；静默回退消灭（custom 前缀无 cfg → raise 而非 ollama）；**key 互不串用性质族**（FM16 + web_fetch + 降级 + env 回退路径，重点覆盖 openai 孪生）；`_redact_secrets`；stream_started 回显 modelId；孪生 hyperspace 跳过 4.5→4-5 归一化。
 - **unchain S1 内**：observation payload hyperspace 分支单测。
 - **Electron**：新 IPC handler `.js`/`.cjs` 双版本。
-- **端到端**：Hyperspace 预设 → 补 key → 测试连接 → 流式对话 → 工具调用 → 中断取消 → 导出再导入全流程（pupu-test-api / 手动）。
+- **端到端**：Hyperspace 预设 → 补 key → 测试连接 → 流式对话 → 工具调用 → 中断取消 → 导出再导入全流程（test-api / 手动）。
 
 ## 14. 评审记录
 

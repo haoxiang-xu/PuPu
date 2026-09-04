@@ -14,6 +14,15 @@ const resolveStorage = (storage) => {
   return null;
 };
 
+/* Memory V2 P0 secret gate. The ONLY disposition a persisted queued item may
+   carry: the user explicitly approved sending this exact item as plain text.
+   Any other value normalizes to "" (= not approved), so a hand-edited or
+   pre-gate localStorage entry can never claim approval it never got. */
+export const QUEUED_TURN_PLAIN_DISPOSITION = "plain_user_approved";
+
+const normalizeQueuedTurnDisposition = (value) =>
+  value === QUEUED_TURN_PLAIN_DISPOSITION ? QUEUED_TURN_PLAIN_DISPOSITION : "";
+
 const normalizeQueuedTurnItems = (items, { rejectOverflow = false } = {}) => {
   const deduplicated = new Map();
   for (const item of Array.isArray(items) ? items : []) {
@@ -23,7 +32,13 @@ const normalizeQueuedTurnItems = (items, { rejectOverflow = false } = {}) => {
     if (!id || !text.trim() || !["queued", "relayed"].includes(status)) {
       continue;
     }
-    deduplicated.set(id, { id, text, status });
+    const disposition = normalizeQueuedTurnDisposition(item?.disposition);
+    deduplicated.set(id, {
+      id,
+      text,
+      status,
+      ...(disposition ? { disposition } : {}),
+    });
   }
   if (rejectOverflow && deduplicated.size > MAX_ITEMS_PER_ENTRY) {
     return null;
@@ -80,11 +95,13 @@ const normalizePendingClarify = (value) => {
   ) {
     return null;
   }
+  const disposition = normalizeQueuedTurnDisposition(value?.disposition);
   return {
     chatId,
     ...(sourceAttemptId ? { sourceAttemptId } : { clientOperationId }),
     id,
     text,
+    ...(disposition ? { disposition } : {}),
     updatedAt:
       Number.isFinite(Number(value?.updatedAt)) && Number(value.updatedAt) >= 0
         ? Number(value.updatedAt)
@@ -111,6 +128,7 @@ const normalizePendingFyi = (value) => {
   ) {
     return null;
   }
+  const disposition = normalizeQueuedTurnDisposition(value?.disposition);
   return {
     chatId,
     attemptId,
@@ -118,6 +136,7 @@ const normalizePendingFyi = (value) => {
     text,
     requestedChannel,
     threadId,
+    ...(disposition ? { disposition } : {}),
     updatedAt:
       Number.isFinite(Number(value?.updatedAt)) && Number(value.updatedAt) >= 0
         ? Number(value.updatedAt)
@@ -594,6 +613,7 @@ export const migratePendingFyiForAttemptToQueue = (
         id: entry.messageId,
         text: entry.text,
         status: "queued",
+        ...(entry.disposition ? { disposition: entry.disposition } : {}),
       })),
     ],
     { rejectOverflow: true },
@@ -657,7 +677,12 @@ export const migratePendingFyiToQueue = (
   const items = normalizeQueuedTurnItems(
     [
       ...(existing?.items || []),
-      { id: pending.messageId, text: pending.text, status: "queued" },
+      {
+        id: pending.messageId,
+        text: pending.text,
+        status: "queued",
+        ...(pending.disposition ? { disposition: pending.disposition } : {}),
+      },
     ],
     { rejectOverflow: true },
   );
@@ -804,6 +829,10 @@ export const transitionPendingClarifyToPendingFyi = (
     text: clarify.text,
     requestedChannel: normalizedRequestedChannel,
     threadId: normalizedThreadId,
+    /* The secret-gate disposition rides along through every transition. If it
+       were dropped here, an item the user explicitly approved would be purged
+       as "ungated" on the next launch. */
+    ...(clarify.disposition ? { disposition: clarify.disposition } : {}),
     updatedAt: Date.now(),
   };
   const nextState = {
@@ -851,6 +880,7 @@ export const convertPendingFyiToClarify = (
     sourceAttemptId: normalizedAttemptId,
     id: normalizedClarifyId,
     text: pending.text,
+    ...(pending.disposition ? { disposition: pending.disposition } : {}),
     updatedAt: Date.now(),
   };
   const nextState = {
@@ -893,7 +923,12 @@ export const fallbackPendingClarifyToQueue = (
   const nextItems = normalizeQueuedTurnItems(
     [
       ...(existing?.items || []),
-      { id: pending.id, text: pending.text, status: "queued" },
+      {
+        id: pending.id,
+        text: pending.text,
+        status: "queued",
+        ...(pending.disposition ? { disposition: pending.disposition } : {}),
+      },
     ],
     { rejectOverflow: true },
   );
@@ -946,6 +981,111 @@ export const removeQueuedTurnStateForChat = (chatId, storage = null) => {
     return false;
   }
   return writeQueuedTurnOutbox(nextState, storage);
+};
+
+/**
+ * purgeUngatedSecretOutboxEntries(looksLikeSecret, storage)
+ *
+ * Memory V2 P0 migration. Entries written BEFORE the renderer secret gate
+ * existed can hold a plain-text credential in localStorage. Those entries are
+ * DELETED — not quarantined, not rewritten, not moved to another key. Leaving
+ * the plaintext in place under a "quarantined" flag would keep the exact
+ * exposure this gate exists to remove, so removal is the whole point.
+ *
+ * An entry survives only if its text does not look like a credential, or if it
+ * carries the plain_user_approved disposition (the user already made this
+ * call explicitly for that item).
+ *
+ * `looksLikeSecret` is injected rather than imported so this SERVICE stays
+ * free of a chat-hook dependency and the predicate is trivially stubbable.
+ *
+ * Returns { removedQueueItems, removedClarifies, removedFyis, chatIds } so the
+ * caller can surface a STATIC notice. Nothing about the removed text — not a
+ * length, not a prefix — is returned, because the caller must have nothing
+ * quotable to render.
+ */
+export const purgeUngatedSecretOutboxEntries = (
+  looksLikeSecret,
+  storage = null,
+) => {
+  const empty = {
+    removedQueueItems: 0,
+    removedClarifies: 0,
+    removedFyis: 0,
+    chatIds: [],
+  };
+  if (typeof looksLikeSecret !== "function") return empty;
+  const resolvedStorage = resolveStorage(storage);
+  if (!resolvedStorage) return empty;
+
+  const currentState = readOutboxState(storage);
+  const affectedChatIds = new Set();
+  let removedQueueItems = 0;
+  let removedClarifies = 0;
+  let removedFyis = 0;
+
+  const isUngatedSecret = (entry) => {
+    if (entry?.disposition === QUEUED_TURN_PLAIN_DISPOSITION) return false;
+    let hit = false;
+    try {
+      hit = Boolean(looksLikeSecret(entry?.text));
+    } catch (_error) {
+      /* A throwing predicate must not silently keep plaintext around. */
+      hit = true;
+    }
+    return hit;
+  };
+
+  const nextQueues = [];
+  for (const entry of currentState.queues) {
+    const keptItems = [];
+    for (const item of entry.items) {
+      if (isUngatedSecret(item)) {
+        removedQueueItems += 1;
+        affectedChatIds.add(entry.chatId);
+        continue;
+      }
+      keptItems.push(item);
+    }
+    if (keptItems.length === entry.items.length) {
+      nextQueues.push(entry);
+    } else if (keptItems.length > 0) {
+      nextQueues.push({ ...entry, items: keptItems });
+    }
+  }
+
+  const nextClarifies = currentState.clarifies.filter((entry) => {
+    if (!isUngatedSecret(entry)) return true;
+    removedClarifies += 1;
+    affectedChatIds.add(entry.chatId);
+    return false;
+  });
+
+  const nextFyis = currentState.fyis.filter((entry) => {
+    if (!isUngatedSecret(entry)) return true;
+    removedFyis += 1;
+    affectedChatIds.add(entry.chatId);
+    return false;
+  });
+
+  if (removedQueueItems + removedClarifies + removedFyis === 0) return empty;
+
+  writeQueuedTurnOutbox(
+    {
+      ...currentState,
+      queues: nextQueues,
+      clarifies: nextClarifies,
+      fyis: nextFyis,
+    },
+    storage,
+  );
+
+  return {
+    removedQueueItems,
+    removedClarifies,
+    removedFyis,
+    chatIds: Array.from(affectedChatIds),
+  };
 };
 
 export const QUEUED_TURN_OUTBOX_STORAGE_KEY = STORAGE_KEY;

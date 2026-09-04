@@ -45,16 +45,14 @@ const ModelCard = ({
   );
   const isCloudOnly = isCloudOnlyModel(model);
 
-  const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
-  const cardBg = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)";
-  const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
-  const sizeBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
-  const sizeActiveBg = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)";
-  const sizeActiveBorder = isDark
-    ? "rgba(255,255,255,0.35)"
-    : "rgba(0,0,0,0.35)";
-  const barTrack = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const borderColor = "var(--pupu-border)";
+  const cardBg = "var(--pupu-overlay-ghost)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const sizeBg = "var(--pupu-overlay-hover)";
+  const sizeActiveBg = "var(--pupu-overlay-active)";
+  const sizeActiveBorder = "var(--pupu-border-strong)";
+  const barTrack = "var(--pupu-overlay-hover)";
   const barFill = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
 
   /* BUILTIN Button default form (no transparent bare-text links). The default
@@ -66,12 +64,8 @@ const ModelCard = ({
     borderRadius: 999,
     fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
     color: textColor,
-    hoverBackgroundColor: isDark
-      ? "rgba(255,255,255,0.10)"
-      : "rgba(0,0,0,0.06)",
-    activeBackgroundColor: isDark
-      ? "rgba(255,255,255,0.16)"
-      : "rgba(0,0,0,0.10)",
+    hoverBackgroundColor: "var(--pupu-overlay-active)",
+    activeBackgroundColor: "var(--pupu-overlay-active)",
   };
 
   return (

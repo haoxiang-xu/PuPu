@@ -1,0 +1,260 @@
+name: Qualify Installed Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: "Successful release-candidate Release QA run ID"
+        required: true
+        type: string
+      release_tag:
+        description: "Existing vX.Y.Z tag represented by that candidate"
+        required: true
+        type: string
+      from_tag:
+        description: "Existing lower stable vX.Y.Z tag used to build the signed N-1 update fixture"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release-qualification-${{ inputs.candidate_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  candidate-preflight:
+    name: Verify sealed candidate provenance
+    runs-on: ubuntu-latest
+    outputs:
+      tag_commit: ${{ steps.tag.outputs.tag_commit }}
+      fixture_tag: ${{ steps.fixture.outputs.from_tag }}
+      fixture_commit: ${{ steps.fixture.outputs.from_commit }}
+      fixture_version: ${{ steps.fixture.outputs.from_version }}
+    steps:
+      - name: Checkout the requested release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Require dispatch from that immutable tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ]; then
+            echo "::error title=Tag dispatch required::Run installed qualification from the exact release tag"
+            exit 1
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install verification dependencies
+        run: npm ci
+
+      - name: Resolve immutable tag commit
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if [ -z "$TAG_COMMIT" ]; then
+            echo "::error title=Release tag missing::Could not resolve $RELEASE_TAG"
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error title=Wrong dispatch revision::workflow SHA must equal the release tag commit"
+            exit 1
+          fi
+          echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Verify candidate Actions run provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+            | node scripts/release-qa/verify-actions-run-provenance.mjs \
+              --run-id "$CANDIDATE_RUN_ID" \
+              --tag "$RELEASE_TAG" \
+              --commit "$TAG_COMMIT" \
+              --workflow-path .github/workflows/release-qa.yml
+
+      - name: Download and verify exact retained candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir candidate
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest candidate/release-assets.v1.json \
+            --asset-dir candidate/assets \
+            --qa-report candidate/release-qa-report.json \
+            --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT" \
+            --candidate-run-id "$CANDIDATE_RUN_ID"
+
+      - name: Resolve exact signed N-1 fixture source
+        id: fixture
+        env:
+          FROM_TAG: ${{ inputs.from_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          git fetch --no-tags origin "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
+          FROM_COMMIT="$(git rev-list -n 1 "$FROM_TAG")"
+          FROM_PACKAGE_JSON="$RUNNER_TEMP/from-package.json"
+          git show "$FROM_TAG:package.json" > "$FROM_PACKAGE_JSON"
+          FROM_VERSION="$(FROM_PACKAGE_JSON="$FROM_PACKAGE_JSON" node -p 'require(process.env.FROM_PACKAGE_JSON).version')"
+          node scripts/release-qa/validate-update-fixture-source.mjs \
+            --candidate-dir candidate \
+            --from-tag "$FROM_TAG" \
+            --from-version "$FROM_VERSION" \
+            --from-commit "$FROM_COMMIT"
+          echo "from_tag=$FROM_TAG" >> "$GITHUB_OUTPUT"
+          echo "from_version=$FROM_VERSION" >> "$GITHUB_OUTPUT"
+          echo "from_commit=$FROM_COMMIT" >> "$GITHUB_OUTPUT"
+
+  installed-package-matrix:
+    name: Qualify installed ${{ matrix.target_id }} candidate
+    needs: candidate-preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_id: macos-arm64
+            os: macos-latest
+          - target_id: macos-x64
+            os: macos-15-intel
+          - target_id: windows-x64
+            os: windows-latest
+          - target_id: linux-x64
+            os: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-update-qualification.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      target_id: ${{ matrix.target_id }}
+      runner_selector: ${{ matrix.os }}
+
+  windows-restart-update:
+    name: Qualify signed Windows N-1 restart update
+    needs: candidate-preflight
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/_shared-release-windows-restart-update.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      from_tag: ${{ needs.candidate-preflight.outputs.fixture_tag }}
+      from_version: ${{ needs.candidate-preflight.outputs.fixture_version }}
+      from_commit: ${{ needs.candidate-preflight.outputs.fixture_commit }}
+    secrets: inherit
+
+  qualification-receipt:
+    name: Seal installed-package qualification receipt
+    needs:
+      - candidate-preflight
+      - installed-package-matrix
+      - windows-restart-update
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the exact release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install receipt dependencies
+        run: npm ci
+
+      - name: Download exact candidate and installed reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir candidate
+          mkdir -p installed-reports
+
+      - name: Download all installed-package reports
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: installed-qualification-*
+          path: installed-reports
+          merge-multiple: false
+
+      - name: Download all restart-update reports
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: restart-update-qualification-*
+          path: restart-reports
+          merge-multiple: false
+
+      - name: Build strict fresh-install and restart-update qualification receipt
+        id: receipt
+        if: always()
+        continue-on-error: true
+        env:
+          QUALIFICATION_RUN_ID: ${{ github.run_id }}
+        run: |
+          node scripts/release-qa/build-release-update-qualification.mjs \
+            --candidate-dir candidate \
+            --fresh-reports-dir installed-reports \
+            --restart-reports-dir restart-reports \
+            --qualification-run-id "$QUALIFICATION_RUN_ID" \
+            --from-tag "${{ needs.candidate-preflight.outputs.fixture_tag }}" \
+            --from-version "${{ needs.candidate-preflight.outputs.fixture_version }}" \
+            --from-commit "${{ needs.candidate-preflight.outputs.fixture_commit }}" \
+            --out release-qualification.v1.json
+
+      - name: Upload qualification receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pupu-release-qualification
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            release-qualification.v1.json
+
+      - name: Enforce complete qualification
+        if: always()
+        env:
+          PREFLIGHT_RESULT: ${{ needs.candidate-preflight.result }}
+          MATRIX_RESULT: ${{ needs.installed-package-matrix.result }}
+          WINDOWS_RESTART_UPDATE_RESULT: ${{ needs.windows-restart-update.result }}
+          RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
+        run: |
+          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$WINDOWS_RESTART_UPDATE_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
+            echo "::error title=Release qualification incomplete::candidate provenance, every fresh install, the Windows restart-update, and the strict receipt must pass"
+            exit 1
+          fi

@@ -4,6 +4,205 @@ const isObject = (value) =>
 const normalizedString = (value) =>
   typeof value === "string" ? value.trim() : "";
 
+const DURABLE_INTERACTION_KINDS = new Set([
+  "human_input",
+  "max_budget",
+  "tool_approval",
+]);
+const PENDING_INTERACTION_BASE_KEYS = [
+  "status",
+  "session_id",
+  "interaction_id",
+  "source_run_id",
+  "active_attempt_id",
+  "kind",
+  "provider",
+  "model",
+  "presentation",
+  "resume_available",
+  "resume_options",
+];
+
+const hasExactKeys = (value, expectedKeys) => {
+  const keys = Object.keys(value);
+  return (
+    keys.length === expectedKeys.length &&
+    expectedKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+};
+
+const DURABLE_PRESENTATION_KEYS = ["trace_frame", "tool_call"];
+const DURABLE_TRACE_FRAME_KEYS = [
+  "seq",
+  "ts",
+  "type",
+  "run_id",
+  "stage",
+  "payload",
+];
+const DURABLE_TOOL_CALL_KEYS = [
+  "tool_name",
+  "tool_display_name",
+  "toolkit_id",
+  "toolkit_name",
+  "call_id",
+  "arguments",
+  "description",
+  "confirmation_id",
+  "requires_confirmation",
+  "interact_type",
+  "interact_config",
+];
+const DURABLE_MAX_BUDGET_TOOL_CALL_KEYS = DURABLE_TOOL_CALL_KEYS.filter(
+  (key) => key !== "toolkit_id" && key !== "toolkit_name",
+);
+const HUMAN_INPUT_ARGUMENT_KEYS = [
+  "request_id",
+  "kind",
+  "title",
+  "question",
+  "selection_mode",
+  "options",
+  "allow_other",
+  "other_label",
+  "other_placeholder",
+  "min_selected",
+  "max_selected",
+];
+const HUMAN_INPUT_OPTION_KEYS = ["label", "value", "description"];
+const MAX_BUDGET_CONFIG_KEYS = [
+  "effective_max",
+  "suggested_extra_iterations",
+];
+
+const jsonValuesEqual = (left, right) => {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => jsonValuesEqual(value, right[index]))
+    );
+  }
+  if (!isObject(left) || !isObject(right)) return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && jsonValuesEqual(left[key], right[key]),
+    )
+  );
+};
+
+const isCanonicalHumanInputPayload = (toolCall) => {
+  const payload = toolCall.arguments;
+  if (
+    !isObject(payload) ||
+    !hasExactKeys(payload, HUMAN_INPUT_ARGUMENT_KEYS) ||
+    !jsonValuesEqual(payload, toolCall.interact_config) ||
+    normalizedString(payload.request_id) !== normalizedString(toolCall.call_id) ||
+    payload.kind !== "selector" ||
+    !normalizedString(payload.title) ||
+    !normalizedString(payload.question) ||
+    !["single", "multiple"].includes(payload.selection_mode) ||
+    !Array.isArray(payload.options) ||
+    payload.options.length === 0 ||
+    payload.options.some(
+      (option) =>
+        !isObject(option) ||
+        !hasExactKeys(option, HUMAN_INPUT_OPTION_KEYS) ||
+        !normalizedString(option.label) ||
+        !normalizedString(option.value) ||
+        typeof option.description !== "string",
+    ) ||
+    typeof payload.allow_other !== "boolean" ||
+    typeof payload.other_label !== "string" ||
+    typeof payload.other_placeholder !== "string" ||
+    !Number.isInteger(payload.min_selected) ||
+    !Number.isInteger(payload.max_selected) ||
+    toolCall.description !== payload.question ||
+    toolCall.interact_type !==
+      (payload.selection_mode === "single" ? "single" : "multi")
+  ) {
+    return false;
+  }
+  return true;
+};
+
+const isCanonicalDurablePresentation = (
+  presentation,
+  { kind, interactionId, sourceRunId },
+) => {
+  if (!isObject(presentation) || !hasExactKeys(presentation, DURABLE_PRESENTATION_KEYS)) {
+    return false;
+  }
+  const traceFrame = presentation.trace_frame;
+  const toolCall = presentation.tool_call;
+  const expectedToolKeys =
+    kind === "max_budget"
+      ? DURABLE_MAX_BUDGET_TOOL_CALL_KEYS
+      : DURABLE_TOOL_CALL_KEYS;
+  if (
+    !isObject(traceFrame) ||
+    !hasExactKeys(traceFrame, DURABLE_TRACE_FRAME_KEYS) ||
+    traceFrame.seq !== 0 ||
+    !Number.isSafeInteger(traceFrame.ts) ||
+    traceFrame.ts < 0 ||
+    traceFrame.type !== "tool_call" ||
+    normalizedString(traceFrame.run_id) !== sourceRunId ||
+    traceFrame.stage !== "durable_recovery" ||
+    !isObject(toolCall) ||
+    !isObject(traceFrame.payload) ||
+    !hasExactKeys(toolCall, expectedToolKeys) ||
+    !hasExactKeys(traceFrame.payload, expectedToolKeys) ||
+    !jsonValuesEqual(toolCall, traceFrame.payload) ||
+    normalizedString(toolCall.confirmation_id) !== interactionId ||
+    toolCall.requires_confirmation !== true ||
+    !normalizedString(toolCall.call_id) ||
+    !normalizedString(toolCall.tool_name) ||
+    typeof toolCall.tool_display_name !== "string" ||
+    !isObject(toolCall.arguments) ||
+    typeof toolCall.description !== "string" ||
+    !normalizedString(toolCall.interact_type) ||
+    (!isObject(toolCall.interact_config) &&
+      !Array.isArray(toolCall.interact_config))
+  ) {
+    return false;
+  }
+  if (
+    kind === "human_input" &&
+    (toolCall.tool_name !== "ask_user_question" ||
+      toolCall.tool_display_name !== "Ask User" ||
+      toolCall.toolkit_id !== "core" ||
+      toolCall.toolkit_name !== "Core" ||
+      !isCanonicalHumanInputPayload(toolCall))
+  ) {
+    return false;
+  }
+  if (
+    kind === "max_budget" &&
+    (toolCall.tool_name !== "__continuation__" ||
+      toolCall.tool_display_name !== "Continue?" ||
+      toolCall.call_id !== `continuation-${interactionId}` ||
+      !hasExactKeys(toolCall.arguments, []) ||
+      toolCall.description !==
+        "Agent reached its iteration limit without a final response." ||
+      toolCall.interact_type !== "confirmation" ||
+      !isObject(toolCall.interact_config) ||
+      !hasExactKeys(toolCall.interact_config, MAX_BUDGET_CONFIG_KEYS) ||
+      !Number.isInteger(toolCall.interact_config.effective_max) ||
+      !Number.isInteger(
+        toolCall.interact_config.suggested_extra_iterations,
+      ))
+  ) {
+    return false;
+  }
+  return true;
+};
+
 const traceFrameConfirmationId = (frame) =>
   normalizedString(frame?.payload?.confirmation_id);
 
@@ -37,61 +236,154 @@ export const normalizePendingInteraction = (
   const interactionId = normalizedString(rawPending.interaction_id);
   const normalizedExpectedSessionId = normalizedString(expectedSessionId);
   if (status === "none") {
+    if (
+      !normalizedExpectedSessionId ||
+      !sessionId ||
+      sessionId !== normalizedExpectedSessionId ||
+      !hasExactKeys(rawPending, ["status", "session_id"])
+    ) {
+      return null;
+    }
     return {
       status: "none",
-      sessionId: sessionId || normalizedExpectedSessionId,
+      sessionId,
     };
   }
+  const kind = normalizedString(rawPending.kind);
+  const sourceRunId = normalizedString(rawPending.source_run_id);
+  const activeAttemptId = normalizedString(rawPending.active_attempt_id);
+  const hasGraphResumeKeys = [
+    "resume_kind",
+    "graph_step_attempt_id",
+    "graph_coordinator_attempt_id",
+  ].some((key) => Object.prototype.hasOwnProperty.call(rawPending, key));
+  const hasUnavailableReason = Object.prototype.hasOwnProperty.call(
+    rawPending,
+    "resume_unavailable_reason",
+  );
+  const resumeKeys = hasGraphResumeKeys
+    ? [
+        "resume_kind",
+        "graph_step_attempt_id",
+        "graph_coordinator_attempt_id",
+      ]
+    : hasUnavailableReason
+      ? ["resume_unavailable_reason"]
+      : [];
+  const statusKeys =
+    status === "receipt_recorded" ? ["receipt_id", "resolution"] : [];
   if (
     !["awaiting_response", "receipt_recorded"].includes(status) ||
+    !normalizedExpectedSessionId ||
     !sessionId ||
     !interactionId ||
-    (normalizedExpectedSessionId && sessionId !== normalizedExpectedSessionId)
+    sessionId !== normalizedExpectedSessionId ||
+    !DURABLE_INTERACTION_KINDS.has(kind) ||
+    typeof rawPending.provider !== "string" ||
+    typeof rawPending.model !== "string" ||
+    !sourceRunId ||
+    !activeAttemptId ||
+    activeAttemptId !== sourceRunId ||
+    typeof rawPending.resume_available !== "boolean" ||
+    !isObject(rawPending.resume_options) ||
+    (hasGraphResumeKeys &&
+      (rawPending.resume_kind !== "graph_step" || hasUnavailableReason)) ||
+    (!hasGraphResumeKeys && rawPending.resume_kind !== undefined) ||
+    (rawPending.resume_available === false && !hasUnavailableReason) ||
+    (rawPending.resume_available === true && hasUnavailableReason) ||
+    !hasExactKeys(rawPending, [
+      ...PENDING_INTERACTION_BASE_KEYS,
+      ...resumeKeys,
+      ...statusKeys,
+    ])
   ) {
     return null;
   }
 
-  const presentation = isObject(rawPending.presentation)
-    ? rawPending.presentation
-    : {};
-  const toolCall = isObject(presentation.tool_call)
-    ? { ...presentation.tool_call }
-    : {};
-  const rawTraceFrame = isObject(presentation.trace_frame)
-    ? presentation.trace_frame
+  const presentation = rawPending.presentation;
+  if (
+    !isCanonicalDurablePresentation(presentation, {
+      kind,
+      interactionId,
+      sourceRunId,
+    })
+  ) {
+    return null;
+  }
+  const toolCall = presentation.tool_call;
+  const rawTraceFrame = presentation.trace_frame;
+  const rawTracePayload = rawTraceFrame.payload;
+  const toolCallId = normalizedString(toolCall?.call_id);
+  const traceCallId = normalizedString(rawTracePayload?.call_id);
+  if (
+    !toolCallId ||
+    toolCallId !== traceCallId
+  ) {
+    return null;
+  }
+  const expectedToolName =
+    kind === "human_input"
+      ? "ask_user_question"
+      : kind === "max_budget"
+        ? "__continuation__"
+        : "";
+  if (
+    expectedToolName &&
+    (normalizedString(toolCall.tool_name) !== expectedToolName ||
+      normalizedString(rawTracePayload.tool_name) !== expectedToolName)
+  ) {
+    return null;
+  }
+
+  const resumeKind = normalizedString(rawPending.resume_kind);
+  if (
+    (resumeKind && resumeKind !== "graph_step") ||
+    (resumeKind === "graph_step" &&
+      (normalizedString(rawPending.graph_step_attempt_id) !== sourceRunId ||
+        !normalizedString(rawPending.graph_coordinator_attempt_id)))
+  ) {
+    return null;
+  }
+
+  const receiptId = normalizedString(rawPending.receipt_id);
+  const resolution = isObject(rawPending.resolution)
+    ? rawPending.resolution
     : null;
-  const traceFrame = rawTraceFrame
-    ? {
-        ...rawTraceFrame,
-        payload: {
-          ...toolCall,
-          ...(isObject(rawTraceFrame.payload) ? rawTraceFrame.payload : {}),
-          confirmation_id: interactionId,
-          requires_confirmation: true,
-        },
-      }
-    : {
-        seq: 0,
-        ts: Date.now(),
-        type: "tool_call",
-        stage: "durable_recovery",
-        payload: {
-          ...toolCall,
-          confirmation_id: interactionId,
-          requires_confirmation: true,
-        },
-      };
-  const callId =
-    traceFrameCallId(traceFrame) || normalizedString(toolCall.call_id) || interactionId;
+  if (status === "awaiting_response") {
+    if (receiptId || resolution) {
+      return null;
+    }
+  } else {
+    const outcome = normalizedString(resolution?.outcome);
+    const response = isObject(resolution?.response)
+      ? resolution.response
+      : null;
+    const validHumanInputResolution =
+      kind === "human_input" && outcome === "submitted" && response;
+    const validDecisionResolution =
+      kind !== "human_input" &&
+      ["approved", "denied"].includes(outcome) &&
+      response &&
+      typeof response.approved === "boolean" &&
+      response.approved === (outcome === "approved");
+    if (!receiptId || (!validHumanInputResolution && !validDecisionResolution)) {
+      return null;
+    }
+  }
+
+  const traceFrame = {
+    ...rawTraceFrame,
+    payload: { ...rawTracePayload },
+  };
 
   return {
     status,
     sessionId,
     interactionId,
-    kind: normalizedString(rawPending.kind),
-    sourceRunId: normalizedString(rawPending.source_run_id),
-    activeAttemptId: normalizedString(rawPending.active_attempt_id),
-    receiptId: normalizedString(rawPending.receipt_id),
+    kind,
+    sourceRunId,
+    activeAttemptId,
+    receiptId,
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(
       rawPending.resume_unavailable_reason,
@@ -99,15 +391,13 @@ export const normalizePendingInteraction = (
     resumeOptions: isObject(rawPending.resume_options)
       ? { ...rawPending.resume_options }
       : {},
-    resolution: isObject(rawPending.resolution)
-      ? { ...rawPending.resolution }
-      : null,
-    callId,
+    resolution: resolution ? { ...resolution } : null,
+    callId: toolCallId,
     traceFrame: {
       ...traceFrame,
       payload: {
         ...(isObject(traceFrame.payload) ? traceFrame.payload : {}),
-        call_id: callId,
+        call_id: toolCallId,
         confirmation_id: interactionId,
         requires_confirmation: true,
       },

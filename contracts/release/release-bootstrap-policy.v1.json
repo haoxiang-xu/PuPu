@@ -1,0 +1,46 @@
+{
+  "schema": "pupu.release-bootstrap-policy.v1",
+  "baseline": {
+    "tag": "v0.1.10",
+    "version": "0.1.10",
+    "confirmation": "BOOTSTRAP_V0_1_10",
+    "next_strict_from_tag": "v0.1.10"
+  },
+  "legacy_release": {
+    "tag": "v0.1.9",
+    "version": "0.1.9",
+    "tag_commit": "51cbbc594e094c9a48f4e5af08db7dc15f7f864a",
+    "release_id": 360815622,
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "id": 497328089,
+        "name": "PuPu-0.1.9-arm64.dmg",
+        "size": 496458624,
+        "digest": "sha256:e8d34ab2d584facb31a90541977e85ee20e86955b4686f261453ddd21e7bc263"
+      },
+      {
+        "id": 497469225,
+        "name": "PuPu.Setup.0.1.9.exe",
+        "size": 374266516,
+        "digest": "sha256:d045935c96dd5fcd87f8a6c371f38f6a487248a15ea708784ee2672ce957360e"
+      },
+      {
+        "id": 497604571,
+        "name": "PuPu_0.1.9.deb",
+        "size": 400568700,
+        "digest": "sha256:273e806d1e4ac2099ad7e310e388615da666e68ad187cc02ca37ddcd5a24ca05"
+      }
+    ]
+  },
+  "required_fresh_targets": [
+    "linux-x64",
+    "macos-arm64",
+    "macos-x64",
+    "windows-x64"
+  ],
+  "required_restart_targets": [],
+  "reason_code": "legacy-release-missing-modern-manifest",
+  "qualification_workflow": ".github/workflows/release-bootstrap-qualification.yml"
+}

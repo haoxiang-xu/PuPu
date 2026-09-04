@@ -1,6 +1,0 @@
-- [设计准则（CEO 三条）](feedback_design_principles.md) — 复用现成基元 / 风格统一 / 设计语言与逻辑统一，不可妥协
-- [团队花名册与交棒协议](team_roster.md) — qa-tester(验)/product-ops(发)/curator(策) 三位队友的边界 + 向 CEO 的汇报线
-- [主题定制上线就绪度](theme-launch-readiness-verdict.md) — 编辑器机制OK但覆盖率(11/122文件)+无对比度闸=出街翻车两门槛
-- [side-menu 已是层级树](side-menu-is-already-a-tree.md) — thread 上线有双层级碰撞风险，别在侧栏顶层再造一棵树
-- [命令绿药丸调色板](command-chip-green-palette.md) — /command 视觉身份=绿药丸,输入 overlay 与气泡 chip 同色;精确 rgba + 活取显示名机制
-- [插件商店图标三register](plugin-store-icon-registers.md) — 品牌实心砖/品牌inset字形/生成占位三档必须分开;无 logo 默认=确定性 monogram+10槽调色板(含实测参数)

@@ -46,10 +46,10 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
   const [mutating, setMutating] = useState(false);
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const textColor = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.45)";
-  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
-  const badgeBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const textColor = "var(--pupu-text-strong)";
+  const mutedColor = "var(--pupu-text-faint)";
+  const borderColor = "var(--pupu-border)";
+  const badgeBg = "var(--pupu-overlay-hover)";
   const warnColor = isDark ? "#fdba74" : "#c2410c";
   const warnBg = isDark ? "rgba(253,186,116,0.14)" : "rgba(194,65,12,0.10)";
   const keyOnColor = "#4CAF50";
@@ -266,9 +266,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
           paddingHorizontal: 4,
           borderRadius: 6,
           content: { icon: { width: 15, height: 15 } },
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
         }}
       />
 
@@ -283,9 +281,7 @@ const CustomProviderRow = ({ provider, isDark, onEdit, onExport, onChanged }) =>
           paddingHorizontal: 4,
           borderRadius: 6,
           content: { icon: { width: 15, height: 15 } },
-          hoverBackgroundColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
         }}
       />
 
@@ -326,7 +322,7 @@ const CustomProviderList = ({ providers, isDark, onEdit, onExport, onChanged }) 
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.42)";
+  const mutedColor = "var(--pupu-text-faint)";
 
   if (!Array.isArray(providers) || providers.length === 0) {
     return (

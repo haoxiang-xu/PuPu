@@ -3,7 +3,10 @@ import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
 import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
-import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
+import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
+import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
+import { RUN_BUNDLE_V2_SCHEMA } from "../../../SERVICEs/run_bundle_v2";
+import { buildContextCompositionHintV2 } from "../../../SERVICEs/context_composition_hint_v2";
 import { createLogger } from "../../../SERVICEs/console_logger";
 import { createThinkTagParser } from "../think_tag_parser";
 import {
@@ -59,11 +62,54 @@ import {
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
+  SECRET_CAPTURE_MESSAGES,
+  detectLikelySecretAssignment,
+  hasSecretCaptureSyntax,
+  scanOutgoingSecretText,
+} from "./secret_capture";
+import {
+  PLAIN_USER_APPROVED_DISPOSITION,
+  SECRET_GATE_DECISIONS,
+  useSecretCaptureGate,
+} from "./use_secret_capture_gate";
+import { buildContextV2History } from "./context_v2_history";
+import {
+  CONTEXT_V2_TURN_MUTATION_MESSAGES,
+  TURN_MUTATION_ADMISSION,
+  buildContextV2RebasePayload,
+  buildRebaseReplacementHistory,
+  CONTEXT_V2_V1_MIRROR_ERROR_CODE,
+  contextV2TurnMutationMessage,
+  contextV2V1MirrorMessage,
+  decideTurnMutationMemoryMode,
+  projectContextV2RebaseAck,
+  resolveContextV2TurnMutationFailure,
+  TURN_MUTATION_RETRY_ACTIONS,
+  verifyContextV2RebaseAck,
+} from "./context_v2_turn_mutation";
+import {
+  contextV2Bridge,
+  parseContextV2ErrorCode,
+} from "../../../SERVICEs/bridges/context_v2_bridge";
+import { readMemoryAgentSettings } from "../../../SERVICEs/memory_agent_settings";
+import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
+import {
+  TURN_MUTATION_ADMISSION_MODES,
+  TURN_MUTATION_MEMORY_MODES,
+  TURN_MUTATION_MAX_REPLAY_ATTEMPTS,
+  TURN_MUTATION_RETRY_STATUSES,
+  TURN_MUTATION_V1_MIRROR_STATES,
+  clearTurnMutationRetryState,
   createTurnMutationOperationId,
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
   readTurnMutationOutbox,
+  readTurnMutationOutboxState,
+  recordTurnMutationRebaseAck,
+  recordTurnMutationRetryOutcome,
+  recordTurnMutationV1MirrorApplied,
   removeTurnMutation,
+  reserveTurnMutationRetryAttempt,
 } from "../../../SERVICEs/turn_mutation_outbox";
 import {
   bindQueuedTurnOwnersToAttempt,
@@ -74,6 +120,7 @@ import {
   migratePendingFyiForAttemptToQueue,
   migratePendingFyiToQueue,
   readPendingClarifyForChat,
+  purgeUngatedSecretOutboxEntries,
   readPendingFyiOutbox,
   readPendingFyisForAttempt,
   readQueuedTurnsForAttempt,
@@ -99,6 +146,17 @@ import { getChatsStore } from "../../../SERVICEs/chat_storage";
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 const STREAM_REATTACH_FLUSH_MS = 100;
 const CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS = 40_000;
+const ADMITTED_RUN_ACCOUNTING_ERROR = Symbol("admitted_run_accounting_error");
+
+const mergeDiscardedTurnMutationText = (currentValue, restoredValue) => {
+  const current = typeof currentValue === "string" ? currentValue : "";
+  const restored = typeof restoredValue === "string" ? restoredValue : "";
+  if (!restored || current === restored) return current;
+  if (!current) return restored;
+  const separator = "\n\n";
+  if (current.endsWith(`${separator}${restored}`)) return current;
+  return `${current}${separator}${restored}`;
+};
 
 /* Process-local ownership complements the durable localStorage outbox. It
    survives Chat page remounts, so an old async finally cannot unlock a newer
@@ -114,9 +172,13 @@ const claimTurnMutation = ({ chatId, operationId, mountedRef, recovery }) => {
   if (!chatId || !operationId) {
     return null;
   }
+  const outboxSnapshot = readTurnMutationOutboxState();
+  if (!outboxSnapshot.available) {
+    return null;
+  }
   let existingOwner = activeTurnMutationsByChatId.get(chatId);
   if (existingOwner?.mountedRef?.current === false) {
-    const hasDurableIntent = readTurnMutationOutbox().some(
+    const hasDurableIntent = outboxSnapshot.entries.some(
       (entry) =>
         entry.chatId === chatId &&
         entry.operationId === existingOwner.operationId,
@@ -213,6 +275,13 @@ const isTerminalTurnMutationError = (error) => {
     status < 500
   );
 };
+
+/* The Context V2 rebase path decides terminality from the sidecar's stable
+   error code (see context_v2_turn_mutation), which the V1 heuristic above
+   cannot read. Legacy results carry no `terminal` field, so this collapses to
+   the exact previous behaviour for them. */
+const isTerminalTurnMutationResult = (result) =>
+  result?.terminal === true || isTerminalTurnMutationError(result?.error);
 
 const createTurnMutationResponseError = (response) => {
   const detail =
@@ -410,6 +479,10 @@ const SUBAGENT_STATE_FLUSH_MS = 100;
 const DURABLE_RESUME_MAX_RETRIES = 7;
 const EXECUTION_CANCEL_DISCONNECT_GRACE_MS = 1500;
 const EXECUTION_CANCEL_OUTBOX_RETRY_MS = 5000;
+const DURABLE_FRESH_SEND_SEAL_STATUSES = Object.freeze([
+  "awaiting_response",
+  "receipt_recorded",
+]);
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const EMPTY_CONFIRMATION_STATE = Object.freeze({});
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -432,6 +505,28 @@ const LEGACY_PLAN_RESULT_KEYS = [
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
+export const resolveQueueRelaySessionOwner = (
+  {
+    sourceSessionId = "",
+    activeSessionId = "",
+    runContextSessionId = "",
+  } = {},
+) => {
+  const candidates = [sourceSessionId, activeSessionId, runContextSessionId]
+    .filter((value) => typeof value === "string" && value.trim())
+    .map((value) => value.trim());
+  const uniqueCandidates = [...new Set(candidates)];
+  return uniqueCandidates.length === 1 ? uniqueCandidates[0] : "";
+};
+
+const canSealDurableInteractionForFreshSend = (status) =>
+  DURABLE_FRESH_SEND_SEAL_STATUSES.includes(status);
+
+const LIFECYCLE_STOP_REASONS = new Set([
+  "app_windows_closed",
+  "system_suspend",
+]);
+
 const isAuthoritativeQueueAcceptanceEvent = (event) => {
   if (QUEUE_RELAY_AUTHORITATIVE_ACCEPTANCE_EVENTS.includes(event?.type)) {
     return true;
@@ -447,6 +542,18 @@ const isAuthoritativeQueueAcceptanceEvent = (event) => {
 
 const isProvenNeverRegisteredCancellation = (response) => {
   if (response?.state !== "cancelled") {
+    return false;
+  }
+  const cancellationReasons = [
+    response?.cancellation?.reason,
+    response?.execution?.reason,
+  ]
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (
+    cancellationReasons.some((reason) => LIFECYCLE_STOP_REASONS.has(reason))
+  ) {
     return false;
   }
   if (response?.disposition === "cancelled_before_register") {
@@ -626,6 +733,12 @@ const characterLogger = createLogger(
 );
 
 const normalizedExecutionIdentity = (identity) => {
+  const ownerChatId =
+    typeof identity?.ownerChatId === "string"
+      ? identity.ownerChatId.trim()
+      : typeof identity?.owner_chat_id === "string"
+        ? identity.owner_chat_id.trim()
+        : "";
   const sessionId =
     typeof identity?.sessionId === "string" ? identity.sessionId.trim() : "";
   const attemptId =
@@ -633,7 +746,75 @@ const normalizedExecutionIdentity = (identity) => {
   if (!sessionId || !attemptId) {
     return null;
   }
-  return { ...identity, sessionId, attemptId };
+  const interactionId =
+    typeof identity?.interactionId === "string"
+      ? identity.interactionId.trim()
+      : typeof identity?.interaction_id === "string"
+        ? identity.interaction_id.trim()
+        : "";
+  return {
+    ...identity,
+    ownerChatId,
+    sessionId,
+    attemptId,
+    interactionId,
+  };
+};
+
+/* A renderer can lose its in-memory stream map while the assistant bubble has
+   already been durably written.  Stop must still address that exact run: a
+   transport disconnect alone leaves the sidecar free to continue a graph
+   worker. */
+const executionIdentityFromMessages = (chatId, messages) => {
+  const ownerChatId = typeof chatId === "string" ? chatId.trim() : "";
+  if (!ownerChatId || !Array.isArray(messages)) return null;
+  const message = [...messages].reverse().find(
+    (candidate) =>
+      candidate?.role === "assistant" &&
+      typeof candidate?.meta?.attemptId === "string" &&
+      candidate.meta.attemptId.trim() &&
+      typeof candidate?.meta?.executionSessionId === "string" &&
+      candidate.meta.executionSessionId.trim(),
+  );
+  if (!message) return null;
+  return normalizedExecutionIdentity({
+    ownerChatId,
+    sessionId: message.meta.executionSessionId,
+    attemptId: message.meta.attemptId,
+    requestId: message.meta.requestId,
+    sourceAttemptId: message.meta.sourceAttemptId,
+    interactionId: message.meta.interactionId,
+  });
+};
+
+const inspectExecutionCancellation = (response, identity) => {
+  const expected = normalizedExecutionIdentity(identity);
+  if (!expected || !response || typeof response !== "object") {
+    return { accepted: false, terminal: false };
+  }
+  const status =
+    typeof response.status === "string" ? response.status.trim() : "";
+  const executionId =
+    typeof (response.execution_id || response.session_id) === "string"
+      ? (response.execution_id || response.session_id).trim()
+      : "";
+  const attemptId =
+    typeof response.attempt_id === "string" ? response.attempt_id.trim() : "";
+  const state = typeof response.state === "string" ? response.state.trim() : "";
+  const accepted =
+    ["ok", "cancel_requested", "cancelled"].includes(status) &&
+    (!executionId || executionId === expected.sessionId) &&
+    (!attemptId || attemptId === expected.attemptId);
+  return {
+    accepted,
+    /* Older trusted preload bridges did not echo execution ids.  Missing ids
+       remain compatible, but any conflicting id fails closed.  Only an
+       explicit terminal state clears the durable retry tombstone. */
+    terminal:
+      accepted &&
+      (status === "cancelled" ||
+        ["cancelled", "completed", "failed"].includes(state)),
+  };
 };
 
 const disconnectStreamTransport = (handle) => {
@@ -663,6 +844,7 @@ const requestExecutionCancellationAndDisconnect = ({
   const normalizedIdentity = normalizedExecutionIdentity(identity);
   if (
     !normalizedIdentity ||
+    !normalizedIdentity.ownerChatId ||
     typeof api.unchain.cancelExecution !== "function"
   ) {
     disconnectOnce();
@@ -675,10 +857,14 @@ const requestExecutionCancellationAndDisconnect = ({
   );
   return Promise.resolve(
     api.unchain.cancelExecution({
+      owner_chat_id: normalizedIdentity.ownerChatId,
       session_id: normalizedIdentity.sessionId,
       attempt_id: normalizedIdentity.attemptId,
       ...(normalizedIdentity.sourceAttemptId
         ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
+        : {}),
+      ...(normalizedIdentity.interactionId
+        ? { interaction_id: normalizedIdentity.interactionId }
         : {}),
       ...(normalizedIdentity.requestId
         ? { request_id: normalizedIdentity.requestId }
@@ -689,7 +875,17 @@ const requestExecutionCancellationAndDisconnect = ({
           ? idempotencyKey.trim()
           : `stop:${normalizedIdentity.attemptId}`,
     }),
-  ).then((response) => ({ ok: true, response }))
+  ).then((response) => {
+    const confirmation = inspectExecutionCancellation(
+      response,
+      normalizedIdentity,
+    );
+    return {
+      ok: confirmation.accepted,
+      terminal: confirmation.terminal,
+      response,
+    };
+  })
     .catch((error) => {
       unchainLogger.warn("execution_cancel_failed", {
         sessionId: normalizedIdentity.sessionId,
@@ -723,6 +919,7 @@ export const useChatStream = ({
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
+  selectedReasoningEffort,
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
@@ -800,6 +997,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
+  selectedReasoningEffortRef.current = selectedReasoningEffort;
   const selectedToolkitsRef = useRef(selectedToolkits);
   selectedToolkitsRef.current = selectedToolkits;
   /* Live translator ref so send-time toasts localize without perturbing the
@@ -866,8 +1065,13 @@ export const useChatStream = ({
   const hookMountedRef = useRef(true);
   const initialTurnMutationOutboxRef = useRef(null);
   if (!initialTurnMutationOutboxRef.current) {
-    initialTurnMutationOutboxRef.current = readTurnMutationOutbox();
-    initialTurnMutationOutboxRef.current.forEach((entry) => {
+    initialTurnMutationOutboxRef.current = readTurnMutationOutboxState();
+    initialTurnMutationOutboxRef.current.entries.forEach((entry) => {
+      if (
+        entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED
+      ) {
+        return;
+      }
       const existingOwner = activeTurnMutationsByChatId.get(entry.chatId);
       if (
         !existingOwner ||
@@ -884,10 +1088,20 @@ export const useChatStream = ({
     });
   }
   const [turnMutationVersion, setTurnMutationVersion] = useState(0);
+  const [turnMutationPresentationByMessageId, setTurnMutationPresentationByMessageId] =
+    useState({});
   const streamingChatIdsRef = useRef(new Set());
   const runPreflightGenerationByChatIdRef = useRef(new Map());
   const turnMutationByChatIdRef = useRef(activeTurnMutationsByChatId);
-  const turnMutationRecoveryAttemptsRef = useRef(new Map());
+  /* A live in-progress response gets no timer. Mark it for this mount so the
+     ownership-change render cannot immediately replay it; a later remount may
+     make one fresh check after the server-side live guard has cleared. */
+  const turnMutationInProgressSeenRef = useRef(new Set());
+  const turnMutationStalledAttemptSeenRef = useRef(new Set());
+  /* Legacy V1 rows predate the durable Context V2 retry contract. Keep their
+     existing bounded recovery cadence so this V2 rollout does not change
+     replaceSessionMemory conflict behavior. */
+  const legacyTurnMutationRecoveryAttemptsRef = useRef(new Map());
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
@@ -937,8 +1151,10 @@ export const useChatStream = ({
     return () => {
       hookMountedRef.current = false;
       turnMutationListeners.delete(listener);
+      const outboxSnapshot = readTurnMutationOutboxState();
+      if (!outboxSnapshot.available) return;
       const durableOperations = new Set(
-        readTurnMutationOutbox().map((entry) => entry.operationId),
+        outboxSnapshot.entries.map((entry) => entry.operationId),
       );
       for (const [ownerChatId, owner] of activeTurnMutationsByChatId) {
         if (
@@ -951,6 +1167,51 @@ export const useChatStream = ({
       }
     };
   }, []);
+
+  /* The resend affordance is deliberately optimistic, but it must not get
+     stuck if the durable turn-mutation entry finishes, retries, or is removed
+     by recovery in another render.  The outbox remains the source of truth;
+     this only mirrors its state for immediate UI feedback. */
+  useEffect(() => {
+    const currentChatId =
+      typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
+    const entriesByTargetMessageId = new Map(
+      readTurnMutationOutbox()
+        .filter(
+          (entry) =>
+            entry.chatId === currentChatId &&
+            entry.kind === "resend" &&
+            typeof entry.targetMessageId === "string" &&
+            entry.targetMessageId.trim(),
+        )
+        .map((entry) => [entry.targetMessageId, entry]),
+    );
+    setTurnMutationPresentationByMessageId((previous) => {
+      const next = {};
+      let changed = false;
+      for (const [messageId, presentation] of Object.entries(previous)) {
+        const entry = entriesByTargetMessageId.get(messageId);
+        if (
+          !entry &&
+          presentation?.phase === "Waiting for the previous run to finish…"
+        ) {
+          changed = true;
+          continue;
+        }
+        if (!entry) {
+          next[messageId] = presentation;
+          continue;
+        }
+        const phase =
+          entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS
+            ? "Waiting for the previous run to finish…"
+            : presentation?.phase;
+        next[messageId] = { ...presentation, phase };
+        if (phase !== presentation?.phase) changed = true;
+      }
+      return changed ? next : previous;
+    });
+  }, [chatId, turnMutationVersion]);
 
   const runContextOwnerChatId =
     typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
@@ -983,6 +1244,104 @@ export const useChatStream = ({
       isCharacterChat,
     });
   }
+
+  /* ── Memory V2 P0 renderer secret gate ────────────────────────────────────
+     Every outgoing text passes through this before ANY side effect. The hook
+     owns the plaintext (private ref) and the modal state; this file only ever
+     sees a decision plus a one-time token. See use_secret_capture_gate.js. */
+  const {
+    gate: secretCaptureGate,
+    isSecretCapturePending,
+    evaluateSecretGate,
+    consumeSecretGateToken,
+    mintTokenForDisposition,
+    setScopeChoice: setSecretCaptureScope,
+    confirmStore: confirmSecretCaptureStore,
+    confirmPlain: confirmSecretCapturePlain,
+    cancelGate: cancelSecretCapture,
+  } = useSecretCaptureGate({ activeChatId: chatId });
+
+  /**
+   * Run the gate for one outgoing text and translate the decision into the
+   * shape the send paths need.
+   *
+   * Returns null when the caller must stop (cancelled, refused, or a scan
+   * error — the static message has already been surfaced), otherwise
+   * { text, token } where `text` is what may actually be sent.
+   */
+  const resolveSecretGateForSend = useCallback(
+    async ({ chatId: targetChatId, text, interactive }) => {
+      const decision = await evaluateSecretGate({
+        chatId: targetChatId,
+        text,
+        interactive,
+      });
+      if (decision.status === SECRET_GATE_DECISIONS.CLEAN) {
+        return { text: decision.text, token: "" };
+      }
+      if (
+        decision.status === SECRET_GATE_DECISIONS.STORED ||
+        decision.status === SECRET_GATE_DECISIONS.PLAIN
+      ) {
+        return {
+          text: decision.text,
+          token: decision.token,
+          disposition:
+            decision.status === SECRET_GATE_DECISIONS.PLAIN
+              ? PLAIN_USER_APPROVED_DISPOSITION
+              : "",
+        };
+      }
+      if (decision.status === SECRET_GATE_DECISIONS.ERROR) {
+        /* Static text only. decision.message is drawn from the frozen
+           SECRET_CAPTURE_MESSAGES table and never interpolates user input. */
+        setStreamErrorForChat(targetChatId, decision.message);
+      }
+      /* CANCELLED is silent by design: the user already knows they cancelled,
+         and the composer still holds their text. */
+      return null;
+    },
+    [evaluateSecretGate, setStreamErrorForChat],
+  );
+
+  /* ── Memory V2 P0 migration: drop pre-gate plaintext from the outbox ──────
+     Queue / clarify / FYI entries written before the gate existed can hold a
+     plain-text credential in localStorage. They are DELETED, not quarantined:
+     leaving the plaintext under a "quarantined" flag would preserve exactly
+     the exposure this gate exists to remove. The user is told only through a
+     STATIC message that names nothing about the removed content.
+
+     Declared here — ahead of every outbox-hydration effect below — so no
+     purged entry can be hydrated into a live buffer first. */
+  const legacySecretPurgeDoneRef = useRef(false);
+  useEffect(() => {
+    if (legacySecretPurgeDoneRef.current) return;
+    legacySecretPurgeDoneRef.current = true;
+    let purged = null;
+    try {
+      purged = purgeUngatedSecretOutboxEntries(
+        (text) =>
+          hasSecretCaptureSyntax(text) || detectLikelySecretAssignment(text),
+      );
+    } catch (_error) {
+      /* Storage unavailable / unparsable. Nothing was hydrated either. */
+      return;
+    }
+    const removed =
+      (purged?.removedQueueItems || 0) +
+      (purged?.removedClarifies || 0) +
+      (purged?.removedFyis || 0);
+    if (removed === 0) return;
+    for (const purgedChatId of purged.chatIds || []) {
+      setStreamErrorForChat(
+        purgedChatId,
+        SECRET_CAPTURE_MESSAGES.secret_capture_legacy_queue_dropped,
+      );
+    }
+    toast.info(SECRET_CAPTURE_MESSAGES.secret_capture_legacy_queue_dropped, {
+      dedupeKey: "secret-capture-legacy-outbox-purge",
+    });
+  }, [setStreamErrorForChat]);
 
   const beginRunGeneration = useCallback((targetChatId) => {
     const normalizedChatId =
@@ -1149,23 +1508,6 @@ export const useChatStream = ({
     [isRunGenerationCurrent],
   );
 
-  const trackDurableResumeStartedKey = useCallback(
-    (targetChatId, resumeKey) => {
-      if (!resumeKey) {
-        return;
-      }
-      durableResumeStartedKeysRef.current.add(resumeKey);
-      let keys =
-        durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
-      if (!keys) {
-        keys = new Set();
-        durableResumeStartedKeysByChatIdRef.current.set(targetChatId, keys);
-      }
-      keys.add(resumeKey);
-    },
-    [],
-  );
-
   const clearDurableResumeStartedKeysForChat = useCallback((targetChatId) => {
     const keys =
       durableResumeStartedKeysByChatIdRef.current.get(targetChatId);
@@ -1294,11 +1636,83 @@ export const useChatStream = ({
       ? durableInteractionState.status
       : "";
   const isDurableInteractionBlocked = Boolean(durableInteractionStatus);
+  const turnMutationOutboxSnapshot = readTurnMutationOutboxState();
+  const heldTurnMutationEntry = turnMutationOutboxSnapshot.entries.find(
+    (entry) =>
+      entry.chatId === chatId &&
+      entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED,
+  );
+  const turnMutationHold = heldTurnMutationEntry
+    ? {
+        operationId: heldTurnMutationEntry.operationId,
+        kind: heldTurnMutationEntry.kind,
+        canDiscard: !heldTurnMutationEntry.v2Ack,
+        message: CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED,
+      }
+    : null;
   const isTurnMutationBlocked = Boolean(
     chatId &&
-      (turnMutationByChatIdRef.current.has(chatId) ||
+      (!turnMutationOutboxSnapshot.available ||
+        turnMutationByChatIdRef.current.has(chatId) ||
         runPreflightGenerationByChatIdRef.current.has(chatId) ||
-        readTurnMutationOutbox().some((entry) => entry.chatId === chatId)),
+        turnMutationOutboxSnapshot.entries.some(
+          (entry) => entry.chatId === chatId,
+        )),
+  );
+
+  const retryTurnMutation = useCallback(
+    (operationId) => {
+      const snapshot = readTurnMutationOutboxState();
+      const target = snapshot.entries.find(
+        (entry) =>
+          entry.operationId === operationId &&
+          entry.chatId === activeChatIdRef.current &&
+          entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED,
+      );
+      if (!target || !clearTurnMutationRetryState(operationId)) return false;
+      turnMutationInProgressSeenRef.current.delete(operationId);
+      turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      setStreamErrorForChat(target.chatId, "");
+      setTurnMutationVersion((version) => version + 1);
+      return true;
+    },
+    [activeChatIdRef, setStreamErrorForChat],
+  );
+
+  const discardTurnMutation = useCallback(
+    (operationId) => {
+      const snapshot = readTurnMutationOutboxState();
+      const target = snapshot.entries.find(
+        (entry) =>
+          entry.operationId === operationId &&
+          entry.chatId === activeChatIdRef.current &&
+          entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED,
+      );
+      if (!target || target.v2Ack) return false;
+      /* Restore first, delete second. Preserve any newer composer draft and
+         make a failed/repeated delete idempotent so neither text is lost or
+         duplicated. Delete mutations carry no text and therefore leave the
+         composer untouched. */
+      const currentDraft = inputValueRef.current;
+      const nextDraft = mergeDiscardedTurnMutationText(
+        currentDraft,
+        target.text,
+      );
+      if (nextDraft !== currentDraft) {
+        if (typeof setInputValue !== "function") return false;
+        inputValueRef.current = nextDraft;
+        setInputValue(nextDraft);
+      }
+      if (!removeTurnMutation(operationId)) return false;
+      turnMutationInProgressSeenRef.current.delete(operationId);
+      turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      const owner = turnMutationByChatIdRef.current.get(target.chatId);
+      if (owner?.operationId === operationId) releaseTurnMutation(owner);
+      setStreamErrorForChat(target.chatId, "");
+      setTurnMutationVersion((version) => version + 1);
+      return true;
+    },
+    [activeChatIdRef, setInputValue, setStreamErrorForChat],
   );
   const canStop =
     isStreaming ||
@@ -1718,8 +2132,12 @@ export const useChatStream = ({
     [],
   );
 
+  /* `secretDisposition` is "" for every ordinary queue push. It is only ever
+     PLAIN_USER_APPROVED_DISPOSITION when the user explicitly approved sending
+     THIS text as plain text in the secret gate, and it is persisted with the
+     item so a later relay does not have to fail closed. */
   const pushQueuedTurn = useCallback(
-    (targetChatId, text) => {
+    (targetChatId, text, secretDisposition = "") => {
       const currentAttemptId =
         queueAttemptIdByChatIdRef.current.get(targetChatId) || "";
       const attemptId =
@@ -1748,7 +2166,7 @@ export const useChatStream = ({
       if (!queuedTurns) {
         queuedTurns = createQueuedTurnBuffer();
       }
-      const queuedId = queuedTurns.push(text);
+      const queuedId = queuedTurns.push(text, secretDisposition);
       if (!queuedId) {
         const message =
           "The queued-message limit was reached. Your input was kept.";
@@ -2624,7 +3042,11 @@ export const useChatStream = ({
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
     const executionIdentity =
-      executionIdentityByChatIdRef.current.get(currentChatId) || null;
+      executionIdentityByChatIdRef.current.get(currentChatId) ||
+      executionIdentityFromMessages(currentChatId, messagesRef.current) ||
+      null;
+    const durableInteraction =
+      durableInteractionByChatIdRef.current[currentChatId] || null;
 
     // Invalidate first. Any lookup, retry, receipt, or queue callback that was
     // already in flight must observe the tombstone before transport teardown.
@@ -2650,6 +3072,11 @@ export const useChatStream = ({
     executionIdentityByChatIdRef.current.delete(currentChatId);
     const queuedCancellation = enqueueExecutionCancel({
       ...(executionIdentity || {}),
+      ownerChatId: currentChatId,
+      interactionId:
+        typeof durableInteraction?.interactionId === "string"
+          ? durableInteraction.interactionId.trim()
+          : executionIdentity?.interactionId || "",
       reason: "user_stop",
       createdAt: Date.now(),
     });
@@ -2658,10 +3085,11 @@ export const useChatStream = ({
       handle,
       reason: "user_stop",
     }).then((result) => {
-      if (result?.ok && queuedCancellation) {
+      if (result?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
           queuedCancellation.attemptId,
+          queuedCancellation.interactionId,
         );
       }
     });
@@ -2734,8 +3162,12 @@ export const useChatStream = ({
           handle: null,
           reason: entry.reason || "user_stop",
         });
-        if (result?.ok) {
-          removeExecutionCancel(entry.sessionId, entry.attemptId);
+        if (result?.terminal) {
+          removeExecutionCancel(
+            entry.sessionId,
+            entry.attemptId,
+            entry.interactionId,
+          );
         }
       }
       if (!disposed) {
@@ -3198,8 +3630,8 @@ export const useChatStream = ({
         durableInteractionLookupByChatIdRef.current.get(targetChatId);
       if (typeof lookup === "function") {
         void lookup(targetChatId, sessionId, {
-          autoResume: true,
           runGeneration,
+          authoritativeReceipt: response,
         });
       }
     },
@@ -3731,6 +4163,317 @@ export const useChatStream = ({
     [],
   );
 
+  /* ── Memory V2 P0 turn-mutation admission ────────────────────────────────
+     Resolves, from the SESSION HEAD CONTRACT alone, which memory subsystem
+     owns this chat's visible history. Deliberately consults neither
+     readMemorySettings() nor any vector/embedding state: whether the legacy
+     short-term memory is enabled says nothing about whether a Context V2
+     journal exists, and a mutation that rewrites the wrong one cannot be
+     undone (the pre-mutation generation is already sealed).
+
+     Exactly two outcomes run the legacy V1 rewrite: the feature flag is off,
+     or the head unambiguously reports no V2 state for this session. Every
+     other shape blocks. See decideTurnMutationMemoryMode for the rules. */
+  const resolveTurnMutationMemoryPlan = useCallback(
+    async ({ ownerChatId, sessionId }) => {
+      if (!isFeatureFlagEnabled("enable_memory_v2")) {
+        return decideTurnMutationMemoryMode({ flagEnabled: false });
+      }
+      if (!contextV2Bridge.isAvailable()) {
+        return decideTurnMutationMemoryMode({
+          flagEnabled: true,
+          bridgeAvailable: false,
+        });
+      }
+      let head = null;
+      let headErrorCode = "";
+      try {
+        head = await contextV2Bridge.getSessionHead({ ownerChatId, sessionId });
+      } catch (error) {
+        /* Only the stable code crosses; the message is main-built and may
+           carry request detail, so it is never surfaced. */
+        headErrorCode = parseContextV2ErrorCode(error) || "context_v2_failed";
+      }
+      return decideTurnMutationMemoryMode({
+        flagEnabled: true,
+        bridgeAvailable: true,
+        head,
+        headErrorCode,
+        ownerChatId,
+        sessionId,
+      });
+    },
+    [],
+  );
+
+  /* Applies the memory half of a turn mutation from the DURABLE OUTBOX ENTRY
+     — never from live state. For V2 that means replaying the frozen
+     v2RebasePayload byte-for-byte: the session head is read exactly once, at
+     enqueue time, and a recovery must not re-read it (a newer head would
+     describe a different generation and silently rebase away whatever
+     happened in between).
+
+     A SHADOW-admitted chat writes BOTH subsystems, strictly journal-first:
+     rebase → verify ack → record ack → V1 authoritative replace → record
+     v1MirrorState. Under shadow the model still reads V1 short-term memory, so
+     skipping the second leg would leave the edited/deleted turn visible to the
+     model — shadow silently changing model input, which is the one thing
+     shadow is defined not to do. An ACTIVE chat never touches V1: there the
+     journal is the model input. See context_v2_turn_mutation's header.
+
+     If the V1 leg fails after the ack, this returns applied:false so NOTHING
+     is committed and no run starts; the row survives as PARTIAL (v2Ack +
+     v1MirrorState "pending") and keeps the chat locked until it converges.
+
+     Returns the same {applied, skipped, response, error} shape the legacy path
+     already used, plus the durable retry decision for V2 recovery. */
+  const applyTurnMutationMemory = useCallback(
+    async (entry, { replacementMessages = [], targetChatId = "" } = {}) => {
+      if (entry?.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2) {
+        return replaceSessionMemoryForMessages(
+          entry.sessionId,
+          replacementMessages,
+          {
+            forceMemoryEnabled: entry.forceMemoryEnabled,
+            memoryNamespace: entry.memoryNamespace,
+            modelId: entry.modelId,
+            targetChatId,
+            operationId: entry.operationId,
+            expectedSessionRevision: entry.expectedSessionRevision,
+            expectedCancelAttemptId: entry.expectedCancelAttemptId,
+          },
+        );
+      }
+
+      const alreadyApplied = Boolean(
+        entry.v2Ack &&
+          (entry.admissionMode !== TURN_MUTATION_ADMISSION_MODES.SHADOW ||
+            entry.v1MirrorState === TURN_MUTATION_V1_MIRROR_STATES.APPLIED),
+      );
+      if (alreadyApplied) {
+        return {
+          applied: true,
+          skipped: true,
+          response: null,
+          error: null,
+          terminal: false,
+          retryAction: "",
+          retryAt: 0,
+        };
+      }
+
+      /* Reserve durably BEFORE either memory leg. If the renderer disappears
+         after this write, the next mount resumes the remaining budget instead
+         of treating the operation as new. */
+      const reservedEntry = reserveTurnMutationRetryAttempt(entry.operationId);
+      if (!reservedEntry) {
+        const current = readTurnMutationOutbox().find(
+          (candidate) => candidate.operationId === entry.operationId,
+        );
+        const message = CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED;
+        const error = new Error(message);
+        error.code = current?.lastFailureCode || "context_v2_retry_deferred";
+        error.retryable = false;
+        return {
+          applied: false,
+          skipped: false,
+          response: null,
+          error,
+          terminal:
+            current?.retryStatus ===
+            TURN_MUTATION_RETRY_STATUSES.QUARANTINED,
+          retryAction: current?.retryStatus || "deferred",
+          retryAt: current?.retryAt || 0,
+        };
+      }
+
+      const payload = reservedEntry.v2RebasePayload;
+      /* `staticMessage` lets the V1 mirror leg supply its own mapping — its
+         codes are V1/bridge codes, which contextV2TurnMutationMessage would
+         misread. Either way the surfaced string is a fixed literal: the V1
+         replace helper may have just set a sidecar-authored message on the
+         stream error, and overwriting it here in the same continuation is what
+         keeps server text off the screen. */
+      const fail = (errorCode, staticMessage = "") => {
+        const decision = resolveContextV2TurnMutationFailure({
+          errorCode,
+          replayAttempts: reservedEntry.replayAttempts,
+        });
+        const retryAt =
+          decision.action === TURN_MUTATION_RETRY_ACTIONS.RETRY
+            ? Date.now() + decision.delayMs
+            : 0;
+        const recorded = recordTurnMutationRetryOutcome(
+          reservedEntry.operationId,
+          {
+            action: decision.action,
+            code: errorCode,
+            retryAt,
+          },
+        );
+        if (!recorded) {
+          const message = CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST;
+          if (activeChatIdRef.current === targetChatId) {
+            setStreamError(message);
+          }
+          const persistError = new Error(message);
+          persistError.code = "context_v2_persist_failed";
+          persistError.retryable = false;
+          return {
+            applied: false,
+            skipped: false,
+            response: null,
+            error: persistError,
+            terminal: true,
+            retryAction: "persist_failed",
+            retryAt: 0,
+          };
+        }
+        if (decision.action === TURN_MUTATION_RETRY_ACTIONS.IN_PROGRESS) {
+          turnMutationInProgressSeenRef.current.add(reservedEntry.operationId);
+        }
+        const quarantined =
+          decision.action === TURN_MUTATION_RETRY_ACTIONS.QUARANTINE;
+        const message = quarantined
+          ? CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED
+          : staticMessage || contextV2TurnMutationMessage(errorCode);
+        if (activeChatIdRef.current === targetChatId) {
+          setStreamError(message);
+        }
+        const error = new Error(message);
+        error.code = errorCode;
+        error.retryable = !quarantined;
+        return {
+          applied: false,
+          skipped: false,
+          response: null,
+          error,
+          terminal: quarantined,
+          retryAction: recorded?.retryStatus || decision.action,
+          retryAt: recorded?.retryAt || retryAt,
+        };
+      };
+
+      if (!payload) return fail("context_v2_invalid_request");
+
+      /* ── Leg [1]: the canonical journal rebase ───────────────────────────
+         A durably recorded ack means the server already committed this exact
+         rebase, so the rebase is skipped entirely on a replay — re-sending
+         would only fetch the receipt back. */
+      if (!reservedEntry.v2Ack) {
+        if (!contextV2Bridge.isAvailable()) {
+          return fail("context_v2_unavailable");
+        }
+
+        let ack = null;
+        try {
+          ack = await contextV2Bridge.rebaseSession(payload);
+        } catch (error) {
+          const errorCode =
+            parseContextV2ErrorCode(error) || "context_v2_failed";
+          return fail(errorCode);
+        }
+        /* Server ack or nothing: a local fingerprint match is NOT evidence the
+           journal was rebased. An ack that fails verification is treated as
+           retryable, not terminal — replaying the frozen payload returns the
+           idempotency receipt, so a later attempt can still resolve it. */
+        if (!verifyContextV2RebaseAck(ack, payload)) {
+          return fail("context_v2_ack_invalid");
+        }
+        const recordedAck = recordTurnMutationRebaseAck(
+          payload.operationId,
+          projectContextV2RebaseAck(ack),
+        );
+        if (!recordedAck) {
+          return fail(
+            "context_v2_persist_failed",
+            CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+          );
+        }
+      }
+
+      /* ── Leg [2]: the authoritative V1 replace, SHADOW ONLY ──────────────
+         Absent admissionMode = a row frozen before this leg existed; it stays
+         rebase-only (see the outbox normalizer). "applied" = a previous
+         attempt already converged this leg. */
+      if (
+        reservedEntry.admissionMode !== TURN_MUTATION_ADMISSION_MODES.SHADOW ||
+        reservedEntry.v1MirrorState === TURN_MUTATION_V1_MIRROR_STATES.APPLIED
+      ) {
+        return {
+          applied: true,
+          skipped: false,
+          response: null,
+          error: null,
+          terminal: false,
+          retryAction: "",
+          retryAt: 0,
+        };
+      }
+
+      /* Content comes from the ONE frozen artifact — the same
+         replacementHistory the journal was rebased to — never from
+         `replacementMessages`, which is live state. Both legs therefore
+         describe byte-identically the same post-mutation conversation, and a
+         replay is deterministic no matter how long it was interrupted.
+
+         No expectedSessionRevision and no expectedCancelAttemptId are sent:
+         the chat-level mutation claim has already serialised every writer, and
+         the V2 rebase's own open-attempt fence has already refused to run
+         while an attempt was live. Re-fencing a frozen replay on a transient
+         id would strand the PARTIAL row instead of converging it. The replace
+         is a whole-history, content-addressed overwrite, so replaying is
+         naturally idempotent; operationId lets the sidecar dedupe it too. */
+      const mirrorResult = await replaceSessionMemoryForMessages(
+        reservedEntry.sessionId,
+        payload.replacementHistory,
+        {
+          forceMemoryEnabled: reservedEntry.forceMemoryEnabled,
+          memoryNamespace: reservedEntry.memoryNamespace,
+          modelId: reservedEntry.modelId,
+          targetChatId,
+          operationId: reservedEntry.operationId,
+        },
+      );
+      if (!mirrorResult.applied) {
+        /* NEVER terminal, whatever the V1 code says. A terminal result lets
+           the call sites discard the row — but the journal has already been
+           rebased, so discarding would strip the only record that V1 is behind
+           and silently unlock the chat with dirty short-term memory. Retrying
+           forever (recovery gives up into a manual-review error after its
+           backoff) is the strictly safer failure. */
+        const mirrorErrorCode =
+          typeof mirrorResult.error?.code === "string" &&
+          mirrorResult.error.code.trim()
+            ? mirrorResult.error.code.trim()
+            : CONTEXT_V2_V1_MIRROR_ERROR_CODE;
+        return fail(
+          mirrorErrorCode,
+          contextV2V1MirrorMessage(mirrorErrorCode),
+        );
+      }
+      const recordedMirror = recordTurnMutationV1MirrorApplied(
+        payload.operationId,
+      );
+      if (!recordedMirror) {
+        return fail(
+          "context_v2_persist_failed",
+          CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+        );
+      }
+      return {
+        applied: true,
+        skipped: false,
+        response: null,
+        error: null,
+        terminal: false,
+        retryAction: "",
+        retryAt: 0,
+      };
+    },
+    [activeChatIdRef, replaceSessionMemoryForMessages, setStreamError],
+  );
+
   const runTurnRequest = useCallback(
     async ({
       mode,
@@ -3748,6 +4491,21 @@ export const useChatStream = ({
          the caller against `text`. Presentation-only, never model-visible.
          Null for every path that isn't a composer/edit command send. */
       composer = null,
+      /* Memory V2 P0 secret gate proof. `secretGateToken` is a one-time token
+         minted by useSecretCaptureGate for the exact (chatId, secretGateText)
+         pair the user reviewed. The final fail-closed guard below consumes it;
+         without it, text that still trips the scanner is never sent.
+         `secretGateText` is the PRE-EXPANSION text — what the user actually
+         saw in the modal — which is what the token is bound to. */
+      secretGateToken = "",
+      secretGateText = "",
+      /* INTERNAL ONLY. Set by the transparent memory-fallback retry below,
+         which re-enters runTurnRequest with text this same call already put
+         through the guard (and whose one-time token is therefore already
+         spent). No caller outside this file may set it: it is the single
+         documented way past the guard, and it exists so an app-initiated
+         retry of an already-approved send cannot be refused. */
+      secretGateSettled = false,
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
@@ -3764,6 +4522,7 @@ export const useChatStream = ({
       relayItems = [],
       relaySourceAttemptId = "",
       relaySourceClientOperationId = "",
+      continuedFromRunId = "",
     }) => {
       /* Queue-relay acceptance protocol (see relayQueuedTurnsAfterRun):
          onConsumed fires exactly once, and only on authoritative server
@@ -3778,6 +4537,7 @@ export const useChatStream = ({
       let queueRelayAcceptanceTimer = null;
       let queueRelayAcceptanceReattachCount = 0;
       let streamHandle = null;
+      let terminalAccountingPending = false;
       const clearQueueRelayAcceptanceTimer = () => {
         if (queueRelayAcceptanceTimer == null) return;
         const timerId = queueRelayAcceptanceTimer;
@@ -3838,7 +4598,6 @@ export const useChatStream = ({
       const promptText =
         trimmedText ||
         (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
-
       if (
         !targetChatId ||
         (!isDurableResume && !promptText && !hasAttachments)
@@ -3856,6 +4615,71 @@ export const useChatStream = ({
       }
       if (!turnMutationOwner && turnMutationOperationId) {
         return false;
+      }
+
+      /* ── Memory V2 P0 secret gate — final fail-closed guard ────────────────
+         THIS IS THE EARLIEST FEASIBLE POSITION and it must stay here.
+         Everything above is a pure read or an early return; everything below
+         mutates something — beginRunGeneration, runClientOperationId,
+         releaseTurnMutation, the composer draft claim, runContext,
+         markChatStarted, the render runtime, pending-confirmation cleanup,
+         then chat_storage / the journal / the outbox / the stream.
+
+         All capture and deposit already happened in useSecretCaptureGate,
+         strictly before this call. Nothing is stored or redacted here; the
+         only job is to prove the user reviewed this send.
+
+         The subject of the check is the PRE-EXPANSION text the user actually
+         saw (`secretGateText`), not `promptText`. Composer plugin-skill
+         expansion runs AFTER the gate and splices in app-authored content, so
+         scanning the expanded body here would fail closed on a skill's own
+         example credentials even though the user's own text was clean and
+         reviewed. Callers that pass no gated text fall back to promptText, so
+         an ungated programmatic path is refused rather than exempted. */
+      if (!isDurableResume && !secretGateSettled) {
+        const gatedText =
+          typeof secretGateText === "string" && secretGateText
+            ? secretGateText
+            : promptText;
+        const gateToken =
+          typeof secretGateToken === "string" ? secretGateToken.trim() : "";
+        const failSecretGateClosed = (staticMessage) => {
+          setStreamErrorForChat(targetChatId, staticMessage);
+          return false;
+        };
+        if (gateToken) {
+          /* Consumed exactly once, and only for THIS chat and THIS exact
+             reviewed text. A replay, a token minted in another chat, and text
+             edited after approval all land here and stop the send. BOTH
+             decisions mint a token — a "stored" approval is spent here just
+             like a "plain" one, so neither can be reused for a second send. */
+          if (
+            !consumeSecretGateToken(gateToken, {
+              chatId: targetChatId,
+              text: gatedText,
+            })
+          ) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+        } else {
+          /* No token, so the text is only allowed through if it is genuinely
+             clean. A surviving credential OR any {{secret:...}} syntax means
+             a caller skipped the gate. Static text only. */
+          const scan = scanOutgoingSecretText(gatedText);
+          if (!scan.ok) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES[scan.code] ||
+                SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+          if (scan.candidates.length > 0) {
+            return failSecretGateClosed(
+              SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+            );
+          }
+        }
       }
 
       /* Capture the originating chat's composer before attachment hydration or
@@ -4118,6 +4942,13 @@ export const useChatStream = ({
       let payloadAttachments = [];
       let userMessage = null;
       if (!isDurableResume) {
+        /* `promptText` is already gate-approved: it either scanned clean or a
+           one-time token proving the user's decision was consumed at the top
+           of this function, before any side effect. There is deliberately NO
+           capture, deposit or redaction here — a late deposit is what let
+           explicit {{secret:...}} syntax run past markChatStarted, the draft
+           claim and the render runtime, and it had no compensation when the
+           second of several deposits failed. See useSecretCaptureGate. */
         const userMessageSeed = normalizedReuseUserMessage
           ? {
               ...normalizedReuseUserMessage,
@@ -5082,6 +5913,70 @@ export const useChatStream = ({
       };
 
       const startChatStream = (payload, handlers = {}) => {
+        const forwardTerminalDoneError = (
+          done,
+          doneError,
+          { onAccountingSettled } = {},
+        ) => {
+          const terminalError = {
+            code:
+              typeof doneError?.code === "string"
+                ? doneError.code
+                : "stream_failed",
+            message:
+              typeof doneError?.message === "string"
+                ? doneError.message
+                : "The stream failed.",
+          };
+          const hasCanonicalBundle = [
+            RUN_BUNDLE_V1_SCHEMA,
+            RUN_BUNDLE_V2_SCHEMA,
+          ].includes(done?.bundle?.schema);
+          if (!hasCanonicalBundle) {
+            handlers.onError?.(terminalError);
+            return false;
+          }
+
+          const forwardAdmittedError = ({
+            bundle,
+            completionDiagnostics,
+          }) => {
+            onAccountingSettled?.();
+            if (!isCurrentRun()) return;
+            handlers.onError?.({
+              ...terminalError,
+              [ADMITTED_RUN_ACCOUNTING_ERROR]: true,
+              bundle,
+              ...(completionDiagnostics
+                ? { completion_diagnostics: completionDiagnostics }
+                : {}),
+            });
+          };
+          const failAccounting = () => {
+            onAccountingSettled?.();
+            if (!isCurrentRun()) return;
+            handlers.onError?.({
+              code: "run_bundle_accounting_failed",
+              message:
+                "The failed run could not be admitted to the Run Bundle ledger.",
+            });
+          };
+
+          try {
+            const admission = admitDoneRunAccountingV1(done);
+            if (admission && typeof admission.then === "function") {
+              void admission
+                .then(forwardAdmittedError)
+                .catch(failAccounting);
+              return true;
+            }
+            forwardAdmittedError(admission);
+          } catch (_error) {
+            failAccounting();
+          }
+          return false;
+        };
+
         const startRuntimeEventStream = ({
           createStore,
           reduceTree,
@@ -5102,6 +5997,9 @@ export const useChatStream = ({
         );
         const processedRuntimeEventEffectKeys = new Set();
         let runtimeEventStreamFailed = false;
+        let pendingRuntimeEventError = null;
+        let terminalDoneReceived = false;
+        let terminalDoneAccountingPending = false;
         const runtimeEventEffectKey = (effect) => {
           const eventId =
             typeof effect?.eventId === "string" && effect.eventId.trim()
@@ -5222,7 +6120,7 @@ export const useChatStream = ({
             }
             if (effect.type === "error") {
               runtimeEventStreamFailed = true;
-              handlers.onError?.(effect.error);
+              pendingRuntimeEventError = effect.error;
             }
             if (
               effect.type === "artifact_summary" ||
@@ -5270,30 +6168,36 @@ export const useChatStream = ({
             dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
-            if (!isCurrentRun()) {
+            if (!isCurrentRun() || terminalDoneReceived) {
               runtimeEventBatcher?.cancel();
               return;
             }
+            terminalDoneReceived = true;
             runtimeEventBatcher?.flushNow();
-            if (runtimeEventStreamFailed) {
-              return;
-            }
             const doneError =
               done?.error && typeof done.error === "object"
                 ? done.error
                 : null;
             if (doneError) {
               runtimeEventStreamFailed = true;
-              handlers.onError?.({
-                code:
-                  typeof doneError.code === "string"
-                    ? doneError.code
-                    : "stream_failed",
-                message:
-                  typeof doneError.message === "string"
-                    ? doneError.message
-                    : "The stream failed.",
-              });
+              terminalDoneAccountingPending = forwardTerminalDoneError(
+                done,
+                doneError,
+                {
+                  onAccountingSettled: () => {
+                    terminalDoneAccountingPending = false;
+                  },
+                },
+              );
+              return;
+            }
+            if (runtimeEventStreamFailed) {
+              handlers.onError?.(
+                pendingRuntimeEventError || {
+                  code: "stream_failed",
+                  message: "The stream failed.",
+                },
+              );
               return;
             }
             const traceProps = adaptTree(runtimeEventActivityTree);
@@ -5304,14 +6208,18 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
-            if (!isCurrentRun()) {
+            if (
+              !isCurrentRun() ||
+              terminalDoneReceived ||
+              terminalDoneAccountingPending
+            ) {
               runtimeEventBatcher?.cancel();
               return;
             }
             clearQueueRelayAcceptanceTimer();
             runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
-            handlers.onError?.(error);
+            handlers.onError?.(error || pendingRuntimeEventError);
           },
         };
         const wrapRuntimeEventStreamHandle = (rawHandle) => {
@@ -5412,16 +6320,7 @@ export const useChatStream = ({
                 ? done.error
                 : null;
             if (doneError) {
-              handlers.onError?.({
-                code:
-                  typeof doneError.code === "string"
-                    ? doneError.code
-                    : "stream_failed",
-                message:
-                  typeof doneError.message === "string"
-                    ? doneError.message
-                    : "The stream failed.",
-              });
+              forwardTerminalDoneError(done, doneError);
               return;
             }
             handlers.onDone?.(done);
@@ -5623,7 +6522,6 @@ export const useChatStream = ({
                   targetChatId,
                   durableInteraction.sessionId,
                   {
-                    autoResume: true,
                     runGeneration: activeRunGeneration,
                     authoritativePending: rawPending,
                   },
@@ -5744,6 +6642,7 @@ export const useChatStream = ({
         const currentIdentity =
           executionIdentityByChatIdRef.current.get(targetChatId) || null;
         const exactIdentity = normalizedExecutionIdentity({
+          ownerChatId: targetChatId,
           sessionId: expectedHandle?.executionId || effectiveThreadId,
           attemptId: expectedHandle?.attemptId,
           requestId: expectedHandle?.requestId,
@@ -5767,10 +6666,11 @@ export const useChatStream = ({
             ? `queue-relay-acceptance:${exactIdentity.attemptId}`
             : "",
         });
-        if (cancelResult?.ok && queuedCancellation) {
+        if (cancelResult?.terminal && queuedCancellation) {
           removeExecutionCancel(
             queuedCancellation.sessionId,
             queuedCancellation.attemptId,
+            queuedCancellation.interactionId,
           );
         }
         if (
@@ -5982,18 +6882,88 @@ export const useChatStream = ({
               runSelectedRecipeName === "Default")) &&
           effectiveAgentOrchestration.mode === "default";
 
+        /* Memory V2 P0 payload identity + lazy bootstrap.
+           owner_chat_id is ALWAYS the UI chat id (targetChatId) — never
+           effectiveThreadId, which becomes the character session_id for
+           character chats — and is sent unconditionally on both the normal
+           and the durable-resume payload (merged via spread; the durable
+           helper itself is intentionally untouched).
+           memory_v2_requested + memory_agent_config appear ONLY when the
+           enable_memory_v2 flag is on, and then on BOTH the normal send and
+           the durable-resume payload — a resumed interaction is still a
+           Memory V2 turn and the sidecar must route it the same way.
+           context_v2_history is the one V2 field that stays exclusive to the
+           normal send: it is built from this chat's settled messages (prior
+           turns; the in-flight message travels in `message`) and exists
+           solely for the sidecar's lazy bootstrap. A durable resume by
+           definition already has canonical history server-side, so re-sending
+           it would be redundant at best and a divergent second writer at
+           worst.
+           memory_agent_config carries ONLY the normalized user-tunable
+           Memory Agent surface ({displayName, additionalInstructions,
+           provider, modelId}) — explicitly picked so no other settings
+           namespace can ever leak into the payload.
+           The legacy `history` field keeps its exact existing logic so model
+           input stays byte-equivalent in shadow mode, and with the flag off
+           the payload is unchanged in both branches. */
+        const memoryV2Requested = isFeatureFlagEnabled("enable_memory_v2");
+        const memoryV2CommonFields = memoryV2Requested
+          ? (() => {
+              const memoryAgentSettings = readMemoryAgentSettings();
+              return {
+                memory_v2_requested: true,
+                memory_agent_config: {
+                  displayName: memoryAgentSettings.displayName,
+                  additionalInstructions:
+                    memoryAgentSettings.additionalInstructions,
+                  provider: memoryAgentSettings.provider,
+                  modelId: memoryAgentSettings.modelId,
+                },
+              };
+            })()
+          : {};
+        const contextCompositionHint = isDurableResume
+          ? null
+          : buildContextCompositionHintV2({
+              message: promptText,
+              composer,
+            });
         const streamPayload = isDurableResume
-          ? buildDurableResumePayload(durableInteraction)
+          ? {
+              ...buildDurableResumePayload(durableInteraction),
+              owner_chat_id: targetChatId,
+              ...memoryV2CommonFields,
+            }
           : {
               threadId: effectiveThreadId,
+              owner_chat_id: targetChatId,
+              ...(continuedFromRunId
+                ? { continued_from_run_id: continuedFromRunId }
+                : {}),
+              ...memoryV2CommonFields,
+              ...(memoryV2Requested
+                ? {
+                    context_v2_history: buildContextV2History(
+                      normalizedBaseMessages,
+                    ),
+                  }
+                : {}),
               ...(turnMutationOperationId
                 ? { attempt_id: turnMutationOperationId }
                 : {}),
               message: promptText,
+              ...(contextCompositionHint
+                ? { context_composition_hint: contextCompositionHint }
+                : {}),
               history: historyForModel,
               attachments: payloadAttachments,
               options: {
                 modelId: effectiveModelId,
+                ...(!runIsCharacterChat &&
+                typeof selectedReasoningEffortRef.current === "string" &&
+                selectedReasoningEffortRef.current
+                  ? { reasoningEffort: selectedReasoningEffortRef.current }
+                  : {}),
                 memory_enabled: memoryEnabled,
                 ...(durableInteractionsRequired
                   ? { durable_interactions_required: true }
@@ -6039,9 +7009,7 @@ export const useChatStream = ({
            — the server may still reject (e.g. execution_lease_conflict) before
            accepting. onConsumed fires only on the authoritative acceptance
            evidence handled inside these callbacks. */
-        streamHandle = startChatStream(
-          streamPayload,
-          {
+        const streamCallbacks = {
             onFrame: (frame) => {
               if (!isCurrentRun()) {
                 return;
@@ -6996,13 +7964,22 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
-              if (!isCurrentRun()) {
+              if (!isCurrentRun() || terminalAccountingPending) {
                 return;
               }
+              terminalAccountingPending = true;
               /* Successful done is authoritative acceptance evidence too — a
                  very fast run may finish before any token/lifecycle frame was
                  observed. Consume the relayed turn here as a done fallback. */
               markRequestConsumed();
+              const finishAdmittedDone = ({
+                bundle,
+                completionDiagnostics,
+              }) => {
+              terminalAccountingPending = false;
+              if (!isCurrentRun()) {
+                return;
+              }
               updatePendingContinuationRequestForChat(targetChatId, null);
               /* Sync closure with external updates before building final messages. */
               const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
@@ -7014,13 +7991,17 @@ export const useChatStream = ({
               flushBufferedTokenDelta();
               flushStreamingMessageStore(targetChatId, assistantMessageId);
               const doneTime = Date.now();
-              const bundle =
-                done?.bundle && typeof done.bundle === "object"
-                  ? { ...done.bundle }
-                  : undefined;
+              const rawAgentOrchestration =
+                bundle?.descriptor?.agent_orchestration ||
+                bundle?.agent_orchestration ||
+                null;
               const nextAgentOrchestration =
-                bundle && bundle.agent_orchestration
-                  ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                rawAgentOrchestration
+                  ? normalizeAgentOrchestration(
+                      typeof rawAgentOrchestration === "string"
+                        ? { mode: rawAgentOrchestration }
+                        : rawAgentOrchestration,
+                    )
                   : null;
 
               const materializedStreamMessages = materializeStreamingMessages(
@@ -7041,6 +8022,9 @@ export const useChatStream = ({
                   meta: {
                     ...(message.meta || {}),
                     ...(bundle ? { bundle } : {}),
+                    ...(completionDiagnostics
+                      ? { completion_diagnostics: completionDiagnostics }
+                      : {}),
                   },
                 });
               });
@@ -7099,41 +8083,6 @@ export const useChatStream = ({
                 ) {
                   setAgentOrchestration(nextAgentOrchestration);
                 }
-              }
-
-              if (bundle && typeof bundle.consumed_tokens === "number") {
-                const modelId =
-                  typeof bundle.model === "string" && bundle.model.trim()
-                    ? bundle.model.trim()
-                    : runModelId || "";
-                const colonIndex = modelId.indexOf(":");
-                const provider =
-                  colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
-                const model =
-                  colonIndex > 0
-                    ? modelId.slice(colonIndex + 1)
-                    : modelId || "unknown";
-                appendTokenUsageRecord({
-                  timestamp: doneTime,
-                  provider,
-                  model,
-                  model_id: modelId || "unknown",
-                  consumed_tokens: bundle.consumed_tokens,
-                  ...(typeof bundle.input_tokens === "number"
-                    ? { input_tokens: bundle.input_tokens }
-                    : {}),
-                  ...(typeof bundle.output_tokens === "number"
-                    ? { output_tokens: bundle.output_tokens }
-                    : {}),
-                  ...(typeof bundle.cache_read_input_tokens === "number"
-                    ? { cache_read_input_tokens: bundle.cache_read_input_tokens }
-                    : {}),
-                  ...(typeof bundle.cache_creation_input_tokens === "number"
-                    ? { cache_creation_input_tokens: bundle.cache_creation_input_tokens }
-                    : {}),
-                  max_context_window_tokens: bundle.max_context_window_tokens,
-                  chatId: targetChatId,
-                });
               }
 
               // Persist the final messages now. Foreground writes synchronously
@@ -7216,6 +8165,27 @@ export const useChatStream = ({
               } else {
                 relayQueuedTurnsAfterRunRef.current?.(terminalRelayContext);
               }
+              };
+              const failDoneAccounting = (error) => {
+                terminalAccountingPending = false;
+                if (!isCurrentRun()) return;
+                streamCallbacks.onError({
+                  code: error?.code || "run_bundle_accounting_failed",
+                  message:
+                    error?.message ||
+                    "The completed run could not be admitted to the Run Bundle ledger.",
+                });
+              };
+              try {
+                const admission = admitDoneRunAccountingV1(done);
+                if (admission && typeof admission.then === "function") {
+                  void admission.then(finishAdmittedDone).catch(failDoneAccounting);
+                } else {
+                  finishAdmittedDone(admission);
+                }
+              } catch (error) {
+                failDoneAccounting(error);
+              }
             },
             onError: (error) => {
               if (!isCurrentRun()) {
@@ -7237,11 +8207,83 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              const hasAdmittedRunAccounting =
+                error?.[ADMITTED_RUN_ACCOUNTING_ERROR] === true;
+              const admittedBundle =
+                hasAdmittedRunAccounting &&
+                error.bundle &&
+                typeof error.bundle === "object"
+                  ? error.bundle
+                  : null;
+              const admittedCompletionDiagnostics =
+                hasAdmittedRunAccounting &&
+                error.completion_diagnostics &&
+                typeof error.completion_diagnostics === "object"
+                  ? error.completion_diagnostics
+                  : null;
+              const admittedAccountingMeta = {
+                ...(admittedBundle ? { bundle: admittedBundle } : {}),
+                ...(admittedCompletionDiagnostics
+                  ? {
+                      completion_diagnostics:
+                        admittedCompletionDiagnostics,
+                    }
+                  : {}),
+              };
               const wasCancelled =
                 errorCode === "cancelled" || error?.cancelled === true;
               const errorTime = Date.now();
+              const cancellationHandledByRecovery =
+                [
+                  "execution_lease_conflict",
+                  "stream_not_found",
+                  "stream_attach_target_unavailable",
+                  "stream_replay_gap",
+                ].includes(errorCode) || errorCode.startsWith("queue_relay_");
+              const hasPendingDurableInteraction =
+                Object.keys(
+                  pendingToolConfirmationRequestsByChatIdRef.current[
+                    targetChatId
+                  ] || {},
+                ).length > 0;
 
-              if (isDurableResume) {
+              /* A renderer-side error is not proof that the durable worker
+                 stopped. Persist semantic cancellation before we forget the
+                 exact identity, so a graph child cannot become an orphan that
+                 resumes when this chat is reopened. */
+              if (
+                !wasCancelled &&
+                !hasAdmittedRunAccounting &&
+                !cancellationHandledByRecovery &&
+                !hasPendingDurableInteraction
+              ) {
+                const cancellationIdentity =
+                  executionIdentityByChatIdRef.current.get(targetChatId) ||
+                  executionIdentityFromMessages(targetChatId, streamMessages);
+                const queuedCancellation = enqueueExecutionCancel({
+                  ...(cancellationIdentity || {}),
+                  ownerChatId: targetChatId,
+                  reason: "stream_error",
+                  createdAt: Date.now(),
+                });
+                if (queuedCancellation) {
+                  void requestExecutionCancellationAndDisconnect({
+                    identity: queuedCancellation,
+                    handle: streamHandlesRef.current.get(targetChatId),
+                    reason: "stream_error",
+                  }).then((result) => {
+                    if (result?.terminal) {
+                      removeExecutionCancel(
+                        queuedCancellation.sessionId,
+                        queuedCancellation.attemptId,
+                        queuedCancellation.interactionId,
+                      );
+                    }
+                  });
+                }
+              }
+
+              if (isDurableResume && !hasAdmittedRunAccounting) {
                 const retrySourceMessages = materializeStreamingMessages(
                   targetChatId,
                   streamMessages,
@@ -7267,6 +8309,7 @@ export const useChatStream = ({
               }
 
               if (
+                !hasAdmittedRunAccounting &&
                 !isDurableResume &&
                 errorCode === "memory_unavailable" &&
                 memoryFallbackAttempted !== true
@@ -7310,7 +8353,16 @@ export const useChatStream = ({
                 void runTurnRequest({
                   mode,
                   chatId: targetChatId,
+                  /* Byte-identical to what this run already sent: the gate
+                     settled it (handle markers for a "store" decision, the
+                     user's own plaintext for an explicit "plain" one) and the
+                     guard above already spent the one-time token. This is an
+                     app-initiated transparent retry of an approved send, so it
+                     declares the gate settled rather than re-deriving proof it
+                     structurally cannot have. It never re-deposits and never
+                     re-exposes anything the user did not already approve. */
                   text: promptText,
+                  secretGateSettled: true,
                   attachments: persistedAttachments,
                   baseMessages: normalizedBaseMessages,
                   clearComposer: false,
@@ -7333,6 +8385,7 @@ export const useChatStream = ({
                   relayItems,
                   relaySourceAttemptId,
                   relaySourceClientOperationId,
+                  continuedFromRunId,
                 });
                 return;
               }
@@ -7347,6 +8400,7 @@ export const useChatStream = ({
                  normal user send (no onReject) never reaches here. A user cancel
                  is excluded (wasCancelled) so Stop never resurrects the turn. */
               if (
+                !hasAdmittedRunAccounting &&
                 !requestConsumed &&
                 !wasCancelled &&
                 errorCode === "execution_lease_conflict" &&
@@ -7406,6 +8460,10 @@ export const useChatStream = ({
                       typeof message.content === "string"
                         ? message.content
                         : "",
+                    meta: {
+                      ...(message.meta || {}),
+                      ...admittedAccountingMeta,
+                    },
                   });
                 }
 
@@ -7430,6 +8488,7 @@ export const useChatStream = ({
                     : message.traceFrames,
                   meta: {
                     ...(message.meta || {}),
+                    ...admittedAccountingMeta,
                     error: {
                       code: errorCode,
                       message: errorMessage,
@@ -7526,8 +8585,8 @@ export const useChatStream = ({
                 syncInterjectStateForChat(targetChatId);
               }
             },
-          },
-        );
+          };
+        streamHandle = startChatStream(streamPayload, streamCallbacks);
       } catch (error) {
         if (!isCurrentRun()) {
           return false;
@@ -7607,6 +8666,7 @@ export const useChatStream = ({
       }
       if (effectiveThreadId && streamAttemptId) {
         executionIdentityByChatIdRef.current.set(targetChatId, {
+          ownerChatId: targetChatId,
           sessionId: effectiveThreadId,
           attemptId: streamAttemptId,
           requestId:
@@ -7777,6 +8837,7 @@ export const useChatStream = ({
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
+      consumeSecretGateToken,
       clearDurableResumeStartedKeysForChat,
       clearResolvedToolConfirmationByCallId,
       fallbackPendingClarifyForChat,
@@ -7876,7 +8937,7 @@ export const useChatStream = ({
                 "") === relayState.clientOperationId,
           );
         };
-        relayState.attempt = () => {
+        relayState.attempt = async () => {
           if (
             !relayOwnerIsCurrent() ||
             relayState.inFlight
@@ -7890,10 +8951,8 @@ export const useChatStream = ({
             .snapshot()
             .filter((item) => relayIds.has(item.id))
             .map((item) => ({ ...item, status: "queued" }));
-          if (
-            isChatRunPending(targetChatId) ||
-            durableInteractionByChatIdRef.current[targetChatId]?.status
-          ) {
+          const retryAfterAuthorityGuard = () => {
+            relayState.inFlight = false;
             relayState.retryCount += 1;
             scheduleQueueRelayRetryTimer(
               targetChatId,
@@ -7903,10 +8962,107 @@ export const useChatStream = ({
                 250 * 2 ** Math.min(relayState.retryCount - 1, 4),
               ),
             );
+          };
+          if (isChatRunPending(targetChatId)) {
+            retryAfterAuthorityGuard();
             return;
           }
 
           relayState.inFlight = true;
+          const relayBaseMessages =
+            storageApi.getChatMessages?.(targetChatId) ||
+            (activeChatIdRef.current === targetChatId &&
+            Array.isArray(messagesRef.current)
+              ? messagesRef.current
+              : nextStreamMessages);
+          const sourceAssistant = [...relayBaseMessages]
+            .reverse()
+            .find((message) => {
+              if (message?.role !== "assistant") return false;
+              if (relayState.attemptId) {
+                return message?.meta?.attemptId === relayState.attemptId;
+              }
+              return Boolean(
+                relayState.clientOperationId &&
+                  message?.meta?.queueClientOperationId ===
+                    relayState.clientOperationId,
+              );
+            });
+          const relaySessionId = resolveQueueRelaySessionOwner({
+            sourceSessionId: sourceAssistant?.meta?.executionSessionId,
+            activeSessionId:
+              activeRunThreadIdByChatIdRef.current.get(targetChatId),
+            runContextSessionId: runContext?.threadId,
+          });
+
+          /* Durable-interaction capable runtimes use a CLOSED authoritative
+             preflight before any programmatic successor. A terminal callback
+             can arrive before the renderer's recovery lookup projects the
+             suspended interaction, so the local ref is not sufficient proof
+             that a new run is safe. Legacy/off runtimes are admitted only by
+             the explicit bridge-shape check below; there is no permissive
+             response fallback. */
+          let hasDurableInteractionContract = false;
+          try {
+            hasDurableInteractionContract = Boolean(
+              typeof api.unchain.isDurableInteractionBridgeAvailable ===
+                "function" &&
+                api.unchain.isDurableInteractionBridgeAvailable(),
+            );
+          } catch (_error) {
+            retryAfterAuthorityGuard();
+            return;
+          }
+          if (hasDurableInteractionContract) {
+            const lookup =
+              durableInteractionLookupByChatIdRef.current.get(targetChatId);
+            if (typeof lookup !== "function" || !relaySessionId) {
+              retryAfterAuthorityGuard();
+              return;
+            }
+            let authoritativePending = null;
+            try {
+              authoritativePending = await lookup(
+                targetChatId,
+                relaySessionId,
+              );
+            } catch (_error) {
+              retryAfterAuthorityGuard();
+              return;
+            }
+            if (!relayOwnerIsCurrent()) {
+              relayState.inFlight = false;
+              return;
+            }
+            if (
+              !authoritativePending ||
+              authoritativePending.status !== "none" ||
+              isChatRunPending(targetChatId) ||
+              durableInteractionByChatIdRef.current[targetChatId]?.status
+            ) {
+              retryAfterAuthorityGuard();
+              return;
+            }
+          } else if (
+            durableInteractionByChatIdRef.current[targetChatId]?.status
+          ) {
+            retryAfterAuthorityGuard();
+            return;
+          }
+
+          const currentRelayItems = new Map(
+            queuedTurnsOnDone.snapshot().map((item) => [item.id, item]),
+          );
+          if (
+            !relayOwnerIsCurrent() ||
+            relaySnapshot.ids.some(
+              (id) => currentRelayItems.get(id)?.status !== "queued",
+            )
+          ) {
+            retryAfterAuthorityGuard();
+            return;
+          }
+          relayState.retryCount = 0;
           relayState.inFlightIds = [...relaySnapshot.ids];
           queuedTurnsOnDone.markRelayed(relaySnapshot.ids);
           syncInterjectStateForChat(targetChatId);
@@ -8016,12 +9172,19 @@ export const useChatStream = ({
               1600,
             );
           };
-          const relayBaseMessages =
-            storageApi.getChatMessages?.(targetChatId) ||
-            (activeChatIdRef.current === targetChatId &&
-            Array.isArray(messagesRef.current)
-              ? messagesRef.current
-              : nextStreamMessages);
+          /* The relay is a PROGRAMMATIC send: it must never raise a modal.
+             A queued item that still trips the scanner can only proceed on the
+             plain-text approval the user already gave for it, replayed here as
+             a one-time token bound to this exact merged text. Items without an
+             approval that trip the scanner were purged from the outbox at load,
+             so the only outcome left for them is the fail-closed guard inside
+             runTurnRequest. */
+          const relaySecretToken =
+            mintTokenForDisposition({
+              chatId: targetChatId,
+              text: relaySnapshot.text,
+              disposition: relaySnapshot.disposition,
+            }) || "";
           void runTurnRequest({
             mode: "send",
             chatId: targetChatId,
@@ -8032,6 +9195,8 @@ export const useChatStream = ({
             missingAttachmentPayloadMode: "block",
             characterAgentConfig,
             runContext,
+            secretGateToken: relaySecretToken,
+            secretGateText: relaySnapshot.text,
             /* onConsumed fires only on authoritative server acceptance. Only
                then may we remove the durable outbox data and schedule the 1.6s
                cleanup — never merely because startStream returned a handle. */
@@ -8088,6 +9253,7 @@ export const useChatStream = ({
       activeChatIdRef,
       isChatRunPending,
       messagesRef,
+      mintTokenForDisposition,
       persistQueuedTurnBufferForAttempt,
       runTurnRequest,
       scheduleQueueRelayRetryTimer,
@@ -8102,10 +9268,10 @@ export const useChatStream = ({
       targetChatId,
       targetSessionId,
       {
-        autoResume = true,
         lookupAttempt = 0,
         runGeneration: requestedRunGeneration = null,
         authoritativePending = null,
+        authoritativeReceipt = null,
       } = {},
     ) => {
       const normalizedChatId =
@@ -8153,9 +9319,11 @@ export const useChatStream = ({
               pending.activeAttemptId || pending.sourceRunId || "";
             if (lateAttemptId) {
               const queuedCancellation = enqueueExecutionCancel({
+                ownerChatId: normalizedChatId,
                 sessionId: pending.sessionId,
                 attemptId: lateAttemptId,
                 sourceAttemptId: pending.sourceRunId || "",
+                interactionId: pending.interactionId,
                 reason: "user_stop",
                 createdAt: Date.now(),
               });
@@ -8164,10 +9332,11 @@ export const useChatStream = ({
                 handle: null,
                 reason: "user_stop",
               }).then((result) => {
-                if (result?.ok && queuedCancellation) {
+                if (result?.terminal && queuedCancellation) {
                   removeExecutionCancel(
                     queuedCancellation.sessionId,
                     queuedCancellation.attemptId,
+                    queuedCancellation.interactionId,
                   );
                 }
               });
@@ -8197,14 +9366,34 @@ export const useChatStream = ({
           return pending;
         }
 
+        const hasAuthoritativeRecordedReceipt = Boolean(
+          isObject(authoritativeReceipt) &&
+            authoritativeReceipt.status === "ok" &&
+            authoritativeReceipt.disposition === "receipt_recorded" &&
+            authoritativeReceipt.durable === true &&
+            authoritativeReceipt.session_id === pending.sessionId &&
+            authoritativeReceipt.interaction_id === pending.interactionId &&
+            authoritativeReceipt.receipt_id === pending.receiptId &&
+            pending.status === "receipt_recorded",
+        );
+        if (authoritativeReceipt && !hasAuthoritativeRecordedReceipt) {
+          const error = new Error(
+            "Unchain returned a durable receipt for a different interaction.",
+          );
+          error.code = "durable_interaction_receipt_identity_mismatch";
+          throw error;
+        }
+
         const pendingAttemptId =
           pending.activeAttemptId || pending.sourceRunId || "";
         if (pendingAttemptId) {
           executionIdentityByChatIdRef.current.set(normalizedChatId, {
+            ownerChatId: normalizedChatId,
             sessionId: pending.sessionId,
             attemptId: pendingAttemptId,
             requestId: "",
             sourceAttemptId: pending.sourceRunId || "",
+            interactionId: pending.interactionId,
             runGeneration: activeRunGeneration,
           });
         }
@@ -8278,9 +9467,6 @@ export const useChatStream = ({
             );
           }
           removeTurnMutation(pendingMutationEntry.operationId);
-          turnMutationRecoveryAttemptsRef.current.delete(
-            pendingMutationEntry.operationId,
-          );
           const mutationOwner =
             turnMutationByChatIdRef.current.get(normalizedChatId);
           if (
@@ -8320,6 +9506,14 @@ export const useChatStream = ({
           chatId: normalizedChatId,
           ownerMessageId: ensured.ownerMessageId,
         });
+        const resolutionOutcome = pending.resolution?.outcome;
+        const recoveredDecision =
+          resolutionOutcome === "approved" ||
+          (pending.kind === "human_input" && resolutionOutcome === "submitted")
+            ? "approved"
+            : resolutionOutcome === "denied"
+              ? "denied"
+              : "";
         updatePendingToolConfirmationRequests(normalizedChatId, {
           [pending.interactionId]: confirmationRequest,
         });
@@ -8329,12 +9523,7 @@ export const useChatStream = ({
               pending.status === "receipt_recorded" ? "submitted" : "idle",
             error: "",
             resolved: pending.status === "receipt_recorded",
-            decision:
-              pending.resolution?.outcome === "approved"
-                ? "approved"
-                : pending.resolution?.outcome === "denied"
-                  ? "denied"
-                  : "",
+            decision: recoveredDecision,
           },
         });
 
@@ -8344,13 +9533,30 @@ export const useChatStream = ({
         };
         updateDurableInteractionForChat(normalizedChatId, pendingWithOwner);
 
+        /* A live stream may still consume the receipt in-process.  Do not
+           disturb that path: live_continues, provider retries, and transport
+           recovery keep their existing ownership.  Once the run is no longer
+           live, however, a durable interaction is a suspension boundary, not
+           an invitation to replay mode=resume_interaction. */
+        if (
+          (!hasAuthoritativeRecordedReceipt &&
+            streamingChatIdsRef.current.has(normalizedChatId)) ||
+          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
+          turnMutationByChatIdRef.current.has(normalizedChatId)
+        ) {
+          return pendingWithOwner;
+        }
+
+        /* An unanswered interaction remains actionable after reload. Keep the
+           exact paused tool UI and durable ownership intact; lookup is
+           observational here and must neither resume nor cancel it. */
         if (pending.status !== "receipt_recorded") {
           return pendingWithOwner;
         }
 
         const resolutionResponse = pending.resolution?.response;
         const approved =
-          pending.resolution?.outcome === "approved" ||
+          recoveredDecision === "approved" ||
           resolutionResponse?.approved === true;
         const recoveredUserResponse =
           resolutionResponse?.user_response ??
@@ -8365,80 +9571,126 @@ export const useChatStream = ({
           userResponse: recoveredUserResponse,
         });
 
-        if (!pending.resumeAvailable) {
-          const unavailableMessage = pending.resumeUnavailableReason
-            ? `This interrupted run cannot be resumed (${pending.resumeUnavailableReason}).`
-            : "This interrupted run cannot be resumed.";
-          updateDurableInteractionForChat(normalizedChatId, {
-            ...pendingWithOwner,
-            status: "resume_failed",
-            lastError: unavailableMessage,
-          });
-          if (activeChatIdRef.current === normalizedChatId) {
-            setStreamError(unavailableMessage);
-          }
-          return pendingWithOwner;
+        if (!pendingAttemptId) {
+          const error = new Error(
+            "The suspended interaction has no exact source attempt identity.",
+          );
+          error.code = "durable_interaction_cancel_identity_missing";
+          throw error;
         }
 
-        if (
-          !autoResume ||
-          streamingChatIdsRef.current.has(normalizedChatId) ||
-          runPreflightGenerationByChatIdRef.current.has(normalizedChatId) ||
-          turnMutationByChatIdRef.current.has(normalizedChatId)
-        ) {
-          return pendingWithOwner;
-        }
-
-        const resumeKey = [
-          pending.sessionId,
-          pending.interactionId,
-          pending.receiptId || "",
-        ].join(":");
-        if (durableResumeStartedKeysRef.current.has(resumeKey)) {
-          return pendingWithOwner;
-        }
-        trackDurableResumeStartedKey(normalizedChatId, resumeKey);
+        const cancellationReason = "interaction_suspended";
+        const queuedCancellation = enqueueExecutionCancel({
+          ownerChatId: normalizedChatId,
+          sessionId: pending.sessionId,
+          attemptId: pendingAttemptId,
+          sourceAttemptId: pending.sourceRunId || "",
+          interactionId: pending.interactionId,
+          reason: cancellationReason,
+          createdAt: Date.now(),
+        });
         updateDurableInteractionForChat(normalizedChatId, {
           ...pendingWithOwner,
-          status: "resuming",
-          resumeAttempt: 0,
+          status: "checking",
           lastError: "",
         });
 
-        const resumeMessages =
-          activeChatIdRef.current === normalizedChatId &&
-          Array.isArray(messagesRef.current)
-            ? messagesRef.current
-            : typeof storageApi.getChatMessages === "function"
-              ? storageApi.getChatMessages(normalizedChatId)
-              : ensured.messages;
-        const resumeStarted = await runTurnRequest({
-          mode: "resume_interaction",
-          chatId: normalizedChatId,
-          text: "",
-          attachments: [],
-          baseMessages: resumeMessages,
-          clearComposer: false,
-          durableInteraction: pendingWithOwner,
-          durableResumeAttempt: 0,
-          durableOwnerMessageId: ensured.ownerMessageId,
-          runGeneration: activeRunGeneration,
-        });
-        if (!resumeStarted && isCurrentLookup()) {
-          clearDurableResumeStartedKeysForChat(normalizedChatId);
+        const cancellationResult =
+          await requestExecutionCancellationAndDisconnect({
+            identity: queuedCancellation,
+            handle: null,
+            reason: cancellationReason,
+            idempotencyKey: `interaction-pause:${
+              pending.sourceRunId || pendingAttemptId
+            }:${pending.interactionId}`,
+          });
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        if (!cancellationResult?.ok) {
           const error = new Error(
-            "Durable recovery was deferred while another chat operation was starting.",
+            "Failed to seal the suspended interaction on the server.",
           );
-          error.code = "durable_resume_deferred";
+          error.code = "durable_interaction_cancel_failed";
           throw error;
         }
-        return pendingWithOwner;
+
+        const cancellationResponse = cancellationResult.response;
+        const responseAttemptId =
+          typeof cancellationResponse?.attempt_id === "string"
+            ? cancellationResponse.attempt_id.trim()
+            : "";
+        const responseSourceAttemptId =
+          typeof cancellationResponse?.source_attempt_id === "string"
+            ? cancellationResponse.source_attempt_id.trim()
+            : "";
+        if (
+          (responseAttemptId && responseAttemptId !== pendingAttemptId) ||
+          (responseSourceAttemptId &&
+            responseSourceAttemptId !==
+              (pending.sourceRunId || pendingAttemptId))
+        ) {
+          const error = new Error(
+            "Unchain acknowledged cancellation for a different interaction attempt.",
+          );
+          error.code = "durable_interaction_cancel_identity_mismatch";
+          throw error;
+        }
+
+        /* The cancel response is not enough to unlock the composer.  Read the
+           durable journal again and require the strict `none` projection, so
+           a timeout, stale response, or split write cannot become a frontend-
+           only clear that later resurrects on reload. */
+        const rawAfterCancellation = await api.unchain.getPendingInteraction({
+          session_id: normalizedSessionId,
+        });
+        const pendingAfterCancellation = normalizePendingInteraction(
+          rawAfterCancellation,
+          normalizedSessionId,
+        );
+        if (!isCurrentLookup()) {
+          return null;
+        }
+        if (!pendingAfterCancellation) {
+          const error = new Error(
+            "Unchain returned an invalid durable interaction record after cancellation.",
+          );
+          error.code = "invalid_durable_interaction_record";
+          throw error;
+        }
+        if (pendingAfterCancellation.status !== "none") {
+          const error = new Error(
+            "The suspended interaction is still pending after cancellation.",
+          );
+          error.code = "durable_interaction_cancel_not_observed";
+          throw error;
+        }
+
+        if (queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+            queuedCancellation.interactionId,
+          );
+        }
+        const retryTimer = durableResumeRetryTimersRef.current.get(
+          normalizedChatId,
+        );
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          durableResumeRetryTimersRef.current.delete(normalizedChatId);
+        }
+        clearDurableResumeStartedKeysForChat(normalizedChatId);
+        clearAllPendingToolConfirmations(normalizedChatId);
+        executionIdentityByChatIdRef.current.delete(normalizedChatId);
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return pendingAfterCancellation;
       } catch (error) {
         if (!isCurrentLookup()) {
           return null;
         }
         const errorMessage =
-          error?.message || "Failed to inspect this chat for interrupted work.";
+          error?.message || "Failed to seal this chat's suspended run.";
         if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
           const nextAttempt = lookupAttempt + 1;
           updateDurableInteractionForChat(normalizedChatId, {
@@ -8465,9 +9717,9 @@ export const useChatStream = ({
               return;
             }
             void lookupDurableInteraction(normalizedChatId, normalizedSessionId, {
-              autoResume,
               lookupAttempt: nextAttempt,
               runGeneration: activeRunGeneration,
+              authoritativeReceipt,
             });
           }, durableInteractionRetryDelayMs(lookupAttempt));
           durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
@@ -8496,11 +9748,9 @@ export const useChatStream = ({
       getConfirmationRuntimeForChat,
       isRunGenerationCurrent,
       messagesRef,
-      runTurnRequest,
       setStreamError,
       setStreamErrorForChat,
       storageApi,
-      trackDurableResumeStartedKey,
       updateDurableInteractionForChat,
       updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
@@ -8514,6 +9764,180 @@ export const useChatStream = ({
       lookupDurableInteraction,
     );
   }
+
+  const sealDurableInteractionForFreshSend = useCallback(
+    async (targetChatId, expectedPending) => {
+      const normalizedChatId =
+        typeof targetChatId === "string" ? targetChatId.trim() : "";
+      const expectedStatus =
+        typeof expectedPending?.status === "string"
+          ? expectedPending.status.trim()
+          : "";
+      const sessionId =
+        typeof expectedPending?.sessionId === "string"
+          ? expectedPending.sessionId.trim()
+          : "";
+      const interactionId =
+        typeof expectedPending?.interactionId === "string"
+          ? expectedPending.interactionId.trim()
+          : "";
+      const sourceAttemptId =
+        typeof expectedPending?.sourceRunId === "string"
+          ? expectedPending.sourceRunId.trim()
+          : "";
+      const activeAttemptId =
+        typeof expectedPending?.activeAttemptId === "string"
+          ? expectedPending.activeAttemptId.trim()
+          : "";
+      const attemptId = activeAttemptId || sourceAttemptId;
+      const isExpectedOwner = (candidate) =>
+        Boolean(
+          candidate &&
+            candidate.interactionId === interactionId &&
+            candidate.sessionId === sessionId &&
+            (candidate.activeAttemptId || candidate.sourceRunId || "") ===
+              attemptId,
+        );
+      const failClosed = (message) => {
+        const current =
+          durableInteractionByChatIdRef.current[normalizedChatId] || null;
+        if (isExpectedOwner(current)) {
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...expectedPending,
+            status: expectedStatus,
+            lastError: message,
+          });
+        }
+        setStreamErrorForChat(normalizedChatId, message);
+        return null;
+      };
+
+      if (
+        !normalizedChatId ||
+        !sessionId ||
+        !interactionId ||
+        !attemptId ||
+        !canSealDurableInteractionForFreshSend(expectedStatus) ||
+        !isExpectedOwner(
+          durableInteractionByChatIdRef.current[normalizedChatId],
+        )
+      ) {
+        return failClosed(
+          "The paused interaction no longer has an exact server owner. Your message was not sent.",
+        );
+      }
+
+      const cancellationReason = "interaction_abandoned_for_new_message";
+      const queuedCancellation = enqueueExecutionCancel({
+        ownerChatId: normalizedChatId,
+        sessionId,
+        attemptId,
+        sourceAttemptId,
+        interactionId,
+        reason: cancellationReason,
+        createdAt: Date.now(),
+      });
+      updateDurableInteractionForChat(normalizedChatId, {
+        ...expectedPending,
+        status: "checking",
+        lastError: "",
+      });
+
+      try {
+        const cancellationResult =
+          await requestExecutionCancellationAndDisconnect({
+            identity: queuedCancellation,
+            handle: null,
+            reason: cancellationReason,
+            idempotencyKey: `fresh-send-abandon:${
+              sourceAttemptId || attemptId
+            }:${interactionId}`,
+          });
+        if (!cancellationResult?.ok) {
+          return failClosed(
+            "Could not cancel the paused run on the server. Your message was not sent.",
+          );
+        }
+
+        const cancellationResponse = cancellationResult.response;
+        const responseAttemptId =
+          typeof cancellationResponse?.attempt_id === "string"
+            ? cancellationResponse.attempt_id.trim()
+            : "";
+        const responseSourceAttemptId =
+          typeof cancellationResponse?.source_attempt_id === "string"
+            ? cancellationResponse.source_attempt_id.trim()
+            : "";
+        if (
+          (responseAttemptId && responseAttemptId !== attemptId) ||
+          (responseSourceAttemptId &&
+            responseSourceAttemptId !== (sourceAttemptId || attemptId))
+        ) {
+          return failClosed(
+            "The server cancelled a different run. Your message was not sent.",
+          );
+        }
+
+        const rawPending = await api.unchain.getPendingInteraction({
+          session_id: sessionId,
+        });
+        const authoritativePending = normalizePendingInteraction(
+          rawPending,
+          sessionId,
+        );
+        if (!authoritativePending) {
+          return failClosed(
+            "Could not verify the paused run was cancelled. Your message was not sent.",
+          );
+        }
+        if (authoritativePending.status !== "none") {
+          return failClosed(
+            "The paused run is still pending on the server. Your message was not sent.",
+          );
+        }
+
+        const current =
+          durableInteractionByChatIdRef.current[normalizedChatId] || null;
+        if (current && !isExpectedOwner(current)) {
+          return failClosed(
+            "A newer paused interaction appeared. Your message was not sent.",
+          );
+        }
+        if (queuedCancellation) {
+          removeExecutionCancel(
+            queuedCancellation.sessionId,
+            queuedCancellation.attemptId,
+            queuedCancellation.interactionId,
+          );
+        }
+        const retryTimer = durableResumeRetryTimersRef.current.get(
+          normalizedChatId,
+        );
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          durableResumeRetryTimersRef.current.delete(normalizedChatId);
+        }
+        clearDurableResumeStartedKeysForChat(normalizedChatId);
+        clearAllPendingToolConfirmations(normalizedChatId);
+        executionIdentityByChatIdRef.current.delete(normalizedChatId);
+        updateDurableInteractionForChat(normalizedChatId, null);
+        return {
+          continuedFromRunId: sourceAttemptId || attemptId,
+        };
+      } catch (error) {
+        return failClosed(
+          error?.message ||
+            "Could not verify the paused run was cancelled. Your message was not sent.",
+        );
+      }
+    },
+    [
+      clearAllPendingToolConfirmations,
+      clearDurableResumeStartedKeysForChat,
+      setStreamErrorForChat,
+      updateDurableInteractionForChat,
+    ],
+  );
 
   useEffect(() => {
     const targetChatId =
@@ -8553,6 +9977,25 @@ export const useChatStream = ({
     const executionSessionId =
       assistantMessage.meta.executionSessionId.trim();
     const assistantMessageId = assistantMessage.id;
+    const cancellationAlreadyRequested = readExecutionCancelOutbox().some(
+      (entry) =>
+        entry.sessionId === executionSessionId && entry.attemptId === attemptId,
+    );
+    if (cancellationAlreadyRequested) {
+      /* A prior Stop survives renderer restart in the cancellation outbox.
+         Do not race it by reattaching the old transport; settle the visible
+         placeholder so this attempt cannot be selected for a later reopen. */
+      stoppedRunChatIdsRef.current.add(targetChatId);
+      const { changed, nextMessages } =
+        settleStreamingAssistantMessages(storedMessages);
+      if (changed) {
+        commitForegroundMessages(targetChatId, nextMessages);
+        storageApi.setChatMessages(targetChatId, nextMessages, {
+          source: "stream-reattach-cancellation-pending",
+        });
+      }
+      return undefined;
+    }
     const runGeneration = ensureRecoveryRunGeneration(targetChatId);
     if (
       !assistantMessageId ||
@@ -8567,6 +10010,7 @@ export const useChatStream = ({
     let latestProjection = null;
     let flushTimer = null;
     let terminalReceived = false;
+    let terminalAccountingPending = false;
     let replayAcceptanceObserved = false;
     let replayAcceptanceTimer = null;
     let replayAcceptanceReattachCount = 0;
@@ -8858,7 +10302,12 @@ export const useChatStream = ({
       return sawFyiFrame ? { records, messages } : null;
     };
 
-    const applyLatestProjection = ({ status, error, bundle } = {}) => {
+    const applyLatestProjection = ({
+      status,
+      error,
+      bundle,
+      completionDiagnostics,
+    } = {}) => {
       clearFlushTimer();
       if (
         !hookMountedRef.current ||
@@ -8890,18 +10339,17 @@ export const useChatStream = ({
               ? { ...projection.error }
               : null;
         const projectedBundle =
-          bundle && typeof bundle === "object"
-            ? bundle
-            : projection.bundle && typeof projection.bundle === "object"
-              ? projection.bundle
-              : null;
+          bundle && typeof bundle === "object" ? bundle : null;
         return {
           ...materialized,
           content:
             status === "error" && !projectedContent
               ? `[error] ${nextError?.message || "The attached stream failed"}`
               : projectedContent,
-          status: status || projection.status || "streaming",
+          // Runtime replay may project `done` before terminal accounting has
+          // crossed Electron. Only finishAttachedStream may publish terminal
+          // status after that barrier succeeds.
+          status: status || "streaming",
           updatedAt,
           traceFrames: Array.isArray(projection.traceFrames)
             ? projection.traceFrames
@@ -8940,6 +10388,9 @@ export const useChatStream = ({
           meta: {
             ...(message.meta || {}),
             ...(projectedBundle ? { bundle: { ...projectedBundle } } : {}),
+            ...(completionDiagnostics
+              ? { completion_diagnostics: completionDiagnostics }
+              : {}),
             ...(nextError ? { error: nextError } : {}),
           },
         };
@@ -8968,11 +10419,21 @@ export const useChatStream = ({
       }, STREAM_REATTACH_FLUSH_MS);
     };
 
-    const finishAttachedStream = ({ status, error, bundle } = {}) => {
+    const finishAttachedStream = ({
+      status,
+      error,
+      bundle,
+      completionDiagnostics,
+    } = {}) => {
       if (terminalReceived) return;
       terminalReceived = true;
       clearReplayAcceptanceTimer();
-      let nextMessages = applyLatestProjection({ status, error, bundle });
+      let nextMessages = applyLatestProjection({
+        status,
+        error,
+        bundle,
+        completionDiagnostics,
+      });
       const pendingClarify =
         pendingClarifyByChatIdRef.current.get(targetChatId) ||
         readPendingClarifyForChat(targetChatId);
@@ -9047,10 +10508,11 @@ export const useChatStream = ({
     const finishAttachedError = (
       error,
       bundle,
-      { retryRelayedTurn = false } = {},
+      { completionDiagnostics = null, retryRelayedTurn = false } = {},
     ) => {
       if (
         terminalReceived ||
+        terminalAccountingPending ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
       ) {
         return;
@@ -9063,6 +10525,7 @@ export const useChatStream = ({
         status: "error",
         error,
         bundle,
+        completionDiagnostics,
       });
       if (shouldRetryRelayedTurn) {
         relayQueuedTurnsAfterRunRef.current?.({
@@ -9136,6 +10599,7 @@ export const useChatStream = ({
       replayCancellationPending = true;
       clearReplayAcceptanceTimer();
       const queuedCancellation = enqueueExecutionCancel({
+        ownerChatId: targetChatId,
         sessionId: executionSessionId,
         attemptId,
         requestId,
@@ -9148,10 +10612,11 @@ export const useChatStream = ({
         reason: "queue_relay_acceptance_unverified",
         idempotencyKey: `queue-relay-acceptance:${attemptId}`,
       });
-      if (cancelResult?.ok && queuedCancellation) {
+      if (cancelResult?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
           queuedCancellation.attemptId,
+          queuedCancellation.interactionId,
         );
       }
       if (
@@ -9188,6 +10653,7 @@ export const useChatStream = ({
       onRuntimeEvent: (runtimeEvent, streamMeta = {}) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9208,6 +10674,7 @@ export const useChatStream = ({
       onDone: (done = {}) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9220,26 +10687,104 @@ export const useChatStream = ({
           done.error && typeof done.error === "object" ? done.error : null;
         if (latestProjection?.status === "error" || doneError) {
           const terminalError = projectedError || doneError;
-          finishAttachedError(
-            terminalError,
-            done.bundle && typeof done.bundle === "object"
-              ? done.bundle
-              : undefined,
-          );
+          const hasCanonicalBundle = [
+            RUN_BUNDLE_V1_SCHEMA,
+            RUN_BUNDLE_V2_SCHEMA,
+          ].includes(done?.bundle?.schema);
+          if (doneError && hasCanonicalBundle) {
+            terminalAccountingPending = true;
+            const finishAdmittedError = ({
+              bundle,
+              completionDiagnostics,
+            }) => {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              terminalAccountingPending = false;
+              finishAttachedError(terminalError, bundle, {
+                completionDiagnostics,
+              });
+            };
+            const failErrorAccounting = () => {
+              if (
+                terminalReceived ||
+                !isRunGenerationCurrent(targetChatId, runGeneration)
+              ) {
+                return;
+              }
+              terminalAccountingPending = false;
+              finishAttachedError({
+                code: "run_bundle_accounting_failed",
+                message:
+                  "The failed recovered run could not be admitted to the Run Bundle ledger.",
+              });
+            };
+            try {
+              const admission = admitDoneRunAccountingV1(done);
+              if (admission && typeof admission.then === "function") {
+                void admission
+                  .then(finishAdmittedError)
+                  .catch(failErrorAccounting);
+              } else {
+                finishAdmittedError(admission);
+              }
+            } catch (_error) {
+              failErrorAccounting();
+            }
+            return;
+          }
+          finishAttachedError(terminalError);
           return;
         }
         markReplayAcceptanceObserved();
-        finishAttachedStream({
-          status: "done",
-          bundle:
-            done.bundle && typeof done.bundle === "object"
-              ? done.bundle
-              : undefined,
-        });
+        terminalAccountingPending = true;
+        const finishAdmittedDone = ({ bundle, completionDiagnostics }) => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration)
+            ) {
+              return;
+            }
+            terminalAccountingPending = false;
+            finishAttachedStream({
+              status: "done",
+              bundle,
+              completionDiagnostics,
+            });
+        };
+        const failDoneAccounting = (error) => {
+            if (
+              terminalReceived ||
+              !isRunGenerationCurrent(targetChatId, runGeneration)
+            ) {
+              return;
+            }
+            terminalAccountingPending = false;
+            finishAttachedError({
+              code: error?.code || "run_bundle_accounting_failed",
+              message:
+                error?.message ||
+                "The recovered run could not be admitted to the Run Bundle ledger.",
+            });
+        };
+        try {
+          const admission = admitDoneRunAccountingV1(done);
+          if (admission && typeof admission.then === "function") {
+            void admission.then(finishAdmittedDone).catch(failDoneAccounting);
+          } else {
+            finishAdmittedDone(admission);
+          }
+        } catch (error) {
+          failDoneAccounting(error);
+        }
       },
       onError: (error) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9268,6 +10813,7 @@ export const useChatStream = ({
       clearReplayAcceptanceTimer();
       if (
         terminalReceived ||
+        terminalAccountingPending ||
         !isRunGenerationCurrent(targetChatId, runGeneration) ||
         !hasUnverifiedRelayedTurn()
       ) {
@@ -9321,6 +10867,7 @@ export const useChatStream = ({
               );
               if (
                 terminalReceived ||
+                terminalAccountingPending ||
                 !isRunGenerationCurrent(targetChatId, runGeneration) ||
                 streamHandlesRef.current.get(targetChatId) !== expectedHandle
               ) {
@@ -9437,6 +10984,7 @@ export const useChatStream = ({
       executionSessionId,
     );
     executionIdentityByChatIdRef.current.set(targetChatId, {
+      ownerChatId: targetChatId,
       sessionId: executionSessionId,
       attemptId,
       requestId,
@@ -9461,6 +11009,7 @@ export const useChatStream = ({
       .then((handle) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           handle?.detach?.();
@@ -9493,6 +11042,7 @@ export const useChatStream = ({
       .catch((error) => {
         if (
           terminalReceived ||
+          terminalAccountingPending ||
           !isRunGenerationCurrent(targetChatId, runGeneration)
         ) {
           return;
@@ -9630,7 +11180,6 @@ export const useChatStream = ({
         isRunGenerationCurrent(targetChatId, runGeneration)
       ) {
         await lookupDurableInteraction(targetChatId, sessionId, {
-          autoResume: true,
           runGeneration,
         });
       }
@@ -10318,17 +11867,94 @@ export const useChatStream = ({
       if (!currentChatId || (!text && !hasAttachments)) {
         return;
       }
+      const composerRevisionAtRequest =
+        composerRevisionByChatIdRef?.current?.get?.(currentChatId) || 0;
 
+      /* ── Memory V2 P0 secret gate ───────────────────────────────────────────
+         Everything from here down is `runSend`, and NOTHING in it runs until
+         the gate has resolved. That matters because runSend is where the first
+         durable side effects of a send live: pushQueuedTurn (queue outbox),
+         handleInterject (FYI/clarify outbox), and runTurnRequest (composer
+         draft claim, beginRunGeneration, markChatStarted, chat_storage,
+         journal, stream). The checks ABOVE this point are pure reads plus
+         React-only error state, so gating here still dominates every write.
+
+         `outgoingSource` is the gate's answer (identical to `text` when the
+         message is clean). `text` stays in scope on purpose: the composer
+         staleness comparisons must be made against what the user actually
+         typed, not against the redacted form. */
+      const runSend = (
+        outgoingSource,
+        secretGateToken,
+        secretDisposition,
+        continuedFromRunId = "",
+      ) => {
+      const discardSecretGateToken = () => {
+        if (!secretGateToken) return;
+        consumeSecretGateToken(secretGateToken, {
+          chatId: currentChatId,
+          text: outgoingSource,
+        });
+      };
       const durableState =
         durableInteractionByChatIdRef.current[currentChatId] || null;
-      if (durableState?.status) {
+      if (durableState?.status && !thisChatsRunActive) {
+        if (
+          !isProgrammaticSend &&
+          canSealDurableInteractionForFreshSend(durableState.status)
+        ) {
+          /* A new composer message abandons, rather than resumes, the exact
+             paused attempt. No optimistic user message or new run exists
+             until the backend cancellation is authoritative and a fresh
+             lookup projects `none`. */
+          void sealDurableInteractionForFreshSend(
+            currentChatId,
+            durableState,
+          ).then((sealed) => {
+            if (!sealed) {
+              discardSecretGateToken();
+              return;
+            }
+            if (
+              activeChatIdRef.current !== currentChatId ||
+              isChatRunPending(currentChatId) !== thisChatsRunActive ||
+              durableInteractionByChatIdRef.current[currentChatId]?.status ||
+              inputValueRef.current.trim() !== text ||
+              !sameDraftAttachments(
+                draftAttachmentsRef.current,
+                currentDraftAttachments,
+              ) ||
+              (composerRevisionByChatIdRef?.current?.get?.(currentChatId) ||
+                0) !== composerRevisionAtRequest
+            ) {
+              discardSecretGateToken();
+              return;
+            }
+            runSend(
+              outgoingSource,
+              secretGateToken,
+              secretDisposition,
+              sealed.continuedFromRunId,
+            );
+          });
+          return;
+        }
         setStreamError(
           durableState.lastError ||
-            "This chat is restoring an interrupted run. Please wait.",
+            "This chat is finishing a paused run. Please wait.",
         );
+        discardSecretGateToken();
         return;
       }
 
+      /* A gate token is one-time and only runTurnRequest may spend it. Every
+         other way out of runSend (no model selected, bridge unavailable,
+         attachments refused, queued locally, routed to interject) ends the
+         send WITHOUT reaching runTurnRequest, so the token is burned here
+         instead — an approval must never outlive the send it was granted for.
+         The body below is deliberately not re-indented; see the note above. */
+      let secretGateTokenHandedOff = false;
+      try {
       if (thisChatsRunActive) {
         if (bypassInterject) {
           // Should not normally happen — see the comment above — but never
@@ -10336,10 +11962,10 @@ export const useChatStream = ({
           return;
         }
         if (!thisChatHasStreamHandle) {
-          const preflightInterject = extractCommands(text ?? "", {
+          const preflightInterject = extractCommands(outgoingSource ?? "", {
             isStreaming: true,
           });
-          const normalizedPreflightText = text.trim();
+          const normalizedPreflightText = outgoingSource.trim();
           const isExplicitQueue =
             preflightInterject.commands.some(
               (command) => command?.channel === "queue",
@@ -10354,7 +11980,13 @@ export const useChatStream = ({
             !hasAttachments &&
             preflightQueueBody
           ) {
-            if (pushQueuedTurn(currentChatId, preflightQueueBody)) {
+            if (
+              pushQueuedTurn(
+                currentChatId,
+                preflightQueueBody,
+                secretDisposition,
+              )
+            ) {
               setInputValue("");
               setDraftAttachments([]);
             }
@@ -10386,7 +12018,8 @@ export const useChatStream = ({
         // silently dropping it.
         const interjectResult = handleInterjectRef.current?.(
           currentChatId,
-          text,
+          outgoingSource,
+          { secretDisposition },
         );
         void Promise.resolve(interjectResult).then((accepted) => {
           if (
@@ -10432,14 +12065,17 @@ export const useChatStream = ({
       // relay) already carry a resolved body — expanding them again would
       // re-run command tokens that were already handled upstream, so they
       // never carry a composer sidecar either.
-      let outgoingText = text;
+      let outgoingText = outgoingSource;
       let commandToolkits = [];
       let composer = null;
       if (!isProgrammaticSend) {
         // buildComposerSend: expanded body + ephemeral per-run toolkit
         // selection (using a plugin's command selects that plugin for THIS run
         // only — never persisted to the session) + the presentation sidecar.
-        const built = buildComposerSend(text, selectedToolkitsRef.current);
+        const built = buildComposerSend(
+          outgoingSource,
+          selectedToolkitsRef.current,
+        );
         outgoingText = built.outgoingText;
         commandToolkits = built.extraToolkits;
         composer = built.composer;
@@ -10449,6 +12085,8 @@ export const useChatStream = ({
         return;
       }
 
+      /* Ownership of the one-time token passes to runTurnRequest here. */
+      secretGateTokenHandedOff = true;
       void runTurnRequest({
         mode: "send",
         chatId: currentChatId,
@@ -10459,17 +12097,110 @@ export const useChatStream = ({
         missingAttachmentPayloadMode: "block",
         extraToolkits: commandToolkits,
         composer,
+        secretGateToken,
+        /* PRE-expansion text: this is what the modal showed the user and what
+           the token is bound to. `outgoingText` may carry skill expansion. */
+        secretGateText: outgoingSource,
+        continuedFromRunId,
+      });
+      } finally {
+        if (secretGateToken && !secretGateTokenHandedOff) {
+          consumeSecretGateToken(secretGateToken, {
+            chatId: currentChatId,
+            text: outgoingSource,
+          });
+        }
+      }
+      };
+
+      /* A programmatic relay of an item the user already approved as plain
+         text mints its one-time token from the PERSISTED disposition. Any
+         other programmatic send goes through the gate, where a hit fails
+         closed because a background relay must never raise a modal. */
+      const programmaticDispositionToken = isProgrammaticSend
+        ? mintTokenForDisposition({
+            chatId: currentChatId,
+            text,
+            disposition: options?.secretDisposition,
+          })
+        : null;
+      if (programmaticDispositionToken) {
+        runSend(
+          text,
+          programmaticDispositionToken,
+          PLAIN_USER_APPROVED_DISPOSITION,
+        );
+        return;
+      }
+
+      /* Clean text keeps the original, fully SYNCHRONOUS path. The gate only
+         changes control flow when it actually has something to gate, so the
+         send timing of ordinary messages is byte-for-byte unchanged.
+
+         This MUST use scanOutgoingSecretText, which reports explicit
+         {{secret:...}} blocks as candidates. The previous heuristic-only scan
+         treated wrapped spans as excluded regions, so a message using the
+         documented syntax scanned "clean", took this synchronous path, and
+         reached a late deposit inside runTurnRequest that ran after
+         markChatStarted / the draft claim / the render runtime — the very
+         bypass this guard exists to prevent. */
+      const preScan = scanOutgoingSecretText(text);
+      if (preScan.ok && preScan.candidates.length === 0) {
+        runSend(text, "", "");
+        return;
+      }
+
+      void resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: !isProgrammaticSend,
+      }).then((resolved) => {
+        if (!resolved) return;
+        /* Stale-state revalidation. While the modal was open the user may have
+           switched chats, edited the composer, changed attachments, or started
+           a run. Any drift means this approval no longer describes what is on
+           screen, so nothing is sent — the composer keeps its text and the
+           user can send again deliberately. */
+        if (activeChatIdRef.current !== currentChatId) return;
+        if (isChatRunPending(currentChatId) !== thisChatsRunActive) return;
+        if (!isProgrammaticSend) {
+          if (inputValueRef.current.trim() !== text) return;
+          if (
+            !sameDraftAttachments(
+              draftAttachmentsRef.current,
+              currentDraftAttachments,
+            )
+          ) {
+            return;
+          }
+          if (
+            (composerRevisionByChatIdRef?.current?.get?.(currentChatId) || 0) !==
+            composerRevisionAtRequest
+          ) {
+            return;
+          }
+        }
+        runSend(
+          resolved.text,
+          resolved.token || "",
+          resolved.disposition || "",
+        );
       });
     },
     [
       activeChatIdRef,
       attachmentsDisabledReason,
       attachmentsEnabled,
+      composerRevisionByChatIdRef,
+      consumeSecretGateToken,
       isCharacterChat,
       isChatRunPending,
       messagesRef,
+      mintTokenForDisposition,
       pushQueuedTurn,
+      resolveSecretGateForSend,
       runTurnRequest,
+      sealDurableInteractionForFreshSend,
       setDraftAttachments,
       setInputValue,
       setStreamError,
@@ -10484,8 +12215,15 @@ export const useChatStream = ({
      one case that never touches the server: it is purely a local buffer. */
   const dispatchInterjectChannel = useCallback(
     (targetChatId, body, channel, options = {}) => {
+      /* Carried from the secret gate through every queue fallback below, so a
+         plain-text approval survives the auto-routing detour and the item is
+         still relayable later without re-prompting. */
+      const secretDisposition =
+        options?.secretDisposition === PLAIN_USER_APPROVED_DISPOSITION
+          ? PLAIN_USER_APPROVED_DISPOSITION
+          : "";
       if (channel === "queue") {
-        return pushQueuedTurn(targetChatId, body);
+        return pushQueuedTurn(targetChatId, body, secretDisposition);
       }
 
       const runGeneration = getRunGeneration(targetChatId);
@@ -10570,6 +12308,7 @@ export const useChatStream = ({
               text: body,
               requestedChannel: channel,
               threadId,
+              disposition: secretDisposition,
             });
         if (!saved) {
           const message =
@@ -10805,7 +12544,7 @@ export const useChatStream = ({
 
           if (resolvedChannel === "queue") {
             if (!needsDurableFyiIntent) {
-              return pushQueuedTurn(targetChatId, body);
+              return pushQueuedTurn(targetChatId, body, secretDisposition);
             }
             const migrated = migratePendingFyiToQueue({
               chatId: targetChatId,
@@ -10880,6 +12619,7 @@ export const useChatStream = ({
                     : { clientOperationId }),
                   id: clarifyId,
                   text: body,
+                  disposition: secretDisposition,
                 });
             if (!durableClarify) {
               if (needsDurableFyiIntent) {
@@ -10988,7 +12728,7 @@ export const useChatStream = ({
               : true;
           }
           if (stillActive) {
-            return pushQueuedTurn(targetChatId, body);
+            return pushQueuedTurn(targetChatId, body, secretDisposition);
           }
 
           if (targetChatId === activeChatIdRef.current) {
@@ -10996,10 +12736,11 @@ export const useChatStream = ({
               text: body,
               chatId: targetChatId,
               bypassInterject: true,
+              secretDisposition,
             });
             return true;
           }
-          return pushQueuedTurn(targetChatId, body);
+          return pushQueuedTurn(targetChatId, body, secretDisposition);
         })
         .catch((error) => {
           if (clarifyBtwBarrier && !clarifyBtwBarrier.settled) {
@@ -11044,7 +12785,7 @@ export const useChatStream = ({
   );
 
   const handleInterject = useCallback(
-    (targetChatId, rawText) => {
+    (targetChatId, rawText, options = {}) => {
       // Inline command tokens can sit anywhere in the text now. extractCommands
       // pulls the ACTIVE tokens (exclusive-group rule: first per group wins)
       // out of the text; the interject-channel command decides the channel and
@@ -11060,7 +12801,12 @@ export const useChatStream = ({
       const channel = channelCommand ? channelCommand.channel : "auto";
       const trimmedBody = (body || "").trim();
       if (!trimmedBody) return false;
-      return dispatchInterjectChannel(targetChatId, trimmedBody, channel);
+      return dispatchInterjectChannel(targetChatId, trimmedBody, channel, {
+        secretDisposition:
+          options?.secretDisposition === PLAIN_USER_APPROVED_DISPOSITION
+            ? PLAIN_USER_APPROVED_DISPOSITION
+            : "",
+      });
     },
     [dispatchInterjectChannel],
   );
@@ -11157,6 +12903,10 @@ export const useChatStream = ({
           pendingFyiIntent,
           clarifyId: pending.id,
           runGeneration,
+          /* This text was already gated when the user first sent it; the
+             clarify entry carries the approval forward so a queue fallback
+             here does not lose it and get purged as "ungated" later. */
+          secretDisposition: pending.disposition || "",
         },
       );
     },
@@ -11175,6 +12925,28 @@ export const useChatStream = ({
     pendingFyiCount: 0,
     queueItems: [],
   };
+
+  const setTurnMutationPresentation = useCallback((messageId, phase) => {
+    const normalizedMessageId =
+      typeof messageId === "string" ? messageId.trim() : "";
+    if (!normalizedMessageId) return;
+    setTurnMutationPresentationByMessageId((previous) => ({
+      ...previous,
+      [normalizedMessageId]: { phase },
+    }));
+  }, []);
+
+  const clearTurnMutationPresentation = useCallback((messageId) => {
+    const normalizedMessageId =
+      typeof messageId === "string" ? messageId.trim() : "";
+    if (!normalizedMessageId) return;
+    setTurnMutationPresentationByMessageId((previous) => {
+      if (!previous[normalizedMessageId]) return previous;
+      const next = { ...previous };
+      delete next[normalizedMessageId];
+      return next;
+    });
+  }, []);
 
   const resendTurn = useCallback(
     async (message) => {
@@ -11208,13 +12980,63 @@ export const useChatStream = ({
         return;
       }
 
+      /* Presentation is intentionally independent from the rebase round trip.
+         Canonical history remains unchanged until the durable acknowledgement
+         arrives, but the click must be visible in this same renderer turn. */
+      setTurnMutationPresentation(targetMessage.id, "Preparing resend…");
+      let retainPresentation = false;
+
+      /* ── Memory V2 P0 secret gate ──────────────────────────────────────────
+         A resend replays a stored message, which for anything sent after this
+         gate shipped is already handle-only and scans clean. A message stored
+         BEFORE the gate existed can still hold plaintext, and resending it
+         would re-send that plaintext — so the gate runs here too, ahead of
+         claimTurnMutation / enqueueTurnMutation / runTurnRequest. */
+      const gatedResend = await resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: true,
+      });
+      if (!gatedResend) {
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
+      /* The chat or its run state may have moved while the modal was open. */
+      if (
+        activeChatIdRef.current !== currentChatId ||
+        isChatRunPending(currentChatId) !== thisChatsStreamActive
+      ) {
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
+      const resendText = gatedResend.text;
+      const resendSecretToken = gatedResend.token || "";
+      const resendSecretGateSettled = Boolean(resendSecretToken);
+      if (
+        resendSecretGateSettled &&
+        !consumeSecretGateToken(resendSecretToken, {
+          chatId: currentChatId,
+          text: resendText,
+        })
+      ) {
+        setStreamErrorForChat(
+          currentChatId,
+          SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+        );
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
+
       const operationId = createTurnMutationOperationId(currentChatId);
       const turnMutationOwner = claimTurnMutation({
         chatId: currentChatId,
         operationId,
         mountedRef: hookMountedRef,
       });
-      if (!turnMutationOwner) return;
+      if (!turnMutationOwner) {
+        clearTurnMutationPresentation(targetMessage.id);
+        return;
+      }
       const isCurrentTurnMutation = () => ownsTurnMutation(turnMutationOwner);
 
       try {
@@ -11252,28 +13074,78 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(baseMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "resend",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "resend",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: targetMessage.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(originalMessages),
           baseFingerprint: fingerprintTurnMutationMessages(baseMessages),
           baseMessageCount: baseMessages.length,
-          text,
+          text: resendText,
           modelId: targetModelId,
           threadId: targetThreadId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
@@ -11287,21 +13159,23 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          baseMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-          },
-        );
+        /* Server ack strictly before any optimistic message or local persist:
+           runTurnRequest below is what writes the optimistic user message. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: baseMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
+          if (memoryResult.retryAction === TURN_MUTATION_RETRY_ACTIONS.IN_PROGRESS) {
+            retainPresentation = true;
+            setTurnMutationPresentation(
+              targetMessage.id,
+              "Waiting for the previous run to finish…",
+            );
+          }
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            outboxEntry.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2 &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11328,7 +13202,9 @@ export const useChatStream = ({
         await runTurnRequest({
           mode: "resend",
           chatId: currentChatId,
-          text,
+          text: resendText,
+          secretGateText: resendText,
+          secretGateSettled: resendSecretGateSettled,
           attachments: resendAttachments,
           baseMessages,
           clearComposer: false,
@@ -11340,20 +13216,28 @@ export const useChatStream = ({
         });
       } finally {
         releaseTurnMutation(turnMutationOwner);
+        if (!retainPresentation) {
+          clearTurnMutationPresentation(targetMessage.id);
+        }
       }
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      consumeSecretGateToken,
       isChatRunPending,
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
+      resolveSecretGateForSend,
       runTurnRequest,
+      clearTurnMutationPresentation,
       setStreamErrorForChat,
+      setTurnMutationPresentation,
       storageApi,
       threadIdRef,
     ],
@@ -11385,6 +13269,42 @@ export const useChatStream = ({
         thisChatsStreamActive ||
         durableMutationBlocked
       ) {
+        return;
+      }
+
+      /* ── Memory V2 P0 secret gate ──────────────────────────────────────────
+         An edit is brand-new user text, so it is gated exactly like a compose
+         send — and gated HERE, ahead of claimTurnMutation, the session-head
+         read, enqueueTurnMutation, applyTurnMutationMemory and runTurnRequest,
+         so no turn-mutation outbox row, no memory rewrite (V1 or V2 rebase)
+         and no optimistic message can exist before the user has decided. */
+      const gatedEdit = await resolveSecretGateForSend({
+        chatId: currentChatId,
+        text,
+        interactive: true,
+      });
+      if (!gatedEdit) return;
+      /* The chat or its run state may have moved while the modal was open. */
+      if (
+        activeChatIdRef.current !== currentChatId ||
+        isChatRunPending(currentChatId) !== thisChatsStreamActive
+      ) {
+        return;
+      }
+      const editText = gatedEdit.text;
+      const editSecretToken = gatedEdit.token || "";
+      const editSecretGateSettled = Boolean(editSecretToken);
+      if (
+        editSecretGateSettled &&
+        !consumeSecretGateToken(editSecretToken, {
+          chatId: currentChatId,
+          text: editText,
+        })
+      ) {
+        setStreamErrorForChat(
+          currentChatId,
+          SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
+        );
         return;
       }
 
@@ -11445,7 +13365,7 @@ export const useChatStream = ({
 
         // The expanded edit and its sidecar are persisted in the outbox so a
         // remount resumes the exact same operation, not a newly-resolved one.
-        const built = buildComposerSend(text, targetSelectedToolkits);
+        const built = buildComposerSend(editText, targetSelectedToolkits);
         if (!built.outgoingText && originalAttachments.length === 0) {
           setStreamErrorForChat(
             currentChatId,
@@ -11459,22 +13379,72 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(baseMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "edit",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "edit",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: targetMessage.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(originalMessages),
@@ -11496,21 +13466,16 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          baseMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-          },
-        );
+        /* Server ack strictly before any optimistic message or local persist:
+           runTurnRequest below is what writes the optimistic user message. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: baseMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            outboxEntry.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2 &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11525,6 +13490,8 @@ export const useChatStream = ({
           mode: "edit",
           chatId: currentChatId,
           text: built.outgoingText,
+          secretGateText: editText,
+          secretGateSettled: editSecretGateSettled,
           attachments: originalAttachments,
           baseMessages,
           clearComposer: false,
@@ -11544,12 +13511,15 @@ export const useChatStream = ({
       activeChatIdRef,
       attachmentsEnabled,
       buildCharacterRunConfig,
+      consumeSecretGateToken,
       isChatRunPending,
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
+      resolveSecretGateForSend,
       runTurnRequest,
       setStreamErrorForChat,
       storageApi,
@@ -11651,22 +13621,78 @@ export const useChatStream = ({
           characterConfig.default_model.trim()
             ? characterConfig.default_model.trim()
             : capturedModelId;
-        let expectedSessionRevision = null;
-        try {
-          expectedSessionRevision = await readMemorySessionRevision(
-            targetSessionId,
-            { forceMemoryEnabled: isCharacterChat },
+        /* The cancel/fence above has already run, so this head read observes
+           the post-cancel state. If the sidecar still reports the generation's
+           attempt as open, rebaseSession answers
+           context_v2_rebase_in_progress — a RETRYABLE code, so the frozen
+           intent stays in the durable outbox and recovery replays it. We never
+           fabricate a cancel ack and never fall back to V1 to get around it. */
+        const memoryPlan = await resolveTurnMutationMemoryPlan({
+          ownerChatId: currentChatId,
+          sessionId: targetSessionId,
+        });
+        if (!isCurrentTurnMutation()) return;
+        if (memoryPlan.mode === TURN_MUTATION_ADMISSION.BLOCKED) {
+          setStreamErrorForChat(
+            currentChatId,
+            contextV2TurnMutationMessage(memoryPlan.reason),
           );
-        } catch (error) {
-          setStreamErrorForChat(currentChatId, error?.message);
           return;
         }
-        if (!isCurrentTurnMutation()) return;
+        const isV2Mutation = memoryPlan.mode === TURN_MUTATION_ADMISSION.V2;
+        let expectedSessionRevision = null;
+        let v2RebasePayload = null;
+        if (isV2Mutation) {
+          /* Frozen HERE, from this one head read, and never rebuilt again. */
+          v2RebasePayload = buildContextV2RebasePayload({
+            ownerChatId: currentChatId,
+            sessionId: targetSessionId,
+            replacementHistory: buildRebaseReplacementHistory(nextMessages),
+            sourceGenerationId: memoryPlan.sourceGenerationId,
+            expectedSessionRevision: memoryPlan.expectedSessionRevision,
+            operationId,
+            reason: "delete",
+          });
+          if (!v2RebasePayload) {
+            setStreamErrorForChat(
+              currentChatId,
+              CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+            );
+            return;
+          }
+        } else {
+          try {
+            expectedSessionRevision = await readMemorySessionRevision(
+              targetSessionId,
+              { forceMemoryEnabled: isCharacterChat },
+            );
+          } catch (error) {
+            setStreamErrorForChat(currentChatId, error?.message);
+            return;
+          }
+          if (!isCurrentTurnMutation()) return;
+        }
         const outboxEntry = enqueueTurnMutation({
           operationId,
           chatId: currentChatId,
           sessionId: targetSessionId,
           kind: "delete",
+          memoryMode: isV2Mutation
+            ? TURN_MUTATION_MEMORY_MODES.V2
+            : TURN_MUTATION_MEMORY_MODES.LEGACY,
+          ...(v2RebasePayload
+            ? {
+                v2RebasePayload,
+                /* Frozen from the SAME single head read as the payload. It
+                   decides whether the authoritative V1 leg exists at all, so
+                   recovery must replay it rather than re-decide it. */
+                admissionMode: memoryPlan.admissionMode,
+                ...(memoryPlan.admissionMode ===
+                TURN_MUTATION_ADMISSION_MODES.SHADOW
+                  ? { v1MirrorState: TURN_MUTATION_V1_MIRROR_STATES.PENDING }
+                  : {}),
+              }
+            : {}),
           targetMessageId: message.id,
           originalFingerprint:
             fingerprintTurnMutationMessages(workingMessages),
@@ -11688,22 +13714,15 @@ export const useChatStream = ({
           );
           return;
         }
-        const memoryResult = await replaceSessionMemoryForMessages(
-          targetSessionId,
-          nextMessages,
-          {
-            forceMemoryEnabled: isCharacterChat,
-            memoryNamespace: characterConfig?.run_memory_namespace || "",
-            modelId: targetModelId,
-            targetChatId: currentChatId,
-            operationId,
-            expectedSessionRevision,
-            expectedCancelAttemptId,
-          },
-        );
+        /* Server ack strictly before the local commit below. */
+        const memoryResult = await applyTurnMutationMemory(outboxEntry, {
+          replacementMessages: nextMessages,
+          targetChatId: currentChatId,
+        });
         if (!memoryResult.applied) {
           if (
-            isTerminalTurnMutationError(memoryResult.error) &&
+            outboxEntry.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2 &&
+            isTerminalTurnMutationResult(memoryResult) &&
             fingerprintTurnMutationMessages(
               storageApi.getChatMessages?.(currentChatId) || [],
             ) === outboxEntry.originalFingerprint
@@ -11731,8 +13750,9 @@ export const useChatStream = ({
       isCharacterChat,
       messagesRef,
       modelIdRef,
+      applyTurnMutationMemory,
       readMemorySessionRevision,
-      replaceSessionMemoryForMessages,
+      resolveTurnMutationMemoryPlan,
       setStreamErrorForChat,
       storageApi,
       threadIdRef,
@@ -11744,10 +13764,87 @@ export const useChatStream = ({
       typeof chatId === "string" && chatId.trim() ? chatId.trim() : "";
     if (!targetChatId || !hookMountedRef.current) return undefined;
 
-    const entry = readTurnMutationOutbox().find(
+    const recoveryOutboxSnapshot = readTurnMutationOutboxState();
+    if (!recoveryOutboxSnapshot.available) {
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      return undefined;
+    }
+    const entry = recoveryOutboxSnapshot.entries.find(
       (item) => item.chatId === targetChatId,
     );
     if (!entry) return undefined;
+    const activeRetryOwner = turnMutationByChatIdRef.current.get(targetChatId);
+    const hasActiveRetryAttempt = Boolean(
+      activeRetryOwner?.operationId === entry.operationId &&
+        activeRetryOwner.mountedRef?.current !== false &&
+        (activeRetryOwner.recovery !== true ||
+          activeRetryOwner.recoveryRunToken),
+    );
+
+    if (
+      entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED
+    ) {
+      return undefined;
+    }
+    if (
+      entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.IN_PROGRESS &&
+      turnMutationInProgressSeenRef.current.has(entry.operationId)
+    ) {
+      return undefined;
+    }
+    if (
+      entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.ATTEMPTING &&
+      entry.retryAt === 0 &&
+      !hasActiveRetryAttempt
+    ) {
+      /* ATTEMPTING+0 is a persist-before-schedule fence, not runnable work.
+         It means the renderer disappeared after the reservation or could not
+         persist the outcome. Hold it for explicit user review; never infer a
+         retry from the absence of a timestamp. One conversion attempt per
+         mount also avoids a storage-failure render loop. */
+      if (!turnMutationStalledAttemptSeenRef.current.has(entry.operationId)) {
+        turnMutationStalledAttemptSeenRef.current.add(entry.operationId);
+        const held = recordTurnMutationRetryOutcome(entry.operationId, {
+          action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+          code: "context_v2_persist_failed",
+        });
+        setStreamErrorForChat(
+          targetChatId,
+          CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+        );
+        if (held) {
+          setTurnMutationVersion((version) => version + 1);
+        }
+      }
+      return undefined;
+    }
+    if (
+      entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2 &&
+      entry.replayAttempts >= TURN_MUTATION_MAX_REPLAY_ATTEMPTS &&
+      !hasActiveRetryAttempt
+    ) {
+      recordTurnMutationRetryOutcome(entry.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code: entry.lastFailureCode || "context_v2_retry_exhausted",
+      });
+      setTurnMutationVersion((version) => version + 1);
+      return undefined;
+    }
+    if (
+      entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2 &&
+      entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.WAITING &&
+      entry.retryAt > Date.now()
+    ) {
+      const retryTimer = setTimeout(() => {
+        if (hookMountedRef.current) {
+          setTurnMutationVersion((version) => version + 1);
+        }
+      }, Math.max(0, entry.retryAt - Date.now()));
+      return () => clearTimeout(retryTimer);
+    }
 
     if (
       runPreflightGenerationByChatIdRef.current.has(targetChatId) ||
@@ -11792,13 +13889,16 @@ export const useChatStream = ({
     owner.recoveryRunToken = recoveryRunToken;
 
     let cancelled = false;
-    let retryTimer = null;
-    const scheduleRetry = (error) => {
+    let legacyRetryTimer = null;
+    const scheduleLegacyRetry = (error) => {
       if (cancelled || !hookMountedRef.current) return;
       const attempt =
-        (turnMutationRecoveryAttemptsRef.current.get(entry.operationId) || 0) +
-        1;
-      turnMutationRecoveryAttemptsRef.current.set(entry.operationId, attempt);
+        (legacyTurnMutationRecoveryAttemptsRef.current.get(entry.operationId) ||
+          0) + 1;
+      legacyTurnMutationRecoveryAttemptsRef.current.set(
+        entry.operationId,
+        attempt,
+      );
       if (attempt >= 6) {
         setStreamErrorForChat(
           targetChatId,
@@ -11807,18 +13907,31 @@ export const useChatStream = ({
         );
         return;
       }
-      retryTimer = setTimeout(() => {
+      legacyRetryTimer = setTimeout(() => {
         if (!cancelled && hookMountedRef.current) {
           setTurnMutationVersion((version) => version + 1);
         }
       }, Math.min(4000, 250 * 2 ** (attempt - 1)));
+    };
+    const quarantineEntry = (code, message) => {
+      recordTurnMutationRetryOutcome(entry.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code,
+      });
+      setStreamErrorForChat(
+        targetChatId,
+        message || CONTEXT_V2_TURN_MUTATION_MESSAGES.QUARANTINED,
+      );
+      releaseTurnMutation(owner);
     };
 
     void (async () => {
       let currentMessages = storageApi.getChatMessages?.(targetChatId) || [];
       if (isTurnMutationAlreadyCommitted(entry, currentMessages)) {
         removeTurnMutation(entry.operationId);
-        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        legacyTurnMutationRecoveryAttemptsRef.current.delete(
+          entry.operationId,
+        );
         releaseTurnMutation(owner);
         return;
       }
@@ -11838,8 +13951,8 @@ export const useChatStream = ({
         fingerprintTurnMutationMessages(currentMessages) !==
         entry.originalFingerprint
       ) {
-        setStreamErrorForChat(
-          targetChatId,
+        quarantineEntry(
+          "turn_mutation_conversation_changed",
           "This message change cannot be recovered automatically because the conversation changed.",
         );
         return;
@@ -11851,8 +13964,8 @@ export const useChatStream = ({
           entry.targetMessageId,
         );
         if (turnMessageIds.size === 0) {
-          setStreamErrorForChat(
-            targetChatId,
+          quarantineEntry(
+            "turn_mutation_target_missing",
             "This delete can no longer be matched to its original turn.",
           );
           return;
@@ -11865,8 +13978,8 @@ export const useChatStream = ({
           fingerprintTurnMutationMessages(replacementMessages) !==
             entry.resultFingerprint
         ) {
-          setStreamErrorForChat(
-            targetChatId,
+          quarantineEntry(
+            "turn_mutation_result_mismatch",
             "This delete no longer matches the stored recovery intent.",
           );
           return;
@@ -11878,8 +13991,8 @@ export const useChatStream = ({
               (message) => message?.id === entry.targetMessageId,
             );
         if (targetIndex < 0 || targetMessage?.role !== "user") {
-          setStreamErrorForChat(
-            targetChatId,
+          quarantineEntry(
+            "turn_mutation_target_missing",
             "This resend or edit can no longer be matched to its original turn.",
           );
           return;
@@ -11891,8 +14004,8 @@ export const useChatStream = ({
           fingerprintTurnMutationMessages(baseMessages) !==
           entry.baseFingerprint
         ) {
-          setStreamErrorForChat(
-            targetChatId,
+          quarantineEntry(
+            "turn_mutation_base_mismatch",
             "This resend or edit no longer matches the stored conversation.",
           );
           return;
@@ -11905,7 +14018,10 @@ export const useChatStream = ({
         try {
           characterConfig = await buildCharacterRunConfig(entry.threadId);
         } catch (error) {
-          scheduleRetry(error);
+          quarantineEntry(
+            "turn_mutation_character_recovery_failed",
+            error?.message || "The character session could not be recovered.",
+          );
           return;
         }
         if (
@@ -11914,8 +14030,8 @@ export const useChatStream = ({
           characterConfig.session_id !== entry.sessionId
         ) {
           if (!cancelled) {
-            setStreamErrorForChat(
-              targetChatId,
+            quarantineEntry(
+              "turn_mutation_session_changed",
               "The character session changed while recovering this message operation.",
             );
           }
@@ -11923,43 +14039,48 @@ export const useChatStream = ({
         }
       }
 
-      const memoryResult = await replaceSessionMemoryForMessages(
-        entry.sessionId,
+      /* Memory V2 recovery replays the FROZEN payload verbatim — no fresh
+         getSessionHead, no history rebuilt from the messages currently on
+         screen. The local checks above only decide whether it is still safe to
+         proceed; they never reshape what is sent. Sending a recomputed request
+         would rebase against a generation the user never saw. */
+      const memoryResult = await applyTurnMutationMemory(entry, {
         replacementMessages,
-        {
-          forceMemoryEnabled: entry.forceMemoryEnabled,
-          memoryNamespace: entry.memoryNamespace,
-          modelId: entry.modelId,
-          targetChatId,
-          operationId: entry.operationId,
-          expectedSessionRevision: entry.expectedSessionRevision,
-          expectedCancelAttemptId: entry.expectedCancelAttemptId,
-        },
-      );
+        targetChatId,
+      });
       if (!memoryResult.applied) {
-        if (isTerminalTurnMutationError(memoryResult.error)) {
-          const latestMessages =
-            storageApi.getChatMessages?.(targetChatId) || [];
-          if (
-            fingerprintTurnMutationMessages(latestMessages) ===
-            entry.originalFingerprint
-          ) {
-            removeTurnMutation(entry.operationId);
-            turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
-            releaseTurnMutation(owner);
-            setStreamErrorForChat(
-              targetChatId,
-              "The conversation changed before this message operation could be applied. Please try it again.",
-            );
+        if (entry.memoryMode !== TURN_MUTATION_MEMORY_MODES.V2) {
+          if (isTerminalTurnMutationResult(memoryResult)) {
+            const latestMessages =
+              storageApi.getChatMessages?.(targetChatId) || [];
+            if (
+              fingerprintTurnMutationMessages(latestMessages) ===
+              entry.originalFingerprint
+            ) {
+              removeTurnMutation(entry.operationId);
+              legacyTurnMutationRecoveryAttemptsRef.current.delete(
+                entry.operationId,
+              );
+              releaseTurnMutation(owner);
+              setStreamErrorForChat(
+                targetChatId,
+                "The conversation changed before this message operation could be applied. Please try it again.",
+              );
+            } else {
+              setStreamErrorForChat(
+                targetChatId,
+                "This message operation conflicted with newer conversation state and needs manual review before it can be discarded.",
+              );
+            }
           } else {
-            setStreamErrorForChat(
-              targetChatId,
-              "This message operation conflicted with newer conversation state and needs manual review before it can be discarded.",
-            );
+            scheduleLegacyRetry(memoryResult.error);
           }
-          return;
+        } else {
+          /* applyTurnMutationMemory already persisted waiting, in-progress, or
+             quarantine. Releasing ownership is what lets the waiting state
+             mount its one 250 ms timer and lets quarantine render its actions. */
+          releaseTurnMutation(owner);
         }
-        scheduleRetry(memoryResult.error);
         return;
       }
       if (cancelled || !hookMountedRef.current || !ownsTurnMutation(owner)) {
@@ -11972,7 +14093,9 @@ export const useChatStream = ({
           source: "turn-mutation-recovery",
         });
         removeTurnMutation(entry.operationId);
-        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        legacyTurnMutationRecoveryAttemptsRef.current.delete(
+          entry.operationId,
+        );
         releaseTurnMutation(owner);
         return;
       }
@@ -12002,9 +14125,20 @@ export const useChatStream = ({
       const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];
       if (isTurnMutationAlreadyCommitted(entry, storedMessages)) {
         removeTurnMutation(entry.operationId);
-        turnMutationRecoveryAttemptsRef.current.delete(entry.operationId);
+        legacyTurnMutationRecoveryAttemptsRef.current.delete(
+          entry.operationId,
+        );
       } else if (!started && !cancelled) {
-        scheduleRetry(new Error("The recovered run did not start."));
+        if (entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2) {
+          quarantineEntry(
+            "turn_mutation_run_not_started",
+            "The recovered message change could not start a new run.",
+          );
+        } else {
+          scheduleLegacyRetry(
+            new Error("The recovered message change could not start a new run."),
+          );
+        }
       }
     })().finally(() => {
       if (owner.recoveryRunToken !== recoveryRunToken) {
@@ -12025,18 +14159,33 @@ export const useChatStream = ({
       }
     });
 
+    const shouldCancelRecoveryOnCleanup = () =>
+      !hookMountedRef.current ||
+      activeChatIdRef.current !== targetChatId ||
+      owner.recoveryRunToken !== recoveryRunToken;
+
     return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
+      /* claimTurnMutation notifies listeners, which intentionally rerenders
+         this hook. That dependency cleanup must not cancel the in-flight
+         recovery it just started; the succeeding effect observes the same
+         recoveryRunToken and stays idle. A real unmount or chat switch still
+         cancels before any local commit/run. */
+      if (shouldCancelRecoveryOnCleanup()) {
+        cancelled = true;
+        if (legacyRetryTimer != null) {
+          clearTimeout(legacyRetryTimer);
+        }
+      }
     };
   }, [
+    activeChatIdRef,
     attachmentsEnabled,
     buildCharacterRunConfig,
     chatId,
     commitForegroundMessages,
     activeStreamsRef,
     isStreaming,
-    replaceSessionMemoryForMessages,
+    applyTurnMutationMemory,
     runTurnRequest,
     setStreamErrorForChat,
     storageApi,
@@ -12154,6 +14303,7 @@ export const useChatStream = ({
     hasBackgroundStream,
     interjectState,
     durableInteractionStatus,
+    discardTurnMutation,
     isDurableInteractionBlocked,
     isTurnMutationBlocked,
     isStreaming,
@@ -12164,11 +14314,24 @@ export const useChatStream = ({
     cancelRunForTest,
     getRunForTest,
     resendTurn,
+    retryTurnMutation,
+    /* Memory V2 P0 secret gate. `secretCaptureGate` is the six-field public
+       object rendered by secret_capture_modal — it never carries message text
+       or any matched value. `isSecretCapturePending` is what the page uses to
+       lock send / model / tool / attachment controls while the user decides. */
+    secretCaptureGate,
+    isSecretCapturePending,
+    confirmSecretCaptureStore,
+    confirmSecretCapturePlain,
+    cancelSecretCapture,
+    setSecretCaptureScope,
     sendNewTurn,
     sendForTest,
     setStreamError,
     stopStream,
     streamError,
     toolConfirmationUiStateById,
+    turnMutationHold,
+    turnMutationPresentationByMessageId,
   };
 };

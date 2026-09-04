@@ -41,6 +41,81 @@ describe("ipc channel parity", () => {
     });
   });
 
+  test("boot readiness channels are classified on both sides", () => {
+    // Two invoke channels + one push event. The push alone would race the
+    // renderer's subscription during boot — which is the exact window this
+    // gate exists for — so GET_READINESS must stay an invoke channel.
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(CHANNELS.BOOT.GET_READINESS);
+    expect(PRELOAD_INVOKE_CHANNELS).toContain(CHANNELS.BOOT.RETRY);
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.BOOT.GET_READINESS);
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.BOOT.RETRY);
+
+    expect(PRELOAD_EVENT_CHANNELS).toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(MAIN_EVENT_CHANNELS).toContain(CHANNELS.BOOT.READINESS_CHANGED);
+
+    // The event channel is push-only: never an invoke or a send target.
+    expect(IPC_HANDLE_CHANNELS).not.toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(IPC_ON_CHANNELS).not.toContain(CHANNELS.BOOT.READINESS_CHANGED);
+    expect(PRELOAD_SEND_CHANNELS).not.toContain(
+      CHANNELS.BOOT.READINESS_CHANGED,
+    );
+  });
+
+  test("the boot namespace exposes read-only status plus exactly one control verb", () => {
+    const bootChannels = Object.values(CHANNELS.BOOT);
+    expect(bootChannels).toHaveLength(3);
+    bootChannels.forEach((channel) => {
+      expect(channel.startsWith("boot:")).toBe(true);
+    });
+
+    // No configuration/setter surface may appear here: the boot gate must not
+    // become a way for the renderer to point the sidecar somewhere.
+    expect(
+      bootChannels.filter((channel) => /set-|configure|start|port|path|token/.test(channel)),
+    ).toEqual([]);
+  });
+
+  test("boot readiness handlers delegate to the service and take no renderer input", async () => {
+    const handlers = new Map();
+    const readiness = { ready: true, phase: "ready" };
+    const bootReadinessService = {
+      getReadiness: jest.fn(() => readiness),
+      retry: jest.fn(async () => readiness),
+    };
+
+    registerIpcHandlers({
+      ipcMain: {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        on: () => {},
+      },
+      app: { getVersion: () => "0.0.0" },
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService: {},
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+        bootReadinessService,
+      },
+    });
+
+    expect(handlers.get(CHANNELS.BOOT.GET_READINESS)({}, { evil: "payload" })).toEqual(
+      readiness,
+    );
+
+    await expect(
+      handlers.get(CHANNELS.BOOT.RETRY)({}, { port: 1234, path: "/etc" }),
+    ).resolves.toEqual(readiness);
+
+    // Whatever the renderer sent, main forwards nothing.
+    expect(bootReadinessService.retry).toHaveBeenCalledWith();
+    expect(bootReadinessService.getReadiness).toHaveBeenCalledWith();
+  });
+
   test("custom provider test-connection channel is registered on both sides", () => {
     expect(PRELOAD_INVOKE_CHANNELS).toContain(
       CHANNELS.UNCHAIN.TEST_CUSTOM_PROVIDER,
@@ -123,6 +198,281 @@ describe("ipc channel parity", () => {
     });
   });
 
+  test("memory vault channels are invoke-only, classified on both sides, with no read/resolve surface", () => {
+    const vaultChannels = Object.values(CHANNELS.MEMORY_VAULT);
+    expect(vaultChannels).toHaveLength(6);
+    vaultChannels.forEach((channel) => {
+      // invoke → handle on both sides…
+      expect(PRELOAD_INVOKE_CHANNELS).toContain(channel);
+      expect(IPC_HANDLE_CHANNELS).toContain(channel);
+      // …and NEVER sync, send or event — the vault has no other transport.
+      expect(PRELOAD_SEND_SYNC_CHANNELS).not.toContain(channel);
+      expect(IPC_ON_SYNC_CHANNELS).not.toContain(channel);
+      expect(PRELOAD_SEND_CHANNELS).not.toContain(channel);
+      expect(IPC_ON_CHANNELS).not.toContain(channel);
+      expect(MAIN_EVENT_CHANNELS).not.toContain(channel);
+      // Security sign-off condition: no plaintext-read IPC exists.
+      expect(channel).not.toMatch(/read|resolve|decrypt|reveal|export|plaintext/);
+      // …and no sink executor / broker control plane either: registering an
+      // executor or starting the broker is main-process-only.
+      expect(channel).not.toMatch(/configure|executor|sink|broker|worker|intent/);
+    });
+    // Whole-namespace lock, not just the six values.
+    for (const key of Object.keys(CHANNELS.MEMORY_VAULT)) {
+      expect(key).not.toMatch(/CONFIGURE|EXECUTOR|SINK|BROKER|WORKER|INTENT/);
+    }
+  });
+
+  test("memory vault handlers are wired through registerIpcHandlers", () => {
+    const handleChannels = new Set();
+    const ipcMain = {
+      handle: jest.fn((channel) => handleChannels.add(channel)),
+      on: jest.fn(),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService: {},
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+      },
+    });
+
+    Object.values(CHANNELS.MEMORY_VAULT).forEach((channel) => {
+      expect(handleChannels.has(channel)).toBe(true);
+    });
+  });
+
+  test("context v2 channels are invoke-only, classified on both sides, and carry no generic proxy", () => {
+    const contextChannels = Object.values(CHANNELS.CONTEXT_V2);
+    expect(contextChannels).toHaveLength(18);
+    // The whole namespace is one channel per explicit capability.
+    expect(new Set(contextChannels).size).toBe(18);
+
+    contextChannels.forEach((channel) => {
+      expect(PRELOAD_INVOKE_CHANNELS).toContain(channel);
+      expect(IPC_HANDLE_CHANNELS).toContain(channel);
+      // No other transport: not sync, not send, not event.
+      expect(PRELOAD_SEND_SYNC_CHANNELS).not.toContain(channel);
+      expect(IPC_ON_SYNC_CHANNELS).not.toContain(channel);
+      expect(PRELOAD_SEND_CHANNELS).not.toContain(channel);
+      expect(IPC_ON_CHANNELS).not.toContain(channel);
+      expect(MAIN_EVENT_CHANNELS).not.toContain(channel);
+      // Namespaced away from the already-high-risk unchain bridge.
+      expect(channel.startsWith("context-v2:")).toBe(true);
+      expect(channel.startsWith("unchain:")).toBe(false);
+      // No generic proxy / privileged-plumbing channel may ever appear here.
+      expect(channel).not.toMatch(
+        /invoke|proxy|request|fetch|url|endpoint|path|token|port|claim|lease|heartbeat|bootstrap|append/,
+      );
+      // Chat deletion is main-internal (chat store + deletion outbox); the
+      // renderer gets no Context V2 delete channel of any kind.
+      expect(channel).not.toMatch(/delete|destroy|purge|drop/i);
+    });
+    expect(CHANNELS.CONTEXT_V2.DELETE_CHAT).toBeUndefined();
+    expect(PRELOAD_INVOKE_CHANNELS).not.toContain("context-v2:delete-chat");
+    expect(IPC_HANDLE_CHANNELS).not.toContain("context-v2:delete-chat");
+
+    // Capability freeze: exactly these operations, nothing more.
+    expect(contextChannels.slice().sort()).toEqual(
+      [
+        "context-v2:get-status",
+        "context-v2:list-events",
+        "context-v2:read-content",
+        "context-v2:get-session-head",
+        "context-v2:rebase-session",
+        "context-v2:list-spaces",
+        "context-v2:get-tree",
+        "context-v2:list-entries",
+        "context-v2:search-entries",
+        "context-v2:list-candidates",
+        "context-v2:list-jobs",
+        "context-v2:list-promotions",
+        "context-v2:decide-candidate",
+        "context-v2:create-promotion",
+        "context-v2:decide-promotion",
+        "context-v2:list-candidate-reviews",
+        "context-v2:get-candidate-review",
+        "context-v2:decide-candidate-review",
+      ].sort(),
+    );
+
+    // The review triad is read + adjudicate only. A propose/create channel
+    // would let the renderer manufacture the diff it then approves, and a
+    // second content channel would bypass the READ_CONTENT ref grammar.
+    [
+      "context-v2:propose-candidate-review",
+      "context-v2:create-candidate-review",
+      "context-v2:read-candidate-review-content",
+    ].forEach((channel) => {
+      expect(contextChannels).not.toContain(channel);
+      expect(PRELOAD_INVOKE_CHANNELS).not.toContain(channel);
+      expect(IPC_HANDLE_CHANNELS).not.toContain(channel);
+    });
+    expect(
+      contextChannels.filter((channel) => /propose|create-candidate/.test(channel)),
+    ).toEqual([]);
+  });
+
+  test("context v2 handlers are wired 1:1 to explicit unchain service methods", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const called = [];
+    const unchainService = new Proxy(
+      {},
+      {
+        get: (_target, property) => (payload) => {
+          called.push([property, payload]);
+          return Promise.resolve({ ok: true, method: property });
+        },
+      },
+    );
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService,
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+      },
+    });
+
+    const expectedBindings = [
+      [CHANNELS.CONTEXT_V2.GET_STATUS, "getContextV2Status"],
+      [CHANNELS.CONTEXT_V2.LIST_EVENTS, "listContextV2Events"],
+      [CHANNELS.CONTEXT_V2.READ_CONTENT, "readContextV2Content"],
+      [CHANNELS.CONTEXT_V2.GET_SESSION_HEAD, "getContextV2SessionHead"],
+      [CHANNELS.CONTEXT_V2.REBASE_SESSION, "rebaseContextV2Session"],
+      [CHANNELS.CONTEXT_V2.LIST_SPACES, "listContextV2Spaces"],
+      [CHANNELS.CONTEXT_V2.GET_TREE, "getContextV2Tree"],
+      [CHANNELS.CONTEXT_V2.LIST_ENTRIES, "listContextV2Entries"],
+      [CHANNELS.CONTEXT_V2.SEARCH_ENTRIES, "searchContextV2Entries"],
+      [CHANNELS.CONTEXT_V2.LIST_CANDIDATES, "listContextV2Candidates"],
+      [CHANNELS.CONTEXT_V2.LIST_JOBS, "listContextV2Jobs"],
+      [CHANNELS.CONTEXT_V2.LIST_PROMOTIONS, "listContextV2Promotions"],
+      [CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE, "decideContextV2Candidate"],
+      [CHANNELS.CONTEXT_V2.CREATE_PROMOTION, "createContextV2Promotion"],
+      [CHANNELS.CONTEXT_V2.DECIDE_PROMOTION, "decideContextV2Promotion"],
+      [
+        CHANNELS.CONTEXT_V2.LIST_CANDIDATE_REVIEWS,
+        "listContextV2CandidateReviews",
+      ],
+      [CHANNELS.CONTEXT_V2.GET_CANDIDATE_REVIEW, "getContextV2CandidateReview"],
+      [
+        CHANNELS.CONTEXT_V2.DECIDE_CANDIDATE_REVIEW,
+        "decideContextV2CandidateReview",
+      ],
+    ];
+
+    // eslint-disable-next-line no-restricted-syntax
+    for (const [channel, method] of expectedBindings) {
+      const handler = registeredHandlers.get(channel);
+      expect(typeof handler).toBe("function");
+      // eslint-disable-next-line no-await-in-loop
+      await expect(handler({}, { ownerChatId: "chat-1" })).resolves.toEqual({
+        ok: true,
+        method,
+      });
+    }
+
+    expect(called.map(([method]) => method)).toEqual(
+      expectedBindings.map(([, method]) => method),
+    );
+    expect(expectedBindings).toHaveLength(18);
+
+    // No registered handler reaches a review PROPOSE method under any channel.
+    expect(called.map(([method]) => method)).not.toContain(
+      "proposeContextV2CandidateReview",
+    );
+
+    // deleteContextV2Chat still EXISTS on the unchain service and is still
+    // driven by the main-process deletion outbox — it is simply not reachable
+    // from the renderer. No registered handler may invoke it, under any
+    // channel name, and no delete-shaped context-v2 channel may exist at all.
+    expect(called.map(([method]) => method)).not.toContain(
+      "deleteContextV2Chat",
+    );
+    expect(
+      [...registeredHandlers.keys()].filter(
+        (channel) =>
+          channel.startsWith("context-v2:") && /delete/i.test(channel),
+      ),
+    ).toEqual([]);
+  });
+
+  test("context v2 handler logs only the operation and the stable error code", async () => {
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const secretish = new Error(
+      "[context_v2_invalid_request] ownerChatId is invalid :: sk-SENTINEL",
+    );
+    secretish.code = "context_v2_invalid_request";
+    const unchainService = {
+      listContextV2Events: jest.fn().mockRejectedValue(secretish),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService,
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+      },
+    });
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(
+        registeredHandlers.get(CHANNELS.CONTEXT_V2.LIST_EVENTS)(
+          {},
+          { ownerChatId: "../../etc/passwd" },
+        ),
+      ).rejects.toThrow(/context_v2_invalid_request/);
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const logged = warnSpy.mock.calls[0].join(" ");
+      expect(logged).toContain("listContextV2Events");
+      expect(logged).toContain("context_v2_invalid_request");
+      // Neither the payload nor the upstream message may be logged.
+      expect(logged).not.toContain("sk-SENTINEL");
+      expect(logged).not.toContain("etc/passwd");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test("settings quit drain uses only asynchronous control channels", () => {
     expect(PRELOAD_SEND_CHANNELS).toContain(
       CHANNELS.SETTINGS_STORAGE.QUIT_DRAIN_RESULT,
@@ -167,6 +517,7 @@ describe("ipc channel parity", () => {
         screenshotService: {},
         chatStorageService: {},
         settingsStorageService: {},
+        memoryVaultService: {},
       },
     });
 
@@ -251,6 +602,7 @@ describe("ipc channel parity", () => {
         screenshotService: {},
         chatStorageService: {},
         settingsStorageService: {},
+        memoryVaultService: {},
       },
     });
 
@@ -298,6 +650,7 @@ describe("ipc channel parity", () => {
         screenshotService: {},
         chatStorageService: {},
         settingsStorageService: {},
+        memoryVaultService: {},
       },
     });
 
@@ -336,6 +689,7 @@ describe("ipc channel parity", () => {
         screenshotService: {},
         chatStorageService: {},
         settingsStorageService: {},
+        memoryVaultService: {},
       },
     });
 
@@ -387,6 +741,7 @@ describe("ipc channel parity", () => {
         windowService: {}, updateService: {}, ollamaService: {}, unchainService,
         runtimeService: {}, screenshotService: {}, chatStorageService: {},
         settingsStorageService: {},
+        memoryVaultService: {},
       },
     });
 

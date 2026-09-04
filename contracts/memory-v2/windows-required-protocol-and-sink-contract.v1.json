@@ -1,0 +1,92 @@
+{
+  "schema": "pupu.memory-v2.windows-required-protocol-and-sink-contract.v1",
+  "vault_sink": {
+    "negative_cases": [
+      "missing_required_feature",
+      "unknown_sink_kind",
+      "disabled_windows_sink"
+    ],
+    "recognized_kinds": [
+      "computer_input",
+      "mcp_schema_secret",
+      "shell_secret_env",
+      "shell_secret_stdin"
+    ],
+    "windows": {
+      "disabled_kinds": [
+        "mcp_schema_secret",
+        "shell_secret_env",
+        "shell_secret_stdin"
+      ],
+      "enabled_kinds": [],
+      "unsupported_kinds": [
+        "computer_input"
+      ],
+      "version": 1
+    },
+    "worker_protocol_version": 1
+  },
+  "version": 1,
+  "runtime_protocol": {
+    "manifest_schema": "unchain.runtime_protocol_manifest.v1",
+    "required_protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minimum_minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "host_controlled_resume"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minimum_minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minimum_minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minimum_minor": 0
+      }
+    ]
+  }
+}

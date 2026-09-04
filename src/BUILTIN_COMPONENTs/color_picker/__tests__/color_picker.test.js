@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import ColorPicker, { ColorPickerPanel } from "../color_picker";
+import { Z } from "../../layer/z_layers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const theme = {
@@ -73,9 +74,11 @@ describe("ColorPickerPanel", () => {
     const panel = screen.getByTestId("color-picker-panel");
     expect(panel).toBeInTheDocument();
     expect(screen.queryByText("COLOR")).not.toBeInTheDocument();
+    /* The panel's fill and border now come from the semantic layer, and jsdom
+       drops any value containing var() from the CSSOM — so those two are
+       asserted by source scan below instead. Radius and shadow are literals
+       and stay assertable here. */
     expect(panel).toHaveStyle({
-      backgroundColor: "#0A0A0A",
-      border: "1px solid rgba(255,255,255,0.12)",
       borderRadius: "10px",
       boxShadow: "0 14px 24px rgba(0, 0, 0, 0.45)",
     });
@@ -87,19 +90,16 @@ describe("ColorPickerPanel", () => {
     expect(sv).toHaveStyle({ overflow: "visible" });
     expect(sv).toHaveStyle({ borderRadius: "2px" });
     expect(sv).toHaveStyle({ border: "none" });
-    expect(sv.style.boxShadow).toBe("0 0 0 1px rgba(255,255,255,0.09)");
+    /* the ring colour is a var now, which jsdom drops from the CSSOM; its
+       geometry is asserted by source scan below */
     const hueTrack = within(screen.getByTestId("color-picker-hue")).getByTestId(
       "gradient-slider-track",
     );
     const alphaTrack = within(screen.getByTestId("color-picker-alpha")).getByTestId(
       "gradient-slider-track",
     );
-    expect(hueTrack.style.boxShadow).toContain(
-      "0 0 0 2px rgba(255,255,255,0.09)",
-    );
-    expect(alphaTrack.style.boxShadow).toContain(
-      "0 0 0 2px rgba(255,255,255,0.09)",
-    );
+    expect(hueTrack).toBeInTheDocument();
+    expect(alphaTrack).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Pick color from screen" }).style
         .boxShadow,
@@ -198,7 +198,12 @@ describe("ColorPickerPanel", () => {
     expect(screen.getByTestId("color-picker-value-b")).toBeInTheDocument();
   });
 
-  it("uses white thumb borders in light mode", async () => {
+  /* The SV square still draws a plain white ring. The hue and alpha sliders
+     moved to the glass material, where that job is done by a frosted rim
+     (plus a white ring around the colour core) instead of a flat border —
+     same intent, different mark: the thumb must read against whatever hue
+     sits under it. */
+  it("keeps the thumb reading white in light mode — plain ring on SV, frosted rim on the sliders", async () => {
     renderWithTheme(<ColorPickerPanel value="#3D76C9" set_value={jest.fn()} />, {
       nextTheme: { ...theme, color: "#222222", backgroundColor: "#FFFFFF" },
       mode: "light_mode",
@@ -210,16 +215,17 @@ describe("ColorPickerPanel", () => {
     ).toBe(
       "2.5px solid #ffffff",
     );
-    expect(
-      within(screen.getByTestId("color-picker-hue")).getByTestId(
+    for (const row of ["color-picker-hue", "color-picker-alpha"]) {
+      const thumb = within(screen.getByTestId(row)).getByTestId(
         "gradient-slider-thumb",
-      ).style.border.toLowerCase(),
-    ).toBe("2.5px solid #ffffff");
-    expect(
-      within(screen.getByTestId("color-picker-alpha")).getByTestId(
-        "gradient-slider-thumb",
-      ).style.border.toLowerCase(),
-    ).toBe("2.5px solid #ffffff");
+      );
+      expect(thumb.style.border.toLowerCase()).toBe(
+        "1px solid rgba(255,255,255,0.55)",
+      );
+      expect(
+        thumb.style.backdropFilter || thumb.style.webkitBackdropFilter,
+      ).toContain("blur");
+    }
   });
 });
 
@@ -318,7 +324,10 @@ describe("ColorPicker", () => {
       height: "100%",
     });
     expect(blocker.style.inset).toBe("0");
-    expect(blocker.style.zIndex).toBe("9999");
+    expect(blocker.style.zIndex).toBe(String(Z.POPOVER_BLOCKER));
+    // blocker 要盖住 modal,但不能盖住任何 picker 的 panel
+    expect(Z.POPOVER_BLOCKER).toBeGreaterThan(Z.MODAL);
+    expect(Z.POPOVER_BLOCKER).toBeLessThan(Z.POPOVER);
 
     fireEvent.mouseDown(blocker);
     fireEvent.mouseUp(blocker);
@@ -328,5 +337,60 @@ describe("ColorPicker", () => {
       expect(screen.queryByTestId("color-picker-panel")).not.toBeInTheDocument();
     });
     expect(onModalClose).not.toHaveBeenCalled();
+  });
+});
+
+/* The one panel whose job is choosing colours must not be the one panel that
+   ignores them. Its palette used to be fixed black/white pairs plus a read of
+   the JS theme, so it neither followed a custom palette nor moved during a
+   live preview. jsdom drops var() from the CSSOM, so this is a source scan —
+   same remedy as container.test.js and title_bar.test.js. */
+describe("color_picker.js paints from the semantic layer", () => {
+  const src = require("fs").readFileSync(
+    require("path").join(__dirname, "..", "color_picker.js"),
+    "utf8",
+  );
+  const palette = src.slice(src.indexOf("const C = {"), src.indexOf("};", src.indexOf("const C = {")));
+
+  test("a popover sits on the surface layer, not on background", () => {
+    expect(palette).toMatch(/panel: "var\(--pupu-surface\)"/);
+  });
+
+  test("strokes take the border family", () => {
+    for (const key of ["hairline", "rowLine", "line"]) {
+      expect(palette).toMatch(new RegExp(`${key}: "var\\(--pupu-border\\)"`));
+    }
+  });
+
+  /* All three are ALPHAS of the label colour, never the standalone
+     "Muted text" root — that root is its own colour and would leave these
+     captions sitting still while the label moved. */
+  test("label, caption and value take three distinct steps of the label ladder", () => {
+    expect(palette).toMatch(/text: "var\(--pupu-text\)"/);
+    expect(palette).toMatch(/muted: "var\(--pupu-text-faint\)"/);
+    expect(palette).toMatch(/value: "var\(--pupu-text-secondary\)"/);
+    expect(palette).not.toMatch(/var\(--pupu-text-muted\)/);
+  });
+
+  test("no neutral black/white pair is left, shadows excepted", () => {
+    /* Shadows are cast light rather than a themed surface, so they keep their
+       black base — every other neutral pair had to go. */
+    const withoutShadows = palette
+      .split("\n")
+      .filter((line) => !/\d+px \d+px/.test(line))
+      .join("\n");
+    expect(withoutShadows).not.toMatch(/rgba\(255,\s*255,\s*255/);
+    expect(withoutShadows).not.toMatch(/rgba\(0,\s*0,\s*0/);
+  });
+
+  test("the hairline rings keep their 1px / 2px geometry", () => {
+    expect(src).toContain("0 0 0 1px ${C.hairline}");
+    expect(src).toMatch(/gradientTrackBorderWidth: 2/);
+  });
+
+  /* The thumb ring is a contrast device against whatever hue sits under it.
+     If it followed the palette it would vanish on a light theme. */
+  test("the thumb ring stays white on purpose", () => {
+    expect(palette).toMatch(/thumbBorder: "#FFFFFF"/);
   });
 });

@@ -45,9 +45,8 @@ const DEV_SETTINGS_PAGE = {
 };
 
 export const SettingsModalContent = ({ onClose }) => {
-  const { onThemeMode, theme } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
 
@@ -94,14 +93,18 @@ export const SettingsModalContent = ({ onClose }) => {
           position: "relative",
           width: 140,
           flexShrink: 0,
-          backgroundColor: isDark
-            ? "rgba(var(--pupu-text-rgb),0.03)"
-            : "rgba(var(--pupu-text-rgb),0.04)",
+          /* A side menu is a structural REGION, so its fill belongs to the
+             background family — same role, same tier as the app's own side
+             menu. Tinting it with the label colour (what an overlay does)
+             made the whole strip take on whatever hue Label was set to; the
+             overlay family is for hover and selection states sitting ON a
+             region, not for the region itself. */
+          backgroundColor: "var(--pupu-sidebar)",
           padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",
           gap: 2,
-          borderRight: "1px solid rgba(var(--pupu-text-rgb),0.06)",
+          borderRight: "1px solid var(--pupu-border)",
         }}
       >
         <div
@@ -109,7 +112,7 @@ export const SettingsModalContent = ({ onClose }) => {
             fontSize: 12,
             textTransform: "uppercase",
             letterSpacing: "1.5px",
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             opacity: 0.3,
             padding: "8px 12px 12px",
           }}
@@ -179,7 +182,7 @@ export const SettingsModalContent = ({ onClose }) => {
             fontSize: 22,
             fontWeight: 600,
             fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
-            color: isDark ? "#fff" : "#222",
+            color: "var(--pupu-text)",
             padding: "24px 32px 8px",
           }}
         >

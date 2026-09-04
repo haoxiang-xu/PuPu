@@ -92,7 +92,7 @@ export const BarChart = ({
           justifyContent: "center",
           fontSize: 13,
           fontFamily: theme?.font?.fontFamily || "inherit",
-          color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+          color: "var(--pupu-text-faint)",
         }}
       >
         {emptyMessage}
@@ -139,7 +139,7 @@ export const BarChart = ({
               right: 4,
               top: -28,
               fontSize: 9,
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+              color: "var(--pupu-text-faint)",
               lineHeight: "12px",
               fontStyle: "italic",
             }}
@@ -157,7 +157,7 @@ export const BarChart = ({
                 right: 4,
                 bottom: `calc(${pct}% - 6px)`,
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)",
+                color: "var(--pupu-text-faint)",
                 lineHeight: "12px",
               }}
             >
@@ -203,9 +203,7 @@ export const BarChart = ({
                   right: 0,
                   bottom: `${pct}%`,
                   height: 1,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.06)",
+                  backgroundColor: "var(--pupu-overlay-selected)",
                 }}
               />
             );
@@ -252,12 +250,12 @@ export const BarChart = ({
                         : hoveredBar.tooltipAnchor === "left"
                           ? { left: 0 }
                           : { left: "50%", transform: "translateX(-50%)" }),
-                      backgroundColor: isDark ? "#2a2a2a" : "#fff",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      backgroundColor: "var(--pupu-surface)",
+                      border: "1px solid var(--pupu-border)",
                       borderRadius: 6,
                       padding: "4px 8px",
                       fontSize: 11,
-                      color: isDark ? "#fff" : "#222",
+                      color: "var(--pupu-text)",
                       whiteSpace: "nowrap",
                       zIndex: 10,
                       boxShadow: isDark
@@ -316,7 +314,7 @@ export const BarChart = ({
                 ...barColumnStyle,
                 textAlign: "center",
                 fontSize: 10,
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+                color: "var(--pupu-text-faint)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",

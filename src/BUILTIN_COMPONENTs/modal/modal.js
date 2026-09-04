@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useContext } from "react";
 import ReactDOM from "react-dom";
 import Icon from "../icon/icon";
+import { Z } from "../layer/z_layers";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -16,7 +17,17 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 const ANIM_DURATION = 260; // ms — matches CSS transition
 
-const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => {
+const Modal = ({
+  open,
+  onClose,
+  style,
+  overlayStyle,
+  fullscreen,
+  ariaLabel,
+  ariaLabelledBy,
+  ariaDescribedBy,
+  children,
+}) => {
   const { theme } = useContext(ConfigContext);
   const mt = theme?.modal || {};
 
@@ -53,12 +64,16 @@ const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => 
 
   return ReactDOM.createPortal(
     <div
+      data-pupu-modal-overlay-host="true"
       aria-modal="true"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
       role="dialog"
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: Z.MODAL,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

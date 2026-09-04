@@ -1,0 +1,433 @@
+name: Shared Release Package
+
+on:
+  workflow_call:
+    inputs:
+      qa_mode:
+        description: "Closed release mode: release or release-candidate."
+        required: true
+        type: string
+      target_id:
+        description: Closed package target ID.
+        required: true
+        type: string
+      platform_name:
+        description: Closed artifact/report platform name.
+        required: true
+        type: string
+      signing_platform:
+        description: Closed native signing platform.
+        required: true
+        type: string
+      unchain_ref:
+        description: Explicit Unchain source identity selected by the caller.
+        required: true
+        type: string
+      source_ref:
+        description: Exact caller Git ref.
+        required: true
+        type: string
+      source_sha:
+        description: Exact caller commit SHA.
+        required: true
+        type: string
+      release_tag:
+        description: Exact caller ref name; must be a vX.Y.Z tag for release-candidate.
+        required: true
+        type: string
+
+jobs:
+  package:
+    name: Package ${{ inputs.platform_name }}
+    runs-on: ${{ inputs.target_id == 'macos-arm64' && 'macos-latest' || inputs.target_id == 'macos-x64' && 'macos-15-intel' || inputs.target_id == 'windows-x64' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    environment: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform != 'linux' && 'release-signing' || 'release-qa' }}
+    env:
+      QA_MODE: ${{ inputs.qa_mode }}
+      TARGET_ID: ${{ inputs.target_id }}
+      PLATFORM_NAME: ${{ inputs.platform_name }}
+      SIGNING_PLATFORM: ${{ inputs.signing_platform }}
+      UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      PUPU_REQUIRE_NATIVE_MCP_SMOKE: "1"
+    # Permissions are deliberately inherited from the caller.  Only the
+    # Windows caller grants id-token: write for Azure Artifact Signing;
+    # macOS and Linux retain contents/actions read only.
+    steps:
+      - name: Validate closed shared package inputs
+        shell: bash
+        run: |
+          if [ "$SOURCE_REF" != "$GITHUB_REF" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ] || [ "$RELEASE_TAG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error title=Source identity mismatch::shared package inputs must match the caller ref, SHA, and ref name"
+            exit 1
+          fi
+          case "$QA_MODE:$TARGET_ID:$PLATFORM_NAME:$SIGNING_PLATFORM" in
+            release:macos-arm64:mac-arm64:macos|release-candidate:macos-arm64:mac-arm64:macos) ;;
+            release:macos-x64:mac-intel:macos|release-candidate:macos-x64:mac-intel:macos) ;;
+            release:windows-x64:windows:windows|release-candidate:windows-x64:windows:windows) ;;
+            release:linux-x64:linux:linux|release-candidate:linux-x64:linux:linux) ;;
+            *) echo "::error title=Unsupported shared package input tuple::$QA_MODE:$TARGET_ID:$PLATFORM_NAME:$SIGNING_PLATFORM"; exit 1 ;;
+          esac
+          if [ -z "$UNCHAIN_SOURCE_REF" ]; then
+            echo "::error title=Missing Unchain source ref::shared package requires an explicit Unchain identity"
+            exit 1
+          fi
+
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+        with:
+          path: pupu
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: pupu/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download the deterministic Unchain artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unchain-release-artifact
+          path: pupu/.release-qa/unchain-artifact
+
+      - name: Download the immutable Memory V2 build snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: memory-v2-build-feature-snapshot
+          path: pupu/.release-qa/build-feature-snapshot
+
+      - name: Verify the downloaded Memory V2 build snapshot bytes
+        working-directory: pupu
+        shell: bash
+        run: |
+          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+          EXPECTED_SHA256="$(tr -d '\r\n' < "${SNAPSHOT_PATH}.sha256")"
+          ACTUAL_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+          if [ -z "$EXPECTED_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "::error title=Build feature snapshot mismatch::downloaded snapshot bytes differ from producer evidence"
+            exit 1
+          fi
+          {
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$SNAPSHOT_PATH"
+            echo "PUPU_BUILD_FEATURE_SNAPSHOT_SHA256=$ACTUAL_SHA256"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify downloaded immutable Unchain bytes
+        id: artifact_verify
+        working-directory: pupu
+        shell: bash
+        run: |
+          WHEEL_PATH="$(find .release-qa/unchain-artifact -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          EVIDENCE_PATH=".release-qa/unchain-artifact/unchain-artifact.json"
+          if [ -z "$WHEEL_PATH" ] || [ ! -f "$EVIDENCE_PATH" ]; then
+            echo "::error title=Missing Unchain artifact::wheel or evidence is absent"
+            exit 1
+          fi
+          node scripts/release-qa/verify-unchain-artifact.mjs \
+            --artifact "$WHEEL_PATH" \
+            --evidence "$EVIDENCE_PATH" \
+            --bytes-only true
+
+      - name: Install Node dependencies
+        working-directory: pupu
+        run: npm ci
+
+      - name: Resolve QA version
+        working-directory: pupu
+        shell: bash
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          BUILD_VERSION="$PACKAGE_VERSION"
+          EXPECTED_VERSION=""
+          RELEASE_LANE="branch"
+          if [[ "$SOURCE_REF" == refs/tags/* ]]; then
+            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+              --tag "$RELEASE_TAG" \
+              --package-version "$PACKAGE_VERSION" \
+              --policy candidate)"
+            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+            EXPECTED_VERSION="$BUILD_VERSION"
+            RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"
+          fi
+          {
+            echo "QA_VERSION=$BUILD_VERSION"
+            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+            echo "QA_BASE_VERSION=$PACKAGE_VERSION"
+            echo "QA_RELEASE_LANE=$RELEASE_LANE"
+            echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: Require immutable tag and signing credentials for release candidate
+        if: env.QA_MODE == 'release-candidate'
+        working-directory: pupu
+        shell: bash
+        env:
+          CSC_LINK: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.CSC_KEY_PASSWORD || '' }}
+          AZURE_CLIENT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_TENANT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_SUBSCRIPTION_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && secrets.AZURE_SUBSCRIPTION_ID || '' }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_ENDPOINT || '' }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME || '' }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'windows' && vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME || '' }}
+          APPLE_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_KEYCHAIN: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_KEYCHAIN || '' }}
+          APPLE_KEYCHAIN_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_KEYCHAIN_PROFILE || '' }}
+        run: |
+          if [[ "$SOURCE_REF" != refs/tags/v* ]] || [[ "$RELEASE_TAG" != v* ]]; then
+            echo "::error title=Release candidate requires a tag::dispatch release-candidate against an existing vX.Y.Z tag"
+            exit 1
+          fi
+          if [ "$RELEASE_TAG" != "v$QA_VERSION" ]; then
+            echo "::error title=Release candidate version mismatch::tag=$RELEASE_TAG package=$QA_VERSION"
+            exit 1
+          fi
+          if ! [[ "$UNCHAIN_SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Mutable Unchain input::release-candidate requires a full lowercase 40-character Unchain revision"
+            exit 1
+          fi
+          node scripts/release-qa/release-signing.mjs --platform "${{ inputs.signing_platform }}"
+
+      - name: Build package
+        id: package
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.artifact_verify.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          CSC_LINK: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_KEYCHAIN: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_KEYCHAIN || '' }}
+          APPLE_KEYCHAIN_PROFILE: ${{ inputs.qa_mode == 'release-candidate' && inputs.signing_platform == 'macos' && secrets.APPLE_KEYCHAIN_PROFILE || '' }}
+        run: |
+          if [ "$QA_MODE" = "release-candidate" ]; then
+            case "$TARGET_ID" in
+              macos-arm64) command="npm run build:electron:mac:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              macos-x64) command="npm run build:electron:mac:intel:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:intel:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              windows-x64) command="npm run build:electron:win:unpacked"; npm run build:electron:win:unpacked ;;
+              linux-x64) command="npm run build:electron:linux"; npm run build:electron:linux ;;
+              *) echo "::error title=Unsupported package target::$TARGET_ID"; exit 1 ;;
+            esac
+          else
+            case "$TARGET_ID" in
+              macos-arm64) command="npm run build:electron:mac:unsigned with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:unsigned -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              macos-x64) command="npm run build:electron:mac:intel:unsigned with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:intel:unsigned -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              windows-x64) command="npm run build:electron:win:unsigned"; npm run build:electron:win:unsigned ;;
+              linux-x64) command="npm run build:electron:linux"; npm run build:electron:linux ;;
+              *) echo "::error title=Unsupported package target::$TARGET_ID"; exit 1 ;;
+            esac
+          fi
+          echo "command=$command" >> "$GITHUB_OUTPUT"
+
+      - name: Start packaged sidecar and verify authenticated protocol
+        id: sidecar_smoke
+        if: always()
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_PATH: ${{ steps.artifact_verify.outputs.artifact_path }}
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+        run: |
+          case "${{ inputs.platform_name }}" in
+            windows) SIDECAR_BINARY="unchain_runtime/dist/windows/unchain-server.exe" ;;
+            mac-*) SIDECAR_BINARY="unchain_runtime/dist/macos/unchain-server" ;;
+            linux) SIDECAR_BINARY="unchain_runtime/dist/linux/unchain-server" ;;
+          esac
+          node scripts/release-qa/package-sidecar-smoke.mjs \
+            --binary "$SIDECAR_BINARY" \
+            --artifact "$UNCHAIN_ARTIFACT_PATH" \
+            --evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+            --snapshot "$PUPU_BUILD_FEATURE_SNAPSHOT_PATH" \
+            --out packaged-sidecar-smoke.json
+
+      - name: Probe packaged Windows Vault supervisor containment
+        id: packaged_vault_supervisor
+        if: always() && inputs.target_id == 'windows-x64' && steps.package.outcome == 'success'
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        env:
+          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+        run: |
+          SIDECAR_BINARY="unchain_runtime/dist/windows/unchain-server.exe"
+          EVIDENCE_PATH="packaged-vault-supervisor.json"
+          python scripts/release-qa/windows-packaged-vault-supervisor-probe.py \
+            --sidecar "$SIDECAR_BINARY" \
+            --artifact-evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH" \
+            --out "$EVIDENCE_PATH"
+          EXECUTED_TESTS="$(python scripts/release-qa/verify-windows-packaged-vault-supervisor-evidence.py \
+            "$EVIDENCE_PATH" \
+            --sidecar "$SIDECAR_BINARY" \
+            --artifact-evidence "$UNCHAIN_ARTIFACT_EVIDENCE_PATH")"
+          printf 'executed_tests=%s\n' "$EXECUTED_TESTS" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Windows payload for Artifact Signing
+        id: windows_payload
+        if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.package.outcome == 'success' && steps.sidecar_smoke.outcome == 'success'
+        working-directory: pupu
+        shell: pwsh
+        run: |
+          $source = Join-Path $PWD "dist/win-unpacked"
+          $destination = Join-Path $PWD ".release-qa/windows-unpacked"
+          if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            throw "missing unpacked Windows payload: $source"
+          }
+          if (Test-Path -LiteralPath $destination) {
+            throw "stale unpacked Windows payload exists: $destination"
+          }
+          New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+          Move-Item -LiteralPath $source -Destination $destination
+
+      - name: Sign and verify the Windows release candidate payload
+        id: windows_artifact_signing
+        if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.windows_payload.outcome == 'success'
+        uses: ./pupu/.github/actions/windows-artifact-signing
+        with:
+          working-directory: pupu
+          signing-root-path: .release-qa
+          payload-path: .release-qa/windows-unpacked
+          bootstrap-output-path: .release-qa/windows-bootstrap-installer
+          installer-path: ${{ github.workspace }}\pupu\dist\PuPu-${{ env.QA_VERSION }}-windows-x64-setup.exe
+          evidence-output: windows-signing-evidence.v1.json
+          evidence-schema: pupu.windows-release-candidate-signing.v1
+          package-version: ${{ env.QA_VERSION }}
+          target-id: windows-x64
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+
+      - name: Verify signed and notarized release candidate package
+        id: release_signing
+        if: always() && env.QA_MODE == 'release-candidate'
+        continue-on-error: true
+        working-directory: pupu
+        shell: bash
+        run: |
+          case "${{ inputs.signing_platform }}" in
+            macos)
+              APP_PATH="$(find dist -maxdepth 2 -type d -name 'PuPu.app' -print -quit)"
+              if [ -z "$APP_PATH" ]; then
+                echo "::error title=Missing macOS application::could not verify signing/notarization"
+                exit 1
+              fi
+              NATIVE_SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
+              NATIVE_BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
+              if [ "$NATIVE_SHORT_VERSION" != "$QA_BASE_VERSION" ] || [ "$NATIVE_BUNDLE_VERSION" != "$QA_BASE_VERSION" ]; then
+                echo "::error title=Invalid macOS native version projection::short=$NATIVE_SHORT_VERSION bundle=$NATIVE_BUNDLE_VERSION expected=$QA_BASE_VERSION"
+                exit 1
+              fi
+              codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+              xcrun stapler validate "$APP_PATH"
+              spctl --assess --type execute --verbose=4 "$APP_PATH"
+              ;;
+            windows)
+              node -e 'const fs=require("fs"); const evidence=JSON.parse(fs.readFileSync("windows-signing-evidence.v1.json", "utf8")); const expected=["resources\\mcp_runtime\\python\\DLLs\\tcl86t.dll","resources\\mcp_runtime\\python\\DLLs\\tk86t.dll"]; if (evidence.schema !== "pupu.windows-release-candidate-signing.v1" || evidence.status !== "passed" || evidence.target_id !== "windows-x64" || evidence.installer_file_count !== 1 || !Array.isArray(evidence.signed_files) || evidence.signed_files.length !== evidence.signable_payload_file_count + 1 || JSON.stringify(evidence.unsigned_payload_exceptions.map((item) => item.path).sort()) !== JSON.stringify(expected)) { throw new Error("Windows signing evidence is incomplete or has an unexpected exception set"); }'
+              ;;
+            linux)
+              echo "Linux x64 has no code-signing/notarization contract in v0.1.10"
+              ;;
+          esac
+
+      - name: Write package QA report
+        if: always()
+        working-directory: pupu
+        shell: bash
+        env:
+          QA_PLATFORM_NAME: ${{ inputs.platform_name }}
+          QA_PLATFORM_COMMAND: ${{ steps.package.outputs.command }}
+          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.artifact_verify.outputs.evidence_path }}
+          QA_REQUIRED_CHECKS_JSON: '${{ inputs.target_id == ''windows-x64'' && ''["Unchain artifact continuity","packaged sidecar protocol smoke","packaged Windows Vault supervisor containment"]'' || ''["Unchain artifact continuity","packaged sidecar protocol smoke"]'' }}'
+          QA_ARTIFACT_GLOBS_JSON: '["dist/**/*","unchain_runtime/dist/**/*","packaged-sidecar-smoke.json","packaged-vault-supervisor.json","windows-signing-evidence.v1.json"]'
+          QA_CHECKS_JSON: |
+            [
+              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+              {"name":"packaged sidecar protocol smoke","command":"node scripts/release-qa/package-sidecar-smoke.mjs","outcome":"${{ steps.sidecar_smoke.outcome }}","executed_tests":${{ steps.sidecar_smoke.outputs.executed_tests || 0 }}},
+              {"name":"packaged Windows Vault supervisor containment","command":"python scripts/release-qa/windows-packaged-vault-supervisor-probe.py","outcome":"${{ steps.packaged_vault_supervisor.outcome }}","executed_tests":${{ steps.packaged_vault_supervisor.outputs.executed_tests || 0 }}},
+              {"name":"release signing and notarization verification","command":"native signature/notarization verifier","outcome":"${{ steps.release_signing.outcome }}"},
+              {"name":"package build","command":"${{ steps.package.outputs.command }}","outcome":"${{ steps.package.outcome }}"}
+            ]
+        run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
+
+      - name: Upload package QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-qa-job-report-${{ inputs.platform_name }}
+          path: pupu/release-qa-job-report.json
+
+      # A packaging job that produces a partial or wrongly named installer set
+      # is failed here; v0.1.9 showed that a loose glob cannot certify a release.
+      - name: Verify exact package output contract
+        if: always()
+        shell: bash
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/verify-release-package-output.mjs \
+            --target "${{ inputs.target_id }}" \
+            --version "$QA_VERSION" \
+            --dist-dir dist
+
+      - name: Upload package artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pupu-package-${{ inputs.platform_name }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            pupu/dist/**/*
+            pupu/unchain_runtime/dist/**/*
+            pupu/windows-signing-evidence.v1.json
+
+      - name: Enforce package build result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.package.outcome }}" != "success" ]; then
+            echo "::error title=Package build failed::${{ inputs.platform_name }} did not pass its full build, including bundled MCP runtime verification"
+            exit 1
+          fi
+          if [ "${{ steps.sidecar_smoke.outcome }}" != "success" ]; then
+            echo "::error title=Packaged sidecar smoke failed::${{ inputs.platform_name }} did not start and pass authenticated protocol checks"
+            exit 1
+          fi
+          if [ "${{ inputs.target_id }}" = "windows-x64" ] && [ "${{ steps.packaged_vault_supervisor.outcome }}" != "success" ]; then
+            echo "::error title=Packaged Vault supervisor containment failed::Windows onefile supervisor did not prove same-exe READY, strict worker protocol, and Job tree drain"
+            exit 1
+          fi
+          if [ "$QA_MODE" = "release-candidate" ] && [ "${{ steps.release_signing.outcome }}" != "success" ]; then
+            echo "::error title=Release signature verification failed::${{ inputs.platform_name }} did not pass native signing verification"
+            exit 1
+          fi
+          if [ "$QA_MODE" = "release-candidate" ] && [ "${{ inputs.signing_platform }}" = "windows" ]; then
+            if [ "${{ steps.windows_payload.outcome }}" != "success" ] || [ "${{ steps.windows_artifact_signing.outcome }}" != "success" ]; then
+              echo "::error title=Windows Artifact Signing failed::isolated payload preparation or the shared signing action did not succeed"
+              exit 1
+            fi
+          fi

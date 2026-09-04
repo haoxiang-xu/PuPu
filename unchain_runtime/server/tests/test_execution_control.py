@@ -472,6 +472,50 @@ class ExecutionControlRegistryTests(unittest.TestCase):
         self.assertTrue(token.event.is_set())
         self.assertEqual(control.get_registry(), control.get_execution_control_registry())
 
+    def test_duplicate_module_mark_running_keeps_session_guard(self) -> None:
+        import session_execution_guard
+
+        with mock.patch.dict(
+            os.environ,
+            {"UNCHAIN_DATA_DIR": self.temp_dir.name},
+            clear=False,
+        ):
+            control.register("chat-module-live", "attempt-module-live")
+            first = control.mark_running(
+                "chat-module-live",
+                "attempt-module-live",
+            )
+            duplicate = control.mark_running(
+                "chat-module-live",
+                "attempt-module-live",
+            )
+            snapshot = session_execution_guard.snapshot_session_guard(
+                session_id="chat-module-live",
+            )
+            competitor = session_execution_guard.SessionExecutionGuardRegistry(
+                self.temp_dir.name,
+                process_owner_id="competing-rebase",
+            )
+            with self.assertRaises(
+                session_execution_guard.SessionExecutionInProgress
+            ):
+                competitor.acquire(
+                    "chat-module-live",
+                    "operation-competing-rebase",
+                    operation="rebase",
+                    execution_id="chat-module-live",
+                )
+            control.mark_completed(
+                "chat-module-live",
+                "attempt-module-live",
+            )
+
+        self.assertEqual(first.disposition, "applied")
+        self.assertEqual(duplicate.disposition, "unchanged")
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.state, "active")
+        self.assertEqual(snapshot.attempt_id, "attempt-module-live")
+
 
 if __name__ == "__main__":
     unittest.main()

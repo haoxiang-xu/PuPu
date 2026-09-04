@@ -8,6 +8,7 @@ import {
 import ReactDOM from "react-dom";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { subscribe } from "../../SERVICEs/toast_bus";
+import { Z } from "../layer/z_layers";
 import Icon from "../icon/icon";
 import Button from "../input/button";
 import ArcSpinner from "../spinner/arc_spinner";
@@ -98,8 +99,15 @@ const getStatusStyle = (variant, theme, isDark) => {
   const colors = {
     success: semantic.success || "#2f9e44",
     error: semantic.danger || "#d64545",
-    warning: "#d97706",
-    info: semantic.accent || theme?.highlightColor || "#2563eb",
+    warning: semantic.warning || "#d97706",
+    /* info used to alias accent, so an "informational" toast rendered in
+       the brand colour — green on the default palette. accent means brand
+       emphasis, info means neutral notice; collapsing them lost that
+       distinction. Falls back to accent so an imported pre-v2 theme with
+       no info key keeps its old look. */
+    info: semantic.info || semantic.accent || theme?.highlightColor || "#2563eb",
+    /* loading intentionally KEEPS accent: it says "the app is working for
+       you", which is a brand moment, not a neutral notice. */
     loading: semantic.accent || theme?.highlightColor || "#2563eb",
     default: muted,
   };
@@ -346,7 +354,7 @@ const Pile = ({ position, items, onDismiss, onHoverChange }) => {
       }}
       style={{
         position: "fixed",
-        zIndex: 9999,
+        zIndex: Z.TOAST,
         display: "flex",
         flexDirection: top ? "column" : "column-reverse",
         /* the whole pile (incl. the gaps between expanded cards) must be ONE

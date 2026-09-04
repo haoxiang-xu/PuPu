@@ -16,6 +16,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* A placeholder is a pseudo-element, so no inline style can reach it — which
+   is why every native input in the app was still showing the browser's own
+   grey no matter what the theme said. One rule, bound to the faint step of
+   the label ladder, is the whole fix; components that render their own
+   placeholder span (input.js) read the same variable. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--pupu-text-faint);
+  opacity: 1; /* Firefox dims placeholders by default; the token owns the alpha */
+}
+
 code {
   font-family: "HackNerdFont", monospace;
 }

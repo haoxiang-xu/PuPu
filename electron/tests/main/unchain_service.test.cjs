@@ -1,4 +1,6 @@
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const { createHook } = require("async_hooks");
 const { EventEmitter } = require("events");
 const { Readable } = require("stream");
@@ -34,11 +36,18 @@ const createRuntimeContract = (overrides = {}) => {
 
 const createCompatibleHealthResponse = (
   contract = createRuntimeContract(),
+  sessionGuardStatus = "ready",
 ) => ({
   ok: true,
   json: async () => ({
     status: "ok",
     contract,
+    session_guard_migration: {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: sessionGuardStatus,
+      protocol_version: 1,
+    },
   }),
 });
 
@@ -551,6 +560,108 @@ describe("unchain service session memory replacement", () => {
     });
   });
 
+  test("relays only exact allowlisted session guard diagnostics to QA process evidence", async () => {
+    const originalDiagnostics = process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+    const stderrWrite = jest
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    let service = null;
+    try {
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "1";
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse());
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const harness = createStartupServiceHarness();
+      service = harness.service;
+
+      await service.startMiso();
+
+      expect(
+        harness.spawn.mock.calls[0][2].env.PUPU_SESSION_GUARD_DIAGNOSTICS,
+      ).toBe("1");
+      const exact =
+        "[session-guard] migration unavailable " +
+        "code=session_guard_process_identity_unavailable";
+      const second =
+        "[session-guard] migration unavailable " +
+        "code=session_guard_protocol_lock_open_unavailable";
+      harness.fakeProcess.stderr.emit(
+        "data",
+        [
+          exact,
+          exact,
+          "[session-guard] migration unavailable code=unknown_code",
+          `${second} C:\\private\\path errno=5`,
+          ` ${second}`,
+          "Traceback: token=private",
+          second,
+        ].join("\n") + "\n",
+      );
+
+      expect(stderrWrite.mock.calls.map(([line]) => line)).toEqual([
+        `${exact}\n`,
+        `${second}\n`,
+      ]);
+    } finally {
+      service?.stopMiso();
+      stderrWrite.mockRestore();
+      if (originalDiagnostics == null) {
+        delete process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+      } else {
+        process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = originalDiagnostics;
+      }
+    }
+  });
+
+  test("session guard diagnostic relay is disabled by default and cannot break startup", async () => {
+    const originalDiagnostics = process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+    const stderrWrite = jest
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => {
+        throw new Error("stderr unavailable");
+      });
+    let service = null;
+    try {
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "0";
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(createCompatibleHealthResponse());
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const disabledHarness = createStartupServiceHarness();
+      service = disabledHarness.service;
+      await service.startMiso();
+      disabledHarness.fakeProcess.stderr.emit(
+        "data",
+        "[session-guard] migration unavailable " +
+          "code=session_guard_import_unavailable\n",
+      );
+      expect(stderrWrite).not.toHaveBeenCalled();
+      service.stopMiso();
+
+      process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = "1";
+      const enabledHarness = createStartupServiceHarness();
+      service = enabledHarness.service;
+      await service.startMiso();
+      expect(() => {
+        enabledHarness.fakeProcess.stderr.emit(
+          "data",
+          "[session-guard] migration unavailable " +
+            "code=session_guard_unknown_unavailable\n",
+        );
+      }).not.toThrow();
+      expect(service.getMisoStatusPayload().ready).toBe(true);
+    } finally {
+      service?.stopMiso();
+      stderrWrite.mockRestore();
+      if (originalDiagnostics == null) {
+        delete process.env.PUPU_SESSION_GUARD_DIAGNOSTICS;
+      } else {
+        process.env.PUPU_SESSION_GUARD_DIAGNOSTICS = originalDiagnostics;
+      }
+    }
+  });
+
   test("startup only injects the bundled MCP runtime for packaged sidecars", async () => {
     const originalResourcesPath = process.resourcesPath;
     const originalMcpRuntimeDir = process.env.PUPU_MCP_RUNTIME_DIR;
@@ -647,6 +758,77 @@ describe("unchain service session memory replacement", () => {
         delete process.env.PUPU_MCP_RUNTIME_DIR;
       } else {
         process.env.PUPU_MCP_RUNTIME_DIR = originalMcpRuntimeDir;
+      }
+    }
+  });
+
+  test("development startup resolves an explicit Unchain src-layout checkout", async () => {
+    const originalSourcePath = process.env.UNCHAIN_SOURCE_PATH;
+    const configuredSourcePath = "/tmp/unchain-context-memory-v2";
+    const sourcePackage = path.join(
+      configuredSourcePath,
+      "src",
+      "unchain",
+      "__init__.py",
+    );
+    const sourceProject = path.join(configuredSourcePath, "pyproject.toml");
+    const spawn = jest.fn(() => createFakeSpawnProcess());
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+
+    try {
+      process.env.UNCHAIN_SOURCE_PATH = configuredSourcePath;
+      process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+      const service = createUnchainService({
+        app: {
+          isPackaged: false,
+          getAppPath: jest.fn(() => "/app"),
+          getPath: jest.fn(() => "/tmp/pupu"),
+          getVersion: jest.fn(() => "0.1.1"),
+        },
+        fs: {
+          existsSync: jest.fn(
+            (candidate) =>
+              candidate === sourcePackage ||
+              candidate === sourceProject ||
+              !candidate.startsWith(configuredSourcePath),
+          ),
+        },
+        path,
+        spawn,
+        spawnSync: jest.fn(() => ({
+          status: 0,
+          stdout: JSON.stringify({
+            version: "3.12.2",
+            major: 3,
+            minor: 12,
+            missing: [],
+          }),
+        })),
+        crypto: {
+          randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+        },
+        net: createAvailableNet(),
+        webContents: {
+          fromId: jest.fn(() => null),
+          getAllWebContents: jest.fn(() => []),
+        },
+        runtimeService: {},
+        getAppIsQuitting: () => false,
+      });
+
+      await service.startMiso();
+
+      expect(spawn.mock.calls[0][2].env.UNCHAIN_SOURCE_PATH).toBe(
+        configuredSourcePath,
+      );
+      service.stopMiso();
+    } finally {
+      if (originalSourcePath == null) {
+        delete process.env.UNCHAIN_SOURCE_PATH;
+      } else {
+        process.env.UNCHAIN_SOURCE_PATH = originalSourcePath;
       }
     }
   });
@@ -1008,7 +1190,30 @@ describe("unchain service session memory replacement", () => {
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
-          JSON.stringify({ status: "ok", disposition: "receipt_recorded" }),
+          JSON.stringify({
+            status: "ok",
+            disposition: "receipt_recorded",
+            durable: true,
+            session_id: "chat/with space",
+            interaction_id: "interaction-1",
+            receipt_id: "receipt-1",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "[]",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "null",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "",
       });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
@@ -1059,10 +1264,31 @@ describe("unchain service session memory replacement", () => {
     await expect(
       service.submitMisoToolConfirmation({
         confirmation_id: "interaction-1",
+        session_id: "chat/with space",
+        approved: true,
+      }),
+    ).rejects.toThrow("Invalid Miso tool confirmation response");
+    await expect(
+      service.getMisoPendingInteraction({ session_id: "chat/with space" }),
+    ).rejects.toThrow("Invalid Miso pending interaction response");
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
+        session_id: "chat/with space",
+        approved: true,
+      }),
+    ).rejects.toThrow("Invalid Miso tool confirmation response");
+    await expect(
+      service.getMisoPendingInteraction({ session_id: "chat/with space" }),
+    ).rejects.toThrow("Invalid Miso pending interaction response");
+
+    await expect(
+      service.submitMisoToolConfirmation({
+        confirmation_id: "interaction-1",
         approved: "false",
       }),
     ).rejects.toThrow("approved must be a boolean");
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenCalledTimes(7);
   });
 
   test("submitMisoInterject posts the payload to the interject endpoint", async () => {
@@ -2986,6 +3212,213 @@ describe("unchain service session memory replacement", () => {
     expect(firstTarget.send).toHaveBeenCalledTimes(1);
   });
 
+  test("lifecycle stop exact-cancels every active V4 attempt and drops replay even when one cancel fails", async () => {
+    const abortSignals = [];
+    const streamFetchImpl = jest.fn(async (_url, options) => {
+      abortSignals.push(options.signal);
+      return {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: jest.fn(
+              () =>
+                new Promise((_resolve, reject) => {
+                  const rejectCancelled = () => {
+                    const error = new Error("lifecycle stream aborted");
+                    error.name = "AbortError";
+                    reject(error);
+                  };
+                  if (options.signal.aborted) {
+                    rejectCancelled();
+                    return;
+                  }
+                  options.signal.addEventListener("abort", rejectCancelled, {
+                    once: true,
+                  });
+                }),
+            ),
+          }),
+        },
+      };
+    });
+    const firstTarget = createReplayTarget(321);
+    const secondTarget = createReplayTarget(322);
+    const attachTarget = createReplayTarget(323);
+    const service = await createReplayTestService({
+      streamFetchImpl,
+      targets: new Map([
+        [firstTarget.id, firstTarget],
+        [secondTarget.id, secondTarget],
+        [attachTarget.id, attachTarget],
+      ]),
+    });
+    global.fetch
+      .mockRejectedValueOnce(new Error("cancel endpoint unavailable"))
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            status: "ok",
+            execution_id: "chat-lifecycle-b",
+            attempt_id: "attempt-lifecycle-b",
+          }),
+      });
+
+    service.handleStreamStartV4(
+      { sender: firstTarget },
+      {
+        requestId: "request-lifecycle-a",
+        attachmentId: "attachment-lifecycle-a",
+        payload: {
+          owner_chat_id: "owner-lifecycle-a",
+          threadId: "chat-lifecycle-a",
+          attempt_id: "attempt-lifecycle-a",
+          source_attempt_id: "source-lifecycle-a",
+          message: "stop on lifecycle boundary",
+          options: {},
+        },
+      },
+    );
+    service.handleStreamStartV4(
+      { sender: secondTarget },
+      {
+        requestId: "request-lifecycle-b",
+        attachmentId: "attachment-lifecycle-b",
+        payload: {
+          owner_chat_id: "owner-lifecycle-b",
+          threadId: "chat-lifecycle-b",
+          attempt_id: "attempt-lifecycle-b",
+          message: "stop this one too",
+          options: {},
+        },
+      },
+    );
+    await flushReplayStream();
+
+    const stopPromise = service.stopActiveMisoExecutionsForLifecycle({
+      reason: "system_suspend",
+    });
+    const repeatedStopPromise = service.stopActiveMisoExecutionsForLifecycle({
+      reason: "app_windows_closed",
+    });
+    expect(abortSignals).toHaveLength(2);
+    expect(abortSignals.every((signal) => signal.aborted)).toBe(true);
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-lifecycle-a",
+          executionId: "chat-lifecycle-a",
+          attemptId: "attempt-lifecycle-a",
+          attachmentId: "attachment-after-suspend",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: false, code: "stream_not_found" });
+
+    await expect(stopPromise).resolves.toEqual({
+      active_count: 2,
+      exact_cancel_count: 2,
+      exact_cancel_succeeded: 1,
+      exact_cancel_failed: 1,
+    });
+    await expect(repeatedStopPromise).resolves.toEqual({
+      active_count: 0,
+      exact_cancel_count: 0,
+      exact_cancel_succeeded: 0,
+      exact_cancel_failed: 0,
+    });
+    const cancelCalls = global.fetch.mock.calls.slice(1);
+    expect(cancelCalls).toHaveLength(2);
+    expect(
+      cancelCalls.map(([, options]) => JSON.parse(options.body)),
+    ).toEqual([
+      {
+        owner_chat_id: "owner-lifecycle-a",
+        execution_id: "chat-lifecycle-a",
+        attempt_id: "attempt-lifecycle-a",
+        source_attempt_id: "source-lifecycle-a",
+        reason: "system_suspend",
+        idempotency_key:
+          "lifecycle-stop:chat-lifecycle-a:attempt-lifecycle-a",
+      },
+      {
+        owner_chat_id: "owner-lifecycle-b",
+        execution_id: "chat-lifecycle-b",
+        attempt_id: "attempt-lifecycle-b",
+        reason: "system_suspend",
+        idempotency_key:
+          "lifecycle-stop:chat-lifecycle-b:attempt-lifecycle-b",
+      },
+    ]);
+  });
+
+  test("lifecycle stop drops completed terminal replay without changing transient detach semantics", async () => {
+    const { response } = createReplayStreamResponse(
+      buildRuntimeEventStreamBody("terminal-before-close", 1),
+    );
+    const sourceTarget = createReplayTarget(324);
+    const attachTarget = createReplayTarget(325);
+    const service = await createReplayTestService({
+      streamFetchImpl: jest.fn().mockResolvedValueOnce(response),
+      targets: new Map([
+        [sourceTarget.id, sourceTarget],
+        [attachTarget.id, attachTarget],
+      ]),
+    });
+
+    service.handleStreamStartV4(
+      { sender: sourceTarget },
+      {
+        requestId: "request-terminal-before-close",
+        attachmentId: "attachment-terminal-before-close",
+        payload: {
+          threadId: "chat-terminal-before-close",
+          attempt_id: "attempt-terminal-before-close",
+          message: "finish before close",
+          options: {},
+        },
+      },
+    );
+    await flushReplayStream();
+
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-terminal-before-close",
+          executionId: "chat-terminal-before-close",
+          attemptId: "attempt-terminal-before-close",
+          attachmentId: "attachment-terminal-replay",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: true, terminal: true, active: false });
+
+    await expect(
+      service.stopActiveMisoExecutionsForLifecycle({
+        reason: "app_windows_closed",
+      }),
+    ).resolves.toEqual({
+      active_count: 0,
+      exact_cancel_count: 0,
+      exact_cancel_succeeded: 0,
+      exact_cancel_failed: 0,
+    });
+    expect(
+      service.attachMisoStreamV4(
+        { sender: attachTarget },
+        {
+          requestId: "request-terminal-before-close",
+          executionId: "chat-terminal-before-close",
+          attemptId: "attempt-terminal-before-close",
+          attachmentId: "attachment-after-close",
+          afterSeq: 0,
+        },
+      ),
+    ).toMatchObject({ ok: false, code: "stream_not_found" });
+  });
+
   test("keeps buffering when a renderer send fails and replays to a healthy attachment", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
@@ -3730,6 +4163,7 @@ describe("unchain service session memory replacement", () => {
         requestId: "req-v4-cancel",
         attachmentId: "attachment-v4-cancel",
         payload: {
+          owner_chat_id: "owner-character-chat",
           threadId: "chat-v4-cancel",
           attempt_id: "req-v4-cancel",
           source_attempt_id: "source-v4-cancel",
@@ -3744,6 +4178,18 @@ describe("unchain service session memory replacement", () => {
     await expect(
       service.cancelMisoExecution({
         requestId: "req-v4-cancel",
+        owner_chat_id: "another-owner",
+        interaction_id: "interaction-v4-cancel",
+        reason: "user_stop",
+      }),
+    ).rejects.toThrow("Cancel identity does not match the active stream attempt");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.cancelMisoExecution({
+        requestId: "req-v4-cancel",
+        owner_chat_id: "owner-character-chat",
+        interaction_id: "interaction-v4-cancel",
         reason: "user_stop",
         idempotencyKey: "cancel-once",
       }),
@@ -3758,9 +4204,11 @@ describe("unchain service session memory replacement", () => {
       },
     });
     expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+      owner_chat_id: "owner-character-chat",
       execution_id: "chat-v4-cancel",
       attempt_id: "req-v4-cancel",
       source_attempt_id: "source-v4-cancel",
+      interaction_id: "interaction-v4-cancel",
       reason: "user_stop",
       idempotency_key: "cancel-once",
     });
@@ -3775,6 +4223,471 @@ describe("unchain service session memory replacement", () => {
 
     releaseStream();
     await new Promise((resolve) => setImmediate(resolve));
+  });
+});
+
+describe("unchain service session guard migration handshake", () => {
+  const originalFetch = global.fetch;
+  const originalResourcesPath = process.resourcesPath;
+  const originalMigrationFlag =
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD;
+  const hadResourcesPath = Object.prototype.hasOwnProperty.call(
+    process,
+    "resourcesPath",
+  );
+  const tempDirectories = [];
+
+  const migrationIntentPath = (userData) =>
+    path.join(
+      userData,
+      ".pupu-main",
+      "session_guard_migration_intent.json",
+    );
+
+  const exactIntentText = JSON.stringify({
+    schema: "pupu.session-guard-migration-intent",
+    version: 1,
+    state: "pending",
+    protocol_version: 1,
+  });
+
+  const createPackagedMigrationHarness = ({
+    healthReceipts,
+    initialIntent = false,
+  }) => {
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-guard-test-"));
+    tempDirectories.push(userData);
+    if (initialIntent) {
+      const intentPath = migrationIntentPath(userData);
+      fs.mkdirSync(path.dirname(intentPath), { recursive: true });
+      fs.writeFileSync(intentPath, exactIntentText, "utf8");
+    }
+
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/PuPu.app/Contents/Resources",
+    });
+    const packagedBinary = path.join(
+      process.resourcesPath,
+      "unchain_runtime",
+      "dist",
+      process.platform === "darwin"
+        ? "macos"
+        : process.platform === "win32"
+          ? "windows"
+          : "linux",
+      process.platform === "win32" ? "unchain-server.exe" : "unchain-server",
+    );
+    const fsImpl = {
+      ...fs,
+      existsSync: jest.fn((candidate) =>
+        candidate === packagedBinary ? true : fs.existsSync(candidate),
+      ),
+    };
+    const spawnSync = jest.fn((command) => {
+      if (command === "ps" || command === "powershell.exe") {
+        return { status: 0, stdout: process.platform === "win32" ? "[]" : "" };
+      }
+      return { status: 0, stdout: "" };
+    });
+    let firstProcessExited = false;
+    let intentAtSecondSpawn = null;
+    const processes = [];
+    const spawn = jest.fn(() => {
+      if (processes.length === 1) {
+        expect(firstProcessExited).toBe(true);
+        intentAtSecondSpawn = fs.readFileSync(
+          migrationIntentPath(userData),
+          "utf8",
+        );
+      }
+      const proc = createFakeSpawnProcess();
+      proc.pid = 6000 + processes.length;
+      proc.kill = jest.fn((signal) => {
+        proc.killed = true;
+        queueMicrotask(() => {
+          if (processes[0] === proc) {
+            firstProcessExited = true;
+          }
+          proc.emit("exit", 0, signal);
+        });
+        return true;
+      });
+      processes.push(proc);
+      return proc;
+    });
+    let healthIndex = 0;
+    global.fetch = jest.fn(async () => {
+      const receipt = healthReceipts[healthIndex] || healthReceipts.at(-1);
+      healthIndex += 1;
+      if (receipt?.status === "ready" && initialIntent !== false) {
+        expect(fs.existsSync(migrationIntentPath(userData))).toBe(true);
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          status: "ok",
+          contract: createRuntimeContract(),
+          session_guard_migration: receipt,
+        }),
+      };
+    });
+    const service = createUnchainService({
+      app: {
+        isPackaged: true,
+        getAppPath: jest.fn(
+          () => "/Applications/PuPu.app/Contents/Resources/app.asar",
+        ),
+        getPath: jest.fn(() => userData),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: fsImpl,
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+    return {
+      intentAtSecondSpawn: () => intentAtSecondSpawn,
+      packagedBinary,
+      processes,
+      service,
+      spawn,
+      spawnSync,
+      userData,
+    };
+  };
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (originalMigrationFlag == null) {
+      delete process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD;
+    } else {
+      process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = originalMigrationFlag;
+    }
+    if (hadResourcesPath) {
+      Object.defineProperty(process, "resourcesPath", {
+        configurable: true,
+        value: originalResourcesPath,
+      });
+    } else {
+      delete process.resourcesPath;
+    }
+    while (tempDirectories.length > 0) {
+      fs.rmSync(tempDirectories.pop(), { recursive: true, force: true });
+    }
+    jest.clearAllMocks();
+  });
+
+  test("packaged startup migrates once only after durable intent and proven managed exit", async () => {
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = "1";
+    const requiredReceipt = {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "migration_required",
+      protocol_version: 1,
+    };
+    const readyReceipt = { ...requiredReceipt, status: "ready" };
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [requiredReceipt, readyReceipt],
+    });
+
+    await harness.service.startMiso();
+
+    expect(harness.spawn).toHaveBeenCalledTimes(2);
+    expect(harness.spawn.mock.calls[0][0]).toBe(harness.packagedBinary);
+    expect(harness.spawn.mock.calls[0][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+    expect(harness.processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+    expect(harness.intentAtSecondSpawn()).toBe(exactIntentText);
+    expect(harness.spawn.mock.calls[1][2].env).toMatchObject({
+      UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
+    });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+    });
+
+    await harness.service.restartMiso();
+    expect(harness.spawn).toHaveBeenCalledTimes(3);
+    expect(harness.spawn.mock.calls[2][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+
+    harness.service.stopMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("invalid receipt fails closed without persisting intent or restarting", async () => {
+    process.env.UNCHAIN_SESSION_GUARD_STOP_THE_WORLD = "1";
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [
+        {
+          schema: "pupu.session-guard-migration",
+          version: 1,
+          status: "ready",
+          protocol_version: 1,
+          unexpected: true,
+        },
+      ],
+    });
+
+    await harness.service.startMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(harness.spawn).toHaveBeenCalledTimes(1);
+    expect(harness.spawn.mock.calls[0][2].env).not.toHaveProperty(
+      "UNCHAIN_SESSION_GUARD_STOP_THE_WORLD",
+    );
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "error",
+      ready: false,
+      reason: "Miso session guard migration receipt is invalid",
+    });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+  });
+
+  test("transient unavailable receipt is retried within the startup budget", async () => {
+    const unavailableReceipt = {
+      schema: "pupu.session-guard-migration",
+      version: 1,
+      status: "unavailable",
+      protocol_version: 1,
+    };
+    const readyReceipt = { ...unavailableReceipt, status: "ready" };
+    const harness = createPackagedMigrationHarness({
+      healthReceipts: [unavailableReceipt, readyReceipt],
+    });
+
+    await harness.service.startMiso();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(harness.spawn).toHaveBeenCalledTimes(1);
+    expect(harness.service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+    });
+    expect(fs.existsSync(migrationIntentPath(harness.userData))).toBe(false);
+
+    harness.service.stopMiso();
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
+  test("a failed flagged start retains its exact intent for a later safe retry", async () => {
+    jest.useFakeTimers();
+    let now = 0;
+    const nowSpy = jest.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const unavailableReceipt = {
+        schema: "pupu.session-guard-migration",
+        version: 1,
+        status: "unavailable",
+        protocol_version: 1,
+      };
+      const harness = createPackagedMigrationHarness({
+        healthReceipts: [unavailableReceipt],
+        initialIntent: true,
+      });
+
+      const startup = harness.service.startMiso();
+      for (let elapsed = 0; elapsed <= 61000; elapsed += 250) {
+        // Let the mocked health promise settle and schedule the next retry
+        // before advancing the legacy Jest timer implementation.
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+        now += 250;
+        jest.advanceTimersByTime(250);
+      }
+      await startup;
+
+      expect(harness.spawn).toHaveBeenCalledTimes(1);
+      expect(harness.spawn.mock.calls[0][2].env).toMatchObject({
+        UNCHAIN_SESSION_GUARD_STOP_THE_WORLD: "1",
+      });
+      expect(
+        fs.readFileSync(migrationIntentPath(harness.userData), "utf8"),
+      ).toBe(exactIntentText);
+      expect(harness.service.getMisoStatusPayload()).toMatchObject({
+        status: "error",
+        ready: false,
+        reason: "Miso session guard migration is unavailable",
+      });
+    } finally {
+      nowSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe("unchain service restartMiso", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+  // Mirrors UNCHAIN_RESTART_DELAY_MS in the service (module-private).
+  const UNCHAIN_RESTART_DELAY_MS = 1500;
+
+  /* Like createStartupServiceHarness, but hands out a FRESH process per spawn.
+     A restart must be able to observe a second, live process — reusing one
+     already-killed EventEmitter would make waitForMisoReady bail on
+     `unchainProcess.killed` and mask the behavior under test. */
+  const createRestartHarness = () => {
+    const processes = [];
+    const spawn = jest.fn(() => {
+      const proc = createFakeSpawnProcess();
+      processes.push(proc);
+      return proc;
+    });
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: { existsSync: jest.fn(() => true) },
+      path,
+      spawn,
+      spawnSync: jest.fn(() => ({
+        status: 0,
+        stdout: JSON.stringify({
+          version: "3.12.2",
+          major: 3,
+          minor: 12,
+          missing: [],
+        }),
+      })),
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+    return { service, spawn, processes };
+  };
+
+  beforeEach(() => {
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(createCompatibleHealthResponse());
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalEnvPython == null) delete process.env.UNCHAIN_PYTHON_BIN;
+    else process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    jest.clearAllMocks();
+  });
+
+  test("REGRESSION: restarts a LIVE sidecar instead of killing it permanently", async () => {
+    // The bug this guards: stopMiso() returns with SIGTERM in flight and
+    // `unchainProcess` still set, so a naive stopMiso(); startMiso(); hits
+    // startMiso's `if (unchainProcess) return` guard and starts nothing — while
+    // the exit handler, seeing unchainIsStopping, skips scheduleMisoRestart().
+    // A live backend would be killed and never come back.
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    const restarted = service.restartMiso();
+
+    // The old process was signalled but has not exited yet, so no second spawn
+    // may have happened: restartMiso must be WAITING, not racing ahead.
+    expect(processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    processes[0].emit("exit", 0, null);
+    await restarted;
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "ready",
+      ready: true,
+    });
+  });
+
+  test("the naive stop-then-start sequence is broken — which is why restartMiso exists", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    /* Documents the exact failure mode a caller outside the closure would hit.
+       If any assertion here ever flips, startMiso's guard or the exit handler
+       changed and restartMiso's wait should be revisited. */
+    service.stopMiso();
+    await service.startMiso();
+
+    // startMiso saw the not-yet-cleared `unchainProcess` and returned having
+    // started nothing.
+    expect(spawn).toHaveBeenCalledTimes(1);
+
+    // Then the process actually dies. The exit handler sees unchainIsStopping,
+    // so it marks "stopped" and returns BEFORE arming the crash-restart net.
+    processes[0].emit("exit", 0, null);
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "stopped",
+      ready: false,
+    });
+
+    // Nothing ever brings it back: a live backend was killed permanently.
+    await new Promise((resolve) => setTimeout(resolve, UNCHAIN_RESTART_DELAY_MS + 200));
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(service.getMisoStatusPayload().ready).toBe(false);
+  });
+
+  test("restarts cleanly when the sidecar is already stopped", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    service.stopMiso();
+    processes[0].emit("exit", 0, null);
+    expect(service.getMisoStatusPayload().status).toBe("stopped");
+
+    await service.restartMiso();
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+  });
+
+  test("fails closed after TERM and bounded KILL when managed exit is never proven", async () => {
+    const { service, spawn, processes } = createRestartHarness();
+    await service.startMiso();
+    jest.useFakeTimers();
+    try {
+      const restarting = service.restartMiso();
+      for (let elapsed = 0; elapsed <= 5100; elapsed += 50) {
+        jest.advanceTimersByTime(50);
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      await restarting;
+
+      expect(processes[0].kill).toHaveBeenCalledWith("SIGTERM");
+      expect(processes[0].kill).toHaveBeenCalledWith("SIGKILL");
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(service.getMisoStatusPayload()).toMatchObject({
+        status: "error",
+        ready: false,
+        reason: "Miso process did not exit after forced shutdown",
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

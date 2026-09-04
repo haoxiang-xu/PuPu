@@ -48,7 +48,7 @@ Produce these sections, each tailored for a zero-context developer:
 - **Suggested development path** — step-by-step: what to change first, then next,
   and how to self-check each step.
 - **How to verify done** — explicit acceptance criteria + verification means
-  (`npm test`, the pupu-test-api skill for a smoke run, manual checkpoints).
+  (`npm test`, the test-api skill for a smoke run, manual checkpoints).
 - **Impact / risk** — blast radius from impact; call out HIGH/CRITICAL explicitly.
 
 ## Filing the issue

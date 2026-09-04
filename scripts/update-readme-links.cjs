@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Rewrites download links in README.md to match the current package.json version.
+ * Renders the marked README download section from a verified release manifest.
  *
- * Asset filename templates (electron-builder defaults for this project):
- *   macOS ARM   → PuPu-{v}-arm64.dmg
- *   macOS Intel → PuPu-{v}-intel.dmg
- *   Windows     → PuPu.Setup.{v}.exe
- *   Linux AI    → PuPu-{v}.AppImage
- *   Linux deb   → PuPu_{v}.deb
- *
- * Called automatically at the end of prepare-build-version.cjs,
- * or run standalone:  node scripts/update-readme-links.cjs
+ * This script intentionally does not read package.json or infer artifact names.
+ * Use it only after a candidate/Draft Release manifest has passed verification:
+ *   node scripts/update-readme-links.cjs --manifest release-assets.v1.json
  */
 
 const fs = require("fs");
@@ -19,62 +13,60 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const README_PATH = path.join(ROOT, "README.md");
-const PKG_PATH = path.join(ROOT, "package.json");
+const CONTRACT_PATH = path.join(ROOT, "contracts", "release", "release-artifact-contract.v1.json");
 
-const readVersion = () => {
-  const pkg = JSON.parse(fs.readFileSync(PKG_PATH, "utf8"));
-  return pkg.version;
-};
-
-// Each pattern matches previous versions in the download URLs and replaces with new version.
-// The regex captures everything around the version so we can reconstruct the URL.
-const REPLACEMENTS = [
-  // PuPu-{v}-arm64.dmg
-  { re: /(PuPu-)[0-9]+\.[0-9]+\.[0-9]+(-arm64\.dmg)/g, tpl: "$1{v}$2" },
-  // PuPu-{v}-intel.dmg
-  { re: /(PuPu-)[0-9]+\.[0-9]+\.[0-9]+(-intel\.dmg)/g, tpl: "$1{v}$2" },
-  // PuPu.Setup.{v}.exe
-  { re: /(PuPu\.Setup\.)[0-9]+\.[0-9]+\.[0-9]+(\.exe)/g, tpl: "$1{v}$2" },
-  // PuPu-{v}.AppImage
-  { re: /(PuPu-)[0-9]+\.[0-9]+\.[0-9]+(\.AppImage)/g, tpl: "$1{v}$2" },
-  // PuPu_{v}.deb
-  { re: /(PuPu_)[0-9]+\.[0-9]+\.[0-9]+(\.deb)/g, tpl: "$1{v}$2" },
-];
-
-const updateReadme = (version) => {
-  let content = fs.readFileSync(README_PATH, "utf8");
-  let changed = false;
-
-  for (const { re, tpl } of REPLACEMENTS) {
-    const replacement = tpl.replace("{v}", version);
-    const updated = content.replace(re, replacement);
-    if (updated !== content) {
-      changed = true;
-      content = updated;
+const parseArgs = (argv) => {
+  const args = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (!argument.startsWith("--")) continue;
+    const key = argument.slice(2);
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`Missing value for --${key}`);
     }
+    args[key] = value;
+    index += 1;
   }
-
-  if (changed) {
-    fs.writeFileSync(README_PATH, content, "utf8");
-    console.log(
-      `[update-readme-links] Updated download links to version ${version}.`,
-    );
-  } else {
-    console.log(
-      `[update-readme-links] Links already at version ${version}; no changes.`,
-    );
-  }
+  return args;
 };
 
-const main = () => {
-  const version = readVersion();
-  if (!version) {
-    console.error(
-      "[update-readme-links] Could not read version from package.json.",
-    );
+const updateReadme = async ({ manifestPath, readmePath = README_PATH, repository }) => {
+  const {
+    readJson,
+    readReleaseArtifactContract,
+  } = await import("./release-qa/release-artifact-manifest.mjs");
+  const {
+    renderReleaseDownloadBlock,
+    replaceReleaseDownloadBlock,
+  } = await import("./release-qa/release-readme.mjs");
+  const contract = readReleaseArtifactContract(CONTRACT_PATH);
+  const manifest = readJson(manifestPath);
+  const block = renderReleaseDownloadBlock({ manifest, contract, repository });
+  const current = fs.readFileSync(readmePath, "utf8");
+  const updated = replaceReleaseDownloadBlock(current, block);
+  if (updated !== current) fs.writeFileSync(readmePath, updated, "utf8");
+  return { changed: updated !== current, tag: manifest.release.tag };
+};
+
+const main = async () => {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.manifest) {
+    throw new Error("Usage: node scripts/update-readme-links.cjs --manifest <verified-release-assets.json> [--readme README.md] [--repository owner/repo]");
+  }
+  const result = await updateReadme({
+    manifestPath: path.resolve(args.manifest),
+    readmePath: args.readme ? path.resolve(args.readme) : README_PATH,
+    repository: args.repository,
+  });
+  console.log(`[update-readme-links] ${result.changed ? "Rendered" : "Kept"} verified links for ${result.tag}.`);
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[update-readme-links] ${error.message || String(error)}`);
     process.exit(1);
-  }
-  updateReadme(version);
-};
+  });
+}
 
-main();
+module.exports = { updateReadme };
