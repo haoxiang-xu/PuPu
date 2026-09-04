@@ -466,3 +466,28 @@ test("CLI plan is read-only JSON and both agent entrypoints share one canonical 
   assert.match(claudeSkill, /\.agents\/skills\/release-operator\/SKILL\.md/);
   assert.match(claudeSkill, /single canonical workflow/);
 });
+
+test("CLI plan projects an RC package version to its stable release base", () => {
+  const fixtureDirectory = fs.mkdtempSync("release-operator-plan-");
+  try {
+    fs.writeFileSync(
+      `${fixtureDirectory}/package.json`,
+      JSON.stringify({ version: "0.1.10-rc.6" }),
+    );
+    for (const tag of [TAG, RC_TAG]) {
+      const result = spawnSync(process.execPath, [
+        CLI_PATH,
+        "plan",
+        "--phase", "candidate",
+        "--repo", REPOSITORY,
+        "--tag", tag,
+        "--unchain-ref", UNCHAIN_REF,
+      ], { cwd: fixtureDirectory, encoding: "utf8" });
+
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).ref, tag);
+    }
+  } finally {
+    fs.rmSync(fixtureDirectory, { force: true, recursive: true });
+  }
+});

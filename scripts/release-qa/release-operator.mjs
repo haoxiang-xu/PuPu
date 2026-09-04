@@ -138,10 +138,22 @@ const stableVersionTuple = (tag, label) => {
   return match.slice(1).map((part) => Number(part));
 };
 
-const packageVersionForReleaseRef = (ref) => {
-  const match = /^v(?<baseVersion>(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))(?:-rc\.[1-9]\d*)?$/.exec(ref);
-  if (!match) throw new Error("release operator plan ref must be vX.Y.Z or vX.Y.Z-rc.N");
+const stablePackageVersion = (value, label) => {
+  const match = /^(?<baseVersion>(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))(?:-rc\.[1-9]\d*)?$/.exec(
+    requiredExactString(value, label),
+  );
+  if (!match) {
+    throw new Error(`${label} must be a stable X.Y.Z version or an X.Y.Z-rc.N release candidate`);
+  }
   return match.groups.baseVersion;
+};
+
+const packageVersionForReleaseRef = (ref) => {
+  const releaseRef = requiredExactString(ref, "release operator plan ref");
+  if (!releaseRef.startsWith("v")) {
+    throw new Error("release operator plan ref must start with v");
+  }
+  return stablePackageVersion(releaseRef.slice(1), "release operator plan ref");
 };
 
 const compareVersionTuple = (left, right) => {
@@ -554,7 +566,7 @@ export function parseReleaseOperatorArgs(argv) {
 const readPackageVersion = () => {
   const packagePath = path.resolve("package.json");
   const parsed = JSON.parse(fs.readFileSync(packagePath, "utf8"));
-  return requiredExactString(parsed.version, "package version");
+  return stablePackageVersion(parsed.version, "package version");
 };
 
 const planOptionsFromCli = (values) => {
