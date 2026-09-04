@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 _EXACT_KEYS = frozenset(
     {
         "schema",
@@ -40,7 +40,7 @@ def _sha256(path: Path) -> str:
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
-    return digest.hexdigest()
+    return f"sha256:{digest.hexdigest()}"
 
 
 def _artifact_identity(path: Path) -> tuple[str, str]:

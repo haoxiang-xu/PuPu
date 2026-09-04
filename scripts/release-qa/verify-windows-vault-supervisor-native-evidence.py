@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA = "pupu.windows-vault-supervisor-native-probe.v2"
+SCHEMA = "pupu.windows-vault-supervisor-native-probe.v3"
 EXECUTED_TESTS = 4
 MAX_EVIDENCE_BYTES = 4096
 _EXACT_KEYS = frozenset(
@@ -23,7 +23,7 @@ _EXACT_KEYS = frozenset(
         "kill_on_close_observed",
         "atomic_job_list_spawn_attested",
         "exact_handle_list_attested",
-        "breakaway_denied",
+        "breakaway_contained",
         "job_handle_non_inheritable",
         "supervisor_event_non_inheritable",
         "child_inherited_handle_count",
@@ -37,7 +37,7 @@ _TRUE_FIELDS = frozenset(
         "kill_on_close_observed",
         "atomic_job_list_spawn_attested",
         "exact_handle_list_attested",
-        "breakaway_denied",
+        "breakaway_contained",
         "job_handle_non_inheritable",
         "supervisor_event_non_inheritable",
         "atomic_kill_on_close_observed",

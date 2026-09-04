@@ -287,7 +287,7 @@ def run_lifecycle(
             )
             return False
         # A death observed in the zero-time recheck wins over a same-tick READY.
-        if set(driver.poll(process_names)):
+        if set(driver.poll_now(process_names)):
             _terminate_and_drain(
                 driver, drain_timeout_ms, drain_poll_interval_ms, monotonic, sleep
             )
@@ -777,6 +777,14 @@ class _SupervisorLifecycleDriver:
         self._wait_timeout_ms = wait_timeout_ms
 
     def poll(self, names: tuple[str, ...]) -> set[str]:
+        return self._poll(names, self._wait_timeout_ms)
+
+    def poll_now(self, names: tuple[str, ...]) -> set[str]:
+        """Recheck lifecycle handles without delaying the READY handshake."""
+
+        return self._poll(names, 0)
+
+    def _poll(self, names: tuple[str, ...], timeout_ms: int) -> set[str]:
         handles = {
             "electron": self._parents.electron,
             "parent": self._parents.direct_parent,
@@ -784,14 +792,15 @@ class _SupervisorLifecycleDriver:
             "ready_event": self._worker.ready_event,
         }
         selected = [handles[name] for name in names]
-        first = self._api.wait_for_handles(selected, self._wait_timeout_ms)
+        handle_values = [handle.value for handle in selected]
+        first = self._api.wait_for_handles(handle_values, timeout_ms)
         observed: set[str] = set()
         if first is not None:
             observed.add(names[first])
         # Recheck every handle at zero timeout, making process death win over
         # a concurrently signalled READY Event regardless of wait ordering.
-        for name, handle in zip(names, selected):
-            if self._api.wait_for_handles([handle], 0) == 0:
+        for name, handle_value in zip(names, handle_values):
+            if self._api.wait_for_handles([handle_value], 0) == 0:
                 observed.add(name)
         return observed
 
@@ -1107,17 +1116,14 @@ class _Win32Api:
         try:
             raw_stdin = _handle_value(self._get_osfhandle(0))
             raw_stdout = _handle_value(self._get_osfhandle(1))
-            std_stdin = _handle_value(
-                self._kernel32.GetStdHandle(DWORD(STD_INPUT_HANDLE & 0xFFFFFFFF))
-            )
-            std_stdout = _handle_value(
-                self._kernel32.GetStdHandle(DWORD(STD_OUTPUT_HANDLE & 0xFFFFFFFF))
-            )
+            # Windows hosts may duplicate inherited std handles while wiring
+            # Python's CRT descriptors. The CRT handles own this process's
+            # protocol streams and are the handles passed to the exact child
+            # handle list below; their numeric values need not match the
+            # process-wide GetStdHandle slots.
             if (
                 raw_stdin in {0, INVALID_HANDLE_VALUE}
                 or raw_stdout in {0, INVALID_HANDLE_VALUE}
-                or raw_stdin != std_stdin
-                or raw_stdout != std_stdout
             ):
                 raise VaultSinkSupervisorError(
                     "vault_worker_handle_setup_failed"
@@ -1612,10 +1618,13 @@ class _Win32Api:
     def attest_current_process_in_job(self) -> None:
         """Require the worker to be in some Job before protocol I/O."""
 
-        self._ensure_spawn_api()
-        current_process = self._kernel32.GetCurrentProcess()
-        if not self.process_is_in_job(current_process, None):
-            raise VaultSinkSupervisorError("vault_worker_attestation_failed")
+        # GetCurrentProcess returns the -1 pseudo-handle, while the closed
+        # process-handle validator intentionally rejects that sentinel. Open a
+        # minimal real handle for this PID so the Job attestation uses the same
+        # validated handle representation as the outer supervisor.
+        with self.open_live_process(str(os.getpid())) as current_process:
+            if not self.process_is_in_job(current_process.value, None):
+                raise VaultSinkSupervisorError("vault_worker_attestation_failed")
 
     def signal_and_close_ready_event(self, handle: Any) -> None:
         """Set exactly the inherited READY Event and relinquish it."""

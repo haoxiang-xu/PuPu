@@ -24,7 +24,7 @@ SPEC.loader.exec_module(validator)
 
 def _evidence():
     return {
-        "schema": "pupu.windows-vault-supervisor-native-probe.v2",
+        "schema": "pupu.windows-vault-supervisor-native-probe.v3",
         "executed_tests": 4,
         "platform": "win32-x64",
         "kernel32_loaded": True,
@@ -34,7 +34,7 @@ def _evidence():
         "kill_on_close_observed": True,
         "atomic_job_list_spawn_attested": True,
         "exact_handle_list_attested": True,
-        "breakaway_denied": True,
+        "breakaway_contained": True,
         "job_handle_non_inheritable": True,
         "supervisor_event_non_inheritable": True,
         "child_inherited_handle_count": 4,
@@ -48,14 +48,14 @@ def _canonical(value):
     ).encode("utf-8")
 
 
-def test_strict_validator_accepts_only_the_exact_v2_evidence():
+def test_strict_validator_accepts_only_the_exact_v3_evidence():
     assert validator.validate_evidence_bytes(_canonical(_evidence())) == 4
 
 
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda value: value.pop("breakaway_denied"),
+        lambda value: value.pop("breakaway_contained"),
         lambda value: value.update({"extra": True}),
         lambda value: value.update(
             {"schema": "pupu.windows-vault-supervisor-native-probe.v1"}

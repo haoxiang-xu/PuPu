@@ -490,6 +490,18 @@ def test_atomic_spawn_uses_exact_job_and_handle_lists_then_attests_membership():
     assert 0x3000 in kernel32.closed
 
 
+def test_capture_protocol_handles_uses_crt_handles_when_std_slots_are_duplicated():
+    kernel32 = _SpawnKernel32()
+    kernel32.GetStdHandle = _FakeFunction(0xDEAD)
+    api = _api(kernel32)
+
+    protocol = api._capture_protocol_handles()
+
+    assert protocol.stdin.value == 0x2000
+    assert protocol.stdout.value == 0x2001
+    protocol.close()
+
+
 @pytest.mark.parametrize(
     ("kernel_kwargs", "expected_delete", "expected_spawn"),
     [

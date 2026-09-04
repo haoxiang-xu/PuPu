@@ -28,6 +28,10 @@ class _LifecycleDriver:
         self.calls.append(("poll", tuple(names)))
         return set(self.polls.pop(0)) if self.polls else set()
 
+    def poll_now(self, names):
+        self.calls.append(("poll-now", tuple(names)))
+        return set(self.polls.pop(0)) if self.polls else set()
+
     def attest_worker(self):
         self.calls.append("attest")
         return self.attest
@@ -93,7 +97,7 @@ def test_lifecycle_ready_then_worker_exit_terminates_and_drains():
     assert clock.sleeps == [0.025]
     assert driver.calls == [
         ("poll", ("electron", "parent", "worker", "ready_event")),
-        ("poll", ("electron", "parent", "worker")),
+        ("poll-now", ("electron", "parent", "worker")),
         "attest",
         "ready",
         ("poll", ("electron", "parent", "worker")),
@@ -111,7 +115,7 @@ def test_lifecycle_keeps_monitoring_after_ready_until_worker_exits():
     )
 
     assert supervisor.run_lifecycle(driver, monitor_polls=3) is True
-    assert driver.calls.count(("poll", ("electron", "parent", "worker"))) == 3
+    assert driver.calls.count(("poll", ("electron", "parent", "worker"))) == 2
 
 
 def test_lifecycle_parent_or_electron_death_after_ready_never_reports_drain_success():
@@ -207,7 +211,7 @@ def test_lifecycle_driver_rechecks_all_handles_and_closes_job_last():
 
     class Api:
         def wait_for_handles(self, handles, timeout_ms):
-            calls.append(("wait", tuple(handle.value for handle in handles), timeout_ms))
+            calls.append(("wait", tuple(handles), timeout_ms))
             return None
 
         def process_is_in_job(self, _process, _job):
@@ -661,6 +665,26 @@ def test_existing_probe_process_can_be_assigned_and_attested_independently():
     assert supervisor._handle_value(assigned_process) == 0x7777
     assert supervisor._handle_value(observed_process) == 0x7777
     assert supervisor._handle_value(observed_job) == 0x1234
+
+
+def test_current_worker_job_attestation_uses_a_real_self_process_handle(monkeypatch):
+    kernel32 = _FakeKernel32(wait_result=supervisor.WAIT_TIMEOUT)
+    api = supervisor._Win32Api(
+        platform="win32",
+        kernel32=kernel32,
+        pointer_size=8,
+    )
+    monkeypatch.setattr(supervisor.os, "getpid", lambda: 4242)
+
+    api.attest_current_process_in_job()
+
+    assert kernel32.OpenProcess.calls == [
+        (supervisor.PROCESS_QUERY_LIMITED_INFORMATION | supervisor.SYNCHRONIZE, False, 4242)
+    ]
+    observed_process, observed_job, _result = kernel32.IsProcessInJob.calls[0]
+    assert supervisor._handle_value(observed_process) == 0x5678
+    assert supervisor._handle_value(observed_job) == 0
+    assert len(kernel32.CloseHandle.calls) == 1
 
 
 def test_probe_assignment_and_membership_api_fail_closed():

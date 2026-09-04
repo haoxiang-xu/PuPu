@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -24,6 +25,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.SetEvent.argtypes = [ctypes.c_void_p]
@@ -45,13 +47,7 @@ except OSError as error:
     if getattr(error, "winerror", None) != 5:
         raise
 else:
-    escaped.terminate()
-    try:
-        escaped.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        escaped.kill()
-        escaped.wait(timeout=5)
-    raise SystemExit(91)
+    Path(sys.argv[2]).write_text(str(escaped.pid), encoding="ascii")
 ready_event = int(os.environ["PUPU_VAULT_WORKER_READY_EVENT"])
 if not kernel32.SetEvent(ctypes.c_void_p(ready_event)):
     raise SystemExit(92)
@@ -135,52 +131,74 @@ def _probe_atomic_job_list_spawn(
     protocol = None
     job = None
     worker = None
+    breakaway_process = None
     try:
         protocol = api._capture_protocol_handles()
         job = api.create_kill_on_close_job()
-        command = supervisor._WorkerCommand(
-            sys.executable,
-            (
+        with tempfile.TemporaryDirectory(prefix="pupu-vault-supervisor-") as directory:
+            breakaway_pid_path = Path(directory) / "breakaway.pid"
+            command = supervisor._WorkerCommand(
                 sys.executable,
-                "-c",
-                _ATOMIC_PROBE_CHILD_CODE,
-                str(decoy.child.value),
-            ),
-        )
-        worker = api._spawn_contained_command(
-            protocol,
-            job,
-            command=command,
-            environment=os.environ,
-        )
-        if (
-            api.wait_for_handle_for_probe(worker.ready_event.value, 10000)
-            != supervisor.WAIT_OBJECT_0
-        ):
-            raise RuntimeError("atomic probe child did not signal READY")
-        if (
-            api.wait_for_handle_for_probe(decoy.supervisor.value, 0)
-            != supervisor.WAIT_TIMEOUT
-        ):
-            raise RuntimeError("decoy inheritable handle escaped HANDLE_LIST")
-        if (
-            api.wait_for_handle_for_probe(worker.process.value, 0)
-            != supervisor.WAIT_TIMEOUT
-        ):
-            raise RuntimeError("atomic probe child exited before Job closure")
-        if not api.process_is_in_job(worker.process.value, job):
-            raise RuntimeError("atomic probe child is not in the kill Job")
+                (
+                    sys.executable,
+                    "-c",
+                    _ATOMIC_PROBE_CHILD_CODE,
+                    str(decoy.child.value),
+                    str(breakaway_pid_path),
+                ),
+            )
+            worker = api._spawn_contained_command(
+                protocol,
+                job,
+                command=command,
+                environment=os.environ,
+            )
+            if (
+                api.wait_for_handle_for_probe(worker.ready_event.value, 10000)
+                != supervisor.WAIT_OBJECT_0
+            ):
+                raise RuntimeError("atomic probe child did not signal READY")
+            if breakaway_pid_path.exists():
+                breakaway_pid = breakaway_pid_path.read_text(encoding="ascii")
+                if not breakaway_pid.isdecimal() or int(breakaway_pid) <= 0:
+                    raise RuntimeError("atomic breakaway child reported an invalid PID")
+                breakaway_process = api.open_live_process(breakaway_pid)
+                if not api.process_is_in_job(breakaway_process.value, job):
+                    raise RuntimeError(
+                        "atomic breakaway child escaped the containment Job"
+                    )
+            if (
+                api.wait_for_handle_for_probe(decoy.supervisor.value, 0)
+                != supervisor.WAIT_TIMEOUT
+            ):
+                raise RuntimeError("decoy inheritable handle escaped HANDLE_LIST")
+            if (
+                api.wait_for_handle_for_probe(worker.process.value, 0)
+                != supervisor.WAIT_TIMEOUT
+            ):
+                raise RuntimeError("atomic probe child exited before Job closure")
+            if not api.process_is_in_job(worker.process.value, job):
+                raise RuntimeError("atomic probe child is not in the kill Job")
 
-        job.close()
-        if (
-            api.wait_for_handle_for_probe(worker.process.value, 10000)
-            != supervisor.WAIT_OBJECT_0
-        ):
-            raise RuntimeError("atomic probe child survived Job closure")
+            job.close()
+            if (
+                api.wait_for_handle_for_probe(worker.process.value, 10000)
+                != supervisor.WAIT_OBJECT_0
+            ):
+                raise RuntimeError("atomic probe child survived Job closure")
+            if (
+                breakaway_process is not None
+                and api.wait_for_handle_for_probe(
+                    breakaway_process.value,
+                    10000,
+                )
+                != supervisor.WAIT_OBJECT_0
+            ):
+                raise RuntimeError("atomic breakaway child survived Job closure")
         return {
             "atomic_job_list_spawn_attested": True,
             "exact_handle_list_attested": True,
-            "breakaway_denied": True,
+            "breakaway_contained": True,
             "job_handle_non_inheritable": True,
             "supervisor_event_non_inheritable": True,
             "child_inherited_handle_count": 4,
@@ -191,6 +209,8 @@ def _probe_atomic_job_list_spawn(
             job.close()
         if worker is not None:
             worker.close()
+        if breakaway_process is not None:
+            breakaway_process.close()
         if protocol is not None:
             protocol.close()
         decoy.close()
@@ -217,7 +237,7 @@ def main() -> None:
         (
             json.dumps(
                 {
-                    "schema": "pupu.windows-vault-supervisor-native-probe.v2",
+                    "schema": "pupu.windows-vault-supervisor-native-probe.v3",
                     "executed_tests": 4,
                     "platform": "win32-x64",
                     "kernel32_loaded": True,

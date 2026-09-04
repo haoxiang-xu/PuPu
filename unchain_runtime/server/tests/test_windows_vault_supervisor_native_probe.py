@@ -209,7 +209,7 @@ def test_nested_probe_attests_outer_then_inner_and_observes_job_close(monkeypatc
     assert events.count(("close", "outer")) == 1
 
 
-def test_atomic_probe_uses_job_list_excludes_decoy_and_denies_breakaway():
+def test_atomic_probe_uses_job_list_excludes_decoy_and_contains_breakaway():
     events = []
     api = _AtomicFakeApi(events)
 
@@ -218,7 +218,7 @@ def test_atomic_probe_uses_job_list_excludes_decoy_and_denies_breakaway():
     assert evidence == {
         "atomic_job_list_spawn_attested": True,
         "exact_handle_list_attested": True,
-        "breakaway_denied": True,
+        "breakaway_contained": True,
         "job_handle_non_inheritable": True,
         "supervisor_event_non_inheritable": True,
         "child_inherited_handle_count": 4,
@@ -227,6 +227,7 @@ def test_atomic_probe_uses_job_list_excludes_decoy_and_denies_breakaway():
     assert api.command.application == sys.executable
     assert api.command.arguments[:2] == (sys.executable, "-c")
     assert "CREATE_BREAKAWAY_FROM_JOB" in api.command.arguments[2]
+    assert Path(api.command.arguments[4]).name == "breakaway.pid"
     assert "secret" not in api.command.command_line.casefold()
     assert api.environment is probe.os.environ
     assert events.index(("close", "atomic-job")) < events.index(
@@ -237,8 +238,8 @@ def test_atomic_probe_uses_job_list_excludes_decoy_and_denies_breakaway():
     assert events.count(("close", "decoy-supervisor")) == 1
 
 
-def test_main_publishes_the_exact_v2_closed_evidence(monkeypatch, tmp_path):
-    evidence_path = tmp_path / "native-v2.json"
+def test_main_publishes_the_exact_v3_closed_evidence(monkeypatch, tmp_path):
+    evidence_path = tmp_path / "native-v3.json"
     fake_api = object()
     monkeypatch.setattr(probe.sys, "platform", "win32")
     monkeypatch.setenv(
@@ -259,7 +260,7 @@ def test_main_publishes_the_exact_v2_closed_evidence(monkeypatch, tmp_path):
         lambda api: {
             "atomic_job_list_spawn_attested": True,
             "exact_handle_list_attested": True,
-            "breakaway_denied": True,
+            "breakaway_contained": True,
             "job_handle_non_inheritable": True,
             "supervisor_event_non_inheritable": True,
             "child_inherited_handle_count": 4,
@@ -270,7 +271,7 @@ def test_main_publishes_the_exact_v2_closed_evidence(monkeypatch, tmp_path):
     probe.main()
 
     assert json.loads(evidence_path.read_text(encoding="utf-8")) == {
-        "schema": "pupu.windows-vault-supervisor-native-probe.v2",
+        "schema": "pupu.windows-vault-supervisor-native-probe.v3",
         "executed_tests": 4,
         "platform": "win32-x64",
         "kernel32_loaded": True,
@@ -280,7 +281,7 @@ def test_main_publishes_the_exact_v2_closed_evidence(monkeypatch, tmp_path):
         "kill_on_close_observed": True,
         "atomic_job_list_spawn_attested": True,
         "exact_handle_list_attested": True,
-        "breakaway_denied": True,
+        "breakaway_contained": True,
         "job_handle_non_inheritable": True,
         "supervisor_event_non_inheritable": True,
         "child_inherited_handle_count": 4,
@@ -309,7 +310,7 @@ def test_main_writes_canonical_bytes_without_platform_newline_translation(
         lambda api: {
             "atomic_job_list_spawn_attested": True,
             "exact_handle_list_attested": True,
-            "breakaway_denied": True,
+            "breakaway_contained": True,
             "job_handle_non_inheritable": True,
             "supervisor_event_non_inheritable": True,
             "child_inherited_handle_count": 4,
