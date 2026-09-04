@@ -27,7 +27,7 @@ describe("chat storage quit lifecycle", () => {
       /app\.on\("window-all-closed",\s*\(\)\s*=>\s*\{[\s\S]*?stopActiveExecutionsForLifecycle\("app_windows_closed"\)[\s\S]*?app\.quit\(\)/,
     );
     expect(source).toMatch(
-      /const stopActiveExecutionsForLifecycle = \(reason\) => \{\s*void unchainService\.stopActiveMisoExecutionsForLifecycle\(\{ reason \}\)/,
+      /const stopActiveExecutionsForLifecycle = \(reason\) => \{[\s\S]*?vaultSinkExecutorRegistry\?\.abortActive\?\.\(\);[\s\S]*?void unchainService\.stopActiveMisoExecutionsForLifecycle\(\{ reason \}\)/,
     );
   });
 });
