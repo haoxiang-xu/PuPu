@@ -151,7 +151,7 @@ const availableNet = () => ({
   },
 });
 
-const buildService = (snapshot, { platform, isPackaged = false } = {}) => {
+const buildService = (snapshot, { platform = "darwin", isPackaged = false } = {}) => {
   const spawn = jest.fn(() => fakeProcess());
   const service = createUnchainService({
     app: {
@@ -185,7 +185,7 @@ const buildService = (snapshot, { platform, isPackaged = false } = {}) => {
     },
     runtimeService: {},
     getAppIsQuitting: () => false,
-    ...(platform ? { platform } : {}),
+    platform,
   });
   return { service, spawn };
 };
@@ -527,6 +527,21 @@ describe("Unchain Memory V2 startup readiness", () => {
     });
   });
 
+  test("Windows rejects an unsealed capability before sidecar startup", () => {
+    const { service } = buildService(enabledSnapshot("all"), {
+      platform: "win32",
+    });
+
+    expect(service.configureWindowsVaultCapability(true)).toEqual({
+      reason: "vault_worker_capability_invalid",
+      status: "unavailable",
+    });
+    expect(service.getMisoStatusPayload().memoryV2.windowsCapability).toEqual({
+      reason: "vault_worker_capability_invalid",
+      status: "unavailable",
+    });
+  });
+
   test("Windows caps active rollout to shadow and keeps readiness fail-closed", async () => {
     const snapshot = enabledSnapshot("all");
     const constrainedFingerprint = rolloutFingerprint({
@@ -571,6 +586,10 @@ describe("Unchain Memory V2 startup readiness", () => {
         releaseRolloutMode: "all",
         rolloutMode: "shadow",
         platformActiveBlocked: true,
+        windowsCapability: {
+          reason: "vault_worker_capability_unconfigured",
+          status: "unavailable",
+        },
       },
     });
     await expect(

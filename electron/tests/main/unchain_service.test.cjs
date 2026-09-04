@@ -2470,7 +2470,7 @@ describe("unchain service session memory replacement", () => {
 
     expect(spawn).toHaveBeenCalledWith(
       "/usr/bin/python3.12",
-      ["/app/unchain_runtime/server/main.py"],
+      [path.join("/app", "unchain_runtime", "server", "main.py")],
       expect.objectContaining({
         env: expect.objectContaining({
           UNCHAIN_PORT: "61234",

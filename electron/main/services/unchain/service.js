@@ -11,6 +11,9 @@ const {
   validateMemoryV2Status,
 } = require("./memory_v2_rollout");
 const {
+  createWindowsVaultCapabilityLatch,
+} = require("./windows_vault_capability");
+const {
   SESSION_GUARD_MIGRATION_ENV,
   createSessionGuardMigrationController,
   validateSessionGuardMigrationReceipt,
@@ -1083,6 +1086,9 @@ const createUnchainService = ({
     memoryV2ReleaseConfig,
     platform,
   );
+  const windowsVaultCapabilityLatch = createWindowsVaultCapabilityLatch({
+    platform,
+  });
   const initialMemoryV2Readiness = () => {
     const protocolStatus = {
       runtimeProtocolDigest: "",
@@ -1674,8 +1680,21 @@ const createUnchainService = ({
       runtimeProtocolVerification:
         memoryV2Readiness.runtimeProtocolVerification,
       snapshotFingerprint: memoryV2ReleaseConfig.snapshotFingerprint,
+      windowsCapability: windowsVaultCapabilityLatch.getStatus(),
     },
   });
+
+  // MAIN-PROCESS ONLY. Startup owns the sealed receipt and must configure it
+  // before startMiso(); no renderer or IPC path can elevate this latch.
+  const configureWindowsVaultCapability = (receipt) => {
+    if (platform !== "win32") return windowsVaultCapabilityLatch.getStatus();
+    if (unchainProcess || unchainStatus !== "stopped") {
+      return windowsVaultCapabilityLatch.finalizePending(
+        "vault_worker_capability_late",
+      );
+    }
+    return windowsVaultCapabilityLatch.configure(receipt);
+  };
 
   const ensureMisoReady = () => {
     if (unchainStatus !== "ready" || !unchainPort) {
@@ -4928,6 +4947,12 @@ const createUnchainService = ({
       return unchainStartPromise;
     }
 
+    if (platform === "win32") {
+      // W3-02: configuration is one-shot and may never be elevated after the
+      // sidecar has started. W3-05 will provide the sealed startup receipt.
+      windowsVaultCapabilityLatch.finalizePending();
+    }
+
     unchainStatus = "starting";
     unchainStatusReason = "";
     unchainRuntimeContract = null;
@@ -6236,6 +6261,7 @@ const createUnchainService = ({
     // MAIN-PROCESS ONLY. Deliberately not registered on any IPC channel: it
     // returns absolute local launch coordinates for the Vault sink worker.
     resolveVaultSinkWorkerEntrypoint,
+    configureWindowsVaultCapability,
     getMisoStatusPayload,
     getComputerUseStatusPayload,
     setComputerUseEnabled,

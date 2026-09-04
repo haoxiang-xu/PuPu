@@ -90,6 +90,7 @@ const entrypoint = (script) => ({
   cwd: null,
   dataDir: DATA_DIR,
   mcpRuntimeDir: MCP_RUNTIME_DIR,
+  platform: "darwin",
 });
 
 const shellPayload = () => ({
@@ -236,6 +237,7 @@ describe("memory vault sink executor", () => {
     const provider = createVaultSinkExecutor({
       resolveEntrypoint,
       environmentSource: {},
+      platform: "darwin",
       timeoutMs: 5000,
     });
 
