@@ -15,6 +15,11 @@ import { Z } from "../layer/z_layers";
  *   data-sb-wall="N" — distance from the outer wall (right for V, bottom for H).
  *                      Defaults to the element's edge if not set.
  */
+/* An axis whose computed overflow clips cannot be scrolled by the user at all,
+   so it must never grow a thumb — content overflowing that axis is a layout
+   fact there, not a scroll range. */
+const isClipped = (value) => value === "hidden" || value === "clip";
+
 const Scrollable = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
 
@@ -204,8 +209,20 @@ const Scrollable = () => {
         const st = container.scrollTop;
         const sl = container.scrollLeft;
 
-        const hasV = sh > clientH + 1;
-        const hasH = sw > clientW + 1;
+        /* A container that deliberately clips an oversized child — e.g. a
+           200%-wide slide track under overflowX:hidden — still reports
+           scrollWidth > clientWidth. Drawing a thumb for it would be worse
+           than merely dead: scrollLeft still moves a clipped axis
+           programmatically, so dragging that thumb shoves the content out of
+           place with no user-facing way to scroll it back. getComputedStyle
+           runs only when a thumb would actually be drawn, so the common case
+           (neither axis overflowing) stays free. */
+        const overflowsV = sh > clientH + 1;
+        const overflowsH = sw > clientW + 1;
+        const flow =
+          overflowsV || overflowsH ? getComputedStyle(container) : null;
+        const hasV = overflowsV && !isClipped(flow.overflowY);
+        const hasH = overflowsH && !isClipped(flow.overflowX);
         /* Constant thickness in every state. A hover/active size change shifts
            the thumb edges, so near a boundary the pointer crosses in and out →
            enter/leave flicker. Visual feedback comes from colour only. */
