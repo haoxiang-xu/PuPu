@@ -24,6 +24,9 @@ const UNCHAIN_REF = "b".repeat(40);
 const CANDIDATE_RUN_ID = "33291661782";
 const QUALIFICATION_RUN_ID = "33293313755";
 const CLI_PATH = fileURLToPath(new URL("./release-operator.mjs", import.meta.url));
+const PACKAGE_VERSION = JSON.parse(
+  fs.readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
+).version;
 
 const planFor = (phase, overrides = {}) => buildReleaseOperatorPlan({
   phase,
@@ -454,7 +457,7 @@ test("CLI plan is read-only JSON and both agent entrypoints share one canonical 
     "plan",
     "--phase", "candidate",
     "--repo", REPOSITORY,
-    "--tag", TAG,
+    "--tag", `v${PACKAGE_VERSION}-rc.1`,
     "--unchain-ref", UNCHAIN_REF,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
