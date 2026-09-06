@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from unchain.persistence.sqlite_v2 import serialized_context_v2_database_access
+
 
 _LIFECYCLE_SCHEMA = "pupu.unchain_memory_v2_lifecycle.v1"
 _LIFECYCLE_TABLE_VERSION = 1
@@ -182,69 +184,70 @@ def _connect(database_path: Path) -> sqlite3.Connection:
 
 
 def _initialize_lifecycle_schema(database_path: Path) -> None:
-    connection = _connect(database_path)
-    try:
-        mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
-        if str(mode).casefold() != "wal":
-            raise PupuUnchainMemoryV2OwnershipError("sqlite WAL is unavailable")
-        connection.executescript(
-            """
-            BEGIN IMMEDIATE;
-            CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_schema (
-                version INTEGER PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            INSERT OR IGNORE INTO pupu_unchain_ownership_schema(version)
-            VALUES (1);
+    with serialized_context_v2_database_access(database_path):
+        connection = _connect(database_path)
+        try:
+            mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+            if str(mode).casefold() != "wal":
+                raise PupuUnchainMemoryV2OwnershipError("sqlite WAL is unavailable")
+            connection.executescript(
+                """
+                BEGIN IMMEDIATE;
+                CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_schema (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT OR IGNORE INTO pupu_unchain_ownership_schema(version)
+                VALUES (1);
 
-            CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_bindings (
-                lifecycle_key TEXT PRIMARY KEY,
-                owner_chat_id TEXT NOT NULL,
-                execution_id TEXT NOT NULL,
-                generation_id TEXT NOT NULL,
-                attempt_id TEXT NOT NULL,
-                binding_id TEXT NOT NULL,
-                chat_space_id TEXT NOT NULL,
-                revision INTEGER NOT NULL CHECK(revision = 1),
-                lifecycle_json BLOB NOT NULL,
-                lifecycle_sha256 TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(owner_chat_id, execution_id, generation_id, attempt_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_pupu_unchain_ownership_owner
-            ON pupu_unchain_ownership_bindings(
-                owner_chat_id, execution_id, generation_id, attempt_id
-            );
+                CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_bindings (
+                    lifecycle_key TEXT PRIMARY KEY,
+                    owner_chat_id TEXT NOT NULL,
+                    execution_id TEXT NOT NULL,
+                    generation_id TEXT NOT NULL,
+                    attempt_id TEXT NOT NULL,
+                    binding_id TEXT NOT NULL,
+                    chat_space_id TEXT NOT NULL,
+                    revision INTEGER NOT NULL CHECK(revision = 1),
+                    lifecycle_json BLOB NOT NULL,
+                    lifecycle_sha256 TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(owner_chat_id, execution_id, generation_id, attempt_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_pupu_unchain_ownership_owner
+                ON pupu_unchain_ownership_bindings(
+                    owner_chat_id, execution_id, generation_id, attempt_id
+                );
 
-            CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_operations (
-                lifecycle_key TEXT NOT NULL,
-                operation_id TEXT NOT NULL,
-                payload_sha256 TEXT NOT NULL,
-                expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
-                resulting_revision INTEGER NOT NULL CHECK(resulting_revision = 1),
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY(lifecycle_key, operation_id),
-                FOREIGN KEY(lifecycle_key)
-                    REFERENCES pupu_unchain_ownership_bindings(lifecycle_key)
-            );
-            COMMIT;
-            """
-        )
-        versions = {
-            int(row[0])
-            for row in connection.execute(
-                "SELECT version FROM pupu_unchain_ownership_schema"
+                CREATE TABLE IF NOT EXISTS pupu_unchain_ownership_operations (
+                    lifecycle_key TEXT NOT NULL,
+                    operation_id TEXT NOT NULL,
+                    payload_sha256 TEXT NOT NULL,
+                    expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+                    resulting_revision INTEGER NOT NULL CHECK(resulting_revision = 1),
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY(lifecycle_key, operation_id),
+                    FOREIGN KEY(lifecycle_key)
+                        REFERENCES pupu_unchain_ownership_bindings(lifecycle_key)
+                );
+                COMMIT;
+                """
             )
-        }
-        if versions != {_LIFECYCLE_TABLE_VERSION}:
-            raise PupuUnchainMemoryV2OwnershipError(
-                "lifecycle schema version is unsupported"
-            )
-    except BaseException:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+            versions = {
+                int(row[0])
+                for row in connection.execute(
+                    "SELECT version FROM pupu_unchain_ownership_schema"
+                )
+            }
+            if versions != {_LIFECYCLE_TABLE_VERSION}:
+                raise PupuUnchainMemoryV2OwnershipError(
+                    "lifecycle schema version is unsupported"
+                )
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
 
 def _decode_lifecycle_row(row: sqlite3.Row) -> PupuUnchainMemoryV2Lifecycle:
@@ -294,97 +297,98 @@ def _persist_lifecycle(
     encoded = _canonical_json_bytes(lifecycle._durable_dict())
     digest = _sha256(encoded)
     key = lifecycle.lifecycle_key
-    connection = _connect(database_path)
-    try:
-        connection.execute("BEGIN IMMEDIATE")
-        operation = connection.execute(
-            """
-            SELECT payload_sha256, expected_revision, resulting_revision
-            FROM pupu_unchain_ownership_operations
-            WHERE lifecycle_key = ? AND operation_id = ?
-            """,
-            (key, normalized_operation),
-        ).fetchone()
-        if operation is not None:
-            if (
-                operation["payload_sha256"] != digest
-                or int(operation["expected_revision"]) != expected
-                or int(operation["resulting_revision"]) != 1
-            ):
-                raise PupuUnchainMemoryV2OwnershipError(
-                    "lifecycle operation payload changed"
-                )
+    with serialized_context_v2_database_access(database_path):
+        connection = _connect(database_path)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            operation = connection.execute(
+                """
+                SELECT payload_sha256, expected_revision, resulting_revision
+                FROM pupu_unchain_ownership_operations
+                WHERE lifecycle_key = ? AND operation_id = ?
+                """,
+                (key, normalized_operation),
+            ).fetchone()
+            if operation is not None:
+                if (
+                    operation["payload_sha256"] != digest
+                    or int(operation["expected_revision"]) != expected
+                    or int(operation["resulting_revision"]) != 1
+                ):
+                    raise PupuUnchainMemoryV2OwnershipError(
+                        "lifecycle operation payload changed"
+                    )
+                row = connection.execute(
+                    "SELECT * FROM pupu_unchain_ownership_bindings "
+                    "WHERE lifecycle_key = ?",
+                    (key,),
+                ).fetchone()
+                if row is None or _decode_lifecycle_row(row) != lifecycle:
+                    raise PupuUnchainMemoryV2OwnershipError(
+                        "lifecycle operation has no exact binding"
+                    )
+                connection.commit()
+                return _LifecycleReceipt(lifecycle, 1, True)
+
             row = connection.execute(
-                "SELECT * FROM pupu_unchain_ownership_bindings "
-                "WHERE lifecycle_key = ?",
+                "SELECT * FROM pupu_unchain_ownership_bindings " "WHERE lifecycle_key = ?",
                 (key,),
             ).fetchone()
-            if row is None or _decode_lifecycle_row(row) != lifecycle:
+            if row is not None:
+                _decode_lifecycle_row(row)
                 raise PupuUnchainMemoryV2OwnershipError(
-                    "lifecycle operation has no exact binding"
+                    "lifecycle expected revision changed"
                 )
+            if expected != 0:
+                raise PupuUnchainMemoryV2OwnershipError(
+                    "new lifecycle expected revision must be zero"
+                )
+            connection.execute(
+                """
+                INSERT INTO pupu_unchain_ownership_bindings(
+                    lifecycle_key, owner_chat_id, execution_id, generation_id,
+                    attempt_id, binding_id, chat_space_id, revision,
+                    lifecycle_json, lifecycle_sha256
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (
+                    key,
+                    lifecycle.owner_chat_id,
+                    lifecycle.execution_id,
+                    lifecycle.generation_id,
+                    lifecycle.attempt_id,
+                    lifecycle.binding_id,
+                    lifecycle.chat_space_id,
+                    encoded,
+                    digest,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO pupu_unchain_ownership_operations(
+                    lifecycle_key, operation_id, payload_sha256,
+                    expected_revision, resulting_revision
+                ) VALUES (?, ?, ?, ?, 1)
+                """,
+                (key, normalized_operation, digest, expected),
+            )
             connection.commit()
-            return _LifecycleReceipt(lifecycle, 1, True)
-
-        row = connection.execute(
-            "SELECT * FROM pupu_unchain_ownership_bindings " "WHERE lifecycle_key = ?",
-            (key,),
-        ).fetchone()
-        if row is not None:
-            _decode_lifecycle_row(row)
+            return _LifecycleReceipt(lifecycle, 1, False)
+        except sqlite3.IntegrityError as error:
+            connection.rollback()
             raise PupuUnchainMemoryV2OwnershipError(
-                "lifecycle expected revision changed"
-            )
-        if expected != 0:
+                "lifecycle binding conflicted"
+            ) from error
+        except sqlite3.Error as error:
+            connection.rollback()
             raise PupuUnchainMemoryV2OwnershipError(
-                "new lifecycle expected revision must be zero"
-            )
-        connection.execute(
-            """
-            INSERT INTO pupu_unchain_ownership_bindings(
-                lifecycle_key, owner_chat_id, execution_id, generation_id,
-                attempt_id, binding_id, chat_space_id, revision,
-                lifecycle_json, lifecycle_sha256
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-            """,
-            (
-                key,
-                lifecycle.owner_chat_id,
-                lifecycle.execution_id,
-                lifecycle.generation_id,
-                lifecycle.attempt_id,
-                lifecycle.binding_id,
-                lifecycle.chat_space_id,
-                encoded,
-                digest,
-            ),
-        )
-        connection.execute(
-            """
-            INSERT INTO pupu_unchain_ownership_operations(
-                lifecycle_key, operation_id, payload_sha256,
-                expected_revision, resulting_revision
-            ) VALUES (?, ?, ?, ?, 1)
-            """,
-            (key, normalized_operation, digest, expected),
-        )
-        connection.commit()
-        return _LifecycleReceipt(lifecycle, 1, False)
-    except sqlite3.IntegrityError as error:
-        connection.rollback()
-        raise PupuUnchainMemoryV2OwnershipError(
-            "lifecycle binding conflicted"
-        ) from error
-    except sqlite3.Error as error:
-        connection.rollback()
-        raise PupuUnchainMemoryV2OwnershipError(
-            "lifecycle persistence failed"
-        ) from error
-    except BaseException:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+                "lifecycle persistence failed"
+            ) from error
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
 
 def list_pupu_unchain_ownership_lifecycles(
@@ -400,25 +404,26 @@ def list_pupu_unchain_ownership_lifecycles(
     if type(limit) is not int or not 1 <= limit <= 10_000:
         raise ValueError("limit must be between 1 and 10000")
     _initialize_lifecycle_schema(path)
-    connection = _connect(path)
-    try:
-        connection.execute("PRAGMA query_only = ON")
-        rows = list(
-            connection.execute(
-                """
-                SELECT * FROM pupu_unchain_ownership_bindings
-                WHERE owner_chat_id = ?
-                ORDER BY execution_id, generation_id, attempt_id, lifecycle_key
-                LIMIT ?
-                """,
-                (owner, limit),
+    with serialized_context_v2_database_access(path):
+        connection = _connect(path)
+        try:
+            connection.execute("PRAGMA query_only = ON")
+            rows = list(
+                connection.execute(
+                    """
+                    SELECT * FROM pupu_unchain_ownership_bindings
+                    WHERE owner_chat_id = ?
+                    ORDER BY execution_id, generation_id, attempt_id, lifecycle_key
+                    LIMIT ?
+                    """,
+                    (owner, limit),
+                )
             )
-        )
-        return tuple(_decode_lifecycle_row(row) for row in rows)
-    except sqlite3.Error as error:
-        raise PupuUnchainMemoryV2OwnershipError("lifecycle read failed") from error
-    finally:
-        connection.close()
+            return tuple(_decode_lifecycle_row(row) for row in rows)
+        except sqlite3.Error as error:
+            raise PupuUnchainMemoryV2OwnershipError("lifecycle read failed") from error
+        finally:
+            connection.close()
 
 
 def read_pupu_unchain_ownership_lifecycle(
@@ -439,24 +444,25 @@ def read_pupu_unchain_ownership_lifecycle(
         _identifier(attempt_id, "attempt_id"),
     )
     _initialize_lifecycle_schema(path)
-    connection = _connect(path)
-    try:
-        connection.execute("PRAGMA query_only = ON")
-        row = connection.execute(
-            """
-            SELECT * FROM pupu_unchain_ownership_bindings
-            WHERE owner_chat_id = ? AND execution_id = ?
-              AND generation_id = ? AND attempt_id = ?
-            """,
-            scope,
-        ).fetchone()
-        return None if row is None else _decode_lifecycle_row(row)
-    except sqlite3.Error as error:
-        raise PupuUnchainMemoryV2OwnershipError(
-            "lifecycle read failed"
-        ) from error
-    finally:
-        connection.close()
+    with serialized_context_v2_database_access(path):
+        connection = _connect(path)
+        try:
+            connection.execute("PRAGMA query_only = ON")
+            row = connection.execute(
+                """
+                SELECT * FROM pupu_unchain_ownership_bindings
+                WHERE owner_chat_id = ? AND execution_id = ?
+                  AND generation_id = ? AND attempt_id = ?
+                """,
+                scope,
+            ).fetchone()
+            return None if row is None else _decode_lifecycle_row(row)
+        except sqlite3.Error as error:
+            raise PupuUnchainMemoryV2OwnershipError(
+                "lifecycle read failed"
+            ) from error
+        finally:
+            connection.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -609,30 +615,31 @@ def _verify_component_scope(
     if workspace.space.space_id != lifecycle.chat_space_id:
         raise PupuUnchainMemoryV2OwnershipError("workspace chat space scope changed")
 
-    connection = _connect(database_path)
-    try:
-        connection.execute("PRAGMA query_only = ON")
-        execution = connection.execute(
-            "SELECT execution_id FROM executions WHERE execution_id = ?",
-            (lifecycle.execution_id,),
-        ).fetchone()
-        space = connection.execute(
-            "SELECT owner_chat_id FROM spaces WHERE space_id = ?",
-            (lifecycle.chat_space_id,),
-        ).fetchone()
-        curation = connection.execute(
-            """
-            SELECT owner_chat_id, target_space_id
-            FROM curation_scopes WHERE binding_id = ?
-            """,
-            (lifecycle.binding_id,),
-        ).fetchone()
-    except sqlite3.Error as error:
-        raise PupuUnchainMemoryV2OwnershipError(
-            "durable component scope is unavailable"
-        ) from error
-    finally:
-        connection.close()
+    with serialized_context_v2_database_access(database_path):
+        connection = _connect(database_path)
+        try:
+            connection.execute("PRAGMA query_only = ON")
+            execution = connection.execute(
+                "SELECT execution_id FROM executions WHERE execution_id = ?",
+                (lifecycle.execution_id,),
+            ).fetchone()
+            space = connection.execute(
+                "SELECT owner_chat_id FROM spaces WHERE space_id = ?",
+                (lifecycle.chat_space_id,),
+            ).fetchone()
+            curation = connection.execute(
+                """
+                SELECT owner_chat_id, target_space_id
+                FROM curation_scopes WHERE binding_id = ?
+                """,
+                (lifecycle.binding_id,),
+            ).fetchone()
+        except sqlite3.Error as error:
+            raise PupuUnchainMemoryV2OwnershipError(
+                "durable component scope is unavailable"
+            ) from error
+        finally:
+            connection.close()
     if execution is None:
         raise PupuUnchainMemoryV2OwnershipError(
             "durable execution scope is unavailable"
