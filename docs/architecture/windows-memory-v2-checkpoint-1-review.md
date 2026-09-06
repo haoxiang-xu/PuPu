@@ -731,17 +731,30 @@ PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src（sibling worktree�
 
 ### 本轮明确未做（NOT_RUN，非 N/A）
 
-- 真实新操作系统进程（非同进程新 runtime 实例）的冷启动恢复验证。
-- 跨线程/跨进程并发提交竞态、cancel 与 accept 先后顺序矩阵的专门测试。
 - Windows 命名互斥跨进程行为、H4 `PermissionError` 根因、PyInstaller 打包拓扑——非 Windows 环境无法验证，且互斥在非 Windows 分支是进程内 `threading.RLock`。
 - 固定 candidate/wheel/sidecar 的安装态证据（P5，属 Checkpoint 2）。
+- 图 resume 后第二个 interaction 的 cancel 场景（依赖尚未处理的图 resume lineage 校验复杂度，见下节）。
+
+### 第十七节：SEQ-010 崩溃矩阵补齐 — 2026-09-06
+
+第十六节遗留的三个 NOT_RUN 格（真实新进程冷启动恢复、并发提交竞争、cancel/accept 先后顺序）已用新增 `test_memory_v2_acceptance_crash_matrix.py`（5 个测试）补齐，全部 **PASS**：
+
+- **真实新进程冷启动恢复**：用 `subprocess.run` 启动一个真正独立的 Python 进程调用 `adapter.get_pending_interaction`（只共享磁盘上的 `UNCHAIN_DATA_DIR`，不共享任何解释器状态），分别在"canonical 提交前中断"与"canonical 已提交、host receipt 前中断"两处注入故障。已核实：对 Task 8 之前（`_recover_accepted_canonical_receipt` 尚不存在）的 `durable_interaction_host.py` 跑同一测试，`after_canonical_before_host_receipt` 边界确实失败，且报的正是原 J2 反例的同一错误 `Parked session guard has no exact durable resume lineage`（人工用 `git apply -R` 临时回退该 commit 的 diff 复现，验证后 `git apply` 复原）。
+- **并发提交竞争**：4 个线程对同一个待答问题分别提交 "vue"/"vue"/"react"/"react"，验证恰好一个答案、一个 receipt id 胜出，canonical journal 里恰好一条 `interaction.resolved`。
+- **cancel/accept 先后顺序**：改用图的**第一个** interaction（而非 resume 后的第二个），刻意避开与本次原子接受修复无关的图 resume lineage 校验复杂度。过程中发现并核实了两个此前未记录的既有事实：
+  1. 取消清理路径本身会用 `require_unresolved=False` 往 canonical journal 投影一条终态 `interaction.resolved`（代表"已取消"），所以"取消后再提交真实答案被拒绝"的真正原因是"该 interaction 已经有了一个（取消产生的）canonical resolution"，而不是"没有任何 resolution"——最初按后者写的断言是错的，已改正。
+  2. 对一个**已经**通过 canonical 路径接受了真实答案的 interaction 再调用 `cancel_chat_execution`，会在事件身份层（`_replayed_append` 的 payload 不一致检查）冲突报错——这与本次修复前的旧两段式写法遇到的冲突完全一致，**不是本次引入的回归**；这条路径本身已知会抛错，不是"优雅空操作"。该测试实际验证的不变量是：即便这次取消协调尝试失败，已经被接受的答案（canonical resolution 与 host receipt）不会被破坏、覆盖或复制。
+
+**范围收窄的说明**：图 resume 后第二个 interaction 的 cancel 场景未覆盖——那需要先弄清并可能修复图 resume lineage 校验（`_graph_step_follows_bound_interaction_source` / `_validated_durable_interaction_guard_owner_attempt`）本身的既有复杂度，这是与 J1/J2/J3 原子接受修复不同的另一类问题，留作独立后续工作，不在本次范围内展开。
+
+新增测试连续跑 5 次无 flaky。PuPu 全量回归重跑：**2282 passed, 4 skipped, 0 failed**（较第十六节 2277 增加 5，即本次新增测试）。GitNexus `detect-changes --scope staged`（新增文件为纯测试文件）：1 file / 14 symbols / 0 processes / LOW，无 `partial`/`truncated`。
 
 ### 提交对与复现命令（供 Codex 在真实 Windows 上使用）
 
-| 仓 | 起点 | 本轮终点 |
-|---|---|---|
-| unchain | `3c3b76e` | `7d2b7bb` |
-| PuPu | `fe4d4393` | `f1c3c847` |
+| 仓 | 起点 | 第十六节终点 | 第十七节（本次）终点 |
+|---|---|---|---|
+| unchain | `3c3b76e` | `7d2b7bb` | `7d2b7bb`（未变） |
+| PuPu | `fe4d4393` | `f1c3c847` | `833b6c39` |
 
 ```powershell
 # cwd: F:/GIT/unchain

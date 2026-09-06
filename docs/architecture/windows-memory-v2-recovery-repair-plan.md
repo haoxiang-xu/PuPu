@@ -289,6 +289,8 @@ H3 已通过的源码特性校验复用，但不能用旧的 `graph_interaction_
 | unchain | `3c3b76e` | `7d2b7bb` |
 | PuPu | `fe4d4393` | `f1c3c847` |
 
+（2026-09-06 补充：PuPu 又追加一个 commit `833b6c39` 补齐 Task 10 崩溃矩阵测试，见验收记录第十七节；unchain 未变。）
+
 工作目录：`/Users/red/Desktop/GITRepo/recovery/{unchain,PuPu}`（相邻 sibling worktree，PuPu 用 `/Users/red/Desktop/GITRepo/PuPu/.venv`，`PYTHONPATH` 指向 worktree 的 unchain `src`）。
 
 ### 11.2 P0 写入者清单核实结论
@@ -318,13 +320,13 @@ H3 已通过的源码特性校验复用，但不能用旧的 `graph_interaction_
 | artifact 已写、事件未写时中断 → 不占位 | **PASS** | `test_memory_v2_acceptance_boundary_review.py::test_failed_canonical_event_does_not_permanently_claim_unaccepted_answer`（断言 artifact 行确实已在同事务内暂存、失败后 operations 计数不变、换答案可成功） |
 | 同答案重放幂等 | **PASS** | `test_journal_atomic_append.py::test_same_answer_replays_and_different_answer_conflicts`、`acceptance boundary` 用例末尾 |
 | 不同答案冲突拒绝 | **PASS** | 同上 + `record_interaction_receipt` 二次提交不同答案得 `interaction_canonical_conflict` |
-| **真实新操作系统进程冷启动恢复** | **NOT_RUN** | 仅同进程内新 runtime 实例验证；真实 `subprocess`/sidecar 重启未做 |
-| **跨线程/跨进程并发提交竞争** | **NOT_RUN** | 未做多线程同时提交同/不同答案的竞态测试 |
-| **cancel 与 accept 先后顺序矩阵** | **NOT_RUN** | 未新增专门用例；仅确认现有取消回归套件（`test_memory_v2_unchain_active_host_event_boundary.py` 等）全绿 |
+| 真实新操作系统进程冷启动恢复 | **PASS**（2026-09-06 追加） | `test_memory_v2_acceptance_crash_matrix.py::test_interruption_then_fresh_process_recovers_one_answer`；真实 `subprocess.run` 查询，非同进程新 runtime 实例。已核实对 Task 8 之前的 `durable_interaction_host.py` 跑该测试，`after_canonical_before_host_receipt` 边界确实失败并复现原 J2 的 `Parked session guard has no exact durable resume lineage` 错误 |
+| 跨线程并发提交竞争 | **PASS**（2026-09-06 追加） | `test_memory_v2_acceptance_crash_matrix.py::test_concurrent_same_and_different_answers_accept_exactly_one`：4 线程提交两个答案各两次，恰好一个答案、一个 receipt id 胜出，журnal 恰好一条 `interaction.resolved`。仅验证跨线程，非跨进程（Windows 命名互斥的跨进程竞争仍需 Codex 在真实 Windows 上验证） |
+| cancel 与 accept 先后顺序 | **PASS**（2026-09-06 追加，范围收窄） | `test_memory_v2_acceptance_crash_matrix.py::test_cancel_before_accept_rejects_the_answer` / `test_accept_before_cancel_keeps_the_accepted_fact`。使用图的**第一个** interaction（非 resume 后的第二个），刻意避开与本次修复无关的图 resume lineage 校验复杂度。核实到两个既有事实：(1) 取消本身会用 `require_unresolved=False` 投影一条终态 canonical resolution，因此"取消后拒绝真实答案"的原因是"已解决"而非"无 resolution"；(2) 对一个已经通过 canonical 路径接受了答案的 interaction 再次调用 `cancel_chat_execution` 会在事件身份层冲突报错——这与本次修复前的旧两段式写法遇到的冲突相同，不是新回归；该测试验证的实际不变量是"这次失败的取消尝试不会破坏已接受的答案"。**未覆盖**：图 resume 后第二个 interaction 的 cancel 场景（需要先解决的是图 resume lineage 校验本身，超出本轮范围） |
 | Windows 命名互斥跨进程 | **NOT_RUN**（Mac 环境） | 非 Windows 分支是进程内 `threading.RLock`，不能验证跨进程互斥 |
 | H4 `PermissionError` 根因 | **NOT_RUN** | 未涉及，保留原有限退避 |
 
-上表标 NOT_RUN 的格是本轮 Checkpoint 1 的已知缺口，不是"未测=已通过"。
+上表标 NOT_RUN 的格仍是已知缺口，不是"未测=已通过"；标 PASS 的格已在 2026-09-06 用真实进程/线程/取消调用验证，具体证据见对应测试文件。
 
 ### 11.5 全量回归结果（本轮 Mac 环境，2026-09-05）
 
@@ -349,4 +351,4 @@ PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src
 1. 非 Windows 环境的 `serialized_context_v2_database_access` 是进程内 `threading.RLock`，只验证了跨线程正确性；Windows 命名互斥的跨进程行为、`PermissionError`（H4）根因、PyInstaller 打包拓扑仍需 Codex 在真实 Windows 上验证。
 2. `test_failure_after_artifact_rows_rolls_back_the_claim` 等测试确认对象文件（`objects/` 目录）本身**不做 GC**（既有设计），一次被回滚事务写入的孤儿对象文件可能残留，但不会被任何 SQLite 行引用，不影响正确性，与既有 `sqlite_chat_deletion_v2.py` 文档的说明一致。
 3. `graph_lineage` 参数目前只在 `_graph_step_follows_bound_interaction_source`（既有的 resume 校验路径，未改）与 `record_interaction_receipt` 尚未接线——当前 J2/J3 红测试覆盖的是简单两步图（无 rebind），`record_interaction_receipt` 提交时依赖的是 `assert_interaction_unresolved` + 既有 operation-identity 冲突机制，已足以通过全部已知反例；把 `GraphLineageLocator` 接进 `record_interaction_receipt` 的提交路径（覆盖 resume/rebind 场景下的成功者校验）留作后续，不在本轮范围内新增。
-4. Task 10（SEQ-010 完整崩溃矩阵：真实新进程、并发竞争、cancel 排序）本轮**未做**，见 §11.4 NOT_RUN 行；建议作为 Checkpoint 1 之后、Checkpoint 2 之前的独立后续工作。
+4. Task 10（SEQ-010 崩溃矩阵：真实新进程、并发竞争、cancel 排序）已于 2026-09-06 补齐，见 §11.4 更新后的表与 `test_memory_v2_acceptance_crash_matrix.py`。仍未覆盖：图 resume 后第二个 interaction 的 cancel 场景（依赖尚未处理的图 resume lineage 校验复杂度）、Windows 跨进程命名互斥竞争、H4 `PermissionError` 根因；这三项仍是独立后续工作。
