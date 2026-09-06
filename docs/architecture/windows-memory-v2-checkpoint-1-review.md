@@ -691,3 +691,65 @@ $env:PYTHONPATH='F:/GIT/unchain/src'
 # cwd: F:/GIT/PuPu/unchain_runtime/server
 & 'F:/GIT/PuPu/.venv/Scripts/python.exe' -m pytest tests/test_memory_v2_acceptance_boundary_review.py -q --tb=short
 ```
+
+## 第十六节：Claude Mac 修复复验 — 2026-09-05
+
+**结论：J1/J2/J3 三个反例全部转绿，两仓全量回归通过。这是源码修复阶段的 Mac 侧证据，不是 Windows 验收，不是 Checkpoint 1 通过判定——Windows 命名互斥、真实进程、`PermissionError`（H4）仍待 Codex 在真实 Windows 复验。**
+
+### 根因与修复（对应第十五节 J1/J2/J3）
+
+- **J1**：`sqlite_v2.py` 的普通读事务（`_transaction(immediate=False)`）与 `_initialize()` 未参与 `serialized_context_v2_database_access` 互斥；existing-only 预检的"探测 WAL → 选连接模式"两步之间可被普通 reader 的关闭窗口打断。修复：普通读/写/初始化统一纳入互斥；existing-only 读抽成 `existing_context_v2_readonly_connection`，探测+连接+关闭在同一互斥临界区内完成；`-wal` 存在但 `-shm` 缺失（crash 残留）显式拒绝而不是静默创建 `-shm`。另有 6 个 unchain 持久化模块（compiler/generation-lifecycle/legacy-bootstrap/chat-deletion/context-memory-bootstrap/read）与 PuPu 侧 3 个模块（active-bridge 两个 admission 读者、store-boundary 分类器、ownership-adapter 全部 5 处 `_connect`）同样未受保护，同批修复。
+- **J2**：`get_pending_interaction` 只有看到 host receipt 才允许 `allow_resolved=True`，排除"canonical 已提交、host receipt 未提交"的中断态。修复：新增 `_recover_accepted_canonical_receipt`，在 `snapshot.receipt is None` 时先侧写读取 canonical journal 是否已有对应 `interaction.resolved` 事件（`pupu_unchain_cold_accepted_interaction_resolution`，existing-only 读+校验 artifact 内容摘要），有则 `runtime.record_receipt(...)` 补齐 host 投影再继续。
+- **J3**：`project_interaction_resolution` 原先自开两个独立事务（先 artifact 后事件），事件失败后 artifact 的 operation 行已提交，占位后续换答案的尝试。修复：Unchain 新增 `BoundExecutionJournal.append_with_artifacts(request, artifacts, precondition)`，在同一个 `BEGIN IMMEDIATE` 连接内做"replay 判定 → in-transaction precondition → artifact 行 → 事件行"，全链路（`ArtifactService.prepare_json_value` → `CanonicalSemanticEventProjector.prepare_interaction_resolution` → `DurableEventSink.append_prepared` → `ContextInputIngress.persist(precondition=)`）改走原子路径；PuPu bridge 的 precondition 用新增 `assert_interaction_unresolved`（`unchain.context.interaction_acceptance`）校验"仍只有一个未解决请求、无既有解决"。
+
+### 本轮新增/迁移的反例
+
+- 迁移原 J1 单线程反例为跨线程版本（原用例用同线程 RLock 重入关闭 keeper，任何正确互斥都无法让它失败，不是有效反例）；新增 WAL-without-SHM 拒绝反例；新增 AST 静态守卫扫描全部 unchain 持久化模块的未受保护连接点。
+- J2/J3 的 fault-injection 从 `DurableEventSink.append_projected`（原子化后不再被 interaction resolution 调用）迁移到 `_SQLiteBoundContextV2Repository._append_with_connection`，并加断言证明 artifact 行确实已在同一事务内暂存、回滚后 operations 计数不变（而非归零——避免与前一个合法 interaction 的 artifact 混淆）。
+- 强化 J2 复原后的断言：`status == receipt_recorded`、`resolution.response` 匹配、同答案再提交幂等（`status: ok`）、换答案被拒（`interaction_receipt_conflict`... 实为 `interaction_canonical_conflict`，见下）。
+
+### 两处随之而来的行为变化（非削弱，已核实为正确且更新了对应测试）
+
+1. `record_interaction_receipt` 对"已恢复的 canonical 答案 + 换一个不同答案"现在在 **canonical 层**（`interaction_canonical_conflict` / `already_resolved`）拒绝，比原先的 host 层 `interaction_receipt_conflict` 更早、更权威——因为 canonical 层现在是唯一真相源，会在到达 host receipt CAS 之前先被评估。
+2. `test_conflicting_receipt_response_fails_closed_without_a_second_event` 的冲突异常从 `ContextConflictError`（旧的 artifact 层单独冲突检查）变为可能是 `JournalConflictError`（新的原子路径里事件层的 replay 判定先于 artifact 层跑到）——两者都表示"这个答案与已接受的另一个答案冲突"这同一类失败，测试已改为接受两者之一。
+3. 另发现两个已有测试（`test_cold_cancel_supersedes_historical_malformed_generic_resolution`、`test_fresh_active_preflight_repairs_cancelled_poison_without_resume`）依赖"取消清理路径可以在已有旧式/畸形 resolution 存在时仍补写规范 `interaction.resolved`"——这与 J3 修复默认加的"必须仍未解决"precondition 冲突。修复：`persist_pupu_unchain_cold_interaction_resolution` 新增 `require_unresolved` 开关（默认 `True`，仅取消清理路径传 `False`），保留该路径原有的"补写/覆盖"语义，同时仍享受原子 artifact+event 提交的正确性收益。
+
+### 实测结果
+
+```
+Python: 3.12.3, SQLite: 3.45.1
+PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src（sibling worktree）
+```
+
+- unchain 定向 J1 五文件集合：**22 passed**（含新增反例，原单线程反例已迁移，无 xfail/skip）。
+- unchain 全量 `pytest tests -q`：**3242 passed, 3 skipped, 5 xfailed, 0 failed**。
+- PuPu 定向 J2/J3 两文件集合：**4 passed**。
+- PuPu Checkpoint 12 文件集合（`test_durable_interaction_host.py` 等）：**231 passed, 23 subtests passed, 0 failed**。
+- PuPu 全量 `unchain_runtime/server` `pytest tests -q`：**2277 passed, 4 skipped, 0 failed**（3556 subtests passed）。
+- PuPu Electron `jest` 全量：**893 passed, 1 failed**（`windows_vault_provenance.test.cjs`，对改动前基线跑同一命令结果相同，与本轮修复无关，需真实打包 sidecar artifact）。
+- GitNexus `detect-changes --scope compare`：unchain 27 files/155 symbols/**60 processes/CRITICAL**；PuPu（增量）14 files/39 symbols/0 processes/LOW；两者均无 `partial`/`truncated` 标记。
+
+### 本轮明确未做（NOT_RUN，非 N/A）
+
+- 真实新操作系统进程（非同进程新 runtime 实例）的冷启动恢复验证。
+- 跨线程/跨进程并发提交竞态、cancel 与 accept 先后顺序矩阵的专门测试。
+- Windows 命名互斥跨进程行为、H4 `PermissionError` 根因、PyInstaller 打包拓扑——非 Windows 环境无法验证，且互斥在非 Windows 分支是进程内 `threading.RLock`。
+- 固定 candidate/wheel/sidecar 的安装态证据（P5，属 Checkpoint 2）。
+
+### 提交对与复现命令（供 Codex 在真实 Windows 上使用）
+
+| 仓 | 起点 | 本轮终点 |
+|---|---|---|
+| unchain | `3c3b76e` | `7d2b7bb` |
+| PuPu | `fe4d4393` | `f1c3c847` |
+
+```powershell
+# cwd: F:/GIT/unchain
+$env:PYTHONPATH='F:/GIT/unchain/src'
+& 'F:/GIT/PuPu/.venv/Scripts/python.exe' -m pytest tests -q --tb=short
+
+# cwd: F:/GIT/PuPu/unchain_runtime/server
+& 'F:/GIT/PuPu/.venv/Scripts/python.exe' -m pytest tests -q --tb=short
+```
+
+`.gitnexus` detect-changes 需先在两仓各自 worktree 目录跑一次 `analyze --index-only` 注册该 worktree 为可寻址 repo，再用 `detect-changes --scope compare --base-ref <起点SHA> --repo <worktree绝对路径>`。

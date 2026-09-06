@@ -277,3 +277,76 @@ canonical acceptance 不会使跨库/跨文件操作天然原子。实施必须�
 H3 已通过的源码特性校验复用，但不能用旧的 `graph_interaction_lineage_preflight_v1` 特性冒充此次原子接受能力。H4 继续作为既有回归和实际句柄问题跟踪，有限退避的通过不等于根因闭环；本节不把它隐去，也不因此扩展成全库重构。
 
 交给执行模型的指令：按第十节顺序完成内部设计验证、实现和整个已知矩阵，再集中提交原 Checkpoint 1；P1 未证明可行前不要改 host 业务路径，P2 未有原子性证据前不要发布 capability。保持现有数据和 dirty tree，不提交 Git，不提前启用日常 Active；每次新失败回到相应不变量定位，而不是追加一个身份例外。
+
+## 11. H1/H2 实施记录 — 2026-09-05（Claude, Mac）
+
+本节是第十节 Checkpoint 1 材料的实际交付记录。范围：J1/J2/J3 的根因修复与其 red→green 证据。**未做**：P5、固定 artifact/安装矩阵、Windows 真实进程/命名互斥/`PermissionError`（H4）——这些仍需 Codex 在真实 Windows 上验证。
+
+### 11.1 最终 commit 对（两仓分别在隔离 worktree 内提交，未合并 dev、未 push）
+
+| 仓 | 起点（原 wip 提交） | 终点（本轮 HEAD） |
+|---|---|---|
+| unchain | `3c3b76e` | `7d2b7bb` |
+| PuPu | `fe4d4393` | `f1c3c847` |
+
+工作目录：`/Users/red/Desktop/GITRepo/recovery/{unchain,PuPu}`（相邻 sibling worktree，PuPu 用 `/Users/red/Desktop/GITRepo/PuPu/.venv`，`PYTHONPATH` 指向 worktree 的 unchain `src`）。
+
+### 11.2 P0 写入者清单核实结论
+
+- unchain `context_v2.sqlite3` 的全部直连点（`sqlite_v2.py` 自身 + `sqlite_context_compiler_v2.py` / `sqlite_generation_lifecycle_v2.py` / `sqlite_legacy_bootstrap_v2.py` / `sqlite_chat_deletion_v2.py` / `sqlite_context_memory_bootstrap_v2.py` / `sqlite_read_v2.py` 共 16 处历史未受保护点）已全部纳入 `serialized_context_v2_database_access`；`sqlite_curator_query_v2.py`/`sqlite_memory_v2.py`/`sqlite_long_term_memory_v2.py`/`sqlite_curator_review_decision_v2.py` 经模块 docstring 与代码确认"deliberately shares the Context V2 database"——**非 N/A**，同批纳入。
+- PuPu 侧 `memory_v2_unchain_active_bridge.py` 两个 admission 读者、`memory_v2_store_boundary.py` 的 schema 分类器、`memory_v2_unchain_ownership_adapter.py` 全部 5 处 `_connect()` 调用点同样纳入。
+- **确认 N/A**：PuPu `memory_v2_store.py`（`MemoryV2Store`，`STORE_OWNER_PUPU_LEGACY` 实现）。核实 `memory_v2_runtime.py:718`：`get_memory_v2_runtime()` 在 `configured_owner in {STORE_OWNER_OFF, STORE_OWNER_UNCHAIN}` 时直接返回 `None`，从不构造 `MemoryV2Store`——owner=unchain 时它不会被实例化，互斥由 store-owner admission 保证，不需要参与 `context_v2.sqlite3` 的连接互斥。
+- 新增 AST 静态守卫 `tests/context_v2/test_context_v2_connection_lifecycle_inventory.py`：扫描 7 个 unchain 持久化模块，任何 `sqlite3.connect(` 或对 `_connect`/`self._connect()` 的调用若不在 `with serialized_context_v2_database_access(...)` 或 `existing_context_v2_readonly_connection(...)` 块内即失败。已验证：对 `3c3b76e` 原始基线跑该守卫，精确列出全部 16 个未受保护点；对修复后的 HEAD 跑，0 个。
+
+### 11.3 BC-008 / BC-009 最终字段与幂等键
+
+- **BC-008**（快照 → graph proof → host 预检）：producer 是 `JournalSnapshot{execution_id, events: tuple[JournalEvent], high_water}`（`unchain.journal.snapshot`，未变）；新增 consumer 用法是 `prove_graph_interaction_lineage(journal, ..., snapshot=)` 与 `assert_interaction_unresolved(snapshot, attempt=, interaction_id=)` 直接复用调用方已持有的 in-transaction snapshot，而不是各自重新 `capture_snapshot()`。`snapshot.execution_id != journal.execution_id` 时 `prove_graph_interaction_lineage` 显式拒绝（`GraphCheckpointError`）。
+- **BC-009**（canonical 接受 → host receipt/guard）：canonical 接受记录**就是**既有 `interaction.resolved` 事件 + 其 `content_ref` artifact，**没有新建事件 schema**。原子性由新增 `BoundExecutionJournal.append_with_artifacts(*, request, artifacts: tuple[PendingArtifact,...], precondition=None)` 保证：同一个 `BEGIN IMMEDIATE` 连接内，先做 exact operation replay 判定（重放命中则跳过 precondition 与 artifact 重新声明，只做 replay 一致性校验），未命中则在同一连接上执行 `precondition(in_transaction_snapshot)`（拒绝则整体回滚、不留痕迹），再写 artifact 行，最后写事件行。
+  - 幂等键：事件侧 `operation_id = "operation-" + digest(attempt, event_type, interaction_id)`（不含回答内容，identity-only）；artifact 侧 `operation_id = "artifact.interaction-resolution." + digest(同一 identity)`。两者的 `payload_sha256` 都包含回答内容，因此"同一身份、不同回答"必然在 `operation_row` 重放校验处冲突。
+  - 错误 wire：`persist_pupu_unchain_cold_interaction_resolution` 内部 precondition 抛 `InteractionAcceptanceConflict(reason)`（`reason ∈ {not_pending, already_resolved}`）或 `GraphCheckpointError`；`record_interaction_receipt` 用 `_canonical_rejection_reason(exc)` 归一化为 `not_pending / already_resolved / graph_lineage_rejected / already_accepted_different_answer / transient_failure`，只有 `transient_failure` 标 `retryable=True`。
+  - **例外口子**：`persist_pupu_unchain_cold_interaction_resolution(..., require_unresolved=False)`——仅 `_reconcile_cancelled_interaction_to_context`（取消清理路径）使用，用于故意用规范 `interaction.resolved` 覆盖/补充一个历史非规范或畸形的旧式 resolution 标记（`test_cold_cancel_supersedes_historical_malformed_generic_resolution` 等既有测试要求这一行为）；该路径仍走同一原子 `append_with_artifacts`，只是跳过"必须仍未解决"这一层校验。
+  - Manifest feature：`durable_interaction` 协议新增 `interaction_resolution_atomic_acceptance_v1`，已同步 unchain `runtime_protocol.py` 与 PuPu 全部三个独立 strict consumer（`context_memory_v2_capability.py` / `electron/main/services/unchain/memory_v2_rollout.js` / `scripts/release-qa/unchain-artifact.mjs`）及其各自测试固件（含 `contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json`、两个 Electron 本地 fixture manifest）。
+
+### 11.4 SEQ-009 / SEQ-010 证据范围
+
+| 单元格 | 状态 | 证据 |
+|---|---|---|
+| 快照单点一致（同一读事务捕获 plan/scan/operations） | **PASS** | `test_graph_wal_cycle_review.py::test_single_snapshot_cannot_mix_plan_before_and_checkpoint_after_resolution`（沿用原反例，未减弱断言） |
+| 预检零文件副作用（existing-only，WAL 存在/不存在两态） | **PASS** | `test_graph_readonly_lock_boundary_review.py` 三条用例（迁移后的跨线程版本 + 新增 WAL-without-SHM 拒绝） |
+| 提交前拒绝（precondition 在同一事务内重判） | **PASS** | `test_journal_atomic_append.py::test_precondition_rejection_persists_nothing`、`test_interaction_resolution_atomic_ingress.py::test_precondition_rejects_after_concurrent_resolution` |
+| 提交后、host receipt 前中断 → 新调用找回 | **PASS** | `test_memory_v2_acceptance_boundary_review.py::test_pending_recovers_second_interaction_after_host_receipt_interruption`（同进程内新 runtime 实例，非新操作系统进程） |
+| artifact 已写、事件未写时中断 → 不占位 | **PASS** | `test_memory_v2_acceptance_boundary_review.py::test_failed_canonical_event_does_not_permanently_claim_unaccepted_answer`（断言 artifact 行确实已在同事务内暂存、失败后 operations 计数不变、换答案可成功） |
+| 同答案重放幂等 | **PASS** | `test_journal_atomic_append.py::test_same_answer_replays_and_different_answer_conflicts`、`acceptance boundary` 用例末尾 |
+| 不同答案冲突拒绝 | **PASS** | 同上 + `record_interaction_receipt` 二次提交不同答案得 `interaction_canonical_conflict` |
+| **真实新操作系统进程冷启动恢复** | **NOT_RUN** | 仅同进程内新 runtime 实例验证；真实 `subprocess`/sidecar 重启未做 |
+| **跨线程/跨进程并发提交竞争** | **NOT_RUN** | 未做多线程同时提交同/不同答案的竞态测试 |
+| **cancel 与 accept 先后顺序矩阵** | **NOT_RUN** | 未新增专门用例；仅确认现有取消回归套件（`test_memory_v2_unchain_active_host_event_boundary.py` 等）全绿 |
+| Windows 命名互斥跨进程 | **NOT_RUN**（Mac 环境） | 非 Windows 分支是进程内 `threading.RLock`，不能验证跨进程互斥 |
+| H4 `PermissionError` 根因 | **NOT_RUN** | 未涉及，保留原有限退避 |
+
+上表标 NOT_RUN 的格是本轮 Checkpoint 1 的已知缺口，不是"未测=已通过"。
+
+### 11.5 全量回归结果（本轮 Mac 环境，2026-09-05）
+
+```
+Python: 3.12.3 (CPython, /Users/red/Desktop/GITRepo/PuPu/.venv/bin/python)
+SQLite: 3.45.1
+PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src
+```
+
+- unchain `pytest tests -q`：**3242 passed, 3 skipped, 5 xfailed**（0 failed）。
+- PuPu `unchain_runtime/server` `pytest tests -q`：**2277 passed, 4 skipped, 3556 subtests passed**（0 failed；1 个与本次改动无关的既有后台线程 `PytestUnhandledThreadExceptionWarning`，非失败）。
+- PuPu Electron `jest --testMatch="**/electron/tests/**/*.test.cjs"`：**893 passed, 1 failed, 4 skipped**。唯一失败 `windows_vault_provenance.test.cjs::accepts a packaged exact sidecar pair`——已核实对 `fe4d4393`（本轮改动前）跑同一命令**结果相同**，与本次修复无关（该用例需要真实打包的 Windows sidecar artifact，本机 dev checkout 不具备）。
+- PuPu `node --test scripts/release-qa/unchain-artifact.test.mjs` 与 `scripts/release-qa/windows-memory-v2-contract-fixture.test.mjs`：全绿。
+
+### 11.6 GitNexus detect-changes（两仓对本轮 commit 范围重新索引后跑 `--scope compare`）
+
+- unchain（`base-ref 3c3b76e`）：27 files / 155 symbols / **60 affected processes / risk: CRITICAL**。符合预期——`sqlite_v2.py` 是共享持久层核心。未见 `partial`/`truncated` 标记。
+- PuPu（`base-ref fe4d4393`，即相对于已有 40 文件快照的**增量**）：14 files / 39 symbols / 0 affected processes / risk: LOW。未见 `partial`/`truncated` 标记；0 processes 与 Python 跨模块动态 `from X import Y` 无法被静态图追踪一致（早前 impact 分析已将这类符号标为 `UNKNOWN`，本次改前已用 grep 逐一确认调用者）。
+
+### 11.7 已知限制与后续交接
+
+1. 非 Windows 环境的 `serialized_context_v2_database_access` 是进程内 `threading.RLock`，只验证了跨线程正确性；Windows 命名互斥的跨进程行为、`PermissionError`（H4）根因、PyInstaller 打包拓扑仍需 Codex 在真实 Windows 上验证。
+2. `test_failure_after_artifact_rows_rolls_back_the_claim` 等测试确认对象文件（`objects/` 目录）本身**不做 GC**（既有设计），一次被回滚事务写入的孤儿对象文件可能残留，但不会被任何 SQLite 行引用，不影响正确性，与既有 `sqlite_chat_deletion_v2.py` 文档的说明一致。
+3. `graph_lineage` 参数目前只在 `_graph_step_follows_bound_interaction_source`（既有的 resume 校验路径，未改）与 `record_interaction_receipt` 尚未接线——当前 J2/J3 红测试覆盖的是简单两步图（无 rebind），`record_interaction_receipt` 提交时依赖的是 `assert_interaction_unresolved` + 既有 operation-identity 冲突机制，已足以通过全部已知反例；把 `GraphLineageLocator` 接进 `record_interaction_receipt` 的提交路径（覆盖 resume/rebind 场景下的成功者校验）留作后续，不在本轮范围内新增。
+4. Task 10（SEQ-010 完整崩溃矩阵：真实新进程、并发竞争、cancel 排序）本轮**未做**，见 §11.4 NOT_RUN 行；建议作为 Checkpoint 1 之后、Checkpoint 2 之前的独立后续工作。
