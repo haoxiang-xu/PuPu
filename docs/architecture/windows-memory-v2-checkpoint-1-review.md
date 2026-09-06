@@ -766,3 +766,121 @@ $env:PYTHONPATH='F:/GIT/unchain/src'
 ```
 
 `.gitnexus` detect-changes 需先在两仓各自 worktree 目录跑一次 `analyze --index-only` 注册该 worktree 为可寻址 repo，再用 `detect-changes --scope compare --base-ref <起点SHA> --repo <worktree绝对路径>`。
+
+## 第十八节：Claude 提交后的真实 Windows 验收 — 2026-09-06（Codex）
+
+Windows 复验 review：Checkpoint 1 仍未通过，阻塞集中在 H2。此评论只报告验收结果，不变更 ticket 的状态或范围。
+
+验收版本：PuPu `a282d67bda5de78912d023a77df2f7cb7797b1d3` + Unchain `7d2b7bbe9a6ab00559e012958131d6cf439fe7b6`。
+
+**结论：Checkpoint 1 = NO-GO。原 J1/J2/J3 反例已转绿，H1 本轮针对性与新进程互斥检查通过；H2 的终态接受与取消协调仍有 4 个确定性失败。** 本轮只新增验收测试和本记录，未修改生产实现、提交、安装或启用 Active。
+
+验收 pair：PuPu `a282d67bda5de78912d023a77df2f7cb7797b1d3` + Unchain `7d2b7bbe9a6ab00559e012958131d6cf439fe7b6`，均与远端 `codex/windows-memory-v2-recovery` 一致，工作区起始干净。环境：Windows 11 `10.0.22000` x64、CPython 3.12.12、SQLite 3.51.2，实际 import 为 `F:/GIT/unchain/src/unchain/persistence/sqlite_v2.py`。
+
+### K1 — P1：canonical graph 已取消后，提交路径仍接受并保存回答
+
+位置：PuPu `durable_interaction_host.py` 的 `record_interaction_receipt` 调用 bridge 时没有传 `graph_lineage`；`memory_v2_unchain_active_bridge.py:577` 的事务前置条件只有在 `graph_lineage is not None` 时才执行图证明。Unchain `context/interaction_acceptance.py:40` 仅检查请求唯一和没有既有 resolution，并不检查 graph/attempt 终态。
+
+新用例 `test_memory_v2_terminal_acceptance_review.py::test_graph_cancelled_after_preflight_does_not_accept_receipt` 通过真实两步图到达第二次提问。在原 guard 预检成功后，由实际 journal sink 写 `run_cancelled`，再由 `JournalGraphCheckpointRepository.terminal` 写图终态；独立 scan 明确得到 `terminal_status == CANCELLED`。随后原提交仍保存 host receipt，失败断言为 `Receipt accepted after the canonical graph became cancelled`。
+
+该用例固定的是预检→提交之间的真实规范日志推进窗口，未伪造数据库状态，也不声称观察到重复 provider 效果。它直接违反计划 §10.2/§10.4、BC-009、AC-016 的"快照不是写许可、提交时重判终态"。§11.7 将 graph lineage 接线留作后续，不能满足已批准 P2/P3 的原验收范围。
+
+### K2 — P1：第二次提问的正常取消仍报 lineage 错误
+
+位置：PuPu `durable_interaction_host.py:4791` → `_consume_cancelled_session_guard` → `_reconcile_durable_interaction_session_guard` → `_validated_durable_interaction_guard_owner_attempt`。
+
+新用例 `test_second_interaction_can_be_cancelled[False]` 用真实第一问 receipt/resume 到达第二问，通过公开 `cancel_chat_execution` 取消尚未回答的第二问，抛出 `Parked session guard has no exact durable resume lineage`，无法正常返回成功。
+
+原计划包含同一执行第二次 interaction、cancel/guard 协调；第十七节测试主动避开第二问不能将该格认定为不适用。这是原 AC-017 / R05/R06 的未完成状态，不是本轮新增产品范围。
+
+### K3 — P1：回答接受后，取消与既有 resolution 抢同一事件身份
+
+位置：PuPu `durable_interaction_host.py:4761` → `_reconcile_cancelled_interaction_to_context:4203`；Unchain `sqlite_v2.py:2249` 的 exact replay 冲突。
+
+新增 `test_first_accepted_interaction_cancel_succeeds` 及 `test_second_interaction_can_be_cancelled[True]`，均先成功提交回答，再调用公开 cancel。两者都抛出 `operation payload or event target changed`：取消清理试图以不同内容重写已接受回答的 resolution operation。`require_unresolved=False` 只能跳过 pending 前置条件，不能将回答事实和取消事实协调为正确终态。
+
+Claude 的 `test_accept_before_cancel_keeps_the_accepted_fact` 把这个异常写进 `pytest.raises`，证明的只是"报错后原回答还在"，并未证明原计划要求的"接受后取消保留答案、完成取消并禁止继续"。本记录不声称这是 Claude 新引入的回归；即使旧实现同样失败，也不能在本轮原定矩阵中标为通过。
+
+### 本轮已完成验证及边界
+
+| 集合 | 真实 Windows 结果 |
+|---|---|
+| 原 H1 五文件集合（含修后的跨线程生命周期测试） | **22 passed** |
+| 原子 append、原子 ingress、连接清单守卫 | **13 passed** |
+| J2/J3 acceptance boundary + crash matrix + race/checkpoint review | **10 passed** |
+| 新 `test_windows_context_mutex_process_review.py` | **1 passed**：父进程持有命名互斥时，全新 Python 子进程的 existing-only 读取阻塞；释放后成功，目录及文件字节保持不变 |
+| Node artifact / Windows contract fixture | **13 passed** |
+| 新 `test_memory_v2_terminal_acceptance_review.py` | **4 failed**，分别为 K1、K2、K3 的两个场景（22.34 秒） |
+
+两仓全量 source 测试本轮启动后未获得完整结束报告，因此不填写本轮全量通过数。PuPu 全量开头出现角色时区测试失败；单独 `-x` 确认 `Asia/Shanghai` 被回退成 UTC。独立 `ZoneInfo('Asia/Shanghai')` 抛 `ZoneInfoNotFoundError`，该 Python 环境缺少 `tzdata`，对应角色源码/测试在本轮 pair 增量中未变。将其单列为测试环境缺口，不算 H1/H2 新缺陷，未修改依赖来掩盖初始结果。
+
+现有"crash matrix"的新 Python 进程读取确实在 Windows 通过，但父进程注入的是可捕获异常，只有 canonical 提交前/提交后-host receipt 前两个边界；它不等于逐边界强杀生产 sidecar、guard 后/应用后恢复或所有跨进程竞态已完成。新命名互斥测试也只证明所测读等待路径，不冒充同/异答案跨进程竞争、全部 WAL 崩溃状态或安装态验收。
+
+GitNexus 显式绑定 PuPu 查询取消调用；本机索引仍在旧提交，结果显示落后 7 commits，仅作导航，不作完整影响/新符号覆盖证明。没有生产函数修改或 Git 提交。
+
+### 接续要求（沿用同一个 Checkpoint 1）
+
+保留已通过的原子写和 H1 生命周期修复。继续完成 P2/P3：在真正接受事务中接入当前图身份/终态校验；定义接受与取消的不同持久事实及顺序；让第二问和接受后取消正常协调 guard。保留 K1/K2/K3 的失败断言，不能把取消异常改成预期通过。随后补齐原 P4 适用矩阵，再统一提交 Windows 复验；P5 固定 artifact 仍留到 Checkpoint 1 通过后。
+
+## 第十九节：K1/K2/K3 修复 — 2026-09-06（Claude, Mac）
+
+**结论：K1/K2/K3 四个失败场景全部转绿，两仓全量回归通过。这仍是 Mac 侧源码证据，最终判定仍需 Codex 在真实 Windows 复验。** 未新增产品范围，未削弱任何断言；下方逐条说明根因与修复。
+
+### K1 修复：`record_interaction_receipt` 接入 `graph_lineage`
+
+根因确认：`persist_pupu_unchain_cold_interaction_resolution`（第七节已实现）的事务内 precondition 只在调用方传入 `graph_lineage` 时才会调用 `prove_graph_interaction_lineage`（该函数本身已经会检查 `recovery.terminal_status is not None` 并拒绝）；但 `record_interaction_receipt` 从未构造并传入这个参数（第十一节 §11.7 明确记录为"留作后续"）。K1 反例证明这个"后续"其实是必须项。
+
+修复：`record_interaction_receipt` 在调用 `persist_pupu_unchain_cold_interaction_resolution` 前，读取 `source_run_id` 自己的 graph-step 上下文记录（`_read_graph_step_context_path` / `_graph_step_context_path`，与既有 `_graph_step_follows_bound_interaction_source` 使用的是同一份存储），据此构造 `GraphLineageLocator(generation_id=..., coordinator_attempt_id=..., bound_source_attempt_id=source_run_id)`（非图步骤时为 `None`，保持原行为）。由于这里检查的是当前步骤自身的最新地位（`bound_source_attempt_id == current_attempt_id == source_run_id`），K1 反例里"预检通过后、提交前图被标记为 CANCELLED"会被 `prove_graph_interaction_lineage` 内已有的终态检查在同一个原子事务的 precondition 里拦下。
+
+验证：`test_graph_cancelled_after_preflight_does_not_accept_receipt` 单独跑通过；J1/J2/J3 全部既有回归（`test_memory_v2_acceptance_boundary_review.py`、`recovery_race_review.py`、`recovery_checkpoint_review.py`、`acceptance_crash_matrix.py`、`test_memory_v2_unchain_active_graph_interaction_resume.py`）17 项全部保持通过，证明这个新增校验没有误伤任何合法提交路径。
+
+### K2 修复：`_consume_cancelled_session_guard` 传 `allow_resolved=True`
+
+根因确认（用临时调试输出定位，而非猜测）：`cancel_chat_execution` 的执行顺序是先调用 `_reconcile_cancelled_interaction_to_context`（对未回答的第二问，`require_unresolved=False` 会成功写入代表"已取消"的 canonical `interaction.resolved`），**之后**才调用 `_consume_cancelled_session_guard`。后者内部对 `_reconcile_durable_interaction_session_guard` 的调用没有传 `allow_resolved`（默认为 `False`），于是走到 `_graph_step_follows_bound_interaction_source` → `prove_graph_interaction_lineage` 时，图的这一格"当前是否有未解决的 interaction"检查发现该 interaction **已经**有了 resolution（正是取消自己刚写的那条）——因为 `allow_resolved=False`，这被当成"别人抢答"而拒绝，报出 `Parked session guard has no exact durable resume lineage`。
+
+用一次性调试打印验证：捕获到的真实（被吞掉的）异常是 `GraphCheckpointError('graph interaction lineage has no exact unresolved interaction')`，与理论完全吻合；调试代码验证后已移除，未留痕迹。
+
+修复：`_consume_cancelled_session_guard` 调用 `_reconcile_durable_interaction_session_guard` 时传 `allow_resolved=True`——这与 `record_interaction_receipt` 自己早已使用的同一容忍语义一致（"canonical 已提交、尚未 resume"是合法状态，不是竞争答案）；这里的场景是"取消清理已经写完它自己的终态 resolution，现在来收尾 guard"，属于同一类合法状态。
+
+验证：`test_second_interaction_can_be_cancelled[False]` 通过。
+
+### K3 修复：`_reconcile_cancelled_interaction_to_context` 识别已接受事实
+
+根因：canonical 事件的 operation 身份只按 `(attempt, event_type, interaction_id)` 派生，与内容无关；对一个已经被真实答案接受的 interaction，取消清理仍会尝试用不同内容（"已取消"）重写同一个 operation，必然撞上原子 journal 自身的 replay 一致性检查（`_replayed_append`：既有 operation 存在但 payload 不同 → `JournalConflictError`）。`require_unresolved=False` 只是跳过我们自己加的"必须仍未解决"前置检查，管不到 journal 层这条更底层的一致性检查——这个设计缺口在 K2[True]（已回答的第二问）和 K3（已回答的第一问）两种场景下都会触发。
+
+修复：在真正尝试写入之前，先用（第七节已实现的）`pupu_unchain_cold_accepted_interaction_resolution` 做一次 side-effect-free 的读取，判断这个 interaction 是否已经有一条**真实**（走原子接受路径产生的）canonical resolution。如果有，直接把这次取消协调视为"已完成"返回 `True`，不再尝试写入——因为已接受的事实是权威的，取消没有更多可以记录的内容。
+
+这个检查专门只匹配 dot 形式的 `"interaction.resolved"` 事件类型（`pupu_unchain_cold_accepted_interaction_resolution` 的既有实现如此），不会误伤 `test_cold_cancel_supersedes_historical_malformed_generic_resolution` 依赖的场景——那里的历史标记是走旧的、下划线形式 `"interaction_resolved"` 事件类型（通过 `runtime.persist_event` 直接写入，不经过原子接受路径），因此不会被这次新增的短路检测命中，该测试的原有行为（写入第一条真规范 resolution）保持不变。
+
+验证：`test_first_accepted_interaction_cancel_succeeds`、`test_second_interaction_can_be_cancelled[True]` 均通过；`tests/test_memory_v2_unchain_active_host_event_boundary.py -k cancel` 全部 17 项既有取消回归（含 `test_cold_cancel_supersedes_historical_malformed_generic_resolution`、`test_fresh_active_preflight_repairs_cancelled_poison_without_resume`）保持通过。
+
+### 连带更新
+
+Task 10 里 `test_accept_before_cancel_keeps_the_accepted_fact`（第十七节新增）原先断言"取消已接受答案的 interaction 会报错"——这记录的正是 K3 反例的症状，本轮修复后该断言天然不成立（`DID NOT RAISE`）。已更新为断言正确、修复后的行为：取消优雅成功（`status: ok`）、canonical resolution 与 host receipt 均保持不变。这不是放宽验收，而是同一件事从"记录已知失败"变成"验证已修复"。
+
+### 实测结果（Mac，Python 3.12.3 / SQLite 3.45.1）
+
+- 新增 `test_memory_v2_terminal_acceptance_review.py` 4 项：**全部 PASS**（连跑 3 次无 flaky）。
+- `test_memory_v2_acceptance_crash_matrix.py` 5 项（含更新后的 K3 相关断言）：**全部 PASS**。
+- PuPu 全量 `unchain_runtime/server` `pytest tests -q`：**2286 passed, 4 skipped, 0 failed**（3556 subtests；较第十七节 2282 增加这 4 条新用例）。
+- unchain 全量 `pytest tests -q`：**3242 passed, 4 skipped, 5 xfailed, 0 failed**（4 skipped 含新的 Windows-only `test_windows_context_mutex_process_review.py`，在 Mac 上正确跳过）。
+- GitNexus `detect-changes --scope staged`：3 files / 8 symbols / 0 processes / LOW，无 `partial`/`truncated`（`durable_interaction_host.py` 的三个函数体改动 + 两个新测试文件）。
+
+### 提交对
+
+| 仓 | 第十七节终点 | 本节（第十九节）终点 |
+|---|---|---|
+| unchain | `7d2b7bb` | `95aeab0`（新增 Windows-only 命名互斥跨进程测试） |
+| PuPu | `833b6c39` | `5c7e2654`（K1/K2/K3 修复），文档另提交 |
+
+### Windows 复验命令（供 Codex）
+
+```powershell
+# cwd: F:/GIT/PuPu/unchain_runtime/server
+$env:PYTHONPATH='F:/GIT/unchain/src'
+& 'F:/GIT/PuPu/.venv/Scripts/python.exe' -m pytest tests/test_memory_v2_terminal_acceptance_review.py tests/test_memory_v2_acceptance_crash_matrix.py -q --tb=short
+
+# cwd: F:/GIT/unchain
+$env:PYTHONPATH='F:/GIT/unchain/src'
+& 'F:/GIT/PuPu/.venv/Scripts/python.exe' -m pytest tests/context_v2/test_windows_context_mutex_process_review.py -q --tb=short
+```
