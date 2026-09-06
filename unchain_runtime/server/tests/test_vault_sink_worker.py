@@ -128,6 +128,137 @@ def test_windows_direct_main_refuses_before_protocol_read(monkeypatch):
     process_one_frame.assert_not_called()
 
 
+def test_windows_shell_and_mcp_require_supervisor_attestation(tmp_path):
+    shell_popen = mock.Mock()
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker.execute_intent(
+            _payload(
+                "shell_secret_env",
+                field="TOKEN",
+                audit={
+                    "action": "run",
+                    "command": "cmd /d /s /c exit 0",
+                    "run_in_background": False,
+                    "secret_fields": ["TOKEN"],
+                },
+            ),
+            platform="win32",
+            popen_factory=shell_popen,
+        )
+    assert captured.value.code == "vault_shell_containment_unavailable"
+    shell_popen.assert_not_called()
+
+    mcp_builder = mock.Mock()
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker.execute_intent(
+            _mcp_payload(),
+            platform="win32",
+            mcp_builder=mcp_builder,
+            environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
+        )
+    assert captured.value.code == "vault_shell_containment_unavailable"
+    mcp_builder.assert_not_called()
+
+
+def test_windows_supervisor_attestation_reaches_shell_and_mcp(tmp_path):
+    shell_result = {"ok": True}
+    with mock.patch.object(worker, "_execute_shell", return_value=shell_result) as shell:
+        assert worker.execute_intent(
+            _payload(
+                "shell_secret_env",
+                field="TOKEN",
+                audit={
+                    "action": "run",
+                    "command": "cmd /d /s /c exit 0",
+                    "run_in_background": False,
+                    "secret_fields": ["TOKEN"],
+                },
+            ),
+            containment_attested=True,
+            platform="win32",
+        ) == shell_result
+    assert shell.call_args.kwargs["containment_attested"] is True
+    assert shell.call_args.kwargs["platform"] == "win32"
+
+    toolkit = _MCPToolkit()
+    result = worker.execute_intent(
+        _mcp_payload(),
+        containment_attested=True,
+        platform="win32",
+        mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
+        environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
+    )
+    assert result["ok"] is True
+    assert toolkit.executed
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows shell sink")
+def test_windows_attested_shell_executes_env_and_stdin_without_plaintext_output():
+    windows_secret = "windows-secret-token"
+
+    env_result = worker.execute_intent(
+        _payload(
+            "shell_secret_env",
+            field="VAULT_TEST_TOKEN",
+            plaintext=windows_secret,
+            audit={
+                "action": "run",
+                "command": 'cmd /d /s /c "echo %VAULT_TEST_TOKEN%"',
+                "run_in_background": False,
+                "timeout_ms": 5_000,
+                "secret_fields": ["VAULT_TEST_TOKEN"],
+            },
+        ),
+        containment_attested=True,
+        platform="win32",
+    )
+    assert env_result["ok"] is True
+    assert env_result["result"]["exit_category"] == "success"
+    assert worker.REDACTION_MARKER in env_result["result"]["stdout"]
+    _assert_no_secret(env_result, windows_secret)
+
+    stdin_result = worker.execute_intent(
+        _payload(
+            "shell_secret_stdin",
+            field="stdin",
+            plaintext=windows_secret,
+            audit={
+                "action": "run",
+                "command": (
+                    "powershell.exe -NoProfile -Command "
+                    "\"$data = [Console]::In.ReadToEnd(); [Console]::Out.Write($data)\""
+                ),
+                "run_in_background": False,
+                "timeout_ms": 5_000,
+                "secret_fields": ["stdin"],
+            },
+        ),
+        containment_attested=True,
+        platform="win32",
+    )
+    assert stdin_result["ok"] is True
+    assert stdin_result["result"]["exit_category"] == "success"
+    assert worker.REDACTION_MARKER in stdin_result["result"]["stdout"]
+    _assert_no_secret(stdin_result, windows_secret)
+
+
+def test_worker_main_passes_its_attestation_only_to_the_frame_executor(monkeypatch):
+    captured = {}
+
+    def process_one_frame(_input, _output, *, executor):
+        captured["executor"] = executor
+        return 23
+
+    monkeypatch.setattr(worker, "process_one_frame", process_one_frame)
+    monkeypatch.setattr(worker.os, "dup", lambda _descriptor: 99)
+    monkeypatch.setattr(worker.os, "dup2", lambda _source, _target: None)
+    monkeypatch.setattr(worker.os, "fdopen", lambda *_args, **_kwargs: io.BytesIO())
+
+    assert worker.main(containment_attested=True) == 23
+    assert callable(captured["executor"])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_env_executes_foreground_and_redacts_all_encodings():
     script = (
         "import base64,json,os,sys,urllib.parse;"
@@ -166,6 +297,7 @@ def test_shell_env_executes_foreground_and_redacts_all_encodings():
     assert dict(os.environ) == before
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_stdin_is_exact_output_is_bounded_and_secret_free():
     script = (
         "import sys;"
@@ -194,6 +326,7 @@ def test_shell_stdin_is_exact_output_is_bounded_and_secret_free():
     _assert_no_secret(result)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_redaction_keeps_overlap_before_truncating_long_secret():
     long_secret = "Z" * 200
     script = "import sys;sys.stdout.write(sys.stdin.read())"
@@ -242,6 +375,7 @@ def test_shell_rejects_handle_or_marker_in_command_before_spawn():
     popen.assert_not_called()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_rejects_background_and_reports_timeout_as_safe_terminal_result():
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
@@ -547,6 +681,7 @@ def test_mcp_rebuilds_from_data_dir_validates_metadata_and_sanitizes_result(tmp_
 
     result = worker.execute_intent(
         _mcp_payload(),
+        containment_attested=True,
         mcp_builder=builder,
         environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
     )
@@ -574,6 +709,7 @@ def test_mcp_schema_mismatch_fails_closed_and_disconnects(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(fingerprint="e" * 64),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -590,6 +726,7 @@ def test_mcp_missing_worker_credential_manifest_fails_closed(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -608,6 +745,7 @@ def test_mcp_remote_error_is_static_and_disconnects_without_echo(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -659,6 +797,12 @@ def test_worker_protocol_emits_one_static_framed_error_and_no_stderr():
         timeout=10,
     )
 
+    if os.name == "nt":
+        # Direct worker launch has no supervisor-only containment attestation.
+        assert process.returncode == 1
+        assert process.stdout == b""
+        assert process.stderr == b""
+        return
     assert process.returncode == 0
     assert process.stderr == b""
     size = struct.unpack(">I", process.stdout[:4])[0]

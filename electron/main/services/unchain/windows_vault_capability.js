@@ -46,7 +46,7 @@ const isSinkCapability = (value) => {
     }
     seen.add(sinkKind);
   }
-  return true;
+  return seen.size > 0;
 };
 
 const isProbe = (value) =>

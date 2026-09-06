@@ -1730,6 +1730,92 @@ def clear_graph_step_resume_context(
     return True
 
 
+_SOURCE_GRAPH_GUARD_LINEAGE_KEYS = frozenset(
+    {
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+        "topology_sha256",
+        "canonical_build_fingerprint",
+        "recipe_identity_sha256",
+        "coordinator_binding_sha256",
+    }
+)
+
+
+def _source_graph_guard_lineage(
+    graph_record: dict[str, Any],
+) -> dict[str, str]:
+    """Capture the graph authority a transport attempt is resuming from."""
+
+    return {
+        "session_id": str(graph_record["session_id"]),
+        "owner_chat_id": str(graph_record["owner_chat_id"]),
+        "graph_execution_id": str(graph_record["graph_execution_id"]),
+        "coordinator_attempt_id": str(graph_record["coordinator_attempt_id"]),
+        "graph_plan_id": str(graph_record["graph_plan_id"]),
+        "graph_scope_id": str(graph_record["graph_scope_id"]),
+        "topology_sha256": str(graph_record["topology_sha256"]),
+        "canonical_build_fingerprint": str(
+            graph_record["canonical_build_fingerprint"]
+        ),
+        "recipe_identity_sha256": hashlib.sha256(
+            _canonical_graph_json_bytes(
+                graph_record["recipe_identity"],
+                error_code="durable_graph_resume_context_corrupt",
+                message="Graph-step recipe identity is not canonical JSON",
+            )
+        ).hexdigest(),
+        "coordinator_binding_sha256": hashlib.sha256(
+            _canonical_graph_json_bytes(
+                graph_record["coordinator_binding_snapshot"],
+                error_code="durable_graph_resume_context_corrupt",
+                message="Graph-step coordinator binding is not canonical JSON",
+            )
+        ).hexdigest(),
+    }
+
+
+def _validate_source_graph_guard_lineage(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict) or set(raw) != _SOURCE_GRAPH_GUARD_LINEAGE_KEYS:
+        raise DurableInteractionHostError(
+            "execution_attempt_binding_corrupt",
+            "Execution attempt graph authority has an invalid shape",
+        )
+    result: dict[str, str] = {}
+    for field_name in (
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+    ):
+        result[field_name] = _required_identifier(
+            raw.get(field_name),
+            field_name=f"source_graph_guard_{field_name}",
+        )
+    for field_name in (
+        "topology_sha256",
+        "canonical_build_fingerprint",
+        "recipe_identity_sha256",
+        "coordinator_binding_sha256",
+    ):
+        result[field_name] = _required_graph_sha256(
+            raw.get(field_name),
+            field_name=f"source_graph_guard_{field_name}",
+        )
+    if result["graph_execution_id"] != result["session_id"]:
+        raise DurableInteractionHostError(
+            "execution_attempt_binding_corrupt",
+            "Execution attempt graph authority belongs to another session",
+        )
+    return result
+
+
 def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
@@ -1754,6 +1840,9 @@ def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
                 "execution_attempt_binding_corrupt",
                 f"Execution attempt binding has no valid {field_name}",
             )
+    graph_lineage = raw.get("source_graph_guard_lineage")
+    if graph_lineage is not None:
+        _validate_source_graph_guard_lineage(graph_lineage)
     return raw
 
 
@@ -1781,6 +1870,19 @@ def bind_execution_attempt(
     normalized_source_attempt_id = _required_identifier(
         source_attempt_id,
         field_name="source_attempt_id",
+    )
+    source_graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(
+            normalized_session_id,
+            normalized_source_attempt_id,
+        ),
+        expected_session_id=normalized_session_id,
+        expected_step_attempt_id=normalized_source_attempt_id,
+    )
+    source_graph_guard_lineage = (
+        _source_graph_guard_lineage(source_graph_record)
+        if source_graph_record is not None
+        else None
     )
     path = _attempt_binding_path(
         normalized_session_id,
@@ -1814,6 +1916,10 @@ def bind_execution_attempt(
                 "source_attempt_id": normalized_source_attempt_id,
                 "created_at_ms": int(time.time() * 1000),
             }
+            if source_graph_guard_lineage is not None:
+                payload["source_graph_guard_lineage"] = (
+                    source_graph_guard_lineage
+                )
             _write_json_atomically(path, payload)
             result = copy.deepcopy(payload)
 
@@ -2931,13 +3037,114 @@ def _durable_interaction_guard_owner_attempt(
     return source_attempt_id
 
 
-def _reconcile_durable_interaction_session_guard(
+def _graph_step_follows_bound_interaction_source(
+    *,
+    session_id: str,
+    bound_source_attempt_id: str,
+    current_source_attempt_id: str,
+    interaction_id: str,
+    bound_graph_guard_lineage: Any = None,
+    allow_resolved: bool = False,
+) -> bool:
+    """Return whether canonical facts prove a transport's current graph pause.
+
+    The immutable transport binding keeps its original source step.  The
+    current graph context is only a locator for the generation and coordinator;
+    the admitted plan and completed-prefix facts come from the read-only
+    Unchain journal proof.  This permits arbitrary completed intermediary
+    nodes, without treating their cleaned-up resume files as authority.
+    """
+
+    current_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, current_source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=current_source_attempt_id,
+    )
+    if current_record is None:
+        return False
+    coordinator_binding = current_record["coordinator_binding_snapshot"]
+    generation_id = str(coordinator_binding["generation_id"])
+    try:
+        from memory_v2_unchain_active_bridge import (
+            PupuUnchainActiveBridgeError,
+            pupu_unchain_cold_graph_interaction_lineage_proof,
+        )
+    except ImportError:
+        return False
+    try:
+        proof = pupu_unchain_cold_graph_interaction_lineage_proof(
+            session_id=session_id,
+            execution_id=session_id,
+            generation_id=generation_id,
+            coordinator_attempt_id=str(
+                current_record["coordinator_attempt_id"]
+            ),
+            source_attempt_id=bound_source_attempt_id,
+            current_attempt_id=current_source_attempt_id,
+            interaction_id=interaction_id,
+            allow_resolved=allow_resolved,
+        )
+    except PupuUnchainActiveBridgeError:
+        return False
+    if proof is None:
+        return False
+    current_step = proof.current_step
+    return (
+        proof.execution_id == session_id
+        and proof.generation_id == generation_id
+        and proof.coordinator_attempt_id
+        == current_record["coordinator_attempt_id"]
+        and proof.graph_plan_id == current_record["graph_plan_id"]
+        and proof.graph_scope_id == current_record["graph_scope_id"]
+        and proof.topology_sha256 == current_record["topology_sha256"]
+        and proof.source_step.attempt.attempt_id == bound_source_attempt_id
+        and current_step.attempt.attempt_id == current_source_attempt_id
+        and current_step.index == current_record["step_index"]
+        and current_step.node_id == current_record["node_id"]
+        and current_step.provider == current_record["provider"]
+        and current_step.model == current_record["model"]
+        and current_step.configuration_sha256
+        == current_record["configuration_sha256"]
+        and proof.interaction_id == interaction_id
+        and _source_graph_guard_lineage_agrees_with_canonical_proof(
+            raw_lineage=bound_graph_guard_lineage,
+            current_record=current_record,
+            proof=proof,
+        )
+    )
+
+
+def _source_graph_guard_lineage_agrees_with_canonical_proof(
+    *,
+    raw_lineage: Any,
+    current_record: dict[str, Any],
+    proof: Any,
+) -> bool:
+    """Keep recorded v1 graph summaries as a redundant consistency check."""
+
+    if raw_lineage is None:
+        return True
+    lineage = _validate_source_graph_guard_lineage(raw_lineage)
+    current_summary = _source_graph_guard_lineage(current_record)
+    return (
+        lineage == current_summary
+        and lineage["graph_execution_id"] == proof.execution_id
+        and lineage["coordinator_attempt_id"] == proof.coordinator_attempt_id
+        and lineage["graph_plan_id"] == proof.graph_plan_id
+        and lineage["graph_scope_id"] == proof.graph_scope_id
+        and lineage["topology_sha256"] == proof.topology_sha256
+    )
+
+
+def _validated_durable_interaction_guard_owner_attempt(
     *,
     session_id: str,
     interaction_id: str,
     source_attempt_id: str,
-    receipt_id: str = "",
-) -> str:
+    allow_resolved: bool = False,
+) -> tuple[str, bool]:
+    """Validate receipt lineage without changing a guard or receipt."""
+
     owner_attempt_id = _durable_interaction_guard_owner_attempt(
         session_id,
         source_attempt_id,
@@ -2964,23 +3171,59 @@ def _reconcile_durable_interaction_session_guard(
                 status_code=409,
                 retryable=False,
             )
-        if state == "active" and active_attempt_id != owner_attempt_id:
+        if active_attempt_id != owner_attempt_id:
             binding = load_execution_attempt_binding(
                 session_id,
                 active_attempt_id,
             )
-            if (
-                not receipt_id
-                or binding is None
-                or binding.get("source_attempt_id") != source_attempt_id
-            ):
+            bound_source_attempt_id = (
+                str(binding.get("source_attempt_id") or "").strip()
+                if binding is not None
+                else ""
+            )
+            bound_to_source = (
+                bound_source_attempt_id == source_attempt_id
+            )
+            bound_to_graph_successor = (
+                not bound_to_source
+                and bool(bound_source_attempt_id)
+                and _graph_step_follows_bound_interaction_source(
+                    session_id=session_id,
+                    bound_source_attempt_id=bound_source_attempt_id,
+                    current_source_attempt_id=source_attempt_id,
+                    interaction_id=interaction_id,
+                    bound_graph_guard_lineage=(
+                        binding.get("source_graph_guard_lineage")
+                        if binding is not None
+                        else None
+                    ),
+                    allow_resolved=allow_resolved,
+                )
+            )
+            has_verified_resume_lineage = (
+                bound_to_source or bound_to_graph_successor
+            )
+            if state == "active" and not has_verified_resume_lineage:
                 raise DurableInteractionHostError(
                     "session_guard_active_lineage_mismatch",
                     "Active session guard has no exact durable resume lineage",
                     status_code=409,
                     retryable=False,
                 )
-            return "active_resume"
+            if state == "active":
+                return owner_attempt_id, True
+            if state == "parked" and not has_verified_resume_lineage:
+                raise DurableInteractionHostError(
+                    "session_guard_interaction_attempt_mismatch",
+                    "Parked session guard has no exact durable resume lineage",
+                    status_code=409,
+                    retryable=False,
+                )
+            if state == "parked":
+                # A resumed attempt may itself suspend on a later interaction.
+                # Its immutable attempt binding proves that this newer guard
+                # owner still derives from the same checkpoint source.
+                owner_attempt_id = active_attempt_id
         if state not in {"active", "parked"}:
             raise DurableInteractionHostError(
                 "session_guard_record_corrupt",
@@ -2988,6 +3231,31 @@ def _reconcile_durable_interaction_session_guard(
                 status_code=409,
                 retryable=False,
             )
+    return owner_attempt_id, False
+
+
+def _reconcile_durable_interaction_session_guard(
+    *,
+    session_id: str,
+    interaction_id: str,
+    source_attempt_id: str,
+    receipt_id: str = "",
+    validated_owner_attempt: tuple[str, bool] | None = None,
+    allow_resolved: bool = False,
+) -> str:
+    if validated_owner_attempt is None:
+        owner_attempt_id, active_resume = (
+            _validated_durable_interaction_guard_owner_attempt(
+                session_id=session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_attempt_id,
+                allow_resolved=allow_resolved,
+            )
+        )
+    else:
+        owner_attempt_id, active_resume = validated_owner_attempt
+    if active_resume:
+        return "active_resume"
     disposition = _session_execution_guard_call(
         "park_session_guard_from_durable_interaction",
         session_id=session_id,
@@ -3018,6 +3286,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
     if orphan_repaired:
         _consume_terminal_session_guard(normalized_session_id)
     runtime = _interaction_runtime()
+    validated_owner_attempt: tuple[str, bool] | None = None
     try:
         snapshot = runtime.load_active(normalized_session_id)
     except Exception as exc:
@@ -3042,6 +3311,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                 if snapshot.receipt is not None
                 else ""
             ),
+            allow_resolved=snapshot.receipt is not None,
         )
     if source_run_id:
         source_registry = _execution_control_snapshot(
@@ -3376,6 +3646,69 @@ def record_interaction_receipt(
             reason=reason,
             modified_arguments=modified_arguments,
         )
+        if source_run_id:
+            # Do not turn a failed graph/owner preflight into a durable answer.
+            validated_owner_attempt = _validated_durable_interaction_guard_owner_attempt(
+                session_id=normalized_session_id,
+                interaction_id=normalized_interaction_id,
+                source_attempt_id=source_run_id,
+                # A prior attempt can have committed the canonical resolution
+                # and then failed before this host receipt CAS.  It still has
+                # to pass canonical ingress below, which accepts only an exact
+                # replay and rejects a competing answer before host mutation.
+                allow_resolved=True,
+            )
+            owner_chat_id = _cold_interaction_owner_chat_id(
+                normalized_session_id,
+                source_run_id,
+            )
+            if _cold_active_interaction_required(
+                owner_chat_id=owner_chat_id,
+                session_id=normalized_session_id,
+            ):
+                # Claim the canonical interaction before touching the host
+                # session receipt. The Context projector uses the exact
+                # attempt/interaction operation identity, so SQLite accepts
+                # one answer or rejects the conflict while the host state is
+                # still unchanged.
+                from unchain.interaction import build_interaction_receipt
+                from unchain.interaction.runtime import normalize_interaction_response
+                from memory_v2_unchain_active_bridge import (
+                    persist_pupu_unchain_cold_interaction_resolution,
+                )
+
+                # Graph resume has historically projected this field as the
+                # canonical actor ``user``. Keep that closed wire value here
+                # so the later resume observes the same idempotent event;
+                # the host receipt below retains the actual UI submitter.
+                canonical_submitted_by = "user"
+                canonical_receipt = build_interaction_receipt(
+                    current.request,
+                    normalize_interaction_response(current.request, response),
+                    submitted_by=canonical_submitted_by,
+                    submitted_at_ms=int(runtime.clock_ms()),
+                )
+                try:
+                    persist_pupu_unchain_cold_interaction_resolution(
+                        owner_chat_id=owner_chat_id,
+                        session_id=normalized_session_id,
+                        execution_id=normalized_session_id,
+                        source_attempt_id=source_run_id,
+                        durable_receipt=(
+                            DurableInteractionReceiptHandoff
+                            .from_persisted_receipt(
+                                session_id=normalized_session_id,
+                                receipt=canonical_receipt,
+                            )
+                        ),
+                    )
+                except Exception as exc:
+                    raise DurableInteractionHostError(
+                        "interaction_canonical_conflict",
+                        "Canonical interaction resolution was not accepted",
+                        status_code=409,
+                        retryable=True,
+                    ) from exc
         persisted = runtime.record_receipt(
             normalized_session_id,
             interaction_id=normalized_interaction_id,
@@ -3439,6 +3772,7 @@ def record_interaction_receipt(
         interaction_id=normalized_interaction_id,
         source_attempt_id=source_run_id,
         receipt_id=persisted.receipt.receipt_id,
+        validated_owner_attempt=validated_owner_attempt,
     )
     public_result = {
         "status": "ok",

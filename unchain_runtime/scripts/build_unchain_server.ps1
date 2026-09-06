@@ -308,3 +308,44 @@ if ($LASTEXITCODE -ne 0) { Write-Error "PyInstaller failed"; exit 1 }
 
 Write-Host "Built unchain server:"
 Write-Host "  $DIST_DIR\unchain-server.exe"
+
+# The Electron main process accepts Windows Vault execution only when this
+# build-time record matches the installed sidecar byte-for-byte.  Its wheel and
+# manifest values come from the immutable artifact evidence already verified
+# above; the sidecar hash is calculated only after PyInstaller has emitted it.
+$sidecarProvenancePath = Join-Path $DIST_DIR "windows-vault-runtime-provenance.v1.json"
+$appArtifactIdentityPath = Join-Path $ROOT_DIR ".local\unchain-artifact-identity.v1.json"
+$artifactEvidence = Get-Content -LiteralPath $UNCHAIN_ARTIFACT_EVIDENCE_PATH -Raw | ConvertFrom-Json
+# `powershell.exe` on supported Windows build hosts can predate the
+# Get-FileHash cmdlet.  Use the .NET cryptography API so the provenance record
+# is produced by every supported host rather than leaving a bare sidecar.
+$sidecarDigestBytes = [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+  [System.IO.File]::ReadAllBytes($exePath)
+)
+$sidecarDigest = "sha256:" + [System.BitConverter]::ToString($sidecarDigestBytes).Replace("-", "").ToLowerInvariant()
+$runtimeProvenance = [ordered]@{
+  arch = "x64"
+  runtime_manifest_digest = [string]$artifactEvidence.runtime_manifest.manifest_digest
+  schema = "pupu.windows-vault-provenance.v1"
+  sidecar_sha256 = $sidecarDigest
+  unchain_wheel_sha256 = [string]$artifactEvidence.artifact.sha256
+}
+[System.IO.File]::WriteAllText(
+  $sidecarProvenancePath,
+  ($runtimeProvenance | ConvertTo-Json -Compress),
+  [System.Text.UTF8Encoding]::new($false)
+)
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $appArtifactIdentityPath) | Out-Null
+$appArtifactIdentity = [ordered]@{
+  runtime_manifest_digest = [string]$artifactEvidence.runtime_manifest.manifest_digest
+  schema = "pupu.windows-unchain-artifact-identity.v1"
+  sidecar_sha256 = $sidecarDigest
+  unchain_wheel_sha256 = [string]$artifactEvidence.artifact.sha256
+}
+[System.IO.File]::WriteAllText(
+  $appArtifactIdentityPath,
+  ($appArtifactIdentity | ConvertTo-Json -Compress),
+  [System.Text.UTF8Encoding]::new($false)
+)
+Write-Host "  $sidecarProvenancePath"
+Write-Host "  $appArtifactIdentityPath"

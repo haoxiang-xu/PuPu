@@ -15,6 +15,7 @@
 // behavioural assertion rather than a source-text match.
 
 const path = require("path");
+const IS_WINDOWS = process.platform === "win32";
 
 const mockOrder = [];
 const mockState = {
@@ -23,7 +24,11 @@ const mockState = {
   singleInstanceLock: true,
   resolveEntrypoint: null,
   createExecutors: null,
+  configureWindowsVaultCapability: null,
+  onWindowsVaultCapabilityLost: null,
   configureSinkExecutors: null,
+  probeWindowsVaultSupervisor: null,
+  resolveWindowsVaultRuntimeProvenance: null,
   startSinkBroker: null,
   vaultClose: null,
 };
@@ -37,7 +42,7 @@ jest.mock("node:sqlite", () => ({}), { virtual: true });
 
 jest.mock("electron", () => ({
   app: {
-    isPackaged: false,
+    get isPackaged() { return mockState.isPackaged; },
     requestSingleInstanceLock: () => mockState.singleInstanceLock,
     on: (event, handler) => {
       mockState.appHandlers.set(event, handler);
@@ -131,7 +136,7 @@ jest.mock("../../main/services/settings_storage/service", () => ({
 }));
 
 jest.mock("../../main/services/unchain/service", () => ({
-  createUnchainService: () => ({
+  createUnchainService: (options) => ({
     startMiso: () => record("sidecar:start"),
     stopMiso: () => {},
     resolveVaultSinkWorkerEntrypoint: (...args) => {
@@ -139,6 +144,12 @@ jest.mock("../../main/services/unchain/service", () => ({
       mockState.resolveArgs = args;
       return mockState.resolveEntrypoint();
     },
+    configureWindowsVaultCapability: (receipt) => {
+      record("windows:configure-capability");
+      return mockState.configureWindowsVaultCapability(receipt);
+    },
+    markWindowsVaultCapabilityLost: (reason) =>
+      options.onWindowsVaultCapabilityLost?.(reason),
   }),
 }));
 
@@ -153,7 +164,7 @@ jest.mock("../../main/services/memory_vault/service", () => ({
       record("vault:start-broker");
       return mockState.startSinkBroker();
     },
-    stopSinkBroker: async () => {},
+    stopSinkBroker: async () => record("vault:stop-broker"),
     getSinkBrokerBootstrap: () => null,
     close: () => {
       record("vault:close");
@@ -163,9 +174,36 @@ jest.mock("../../main/services/memory_vault/service", () => ({
 }));
 
 jest.mock("../../main/services/memory_vault/vault_sink_executor", () => ({
+  VAULT_SINK_KINDS: jest.requireActual(
+    "../../main/services/memory_vault/vault_sink_executor",
+  ).VAULT_SINK_KINDS,
   createVaultSinkExecutors: (options) => {
     record("executors:create");
     return mockState.createExecutors(options);
+  },
+}));
+
+jest.mock("../../main/services/unchain/windows_vault_supervisor_probe", () => ({
+  probeWindowsVaultSupervisor: async (...args) => {
+    record("windows:probe");
+    return mockState.probeWindowsVaultSupervisor(...args);
+  },
+}));
+
+jest.mock("../../main/services/unchain/windows_vault_provenance", () => ({
+  resolveWindowsVaultRuntimeProvenance: (...args) => {
+    record("windows:provenance");
+    return mockState.resolveWindowsVaultRuntimeProvenance(...args);
+  },
+}));
+
+jest.mock("../../main/services/unchain/windows_vault_capability", () => ({
+  ...jest.requireActual("../../main/services/unchain/windows_vault_capability"),
+  createWindowsVaultCapabilityReceipt: (receipt) => {
+    record("windows:receipt");
+    return jest.requireActual(
+      "../../main/services/unchain/windows_vault_capability",
+    ).createWindowsVaultCapabilityReceipt(receipt);
   },
 }));
 
@@ -196,12 +234,29 @@ describe("vault sink worker startup assembly", () => {
   beforeEach(() => {
     consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     mockState.registeredServices = null;
+    mockState.isPackaged = false;
     mockState.resolveArgs = null;
     mockState.vaultClose = null;
+    mockState.configureWindowsVaultCapability = () => ({ status: "ready" });
+    mockState.probeWindowsVaultSupervisor = () => ({
+      containment: "win32_job_list_v1",
+      protocol: 1,
+      supervisor_protocol: 1,
+      worker_protocol: 1,
+    });
+    mockState.resolveWindowsVaultRuntimeProvenance = () => ({
+      arch: "x64",
+      runtime_manifest_digest: `sha256:${"a".repeat(64)}`,
+      schema: "pupu.windows-vault-provenance.v1",
+      sidecar_sha256: `sha256:${"b".repeat(64)}`,
+      unchain_wheel_sha256: `sha256:${"c".repeat(64)}`,
+    });
     mockState.resolveEntrypoint = () => VALID_ENTRYPOINT;
     mockState.createExecutors = () => ({
       providers: {
         shell_secret_env: { prepare: async () => ({}) },
+        shell_secret_stdin: { prepare: async () => ({}) },
+        mcp_schema_secret: { prepare: async () => ({}) },
       },
       close: () => record("executors:close"),
       activeChildCount: () => 0,
@@ -223,9 +278,13 @@ describe("vault sink worker startup assembly", () => {
       "settings:init",
       "vault:init",
       "worker:resolve",
+      ...(IS_WINDOWS ? ["windows:provenance", "windows:probe"] : []),
       "executors:create",
       "vault:configure",
       "vault:start-broker",
+      ...(IS_WINDOWS
+        ? ["windows:receipt", "windows:configure-capability"]
+        : []),
       "ollama:start",
       "sidecar:start",
     ]);
@@ -256,13 +315,29 @@ describe("vault sink worker startup assembly", () => {
 
     await loadMain();
 
-    expect(captured).toEqual({
+    expect(captured).toMatchObject({
       command: VALID_ENTRYPOINT.command,
       args: VALID_ENTRYPOINT.args,
       cwd: VALID_ENTRYPOINT.cwd,
       dataDir: VALID_ENTRYPOINT.dataDir,
       mcpRuntimeDir: VALID_ENTRYPOINT.mcpRuntimeDir,
+      ...(IS_WINDOWS
+        ? {
+            windowsSinkCapability: {
+              containment: "win32_job_list_v1",
+              enabled_sink_kinds: [
+                "shell_secret_env",
+                "shell_secret_stdin",
+                "mcp_schema_secret",
+              ],
+              protocol: 1,
+            },
+          }
+        : {}),
     });
+    if (IS_WINDOWS) {
+      expect(typeof captured.onStructuralFailure).toBe("function");
+    }
     for (const key of ["command", "cwd", "dataDir", "mcpRuntimeDir"]) {
       expect(path.isAbsolute(captured[key])).toBe(true);
     }
@@ -286,6 +361,64 @@ describe("vault sink worker startup assembly", () => {
       "[memory-vault] sink worker entrypoint unavailable:",
       "vault_worker_unavailable",
     );
+  });
+
+  (IS_WINDOWS ? test : test.skip)("a failed Windows probe keeps a trusted sidecar in Shadow without creating a registry", async () => {
+    mockState.probeWindowsVaultSupervisor = () => {
+      const error = new Error("probe detail must not escape");
+      error.code = "vault_worker_probe_protocol_error";
+      throw error;
+    };
+
+    await loadMain();
+
+    expect(mockOrder).toContain("windows:provenance");
+    expect(mockOrder).toContain("windows:probe");
+    expect(mockOrder).not.toContain("executors:create");
+    expect(mockOrder).not.toContain("vault:start-broker");
+    expect(mockOrder).not.toContain("windows:configure-capability");
+    expect(mockOrder).toContain("sidecar:start");
+    expect(consoleError).toHaveBeenCalledWith(
+      "[memory-vault] Windows capability unavailable:",
+      "vault_worker_probe_protocol_error",
+    );
+  });
+
+  (IS_WINDOWS ? test : test.skip)("a failed packaged Windows sidecar identity prevents any sidecar launch", async () => {
+    mockState.isPackaged = true;
+    mockState.resolveWindowsVaultRuntimeProvenance = () => {
+      const error = new Error("identity detail must not escape");
+      error.code = "vault_worker_runtime_identity_invalid";
+      throw error;
+    };
+
+    await loadMain();
+
+    expect(mockOrder).toContain("windows:provenance");
+    expect(mockOrder).not.toContain("windows:probe");
+    expect(mockOrder).not.toContain("executors:create");
+    expect(mockOrder).not.toContain("vault:start-broker");
+    expect(mockOrder).not.toContain("sidecar:start");
+    expect(consoleError).toHaveBeenCalledWith(
+      "[memory-vault] Windows sidecar identity unavailable:",
+      "vault_worker_runtime_identity_invalid",
+    );
+  });
+
+  (IS_WINDOWS ? test : test.skip)("a development provenance absence keeps the sidecar available in Shadow", async () => {
+    mockState.isPackaged = false;
+    mockState.resolveWindowsVaultRuntimeProvenance = () => {
+      const error = new Error("development provenance is intentionally unavailable");
+      error.code = "vault_worker_runtime_identity_invalid";
+      throw error;
+    };
+
+    await loadMain();
+
+    expect(mockOrder).toContain("windows:provenance");
+    expect(mockOrder).not.toContain("windows:probe");
+    expect(mockOrder).not.toContain("executors:create");
+    expect(mockOrder).toContain("sidecar:start");
   });
 
   test("a failed executor build never starts an empty broker", async () => {
@@ -364,6 +497,33 @@ describe("vault sink worker startup assembly", () => {
     ]);
   });
 
+  (IS_WINDOWS ? test : test.skip)("a receipt/configure failure closes its registry and broker before Shadow sidecar launch", async () => {
+    mockState.configureWindowsVaultCapability = () => {
+      const error = new Error("receipt detail must not escape");
+      error.code = "vault_worker_capability_invalid";
+      throw error;
+    };
+
+    await loadMain();
+
+    expect(mockOrder).toContain("windows:receipt");
+    expect(mockOrder).toContain("windows:configure-capability");
+    expect(mockOrder).toContain("vault:stop-broker");
+    expect(mockOrder).toContain("executors:close");
+    expect(mockOrder).toContain("sidecar:start");
+  });
+
+  test("a structural Windows capability loss closes the registry immediately", async () => {
+    await loadMain();
+    const service = mockState.registeredServices?.unchainService;
+    expect(service).toBeTruthy();
+
+    mockOrder.length = 0;
+    service.markWindowsVaultCapabilityLost("vault_worker_containment_lost");
+
+    expect(mockOrder).toEqual(["vault:stop-broker", "executors:close"]);
+  });
+
   test("will-quit still drains the registry when configure failed", async () => {
     mockState.configureSinkExecutors = () => {
       const error = new Error("[vault_sink_registry_invalid] nope");
@@ -372,14 +532,13 @@ describe("vault sink worker startup assembly", () => {
     };
     await loadMain();
 
+    expect(mockOrder).toContain("executors:close");
     mockOrder.length = 0;
     mockState.appHandlers.get("will-quit")();
 
-    // The vault never learned about the registry, so index.js has to reap it.
-    expect(mockOrder).toContain("executors:close");
-    expect(mockOrder.indexOf("vault:close")).toBeLessThan(
-      mockOrder.indexOf("executors:close"),
-    );
+    // Failure cleanup already drained the registry; quit remains safe and
+    // does not need to retain a stale reference merely for a second close.
+    expect(mockOrder).toEqual(["chat:close", "settings:close", "vault:close"]);
   });
 
   test("a throwing registry drain never blocks quit", async () => {

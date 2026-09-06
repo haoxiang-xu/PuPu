@@ -1073,6 +1073,9 @@ const createUnchainService = ({
   // environment; the key is written once through anonymous FD 3 and is never
   // an environment variable or renderer capability.
   memoryVaultService,
+  // Main-process lifecycle observer. It synchronously closes the worker
+  // registry when the service loses its Windows containment guarantee.
+  onWindowsVaultCapabilityLost = null,
   getAppIsQuitting,
   platform = process.platform,
 }) => {
@@ -1082,13 +1085,22 @@ const createUnchainService = ({
     path,
     environment: process.env,
   });
-  const memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
+  let memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
     memoryV2ReleaseConfig,
     platform,
   );
   const windowsVaultCapabilityLatch = createWindowsVaultCapabilityLatch({
     platform,
   });
+  const windowsVaultCapabilityFailure = () => {
+    if (platform !== "win32") return "";
+    const capability = windowsVaultCapabilityLatch.getStatus();
+    return capability.status === "unavailable" || capability.status === "lost"
+      ? capability.reason
+      : "";
+  };
+  const windowsSidecarIdentityBlocked = () =>
+    windowsVaultCapabilityFailure() === "vault_worker_runtime_identity_invalid";
   const initialMemoryV2Readiness = () => {
     const protocolStatus = {
       runtimeProtocolDigest: "",
@@ -1115,6 +1127,15 @@ const createUnchainService = ({
         ...protocolStatus,
       };
     }
+    const windowsCapabilityReason = windowsVaultCapabilityFailure();
+    if (windowsCapabilityReason) {
+      return {
+        status: "degraded",
+        reason: windowsCapabilityReason,
+        sidecarFingerprint: "",
+        ...protocolStatus,
+      };
+    }
     return {
       status: "pending",
       reason: "not_verified",
@@ -1135,6 +1156,9 @@ const createUnchainService = ({
   let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
   let memoryV2Readiness = initialMemoryV2Readiness();
+  // The sealed receipt binds a Windows Active launch to the exact runtime
+  // manifest that must be observed after the sidecar imports its wheel.
+  let windowsVaultExpectedRuntimeManifestDigest = "";
   // Tri-state desired computer-use flag. `null` = renderer has never expressed a
   // preference (do not touch sidecar env or re-push on restart); `true`/`false`
   // = last desired state, re-pushed after every ready transition so a sidecar
@@ -1693,7 +1717,72 @@ const createUnchainService = ({
         "vault_worker_capability_late",
       );
     }
-    return windowsVaultCapabilityLatch.configure(receipt);
+    const capability = windowsVaultCapabilityLatch.configure(receipt);
+    if (capability.status === "ready") {
+      windowsVaultExpectedRuntimeManifestDigest =
+        receipt.provenance.runtime_manifest_digest;
+      memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
+        memoryV2ReleaseConfig,
+        platform,
+        { windowsCapabilityReady: true },
+      );
+    }
+    return capability;
+  };
+
+  const markWindowsVaultCapabilityLost = (
+    code = "vault_worker_containment_lost",
+  ) => {
+    if (platform !== "win32") return windowsVaultCapabilityLatch.getStatus();
+    const wasReady = windowsVaultCapabilityLatch.getStatus().status === "ready";
+    const capability = windowsVaultCapabilityLatch.markLost(code);
+    if (capability.status === "lost" || capability.status === "unavailable") {
+      windowsVaultExpectedRuntimeManifestDigest = "";
+      memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
+        memoryV2ReleaseConfig,
+        platform,
+      );
+      // This update is intentionally synchronous: lost is an admission
+      // decision, not merely a rollout setting for the next restart.
+      memoryV2Readiness = {
+        status: "degraded",
+        reason: capability.reason,
+        sidecarFingerprint: memoryV2Readiness.sidecarFingerprint || "",
+        runtimeProtocolDigest: memoryV2Readiness.runtimeProtocolDigest || "",
+        runtimeProtocolVerification:
+          memoryV2Readiness.runtimeProtocolVerification || "",
+      };
+      if (wasReady) {
+        terminateAllMisoStreams("error", {
+          code: capability.reason,
+          message: "Windows Vault containment is unavailable",
+        });
+        // The existing sidecar was launched with Active settings. Stop it so
+        // it cannot retain that configuration after containment is lost.
+        stopMiso({ preserveStatus: true });
+      }
+      if (capability.status === "lost") {
+        try {
+          void memoryVaultService?.stopSinkBroker?.();
+        } catch (_error) {
+          // Registry closure remains the synchronous containment action.
+        }
+        try {
+          onWindowsVaultCapabilityLost?.(capability.reason);
+        } catch (_error) {
+          // The latch is already terminal; observer cleanup cannot restore it.
+        }
+      }
+      if (
+        !wasReady &&
+        capability.reason === "vault_worker_runtime_identity_invalid"
+      ) {
+        unchainStatus = "unavailable";
+        unchainStatusReason =
+          "Windows sidecar identity is invalid. Reinstall PuPu to repair it";
+      }
+    }
+    return capability;
   };
 
   const ensureMisoReady = () => {
@@ -1952,6 +2041,20 @@ const createUnchainService = ({
     }
   };
 
+  const applyWindowsVaultRuntimeIdentityGate = (validation) => {
+    if (
+      validation.ok &&
+      platform === "win32" &&
+      windowsVaultExpectedRuntimeManifestDigest &&
+      validation.status.runtimeProtocolManifest?.manifest_digest !==
+        windowsVaultExpectedRuntimeManifestDigest
+    ) {
+      validation.ok = false;
+      validation.reason = "vault_worker_runtime_identity_mismatch";
+    }
+    return validation;
+  };
+
   const verifyContextV2Readiness = async () => {
     if (
       memoryV2ReleaseConfig.buildFeatureEnabled &&
@@ -1964,16 +2067,21 @@ const createUnchainService = ({
       memoryV2Readiness = initialMemoryV2Readiness();
       return memoryV2Readiness;
     }
+    const windowsCapabilityReason = windowsVaultCapabilityFailure();
     try {
       const payload = await fetchContextV2StatusPayload();
       const validation = validateMemoryV2Status(
         payload,
         memoryV2RuntimeConfig,
       );
-      if (validation.ok && memoryV2RuntimeConfig.platformActiveBlocked) {
+      if (windowsCapabilityReason) {
+        validation.ok = false;
+        validation.reason = windowsCapabilityReason;
+      } else if (validation.ok && memoryV2RuntimeConfig.platformActiveBlocked) {
         validation.ok = false;
         validation.reason = "vault_worker_containment_unavailable";
       }
+      applyWindowsVaultRuntimeIdentityGate(validation);
       memoryV2Readiness = {
         status: validation.ok ? "ready" : "degraded",
         reason: validation.reason,
@@ -1986,7 +2094,7 @@ const createUnchainService = ({
     } catch (_error) {
       memoryV2Readiness = {
         status: "degraded",
-        reason: "context_v2_readiness_unavailable",
+        reason: windowsCapabilityReason || "context_v2_readiness_unavailable",
         sidecarFingerprint: "",
         runtimeProtocolDigest: "",
         runtimeProtocolVerification: "",
@@ -1996,6 +2104,44 @@ const createUnchainService = ({
   };
 
   const getContextV2ReadinessFailure = () => {
+    if (memoryV2Readiness.reason === "vault_worker_containment_lost") {
+      return {
+        code: "vault_worker_containment_lost",
+        message: "Windows Vault containment was lost. Restart PuPu to verify it again",
+      };
+    }
+    if (memoryV2Readiness.reason === "vault_worker_runtime_identity_mismatch") {
+      return {
+        code: "vault_worker_runtime_identity_mismatch",
+        message: "Memory V2 runtime identity does not match this PuPu build",
+      };
+    }
+    if (memoryV2Readiness.reason === "vault_worker_runtime_identity_invalid") {
+      return {
+        code: "vault_worker_runtime_identity_invalid",
+        message: "Memory V2 sidecar identity does not match this PuPu build",
+      };
+    }
+    if (memoryV2Readiness.reason.startsWith("vault_worker_probe_") ||
+      memoryV2Readiness.reason.startsWith("vault_worker_ready_") ||
+      memoryV2Readiness.reason === "vault_worker_parent_unavailable") {
+      return {
+        code: memoryV2Readiness.reason,
+        message: "Windows Vault containment probe failed",
+      };
+    }
+    if (memoryV2Readiness.reason === "vault_worker_capability_unconfigured") {
+      return {
+        code: "vault_worker_capability_unconfigured",
+        message: "Windows Vault capability was not configured during startup",
+      };
+    }
+    if (memoryV2Readiness.reason.startsWith("vault_worker_")) {
+      return {
+        code: memoryV2Readiness.reason,
+        message: "Windows Vault containment is unavailable",
+      };
+    }
     if (
       memoryV2Readiness.reason === "context_v2_unchain_protocol_invalid"
     ) {
@@ -2094,6 +2240,27 @@ const createUnchainService = ({
     }
     const payload = await contextV2Request("GET", `${CONTEXT_V2_ENDPOINT}/status`);
     const projected = projectMemoryV2Status(payload);
+    const windowsCapabilityReason = windowsVaultCapabilityFailure();
+    if (windowsCapabilityReason) {
+      memoryV2Readiness = {
+        status: "degraded",
+        reason: windowsCapabilityReason,
+        sidecarFingerprint: "",
+        runtimeProtocolDigest: "",
+        runtimeProtocolVerification: "",
+      };
+      projected.available = false;
+      return {
+        available: projected.available,
+        schemaVersion: projected.schemaVersion,
+        journalMode: projected.journalMode,
+        lexicalBackend: projected.lexicalBackend,
+        vectorStatus: projected.vectorStatus,
+        featureCeiling: projected.featureCeiling,
+        rolloutMode: projected.rolloutMode,
+        readOnlyDegraded: projected.readOnlyDegraded,
+      };
+    }
     if (memoryV2RuntimeConfig.effectiveMode !== "off") {
       const validation = validateMemoryV2Status(
         payload,
@@ -2103,6 +2270,7 @@ const createUnchainService = ({
         validation.ok = false;
         validation.reason = "vault_worker_containment_unavailable";
       }
+      applyWindowsVaultRuntimeIdentityGate(validation);
       memoryV2Readiness = {
         status: validation.ok ? "ready" : "degraded",
         reason: validation.reason,
@@ -4946,6 +5114,13 @@ const createUnchainService = ({
     if (unchainStartPromise) {
       return unchainStartPromise;
     }
+    if (windowsSidecarIdentityBlocked()) {
+      unchainStatus = "unavailable";
+      unchainStatusReason =
+        "Windows sidecar identity is invalid. Reinstall PuPu to repair it";
+      memoryV2Readiness = initialMemoryV2Readiness();
+      return;
+    }
 
     if (platform === "win32") {
       // W3-02: configuration is one-shot and may never be elevated after the
@@ -5111,6 +5286,7 @@ const createUnchainService = ({
           vaultBootstrapFailed = true;
           unchainStatus = "error";
           unchainStatusReason = "Vault broker bootstrap pipe failed";
+          markWindowsVaultCapabilityLost("vault_worker_containment_lost");
           try {
             void memoryVaultService?.stopSinkBroker?.();
           } catch (_error) {
@@ -5640,8 +5816,9 @@ const createUnchainService = ({
       payload && typeof payload === "object" ? { ...payload } : {};
     if (
       requestPayload.memory_v2_requested === true &&
-      memoryV2RuntimeConfig.effectiveMode !== "off" &&
-      memoryV2Readiness.status !== "ready"
+      (windowsVaultCapabilityLatch.getStatus().status === "lost" ||
+        (memoryV2RuntimeConfig.effectiveMode !== "off" &&
+          memoryV2Readiness.status !== "ready"))
     ) {
       const failure = getContextV2ReadinessFailure();
       emitMisoStreamDirectEvent(sender, requestId, "error", failure);
@@ -6262,6 +6439,9 @@ const createUnchainService = ({
     // returns absolute local launch coordinates for the Vault sink worker.
     resolveVaultSinkWorkerEntrypoint,
     configureWindowsVaultCapability,
+    // MAIN-PROCESS ONLY. A structural containment loss is terminal until a
+    // full app restart performs the provenance/probe sequence again.
+    markWindowsVaultCapabilityLost,
     getMisoStatusPayload,
     getComputerUseStatusPayload,
     setComputerUseEnabled,

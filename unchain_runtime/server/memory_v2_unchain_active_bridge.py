@@ -87,6 +87,31 @@ def _cold_context_store() -> SQLiteContextV2Store:
     )
 
 
+def _open_existing_cold_context_journal(execution_id: str) -> Any | None:
+    """Open one existing execution without creating Context V2 state."""
+
+    execution = _required_text(execution_id, "execution_id", identifier=True)
+    database_path, _object_directory = _cold_context_paths()
+    if not database_path.is_file():
+        return None
+    from unchain.persistence.sqlite_v2 import (
+        SQLiteContextV2StoreError,
+        open_existing_execution_journal_readonly,
+    )
+
+    try:
+        return open_existing_execution_journal_readonly(
+            database_path=database_path,
+            execution_id=execution,
+        )
+    except SQLiteContextV2StoreError as exc:
+        if str(exc) == "SQLite Context V2 execution is unavailable":
+            return None
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction journal is unavailable"
+        ) from exc
+
+
 def _read_existing_active_admission(owner_chat_id: str) -> dict[str, Any] | None:
     """Read PuPu-owned sticky metadata without initializing an absent store."""
 
@@ -258,10 +283,10 @@ def pupu_unchain_cold_context_interaction_exists(
         raise PupuUnchainActiveBridgeError(
             "cold interaction session must equal its Context execution"
         )
-    database_path, _object_directory = _cold_context_paths()
-    if not database_path.is_file():
+    journal = _open_existing_cold_context_journal(execution)
+    if journal is None:
         return False
-    snapshot = _cold_context_store().bind_execution(execution).capture_snapshot()
+    snapshot = journal.capture_snapshot()
     return any(
         event.event_type == "interaction.requested"
         and event.attempt.generation.execution_id == execution
@@ -295,15 +320,12 @@ def pupu_unchain_cold_context_request_exists(
         raise PupuUnchainActiveBridgeError(
             "cold interaction session must equal its Context execution"
         )
-    database_path, _object_directory = _cold_context_paths()
-    if not database_path.is_file():
+    journal = _open_existing_cold_context_journal(execution)
+    if journal is None:
         return False
     matches = tuple(
         event
-        for event in _cold_context_store()
-        .bind_execution(execution)
-        .capture_snapshot()
-        .events
+        for event in journal.capture_snapshot().events
         if event.event_type == "interaction.requested"
         and event.attempt.generation.execution_id == execution
         and event.attempt.attempt_id == source_attempt
@@ -315,6 +337,79 @@ def pupu_unchain_cold_context_request_exists(
             "cold interaction request identity is ambiguous"
         )
     return bool(matches)
+
+
+def pupu_unchain_cold_graph_interaction_lineage_proof(
+    *,
+    session_id: str,
+    execution_id: str,
+    generation_id: str,
+    coordinator_attempt_id: str,
+    source_attempt_id: str,
+    current_attempt_id: str,
+    interaction_id: str,
+    allow_resolved: bool = False,
+) -> Any | None:
+    """Read one exact graph-interaction proof without initializing Context V2.
+
+    A missing database is reported as absent.  A present database with missing,
+    stale, corrupt, or ambiguous graph facts is an error: callers must not
+    reinterpret it as permission to resume a different execution.
+    """
+
+    session = _required_text(session_id, "session_id", identifier=True)
+    execution = _required_text(execution_id, "execution_id", identifier=True)
+    generation = _required_text(generation_id, "generation_id", identifier=True)
+    coordinator = _required_text(
+        coordinator_attempt_id,
+        "coordinator_attempt_id",
+        identifier=True,
+    )
+    source_attempt = _required_text(
+        source_attempt_id,
+        "source_attempt_id",
+        identifier=True,
+    )
+    current_attempt = _required_text(
+        current_attempt_id,
+        "current_attempt_id",
+        identifier=True,
+    )
+    interaction = _required_text(
+        interaction_id,
+        "interaction_id",
+        identifier=True,
+    )
+    if session != execution:
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction session must equal its Context execution"
+        )
+    database_path, _object_directory = _cold_context_paths()
+    if not database_path.is_file():
+        return None
+    from unchain.context.graph_checkpoint import (
+        GraphCheckpointError,
+        prove_graph_interaction_lineage,
+    )
+    from unchain.persistence.sqlite_v2 import SQLiteContextV2StoreError
+
+    try:
+        journal = _open_existing_cold_context_journal(execution)
+        if journal is None:
+            return None
+        return prove_graph_interaction_lineage(
+            journal,
+            generation_id=generation,
+            coordinator_attempt_id=coordinator,
+            source_attempt_id=source_attempt,
+            current_attempt_id=current_attempt,
+            interaction_id=interaction,
+            allow_resolved=allow_resolved,
+        )
+    except (GraphCheckpointError, SQLiteContextV2StoreError) as exc:
+        raise PupuUnchainActiveBridgeError(
+            "cold graph interaction lineage is unavailable"
+        ) from exc
 
 
 def persist_pupu_unchain_cold_interaction_resolution(
@@ -766,6 +861,7 @@ __all__ = [
     "preflight_pupu_unchain_active_host",
     "prepare_pupu_unchain_active_bridge",
     "pupu_unchain_cold_active_admission",
+    "pupu_unchain_cold_graph_interaction_lineage_proof",
     "pupu_unchain_cold_context_interaction_exists",
     "pupu_unchain_cold_context_request_exists",
 ]

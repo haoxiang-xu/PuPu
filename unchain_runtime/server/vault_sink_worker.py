@@ -340,12 +340,14 @@ def _terminate_process(process: subprocess.Popen[Any]) -> None:
 def _execute_shell(
     intent: Mapping[str, Any],
     *,
+    containment_attested: bool,
+    platform: str,
     popen_factory: Callable[..., subprocess.Popen[Any]] = subprocess.Popen,
 ) -> dict[str, Any]:
-    # Windows process groups do not provide kill-on-close containment. Until
-    # the launcher owns a Job Object, refuse to resolve plaintext into a shell
-    # there instead of allowing detached descendants to retain it.
-    if os.name == "nt":
+    # A Windows shell may receive plaintext only from the private worker that
+    # the Job-owning supervisor bootstrapped.  The wire payload never carries
+    # this authority, so a direct invocation or a forged request cannot gain it.
+    if platform == "win32" and containment_attested is not True:
         raise VaultSinkWorkerError("vault_shell_containment_unavailable")
     sink_kind = intent["sink_kind"]
     audit = intent["audit_arguments"]
@@ -874,9 +876,13 @@ def _default_mcp_builder(toolkit_id: str, data_dir: Path) -> Any:
 def _execute_mcp(
     intent: Mapping[str, Any],
     *,
+    containment_attested: bool,
     mcp_builder: Callable[[str, Path], Any],
     environ: Mapping[str, str],
+    platform: str,
 ) -> dict[str, Any]:
+    if platform == "win32" and containment_attested is not True:
+        raise VaultSinkWorkerError("vault_shell_containment_unavailable")
     metadata = intent["toolkit_metadata"]
     if set(metadata) != _MCP_METADATA_KEYS:
         raise VaultSinkWorkerError("vault_invalid_request")
@@ -1019,6 +1025,7 @@ def _execute_mcp(
 def execute_intent(
     payload: Any,
     *,
+    containment_attested: bool = False,
     mcp_builder: Callable[[str, Path], Any] = _default_mcp_builder,
     environ: Mapping[str, str] | None = None,
     platform: str | None = None,
@@ -1027,19 +1034,27 @@ def execute_intent(
 ) -> dict[str, Any]:
     intent = _validate_intent(payload)
     sink_kind = intent["sink_kind"]
+    runtime_platform = sys.platform if platform is None else platform
     if sink_kind in {"shell_secret_env", "shell_secret_stdin"}:
-        return _execute_shell(intent, popen_factory=popen_factory)
+        return _execute_shell(
+            intent,
+            containment_attested=containment_attested,
+            platform=runtime_platform,
+            popen_factory=popen_factory,
+        )
     if sink_kind == "computer_input":
         return _execute_computer(
             intent,
-            platform=sys.platform if platform is None else platform,
+            platform=runtime_platform,
             ax_writer=ax_writer,
         )
     if sink_kind == "mcp_schema_secret":
         return _execute_mcp(
             intent,
+            containment_attested=containment_attested,
             mcp_builder=mcp_builder,
             environ=os.environ if environ is None else environ,
+            platform=runtime_platform,
         )
     raise VaultSinkWorkerError("vault_sink_not_allowed")
 
@@ -1141,7 +1156,14 @@ def main(*, containment_attested: bool = False) -> int:
         with open(os.devnull, "wb", buffering=0) as null_output:
             os.dup2(null_output.fileno(), sys.stdout.fileno())
             os.dup2(null_output.fileno(), sys.stderr.fileno())
-        return process_one_frame(sys.stdin.buffer, protocol_output)
+        return process_one_frame(
+            sys.stdin.buffer,
+            protocol_output,
+            executor=lambda payload: execute_intent(
+                payload,
+                containment_attested=containment_attested,
+            ),
+        )
     except BaseException:
         return 1
     finally:

@@ -64,6 +64,7 @@ _REQUIRED_PROTOCOLS = (
                 "cancel_pending",
                 "expected_interaction_id_cas",
                 "fresh_run_lineage",
+                "graph_interaction_lineage_preflight_v1",
                 "host_controlled_resume",
             }
         ),

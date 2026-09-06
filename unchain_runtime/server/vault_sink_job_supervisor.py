@@ -86,6 +86,11 @@ _MINIMAL_WORKER_ENVIRONMENT = frozenset(
         "TEMP",
         "TMP",
         "USERPROFILE",
+        # The worker reads its already-provisioned local MCP configuration and
+        # secret store from this path. It is a directory chosen by Electron,
+        # never plaintext from the framed intent.
+        "UNCHAIN_DATA_DIR",
+        "PUPU_MCP_RUNTIME_DIR",
         "WINDIR",
     }
 )

@@ -40,6 +40,17 @@ const {
   createVaultSinkExecutors,
 } = require("./services/memory_vault/vault_sink_executor");
 const {
+  probeWindowsVaultSupervisor,
+} = require("./services/unchain/windows_vault_supervisor_probe");
+const {
+  WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+  WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+  createWindowsVaultCapabilityReceipt,
+} = require("./services/unchain/windows_vault_capability");
+const {
+  resolveWindowsVaultRuntimeProvenance,
+} = require("./services/unchain/windows_vault_provenance");
+const {
   createBootReadinessService,
 } = require("./services/boot_readiness/service");
 const { createTestApiService } = require("./services/test-api");
@@ -144,6 +155,18 @@ if (!gotSingleInstanceLock) {
     net,
   });
 
+  let vaultSinkExecutorRegistry = null;
+  const drainVaultSinkExecutorRegistry = () => {
+    const registry = vaultSinkExecutorRegistry;
+    vaultSinkExecutorRegistry = null;
+    try {
+      registry?.abortActive?.();
+      registry?.close?.();
+    } catch (_error) {
+      // A process-exit race cannot reopen a terminal capability latch.
+    }
+  };
+
   const unchainService = createUnchainService({
     app,
     fs,
@@ -163,6 +186,18 @@ if (!gotSingleInstanceLock) {
     // Main-internal Vault broker provider + native confirmation state machine.
     // Neither object is exposed over renderer IPC.
     memoryVaultService,
+    onWindowsVaultCapabilityLost: () => {
+      try {
+        void memoryVaultService?.stopSinkBroker?.();
+      } catch (_error) {
+        // Registry closure remains the synchronous containment action.
+      }
+      try {
+        drainVaultSinkExecutorRegistry();
+      } catch (_error) {
+        // The service latch remains terminal even if a process exits in-race.
+      }
+    },
     getAppIsQuitting: () => appIsQuitting,
   });
 
@@ -227,8 +262,6 @@ if (!gotSingleInstanceLock) {
   // Owned by the startup assembly below so `will-quit` can drain it even if
   // configureSinkExecutors never ran (created-then-failed is still a registry
   // that may hold live worker process groups).
-  let vaultSinkExecutorRegistry = null;
-
   const settingsQuitCoordinator = createSettingsQuitCoordinator({
     app,
     ipcMain,
@@ -316,6 +349,7 @@ if (!gotSingleInstanceLock) {
     //
     //   settings init  →  vault init
     //     →  resolve the worker entrypoint ONCE and freeze it
+    //     →  verify the packaged sidecar identity and probe containment
     //     →  build the reviewed executor registry
     //     →  configureSinkExecutors (one-shot, main-only)
     //     →  startSinkBroker (refuses an empty registry)
@@ -328,6 +362,9 @@ if (!gotSingleInstanceLock) {
     // vault_sink_unavailable. Logs are static codes only: never a path, a
     // broker URL/key, a payload, or an error message.
     let vaultSinkWorkerEntrypoint = null;
+    let windowsVaultProbe = null;
+    let windowsVaultProvenance = null;
+    let windowsSidecarIdentityInvalid = false;
     try {
       vaultSinkWorkerEntrypoint =
         unchainService.resolveVaultSinkWorkerEntrypoint();
@@ -338,7 +375,49 @@ if (!gotSingleInstanceLock) {
       );
     }
 
-    if (vaultSinkWorkerEntrypoint) {
+    if (vaultSinkWorkerEntrypoint && process.platform === "win32") {
+      try {
+        windowsVaultProvenance = resolveWindowsVaultRuntimeProvenance({
+          app,
+          entrypoint: vaultSinkWorkerEntrypoint,
+          fs,
+          path,
+        });
+      } catch (error) {
+        windowsSidecarIdentityInvalid = app.isPackaged === true;
+        unchainService.markWindowsVaultCapabilityLost(
+          app.isPackaged === true
+            ? "vault_worker_runtime_identity_invalid"
+            : "vault_worker_capability_unconfigured",
+        );
+        console.error(
+          "[memory-vault] Windows sidecar identity unavailable:",
+          error?.code || "vault_worker_runtime_identity_invalid",
+        );
+      }
+      if (windowsVaultProvenance !== null) {
+        try {
+        windowsVaultProbe = await probeWindowsVaultSupervisor({
+          entrypoint: vaultSinkWorkerEntrypoint,
+        });
+      } catch (error) {
+        windowsVaultProbe = null;
+        unchainService.markWindowsVaultCapabilityLost(
+          error?.code || "vault_worker_probe_failed",
+        );
+        console.error(
+          "[memory-vault] Windows capability unavailable:",
+          error?.code || "vault_worker_capability_unavailable",
+        );
+      }
+      }
+    }
+
+    if (
+      vaultSinkWorkerEntrypoint &&
+      (process.platform !== "win32" ||
+        (windowsVaultProbe !== null && windowsVaultProvenance !== null))
+    ) {
       try {
         vaultSinkExecutorRegistry = createVaultSinkExecutors({
           command: vaultSinkWorkerEntrypoint.command,
@@ -346,6 +425,21 @@ if (!gotSingleInstanceLock) {
           cwd: vaultSinkWorkerEntrypoint.cwd,
           dataDir: vaultSinkWorkerEntrypoint.dataDir,
           mcpRuntimeDir: vaultSinkWorkerEntrypoint.mcpRuntimeDir,
+          ...(process.platform === "win32"
+            ? {
+                windowsSinkCapability: {
+                  containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+                  enabled_sink_kinds: [
+                    "shell_secret_env",
+                    "shell_secret_stdin",
+                    "mcp_schema_secret",
+                  ],
+                  protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+                },
+                onStructuralFailure: (reason) =>
+                  unchainService.markWindowsVaultCapabilityLost(reason),
+              }
+            : {}),
         });
       } catch (error) {
         vaultSinkExecutorRegistry = null;
@@ -360,7 +454,34 @@ if (!gotSingleInstanceLock) {
       try {
         memoryVaultService.configureSinkExecutors(vaultSinkExecutorRegistry);
         await memoryVaultService.startSinkBroker();
+        if (process.platform === "win32") {
+          unchainService.configureWindowsVaultCapability(
+            createWindowsVaultCapabilityReceipt({
+              broker: {
+                protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+                sink_kinds: Object.keys(vaultSinkExecutorRegistry.providers),
+              },
+              capability: {
+                containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+                enabled_sink_kinds: [
+                  "shell_secret_env",
+                  "shell_secret_stdin",
+                  "mcp_schema_secret",
+                ],
+                protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+              },
+              probe: windowsVaultProbe,
+              provenance: windowsVaultProvenance,
+            }),
+          );
+        }
       } catch (error) {
+        try {
+          await memoryVaultService.stopSinkBroker?.();
+        } catch (_stopError) {
+          // Continue with the synchronous worker drain below.
+        }
+        drainVaultSinkExecutorRegistry();
         // Static code only: never log URL/key, request data or an error message.
         console.error(
           "[memory-vault] sink broker unavailable:",
@@ -380,7 +501,17 @@ if (!gotSingleInstanceLock) {
     updateService.applyUnsupportedRuntimeMessage();
 
     ollamaService.startOllama();
-    unchainService.startMiso();
+    if (windowsSidecarIdentityInvalid) {
+      // An untrusted packaged executable must not receive even a Shadow
+      // launch. Privacy deletion stays in its durable outbox until a repaired
+      // package can be started.
+      console.error(
+        "[memory-vault] Windows sidecar unavailable:",
+        "vault_worker_runtime_identity_invalid",
+      );
+    } else {
+      unchainService.startMiso();
+    }
     // Start observing immediately after the sidecar is kicked off and BEFORE
     // the window exists: the boot overlay's whole job is to cover the window
     // that has not been created yet, so the clock must already be running.

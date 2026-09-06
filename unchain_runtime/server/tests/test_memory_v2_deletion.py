@@ -72,12 +72,15 @@ class MemoryV2DeletionProcessorTests(unittest.TestCase):
         )
 
     def _outbox_row(self, owner_chat_id):
-        with sqlite3.connect(self.store.db_path) as connection:
+        connection = sqlite3.connect(self.store.db_path)
+        try:
             connection.row_factory = sqlite3.Row
             row = connection.execute(
                 "SELECT * FROM deletion_outbox WHERE owner_chat_id=? AND entity_type='chat'",
                 (owner_chat_id,),
             ).fetchone()
+        finally:
+            connection.close()
         return dict(row)
 
     def test_crash_after_claim_is_recovered_by_new_lease(self):
@@ -152,10 +155,13 @@ class MemoryV2DeletionProcessorTests(unittest.TestCase):
         self.assertEqual(result.owner_chat_id, "chat_a")
         chat_b_events = self.store.load_events(owner_chat_id="chat_b")
         self.assertEqual(len(chat_b_events["events"]), 1)
-        with sqlite3.connect(self.store.db_path) as connection:
+        connection = sqlite3.connect(self.store.db_path)
+        try:
             session = connection.execute(
                 "SELECT deleted_at_ms FROM sessions WHERE owner_chat_id='chat_b'"
             ).fetchone()
+        finally:
+            connection.close()
         self.assertIsNone(session[0])
 
     def test_invalid_or_path_like_claim_never_reaches_a_broad_target(self):

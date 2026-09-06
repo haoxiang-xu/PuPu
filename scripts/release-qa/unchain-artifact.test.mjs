@@ -256,6 +256,12 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
     ),
     true,
   );
+  assert.equal(
+    REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.includes(
+      "graph_interaction_lineage_preflight_v1",
+    ),
+    true,
+  );
   assert.throws(
     () => validateRuntimeManifestForRelease(runtimeManifest({
       protocolFeatures: {
