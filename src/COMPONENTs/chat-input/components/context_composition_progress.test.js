@@ -85,6 +85,37 @@ describe("ContextCompositionProgress", () => {
   });
 });
 
+describe("the ring's number is optically centred, not line-box centred", () => {
+  // align-items centres the LINE box, and a line box always reserves descender
+  // space that digits never use — measured in the running app, that left the
+  // number a full pixel above the ring's centre. The trim has to sit on a
+  // block of its own: text-box never applies to the anonymous item a flex
+  // parent wraps bare text in.
+  test("digits sit in their own block carrying the cap/baseline trim", () => {
+    renderRing(usageViewAt(1000, 4000));
+
+    const trigger = screen.getByTestId("context-composition-progress");
+    const digits = within(trigger).getByText("25");
+    expect(digits.tagName).toBe("SPAN");
+    expect(digits.style.display).toBe("block");
+    expect(digits.style.textBox).toBe("trim-both cap alphabetic");
+  });
+
+  test("the unavailable dash is left untrimmed", () => {
+    // The dash's ink sits entirely above the baseline around mid x-height, so
+    // line-box centring already lands it on centre; a cap-to-baseline trim
+    // would push it low. It stays bare text in the flex box.
+    renderRing(usageViewAt(1000, null));
+
+    const trigger = screen.getByTestId("context-composition-progress");
+    const dash = within(trigger).getByText("–");
+    expect(dash.querySelector("span")).toBeNull();
+    // jsdom has no text-box property, so React's assignment is what shows up
+    // here: a string when set, nothing at all when it never was.
+    expect(dash.style.textBox).toBeFalsy();
+  });
+});
+
 describe("focus is not stolen from the composer", () => {
   test("prevents mousedown's default focus shift, same as every other selector on the row", async () => {
     /* Regression: attach_panel keeps its floated shape via

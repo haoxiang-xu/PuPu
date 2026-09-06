@@ -215,7 +215,16 @@ const EffortCapsuleRow = ({
           boxShadow: labelWellShadow,
         }}
       >
-        {t("chat.attach.effort")}
+        {/* Uppercase text never uses the descender the line box still reserves
+            for it, so centring the LINE box (what align-items does) leaves the
+            caps ~1px above the well's true centre. `text-box` trims the box to
+            the cap/baseline edges so the same centring lands on the ink. It
+            applies to a block container only, never to the anonymous item a
+            flex parent wraps bare text in — hence this span. Unsupported, the
+            box stays untrimmed and this renders exactly as it does today. */}
+        <span style={{ display: "block", textBox: "trim-both cap alphabetic" }}>
+          {t("chat.attach.effort")}
+        </span>
       </span>
 
       <span
