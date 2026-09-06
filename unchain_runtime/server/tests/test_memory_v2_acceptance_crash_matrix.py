@@ -313,29 +313,34 @@ def test_accept_before_cancel_keeps_the_accepted_fact(tmp_path, monkeypatch):
         before = resolutions_for(pending["interaction_id"])
         assert len(before) == 1
 
-        # A cancel arriving after the answer was already accepted tries to
-        # project its own terminal resolution over an interaction that is
-        # already canonically resolved. The event-identity operation for
-        # this interaction is already claimed by the real answer with a
-        # different payload, so the write is refused at the journal layer --
-        # the same operation-identity collision the pre-atomic two-phase
-        # write would also have hit. cancel_chat_execution does not treat
-        # this as benign and raises; the property this test actually proves
-        # is that the failed reconciliation attempt does not corrupt,
-        # duplicate, or silently overwrite the already-accepted fact.
-        with pytest.raises(host.DurableInteractionHostError):
-            adapter.cancel_chat_execution(
-                session_id=fixture.EXECUTION_ID,
-                attempt_id=pending["source_run_id"],
-                owner_chat_id=fixture.OWNER_CHAT_ID,
-                expected_interaction_id=pending["interaction_id"],
-                reason="user_stop",
-            )
+        # A cancel arriving after the answer was already accepted recognizes
+        # (via pupu_unchain_cold_accepted_interaction_resolution) that the
+        # event-identity operation for this interaction is already claimed
+        # by a real answer, and treats reconciliation as already done rather
+        # than attempting -- and always losing -- a competing write. This
+        # must succeed gracefully and never touch the already-accepted fact.
+        result = adapter.cancel_chat_execution(
+            session_id=fixture.EXECUTION_ID,
+            attempt_id=pending["source_run_id"],
+            owner_chat_id=fixture.OWNER_CHAT_ID,
+            expected_interaction_id=pending["interaction_id"],
+            reason="user_stop",
+        )
+        assert result["status"] == "ok"
 
         after = resolutions_for(pending["interaction_id"])
         assert after == before, (
-            "a failed cancel-reconciliation attempt must not alter the "
-            "already-accepted canonical resolution"
+            "cancelling an already-accepted interaction must not alter its "
+            "canonical resolution"
+        )
+        snapshot = host._interaction_runtime().load(
+            fixture.EXECUTION_ID,
+            interaction_id=pending["interaction_id"],
+            require_active=False,
+        )
+        assert snapshot.receipt is not None
+        assert snapshot.receipt.response["selected_values"] == ["vue"], (
+            "the accepted answer's host receipt must remain intact"
         )
         snapshot = host._interaction_runtime().load(
             fixture.EXECUTION_ID,

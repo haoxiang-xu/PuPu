@@ -3749,7 +3749,34 @@ def record_interaction_receipt(
                 from unchain.interaction import build_interaction_receipt
                 from unchain.interaction.runtime import normalize_interaction_response
                 from memory_v2_unchain_active_bridge import (
+                    GraphLineageLocator,
                     persist_pupu_unchain_cold_interaction_resolution,
+                )
+
+                # If this attempt is a graph step, prove the graph's own
+                # current lineage (including its terminal status) inside the
+                # same atomic acceptance transaction: a preflight that passed
+                # before the graph became terminal (e.g. the run was
+                # cancelled) must not turn into an accepted answer.
+                graph_record = _read_graph_step_context_path(
+                    _graph_step_context_path(normalized_session_id, source_run_id),
+                    expected_session_id=normalized_session_id,
+                    expected_step_attempt_id=source_run_id,
+                )
+                graph_lineage = (
+                    GraphLineageLocator(
+                        generation_id=str(
+                            graph_record["coordinator_binding_snapshot"][
+                                "generation_id"
+                            ]
+                        ),
+                        coordinator_attempt_id=str(
+                            graph_record["coordinator_attempt_id"]
+                        ),
+                        bound_source_attempt_id=source_run_id,
+                    )
+                    if graph_record is not None
+                    else None
                 )
 
                 # Graph resume has historically projected this field as the
@@ -3776,6 +3803,7 @@ def record_interaction_receipt(
                                 receipt=canonical_receipt,
                             )
                         ),
+                        graph_lineage=graph_lineage,
                     )
                 except Exception as exc:
                     reason = _canonical_rejection_reason(exc)
@@ -4197,7 +4225,25 @@ def _reconcile_cancelled_interaction_to_context(
         )
     from memory_v2_unchain_active_bridge import (
         persist_pupu_unchain_cold_interaction_resolution,
+        pupu_unchain_cold_accepted_interaction_resolution,
     )
+
+    # The event-identity operation for this interaction's canonical
+    # interaction.resolved is permanently claimed by whichever content wins
+    # it first (see BC-009): if a real answer already committed through the
+    # atomic accept path, that fact is authoritative and this cancellation
+    # has nothing further to record. Attempting to write a competing
+    # cancellation marker over it would always lose the atomic journal's own
+    # operation-identity replay check, so recognize the already-accepted
+    # fact up front and treat reconciliation as done rather than fail.
+    already_accepted = pupu_unchain_cold_accepted_interaction_resolution(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        interaction_id=candidates[0].interaction_id,
+    )
+    if already_accepted is not None:
+        return True
 
     try:
         persist_pupu_unchain_cold_interaction_resolution(
@@ -4370,6 +4416,14 @@ def _consume_cancelled_session_guard(
         session_id=session_id,
         interaction_id=interaction_id,
         source_attempt_id=source_attempt_id,
+        # _reconcile_cancelled_interaction_to_context (called by our caller,
+        # cancel_chat_execution, before this function) may already have
+        # committed the cancellation's own canonical resolution for this
+        # exact interaction. That is the legitimate terminal fact this
+        # guard consumption is unwinding, not a competing answer racing in
+        # -- the same "resolved but not yet resumed" state
+        # record_interaction_receipt's own lineage check already tolerates.
+        allow_resolved=True,
     )
     _session_execution_guard_call(
         "consume_parked_session_guard",
