@@ -218,6 +218,21 @@ def test_missing_graph_lineage_preflight_feature_fails_closed() -> None:
     assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
+def test_missing_interaction_resolution_atomic_acceptance_feature_fails_closed() -> None:
+    manifest = _producer_manifest()
+    durable = _protocol(manifest, "durable_interaction")
+    durable["features"].remove("interaction_resolution_atomic_acceptance_v1")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="active",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
 def test_revision_and_source_are_telemetry_only() -> None:
     manifest = _producer_manifest()
 
