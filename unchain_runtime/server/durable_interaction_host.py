@@ -3276,6 +3276,58 @@ def _reconcile_durable_interaction_session_guard(
     return str(disposition or "")
 
 
+def _recover_accepted_canonical_receipt(
+    session_id: str,
+    source_attempt_id: str,
+    interaction_id: str,
+    snapshot: Any,
+    runtime: Any,
+) -> Any:
+    """Project a canonical acceptance whose host receipt was interrupted.
+
+    Canonical ingress may have committed the ``interaction.resolved`` event
+    and its answer artifact while the durable interaction runtime's own
+    receipt write failed or was interrupted before it committed. This
+    recovers that accepted answer from the canonical journal (a
+    side-effect-free read) and replays it into the host receipt, so the
+    caller sees the same answer it already accepted instead of asking again.
+    """
+
+    try:
+        owner_chat_id = _cold_interaction_owner_chat_id(session_id, source_attempt_id)
+        recovery_applicable = _cold_active_interaction_required(
+            owner_chat_id=owner_chat_id,
+            session_id=session_id,
+        )
+    except DurableInteractionHostError:
+        # Resolving the owning chat can read the same resume-context files
+        # the caller's own, later, graceful handling covers (a corrupt file
+        # is not a reason to fail a pending-interaction lookup). Recovery
+        # simply does not apply when the owner cannot be determined here.
+        return snapshot
+    if not recovery_applicable:
+        return snapshot
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_accepted_interaction_resolution,
+    )
+
+    accepted = pupu_unchain_cold_accepted_interaction_resolution(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        interaction_id=interaction_id,
+    )
+    if accepted is None:
+        return snapshot
+    return runtime.record_receipt(
+        session_id,
+        interaction_id=interaction_id,
+        response=accepted.response,
+        submitted_by=accepted.submitted_by,
+        expected_revision=snapshot.session_snapshot.revision,
+    )
+
+
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
     normalized_session_id = str(session_id or "").strip()
     orphan_repaired = _reconcile_orphaned_cancelled_interaction(
@@ -3301,6 +3353,14 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
 
     request = snapshot.request
     source_run_id = str(request.source_run_id or "").strip()
+    if source_run_id and snapshot.receipt is None:
+        snapshot = _recover_accepted_canonical_receipt(
+            normalized_session_id,
+            source_run_id,
+            str(request.interaction_id or "").strip(),
+            snapshot,
+            runtime,
+        )
     if source_run_id:
         _reconcile_durable_interaction_session_guard(
             session_id=normalized_session_id,
@@ -3555,6 +3615,21 @@ def _durable_response(
     }
 
 
+def _canonical_rejection_reason(exc: BaseException) -> str:
+    from unchain.context.interaction_acceptance import InteractionAcceptanceConflict
+    from unchain.context.graph_checkpoint import GraphCheckpointError
+    from unchain.journal import JournalConflictError
+    from unchain.context.ports import ContextConflictError
+
+    if isinstance(exc, InteractionAcceptanceConflict):
+        return exc.reason
+    if isinstance(exc, GraphCheckpointError):
+        return "graph_lineage_rejected"
+    if isinstance(exc, (JournalConflictError, ContextConflictError)):
+        return "already_accepted_different_answer"
+    return "transient_failure"
+
+
 def record_interaction_receipt(
     *,
     session_id: str,
@@ -3703,11 +3778,12 @@ def record_interaction_receipt(
                         ),
                     )
                 except Exception as exc:
+                    reason = _canonical_rejection_reason(exc)
                     raise DurableInteractionHostError(
                         "interaction_canonical_conflict",
-                        "Canonical interaction resolution was not accepted",
+                        f"Canonical interaction resolution was not accepted: {reason}",
                         status_code=409,
-                        retryable=True,
+                        retryable=(reason == "transient_failure"),
                     ) from exc
         persisted = runtime.record_receipt(
             normalized_session_id,
@@ -4130,6 +4206,11 @@ def _reconcile_cancelled_interaction_to_context(
             execution_id=session_id,
             source_attempt_id=source_attempt_id,
             durable_receipt=candidates[0],
+            # Reconciliation intentionally records a canonical resolution to
+            # supersede a historical non-canonical or malformed resolution
+            # marker for the same interaction; the strict "still pending"
+            # acceptance check does not apply to this repair path.
+            require_unresolved=False,
         )
     except DurableInteractionHostError:
         raise
