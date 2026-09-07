@@ -349,7 +349,7 @@ if (!gotSingleInstanceLock) {
     //
     //   settings init  →  vault init
     //     →  resolve the worker entrypoint ONCE and freeze it
-    //     →  verify the packaged sidecar identity and probe containment
+    //     →  resolve runtime provenance and probe containment
     //     →  build the reviewed executor registry
     //     →  configureSinkExecutors (one-shot, main-only)
     //     →  startSinkBroker (refuses an empty registry)
@@ -457,6 +457,7 @@ if (!gotSingleInstanceLock) {
         if (process.platform === "win32") {
           unchainService.configureWindowsVaultCapability(
             createWindowsVaultCapabilityReceipt({
+              isPackaged: app.isPackaged,
               broker: {
                 protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
                 sink_kinds: Object.keys(vaultSinkExecutorRegistry.providers),

@@ -363,6 +363,19 @@ describe("vault sink worker startup assembly", () => {
     );
   });
 
+  (IS_WINDOWS ? test : test.skip)("assembles a development receipt after the real startup prerequisites", async () => {
+    mockState.resolveWindowsVaultRuntimeProvenance = () => ({
+      arch: "x64", schema: "pupu.windows-vault-development.v1",
+    });
+    let receipt;
+    mockState.configureWindowsVaultCapability = (value) => { receipt = value; };
+    await loadMain();
+    expect(receipt.provenance).toEqual({ arch: "x64", schema: "pupu.windows-vault-development.v1" });
+    expect(mockOrder.indexOf("windows:probe")).toBeLessThan(mockOrder.indexOf("windows:receipt"));
+    expect(mockOrder.indexOf("vault:start-broker")).toBeLessThan(mockOrder.indexOf("windows:receipt"));
+    expect(mockOrder.indexOf("windows:configure-capability")).toBeLessThan(mockOrder.indexOf("sidecar:start"));
+  });
+
   (IS_WINDOWS ? test : test.skip)("a failed Windows probe keeps a trusted sidecar in Shadow without creating a registry", async () => {
     mockState.probeWindowsVaultSupervisor = () => {
       const error = new Error("probe detail must not escape");

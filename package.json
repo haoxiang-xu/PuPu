@@ -37,6 +37,7 @@
   "scripts": {
     "postinstall": "node scripts/release-qa/patch-macos-keychain.cjs",
     "start": "npm run start:electron",
+    "start:installed": "node ./scripts/start-installed.cjs",
     "start:web": "cross-env BROWSER=none HOST=127.0.0.1 PORT=2907 react-scripts start",
     "start:electron": "cross-env PUPU_FEATURE_MEMORY_V2=all PUPU_MEMORY_V2_MODE=all node ./scripts/start-dev.cjs",
     "electron:start": "electron .",

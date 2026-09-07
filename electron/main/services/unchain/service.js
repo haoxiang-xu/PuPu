@@ -12,6 +12,7 @@ const {
 } = require("./memory_v2_rollout");
 const {
   createWindowsVaultCapabilityLatch,
+  WINDOWS_VAULT_DEVELOPMENT_SCHEMA,
 } = require("./windows_vault_capability");
 const {
   SESSION_GUARD_MIGRATION_ENV,
@@ -1156,8 +1157,8 @@ const createUnchainService = ({
   let unchainPreserveStatusOnStop = false;
   let unchainStartPromise = null;
   let memoryV2Readiness = initialMemoryV2Readiness();
-  // The sealed receipt binds a Windows Active launch to the exact runtime
-  // manifest that must be observed after the sidecar imports its wheel.
+  // Packaged receipts additionally pin the imported runtime manifest to the
+  // bundled wheel. Development still uses the normal strict protocol validator.
   let windowsVaultExpectedRuntimeManifestDigest = "";
   // Tri-state desired computer-use flag. `null` = renderer has never expressed a
   // preference (do not touch sidecar env or re-push on restart); `true`/`false`
@@ -1712,6 +1713,9 @@ const createUnchainService = ({
   // before startMiso(); no renderer or IPC path can elevate this latch.
   const configureWindowsVaultCapability = (receipt) => {
     if (platform !== "win32") return windowsVaultCapabilityLatch.getStatus();
+    if (app.isPackaged !== false && receipt?.provenance?.schema === WINDOWS_VAULT_DEVELOPMENT_SCHEMA) {
+      return windowsVaultCapabilityLatch.finalizePending("vault_worker_capability_invalid");
+    }
     if (unchainProcess || unchainStatus !== "stopped") {
       return windowsVaultCapabilityLatch.finalizePending(
         "vault_worker_capability_late",
@@ -1720,7 +1724,7 @@ const createUnchainService = ({
     const capability = windowsVaultCapabilityLatch.configure(receipt);
     if (capability.status === "ready") {
       windowsVaultExpectedRuntimeManifestDigest =
-        receipt.provenance.runtime_manifest_digest;
+        receipt.provenance.runtime_manifest_digest || "";
       memoryV2RuntimeConfig = constrainMemoryV2ConfigForPlatform(
         memoryV2ReleaseConfig,
         platform,

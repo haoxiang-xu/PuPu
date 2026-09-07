@@ -140,3 +140,33 @@ v3 diagnostic-bearing failure records.
 Disposition: diagnostic repair **installed and locally verified**; actual
 provider rejection **awaiting a new owner-triggered message**. Full CP2 remains
 INCOMPLETE. No previous candidate evidence was relabelled as this candidate.
+
+## Development versus installed startup (2026-09-07, 15:47 Pacific)
+
+Historical state: the later [development Vault repair](windows-memory-v2-development.md)
+removes the development packaged-identity prerequisite. `npm start` now supports
+Memory V2 Active after containment and runtime protocol checks; the installed
+launcher below remains optional.
+
+The repeated Vault warning was traced to the live parent chain `npm start` ->
+`start:electron` -> `start-dev.cjs` -> repository Electron, not to an installed
+candidate reverting. That process reported `vault_worker_capability_unconfigured`
+and effective shadow. The packaged-only Vault provenance gate remains unchanged.
+
+BC-203: `npm run start:installed` launches the existing per-user Windows install,
+with its installation directory as cwd and Electron development entry variables
+removed. Missing installation or unsupported platforms fail explicitly. Default
+`npm start` remains development; its Windows startup now prints the Vault limit
+and the installed command. These scripts do not change the installed payload.
+
+SEQ-203: close development PuPu before launching the installed executable, so
+the single-instance mechanism cannot redirect the launch to development.
+
+AC-204: both launcher scripts passed Node syntax checks. After closing the
+development window, the actual installed command exited 0; the running main
+executable resolved to `%LOCALAPPDATA%/Programs/PuPu/PuPu.exe`. Preload status
+reported service ready, Memory V2 ready/all, Windows capability ready, and no
+platform block. Evidence: `start-installed-status.json` under the diagnostic
+candidate evidence root. A previously orphaned installed sidecar was stopped
+only after verifying its executable and absent parent. No real-provider request
+was sent; the provider rejection remains awaiting owner reproduction.

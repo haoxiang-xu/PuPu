@@ -5,6 +5,7 @@ const crypto = require("crypto");
 // that can silently drift from the sealed receipt boundary.
 const WINDOWS_VAULT_PROVENANCE_SCHEMA = "pupu.windows-vault-provenance.v1";
 const WINDOWS_VAULT_RUNTIME_PROVENANCE_SCHEMA = WINDOWS_VAULT_PROVENANCE_SCHEMA;
+const WINDOWS_VAULT_DEVELOPMENT_SCHEMA = "pupu.windows-vault-development.v1";
 const WINDOWS_UNCHAIN_ARTIFACT_IDENTITY_SCHEMA =
   "pupu.windows-unchain-artifact-identity.v1";
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
@@ -98,8 +99,34 @@ const resolveWindowsVaultRuntimeProvenance = ({
   arch = process.arch,
   platform = process.platform,
 } = {}) => {
-  if (platform !== "win32" || app?.isPackaged !== true) {
+  if (platform !== "win32" || ![true, false].includes(app?.isPackaged)) {
     throw new Error("windows vault runtime provenance is unavailable");
+  }
+  if (app.isPackaged === false) {
+    // The service has already selected/version-checked the development Python.
+    // Development source is mutable: do not pretend it is a packaged wheel.
+    // Containment and the imported runtime protocol are still checked at startup.
+    const script = typeof app.getAppPath === "function" && path?.join
+      ? path.join(app.getAppPath(), "unchain_runtime", "server", "main.py")
+      : null;
+    if (
+      arch !== "x64" || !script ||
+      typeof path?.isAbsolute !== "function" ||
+      typeof fs?.existsSync !== "function" ||
+      !entrypoint ||
+      typeof entrypoint.command !== "string" ||
+      !path.isAbsolute(entrypoint.command) ||
+      entrypoint.command.includes("\0") ||
+      !fs.existsSync(entrypoint.command) ||
+      !path.isAbsolute(script) || !fs.existsSync(script) ||
+      !Array.isArray(entrypoint.args) || entrypoint.args.length !== 2 ||
+      entrypoint.args[0] !== script || entrypoint.args[1] !== "--vault-sink-worker" ||
+      entrypoint.cwd !== path.dirname(script) ||
+      typeof entrypoint.dataDir !== "string" || !path.isAbsolute(entrypoint.dataDir)
+    ) {
+      throw new Error("windows vault runtime provenance is unavailable");
+    }
+    return Object.freeze({ arch, schema: WINDOWS_VAULT_DEVELOPMENT_SCHEMA });
   }
   if (
     !entrypoint ||
@@ -143,6 +170,7 @@ const resolveWindowsVaultRuntimeProvenance = ({
 
 module.exports = {
   WINDOWS_UNCHAIN_ARTIFACT_IDENTITY_SCHEMA,
+  WINDOWS_VAULT_DEVELOPMENT_SCHEMA,
   WINDOWS_VAULT_PROVENANCE_SCHEMA,
   WINDOWS_VAULT_RUNTIME_PROVENANCE_SCHEMA,
   hashFile,

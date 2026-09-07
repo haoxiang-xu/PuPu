@@ -739,6 +739,42 @@ describe("Unchain Memory V2 startup readiness", () => {
     });
   });
 
+  test.each([true, false])("Windows development receipt still validates imported runtime protocol: compatible=%s", async (compatible) => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot, compatible ? {} : {
+          runtime_protocol_ready: false,
+          runtime_protocol_reason: "unchain_runtime_protocol_manifest_invalid",
+          runtime_protocol_manifest: {},
+        })),
+      });
+    const { service } = buildService(snapshot, { platform: "win32", isPackaged: false });
+    const receipt = createWindowsVaultCapabilityReceipt({
+      ...validWindowsVaultReceipt(),
+      isPackaged: false,
+      provenance: { arch: "x64", schema: "pupu.windows-vault-development.v1" },
+    });
+    expect(service.configureWindowsVaultCapability(receipt)).toEqual({ reason: "", status: "ready" });
+    await service.startMiso();
+    const status = service.getMisoStatusPayload().memoryV2;
+    expect(status.ready).toBe(compatible);
+    expect(status.reason).toBe(compatible ? "" : "context_v2_unchain_protocol_invalid");
+  });
+
+  test("packaged service rejects a sealed development receipt", () => {
+    const { service } = buildService(enabledSnapshot("all"), { platform: "win32", isPackaged: true });
+    const receipt = createWindowsVaultCapabilityReceipt({
+      ...validWindowsVaultReceipt(), isPackaged: false,
+      provenance: { arch: "x64", schema: "pupu.windows-vault-development.v1" },
+    });
+    expect(service.configureWindowsVaultCapability(receipt)).toEqual({
+      status: "unavailable", reason: "vault_worker_capability_invalid",
+    });
+  });
+
   test("Windows containment loss aborts active streams and rejects the next request", async () => {
     let streamOptions;
     const streamRequestImpl = jest.fn((_url, options) => {
