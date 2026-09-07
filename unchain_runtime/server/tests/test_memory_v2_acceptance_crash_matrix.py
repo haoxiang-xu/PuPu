@@ -211,6 +211,7 @@ def test_concurrent_same_and_different_answers_accept_exactly_one(
     with second_pending(tmp_path, monkeypatch) as pending:
         results: list[tuple[str, str]] = []
         errors: list[tuple[str, str]] = []
+        crashes: list[tuple[str, str]] = []
         lock = threading.Lock()
 
         def go(answer):
@@ -221,6 +222,9 @@ def test_concurrent_same_and_different_answers_accept_exactly_one(
             except host.DurableInteractionHostError as exc:
                 with lock:
                     errors.append((answer, exc.code))
+            except BaseException as exc:  # noqa: BLE001 - every outcome must be accounted for
+                with lock:
+                    crashes.append((answer, repr(exc)))
 
         threads = [
             threading.Thread(target=go, args=(answer,))
@@ -232,6 +236,8 @@ def test_concurrent_same_and_different_answers_accept_exactly_one(
             thread.join(timeout=60)
             assert not thread.is_alive(), "submission thread did not finish"
 
+        assert not crashes, f"submission threads died outside the host error contract: {crashes}"
+        assert len(results) + len(errors) == 4, (results, errors)
         accepted_answers = {answer for answer, _ in results}
         assert len(accepted_answers) == 1, f"both answers were accepted: {results}"
         accepted_receipt_ids = {receipt_id for _, receipt_id in results}
@@ -269,16 +275,15 @@ def test_cancel_before_accept_rejects_the_answer(tmp_path, monkeypatch):
         assert cancellation["durable_interaction_cancelled"] is True
 
         # Cancellation itself projects a terminal canonical resolution (via
-        # require_unresolved=False, see persist_pupu_unchain_cold_interaction_resolution),
-        # so a later, real answer for the same interaction is what must be
-        # rejected -- not the mere presence of any interaction.resolved event.
+        # require_unresolved=False, see persist_pupu_unchain_cold_interaction_resolution).
+        # A later, real answer is rejected by record_interaction_receipt's
+        # host-side cancellation check (execution_cancelled) before the
+        # canonical precondition is ever consulted; the canonical
+        # already_resolved defence for the same scenario is pinned separately
+        # in unchain's test_interaction_resolution_atomic_ingress.py.
         with pytest.raises(host.DurableInteractionHostError) as rejected:
             submit(pending, "vue")
-        assert rejected.value.code in {
-            "execution_cancelled",
-            "interaction_not_found",
-            "interaction_canonical_conflict",
-        }
+        assert rejected.value.code == "execution_cancelled"
 
         store, _ = fixture._plan_from_store(tmp_path)
         journal = store.bind_execution(fixture.EXECUTION_ID)
@@ -327,6 +332,7 @@ def test_accept_before_cancel_keeps_the_accepted_fact(tmp_path, monkeypatch):
             reason="user_stop",
         )
         assert result["status"] == "ok"
+        assert result["durable_interaction_cancelled"] is True
 
         after = resolutions_for(pending["interaction_id"])
         assert after == before, (
@@ -338,16 +344,18 @@ def test_accept_before_cancel_keeps_the_accepted_fact(tmp_path, monkeypatch):
             interaction_id=pending["interaction_id"],
             require_active=False,
         )
-        assert snapshot.receipt is not None
-        assert snapshot.receipt.response["selected_values"] == ["vue"], (
-            "the accepted answer's host receipt must remain intact"
-        )
-        snapshot = host._interaction_runtime().load(
-            fixture.EXECUTION_ID,
-            interaction_id=pending["interaction_id"],
-            require_active=False,
-        )
         assert snapshot.receipt is not None, (
             "the host receipt for the accepted answer must remain intact"
         )
         assert snapshot.receipt.response["selected_values"] == ["vue"]
+        # ... and the cancellation forbids continuation (plan §10.4 step 5):
+        # the interaction is applied as cancelled, nothing is pending, and a
+        # further answer is refused.
+        assert isinstance(snapshot.application, dict)
+        assert str(snapshot.application.get("applied_checkpoint_id", "")).startswith(
+            "cancelled:"
+        )
+        assert adapter.get_pending_interaction(fixture.EXECUTION_ID)["status"] == "none"
+        with pytest.raises(host.DurableInteractionHostError) as late:
+            submit(pending, "react")
+        assert late.value.code in {"execution_cancelled", "interaction_not_found"}
