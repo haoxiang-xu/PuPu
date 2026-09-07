@@ -960,3 +960,50 @@ $env:PYTHONPATH='F:/GIT/unchain/src'
 | Windows 真实复验（命名互斥、跨进程锁竞争、K4 两交错） | **NOT_RUN**（Mac 无法执行；待 Codex） |
 
 自验收（第十九节同一套 finder/verifier）本轮已处理项：unchain precondition 测试从未执行 precondition（P2，已拆三条）；崩溃矩阵并发用例只记账 host 错误、`test_accept_before_cancel_keeps_the_accepted_fact` 缺 `durable_interaction_cancelled` 与"禁止继续"断言、存在重复断言块、`test_cancel_before_accept_rejects_the_answer` 未断言精确错误码（P3，已收紧）；文档：第十九节两处"第七节已实现"的悬空引用、"真实 resolution"措辞（实际只按事件类型过滤，取消标记也会命中）、GitNexus 变更计数（一新一改而非两新）、修复计划 §11.1 陈旧 pair、§11.3 缺接受/取消事实模型（Codex 接续要求第 2 条）、§11.4 缺 K4 行、§11.7 第 4 项陈旧的"第二问取消未覆盖"（Codex 接续要求第 4 条），均已在本 commit 修正。
+
+## 第二十二节：K4 修复 Windows 验收通过；Checkpoint 1 源码级关闭 — 2026-09-07（Codex）
+
+> 本节为 issue #195 评论 5565473296 的节录：省略了 PowerShell 复现命令与内联测试源码（测试文件已原样提交为 `test_memory_v2_commit_lock_process_review.py`，Windows-only，非 Windows 平台整文件 skip）。
+
+**结论：本轮 K4 修复 PASS，K1/K2/K3 保持通过；新增 Windows 独立进程测试通过。本轮没有发现需要继续追加代码修复的阻塞。** 此结论针对本次修复及所列回归，不等于完整发布/安装态或原计划所有崩溃边界已经验收完成。
+
+验收 pair：PuPu `d8d219ca` + Unchain `90d3e60`。环境：真实 Windows 11、Python 3.12.12、SQLite 3.51.2。通过 fetch + fast-forward 更新，K4 文件与远端逐字一致。
+
+| 集合 | Windows 实测 |
+|---|---|
+| PuPu 九文件（K4、commit lock、terminal acceptance、crash matrix、boundary、race/checkpoint、graph resume、host event boundary） | **109 passed，212.06 秒** |
+| 新 `test_memory_v2_commit_lock_process_review.py`（真实 `subprocess.Popen`，5 项：跨进程互斥+同线程重入；持锁进程被强杀后另一进程可取锁；两个新进程同答案 → 同一 receipt ID；不同答案 → 恰一个成功、另一个 `interaction_canonical_conflict`；提交与取消竞争 → 取消成功、终态不可继续、canonical/host 一致、只有一条 resolution） | **5 passed，34.14 秒** |
+| Unchain `tests/context_v2` | 首轮 1432 passed、**3 failed**、1 xfailed；3 项失败均为 `core.autocrlf=true` 把 `test_compiler_golden_contract.py` / `test_golden_contract.py` 的 fixture 转成 CRLF 导致 SHA-256 不匹配，按 Git 原始字节复验 3 passed |
+| Node artifact / Windows contract fixture | 13 passed |
+
+共 1562 项通过、1 项预期失败，不是一次性两仓全量结果。
+
+### 当前开发实例的 Active 状态
+
+通过运行中 Electron 的 test API 只读调用 `getStatus()`：`memoryV2.status = "degraded"`、`reason = "vault_worker_capability_unconfigured"`、`featureCeiling = "shadow"`、`platformActiveBlocked = true`、`windowsCapability = {status: "unavailable", reason: "vault_worker_capability_unconfigured"}`。运行中的 Electron 是 `node_modules/electron/dist/electron.exe` 开发实例，后端 PID 启动早于本轮拉取。Codex 判定这不是 K5、也不能归因于 K4。（Claude 2026-09-07 注：这是开发态的设计结果，见修复计划 §11.8。）
+
+本轮未重启用户进程、未切换 Active、未调用真实模型、未改用户数据；`production_runs_v1/objects` PermissionError 尚未用真实聊天写入路径复验。
+
+### 接续重点（Codex）
+
+K1–K4 已关闭，避免继续围绕已通过项反复修补。下一步：让确切版本的后端生效、核对 Windows Vault supervisor/worker 启动能力与候选身份，再做实际聊天、Memory V2 状态和原始权限错误的使用验收。原计划剩余的完整崩溃/安装矩阵仍独立标注。
+
+## 第二十三节：Checkpoint 1 关闭后的 Mac 侧动作 — 2026-09-07（Claude）
+
+1. Codex 第二十二节的 Windows 进程测试逐字入库（`tests/test_memory_v2_commit_lock_process_review.py`，Mac 上 5 skipped）。
+2. Unchain 新增 `.gitattributes`：`tests/context_v2/fixtures/** -text`，根治第二十二节的 3 项 CRLF 摘要失败；Mac 上 golden/model 四文件通过。
+3. 用 `build-unchain-artifact.mjs` 对干净的 Unchain `90d3e60` 做一次 Mac 构建，证明候选源码可构建、runtime manifest digest 可得（结果记录在下方）；Mac wheel 不是候选身份。
+4. 交接第二阶段步骤 5 到 Windows：见修复计划 §11.8 与 issue #195 评论。
+
+### Mac 侧实测（2026-09-07）
+
+| 项目 | 结果 |
+|---|---|
+| `build-unchain-artifact.mjs --source <unchain 0680312, clean> --source-ref codex/windows-memory-v2-recovery` | 成功：`unchain-0.2.0-py3-none-any.whl`；**runtime manifest digest `sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc`**（`durable_interaction` 协议含 `interaction_resolution_atomic_acceptance_v1`，与第十四节前记录的 `2d7364b4…` 不同——候选身份必须重新生成，这是预期）；Mac wheel SHA `b59b7ce9…` 只是本次构建的字节，不是候选身份 |
+| 构建后 Unchain 源码树 | 仍干净（无 egg-info / build 残留） |
+| PuPu 代码中钉死的旧 sidecar/wheel/manifest 摘要 | 无（只出现在历史文档） |
+| unchain 全量（`PYTHONPATH=src` 显式指向 recovery worktree） | **3244 passed, 4 skipped, 5 xfailed**（81.0 s） |
+| PuPu `unchain_runtime/server` 全量（`PYTHONPATH` 显式指向 recovery worktree 的 unchain src） | **2292 passed, 9 skipped**（116.0 s；9 = 原 4 + 新 Windows-only 5） |
+| golden/model 四文件（`.gitattributes` 后） | 122 passed |
+
+Windows 端待做（第二阶段步骤 5–7）：一次构建 wheel 并固定 evidence → `build:electron:win:unsigned`（复用同一 `UNCHAIN_ARTIFACT_PATH` / `UNCHAIN_ARTIFACT_EVIDENCE_PATH`）→ 安装到私有 userData → 重启后 `getStatus().memoryV2.windowsCapability.status === "ready"` → package probe / contract matrix / 安装态恢复矩阵 / H4 真实写入路径复验。全部 **NOT_RUN**。

@@ -1,6 +1,6 @@
 # Windows Memory V2：恢复机制整体修复方案
 
-日期：2026-09-05。状态：Checkpoint 1 独立验收 **NO-GO**；第一批修复复验仍有 WAL 生命周期及预检到回答写入的竞态缺陷，工作包 B/C 尚未完成。最新证据见 `windows-memory-v2-checkpoint-1-review.md` 第十四节。尚未构建新的固定 wheel、安装候选或启用日常 Active。
+日期：2026-09-05；状态更新 2026-09-07。状态：**Checkpoint 1 源码级通过**——Codex 在真实 Windows 11 上验收 pair PuPu `d8d219ca` + Unchain `90d3e60`，K1–K4 全部关闭（验收记录第二十二节）；该结论只覆盖源码修复与所列回归，不等于安装态或完整崩溃/安装矩阵已验收。下一步进入实施计划第二阶段步骤 5（一次构建并固定 wheel、构建 Windows 候选、安装态验证），见 §11.8。尚未构建新的固定 wheel、安装候选或启用日常 Active。历史状态：2026-09-05 Checkpoint 1 独立验收 NO-GO（第十四节），此后经第十六至二十一节修复。
 
 **后续执行入口：第十节为 H1/H2 的具体修复方向和实施顺序。** 本次仅更新方案；第九节是历史实施记录，其中 immutable/WAL 分支不能作为后续设计依据。两个原有 checkpoint 和 R01..R08 保留。
 
@@ -353,3 +353,10 @@ PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src
 2. `test_failure_after_artifact_rows_rolls_back_the_claim` 等测试确认对象文件（`objects/` 目录）本身**不做 GC**（既有设计），一次被回滚事务写入的孤儿对象文件可能残留，但不会被任何 SQLite 行引用，不影响正确性，与既有 `sqlite_chat_deletion_v2.py` 文档的说明一致。
 3. ~~`graph_lineage` 参数目前只在...尚未接线...留作后续~~ **2026-09-06 更正：此项已由 Codex 的真实 Windows 验收（K1）证明是必须项，非可选后续**——预检通过后、提交前图变成 CANCELLED 终态时，缺少这条接线会导致仍然接受并保存回答。已修复：`record_interaction_receipt` 现在会为图步骤构造 `GraphLineageLocator` 并传给 `persist_pupu_unchain_cold_interaction_resolution`，使 `prove_graph_interaction_lineage` 已有的终态检查在同一原子事务的 precondition 里生效。详见验收记录第十九节。
 4. Task 10（SEQ-010 崩溃矩阵：真实新进程、并发竞争、cancel 排序）已于 2026-09-06 补齐，见 §11.4 更新后的表、`test_memory_v2_acceptance_crash_matrix.py`、`test_memory_v2_terminal_acceptance_review.py`（第二问 cancel）、`test_memory_v2_cancel_commit_order_review.py`（accept/cancel 重叠）与 `test_memory_v2_commit_lock_review.py`（提交锁与崩溃变体）。仍未覆盖：Windows 跨进程命名互斥**竞争**（Codex 已验证读等待路径通过）、H4 `PermissionError` 根因；这两项仍是独立后续工作。
+
+### 11.8 Checkpoint 1 关闭后的交接 — 2026-09-07
+
+- **开发态实例永远到不了 Active，这是设计而不是缺陷。** `resolveWindowsVaultRuntimeProvenance` 在 `app.isPackaged !== true` 时直接抛出，`index.js` 把这种情况标为 `vault_worker_capability_unconfigured`（第十四节 D1 修复的既定语义：开发态 provenance 缺失 → 维持 Shadow/off 并允许普通 sidecar 启动）。因此 Codex 第二十二节在 `node_modules/electron/dist/electron.exe` 开发实例上读到的 `windowsCapability.status = "unavailable" / reason = vault_worker_capability_unconfigured` 与本轮修复无关，也不可能通过再改源码在开发态消除；只有安装候选（`build/unchain-artifact-identity.v1.json` + sidecar 旁的 `windows-vault-runtime-provenance.v1.json` + 重算的 sidecar SHA 三者一致）才会进入 `ready`。
+- **候选身份必须在 Windows 上一次生成。** wheel 由 `scripts/release-qa/build-unchain-artifact.mjs` 从干净的 Unchain `0680312`（= `90d3e60` 的 `src/` 加一个只含 `.gitattributes` 的提交）构建一次；随后 `build:electron:win:unsigned`（→ `build:unchain:win` → `build_unchain_server.sh` 强制 `UNCHAIN_ARTIFACT_PATH`/`UNCHAIN_ARTIFACT_EVIDENCE_PATH` 并经 `verify-unchain-artifact.mjs --installed true` 校验）、package probe、contract matrix 全部复用同一 `.whl` 与 evidence JSON。Mac 上用同一脚本对同一 revision 的构建只证明源码可构建、manifest digest 可复现；wheel 字节（含 zip 时间戳）不构成候选身份。
+- **Windows 全量测试前先让 fixture 保持字节冻结。** Unchain 新增 `.gitattributes`（`tests/context_v2/fixtures/** -text`）；`core.autocrlf=true` 的已有 checkout 需要删除该目录后重新 checkout 才会按原字节恢复。
+- 剩余独立项不变：Windows 跨进程命名互斥**竞争**、H4 `PermissionError` 根因（需在安装候选的真实聊天写入路径上复验）。
