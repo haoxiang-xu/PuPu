@@ -382,3 +382,15 @@ PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src
 **明确未覆盖：** AC-007 结构性 loss（不改候选无法在运行中注入 provenance/containment 失效）、AC-008/009 的 lost/offline/rollback 删除格、subagent/graph 路径上的 sink 使用；这些仍需独立 harness 或候选外机制，报告里保持 NOT_RUN。
 
 **首跑必然要调的地方（写在这里免得当 bug 报）：** ① MCP 工具在 provider 侧的广告名（驱动器从热身请求的 `tools[].name` 里找以 `use_token` 结尾的名字，找不到则 mcp 三格 fail closed）；② `deposit` 返回的 handle 字段名（驱动器兼容 `handle` / `descriptor.handle`）；③ `tool_result` 事件里 `vault_sink_use` 结果的嵌套位置（驱动器按 `vault_intent_id` / `denied` / `vault_*` 错误码遍历事件树）；④ UIA 对话框的 owner PID 是否为主进程（若对话框由子进程拥有，把 `-OwnerPid` 传 0 关闭过滤）。
+
+### 11.10 project owner 决定：候选直接装进日常账户 — 2026-09-08
+
+project owner 明确决定不另建隔离账户，把 `PuPu-0.1.11-windows-x64-setup.exe`（installer `a0bee8ef…`）直接装到 RedPC 的日常账户，覆盖现有 0.1.9 日常实例。这是对实施计划"Checkpoint 2 通过前不把日常实例切到 Active"约束的一次 owner 级例外，只适用于这台机器和这个候选；公共 release profile、其他用户、自动更新渠道不受影响。
+
+由此调整：
+
+1. **安装前备份**（Codex 执行，只复制不移动）：`%APPDATA%\PuPu` 整目录（settings.db + WAL/SHM、chats、Context V2 SQLite、`production_runs_v1`）复制到 `F:\GIT\PuPu\.release-qa\windows-memory-v2-active\daily-backup-<日期>\`，记录目录字节数与文件数；同时 `gh release download v0.1.9` 保存旧安装包备用。
+2. **回滚路径**：候选写的是新 schema，回滚 = 卸载候选 → 装回 v0.1.9 setup → 用备份覆盖 `%APPDATA%\PuPu`。候选本身没有"同 lineage 的 Shadow 候选"（build snapshot 不吃 env override，只能重建），这一点在步骤 7 的启用/回退说明里如实写。
+3. **harness 不变**：`windows-installed-sink-matrix.mjs` 用私有 `--user-data-dir`，不读写日常数据；跑之前关掉日常 PuPu，`--out-root` 指到 `.release-qa` 下。
+4. **H4 真实路径成为可测项**：安装后由 owner 在日常实例里正常发一条消息（走真实 `%APPDATA%\PuPu\production_runs_v1\objects`），Codex 检查 run ledger/objects 有新写入、日志无 `PermissionError`。这是隔离账户方案做不到的，也是本决定唯一的验收增益。
+5. **报告口径**：CP2 报告必须写明"日常实例已被 owner 决定切到候选 all/all"，installed 证据来自日常账户的安装；不能倒过来把这次安装写成"隔离验收"。
