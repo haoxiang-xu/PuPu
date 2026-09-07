@@ -79,3 +79,64 @@ The original real-provider 4xx reason is still unknown: this patch restores
 diagnostic evidence for the next user-triggered call; it does not prove the
 underlying request rejection is fixed. The installed daily candidate remains
 unchanged and its captured failed request is preserved.
+
+## Diagnostic candidate installed (2026-09-07, 15:38 Pacific)
+
+Source pair: PuPu `fbbbfbb52451c8e07c7658c8b967386563b74baa` and Unchain
+`6d16434a3e20dccd9dbafd8b494e275372412512`, committed and pushed with the
+project owner's explicit authorization. This section is a later documentation
+update, not a different candidate payload.
+
+New artifacts (SHA-256):
+
+| Artifact | Digest |
+| --- | --- |
+| wheel | `f594257543010e903a89bda81aa6cf3d71501012b0cff162aca86660aeb05775` |
+| sidecar | `c25ba800164677212c2bd49e5c5df0a2e978b9f7fcdc63401e6b34650b2167cc` |
+| app.asar | `cc366f4aa14e6286de6d83a76b62a0efe054366304d3935456caaef17ee1ba05` |
+| installer | `45789d7ba44e19111d186b183e8cfc3ffcea2840ea26c32afa166f68d8e26723` |
+
+The unchanged runtime manifest digest is
+`sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc`.
+Artifact identity is established by the new wheel/sidecar digests, not by this
+unchanged protocol digest. The previous all/all snapshot is reused unchanged.
+
+Using the single new wheel (not the source checkout), the diagnostic suites
+passed 74 tests, the PuPu host suites passed 28 tests plus 6 subtests, and the
+Context V2 contract runner passed 71 core tests, 24 adapter tests plus 3
+subtests, and 2 Node strict-provider tests. All exit codes were 0. Web build,
+license check, PyInstaller sidecar and NSIS installer also exited 0.
+
+Both the unpacked candidate and the installed executable were exercised through
+real preload -> Electron -> packaged sidecar -> local deterministic provider.
+Each produced exactly one HTTP 400 call and surfaced
+`invalid_function_parameters` / `tools[3].parameters`; simulated private response
+text was absent from the UI result and scanned profile/log files. The first
+installed harness run failed during post-exit scanning because Chromium removed
+its transient `lockfile`; the helper now tolerates ENOENT only for that file.
+The second installed run passed without changing candidate bytes.
+
+Before installing, daily PuPu was closed and all 1,029 profile files (167,033,703
+bytes) were copied and SHA-256 verified. Backup:
+`.release-qa/windows-memory-v2-active/daily-backup-pre-diagnostic-20260907-153534`.
+An orphaned OLD-candidate sidecar whose parent had exited was recorded and
+stopped before copying; this is an outstanding lifecycle observation, not a
+claim that the full sink matrix has passed. Installer exit 0; installed main
+executable, app.asar, sidecar and provenance JSON all match the new candidate.
+Daily profile startup reports service ready, Memory V2 ready/all and Windows
+capability ready. A loopback diagnostic launch is temporarily open for the
+owner's real-message smoke; no real-provider request was sent by Codex.
+
+Evidence root:
+`.release-qa/windows-memory-v2-active/20260907-provider-diagnostic/`.
+Index: `candidate-build-evidence.json`, `installation-evidence.json`,
+`daily-startup-status.json`, `wheel-diagnostic-tests.log`, `wheel-host-tests.log`,
+`context-contract.log`, `diagnostic-probe-0X0CJ6/evidence.json` (unpacked),
+`diagnostic-probe-ydtyUy/evidence.json` (installed), `old-candidate-orphan.json`.
+The frozen previous installer and pre-diagnostic backup remain the rollback
+pair. Restore that backup when rolling back; the old runtime cannot consume new
+v3 diagnostic-bearing failure records.
+
+Disposition: diagnostic repair **installed and locally verified**; actual
+provider rejection **awaiting a new owner-triggered message**. Full CP2 remains
+INCOMPLETE. No previous candidate evidence was relabelled as this candidate.
