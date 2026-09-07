@@ -22,13 +22,14 @@ SPEC.loader.exec_module(validator)
 def _evidence() -> dict[str, object]:
     return {
         "schema": "pupu.windows-packaged-vault-supervisor-probe.v1",
-        "executed_tests": 3,
+        "executed_tests": 4,
         "platform": "win32-x64",
         "artifact_sha256": "sha256:" + ("a" * 64),
         "runtime_manifest_digest": "sha256:" + ("b" * 64),
         "sidecar_sha256": "sha256:" + ("c" * 64),
         "packaged_same_exe_ready": True,
         "strict_worker_protocol_error": True,
+        "oversize_request_frame_rejected": True,
         "supervisor_job_tree_drained": True,
     }
 
@@ -38,7 +39,7 @@ def _canonical(value: dict[str, object]) -> bytes:
 
 
 def test_accepts_only_the_closed_canonical_packaged_supervisor_evidence():
-    assert validator.validate_evidence_bytes(_canonical(_evidence())) == 3
+    assert validator.validate_evidence_bytes(_canonical(_evidence())) == 4
 
 
 @pytest.mark.parametrize(
@@ -46,6 +47,9 @@ def test_accepts_only_the_closed_canonical_packaged_supervisor_evidence():
     [
         lambda value: value.pop("sidecar_sha256"),
         lambda value: value.update({"executed_tests": 0}),
+        lambda value: value.update({"executed_tests": 3}),
+        lambda value: value.update({"oversize_request_frame_rejected": False}),
+        lambda value: value.pop("oversize_request_frame_rejected"),
         lambda value: value.update({"packaged_same_exe_ready": False}),
         lambda value: value.update({"sidecar_sha256": "not-a-sha"}),
     ],

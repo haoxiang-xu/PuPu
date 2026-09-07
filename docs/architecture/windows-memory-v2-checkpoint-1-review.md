@@ -1007,3 +1007,13 @@ K1–K4 已关闭，避免继续围绕已通过项反复修补。下一步：让
 | golden/model 四文件（`.gitattributes` 后） | 122 passed |
 
 Windows 端待做（第二阶段步骤 5–7）：一次构建 wheel 并固定 evidence → `build:electron:win:unsigned`（复用同一 `UNCHAIN_ARTIFACT_PATH` / `UNCHAIN_ARTIFACT_EVIDENCE_PATH`）→ 安装到私有 userData → 重启后 `getStatus().memoryV2.windowsCapability.status === "ready"` → package probe / contract matrix / 安装态恢复矩阵 / H4 真实写入路径复验。全部 **NOT_RUN**。
+
+## 第二十四节：Codex 第二阶段两轮（步骤 5 完成、打包行为证据）与 Mac 侧接续 — 2026-09-07/08
+
+> Codex 两轮评论（issue #195，2026-09-07 15:32 / 17:21 / 17:51）的要点；完整报告见 `windows-memory-v2-checkpoint-2-review.md`（Codex 于 `a0d6cb7a` 提交）。
+
+- **步骤 5 完成：** 用固定 wheel `29d009ae…`（manifest `ab00567f…`，与 Mac 一致）构建 sidecar `050ff10c…`、NSIS installer `a0bee8ef…`、app.asar `0d197759…`；打包 Electron 在隔离 profile 下实测 `windowsCapability.status="ready"`、`platformActiveBlocked=false`、`rolloutMode="all"`（从 `win-unpacked` 启动，不冒充安装态）。同一 wheel 的 Context V2 / RunBundle 契约、原生 probe、onefile supervisor probe 全部通过。
+- **打包行为证据：** 首条/第二条/跨聊天隔离/重启后历史；`production_runs_v1` 普通写入路径在干净私有目录**未复现 H4**（旧 Roaming 目录 ACL 已只读记录：owner Full、`CodexSandboxUsers` RX，不足以定根因）；两次 interaction + 两次强杀冷启动恰好 3 次 provider 调用；跨存储删除通过。四个 probe 与 byte verifier 已迁入 `scripts/release-qa/` 并重跑 exit 0。
+- **两个阻塞点的定性：** ① `run-run-bundle-contract.mjs` 把 POSIX `.bin` shim 交给 node，Windows 必炸 —— Mac 已修（`4394f42c`，改为真实 CLI 入口，Mac 全链路 exit 0），待 Codex 用同一 wheel 复跑原 runner；② NSIS installer 用原 app identity，`uninstallOldVersion` 只查 HKCU（本候选 `oneClick=true perMachine=false`），用独立本地标准账户即可隔离，不需 VM、不改 appId。
+- **CP2 仍 INCOMPLETE 的项：** 真实 NSIS 隔离安装；installed parent + 三类 sink 生命周期/故障矩阵 + 100 次混合循环；其余 graph/subagent/loss/offline/rollback 格；启用/回退说明与最终 evidence index。
+- **Mac 侧接续（本节）：** 步骤 6 的安装态 sink 矩阵 harness 已写好并推到分支，见修复计划 §11.9；Windows 执行与首跑调参由 Codex 完成。

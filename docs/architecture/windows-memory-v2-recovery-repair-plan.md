@@ -363,3 +363,22 @@ PYTHONPATH: /Users/red/Desktop/GITRepo/recovery/unchain/src
 - **构建 snapshot 不吃运行时 env override（Codex 2026-09-07 实测）。** `scripts/build-web.cjs` 在已存在 build feature snapshot 时传入空 override，`PUPU_MEMORY_V2_MODE` 之类的 env 只影响运行时，不改变打进包里的冻结配置。隔离验收候选要求 Active 时的正确入口是用 canonical `createBuildFeatureSnapshot` 生成私有 all/all snapshot 并经 `PUPU_BUILD_FEATURE_SNAPSHOT_PATH` 构建；公共 `.local/build_feature_flags.snapshot.json` 保持不动。暂不改代码。
 - **NSIS 隔离结论。** 本候选 `oneClick=true perMachine=false`，`uninstallOldVersion` 只查 SHELL_CONTEXT=HKCU；用一个独立的本地标准 Windows 账户安装同一个 setup.exe 即可与日常 PuPu 隔离，不需要 VM，也不得改 appId 造测试身份。
 - **`run-run-bundle-contract.mjs` Windows 入口修复**：改为 `jest/bin/jest.js` 与 `react-scripts/bin/react-scripts.js` 真实 CLI 入口（`.bin` shim 在 Windows 是 POSIX shell 脚本）。`scripts/` 不在 electron-builder `files` 内，不进 app.asar，修它不改候选 payload；Windows 侧用同一 wheel 重跑原 runner 即可，runner revision 与候选源码 revision 分开记录。
+
+### 11.9 第二阶段步骤 6：安装态 Vault sink 矩阵 harness — 2026-09-08（Claude, Mac；Windows 执行待 Codex）
+
+**入口与文件（均在 `scripts/release-qa/`，`scripts/` 不进 app.asar，不改候选 payload）：**
+
+| 文件 | 作用 | Mac 验证 |
+|---|---|---|
+| `windows-installed-sink-matrix-lib.mjs` | 平台无关核心：11 格 `CELL_CATALOG`（三类 sink × success / nonzero / timeout / native cancel / renderer deny / kill worker / kill supervisor / kill parent / cold restart）、确定性 100 循环调度（每种 ≥6、成功 ≥40）、Responses API 帧构造、`evaluateCell` 精确断言、secret 变体扫描（复用 `secret_variants.js`，命中只记 digest 前缀）、`buildEvidence`（schema `pupu.windows-installed-sink-matrix.v1`，精确 key set） | `node --test` 8 passed |
+| `verify-windows-installed-sink-evidence.mjs` | 独立严格 consumer：精确 key set、候选身份绑定（installer / app / asar / sidecar / wheel / manifest）、逐格用同一 `evaluateCell` 复核 PASS、100 循环与每种下限、零残留/零哨兵/零 secret 命中、句柄增长算术；退出码 0 / 1 / 2（pass / fail / incomplete） | `node --test` 5 passed（含 25 种漂移负例） |
+| `windows-installed-sink-matrix.mjs` | Windows 驱动器：以**已安装**的 `PuPu.exe` 为 parent（`--installed-root`，默认 `%LOCALAPPDATA%\Programs\PuPu`），校验安装字节与候选 identity，私有中文+空格 profile，loopback provider 按格发 `shell` / MCP 工具调用，`memoryVaultAPI.deposit/grant`，`getPendingInteraction` → `respondToolConfirmation`，并行 UIA 点对话框，`Get-CimInstance` 找 `--vault-sink-worker/--vault-sink-supervisor` 注入 kill，进程树残留 / 哨兵 / `Handles` 采样 / `settings.db` 只读读 `vault_use_intents` + `vault_use_receipts`，最后自跑 verifier | 仅 `node --check`；非 Windows 直接退出 2 |
+| `windows-native-confirm.ps1` | UI Automation 找 `Allow secret use?`（按 owner PID 过滤）点 `Allow once` / `Cancel`，或 `Probe` 断言不存在 | **NOT_RUN**（Mac 无 pwsh） |
+| `fixtures/fake-secret-mcp-server.mjs` | stdio MCP 假服务器，一个工具 `use_token(token: x-pupu-secret)`，只把 `sha256(token)` 追加到 `--receipt-file`，永不回显 | `node --test` 1 passed |
+| `windows-packaged-vault-supervisor-probe.py` + verifier | 新增 oversize 请求帧格（长度前缀 = worker `MAX_FRAME_BYTES`+1 → canonical protocol error + Job drain），`executed_tests` 3→4，新字段 `oversize_request_frame_rejected` | verifier pytest 8 passed；probe 本体 Windows-only |
+
+**Windows 执行顺序（Codex）：** 独立标准账户安装同一 setup.exe → `node scripts/release-qa/windows-installed-sink-matrix.mjs --candidate-dir <候选目录> --candidate-evidence <candidate-build-evidence.json> [--python <venv python>]` → 证据在 `<候选目录>/installed-sink-matrix-*/installed-sink-matrix-evidence.json`，驱动器末尾已跑 verifier，可再独立跑 `node scripts/release-qa/verify-windows-installed-sink-evidence.mjs <evidence> --candidate-evidence … --artifact-evidence <unchain-artifact.json>`。预计 11 格 + 100 循环 ≈ 30–45 分钟（timeout / kill 格各含 ≥9 s 哨兵等待）。
+
+**明确未覆盖：** AC-007 结构性 loss（不改候选无法在运行中注入 provenance/containment 失效）、AC-008/009 的 lost/offline/rollback 删除格、subagent/graph 路径上的 sink 使用；这些仍需独立 harness 或候选外机制，报告里保持 NOT_RUN。
+
+**首跑必然要调的地方（写在这里免得当 bug 报）：** ① MCP 工具在 provider 侧的广告名（驱动器从热身请求的 `tools[].name` 里找以 `use_token` 结尾的名字，找不到则 mcp 三格 fail closed）；② `deposit` 返回的 handle 字段名（驱动器兼容 `handle` / `descriptor.handle`）；③ `tool_result` 事件里 `vault_sink_use` 结果的嵌套位置（驱动器按 `vault_intent_id` / `denied` / `vault_*` 错误码遍历事件树）；④ UIA 对话框的 owner PID 是否为主进程（若对话框由子进程拥有，把 `-OwnerPid` 传 0 关闭过滤）。
