@@ -116,7 +116,7 @@ test("Jest execution report rejects skipped-only output and proves a file ran", 
     const result = spawnSync(
       process.execPath,
       [
-        path.join(ROOT, "node_modules", ".bin", "jest"),
+        path.join(ROOT, "node_modules", "jest", "bin", "jest.js"),
         "--env=node",
         "--runInBand",
         "--silent",
