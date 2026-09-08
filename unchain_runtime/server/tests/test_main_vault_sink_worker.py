@@ -53,7 +53,11 @@ class VaultSinkWorkerEntryTests(unittest.TestCase):
         self.assertEqual(calls, ["supervisor"])
 
     def test_supervisor_rejects_non_windows_or_extra_arguments(self) -> None:
-        with mock.patch.object(vault_sink_job_supervisor, "main") as supervisor_main:
+        with mock.patch.object(
+            sidecar_main.sys,
+            "platform",
+            "linux",
+        ), mock.patch.object(vault_sink_job_supervisor, "main") as supervisor_main:
             self.assertEqual(
                 sidecar_main._dispatch_vault_sink_supervisor(
                     ["--vault-sink-supervisor", "unexpected"]
@@ -97,6 +101,10 @@ class VaultSinkWorkerEntryTests(unittest.TestCase):
             durable_job_runtime,
             "restore_frozen_job_environment",
             side_effect=lambda: calls.append("restore"),
+        ), mock.patch.object(
+            sidecar_main.sys,
+            "platform",
+            "linux",
         ), mock.patch.object(
             vault_sink_worker,
             "main",

@@ -13,6 +13,7 @@ import pytest
 
 import durable_interaction_host as durable_host
 import execution_control
+import session_execution_guard
 import unchain_adapter as adapter
 from context_memory_v2_capability import ContextMemoryV2CapabilityVerdict
 from durable_interaction_host import (
@@ -46,7 +47,7 @@ VAULT_MARKER = (
 VAULT_PLAINTEXT_SENTINEL = "framework-secret-plaintext-must-never-reach-python"
 
 
-def _recipe_payload() -> dict:
+def _recipe_payload(*, write_model: str = "anthropic:graph-write") -> dict:
     return {
         "name": RECIPE_NAME,
         "description": "",
@@ -69,7 +70,7 @@ def _recipe_payload() -> dict:
                 "id": "write",
                 "type": "agent",
                 "override": {
-                    "model": "anthropic:graph-write",
+                    "model": write_model,
                     "prompt": "Write the report from {{#collect.output#}}.",
                 },
             },
@@ -104,6 +105,49 @@ def _recipe_payload() -> dict:
     }
 
 
+def _recipe_payload_with_intermediate_steps(ordinary_step_count: int) -> dict:
+    """Build collect → one or more ordinary nodes → write for recovery."""
+
+    if ordinary_step_count < 1:
+        raise ValueError("ordinary_step_count must be positive")
+    payload = _recipe_payload(write_model="openai:graph-write")
+    intermediates = [
+        {
+            "id": f"normalize-{index}",
+            "type": "agent",
+            "override": {
+                "model": f"openai:graph-middle-{index}",
+                "prompt": "Normalize the collected evidence before writing.",
+            },
+        }
+        for index in range(1, ordinary_step_count + 1)
+    ]
+    payload["nodes"] = [
+        payload["nodes"][0],
+        payload["nodes"][1],
+        *intermediates,
+        payload["nodes"][2],
+        payload["nodes"][3],
+    ]
+    flow_nodes = ["collect", *(node["id"] for node in intermediates), "write"]
+    payload["edges"] = [
+        payload["edges"][0],
+        *[
+            {
+                "id": f"flow-{source}-{target}",
+                "kind": "flow",
+                "source_node_id": source,
+                "source_port_id": "out",
+                "target_node_id": target,
+                "target_port_id": "in",
+            }
+            for source, target in zip(flow_nodes, flow_nodes[1:])
+        ],
+        payload["edges"][2],
+    ]
+    return payload
+
+
 def _ready_capability() -> ContextMemoryV2CapabilityVerdict:
     return ContextMemoryV2CapabilityVerdict(
         ready=True,
@@ -134,10 +178,11 @@ def _ask_user_toolkit() -> Toolkit:
     return toolkit
 
 
-def _ask_turn() -> ModelTurnResult:
+def _ask_turn(ordinal: int = 1) -> ModelTurnResult:
+    suffix = "" if ordinal == 1 else f"-{ordinal}"
     arguments = {
-        "title": "Choose framework",
-        "question": "Which framework should the report use?",
+        "title": f"Choose framework{suffix}",
+        "question": f"Which framework should report step {ordinal} use?",
         "selection_mode": "single",
         "options": [
             {"label": "React", "value": "react"},
@@ -148,19 +193,19 @@ def _ask_turn() -> ModelTurnResult:
         assistant_messages=[
             {
                 "type": "function_call",
-                "call_id": "call-choose-framework",
+                "call_id": f"call-choose-framework{suffix}",
                 "name": ASK_USER_QUESTION_TOOL_NAME,
                 "arguments": json.dumps(arguments),
             }
         ],
         tool_calls=[
             ToolCall(
-                call_id="call-choose-framework",
+                call_id=f"call-choose-framework{suffix}",
                 name=ASK_USER_QUESTION_TOOL_NAME,
                 arguments=arguments,
             )
         ],
-        response_id="response-ask-framework",
+        response_id=f"response-ask-framework{suffix}",
     )
 
 
@@ -200,6 +245,8 @@ def _production_patches(
     provider_calls: Counter[tuple[str, str]],
     provider_requests: dict[tuple[str, str], list[object]],
     agent_calls: list[tuple[str, str, str]],
+    interaction_count: int = 1,
+    interaction_counts: dict[tuple[str, str], int] | None = None,
 ):
     stack = ExitStack()
     real_build_agent = adapter._build_developer_agent
@@ -229,16 +276,19 @@ def _production_patches(
             def create(self, **kwargs):
                 record_request(key, kwargs.get("input") or [])
                 provider_calls[key] += 1
-                if key != ("openai", "graph-collect"):
+                expected_interaction_counts = interaction_counts or {
+                    ("openai", "graph-collect"): interaction_count,
+                }
+                if key not in expected_interaction_counts:
                     raise AssertionError(f"unexpected provider/model: {key!r}")
-                if provider_calls[key] == 1:
-                    turn = _ask_turn()
+                if provider_calls[key] <= expected_interaction_counts[key]:
+                    turn = _ask_turn(provider_calls[key])
                     output = copy.deepcopy(turn.assistant_messages)
                     response_id = turn.response_id
                 else:
                     turn = _final_turn(
                         "React evidence collected",
-                        "response-collect-complete",
+                        f"response-{model}-complete",
                     )
                     output = [
                         {
@@ -356,7 +406,10 @@ def _production_patches(
             key = (str(self.provider), str(self.model))
             agent_calls.append(("run", key[0], key[1]))
             call = dict(kwargs)
-            if key == ("openai", "graph-collect"):
+            expected_interaction_counts = interaction_counts or {
+                ("openai", "graph-collect"): interaction_count,
+            }
+            if key in expected_interaction_counts:
                 # A process boundary, rather than a live blocking callback, owns
                 # this interaction.  Returning the durable wait checkpoint is
                 # what the resumed graph must consume after a cold rebuild.
@@ -367,7 +420,11 @@ def _production_patches(
             agent_calls.append(
                 ("resume_interaction", str(self.provider), str(self.model))
             )
-            return self._inner.resume_interaction(**kwargs)
+            call = dict(kwargs)
+            # Model a process boundary after every durable interaction, not a
+            # live waiter that the test process would have to answer in-place.
+            call["on_human_input"] = None
+            return self._inner.resume_interaction(**call)
 
     def build_offline_agent(**kwargs):
         provider = str(kwargs["provider"])
@@ -745,3 +802,556 @@ def test_active_graph_cold_resume_continues_exact_step_without_replaying_start(
         assert repeated.value.code == "interaction_not_found"
         assert provider_calls == calls_after_completion
         assert agent_calls == agents_after_completion
+
+
+def test_active_graph_two_interactions_cold_resume_once_each_without_reexecution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    from recipe_loader import save_recipe
+
+    provider_calls: Counter[tuple[str, str]] = Counter()
+    provider_requests: dict[tuple[str, str], list[object]] = {}
+    agent_calls: list[tuple[str, str, str]] = []
+    options = {
+        "modelId": "openai:graph-base",
+        "recipe_name": RECIPE_NAME,
+        "memory_enabled": True,
+        "durable_interactions_required": True,
+        "_memory_v2_requested": True,
+        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+        "_memory_v2_session_id": EXECUTION_ID,
+        "_memory_v2_attempt_id": COORDINATOR_ATTEMPT_ID,
+    }
+
+    with _production_patches(
+        tmp_path=tmp_path,
+        provider_calls=provider_calls,
+        provider_requests=provider_requests,
+        agent_calls=agent_calls,
+        interaction_count=2,
+    ):
+        save_recipe(_recipe_payload())
+        initial_events = list(
+            adapter.stream_chat_events(
+                message="Produce a two-decision framework report",
+                history=[],
+                attachments=[],
+                options=options,
+                session_id=EXECUTION_ID,
+                attempt_id=COORDINATOR_ATTEMPT_ID,
+            )
+        )
+        assert not any(
+            event.get("type") == "final_message" for event in initial_events
+        )
+
+        interaction_ids: list[str] = []
+        source_attempt_ids: list[str] = []
+        for ordinal, selected_value in ((1, "react"), (2, "vue")):
+            pending = adapter.get_pending_interaction(EXECUTION_ID)
+            assert pending["status"] == "awaiting_response"
+            assert pending["resume_kind"] == "graph_step"
+            interaction_id = str(pending["interaction_id"])
+            source_attempt_id = str(pending["source_run_id"])
+            assert interaction_id not in interaction_ids
+            interaction_ids.append(interaction_id)
+            source_attempt_ids.append(source_attempt_id)
+            receipt = record_interaction_receipt(
+                session_id=EXECUTION_ID,
+                interaction_id=interaction_id,
+                approved=True,
+                modified_arguments={
+                    "user_response": {"selected_values": [selected_value]}
+                },
+                submitted_by="ui:test",
+            )
+            assert receipt["disposition"] == "receipt_recorded"
+
+            resumed_events = list(
+                adapter.resume_chat_interaction_events(
+                    session_id=EXECUTION_ID,
+                    interaction_id=interaction_id,
+                    options={
+                        "modelId": "openai:graph-base",
+                        "recipe_name": RECIPE_NAME,
+                        "_memory_v2_requested": True,
+                        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+                    },
+                    attempt_id=f"transport-resume-attempt-{ordinal}",
+                    source_attempt_id=source_attempt_id,
+                )
+            )
+            if ordinal == 1:
+                assert not any(
+                    event.get("type") == "final_message"
+                    for event in resumed_events
+                )
+            else:
+                assert any(
+                    event.get("type") == "final_message"
+                    and event.get("content") == "Restart-safe React report"
+                    for event in resumed_events
+                )
+
+        assert provider_calls == Counter(
+            {
+                ("openai", "graph-collect"): 3,
+                ("anthropic", "graph-write"): 1,
+            }
+        )
+        assert agent_calls == [
+            ("run", "openai", "graph-collect"),
+            ("resume_interaction", "openai", "graph-collect"),
+            ("resume_interaction", "openai", "graph-collect"),
+            ("run", "anthropic", "graph-write"),
+        ]
+
+        store, _plan = _plan_from_store(tmp_path)
+        snapshot = store.bind_execution(EXECUTION_ID).capture_snapshot()
+        event_types = [event.event_type for event in snapshot.events]
+        assert event_types.count("graph.step.resume.admitted") == 2
+        assert event_types.count("graph.step.completed") == 2
+        assert event_types.count("graph.execution.completed") == 1
+
+        calls_after_completion = provider_calls.copy()
+        agents_after_completion = list(agent_calls)
+        for interaction_id, source_attempt_id in zip(
+            interaction_ids,
+            source_attempt_ids,
+            strict=True,
+        ):
+            with pytest.raises(DurableInteractionHostError) as repeated:
+                list(
+                    adapter.resume_chat_interaction_events(
+                        session_id=EXECUTION_ID,
+                        interaction_id=interaction_id,
+                        options={
+                            "modelId": "openai:graph-base",
+                            "recipe_name": RECIPE_NAME,
+                            "_memory_v2_requested": True,
+                            "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+                        },
+                        attempt_id="transport-repeat-attempt",
+                        source_attempt_id=source_attempt_id,
+                    )
+                )
+            assert repeated.value.code == "interaction_not_found"
+        assert provider_calls == calls_after_completion
+        assert agent_calls == agents_after_completion
+
+
+def test_active_graph_cross_node_interactions_preserve_verified_guard_lineage(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A resumed graph may suspend again in its immediate successor node."""
+
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    from recipe_loader import save_recipe
+
+    provider_calls: Counter[tuple[str, str]] = Counter()
+    provider_requests: dict[tuple[str, str], list[object]] = {}
+    agent_calls: list[tuple[str, str, str]] = []
+    options = {
+        "modelId": "openai:graph-base",
+        "recipe_name": RECIPE_NAME,
+        "memory_enabled": True,
+        "durable_interactions_required": True,
+        "_memory_v2_requested": True,
+        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+        "_memory_v2_session_id": EXECUTION_ID,
+        "_memory_v2_attempt_id": COORDINATOR_ATTEMPT_ID,
+    }
+    interaction_counts = {
+        ("openai", "graph-collect"): 1,
+        ("openai", "graph-write"): 1,
+    }
+
+    with _production_patches(
+        tmp_path=tmp_path,
+        provider_calls=provider_calls,
+        provider_requests=provider_requests,
+        agent_calls=agent_calls,
+        interaction_counts=interaction_counts,
+    ):
+        save_recipe(_recipe_payload(write_model="openai:graph-write"))
+        initial_events = list(
+            adapter.stream_chat_events(
+                message="Ask once in each graph node",
+                history=[],
+                attachments=[],
+                options=options,
+                session_id=EXECUTION_ID,
+                attempt_id=COORDINATOR_ATTEMPT_ID,
+            )
+        )
+        assert not any(
+            event.get("type") == "final_message" for event in initial_events
+        )
+
+        first = adapter.get_pending_interaction(EXECUTION_ID)
+        assert first["status"] == "awaiting_response"
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=first["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["react"]}
+            },
+            submitted_by="ui:test",
+        )
+        first_resume_events = list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=first["interaction_id"],
+                options=options,
+                attempt_id="transport-next-step",
+                source_attempt_id=first["source_run_id"],
+            )
+        )
+        assert not any(
+            event.get("type") == "final_message"
+            for event in first_resume_events
+        )
+
+        guard = session_execution_guard.snapshot_session_guard(
+            session_id=EXECUTION_ID
+        )
+        assert guard is not None
+        binding = durable_host.load_execution_attempt_binding(
+            EXECUTION_ID,
+            guard.attempt_id,
+        )
+        assert binding is not None
+        current = durable_host._interaction_runtime().load_active(EXECUTION_ID)
+        second_source_attempt_id = str(current.request.source_run_id)
+        second_interaction_id = str(current.request.interaction_id)
+        assert durable_host._graph_step_follows_bound_interaction_source(
+            session_id=EXECUTION_ID,
+            bound_source_attempt_id=str(binding["source_attempt_id"]),
+            current_source_attempt_id=second_source_attempt_id,
+            interaction_id=second_interaction_id,
+            bound_graph_guard_lineage=binding[
+                "source_graph_guard_lineage"
+            ],
+        )
+        for field_name in (
+            "coordinator_attempt_id",
+            "graph_plan_id",
+            "graph_scope_id",
+            "topology_sha256",
+        ):
+            forged = copy.deepcopy(binding["source_graph_guard_lineage"])
+            forged[field_name] = (
+                "f" * 64 if field_name == "topology_sha256" else "foreign"
+            )
+            assert not durable_host._graph_step_follows_bound_interaction_source(
+                session_id=EXECUTION_ID,
+                bound_source_attempt_id=str(binding["source_attempt_id"]),
+                current_source_attempt_id=second_source_attempt_id,
+                interaction_id=second_interaction_id,
+                bound_graph_guard_lineage=forged,
+            )
+        assert not durable_host._graph_step_follows_bound_interaction_source(
+            session_id="foreign-session",
+            bound_source_attempt_id=str(binding["source_attempt_id"]),
+            current_source_attempt_id=second_source_attempt_id,
+            interaction_id=second_interaction_id,
+            bound_graph_guard_lineage=binding[
+                "source_graph_guard_lineage"
+            ],
+        )
+
+        second = adapter.get_pending_interaction(EXECUTION_ID)
+        assert second["status"] == "awaiting_response"
+        assert second["source_run_id"] == second_source_attempt_id
+        assert second["source_run_id"] != first["source_run_id"]
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=second["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["vue"]}
+            },
+            submitted_by="ui:test",
+        )
+        second_resume_events = list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=second["interaction_id"],
+                options=options,
+                attempt_id="transport-finish-graph",
+                source_attempt_id=second["source_run_id"],
+            )
+        )
+        assert any(
+            event.get("type") == "final_message"
+            and event.get("content") == "React evidence collected"
+            for event in second_resume_events
+        )
+        assert provider_calls == Counter(
+            {
+                ("openai", "graph-collect"): 2,
+                ("openai", "graph-write"): 2,
+            }
+        )
+
+        calls_after_completion = provider_calls.copy()
+        with pytest.raises(DurableInteractionHostError) as repeated:
+            list(
+                adapter.resume_chat_interaction_events(
+                    session_id=EXECUTION_ID,
+                    interaction_id=first["interaction_id"],
+                    options=options,
+                    attempt_id="transport-replay-first-receipt",
+                    source_attempt_id=first["source_run_id"],
+                )
+            )
+        assert repeated.value.code == "interaction_not_found"
+        assert provider_calls == calls_after_completion
+
+
+@pytest.mark.parametrize("ordinary_step_count", (1, 2))
+def test_active_graph_interaction_after_completed_intermediate_step_recovers(
+    tmp_path: Path,
+    monkeypatch,
+    ordinary_step_count: int,
+) -> None:
+    """A transport bound at collect may park again at write after normalize."""
+
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    from recipe_loader import save_recipe
+
+    provider_calls: Counter[tuple[str, str]] = Counter()
+    provider_requests: dict[tuple[str, str], list[object]] = {}
+    agent_calls: list[tuple[str, str, str]] = []
+    options = {
+        "modelId": "openai:graph-base",
+        "recipe_name": RECIPE_NAME,
+        "memory_enabled": True,
+        "durable_interactions_required": True,
+        "_memory_v2_requested": True,
+        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+        "_memory_v2_session_id": EXECUTION_ID,
+        "_memory_v2_attempt_id": COORDINATOR_ATTEMPT_ID,
+    }
+    interaction_counts = {
+        ("openai", "graph-collect"): 1,
+        ("openai", "graph-write"): 1,
+        **{
+            ("openai", f"graph-middle-{index}"): 0
+            for index in range(1, ordinary_step_count + 1)
+        },
+    }
+
+    with _production_patches(
+        tmp_path=tmp_path,
+        provider_calls=provider_calls,
+        provider_requests=provider_requests,
+        agent_calls=agent_calls,
+        interaction_counts=interaction_counts,
+    ):
+        save_recipe(
+            _recipe_payload_with_intermediate_steps(ordinary_step_count)
+        )
+        initial_events = list(
+            adapter.stream_chat_events(
+                message="Ask before and after an ordinary graph node",
+                history=[],
+                attachments=[],
+                options=options,
+                session_id=EXECUTION_ID,
+                attempt_id=COORDINATOR_ATTEMPT_ID,
+            )
+        )
+        assert not any(
+            event.get("type") == "final_message" for event in initial_events
+        )
+
+        first = adapter.get_pending_interaction(EXECUTION_ID)
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=first["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["react"]}
+            },
+            submitted_by="ui:test",
+        )
+        first_resume_events = list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=first["interaction_id"],
+                options=options,
+                attempt_id="transport-through-intermediary",
+                source_attempt_id=first["source_run_id"],
+            )
+        )
+        assert not any(
+            event.get("type") == "final_message"
+            for event in first_resume_events
+        )
+
+        # This is the historical G1 boundary: collect's resume file was
+        # deleted after it completed, normalize finished normally, and write
+        # now owns a second durable interaction.  The public pending read must
+        # still recognize the original transport binding through the journal.
+        second = adapter.get_pending_interaction(EXECUTION_ID)
+        assert second["status"] == "awaiting_response"
+        assert second["source_run_id"] != first["source_run_id"]
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=second["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["vue"]}
+            },
+            submitted_by="ui:test",
+        )
+        completed_events = list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=second["interaction_id"],
+                options=options,
+                attempt_id="transport-finish-intermediary-graph",
+                source_attempt_id=second["source_run_id"],
+            )
+        )
+
+        assert any(
+            event.get("type") == "final_message"
+            and event.get("content") == "React evidence collected"
+            for event in completed_events
+        )
+        assert provider_calls == Counter(
+            {
+                ("openai", "graph-collect"): 2,
+                ("openai", "graph-write"): 2,
+                **{
+                    ("openai", f"graph-middle-{index}"): 1
+                    for index in range(1, ordinary_step_count + 1)
+                },
+            }
+        )
+
+
+def test_active_graph_legacy_v1_transport_binding_recovers_second_interaction(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A valid v1 binding must not need a newly-added graph summary field."""
+
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PUPU_CONTEXT_V2_STORE_OWNER", "unchain")
+    from recipe_loader import save_recipe
+
+    provider_calls: Counter[tuple[str, str]] = Counter()
+    provider_requests: dict[tuple[str, str], list[object]] = {}
+    agent_calls: list[tuple[str, str, str]] = []
+    options = {
+        "modelId": "openai:graph-base",
+        "recipe_name": RECIPE_NAME,
+        "memory_enabled": True,
+        "durable_interactions_required": True,
+        "_memory_v2_requested": True,
+        "_memory_v2_owner_chat_id": OWNER_CHAT_ID,
+        "_memory_v2_session_id": EXECUTION_ID,
+        "_memory_v2_attempt_id": COORDINATOR_ATTEMPT_ID,
+    }
+    interaction_counts = {
+        ("openai", "graph-collect"): 1,
+        ("openai", "graph-write"): 1,
+    }
+
+    with _production_patches(
+        tmp_path=tmp_path,
+        provider_calls=provider_calls,
+        provider_requests=provider_requests,
+        agent_calls=agent_calls,
+        interaction_counts=interaction_counts,
+    ):
+        save_recipe(_recipe_payload(write_model="openai:graph-write"))
+        list(
+            adapter.stream_chat_events(
+                message="Recover a legacy binding without rewriting it",
+                history=[],
+                attachments=[],
+                options=options,
+                session_id=EXECUTION_ID,
+                attempt_id=COORDINATOR_ATTEMPT_ID,
+            )
+        )
+        first = adapter.get_pending_interaction(EXECUTION_ID)
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=first["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["react"]}
+            },
+            submitted_by="ui:test",
+        )
+        list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=first["interaction_id"],
+                options=options,
+                attempt_id="transport-legacy-v1",
+                source_attempt_id=first["source_run_id"],
+            )
+        )
+
+        guard = session_execution_guard.snapshot_session_guard(
+            session_id=EXECUTION_ID
+        )
+        assert guard is not None
+        binding_path = durable_host._attempt_binding_path(
+            EXECUTION_ID,
+            guard.attempt_id,
+        )
+        legacy = json.loads(binding_path.read_text(encoding="utf-8"))
+        legacy.pop("source_graph_guard_lineage")
+        binding_path.write_text(
+            json.dumps(legacy, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+        assert "source_graph_guard_lineage" not in durable_host.load_execution_attempt_binding(
+            EXECUTION_ID,
+            guard.attempt_id,
+        )
+
+        # The old binding's source resume context is no longer present after
+        # collect completes.  The canonical admitted plan remains sufficient
+        # for both the pending read and the receipt/restart path.
+        second = adapter.get_pending_interaction(EXECUTION_ID)
+        assert second["status"] == "awaiting_response"
+        record_interaction_receipt(
+            session_id=EXECUTION_ID,
+            interaction_id=second["interaction_id"],
+            approved=True,
+            modified_arguments={
+                "user_response": {"selected_values": ["vue"]}
+            },
+            submitted_by="ui:test",
+        )
+        completed_events = list(
+            adapter.resume_chat_interaction_events(
+                session_id=EXECUTION_ID,
+                interaction_id=second["interaction_id"],
+                options=options,
+                attempt_id="transport-finish-legacy-v1",
+                source_attempt_id=second["source_run_id"],
+            )
+        )
+        assert any(event.get("type") == "final_message" for event in completed_events)
+        assert provider_calls == Counter(
+            {
+                ("openai", "graph-collect"): 2,
+                ("openai", "graph-write"): 2,
+            }
+        )

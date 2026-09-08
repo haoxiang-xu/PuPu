@@ -4,7 +4,7 @@
     "negative_cases": [
       "missing_required_feature",
       "unknown_sink_kind",
-      "disabled_windows_sink"
+      "unsupported_windows_sink"
     ],
     "recognized_kinds": [
       "computer_input",
@@ -13,12 +13,12 @@
       "shell_secret_stdin"
     ],
     "windows": {
-      "disabled_kinds": [
+      "disabled_kinds": [],
+      "enabled_kinds": [
         "mcp_schema_secret",
         "shell_secret_env",
         "shell_secret_stdin"
       ],
-      "enabled_kinds": [],
       "unsupported_kinds": [
         "computer_input"
       ],
@@ -53,7 +53,9 @@
           "cancel_pending",
           "expected_interaction_id_cas",
           "fresh_run_lineage",
-          "host_controlled_resume"
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
         ],
         "id": "durable_interaction",
         "major": 1,

@@ -3,6 +3,7 @@ const { VAULT_SINK_KINDS } = require("../memory_vault/vault_sink_executor");
 const WINDOWS_VAULT_CAPABILITY_PROTOCOL = 1;
 const WINDOWS_VAULT_CAPABILITY_CONTAINMENT = "win32_job_list_v1";
 const WINDOWS_VAULT_PROVENANCE_SCHEMA = "pupu.windows-vault-provenance.v1";
+const WINDOWS_VAULT_DEVELOPMENT_SCHEMA = "pupu.windows-vault-development.v1";
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
 const STATIC_CODE = /^vault_[a-z0-9_]{1,80}$/;
 const RECEIPTS = new WeakSet();
@@ -46,7 +47,7 @@ const isSinkCapability = (value) => {
     }
     seen.add(sinkKind);
   }
-  return true;
+  return seen.size > 0;
 };
 
 const isProbe = (value) =>
@@ -56,8 +57,11 @@ const isProbe = (value) =>
   value.supervisor_protocol === WINDOWS_VAULT_CAPABILITY_PROTOCOL &&
   value.worker_protocol === WINDOWS_VAULT_CAPABILITY_PROTOCOL;
 
-const isProvenance = (value) =>
-  hasExactKeys(value, [
+const isProvenance = (value, isPackaged) =>
+  (isPackaged === false &&
+    hasExactKeys(value, ["arch", "schema"]) &&
+    value.arch === "x64" && value.schema === WINDOWS_VAULT_DEVELOPMENT_SCHEMA) ||
+  (hasExactKeys(value, [
     "arch",
     "runtime_manifest_digest",
     "schema",
@@ -68,18 +72,19 @@ const isProvenance = (value) =>
   value.schema === WINDOWS_VAULT_PROVENANCE_SCHEMA &&
   SHA256.test(value.runtime_manifest_digest) &&
   SHA256.test(value.sidecar_sha256) &&
-  SHA256.test(value.unchain_wheel_sha256);
+  SHA256.test(value.unchain_wheel_sha256));
 
 const createWindowsVaultCapabilityReceipt = ({
   broker,
   capability,
   probe,
   provenance,
+  isPackaged = true,
 } = {}) => {
   if (
     !isSinkCapability(capability) ||
     !isProbe(probe) ||
-    !isProvenance(provenance) ||
+    !isProvenance(provenance, isPackaged) ||
     !hasExactKeys(broker, ["protocol", "sink_kinds"]) ||
     broker.protocol !== WINDOWS_VAULT_CAPABILITY_PROTOCOL ||
     !Array.isArray(broker.sink_kinds) ||
@@ -99,13 +104,7 @@ const createWindowsVaultCapabilityReceipt = ({
       protocol: capability.protocol,
     }),
     probe: Object.freeze({ ...probe }),
-    provenance: Object.freeze({
-      arch: provenance.arch,
-      runtime_manifest_digest: provenance.runtime_manifest_digest,
-      schema: provenance.schema,
-      sidecar_sha256: provenance.sidecar_sha256,
-      unchain_wheel_sha256: provenance.unchain_wheel_sha256,
-    }),
+    provenance: Object.freeze({ ...provenance }),
   });
   RECEIPTS.add(receipt);
   return receipt;
@@ -152,6 +151,7 @@ module.exports = {
   WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
   WINDOWS_VAULT_CAPABILITY_PROTOCOL,
   WINDOWS_VAULT_PROVENANCE_SCHEMA,
+  WINDOWS_VAULT_DEVELOPMENT_SCHEMA,
   createWindowsVaultCapabilityLatch,
   createWindowsVaultCapabilityReceipt,
 };

@@ -31,6 +31,7 @@ _GRAPH_STEP_CONTEXT_REVISION = 1
 _GRAPH_STEP_CONTEXT_DIRECTORY = "durable_graph_step_resumes"
 _ATTEMPT_BINDING_SCHEMA_VERSION = 1
 _ATTEMPT_BINDING_DIRECTORY = "execution_attempt_bindings"
+_INTERACTION_COMMIT_LOCK_DIRECTORY = "durable_interaction_commit_locks"
 
 _GRAPH_STEP_CONTEXT_RECORD_KEYS = frozenset(
     {
@@ -488,6 +489,58 @@ def _exclusive_file_lock(path: Path) -> Iterator[None]:
                 fcntl.flock(file_descriptor, fcntl.LOCK_UN)
     finally:
         os.close(file_descriptor)
+
+
+_INTERACTION_COMMIT_LOCK_HELD = threading.local()
+
+
+def _interaction_commit_lock_path(session_id: str) -> Path:
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    root = _normalized_data_dir() / _INTERACTION_COMMIT_LOCK_DIRECTORY
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name != "nt":
+        os.chmod(root, 0o700)
+    return root / f"{_identifier_digest(normalized_session_id)[:32]}.lock"
+
+
+@contextmanager
+def _interaction_commit_lock(session_id: str) -> Iterator[None]:
+    """Serialize one session's durable answer commit against its cancellation.
+
+    The canonical Context V2 journal and the host session receipt live in
+    different stores with no shared transaction.  ``record_interaction_receipt``
+    holds this lock from the moment it re-reads the cancellation facts until
+    both the canonical acceptance and its host projection are committed;
+    ``cancel_chat_execution`` holds it while it claims the host-side
+    cancellation.  Whichever side takes the lock first therefore decides, and
+    the other side observes the decision before writing anything (repair plan
+    §10.4 steps 2 and 5).  Lock order is this host file lock first, then the
+    SQLite Context V2 mutex taken inside the canonical write; nothing takes
+    them in the opposite order.  The file lock is not re-entrant across
+    descriptors, so the same thread re-entering for the same session simply
+    proceeds.
+    """
+
+    normalized_session_id = _required_identifier(
+        session_id,
+        field_name="session_id",
+    )
+    held = getattr(_INTERACTION_COMMIT_LOCK_HELD, "sessions", None)
+    if held is None:
+        held = set()
+        _INTERACTION_COMMIT_LOCK_HELD.sessions = held
+    if normalized_session_id in held:
+        yield
+        return
+    held.add(normalized_session_id)
+    try:
+        with _exclusive_file_lock(_interaction_commit_lock_path(normalized_session_id)):
+            yield
+    finally:
+        held.discard(normalized_session_id)
 
 
 def _write_json_atomically(path: Path, payload: dict[str, Any]) -> None:
@@ -1730,6 +1783,92 @@ def clear_graph_step_resume_context(
     return True
 
 
+_SOURCE_GRAPH_GUARD_LINEAGE_KEYS = frozenset(
+    {
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+        "topology_sha256",
+        "canonical_build_fingerprint",
+        "recipe_identity_sha256",
+        "coordinator_binding_sha256",
+    }
+)
+
+
+def _source_graph_guard_lineage(
+    graph_record: dict[str, Any],
+) -> dict[str, str]:
+    """Capture the graph authority a transport attempt is resuming from."""
+
+    return {
+        "session_id": str(graph_record["session_id"]),
+        "owner_chat_id": str(graph_record["owner_chat_id"]),
+        "graph_execution_id": str(graph_record["graph_execution_id"]),
+        "coordinator_attempt_id": str(graph_record["coordinator_attempt_id"]),
+        "graph_plan_id": str(graph_record["graph_plan_id"]),
+        "graph_scope_id": str(graph_record["graph_scope_id"]),
+        "topology_sha256": str(graph_record["topology_sha256"]),
+        "canonical_build_fingerprint": str(
+            graph_record["canonical_build_fingerprint"]
+        ),
+        "recipe_identity_sha256": hashlib.sha256(
+            _canonical_graph_json_bytes(
+                graph_record["recipe_identity"],
+                error_code="durable_graph_resume_context_corrupt",
+                message="Graph-step recipe identity is not canonical JSON",
+            )
+        ).hexdigest(),
+        "coordinator_binding_sha256": hashlib.sha256(
+            _canonical_graph_json_bytes(
+                graph_record["coordinator_binding_snapshot"],
+                error_code="durable_graph_resume_context_corrupt",
+                message="Graph-step coordinator binding is not canonical JSON",
+            )
+        ).hexdigest(),
+    }
+
+
+def _validate_source_graph_guard_lineage(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict) or set(raw) != _SOURCE_GRAPH_GUARD_LINEAGE_KEYS:
+        raise DurableInteractionHostError(
+            "execution_attempt_binding_corrupt",
+            "Execution attempt graph authority has an invalid shape",
+        )
+    result: dict[str, str] = {}
+    for field_name in (
+        "session_id",
+        "owner_chat_id",
+        "graph_execution_id",
+        "coordinator_attempt_id",
+        "graph_plan_id",
+        "graph_scope_id",
+    ):
+        result[field_name] = _required_identifier(
+            raw.get(field_name),
+            field_name=f"source_graph_guard_{field_name}",
+        )
+    for field_name in (
+        "topology_sha256",
+        "canonical_build_fingerprint",
+        "recipe_identity_sha256",
+        "coordinator_binding_sha256",
+    ):
+        result[field_name] = _required_graph_sha256(
+            raw.get(field_name),
+            field_name=f"source_graph_guard_{field_name}",
+        )
+    if result["graph_execution_id"] != result["session_id"]:
+        raise DurableInteractionHostError(
+            "execution_attempt_binding_corrupt",
+            "Execution attempt graph authority belongs to another session",
+        )
+    return result
+
+
 def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
@@ -1754,6 +1893,9 @@ def _read_attempt_binding_path(path: Path) -> dict[str, Any] | None:
                 "execution_attempt_binding_corrupt",
                 f"Execution attempt binding has no valid {field_name}",
             )
+    graph_lineage = raw.get("source_graph_guard_lineage")
+    if graph_lineage is not None:
+        _validate_source_graph_guard_lineage(graph_lineage)
     return raw
 
 
@@ -1781,6 +1923,19 @@ def bind_execution_attempt(
     normalized_source_attempt_id = _required_identifier(
         source_attempt_id,
         field_name="source_attempt_id",
+    )
+    source_graph_record = _read_graph_step_context_path(
+        _graph_step_context_path(
+            normalized_session_id,
+            normalized_source_attempt_id,
+        ),
+        expected_session_id=normalized_session_id,
+        expected_step_attempt_id=normalized_source_attempt_id,
+    )
+    source_graph_guard_lineage = (
+        _source_graph_guard_lineage(source_graph_record)
+        if source_graph_record is not None
+        else None
     )
     path = _attempt_binding_path(
         normalized_session_id,
@@ -1814,6 +1969,10 @@ def bind_execution_attempt(
                 "source_attempt_id": normalized_source_attempt_id,
                 "created_at_ms": int(time.time() * 1000),
             }
+            if source_graph_guard_lineage is not None:
+                payload["source_graph_guard_lineage"] = (
+                    source_graph_guard_lineage
+                )
             _write_json_atomically(path, payload)
             result = copy.deepcopy(payload)
 
@@ -2931,13 +3090,114 @@ def _durable_interaction_guard_owner_attempt(
     return source_attempt_id
 
 
-def _reconcile_durable_interaction_session_guard(
+def _graph_step_follows_bound_interaction_source(
+    *,
+    session_id: str,
+    bound_source_attempt_id: str,
+    current_source_attempt_id: str,
+    interaction_id: str,
+    bound_graph_guard_lineage: Any = None,
+    allow_resolved: bool = False,
+) -> bool:
+    """Return whether canonical facts prove a transport's current graph pause.
+
+    The immutable transport binding keeps its original source step.  The
+    current graph context is only a locator for the generation and coordinator;
+    the admitted plan and completed-prefix facts come from the read-only
+    Unchain journal proof.  This permits arbitrary completed intermediary
+    nodes, without treating their cleaned-up resume files as authority.
+    """
+
+    current_record = _read_graph_step_context_path(
+        _graph_step_context_path(session_id, current_source_attempt_id),
+        expected_session_id=session_id,
+        expected_step_attempt_id=current_source_attempt_id,
+    )
+    if current_record is None:
+        return False
+    coordinator_binding = current_record["coordinator_binding_snapshot"]
+    generation_id = str(coordinator_binding["generation_id"])
+    try:
+        from memory_v2_unchain_active_bridge import (
+            PupuUnchainActiveBridgeError,
+            pupu_unchain_cold_graph_interaction_lineage_proof,
+        )
+    except ImportError:
+        return False
+    try:
+        proof = pupu_unchain_cold_graph_interaction_lineage_proof(
+            session_id=session_id,
+            execution_id=session_id,
+            generation_id=generation_id,
+            coordinator_attempt_id=str(
+                current_record["coordinator_attempt_id"]
+            ),
+            source_attempt_id=bound_source_attempt_id,
+            current_attempt_id=current_source_attempt_id,
+            interaction_id=interaction_id,
+            allow_resolved=allow_resolved,
+        )
+    except PupuUnchainActiveBridgeError:
+        return False
+    if proof is None:
+        return False
+    current_step = proof.current_step
+    return (
+        proof.execution_id == session_id
+        and proof.generation_id == generation_id
+        and proof.coordinator_attempt_id
+        == current_record["coordinator_attempt_id"]
+        and proof.graph_plan_id == current_record["graph_plan_id"]
+        and proof.graph_scope_id == current_record["graph_scope_id"]
+        and proof.topology_sha256 == current_record["topology_sha256"]
+        and proof.source_step.attempt.attempt_id == bound_source_attempt_id
+        and current_step.attempt.attempt_id == current_source_attempt_id
+        and current_step.index == current_record["step_index"]
+        and current_step.node_id == current_record["node_id"]
+        and current_step.provider == current_record["provider"]
+        and current_step.model == current_record["model"]
+        and current_step.configuration_sha256
+        == current_record["configuration_sha256"]
+        and proof.interaction_id == interaction_id
+        and _source_graph_guard_lineage_agrees_with_canonical_proof(
+            raw_lineage=bound_graph_guard_lineage,
+            current_record=current_record,
+            proof=proof,
+        )
+    )
+
+
+def _source_graph_guard_lineage_agrees_with_canonical_proof(
+    *,
+    raw_lineage: Any,
+    current_record: dict[str, Any],
+    proof: Any,
+) -> bool:
+    """Keep recorded v1 graph summaries as a redundant consistency check."""
+
+    if raw_lineage is None:
+        return True
+    lineage = _validate_source_graph_guard_lineage(raw_lineage)
+    current_summary = _source_graph_guard_lineage(current_record)
+    return (
+        lineage == current_summary
+        and lineage["graph_execution_id"] == proof.execution_id
+        and lineage["coordinator_attempt_id"] == proof.coordinator_attempt_id
+        and lineage["graph_plan_id"] == proof.graph_plan_id
+        and lineage["graph_scope_id"] == proof.graph_scope_id
+        and lineage["topology_sha256"] == proof.topology_sha256
+    )
+
+
+def _validated_durable_interaction_guard_owner_attempt(
     *,
     session_id: str,
     interaction_id: str,
     source_attempt_id: str,
-    receipt_id: str = "",
-) -> str:
+    allow_resolved: bool = False,
+) -> tuple[str, bool]:
+    """Validate receipt lineage without changing a guard or receipt."""
+
     owner_attempt_id = _durable_interaction_guard_owner_attempt(
         session_id,
         source_attempt_id,
@@ -2964,23 +3224,59 @@ def _reconcile_durable_interaction_session_guard(
                 status_code=409,
                 retryable=False,
             )
-        if state == "active" and active_attempt_id != owner_attempt_id:
+        if active_attempt_id != owner_attempt_id:
             binding = load_execution_attempt_binding(
                 session_id,
                 active_attempt_id,
             )
-            if (
-                not receipt_id
-                or binding is None
-                or binding.get("source_attempt_id") != source_attempt_id
-            ):
+            bound_source_attempt_id = (
+                str(binding.get("source_attempt_id") or "").strip()
+                if binding is not None
+                else ""
+            )
+            bound_to_source = (
+                bound_source_attempt_id == source_attempt_id
+            )
+            bound_to_graph_successor = (
+                not bound_to_source
+                and bool(bound_source_attempt_id)
+                and _graph_step_follows_bound_interaction_source(
+                    session_id=session_id,
+                    bound_source_attempt_id=bound_source_attempt_id,
+                    current_source_attempt_id=source_attempt_id,
+                    interaction_id=interaction_id,
+                    bound_graph_guard_lineage=(
+                        binding.get("source_graph_guard_lineage")
+                        if binding is not None
+                        else None
+                    ),
+                    allow_resolved=allow_resolved,
+                )
+            )
+            has_verified_resume_lineage = (
+                bound_to_source or bound_to_graph_successor
+            )
+            if state == "active" and not has_verified_resume_lineage:
                 raise DurableInteractionHostError(
                     "session_guard_active_lineage_mismatch",
                     "Active session guard has no exact durable resume lineage",
                     status_code=409,
                     retryable=False,
                 )
-            return "active_resume"
+            if state == "active":
+                return owner_attempt_id, True
+            if state == "parked" and not has_verified_resume_lineage:
+                raise DurableInteractionHostError(
+                    "session_guard_interaction_attempt_mismatch",
+                    "Parked session guard has no exact durable resume lineage",
+                    status_code=409,
+                    retryable=False,
+                )
+            if state == "parked":
+                # A resumed attempt may itself suspend on a later interaction.
+                # Its immutable attempt binding proves that this newer guard
+                # owner still derives from the same checkpoint source.
+                owner_attempt_id = active_attempt_id
         if state not in {"active", "parked"}:
             raise DurableInteractionHostError(
                 "session_guard_record_corrupt",
@@ -2988,6 +3284,31 @@ def _reconcile_durable_interaction_session_guard(
                 status_code=409,
                 retryable=False,
             )
+    return owner_attempt_id, False
+
+
+def _reconcile_durable_interaction_session_guard(
+    *,
+    session_id: str,
+    interaction_id: str,
+    source_attempt_id: str,
+    receipt_id: str = "",
+    validated_owner_attempt: tuple[str, bool] | None = None,
+    allow_resolved: bool = False,
+) -> str:
+    if validated_owner_attempt is None:
+        owner_attempt_id, active_resume = (
+            _validated_durable_interaction_guard_owner_attempt(
+                session_id=session_id,
+                interaction_id=interaction_id,
+                source_attempt_id=source_attempt_id,
+                allow_resolved=allow_resolved,
+            )
+        )
+    else:
+        owner_attempt_id, active_resume = validated_owner_attempt
+    if active_resume:
+        return "active_resume"
     disposition = _session_execution_guard_call(
         "park_session_guard_from_durable_interaction",
         session_id=session_id,
@@ -3008,6 +3329,58 @@ def _reconcile_durable_interaction_session_guard(
     return str(disposition or "")
 
 
+def _recover_accepted_canonical_receipt(
+    session_id: str,
+    source_attempt_id: str,
+    interaction_id: str,
+    snapshot: Any,
+    runtime: Any,
+) -> Any:
+    """Project a canonical acceptance whose host receipt was interrupted.
+
+    Canonical ingress may have committed the ``interaction.resolved`` event
+    and its answer artifact while the durable interaction runtime's own
+    receipt write failed or was interrupted before it committed. This
+    recovers that accepted answer from the canonical journal (a
+    side-effect-free read) and replays it into the host receipt, so the
+    caller sees the same answer it already accepted instead of asking again.
+    """
+
+    try:
+        owner_chat_id = _cold_interaction_owner_chat_id(session_id, source_attempt_id)
+        recovery_applicable = _cold_active_interaction_required(
+            owner_chat_id=owner_chat_id,
+            session_id=session_id,
+        )
+    except DurableInteractionHostError:
+        # Resolving the owning chat can read the same resume-context files
+        # the caller's own, later, graceful handling covers (a corrupt file
+        # is not a reason to fail a pending-interaction lookup). Recovery
+        # simply does not apply when the owner cannot be determined here.
+        return snapshot
+    if not recovery_applicable:
+        return snapshot
+    from memory_v2_unchain_active_bridge import (
+        pupu_unchain_cold_accepted_interaction_resolution,
+    )
+
+    accepted = pupu_unchain_cold_accepted_interaction_resolution(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        interaction_id=interaction_id,
+    )
+    if accepted is None:
+        return snapshot
+    return runtime.record_receipt(
+        session_id,
+        interaction_id=interaction_id,
+        response=accepted.response,
+        submitted_by=accepted.submitted_by,
+        expected_revision=snapshot.session_snapshot.revision,
+    )
+
+
 def get_pending_interaction(session_id: str) -> dict[str, Any]:
     normalized_session_id = str(session_id or "").strip()
     orphan_repaired = _reconcile_orphaned_cancelled_interaction(
@@ -3018,6 +3391,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
     if orphan_repaired:
         _consume_terminal_session_guard(normalized_session_id)
     runtime = _interaction_runtime()
+    validated_owner_attempt: tuple[str, bool] | None = None
     try:
         snapshot = runtime.load_active(normalized_session_id)
     except Exception as exc:
@@ -3032,6 +3406,15 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
 
     request = snapshot.request
     source_run_id = str(request.source_run_id or "").strip()
+    if source_run_id and snapshot.receipt is None:
+        with _interaction_commit_lock(normalized_session_id):
+            snapshot = _recover_accepted_canonical_receipt(
+                normalized_session_id,
+                source_run_id,
+                str(request.interaction_id or "").strip(),
+                snapshot,
+                runtime,
+            )
     if source_run_id:
         _reconcile_durable_interaction_session_guard(
             session_id=normalized_session_id,
@@ -3042,6 +3425,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
                 if snapshot.receipt is not None
                 else ""
             ),
+            allow_resolved=snapshot.receipt is not None,
         )
     if source_run_id:
         source_registry = _execution_control_snapshot(
@@ -3285,6 +3669,135 @@ def _durable_response(
     }
 
 
+def _canonical_rejection_reason(exc: BaseException) -> str:
+    from unchain.context.interaction_acceptance import InteractionAcceptanceConflict
+    from unchain.context.graph_checkpoint import GraphCheckpointError
+    from unchain.journal import JournalConflictError
+    from unchain.context.ports import ContextConflictError
+
+    if isinstance(exc, InteractionAcceptanceConflict):
+        return exc.reason
+    if isinstance(exc, GraphCheckpointError):
+        return "graph_lineage_rejected"
+    if isinstance(exc, (JournalConflictError, ContextConflictError)):
+        return "already_accepted_different_answer"
+    return "transient_failure"
+
+
+def _cancelled_owner_for_interaction_source(
+    session_id: str,
+    source_run_id: str,
+    *,
+    revoke_bound_resumes: bool,
+) -> str:
+    """Return the cancelled attempt that owns this interaction's source, or "".
+
+    Checks the source attempt itself and every resume attempt bound to it
+    against the execution-control registry and the durable cancellation
+    tombstones.  With ``revoke_bound_resumes`` the source's own cancellation
+    also revokes its still-live bound resume owners (the original repair
+    side effect); the commit-time re-check passes ``False`` and only reads.
+    """
+
+    if (
+        _execution_control_status(session_id, source_run_id) == "cancelled"
+        or _load_execution_cancellation(session_id, source_run_id) is not None
+    ):
+        if revoke_bound_resumes:
+            _cancel_bound_resume_attempts(
+                session_id,
+                source_run_id,
+                reason="parent execution cancelled",
+            )
+        return source_run_id
+    for binding in _bindings_for_source_attempt(session_id, source_run_id):
+        bound_attempt_id = str(binding.get("attempt_id") or "").strip()
+        if not bound_attempt_id:
+            continue
+        if (
+            _execution_control_status(session_id, bound_attempt_id) == "cancelled"
+            or _load_execution_cancellation(session_id, bound_attempt_id)
+            is not None
+        ):
+            return bound_attempt_id
+    return ""
+
+
+def _reject_if_host_interaction_cancelled(snapshot: Any) -> None:
+    """Reject an answer whose host interaction already carries a cancellation.
+
+    ``cancel_pending`` records a ``{"cancelled": true}`` receipt and a
+    ``cancelled:<checkpoint>`` application on the host side.  Either fact
+    means the cancellation claimed this interaction first.
+    """
+
+    receipt = getattr(snapshot, "receipt", None)
+    response = getattr(receipt, "response", None) if receipt is not None else None
+    application = getattr(snapshot, "application", None)
+    applied_checkpoint_id = (
+        str(application.get("applied_checkpoint_id") or "")
+        if isinstance(application, dict)
+        else ""
+    )
+    if (
+        isinstance(response, dict) and response.get("cancelled") is True
+    ) or applied_checkpoint_id.startswith("cancelled:"):
+        raise DurableInteractionHostError(
+            "execution_cancelled",
+            "The execution for this interaction was cancelled",
+            status_code=409,
+        )
+
+
+def _project_accepted_canonical_receipt_before_cancel(
+    session_id: str,
+    source_attempt_id: str,
+    interaction_id: str,
+) -> None:
+    """Before claiming a host cancellation, keep an already-accepted answer.
+
+    If the canonical journal already holds an accepted resolution for this
+    interaction but the host receipt is missing (the answer committed and
+    then crashed before its projection), project that answer into the host
+    receipt first.  ``cancel_pending`` then leaves the receipt alone and only
+    records the cancelled application, so the cancellation preserves the
+    accepted fact while still forbidding continuation (repair plan §10.4
+    step 5).  Must run under ``_interaction_commit_lock``.
+    """
+
+    normalized_interaction_id = str(interaction_id or "").strip()
+    if not normalized_interaction_id:
+        return
+    runtime = _interaction_runtime()
+    try:
+        snapshot = runtime.load(
+            session_id,
+            interaction_id=normalized_interaction_id,
+            require_active=False,
+        )
+    except Exception:
+        return
+    if snapshot.receipt is not None:
+        return
+    try:
+        _recover_accepted_canonical_receipt(
+            session_id,
+            source_attempt_id,
+            normalized_interaction_id,
+            snapshot,
+            runtime,
+        )
+    except DurableInteractionHostError:
+        raise
+    except Exception as exc:
+        raise DurableInteractionHostError(
+            "interaction_cancel_projection_failed",
+            str(exc),
+            status_code=409,
+            retryable=True,
+        ) from exc
+
+
 def record_interaction_receipt(
     *,
     session_id: str,
@@ -3303,6 +3816,7 @@ def record_interaction_receipt(
             status_code=400,
         )
     runtime = _interaction_runtime()
+    validated_owner_attempt: tuple[str, bool] | None = None
     try:
         current = runtime.load(
             normalized_session_id,
@@ -3311,46 +3825,11 @@ def record_interaction_receipt(
         )
         source_run_id = str(current.request.source_run_id or "").strip()
         if source_run_id:
-            cancelled_owner_id = ""
-            if (
-                _execution_control_status(normalized_session_id, source_run_id)
-                == "cancelled"
-                or _load_execution_cancellation(
-                    normalized_session_id,
-                    source_run_id,
-                )
-                is not None
-            ):
-                _cancel_bound_resume_attempts(
-                    normalized_session_id,
-                    source_run_id,
-                    reason="parent execution cancelled",
-                )
-                cancelled_owner_id = source_run_id
-            else:
-                for binding in _bindings_for_source_attempt(
-                    normalized_session_id,
-                    source_run_id,
-                ):
-                    bound_attempt_id = str(
-                        binding.get("attempt_id") or ""
-                    ).strip()
-                    if not bound_attempt_id:
-                        continue
-                    if (
-                        _execution_control_status(
-                            normalized_session_id,
-                            bound_attempt_id,
-                        )
-                        == "cancelled"
-                        or _load_execution_cancellation(
-                            normalized_session_id,
-                            bound_attempt_id,
-                        )
-                        is not None
-                    ):
-                        cancelled_owner_id = bound_attempt_id
-                        break
+            cancelled_owner_id = _cancelled_owner_for_interaction_source(
+                normalized_session_id,
+                source_run_id,
+                revoke_bound_resumes=True,
+            )
             if cancelled_owner_id:
                 _reconcile_cancelled_attempt(
                     session_id=normalized_session_id,
@@ -3376,13 +3855,142 @@ def record_interaction_receipt(
             reason=reason,
             modified_arguments=modified_arguments,
         )
-        persisted = runtime.record_receipt(
-            normalized_session_id,
-            interaction_id=normalized_interaction_id,
-            response=response,
-            submitted_by=submitted_by,
-            expected_revision=current.session_snapshot.revision,
-        )
+        if source_run_id:
+            # Do not turn a failed graph/owner preflight into a durable answer.
+            validated_owner_attempt = _validated_durable_interaction_guard_owner_attempt(
+                session_id=normalized_session_id,
+                interaction_id=normalized_interaction_id,
+                source_attempt_id=source_run_id,
+                # A prior attempt can have committed the canonical resolution
+                # and then failed before this host receipt CAS.  It still has
+                # to pass canonical ingress below, which accepts only an exact
+                # replay and rejects a competing answer before host mutation.
+                allow_resolved=True,
+            )
+        # Commit section.  Serialized against cancel_chat_execution's host
+        # cancellation claim by the per-session commit lock (repair plan
+        # §10.4 step 2): the cancellation facts are re-read under the lock so
+        # a cancel that landed after the side-effect-free preflight above
+        # rejects this answer before anything canonical is written, and a
+        # cancel arriving afterwards waits until both the canonical
+        # acceptance and its host projection are committed.
+        with _interaction_commit_lock(normalized_session_id):
+            current = runtime.load(
+                normalized_session_id,
+                interaction_id=normalized_interaction_id,
+                require_active=False,
+            )
+            if source_run_id:
+                if _cancelled_owner_for_interaction_source(
+                    normalized_session_id,
+                    source_run_id,
+                    revoke_bound_resumes=False,
+                ):
+                    raise DurableInteractionHostError(
+                        "execution_cancelled",
+                        "The execution for this interaction was cancelled",
+                        status_code=409,
+                    )
+                _reject_if_host_interaction_cancelled(current)
+                owner_chat_id = _cold_interaction_owner_chat_id(
+                    normalized_session_id,
+                    source_run_id,
+                )
+            if source_run_id and _cold_active_interaction_required(
+                owner_chat_id=owner_chat_id,
+                session_id=normalized_session_id,
+            ):
+                # Claim the canonical interaction before touching the host
+                # session receipt. The Context projector uses the exact
+                # attempt/interaction operation identity, so SQLite accepts
+                # one answer or rejects the conflict while the host state is
+                # still unchanged.
+                from unchain.interaction import build_interaction_receipt
+                from unchain.interaction.runtime import normalize_interaction_response
+                from memory_v2_unchain_active_bridge import (
+                    GraphLineageLocator,
+                    persist_pupu_unchain_cold_interaction_resolution,
+                )
+
+                # If this attempt is a graph step, prove the graph's own
+                # current lineage (including its terminal status) inside the
+                # same atomic acceptance transaction: a preflight that passed
+                # before the graph became terminal (e.g. the run was
+                # cancelled) must not turn into an accepted answer.
+                graph_record = _read_graph_step_context_path(
+                    _graph_step_context_path(normalized_session_id, source_run_id),
+                    expected_session_id=normalized_session_id,
+                    expected_step_attempt_id=source_run_id,
+                )
+                graph_lineage = (
+                    GraphLineageLocator(
+                        generation_id=str(
+                            graph_record["coordinator_binding_snapshot"][
+                                "generation_id"
+                            ]
+                        ),
+                        coordinator_attempt_id=str(
+                            graph_record["coordinator_attempt_id"]
+                        ),
+                        bound_source_attempt_id=source_run_id,
+                    )
+                    if graph_record is not None
+                    else None
+                )
+
+                # Graph resume has historically projected this field as the
+                # canonical actor ``user``. Keep that closed wire value here
+                # so the later resume observes the same idempotent event;
+                # the host receipt below retains the actual UI submitter.
+                canonical_submitted_by = "user"
+                canonical_receipt = build_interaction_receipt(
+                    current.request,
+                    normalize_interaction_response(current.request, response),
+                    submitted_by=canonical_submitted_by,
+                    submitted_at_ms=int(runtime.clock_ms()),
+                )
+                try:
+                    persist_pupu_unchain_cold_interaction_resolution(
+                        owner_chat_id=owner_chat_id,
+                        session_id=normalized_session_id,
+                        execution_id=normalized_session_id,
+                        source_attempt_id=source_run_id,
+                        durable_receipt=(
+                            DurableInteractionReceiptHandoff
+                            .from_persisted_receipt(
+                                session_id=normalized_session_id,
+                                receipt=canonical_receipt,
+                            )
+                        ),
+                        graph_lineage=graph_lineage,
+                    )
+                except Exception as exc:
+                    reason = _canonical_rejection_reason(exc)
+                    raise DurableInteractionHostError(
+                        "interaction_canonical_conflict",
+                        f"Canonical interaction resolution was not accepted: {reason}",
+                        status_code=409,
+                        retryable=(reason == "transient_failure"),
+                    ) from exc
+            persisted = runtime.record_receipt(
+                normalized_session_id,
+                interaction_id=normalized_interaction_id,
+                response=response,
+                submitted_by=submitted_by,
+                expected_revision=current.session_snapshot.revision,
+            )
+            if persisted.receipt is None:
+                raise DurableInteractionHostError(
+                    "interaction_receipt_missing",
+                    "Durable interaction receipt was not persisted",
+                )
+            _reconcile_durable_interaction_session_guard(
+                session_id=normalized_session_id,
+                interaction_id=normalized_interaction_id,
+                source_attempt_id=source_run_id,
+                receipt_id=persisted.receipt.receipt_id,
+                validated_owner_attempt=validated_owner_attempt,
+            )
     except DurableInteractionHostError:
         raise
     except Exception as exc:
@@ -3429,17 +4037,6 @@ def record_interaction_receipt(
             ) from exc
         raise
 
-    if persisted.receipt is None:
-        raise DurableInteractionHostError(
-            "interaction_receipt_missing",
-            "Durable interaction receipt was not persisted",
-        )
-    _reconcile_durable_interaction_session_guard(
-        session_id=normalized_session_id,
-        interaction_id=normalized_interaction_id,
-        source_attempt_id=source_run_id,
-        receipt_id=persisted.receipt.receipt_id,
-    )
     public_result = {
         "status": "ok",
         "disposition": "receipt_recorded",
@@ -3787,7 +4384,67 @@ def _reconcile_cancelled_interaction_to_context(
         )
     from memory_v2_unchain_active_bridge import (
         persist_pupu_unchain_cold_interaction_resolution,
+        pupu_unchain_cold_accepted_interaction_resolution,
     )
+
+    # The event-identity operation for this interaction's canonical
+    # interaction.resolved is permanently claimed by whichever content wins
+    # it first (see BC-009): if a real answer already committed through the
+    # atomic accept path, that fact is authoritative and this cancellation
+    # has nothing further to record. Attempting to write a competing
+    # cancellation marker over it would always lose the atomic journal's own
+    # operation-identity replay check, so recognize the already-accepted
+    # fact up front and treat reconciliation as done rather than fail.
+    already_accepted = pupu_unchain_cold_accepted_interaction_resolution(
+        owner_chat_id=owner_chat_id,
+        session_id=session_id,
+        source_attempt_id=source_attempt_id,
+        interaction_id=candidates[0].interaction_id,
+    )
+    if already_accepted is not None:
+        # An existing canonical resolution is not, by itself, a reconciled
+        # state: the host receipt must carry the same answer.  Project it if
+        # the host side has none, and refuse to report "reconciled" if the
+        # two durable answers disagree (that state should be unreachable
+        # under the commit lock; surfacing it is better than hiding it).
+        runtime = _interaction_runtime()
+        try:
+            host_snapshot = runtime.load(
+                session_id,
+                interaction_id=already_accepted.interaction_id,
+                require_active=False,
+            )
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                "interaction_cancel_projection_failed",
+                str(exc),
+                status_code=409,
+                retryable=True,
+            ) from exc
+        if host_snapshot.receipt is None:
+            try:
+                runtime.record_receipt(
+                    session_id,
+                    interaction_id=already_accepted.interaction_id,
+                    response=already_accepted.response,
+                    submitted_by=already_accepted.submitted_by,
+                    expected_revision=host_snapshot.session_snapshot.revision,
+                )
+            except Exception as exc:
+                raise DurableInteractionHostError(
+                    "interaction_cancel_projection_failed",
+                    str(exc),
+                    status_code=409,
+                    retryable=True,
+                ) from exc
+        elif host_snapshot.receipt.response != already_accepted.response:
+            raise DurableInteractionHostError(
+                "interaction_cancel_projection_conflict",
+                "Canonical accepted answer and host receipt disagree",
+                status_code=409,
+                retryable=False,
+            )
+        return True
 
     try:
         persist_pupu_unchain_cold_interaction_resolution(
@@ -3796,6 +4453,11 @@ def _reconcile_cancelled_interaction_to_context(
             execution_id=session_id,
             source_attempt_id=source_attempt_id,
             durable_receipt=candidates[0],
+            # Reconciliation intentionally records a canonical resolution to
+            # supersede a historical non-canonical or malformed resolution
+            # marker for the same interaction; the strict "still pending"
+            # acceptance check does not apply to this repair path.
+            require_unresolved=False,
         )
     except DurableInteractionHostError:
         raise
@@ -3955,6 +4617,14 @@ def _consume_cancelled_session_guard(
         session_id=session_id,
         interaction_id=interaction_id,
         source_attempt_id=source_attempt_id,
+        # _reconcile_cancelled_interaction_to_context (called by our caller,
+        # cancel_chat_execution, before this function) may already have
+        # committed the cancellation's own canonical resolution for this
+        # exact interaction. That is the legitimate terminal fact this
+        # guard consumption is unwinding, not a competing answer racing in
+        # -- the same "resolved but not yet resumed" state
+        # record_interaction_receipt's own lineage check already tolerates.
+        allow_resolved=True,
     )
     _session_execution_guard_call(
         "consume_parked_session_guard",
@@ -4170,128 +4840,123 @@ def cancel_chat_execution(
                 ),
             }
         durable_interaction_cancelled = True
-    elif exact_target is not None:
-        (
-            durable_interaction_cancelled,
-            cancelled_interaction_snapshot,
-        ) = _cancel_pending_source_attempt_result(
-            normalized_session_id,
-            pending_source_attempt_id,
-            expected_interaction_id=normalized_expected_interaction_id,
-            reason=normalized_reason,
-        )
-        if not durable_interaction_cancelled:
-            raise DurableInteractionHostError(
-                "interaction_cancel_target_changed",
-                "Durable interaction cancel target changed before atomic apply",
-                status_code=409,
-                retryable=True,
-            )
-
-    try:
-        registry_result = _execution_control_cancel(
-            normalized_session_id,
-            normalized_attempt_id,
-            reason=normalized_reason,
-        )
-    except Exception as exc:
-        raise DurableInteractionHostError(
-            str(getattr(exc, "code", "execution_control_failed") or ""),
-            str(exc),
-            status_code=int(getattr(exc, "status_code", 500) or 500),
-            retryable=bool(getattr(exc, "retryable", True)),
-        ) from exc
-
-    registry_payload = (
-        registry_result.to_dict()
-        if callable(getattr(registry_result, "to_dict", None))
-        else {}
-    )
-    registry_execution = registry_payload.get("execution")
-    registry_execution = (
-        registry_execution if isinstance(registry_execution, dict) else {}
-    )
-    disposition = str(registry_payload.get("disposition") or "applied")
-    state = str(registry_execution.get("status") or "")
-    if state in {"completed", "failed"} and not cold_reconciliation_required:
-        if durable_interaction_cancelled:
-            _consume_cancelled_session_guard(
-                session_id=normalized_session_id,
-                source_attempt_id=pending_source_attempt_id,
-                cancelled_attempt_ids=(normalized_attempt_id,),
-                expected_interaction_id=normalized_expected_interaction_id,
-                cancelled_snapshot=cancelled_interaction_snapshot,
-            )
-        if durable_interaction_cancelled:
-            clear_resume_context(
+    # Host-side cancellation claim.  Serialized against
+    # record_interaction_receipt's commit section by the per-session commit
+    # lock (repair plan §10.4 step 2), and preceded by projecting any
+    # already-accepted canonical answer into the host receipt so the
+    # cancellation preserves it (§10.4 step 5).  The lock is released before
+    # canonical reconciliation below; by then the host facts are settled and
+    # any later answer re-reads them under the same lock before writing.
+    with _interaction_commit_lock(normalized_session_id):
+        if exact_target is not None and not exact_target.is_cancelled_applied:
+            _project_accepted_canonical_receipt_before_cancel(
                 normalized_session_id,
                 pending_source_attempt_id,
+                normalized_expected_interaction_id,
             )
-        clear_resume_context(
-            normalized_session_id,
-            normalized_attempt_id,
-        )
-        clear_execution_attempt_binding(
-            normalized_session_id,
-            normalized_attempt_id,
-        )
-        return {
-            "status": "ok",
-            "execution_id": normalized_session_id,
-            "attempt_id": normalized_attempt_id,
-            "source_attempt_id": pending_source_attempt_id,
-            "disposition": disposition,
-            "state": state,
-            "execution": copy.deepcopy(registry_execution),
-            "cancellation": None,
-            "durable_interaction_cancelled": durable_interaction_cancelled,
-        }
+            (
+                durable_interaction_cancelled,
+                cancelled_interaction_snapshot,
+            ) = _cancel_pending_source_attempt_result(
+                normalized_session_id,
+                pending_source_attempt_id,
+                expected_interaction_id=normalized_expected_interaction_id,
+                reason=normalized_reason,
+            )
+            if not durable_interaction_cancelled:
+                raise DurableInteractionHostError(
+                    "interaction_cancel_target_changed",
+                    "Durable interaction cancel target changed before atomic apply",
+                    status_code=409,
+                    retryable=True,
+                )
 
-    try:
-        cancellation = _ensure_execution_tombstone(
-            normalized_session_id,
-            normalized_attempt_id,
-            reason=normalized_reason,
-        )
-    except TypeError as exc:
-        raise DurableInteractionHostError(
-            "execution_cancellation_unavailable",
-            "Installed Unchain has an incompatible cancellation API",
-            status_code=503,
-            retryable=True,
-        ) from exc
+        try:
+            registry_result = _execution_control_cancel(
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=normalized_reason,
+            )
+        except Exception as exc:
+            raise DurableInteractionHostError(
+                str(getattr(exc, "code", "execution_control_failed") or ""),
+                str(exc),
+                status_code=int(getattr(exc, "status_code", 500) or 500),
+                retryable=bool(getattr(exc, "retryable", True)),
+            ) from exc
 
-    if pending_source_attempt_id == normalized_attempt_id:
-        cancelled_bound_attempt_ids = _cancel_bound_resume_attempts(
-            normalized_session_id,
-            normalized_attempt_id,
-            reason=normalized_reason,
+        registry_payload = (
+            registry_result.to_dict()
+            if callable(getattr(registry_result, "to_dict", None))
+            else {}
         )
+        registry_execution = registry_payload.get("execution")
+        registry_execution = (
+            registry_execution if isinstance(registry_execution, dict) else {}
+        )
+        disposition = str(registry_payload.get("disposition") or "applied")
+        state = str(registry_execution.get("status") or "")
+        if state in {"completed", "failed"} and not cold_reconciliation_required:
+            if durable_interaction_cancelled:
+                _consume_cancelled_session_guard(
+                    session_id=normalized_session_id,
+                    source_attempt_id=pending_source_attempt_id,
+                    cancelled_attempt_ids=(normalized_attempt_id,),
+                    expected_interaction_id=normalized_expected_interaction_id,
+                    cancelled_snapshot=cancelled_interaction_snapshot,
+                )
+            if durable_interaction_cancelled:
+                clear_resume_context(
+                    normalized_session_id,
+                    pending_source_attempt_id,
+                )
+            clear_resume_context(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            clear_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            return {
+                "status": "ok",
+                "execution_id": normalized_session_id,
+                "attempt_id": normalized_attempt_id,
+                "source_attempt_id": pending_source_attempt_id,
+                "disposition": disposition,
+                "state": state,
+                "execution": copy.deepcopy(registry_execution),
+                "cancellation": None,
+                "durable_interaction_cancelled": durable_interaction_cancelled,
+            }
 
-    if not normalized_expected_interaction_id:
-        (
-            durable_interaction_cancelled,
-            cancelled_interaction_snapshot,
-        ) = _cancel_pending_source_attempt_result(
-            normalized_session_id,
-            pending_source_attempt_id,
-            reason=normalized_reason,
-        )
-    if (
-        not normalized_expected_interaction_id
-        and
-        not durable_interaction_cancelled
-        and pending_source_attempt_id == normalized_attempt_id
-    ):
-        late_binding = load_execution_attempt_binding(
-            normalized_session_id,
-            normalized_attempt_id,
-        )
-        late_source_attempt_id = str(
-            (late_binding or {}).get("source_attempt_id") or ""
-        ).strip()
-        if late_source_attempt_id and late_source_attempt_id != normalized_attempt_id:
-            pending_source_attempt_id = late_source_attempt_id
+        try:
+            cancellation = _ensure_execution_tombstone(
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=normalized_reason,
+            )
+        except TypeError as exc:
+            raise DurableInteractionHostError(
+                "execution_cancellation_unavailable",
+                "Installed Unchain has an incompatible cancellation API",
+                status_code=503,
+                retryable=True,
+            ) from exc
+
+        if pending_source_attempt_id == normalized_attempt_id:
+            cancelled_bound_attempt_ids = _cancel_bound_resume_attempts(
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=normalized_reason,
+            )
+
+        if not normalized_expected_interaction_id:
+            _project_accepted_canonical_receipt_before_cancel(
+                normalized_session_id,
+                pending_source_attempt_id,
+                _active_interaction_id(normalized_session_id),
+            )
             (
                 durable_interaction_cancelled,
                 cancelled_interaction_snapshot,
@@ -4300,35 +4965,58 @@ def cancel_chat_execution(
                 pending_source_attempt_id,
                 reason=normalized_reason,
             )
-    if (
-        not normalized_expected_interaction_id
-        and
-        not durable_interaction_cancelled
-        and pending_source_attempt_id != normalized_attempt_id
-    ):
-        # Once resume attempt B consumes checkpoint A, a later checkpoint is
-        # owned by B itself.  Exact-B fallback cancels that successor without
-        # ever touching an unrelated newer owner.
-        (
-            fallback_cancelled,
-            fallback_cancelled_snapshot,
-        ) = _cancel_pending_source_attempt_result(
-            normalized_session_id,
-            normalized_attempt_id,
-            reason=normalized_reason,
-        )
-        if fallback_cancelled:
-            pending_source_attempt_id = normalized_attempt_id
-            durable_interaction_cancelled = True
-            cancelled_interaction_snapshot = fallback_cancelled_snapshot
+        if (
+            not normalized_expected_interaction_id
+            and
+            not durable_interaction_cancelled
+            and pending_source_attempt_id == normalized_attempt_id
+        ):
+            late_binding = load_execution_attempt_binding(
+                normalized_session_id,
+                normalized_attempt_id,
+            )
+            late_source_attempt_id = str(
+                (late_binding or {}).get("source_attempt_id") or ""
+            ).strip()
+            if late_source_attempt_id and late_source_attempt_id != normalized_attempt_id:
+                pending_source_attempt_id = late_source_attempt_id
+                (
+                    durable_interaction_cancelled,
+                    cancelled_interaction_snapshot,
+                ) = _cancel_pending_source_attempt_result(
+                    normalized_session_id,
+                    pending_source_attempt_id,
+                    reason=normalized_reason,
+                )
+        if (
+            not normalized_expected_interaction_id
+            and
+            not durable_interaction_cancelled
+            and pending_source_attempt_id != normalized_attempt_id
+        ):
+            # Once resume attempt B consumes checkpoint A, a later checkpoint is
+            # owned by B itself.  Exact-B fallback cancels that successor without
+            # ever touching an unrelated newer owner.
+            (
+                fallback_cancelled,
+                fallback_cancelled_snapshot,
+            ) = _cancel_pending_source_attempt_result(
+                normalized_session_id,
+                normalized_attempt_id,
+                reason=normalized_reason,
+            )
+            if fallback_cancelled:
+                pending_source_attempt_id = normalized_attempt_id
+                durable_interaction_cancelled = True
+                cancelled_interaction_snapshot = fallback_cancelled_snapshot
 
-    if normalized_expected_interaction_id and not durable_interaction_cancelled:
-        raise DurableInteractionHostError(
-            "interaction_cancel_target_changed",
-            "Durable interaction cancel target changed before atomic apply",
-            status_code=409,
-            retryable=True,
-        )
+        if normalized_expected_interaction_id and not durable_interaction_cancelled:
+            raise DurableInteractionHostError(
+                "interaction_cancel_target_changed",
+                "Durable interaction cancel target changed before atomic apply",
+                status_code=409,
+                retryable=True,
+            )
 
     resolved_owner_chat_id = _cold_interaction_owner_chat_id(
         normalized_session_id,

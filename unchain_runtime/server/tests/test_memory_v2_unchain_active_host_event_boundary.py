@@ -55,7 +55,7 @@ from unchain.context.graph_checkpoint import (
     GraphStepBinding,
     JournalGraphCheckpointRepository,
 )
-from unchain.journal import EventCursor
+from unchain.journal import EventCursor, JournalConflictError
 from unchain.interaction import (
     build_interaction_receipt,
     build_interaction_request,
@@ -1598,7 +1598,11 @@ def test_conflicting_receipt_response_fails_closed_without_a_second_event(
         )
 
     boundary.deliver_interaction_resolution(bound_for(first_handoff))
-    with pytest.raises(ContextConflictError, match="changed|replay"):
+    # The atomic append_with_artifacts path detects a competing answer at the
+    # journal layer (JournalConflictError) before it would even reach the
+    # artifact layer's own conflict check (ContextConflictError); both denote
+    # the same "this answer conflicts with an already-accepted one" failure.
+    with pytest.raises((ContextConflictError, JournalConflictError), match="changed|replay"):
         boundary.deliver_interaction_resolution(bound_for(second_handoff))
 
     assert _event_types(bridge, ROOT_ATTEMPT_ID).count("interaction.resolved") == 1

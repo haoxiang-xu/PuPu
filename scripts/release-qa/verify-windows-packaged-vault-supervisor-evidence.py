@@ -21,6 +21,7 @@ _EXACT_KEYS = frozenset(
         "sidecar_sha256",
         "packaged_same_exe_ready",
         "strict_worker_protocol_error",
+        "oversize_request_frame_rejected",
         "supervisor_job_tree_drained",
     }
 )
@@ -70,14 +71,19 @@ def validate_evidence_bytes(
         raise ValueError("invalid evidence keys")
     if value["schema"] != "pupu.windows-packaged-vault-supervisor-probe.v1":
         raise ValueError("invalid evidence schema")
-    if value["executed_tests"] != 3 or type(value["executed_tests"]) is not int:
+    if value["executed_tests"] != 4 or type(value["executed_tests"]) is not int:
         raise ValueError("invalid executed test count")
     if value["platform"] != "win32-x64":
         raise ValueError("invalid platform")
     for field in ("artifact_sha256", "runtime_manifest_digest", "sidecar_sha256"):
         if not isinstance(value[field], str) or _SHA256.fullmatch(value[field]) is None:
             raise ValueError("invalid artifact identity")
-    for field in ("packaged_same_exe_ready", "strict_worker_protocol_error", "supervisor_job_tree_drained"):
+    for field in (
+        "packaged_same_exe_ready",
+        "strict_worker_protocol_error",
+        "oversize_request_frame_rejected",
+        "supervisor_job_tree_drained",
+    ):
         if value[field] is not True:
             raise ValueError("missing packaged containment attestation")
     if expected_identity is not None and (
@@ -89,7 +95,7 @@ def validate_evidence_bytes(
     canonical = (json.dumps(value, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
     if raw != canonical:
         raise ValueError("non-canonical evidence bytes")
-    return 3
+    return 4
 
 
 def main(argv: list[str] | None = None) -> None:

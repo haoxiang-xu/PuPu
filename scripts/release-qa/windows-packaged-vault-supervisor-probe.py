@@ -30,6 +30,9 @@ _WORKER_ERROR = {
     "version": 1,
 }
 _MAX_FRAME_BYTES = 1024 * 1024
+# One byte past the worker's MAX_FRAME_BYTES (vault_sink_worker.py): the
+# packaged worker must reject the length prefix before reading any body.
+_OVERSIZE_REQUEST_BYTES = _MAX_FRAME_BYTES + 1
 _TIMEOUT_SECONDS = 15
 
 
@@ -86,20 +89,16 @@ def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
-def run_probe(*, sidecar: Path, artifact_evidence: Path) -> dict[str, Any]:
-    if os.name != "nt" or sys.platform != "win32":
-        raise RuntimeError("packaged Vault supervisor probe requires win32-x64")
-    if not sidecar.is_file() or sidecar.suffix.lower() != ".exe":
-        raise ValueError("packaged Vault supervisor sidecar must be an .exe file")
-    artifact_sha, manifest_digest = _read_artifact_identity(artifact_evidence)
-    environment = dict(os.environ)
-    environment.update(
-        {
-            "PUPU_VAULT_ELECTRON_PID": str(os.getpid()),
-            "PYTHONPATH": "",
-            "UNCHAIN_SOURCE_PATH": "",
-        }
-    )
+def _exercise_request(
+    *,
+    sidecar: Path,
+    environment: dict[str, str],
+    request: bytes,
+    failure: str,
+) -> None:
+    """Start one packaged supervisor, send one request frame, expect the
+    canonical worker protocol error and a clean Job drain."""
+
     child = subprocess.Popen(
         [str(sidecar), "--vault-sink-supervisor"],
         stdin=subprocess.PIPE,
@@ -114,12 +113,12 @@ def run_probe(*, sidecar: Path, artifact_evidence: Path) -> dict[str, Any]:
         ready = _read_frame(child.stdout, _TIMEOUT_SECONDS)
         if ready != _READY_BODY:
             raise ValueError("packaged Vault supervisor did not emit the closed READY frame")
-        child.stdin.write(b"\0\0\0\0")
+        child.stdin.write(request)
         child.stdin.flush()
         child.stdin.close()
         response = _read_frame(child.stdout, _TIMEOUT_SECONDS)
         if response != _canonical_bytes(_WORKER_ERROR):
-            raise ValueError("packaged same-exe worker did not emit the closed protocol error")
+            raise ValueError(failure)
         if child.wait(timeout=_TIMEOUT_SECONDS) != 0:
             raise RuntimeError("packaged Vault supervisor did not drain its Job successfully")
     except BaseException:
@@ -132,15 +131,44 @@ def run_probe(*, sidecar: Path, artifact_evidence: Path) -> dict[str, Any]:
             child.stderr.close()
         if child.stdout is not None:
             child.stdout.close()
+
+
+def run_probe(*, sidecar: Path, artifact_evidence: Path) -> dict[str, Any]:
+    if os.name != "nt" or sys.platform != "win32":
+        raise RuntimeError("packaged Vault supervisor probe requires win32-x64")
+    if not sidecar.is_file() or sidecar.suffix.lower() != ".exe":
+        raise ValueError("packaged Vault supervisor sidecar must be an .exe file")
+    artifact_sha, manifest_digest = _read_artifact_identity(artifact_evidence)
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "PUPU_VAULT_ELECTRON_PID": str(os.getpid()),
+            "PYTHONPATH": "",
+            "UNCHAIN_SOURCE_PATH": "",
+        }
+    )
+    _exercise_request(
+        sidecar=sidecar,
+        environment=environment,
+        request=b"\0\0\0\0",
+        failure="packaged same-exe worker did not emit the closed protocol error",
+    )
+    _exercise_request(
+        sidecar=sidecar,
+        environment=environment,
+        request=struct.pack(">I", _OVERSIZE_REQUEST_BYTES),
+        failure="packaged same-exe worker accepted an oversize request frame",
+    )
     return {
         "schema": "pupu.windows-packaged-vault-supervisor-probe.v1",
-        "executed_tests": 3,
+        "executed_tests": 4,
         "platform": "win32-x64",
         "artifact_sha256": artifact_sha,
         "runtime_manifest_digest": manifest_digest,
         "sidecar_sha256": _sha256(sidecar),
         "packaged_same_exe_ready": True,
         "strict_worker_protocol_error": True,
+        "oversize_request_frame_rejected": True,
         "supervisor_job_tree_drained": True,
     }
 

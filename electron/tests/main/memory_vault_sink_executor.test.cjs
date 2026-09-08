@@ -176,6 +176,51 @@ describe("memory vault sink executor", () => {
     }
   });
 
+  test("reports a Windows supervisor containment failure to the terminal capability owner", async () => {
+    const child = new EventEmitter();
+    child.stdin = new EventEmitter();
+    child.stdin.end = jest.fn();
+    child.stdout = new EventEmitter();
+    child.kill = jest.fn();
+    const failureBody = Buffer.from(
+      '{"code":"vault_worker_job_setup_failed","kind":"error","protocol":1}',
+      "utf8",
+    );
+    const failureFrame = Buffer.alloc(4 + failureBody.length);
+    failureFrame.writeUInt32BE(failureBody.length, 0);
+    failureBody.copy(failureFrame, 4);
+    const onStructuralFailure = jest.fn();
+    const registry = createVaultSinkExecutors({
+      ...entrypoint("unused"),
+      args: ["-e", "unused", "--vault-sink-worker"],
+      electronPid: process.pid,
+      onStructuralFailure,
+      platform: "win32",
+      windowsSinkCapability: {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: [
+          "shell_secret_env",
+          "shell_secret_stdin",
+          "mcp_schema_secret",
+        ],
+        protocol: 1,
+      },
+      spawn: jest.fn(() => {
+        queueMicrotask(() => child.emit("spawn"));
+        setImmediate(() => child.stdout.emit("data", failureFrame));
+        return child;
+      }),
+    });
+
+    await expect(
+      registry.providers.shell_secret_env.prepare({ sinkKind: "shell_secret_env" }),
+    ).rejects.toMatchObject({ code: "vault_worker_job_setup_failed" });
+    expect(onStructuralFailure).toHaveBeenCalledWith(
+      "vault_worker_job_setup_failed",
+    );
+    registry.close();
+  });
+
   test("uses one framed process, stdin-only plaintext, and a minimal worker env", async () => {
     const environmentSource = {
       PATH: process.env.PATH || "/usr/bin:/bin",
@@ -643,6 +688,11 @@ describe("memory vault sink executor", () => {
 
   test("Windows registry admits only a complete capability and W0-approved sink set", () => {
     const spawn = jest.fn();
+    const enabledSinkKinds = [
+      "shell_secret_env",
+      "shell_secret_stdin",
+      "mcp_schema_secret",
+    ];
     const registry = createVaultSinkExecutors({
       ...entrypoint(framedChildScript),
       environmentSource: {},
@@ -650,17 +700,20 @@ describe("memory vault sink executor", () => {
       spawn,
       windowsSinkCapability: {
         containment: "win32_job_list_v1",
-        enabled_sink_kinds: [],
+        enabled_sink_kinds: enabledSinkKinds,
         protocol: 1,
       },
     });
 
-    // W0 currently approves no Windows sinks, so the registry must not expose
-    // a provider that could ever receive plaintext.
-    expect(Object.keys(registry.providers)).toEqual([]);
+    expect(Object.keys(registry.providers)).toEqual(enabledSinkKinds);
     expect(spawn).not.toHaveBeenCalled();
 
     for (const capability of [
+      {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: [],
+        protocol: 1,
+      },
       {
         containment: "win32_job_list_v1",
         enabled_sink_kinds: ["shell_secret_env", "shell_secret_env"],

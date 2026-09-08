@@ -83,6 +83,12 @@ const stopChild = (child, signal = "SIGTERM") => {
 };
 
 const main = async () => {
+  if (process.platform === "win32") {
+    console.warn(
+      "[pupu] DEVELOPMENT Electron: Windows Vault uses the validated Python worker. " +
+      "Memory V2 Active requires successful containment and runtime protocol checks.",
+    );
+  }
   if (!electronBinary) {
     throw new Error("Electron binary could not be resolved");
   }

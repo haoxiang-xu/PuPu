@@ -41,7 +41,9 @@ def _windows_protocol_sink_contract() -> dict[str, object]:
     assert vault_sink["recognized_kinds"] == sorted(
         set(vault_sink["recognized_kinds"])
     )
-    assert vault_sink["windows"]["enabled_kinds"] == []
+    assert vault_sink["windows"]["enabled_kinds"] == sorted(
+        set(vault_sink["windows"]["enabled_kinds"])
+    )
     assert vault_sink["windows"]["unsupported_kinds"] == ["computer_input"]
     assert vault_sink["windows"]["disabled_kinds"] == sorted(
         set(vault_sink["windows"]["disabled_kinds"])
@@ -49,7 +51,7 @@ def _windows_protocol_sink_contract() -> dict[str, object]:
     assert vault_sink["negative_cases"] == [
         "missing_required_feature",
         "unknown_sink_kind",
-        "disabled_windows_sink",
+        "unsupported_windows_sink",
     ]
     return value
 
@@ -77,9 +79,15 @@ def test_versioned_windows_protocol_sink_contract_matches_sidecar_requirements()
     vault_sink = contract["vault_sink"]
     assert vault_sink_worker.PROTOCOL_VERSION == vault_sink["worker_protocol_version"]
     assert sorted(vault_sink_worker._SINK_KINDS) == vault_sink["recognized_kinds"]
-    assert set(vault_sink["windows"]["disabled_kinds"]) | set(
-        vault_sink["windows"]["unsupported_kinds"]
+    windows = vault_sink["windows"]
+    assert (
+        set(windows["enabled_kinds"])
+        | set(windows["disabled_kinds"])
+        | set(windows["unsupported_kinds"])
     ) == vault_sink_worker._SINK_KINDS
+    assert not set(windows["enabled_kinds"]) & set(windows["disabled_kinds"])
+    assert not set(windows["enabled_kinds"]) & set(windows["unsupported_kinds"])
+    assert not set(windows["disabled_kinds"]) & set(windows["unsupported_kinds"])
 
 
 def _producer_manifest() -> dict[str, object]:
@@ -193,6 +201,36 @@ def test_v2_modes_accept_the_actual_loaded_runtime_protocol() -> None:
         status = capability_gate.context_memory_v2_capability_status(verdict)
         assert status["runtime_protocol_manifest"] == manifest
         assert status["runtime_protocol_ready"] is True
+
+
+def test_missing_graph_lineage_preflight_feature_fails_closed() -> None:
+    manifest = _producer_manifest()
+    durable = _protocol(manifest, "durable_interaction")
+    durable["features"].remove("graph_interaction_lineage_preflight_v1")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="active",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
+def test_missing_interaction_resolution_atomic_acceptance_feature_fails_closed() -> None:
+    manifest = _producer_manifest()
+    durable = _protocol(manifest, "durable_interaction")
+    durable["features"].remove("interaction_resolution_atomic_acceptance_v1")
+    manifest = _resign(manifest)
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest,
+        requested_mode="active",
+    )
+
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
 def test_revision_and_source_are_telemetry_only() -> None:

@@ -8,6 +8,12 @@ const {
   createBuildFeatureSnapshot,
   rolloutFingerprint,
 } = require("../../main/services/unchain/memory_v2_rollout");
+const {
+  WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+  WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+  WINDOWS_VAULT_PROVENANCE_SCHEMA,
+  createWindowsVaultCapabilityReceipt,
+} = require("../../main/services/unchain/windows_vault_capability");
 
 const RUNTIME_PROTOCOL_SCHEMA = "unchain.runtime_protocol_manifest.v1";
 const RUNTIME_PROTOCOL_DIGEST_DOMAIN =
@@ -36,7 +42,9 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "cancel_pending",
       "expected_interaction_id_cas",
       "fresh_run_lineage",
+      "graph_interaction_lineage_preflight_v1",
       "host_controlled_resume",
+      "interaction_resolution_atomic_acceptance_v1",
     ]),
     id: "durable_interaction",
     major: 1,
@@ -91,6 +99,36 @@ const runtimeProtocolManifest = (protocols = cloneProtocols()) => {
     .update(JSON.stringify(body), "utf8")
     .digest("hex");
   return { manifest_digest: `sha256:${digest}`, ...body };
+};
+
+const vaultDigest = (digit) => `sha256:${digit.repeat(64)}`;
+const validWindowsVaultReceipt = ({ runtimeManifestDigest = runtimeProtocolManifest().manifest_digest } = {}) => {
+  const sinkKinds = [
+    "shell_secret_env",
+    "shell_secret_stdin",
+    "mcp_schema_secret",
+  ];
+  return createWindowsVaultCapabilityReceipt({
+    broker: { protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL, sink_kinds: sinkKinds },
+    capability: {
+      containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+      enabled_sink_kinds: sinkKinds,
+      protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+    },
+    probe: {
+      containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+      protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+      supervisor_protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+      worker_protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+    },
+    provenance: {
+      arch: "x64",
+      runtime_manifest_digest: runtimeManifestDigest,
+      schema: WINDOWS_VAULT_PROVENANCE_SCHEMA,
+      sidecar_sha256: vaultDigest("b"),
+      unchain_wheel_sha256: vaultDigest("c"),
+    },
+  });
 };
 
 const createRuntimeContract = () => ({
@@ -151,7 +189,11 @@ const availableNet = () => ({
   },
 });
 
-const buildService = (snapshot, { platform = "darwin", isPackaged = false } = {}) => {
+const buildService = (snapshot, {
+  platform = "darwin",
+  isPackaged = false,
+  serviceDependencies = {},
+} = {}) => {
   const spawn = jest.fn(() => fakeProcess());
   const service = createUnchainService({
     app: {
@@ -186,6 +228,7 @@ const buildService = (snapshot, { platform = "darwin", isPackaged = false } = {}
     runtimeService: {},
     getAppIsQuitting: () => false,
     platform,
+    ...serviceDependencies,
   });
   return { service, spawn };
 };
@@ -542,6 +585,273 @@ describe("Unchain Memory V2 startup readiness", () => {
     });
   });
 
+  test("Windows packaged identity failure reports a static repair action before launch", () => {
+    const { service } = buildService(enabledSnapshot("all"), {
+      platform: "win32",
+    });
+
+    service.markWindowsVaultCapabilityLost("vault_worker_runtime_identity_invalid");
+
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      ready: false,
+      reason: "Windows sidecar identity is invalid. Reinstall PuPu to repair it",
+      status: "unavailable",
+      memoryV2: {
+        ready: false,
+        reason: "vault_worker_runtime_identity_invalid",
+        status: "degraded",
+      },
+    });
+  });
+
+  test("Windows identity failure blocks every later sidecar start attempt", async () => {
+    const { service, spawn } = buildService(enabledSnapshot("all"), {
+      platform: "win32",
+    });
+    service.markWindowsVaultCapabilityLost("vault_worker_runtime_identity_invalid");
+
+    await service.startMiso();
+    await service.restartMiso();
+
+    expect(spawn).not.toHaveBeenCalled();
+    expect(service.getMisoStatusPayload()).toMatchObject({
+      status: "unavailable",
+      reason: "Windows sidecar identity is invalid. Reinstall PuPu to repair it",
+    });
+  });
+
+  test("Windows probe failure reason survives sidecar readiness and status refresh", async () => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service } = buildService(snapshot, { platform: "win32" });
+    service.markWindowsVaultCapabilityLost("vault_worker_ready_timeout");
+
+    await service.startMiso();
+    await service.getContextV2Status();
+
+    expect(service.getMisoStatusPayload().memoryV2).toMatchObject({
+      ready: false,
+      reason: "vault_worker_ready_timeout",
+      status: "degraded",
+    });
+  });
+
+  test("Windows Job setup failure reaches a Memory V2 stream as a static code", async () => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service } = buildService(snapshot, { platform: "win32" });
+    service.markWindowsVaultCapabilityLost("vault_worker_job_setup_failed");
+
+    await service.startMiso();
+    const sender = { id: 75, send: jest.fn(), isDestroyed: () => false };
+    service.handleStreamStartV4(
+      { sender },
+      { requestId: "job-setup", payload: { memory_v2_requested: true, options: {} } },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: "error",
+        data: expect.objectContaining({
+          code: "vault_worker_job_setup_failed",
+          message: "Windows Vault containment is unavailable",
+        }),
+      }),
+    );
+  });
+
+  test("Windows preserves an all rollout only after a sealed capability is configured", async () => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service, spawn } = buildService(snapshot, { platform: "win32" });
+
+    expect(service.configureWindowsVaultCapability(validWindowsVaultReceipt())).toEqual({
+      reason: "",
+      status: "ready",
+    });
+    await service.startMiso();
+
+    expect(spawn.mock.calls[0][2].env).toMatchObject({
+      PUPU_FEATURE_MEMORY_V2: "all",
+      PUPU_MEMORY_V2_MODE: "all",
+      PUPU_CONTEXT_V2_STORE_OWNER: "unchain",
+    });
+    expect(service.getMisoStatusPayload().memoryV2).toMatchObject({
+      ready: true,
+      status: "ready",
+      windowsCapability: { reason: "", status: "ready" },
+    });
+  });
+
+  test("Windows containment loss is terminal and re-applies the shadow ceiling", () => {
+    const { service } = buildService(enabledSnapshot("all"), {
+      platform: "win32",
+    });
+    expect(service.configureWindowsVaultCapability(validWindowsVaultReceipt())).toEqual({
+      reason: "",
+      status: "ready",
+    });
+
+    expect(
+      service.markWindowsVaultCapabilityLost("vault_worker_containment_lost"),
+    ).toEqual({
+      reason: "vault_worker_containment_lost",
+      status: "lost",
+    });
+    expect(service.configureWindowsVaultCapability(validWindowsVaultReceipt())).toEqual({
+      reason: "vault_worker_containment_lost",
+      status: "lost",
+    });
+    expect(service.getMisoStatusPayload().memoryV2).toMatchObject({
+      ready: false,
+      status: "degraded",
+      reason: "vault_worker_containment_lost",
+      featureCeiling: "shadow",
+      rolloutMode: "shadow",
+      windowsCapability: {
+        reason: "vault_worker_containment_lost",
+        status: "lost",
+      },
+    });
+  });
+
+  test.each([true, false])("Windows development receipt still validates imported runtime protocol: compatible=%s", async (compatible) => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot, compatible ? {} : {
+          runtime_protocol_ready: false,
+          runtime_protocol_reason: "unchain_runtime_protocol_manifest_invalid",
+          runtime_protocol_manifest: {},
+        })),
+      });
+    const { service } = buildService(snapshot, { platform: "win32", isPackaged: false });
+    const receipt = createWindowsVaultCapabilityReceipt({
+      ...validWindowsVaultReceipt(),
+      isPackaged: false,
+      provenance: { arch: "x64", schema: "pupu.windows-vault-development.v1" },
+    });
+    expect(service.configureWindowsVaultCapability(receipt)).toEqual({ reason: "", status: "ready" });
+    await service.startMiso();
+    const status = service.getMisoStatusPayload().memoryV2;
+    expect(status.ready).toBe(compatible);
+    expect(status.reason).toBe(compatible ? "" : "context_v2_unchain_protocol_invalid");
+  });
+
+  test("packaged service rejects a sealed development receipt", () => {
+    const { service } = buildService(enabledSnapshot("all"), { platform: "win32", isPackaged: true });
+    const receipt = createWindowsVaultCapabilityReceipt({
+      ...validWindowsVaultReceipt(), isPackaged: false,
+      provenance: { arch: "x64", schema: "pupu.windows-vault-development.v1" },
+    });
+    expect(service.configureWindowsVaultCapability(receipt)).toEqual({
+      status: "unavailable", reason: "vault_worker_capability_invalid",
+    });
+  });
+
+  test("Windows containment loss aborts active streams and rejects the next request", async () => {
+    let streamOptions;
+    const streamRequestImpl = jest.fn((_url, options) => {
+      streamOptions = options;
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("cancelled")));
+      });
+    });
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service } = buildService(snapshot, {
+      platform: "win32",
+      serviceDependencies: { streamRequestImpl },
+    });
+    service.configureWindowsVaultCapability(validWindowsVaultReceipt());
+    await service.startMiso();
+    const sender = { id: 74, send: jest.fn(), isDestroyed: () => false };
+    service.handleStreamStartV4(
+      { sender },
+      { requestId: "lost-inflight", payload: { memory_v2_requested: true, options: {} } },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(streamRequestImpl).toHaveBeenCalledTimes(1);
+
+    service.markWindowsVaultCapabilityLost();
+    expect(streamOptions.signal.aborted).toBe(true);
+    expect(service.getMisoStatusPayload().memoryV2).toMatchObject({
+      ready: false,
+      reason: "vault_worker_containment_lost",
+      status: "degraded",
+    });
+
+    service.handleStreamStartV4(
+      { sender },
+      { requestId: "lost-next", payload: { memory_v2_requested: true, options: {} } },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(streamRequestImpl).toHaveBeenCalledTimes(1);
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        requestId: "lost-next",
+        event: "error",
+        data: expect.objectContaining({ code: "vault_worker_containment_lost" }),
+      }),
+    );
+  });
+
+  test("Windows rejects a compatible runtime manifest that is not the sealed receipt identity", async () => {
+    const snapshot = enabledSnapshot("all");
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(healthResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify(readinessPayload(snapshot)),
+      });
+    const { service } = buildService(snapshot, { platform: "win32" });
+    service.configureWindowsVaultCapability(
+      validWindowsVaultReceipt({ runtimeManifestDigest: vaultDigest("a") }),
+    );
+
+    await service.startMiso();
+
+    expect(service.getMisoStatusPayload().memoryV2).toMatchObject({
+      ready: false,
+      reason: "vault_worker_runtime_identity_mismatch",
+      status: "degraded",
+    });
+  });
+
   test("Windows caps active rollout to shadow and keeps readiness fail-closed", async () => {
     const snapshot = enabledSnapshot("all");
     const constrainedFingerprint = rolloutFingerprint({
@@ -582,7 +892,7 @@ describe("Unchain Memory V2 startup readiness", () => {
       memoryV2: {
         ready: false,
         status: "degraded",
-        reason: "vault_worker_containment_unavailable",
+        reason: "vault_worker_capability_unconfigured",
         releaseRolloutMode: "all",
         rolloutMode: "shadow",
         platformActiveBlocked: true,
@@ -594,7 +904,7 @@ describe("Unchain Memory V2 startup readiness", () => {
     });
     await expect(
       service.listContextV2Spaces({ ownerChatId: "chat-1" }),
-    ).rejects.toMatchObject({ code: "context_v2_readiness_failed" });
+    ).rejects.toMatchObject({ code: "vault_worker_capability_unconfigured" });
     const sender = {
       send: jest.fn(),
       isDestroyed: jest.fn(() => false),
@@ -616,7 +926,7 @@ describe("Unchain Memory V2 startup readiness", () => {
         requestId: "request-windows-blocked",
         event: "error",
         data: expect.objectContaining({
-          code: "context_v2_readiness_failed",
+          code: "vault_worker_capability_unconfigured",
         }),
       }),
     );

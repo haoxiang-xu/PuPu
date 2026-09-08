@@ -256,6 +256,18 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
     ),
     true,
   );
+  assert.equal(
+    REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.includes(
+      "graph_interaction_lineage_preflight_v1",
+    ),
+    true,
+  );
+  assert.equal(
+    REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.includes(
+      "interaction_resolution_atomic_acceptance_v1",
+    ),
+    true,
+  );
   assert.throws(
     () => validateRuntimeManifestForRelease(runtimeManifest({
       protocolFeatures: {
@@ -288,6 +300,17 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
       },
     })),
     /durable_interaction\.expected_interaction_id_cas/,
+  );
+  assert.throws(
+    () => validateRuntimeManifestForRelease(runtimeManifest({
+      protocolFeatures: {
+        ...REQUIRED_RUNTIME_PROTOCOLS,
+        durable_interaction: REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.filter(
+          (feature) => feature !== "interaction_resolution_atomic_acceptance_v1",
+        ),
+      },
+    })),
+    /durable_interaction\.interaction_resolution_atomic_acceptance_v1/,
   );
   const optionalBody = {
     ...runtimeManifest(),

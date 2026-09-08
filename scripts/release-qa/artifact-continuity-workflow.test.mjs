@@ -173,4 +173,14 @@ test("all sidecar builders pin PyInstaller and freeze the private vault entries"
     assert.match(source, /hidden-import[", ]+vault_sink_job_supervisor/);
     assert.match(source, /hidden-import[", ]+vault_sink_worker/);
   }
+  const windowsBuilder = fs.readFileSync(
+    path.join(ROOT, "unchain_runtime/scripts/build_unchain_server.ps1"),
+    "utf8",
+  );
+  assert.match(
+    windowsBuilder,
+    /System\.Security\.Cryptography\.SHA256/,
+    "Windows provenance hashing must work when powershell.exe lacks Get-FileHash",
+  );
+  assert.doesNotMatch(windowsBuilder, /Get-FileHash\s+-Algorithm/);
 });

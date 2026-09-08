@@ -62,12 +62,12 @@ const readContract = () => {
   }
   assert.ok(sortedUnique(value.vault_sink.recognized_kinds));
   assert.ok(sortedUnique(value.vault_sink.windows.disabled_kinds));
-  assert.deepEqual(value.vault_sink.windows.enabled_kinds, []);
+  assert.ok(sortedUnique(value.vault_sink.windows.enabled_kinds));
   assert.deepEqual(value.vault_sink.windows.unsupported_kinds, ["computer_input"]);
   assert.deepEqual(value.vault_sink.negative_cases, [
     "missing_required_feature",
     "unknown_sink_kind",
-    "disabled_windows_sink",
+    "unsupported_windows_sink",
   ]);
   return value;
 };
@@ -152,7 +152,7 @@ test("W0-04 Node parser consumes the versioned protocol and Windows sink fixture
   assert.deepEqual([...VAULT_SINK_KINDS].sort(), contract.vault_sink.recognized_kinds);
 });
 
-test("W0-04 fixture negative cases reject missing features, unknown sinks, and all Windows sinks", async () => {
+test("W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks", async () => {
   const contract = readContract();
   const requirements = contract.runtime_protocol.required_protocols.map((protocol) => ({
     features: [...protocol.features],
@@ -176,7 +176,7 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
   );
 
   let spawnCount = 0;
-  const windowsRegistry = createVaultSinkExecutors({
+  const unconfiguredRegistry = createVaultSinkExecutors({
     args: ["-e", "process.exit(0)"],
     command: process.execPath,
     dataDir: "/tmp/pupu-w0-contract",
@@ -187,7 +187,22 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
       throw new Error("must not spawn");
     },
   });
-  assert.deepEqual(Object.keys(windowsRegistry.providers), []);
+  assert.deepEqual(Object.keys(unconfiguredRegistry.providers), []);
+  assert.throws(
+    () => createVaultSinkExecutors({
+      args: ["-e", "process.exit(0)"],
+      command: process.execPath,
+      dataDir: "/tmp/pupu-w0-contract",
+      environmentSource: {},
+      platform: "win32",
+      windowsSinkCapability: {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: ["computer_input"],
+        protocol: 1,
+      },
+    }),
+    (error) => error?.code === "vault_sink_capability_invalid",
+  );
   assert.equal(spawnCount, 0);
 
   const unknownSinkExecutor = createVaultSinkExecutor({
@@ -209,11 +224,11 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
   assert.deepEqual(contract.vault_sink.negative_cases, [
     "missing_required_feature",
     "unknown_sink_kind",
-    "disabled_windows_sink",
+    "unsupported_windows_sink",
   ]);
 });
 
-test("W1-06 Windows registry exposes no provider before W0/W2 capability evidence", () => {
+test("W1-06 Windows registry exposes exactly the attested sink set", () => {
   const contract = readContract();
   let spawnCount = 0;
   const registry = createVaultSinkExecutors({
@@ -233,9 +248,12 @@ test("W1-06 Windows registry exposes no provider before W0/W2 capability evidenc
     },
   });
 
-  assert.deepEqual(Object.keys(registry.providers), []);
+  assert.deepEqual(
+    Object.keys(registry.providers).sort(),
+    [...contract.vault_sink.windows.enabled_kinds].sort(),
+  );
   assert.equal(spawnCount, 0);
-  for (const sinkKind of contract.vault_sink.recognized_kinds) {
+  for (const sinkKind of contract.vault_sink.windows.unsupported_kinds) {
     assert.equal(registry.providers[sinkKind], undefined);
   }
 });

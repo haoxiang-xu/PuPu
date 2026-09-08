@@ -100,3 +100,48 @@ test("W0-03 controlled Shadow profile ignores producer process overrides", () =>
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("Windows build embeds only a closed staged Unchain artifact identity", {
+  skip: process.platform !== "win32",
+}, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-build-artifact-identity-"));
+  const identityPath = path.join(root, "unchain-artifact-identity.v1.json");
+  const validIdentity = {
+    runtime_manifest_digest: `sha256:${"a".repeat(64)}`,
+    schema: "pupu.windows-unchain-artifact-identity.v1",
+    sidecar_sha256: `sha256:${"c".repeat(64)}`,
+    unchain_wheel_sha256: `sha256:${"b".repeat(64)}`,
+  };
+  try {
+    fs.writeFileSync(identityPath, JSON.stringify(validIdentity));
+    const accepted = run(buildWeb, ["--print-flags"], {
+      PUPU_UNCHAIN_ARTIFACT_IDENTITY_PATH: identityPath,
+    });
+    assert.equal(accepted.status, 0, accepted.stderr);
+
+    fs.writeFileSync(identityPath, JSON.stringify({ ...validIdentity, extra: true }));
+    const rejected = run(buildWeb, ["--print-flags"], {
+      PUPU_UNCHAIN_ARTIFACT_IDENTITY_PATH: identityPath,
+    });
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /artifact identity is invalid/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("non-Windows builds ignore Windows staged artifact identity", {
+  skip: process.platform === "win32",
+}, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-nonwindows-artifact-identity-"));
+  const identityPath = path.join(root, "unchain-artifact-identity.v1.json");
+  try {
+    fs.writeFileSync(identityPath, JSON.stringify({ malformed: true }));
+    const built = run(buildWeb, ["--print-flags"], {
+      PUPU_UNCHAIN_ARTIFACT_IDENTITY_PATH: identityPath,
+    });
+    assert.equal(built.status, 0, built.stderr);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

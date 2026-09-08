@@ -25,7 +25,11 @@ const WINDOWS_SINK_CAPABILITY_PROTOCOL = 1;
 const WINDOWS_SINK_CAPABILITY_CONTAINMENT = "win32_job_list_v1";
 // This is the W0 support decision, not a runtime fallback. W2/W4 may only add
 // a kind after its installed-package containment evidence is recorded.
-const WINDOWS_W0_APPROVED_SINK_KINDS = Object.freeze([]);
+const WINDOWS_W0_APPROVED_SINK_KINDS = Object.freeze([
+  "shell_secret_env",
+  "shell_secret_stdin",
+  "mcp_schema_secret",
+]);
 const VAULT_SINK_SUPERVISOR_CONTROL_PROTOCOL = 1;
 const VAULT_SINK_SUPERVISOR_CONTROL_MAX_BYTES = 256;
 const VAULT_SINK_SUPERVISOR_READY_TIMEOUT_MS = 10 * 1000;
@@ -40,6 +44,16 @@ const VAULT_SINK_SUPERVISOR_ERROR_CODES = Object.freeze([
   "vault_worker_handle_setup_failed",
   "vault_worker_spawn_failed",
   "vault_worker_attestation_failed",
+  "vault_worker_ready_timeout",
+]);
+// These codes mean that Windows containment itself was not established. They
+// differ from an ordinary one-intent tool failure and revoke Active globally.
+const WINDOWS_STRUCTURAL_FAILURE_CODES = new Set([
+  "vault_worker_attestation_failed",
+  "vault_worker_handle_setup_failed",
+  "vault_worker_job_setup_failed",
+  "vault_worker_parent_unavailable",
+  "vault_worker_ready_protocol_error",
   "vault_worker_ready_timeout",
 ]);
 const SAFE_ERROR_PATTERN = /^vault_[a-z0-9_]{1,80}$/;
@@ -138,6 +152,9 @@ const resolveWindowsRegistrySinkKinds = (windowsSinkCapability) => {
       throw workerError("vault_sink_capability_invalid");
     }
     seen.add(sinkKind);
+  }
+  if (seen.size === 0) {
+    throw workerError("vault_sink_capability_invalid");
   }
   return [...seen];
 };
@@ -795,6 +812,7 @@ const createVaultSinkExecutor = ({
   // Shared, registry-scoped process-group bookkeeping. Omitted → this executor
   // owns a private tracker so a standalone executor behaves identically.
   tracker,
+  onStructuralFailure = null,
 } = {}) => {
   if (
     typeof spawn !== "function" ||
@@ -808,6 +826,20 @@ const createVaultSinkExecutor = ({
   const resolvedTimeoutMs = boundedTimeout(timeoutMs);
   const resolvedTracker =
     tracker || createChildTracker({ platform, processKill });
+  const reportStructuralFailure = (error) => {
+    if (
+      platform !== "win32" ||
+      typeof onStructuralFailure !== "function" ||
+      !WINDOWS_STRUCTURAL_FAILURE_CODES.has(error?.code)
+    ) {
+      return;
+    }
+    try {
+      onStructuralFailure(error.code);
+    } catch (_error) {
+      // The provider still fails closed if its owner is already exiting.
+    }
+  };
 
   return Object.freeze({
     prepare: async (identity) => {
@@ -827,18 +859,23 @@ const createVaultSinkExecutor = ({
       if (resolvedTracker.isClosed()) {
         throw workerError("vault_worker_unavailable");
       }
-      return prepareFramedWorkerLease({
-        entrypoint,
-        sinkKind: identity.sinkKind,
-        spawn,
-        environmentSource,
-        timeoutMs: resolvedTimeoutMs,
-        platform,
-        processKill,
-        tracker: resolvedTracker,
-        electronPid:
-          platform === "win32" ? normalizeElectronPid(electronPid) : null,
-      });
+      try {
+        return await prepareFramedWorkerLease({
+          entrypoint,
+          sinkKind: identity.sinkKind,
+          spawn,
+          environmentSource,
+          timeoutMs: resolvedTimeoutMs,
+          platform,
+          processKill,
+          tracker: resolvedTracker,
+          electronPid:
+            platform === "win32" ? normalizeElectronPid(electronPid) : null,
+        });
+      } catch (error) {
+        reportStructuralFailure(error);
+        throw error;
+      }
     },
   });
 };

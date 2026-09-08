@@ -7,16 +7,21 @@ const {
 } = require("../../main/services/unchain/windows_vault_capability");
 
 const digest = (digit) => `sha256:${digit.repeat(64)}`;
+const ENABLED_SINK_KINDS = Object.freeze([
+  "mcp_schema_secret",
+  "shell_secret_env",
+  "shell_secret_stdin",
+]);
 
 const validReceipt = () =>
   createWindowsVaultCapabilityReceipt({
     broker: {
       protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
-      sink_kinds: [],
+      sink_kinds: ENABLED_SINK_KINDS,
     },
     capability: {
       containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
-      enabled_sink_kinds: [],
+      enabled_sink_kinds: ENABLED_SINK_KINDS,
       protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
     },
     probe: {
@@ -46,10 +51,10 @@ describe("Windows Vault capability latch", () => {
   test("rejects Boolean and lookalike receipts as terminal unavailable", () => {
     const latch = createWindowsVaultCapabilityLatch({ platform: "win32" });
     const lookalike = {
-      broker: { protocol: 1, sink_kinds: [] },
+      broker: { protocol: 1, sink_kinds: ENABLED_SINK_KINDS },
       capability: {
         containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
-        enabled_sink_kinds: [],
+        enabled_sink_kinds: ENABLED_SINK_KINDS,
         protocol: 1,
       },
       probe: {
@@ -94,10 +99,13 @@ describe("Windows Vault capability latch", () => {
 
   test("requires the immutable Unchain wheel digest in provenance", () => {
     const receipt = {
-      broker: { protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL, sink_kinds: [] },
+      broker: {
+        protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+        sink_kinds: ENABLED_SINK_KINDS,
+      },
       capability: {
         containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
-        enabled_sink_kinds: [],
+        enabled_sink_kinds: ENABLED_SINK_KINDS,
         protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
       },
       probe: {
@@ -117,6 +125,32 @@ describe("Windows Vault capability latch", () => {
     expect(() => createWindowsVaultCapabilityReceipt(receipt)).toThrow(
       "windows vault capability receipt is invalid",
     );
+  });
+
+  test("rejects a structurally valid but empty sink capability", () => {
+    expect(() =>
+      createWindowsVaultCapabilityReceipt({
+        broker: { protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL, sink_kinds: [] },
+        capability: {
+          containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+          enabled_sink_kinds: [],
+          protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+        },
+        probe: {
+          containment: WINDOWS_VAULT_CAPABILITY_CONTAINMENT,
+          protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+          supervisor_protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+          worker_protocol: WINDOWS_VAULT_CAPABILITY_PROTOCOL,
+        },
+        provenance: {
+          arch: "x64",
+          runtime_manifest_digest: digest("a"),
+          schema: WINDOWS_VAULT_PROVENANCE_SCHEMA,
+          sidecar_sha256: digest("b"),
+          unchain_wheel_sha256: digest("c"),
+        },
+      }),
+    ).toThrow("windows vault capability receipt is invalid");
   });
 
   test("unconfigured startup and structural loss are irreversible in one app lifecycle", () => {

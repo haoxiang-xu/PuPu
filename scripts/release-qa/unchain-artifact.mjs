@@ -45,7 +45,9 @@ export const REQUIRED_RUNTIME_PROTOCOLS = Object.freeze({
     "cancel_pending",
     "expected_interaction_id_cas",
     "fresh_run_lineage",
+    "graph_interaction_lineage_preflight_v1",
     "host_controlled_resume",
+    "interaction_resolution_atomic_acceptance_v1",
   ]),
   provider_turn_ownership: Object.freeze([
     "atomic_receipt_cas",
