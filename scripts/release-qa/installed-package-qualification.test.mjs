@@ -105,30 +105,52 @@ test("installed qualification shuts down the main process before cleaning residu
   );
 });
 
-test("installed qualification configures bounded temp cleanup retries without hiding permanent errors", () => {
-  let observed = null;
-  removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+test("installed qualification retries transient Windows locks without hiding permanent errors", async () => {
+  const observed = [];
+  const delays = [];
+  await removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+    platform: "win32",
     remove: (target, options) => {
-      observed = { target, options };
+      observed.push({ target, options });
+      if (observed.length < 3) {
+        throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+      }
     },
+    pause: async (delayMs) => { delays.push(delayMs); },
   });
-  assert.deepEqual(observed, {
+  assert.equal(observed.length, 3);
+  assert.deepEqual(delays, [2_000, 2_000]);
+  assert.deepEqual(observed[0], {
     target: "C:\\qualification-temp",
-    options: {
-      recursive: true,
-      force: true,
-      maxRetries: 20,
-      retryDelay: 100,
-    },
+    options: { recursive: true, force: true, maxRetries: 0 },
   });
 
   const permanent = Object.assign(new Error("permission denied"), { code: "EACCES" });
-  assert.throws(
-    () => removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+  await assert.rejects(
+    removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+      platform: "win32",
       remove: () => { throw permanent; },
     }),
     permanent,
   );
+
+  const exhausted = Object.assign(new Error("still busy"), { code: "EBUSY" });
+  let exhaustedAttempts = 0;
+  const exhaustedDelays = [];
+  await assert.rejects(
+    removeInstalledQualificationTempRoot("C:\\qualification-temp", {
+      platform: "win32",
+      maxAttempts: 3,
+      remove: () => {
+        exhaustedAttempts += 1;
+        throw exhausted;
+      },
+      pause: async (delayMs) => { exhaustedDelays.push(delayMs); },
+    }),
+    exhausted,
+  );
+  assert.equal(exhaustedAttempts, 3);
+  assert.deepEqual(exhaustedDelays, [2_000, 2_000]);
 });
 
 test("installed qualification cleans observed and candidate-owned residual processes", () => {

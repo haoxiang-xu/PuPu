@@ -33,7 +33,7 @@ test("release builds Unchain once and every test/package consumes the same bytes
   assert.match(sharedDeterministic, /Validate closed shared deterministic inputs/);
   assert.match(sharedDeterministic, /name: unchain-release-artifact/);
   assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
-  assert.match(sharedDeterministic, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
+  assert.match(sharedDeterministic, /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
   assert.match(
     sharedDeterministic,

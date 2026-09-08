@@ -59,6 +59,7 @@ describe("Windows Vault runtime provenance", () => {
     expect(
       resolveWindowsVaultRuntimeProvenance({
         app: { isPackaged: true, getAppPath: () => directory },
+        arch: "x64",
         entrypoint: { command: sidecarPath },
         fs,
         path,
@@ -74,13 +75,13 @@ describe("Windows Vault runtime provenance", () => {
     writeProvenance();
     expect(() =>
       resolveWindowsVaultRuntimeProvenance({
-        app: { isPackaged: false, getAppPath: () => directory }, entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
+        app: { isPackaged: false, getAppPath: () => directory }, arch: "x64", entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
       }),
     ).toThrow("unavailable");
     fs.writeFileSync(sidecarPath, "tampered", "utf8");
     expect(() =>
       resolveWindowsVaultRuntimeProvenance({
-        app: { isPackaged: true, getAppPath: () => directory }, entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
+        app: { isPackaged: true, getAppPath: () => directory }, arch: "x64", entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
       }),
     ).toThrow("invalid");
     writeProvenance({ unchain_wheel_sha256: "not-a-digest" });
@@ -110,6 +111,7 @@ describe("Windows Vault runtime provenance", () => {
 
     expect(() => resolveWindowsVaultRuntimeProvenance({
       app: { isPackaged: true, getAppPath: () => directory },
+      arch: "x64",
       entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
     })).toThrow("invalid");
   });
@@ -127,6 +129,7 @@ describe("Windows Vault runtime provenance", () => {
 
     expect(() => resolveWindowsVaultRuntimeProvenance({
       app: { isPackaged: true, getAppPath: () => directory },
+      arch: "x64",
       entrypoint: { command: sidecarPath }, fs, path, platform: "win32",
     })).toThrow("invalid");
   });

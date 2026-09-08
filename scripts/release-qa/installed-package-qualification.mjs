@@ -143,15 +143,42 @@ export const buildInstalledProcessControl = ({ pid = null } = {}) => ({
   shutdownPid: pid,
 });
 
-export const removeInstalledQualificationTempRoot = (
+const WINDOWS_TEMP_CLEANUP_TRANSIENT_CODES = new Set([
+  "EBUSY",
+  "EMFILE",
+  "ENFILE",
+  "ENOTEMPTY",
+  "EPERM",
+]);
+
+export const removeInstalledQualificationTempRoot = async (
   tempRoot,
-  { remove = fs.rmSync } = {},
-) => remove(tempRoot, {
-  recursive: true,
-  force: true,
-  maxRetries: 20,
-  retryDelay: 100,
-});
+  {
+    remove = fs.rmSync,
+    pause = sleep,
+    platform = process.platform,
+    maxAttempts = 61,
+    retryDelayMs = 2_000,
+  } = {},
+) => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      remove(tempRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 0,
+      });
+      return;
+    } catch (error) {
+      const retryable =
+        platform === "win32" &&
+        WINDOWS_TEMP_CLEANUP_TRANSIENT_CODES.has(error?.code) &&
+        attempt < maxAttempts;
+      if (!retryable) throw error;
+      await pause(retryDelayMs);
+    }
+  }
+};
 
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
@@ -673,7 +700,7 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       package_forms: packageForms,
     }, { manifest, manifestDigest: manifest.manifest_digest, targetId });
   } finally {
-    removeInstalledQualificationTempRoot(tempRoot);
+    await removeInstalledQualificationTempRoot(tempRoot);
   }
 }
 

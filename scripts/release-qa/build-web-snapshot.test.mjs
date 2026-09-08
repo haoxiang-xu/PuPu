@@ -12,6 +12,10 @@ const shadowProfile = path.join(
   repoRoot,
   "contracts/memory-v2/release-profile.shadow.v1.json",
 );
+const allProfile = path.join(
+  repoRoot,
+  "contracts/memory-v2/release-profile.all.v2.json",
+);
 
 const run = (script, args, environment) => spawnSync(process.execPath, [script, ...args], {
   cwd: repoRoot,
@@ -96,6 +100,91 @@ test("W0-03 controlled Shadow profile ignores producer process overrides", () =>
         PUPU_CONTEXT_V2_STORE_OWNER: "unchain",
       },
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("v0.1.10 controlled All profile enables theme customization and active Memory V2", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-build-profile-all-"));
+  const snapshotPath = path.join(root, "feature-snapshot.json");
+  try {
+    const produced = run(writeSnapshot, [
+      "--out", snapshotPath,
+      "--profile", allProfile,
+    ], {
+      PUPU_FEATURE_MEMORY_V2: "shadow",
+      PUPU_MEMORY_V2_MODE: "shadow",
+      PUPU_MEMORY_V2_CANARY_PERCENT: "5",
+      PUPU_MEMORY_V2_READ_ONLY_DEGRADED: "1",
+    });
+    assert.equal(produced.status, 0, produced.stderr);
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+    assert.equal(snapshot.enable_memory_v2, true);
+    assert.equal(snapshot.enable_theme_color_customization, true);
+    assert.deepEqual(
+      snapshot._pupu_memory_v2_release.sidecar_environment,
+      {
+        PUPU_FEATURE_MEMORY_V2: "all",
+        PUPU_MEMORY_V2_MODE: "all",
+        PUPU_MEMORY_V2_CANARY_PERCENT: "100",
+        PUPU_MEMORY_V2_READ_ONLY_DEGRADED: "0",
+        PUPU_CONTEXT_V2_STORE_OWNER: "unchain",
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("v2 controlled release profile rejects a missing or extra feature flag", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-build-profile-v2-negative-"));
+  const profilePath = path.join(root, "profile.json");
+  const snapshotPath = path.join(root, "feature-snapshot.json");
+  const baseProfile = {
+    schema: "pupu.memory-v2-release-profile.v2",
+    feature_flags: {
+      enable_memory_v2: true,
+      enable_theme_color_customization: true,
+    },
+    sidecar_environment: {
+      PUPU_FEATURE_MEMORY_V2: "all",
+      PUPU_MEMORY_V2_MODE: "all",
+      PUPU_MEMORY_V2_CANARY_PERCENT: "100",
+      PUPU_MEMORY_V2_READ_ONLY_DEGRADED: "0",
+      PUPU_CONTEXT_V2_STORE_OWNER: "unchain",
+    },
+  };
+  try {
+    for (const featureFlags of [
+      { enable_memory_v2: true },
+      { ...baseProfile.feature_flags, enable_unknown_release_feature: true },
+    ]) {
+      fs.writeFileSync(profilePath, JSON.stringify({
+        ...baseProfile,
+        feature_flags: featureFlags,
+      }));
+      const produced = run(writeSnapshot, [
+        "--out", snapshotPath,
+        "--profile", profilePath,
+      ]);
+      assert.notEqual(produced.status, 0);
+      assert.match(produced.stderr, /invalid schema or Memory V2 environment/);
+    }
+
+    fs.writeFileSync(profilePath, JSON.stringify({
+      ...baseProfile,
+      sidecar_environment: {
+        ...baseProfile.sidecar_environment,
+        PUPU_MEMORY_V2_MODE: "unexpected",
+      },
+    }));
+    const nonCanonical = run(writeSnapshot, [
+      "--out", snapshotPath,
+      "--profile", profilePath,
+    ]);
+    assert.notEqual(nonCanonical.status, 0);
+    assert.match(nonCanonical.stderr, /profile Memory V2 environment is not canonical/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
