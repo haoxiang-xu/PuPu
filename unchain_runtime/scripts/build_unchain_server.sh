@@ -24,6 +24,7 @@ TARGET_OS="${1:-}"
 TARGET_ARCH="${2:-${UNCHAIN_TARGET_ARCH:-}}"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=12
+PYINSTALLER_VERSION="6.22.1"
 
 is_python312() {
   local python_bin="$1"
@@ -180,7 +181,7 @@ fi
 if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV_PIP" install \
     -r "$ROOT_DIR/unchain_runtime/server/requirements.txt" \
-    'pyinstaller>=6.10'
+    "pyinstaller==$PYINSTALLER_VERSION"
   "$VENV_PIP" install --force-reinstall --no-deps "$UNCHAIN_ARTIFACT_PATH"
 fi
 
@@ -205,8 +206,9 @@ if (major, minor) != (${MIN_PYTHON_MAJOR}, ${MIN_PYTHON_MINOR}):
 print(f"Using Python: {sys.version.split()[0]} ({sys.executable})")
 PY
 
-if ! "$VENV_PY" - <<'PY'
+if ! PUPU_PYINSTALLER_VERSION="$PYINSTALLER_VERSION" "$VENV_PY" - <<'PY'
 import importlib.util
+import os
 import re
 required_modules = ["flask", "openai", "anthropic", "PyInstaller", "qdrant_client"]
 missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
@@ -214,10 +216,10 @@ if missing:
     print("Missing required Python modules in build environment:", ", ".join(missing))
     raise SystemExit(1)
 import PyInstaller
-match = re.match(r"^(\d+)\.(\d+)", PyInstaller.__version__)
-if match is None or tuple(map(int, match.groups())) < (6, 10):
+expected_pyinstaller_version = os.environ["PUPU_PYINSTALLER_VERSION"]
+if PyInstaller.__version__ != expected_pyinstaller_version:
     print(
-        "PyInstaller 6.10+ is required for durable worker process isolation; "
+        f"PyInstaller {expected_pyinstaller_version} is required for durable worker process isolation; "
         f"found {PyInstaller.__version__}"
     )
     raise SystemExit(1)
@@ -282,6 +284,9 @@ PYINSTALLER_ARGS=(
   --hidden-import unchain.memory
   --hidden-import unchain.memory.manager
   --hidden-import unchain.memory.qdrant
+  # main.py imports these private entries lazily, so freeze them explicitly.
+  --hidden-import durable_job_runtime
+  --hidden-import vault_sink_job_supervisor
   --hidden-import vault_sink_worker
   --hidden-import openai
   --hidden-import anthropic

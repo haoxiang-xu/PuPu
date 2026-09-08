@@ -41,6 +41,7 @@ const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const NONZERO_EVIDENCE_CHECKS = new Set([
   "Playwright Electron release smoke",
   "Session guard startup smoke",
+  "Windows Vault supervisor native probe",
   "Unchain artifact continuity",
   "Unchain runtime protocol manifest",
   "Context V2 boundary contracts",

@@ -121,6 +121,144 @@ def test_redactor_covers_strings_bytes_nested_values_and_exceptions():
     ) == worker.REDACTION_MARKER.encode("ascii")
 
 
+def test_windows_direct_main_refuses_before_protocol_read(monkeypatch):
+    monkeypatch.setattr(worker.sys, "platform", "win32")
+    with mock.patch.object(worker, "process_one_frame") as process_one_frame:
+        assert worker.main() == 1
+    process_one_frame.assert_not_called()
+
+
+def test_windows_shell_and_mcp_require_supervisor_attestation(tmp_path):
+    shell_popen = mock.Mock()
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker.execute_intent(
+            _payload(
+                "shell_secret_env",
+                field="TOKEN",
+                audit={
+                    "action": "run",
+                    "command": "cmd /d /s /c exit 0",
+                    "run_in_background": False,
+                    "secret_fields": ["TOKEN"],
+                },
+            ),
+            platform="win32",
+            popen_factory=shell_popen,
+        )
+    assert captured.value.code == "vault_shell_containment_unavailable"
+    shell_popen.assert_not_called()
+
+    mcp_builder = mock.Mock()
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker.execute_intent(
+            _mcp_payload(),
+            platform="win32",
+            mcp_builder=mcp_builder,
+            environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
+        )
+    assert captured.value.code == "vault_shell_containment_unavailable"
+    mcp_builder.assert_not_called()
+
+
+def test_windows_supervisor_attestation_reaches_shell_and_mcp(tmp_path):
+    shell_result = {"ok": True}
+    with mock.patch.object(worker, "_execute_shell", return_value=shell_result) as shell:
+        assert worker.execute_intent(
+            _payload(
+                "shell_secret_env",
+                field="TOKEN",
+                audit={
+                    "action": "run",
+                    "command": "cmd /d /s /c exit 0",
+                    "run_in_background": False,
+                    "secret_fields": ["TOKEN"],
+                },
+            ),
+            containment_attested=True,
+            platform="win32",
+        ) == shell_result
+    assert shell.call_args.kwargs["containment_attested"] is True
+    assert shell.call_args.kwargs["platform"] == "win32"
+
+    toolkit = _MCPToolkit()
+    result = worker.execute_intent(
+        _mcp_payload(),
+        containment_attested=True,
+        platform="win32",
+        mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
+        environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
+    )
+    assert result["ok"] is True
+    assert toolkit.executed
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows shell sink")
+def test_windows_attested_shell_executes_env_and_stdin_without_plaintext_output():
+    windows_secret = "windows-secret-token"
+
+    env_result = worker.execute_intent(
+        _payload(
+            "shell_secret_env",
+            field="VAULT_TEST_TOKEN",
+            plaintext=windows_secret,
+            audit={
+                "action": "run",
+                "command": 'cmd /d /s /c "echo %VAULT_TEST_TOKEN%"',
+                "run_in_background": False,
+                "timeout_ms": 5_000,
+                "secret_fields": ["VAULT_TEST_TOKEN"],
+            },
+        ),
+        containment_attested=True,
+        platform="win32",
+    )
+    assert env_result["ok"] is True
+    assert env_result["result"]["exit_category"] == "success"
+    assert worker.REDACTION_MARKER in env_result["result"]["stdout"]
+    _assert_no_secret(env_result, windows_secret)
+
+    stdin_result = worker.execute_intent(
+        _payload(
+            "shell_secret_stdin",
+            field="stdin",
+            plaintext=windows_secret,
+            audit={
+                "action": "run",
+                "command": (
+                    "powershell.exe -NoProfile -Command "
+                    "\"$data = [Console]::In.ReadToEnd(); [Console]::Out.Write($data)\""
+                ),
+                "run_in_background": False,
+                "timeout_ms": 5_000,
+                "secret_fields": ["stdin"],
+            },
+        ),
+        containment_attested=True,
+        platform="win32",
+    )
+    assert stdin_result["ok"] is True
+    assert stdin_result["result"]["exit_category"] == "success"
+    assert worker.REDACTION_MARKER in stdin_result["result"]["stdout"]
+    _assert_no_secret(stdin_result, windows_secret)
+
+
+def test_worker_main_passes_its_attestation_only_to_the_frame_executor(monkeypatch):
+    captured = {}
+
+    def process_one_frame(_input, _output, *, executor):
+        captured["executor"] = executor
+        return 23
+
+    monkeypatch.setattr(worker, "process_one_frame", process_one_frame)
+    monkeypatch.setattr(worker.os, "dup", lambda _descriptor: 99)
+    monkeypatch.setattr(worker.os, "dup2", lambda _source, _target: None)
+    monkeypatch.setattr(worker.os, "fdopen", lambda *_args, **_kwargs: io.BytesIO())
+
+    assert worker.main(containment_attested=True) == 23
+    assert callable(captured["executor"])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_env_executes_foreground_and_redacts_all_encodings():
     script = (
         "import base64,json,os,sys,urllib.parse;"
@@ -159,6 +297,7 @@ def test_shell_env_executes_foreground_and_redacts_all_encodings():
     assert dict(os.environ) == before
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_stdin_is_exact_output_is_bounded_and_secret_free():
     script = (
         "import sys;"
@@ -187,6 +326,7 @@ def test_shell_stdin_is_exact_output_is_bounded_and_secret_free():
     _assert_no_secret(result)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_redaction_keeps_overlap_before_truncating_long_secret():
     long_secret = "Z" * 200
     script = "import sys;sys.stdout.write(sys.stdin.read())"
@@ -235,6 +375,7 @@ def test_shell_rejects_handle_or_marker_in_command_before_spawn():
     popen.assert_not_called()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Unix shell sink")
 def test_shell_rejects_background_and_reports_timeout_as_safe_terminal_result():
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
@@ -367,6 +508,7 @@ def test_computer_requires_darwin_and_verified_secure_ax_writer():
     )
     writer.assert_called_once_with(SECRET)
     assert result == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": True,
         "sink_kind": "computer_input",
         "result": {"status": "secure_field_updated"},
@@ -539,6 +681,7 @@ def test_mcp_rebuilds_from_data_dir_validates_metadata_and_sanitizes_result(tmp_
 
     result = worker.execute_intent(
         _mcp_payload(),
+        containment_attested=True,
         mcp_builder=builder,
         environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
     )
@@ -566,6 +709,7 @@ def test_mcp_schema_mismatch_fails_closed_and_disconnects(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(fingerprint="e" * 64),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -582,6 +726,7 @@ def test_mcp_missing_worker_credential_manifest_fails_closed(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -600,6 +745,7 @@ def test_mcp_remote_error_is_static_and_disconnects_without_echo(tmp_path):
     with pytest.raises(worker.VaultSinkWorkerError) as captured:
         worker.execute_intent(
             _mcp_payload(),
+            containment_attested=True,
             mcp_builder=lambda _toolkit_id, _data_dir: toolkit,
             environ={"UNCHAIN_DATA_DIR": str(tmp_path)},
         )
@@ -651,12 +797,19 @@ def test_worker_protocol_emits_one_static_framed_error_and_no_stderr():
         timeout=10,
     )
 
+    if os.name == "nt":
+        # Direct worker launch has no supervisor-only containment attestation.
+        assert process.returncode == 1
+        assert process.stdout == b""
+        assert process.stderr == b""
+        return
     assert process.returncode == 0
     assert process.stderr == b""
     size = struct.unpack(">I", process.stdout[:4])[0]
     assert len(process.stdout) == size + 4
     payload = json.loads(process.stdout[4:].decode("utf-8"))
     assert payload == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": False,
         "error": {"code": "vault_worker_protocol_error"},
     }
@@ -693,6 +846,7 @@ def test_worker_protocol_executes_one_valid_intent_without_plaintext_output():
     assert len(process.stdout) == size + 4
     response = json.loads(process.stdout[4:].decode("utf-8"))
     assert response["ok"] is True
+    assert response["version"] == worker.PROTOCOL_VERSION
     assert response["result"]["stdout"].strip() == worker.REDACTION_MARKER
     _assert_no_secret(response)
 
@@ -710,7 +864,84 @@ def test_worker_protocol_never_serializes_raw_executor_exception():
     size = struct.unpack(">I", response[:4])[0]
     payload = json.loads(response[4:4 + size].decode("utf-8"))
     assert payload == {
+        "version": worker.PROTOCOL_VERSION,
         "ok": False,
         "error": {"code": "vault_worker_failed"},
     }
     _assert_no_secret(payload)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value.pop("version"),
+        lambda value: value.pop("toolkit_metadata"),
+        lambda value: value.__setitem__("unexpected", True),
+    ],
+    ids=["missing-version", "missing-toolkit-metadata", "unknown-key"],
+)
+def test_worker_request_requires_exact_top_level_v1_contract(mutate):
+    request = _payload(
+        "shell_secret_env",
+        field="TOKEN",
+        audit={"action": "run", "command": "true", "secret_fields": ["TOKEN"]},
+    )
+    mutate(request)
+
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_intent(request)
+
+    assert captured.value.code == "vault_invalid_request"
+
+
+def test_worker_request_requires_exact_mcp_toolkit_metadata_contract():
+    request = _mcp_payload()
+    del request["toolkit_metadata"]["schema_fingerprint"]
+
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_intent(request)
+
+    assert captured.value.code == "vault_invalid_request"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"version": 1, "ok": True, "sink_kind": "shell_secret_env"},
+        {"version": 1, "ok": False, "error": {"code": "vault_worker_failed", "extra": True}},
+        {"version": True, "ok": False, "error": {"code": "vault_worker_failed"}},
+    ],
+)
+def test_worker_response_requires_exact_versioned_closed_union(response):
+    with pytest.raises(worker.VaultSinkWorkerError) as captured:
+        worker._validate_response(response)
+
+    assert captured.value.code == "vault_worker_failed"
+
+
+def test_worker_rejects_trailing_stdin_before_executor_call():
+    request = json.dumps(
+        _payload(
+            "shell_secret_env",
+            field="TOKEN",
+            audit={"action": "run", "command": "true", "secret_fields": ["TOKEN"]},
+        )
+    ).encode("utf-8")
+    input_stream = io.BytesIO(struct.pack(">I", len(request)) + request + b"x")
+    output_stream = io.BytesIO()
+    calls = []
+
+    assert worker.process_one_frame(
+        input_stream,
+        output_stream,
+        executor=lambda payload: calls.append(payload) or {"ok": True},
+    ) == 0
+
+    assert calls == []
+    raw = output_stream.getvalue()
+    size = struct.unpack(">I", raw[:4])[0]
+    assert json.loads(raw[4:4 + size].decode("utf-8")) == {
+        "version": worker.PROTOCOL_VERSION,
+        "ok": False,
+        "error": {"code": "vault_worker_protocol_error"},
+    }

@@ -45,6 +45,13 @@ test("Context V2 release contract keeps all three blocking evidence layers", () 
     "tests/context_v2/test_context_runtime_tool_approval_authority.py::test_answered_approval_does_not_bind_the_next_confirmable_call",
     "tests/context_v2/test_context_p0_cold_composition_matrix.py::test_sqlite_reopen_second_chat_projects_real_kernel_terminal_history",
     "tests/context_v2/test_context_p0_cold_composition_matrix.py::test_file_backed_cold_rebuild_keeps_sequential_approvals_distinct_and_once",
+    "tests/context_v2/test_graph_live_interaction_cycles.py",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_boundary_resolved_live_graph_cycles_allow_rebase",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_live_tool_outcomes_without_admission_allow_rebase",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_late_admission_keeps_durable_cycle_strict",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_two_canonical_graph_resume_cycles_allow_rebase",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_foreign_graph_resume_admission_is_journal_incompatible",
+    "tests/context_v2/test_sqlite_generation_rebase_v2.py::test_noncanonical_graph_resume_cycles_are_nonretryable_and_zero_write",
   ]);
   assert.deepEqual(PUPU_ADAPTER_CONTRACT_TESTS, [
     "tests/test_memory_v2_context.py::MemoryV2ContextTests::test_tool_result_projection_respects_head_tail_policy",
@@ -65,6 +72,7 @@ test("Context V2 release contract keeps all three blocking evidence layers", () 
     "tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_plain_stream_preserves_typed_context_v2_error",
     "tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_memory_v2_failure_reason_preserves_only_safe_context_reason",
     "tests/test_chat_stream_v4.py::ChatStreamV4RouteTests::test_context_v2_stream_error_exposes_only_allowlisted_reason",
+    "tests/test_memory_v2_unchain_generation_api.py::test_live_tool_cycles_rebase_to_v2_ack_and_cold_replay_is_idempotent",
   ]);
   assert.equal(
     STRICT_FAKE_CONTRACT_FILE,

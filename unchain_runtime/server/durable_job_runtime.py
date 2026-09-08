@@ -139,7 +139,8 @@ def restore_frozen_job_environment() -> dict[str, str]:
         # Windows DLL search order.
         import ctypes
 
-        ctypes.windll.kernel32.SetDllDirectoryW(None)
+        if not ctypes.windll.kernel32.SetDllDirectoryW(None):
+            raise RuntimeError("frozen_dll_directory_restore_failed")
     return canonical
 
 

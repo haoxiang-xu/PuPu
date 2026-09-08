@@ -292,7 +292,33 @@ const ContextCompositionProgress = forwardRef(
                 pointerEvents: "none",
               }}
             >
-              {displayPercent === null ? "–" : displayPercent}
+              {/* Digits have no descender, but the line box always reserves
+                  one, so centring the LINE box (what align-items does) leaves
+                  the glyphs sitting ~0.8px above the ring's true centre — at
+                  this size that is a visibly high number inside a 20px circle.
+                  `text-box` trims the box to the cap/baseline edges so the
+                  same centring lands on the ink instead. It only applies to a
+                  block container, never to the anonymous item a flex parent
+                  wraps bare text in, which is why the digits need this span of
+                  their own. Where it is unsupported the box is untrimmed and
+                  the result is exactly today's rendering.
+
+                  The dash is deliberately NOT trimmed: its ink sits entirely
+                  above the baseline and around mid x-height, so line-box
+                  centring already lands it within 0.08px of centre, and a
+                  cap-to-baseline trim would push it 0.6px low. */}
+              {displayPercent === null ? (
+                "–"
+              ) : (
+                <span
+                  style={{
+                    display: "block",
+                    textBox: "trim-both cap alphabetic",
+                  }}
+                >
+                  {displayPercent}
+                </span>
+              )}
             </span>
           </span>
         </Button>

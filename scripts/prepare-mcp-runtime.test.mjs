@@ -63,6 +63,10 @@ async function makeTempDir() {
   return directory;
 }
 
+function portableRuntimeTarget(fallback = "darwin-arm64") {
+  return process.platform === "win32" ? "win32-x64" : fallback;
+}
+
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -443,7 +447,7 @@ test("CLI argument parsing supports target-specific staging and verification", (
     "--verify-only",
   ]);
   assert.equal(parsed.target, "darwin-x64");
-  assert.equal(parsed.outputDir, "/tmp/example/mcp_runtime");
+  assert.equal(parsed.outputDir, path.resolve("/tmp/example/mcp_runtime"));
   assert.equal(parsed.verifyOnly, true);
 });
 
@@ -613,11 +617,12 @@ test("atomic replacement temporarily unlocks a sealed root and restores its mode
 test("prepares and verifies Node/npm/npx, uv/uvx, and CPython", async () => {
   const directory = await makeTempDir();
   const { pinsPath, payloads } = await writeFakePins(directory);
+  const target = portableRuntimeTarget();
   const outputDir = path.join(directory, "mcp_runtime");
   const cacheDir = path.join(directory, "cache");
 
   const manifest = await prepareMcpRuntime({
-    target: "darwin-arm64",
+    target,
     pinsPath,
     outputDir,
     cacheDir,
@@ -626,7 +631,7 @@ test("prepares and verifies Node/npm/npx, uv/uvx, and CPython", async () => {
     wheelExtractor: fakeWheelExtractor,
   });
 
-  assert.equal(manifest.target, "darwin-arm64");
+  assert.equal(manifest.target, target);
   assert.equal(manifest.runtimes.node.command, "node/bin/node");
   assert.deepEqual(manifest.runtimes.node.args_prefix, [
     "node/lib/node_modules/npm/bin/npx-cli.js",
@@ -677,7 +682,7 @@ test("prepares and verifies Node/npm/npx, uv/uvx, and CPython", async () => {
   );
 
   const verified = await verifyMcpRuntime({
-    target: "darwin-arm64",
+    target,
     pinsPath,
     outputDir,
   });
@@ -711,10 +716,11 @@ test("rejects an archive that does not match the pinned checksum", async () => {
 test("verification catches staged runtime tampering", async () => {
   const directory = await makeTempDir();
   const { pinsPath, payloads } = await writeFakePins(directory);
+  const target = portableRuntimeTarget();
   const outputDir = path.join(directory, "mcp_runtime");
 
   await prepareMcpRuntime({
-    target: "darwin-arm64",
+    target,
     pinsPath,
     outputDir,
     cacheDir: path.join(directory, "cache"),
@@ -729,7 +735,7 @@ test("verification catches staged runtime tampering", async () => {
 
   await assert.rejects(
     verifyMcpRuntime({
-      target: "darwin-arm64",
+      target,
       pinsPath,
       outputDir,
     }),
@@ -809,6 +815,76 @@ test("afterPack restages a writable cache-polluted runtime", async () => {
     assert.notEqual(pythonDirectory.mode & 0o222, 0);
     assert.equal(manifest.mode & 0o222, 0);
   }
+});
+
+test("afterPack accepts Windows signing mutations without weakening staging verification", async () => {
+  const directory = await makeTempDir();
+  const { pinsPath, payloads } = await writeFakePins(directory);
+  const resourcesDir = path.join(directory, "app-out", "resources");
+  const outputDir = path.join(resourcesDir, "mcp_runtime");
+  const cacheDir = path.join(directory, "cache");
+
+  const signNodeRuntime = async () => {
+    const nodePath = path.join(outputDir, "node", "bin", "node");
+    const nodeStat = await fs.stat(nodePath);
+    await fs.chmod(nodePath, nodeStat.mode | 0o200);
+    await fs.appendFile(nodePath, "signed");
+  };
+
+  await prepareMcpRuntime({
+    target: "win32-x64",
+    pinsPath,
+    outputDir,
+    cacheDir,
+    downloader: fakeDownloader(payloads),
+    extractor: fakeExtractor,
+    wheelExtractor: fakeWheelExtractor,
+  });
+  await signNodeRuntime();
+
+  await assert.rejects(
+    verifyMcpRuntime({
+      target: "win32-x64",
+      pinsPath,
+      outputDir,
+    }),
+    /tree checksum mismatch/
+  );
+  const stageMcpRuntime = async (options) => {
+    const manifest = await fakeRuntimeStager(payloads, cacheDir)(options);
+    await signNodeRuntime();
+    return manifest;
+  };
+
+  await verifyPackagedMcpRuntime(
+    {
+      electronPlatformName: "win32",
+      arch: "x64",
+      appOutDir: path.join(directory, "app-out"),
+      packager: {
+        getResourcesDir: () => resourcesDir,
+      },
+    },
+    {
+      pinsPath,
+      stageMcpRuntime,
+      executeFile: async (command, args) => {
+        if (!args.includes("--version")) {
+          return { stdout: "truststore._api\n", stderr: "" };
+        }
+        if (command.includes(`${path.sep}node${path.sep}`)) {
+          return {
+            stdout: args.length === 1 ? "v1.0.0\n" : "11.6.2\n",
+            stderr: "",
+          };
+        }
+        if (command.includes(`${path.sep}uv${path.sep}`)) {
+          return { stdout: "uvx 0.1.0\n", stderr: "" };
+        }
+        return { stdout: "Python 3.12.0\n", stderr: "" };
+      },
+    },
+  );
 });
 
 test("afterPack unlocks only the verified macOS package copy for codesign", async () => {
@@ -925,13 +1001,14 @@ test("afterPack executes every bundled runtime natively without mutating it", as
 test("a failed preparation leaves an existing stage untouched", async () => {
   const directory = await makeTempDir();
   const { pinsPath, payloads } = await writeFakePins(directory);
+  const target = portableRuntimeTarget();
   const outputDir = path.join(directory, "mcp_runtime");
   await fs.mkdir(outputDir);
   await fs.writeFile(path.join(outputDir, "existing.txt"), "keep me");
 
   await assert.rejects(
     prepareMcpRuntime({
-      target: "darwin-arm64",
+      target,
       pinsPath,
       outputDir,
       cacheDir: path.join(directory, "cache"),

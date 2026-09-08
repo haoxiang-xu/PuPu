@@ -85,7 +85,7 @@ jobs:
         run: |
           $snapshotRoot = Join-Path $env:RUNNER_TEMP "pupu-memory-snapshot-$env:GITHUB_RUN_ID"
           $snapshotPath = Join-Path $snapshotRoot "build_feature_flags.snapshot.json"
-          node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.shadow.v1.json
+          node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.all.v2.json
           "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshotPath" >> $env:GITHUB_ENV
 
       - name: Resolve non-interactive build version

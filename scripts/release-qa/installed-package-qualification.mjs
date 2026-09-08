@@ -10,6 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import asar from "@electron/asar";
+import { verifyWindowsSidecarIdentity } from "./seal-windows-sidecar-identity.mjs";
 
 import {
   readJson,
@@ -143,15 +144,42 @@ export const buildInstalledProcessControl = ({ pid = null } = {}) => ({
   shutdownPid: pid,
 });
 
-export const removeInstalledQualificationTempRoot = (
+const WINDOWS_TEMP_CLEANUP_TRANSIENT_CODES = new Set([
+  "EBUSY",
+  "EMFILE",
+  "ENFILE",
+  "ENOTEMPTY",
+  "EPERM",
+]);
+
+export const removeInstalledQualificationTempRoot = async (
   tempRoot,
-  { remove = fs.rmSync } = {},
-) => remove(tempRoot, {
-  recursive: true,
-  force: true,
-  maxRetries: 20,
-  retryDelay: 100,
-});
+  {
+    remove = fs.rmSync,
+    pause = sleep,
+    platform = process.platform,
+    maxAttempts = 61,
+    retryDelayMs = 2_000,
+  } = {},
+) => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      remove(tempRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 0,
+      });
+      return;
+    } catch (error) {
+      const retryable =
+        platform === "win32" &&
+        WINDOWS_TEMP_CLEANUP_TRANSIENT_CODES.has(error?.code) &&
+        attempt < maxAttempts;
+      if (!retryable) throw error;
+      await pause(retryDelayMs);
+    }
+  }
+};
 
 const parsePosixProcessTable = (source) => String(source || "")
   .split("\n")
@@ -264,7 +292,7 @@ export const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform
     "unchain_runtime",
     "dist",
     sidecarPlatform,
-    process.platform === "win32" ? "unchain-server.exe" : "unchain-server",
+    sidecarPlatform === "windows" ? "unchain-server.exe" : "unchain-server",
   );
   for (const [label, candidate] of Object.entries({
     executable: executablePath,
@@ -274,6 +302,9 @@ export const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform
     if (!fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) {
       throw new Error(`installed ${label} is missing`);
     }
+  }
+  if (sidecarPlatform === "windows") {
+    verifyWindowsSidecarIdentity(path.dirname(resourceRoot));
   }
   const snapshot = assertSnapshot(asarPath);
   return {
@@ -673,7 +704,7 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       package_forms: packageForms,
     }, { manifest, manifestDigest: manifest.manifest_digest, targetId });
   } finally {
-    removeInstalledQualificationTempRoot(tempRoot);
+    await removeInstalledQualificationTempRoot(tempRoot);
   }
 }
 

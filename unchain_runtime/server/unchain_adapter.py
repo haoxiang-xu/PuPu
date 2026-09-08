@@ -8964,6 +8964,7 @@ def _stream_recipe_graph_events(
     run_id_override: str = "",
     execution_token: Any = None,
     runtime_context=None,
+    session_guard_owner_attempt_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
@@ -10279,7 +10280,8 @@ def _stream_recipe_graph_events(
                 step_final_holder = {"text": ""}
                 interaction_id_tracker = DurableInteractionIdTracker(
                     guard_owner_attempt_id=str(
-                        options.get("_memory_v2_attempt_id")
+                        session_guard_owner_attempt_id
+                        or options.get("_memory_v2_attempt_id")
                         or workflow_run_id
                     ).strip(),
                 )
@@ -11208,6 +11210,7 @@ def stream_chat_events(
                     run_id_override=graph_run_id,
                     execution_token=execution_token,
                     runtime_context=graph_runtime_context,
+                    session_guard_owner_attempt_id=normalized_attempt_id,
                 )
                 for graph_event in graph_events:
                     execution_owner.handoff()
@@ -12202,6 +12205,7 @@ def resume_chat_interaction_events(
                     run_id_override="",
                     execution_token=execution_token,
                     runtime_context=graph_runtime_context,
+                    session_guard_owner_attempt_id=normalized_attempt_id,
                 )
                 for graph_event in graph_events:
                     if (

@@ -34,17 +34,31 @@ const exactKeys = (value, keys) =>
   Object.keys(value).length === keys.length &&
   keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 
+const RELEASE_PROFILE_FEATURE_KEYS = Object.freeze({
+  "pupu.memory-v2-release-profile.v1": Object.freeze([
+    "enable_memory_v2",
+  ]),
+  "pupu.memory-v2-release-profile.v2": Object.freeze([
+    "enable_memory_v2",
+    "enable_theme_color_customization",
+  ]),
+});
+
 let profile = null;
 if (profilePath) {
   const resolvedProfilePath = path.resolve(ROOT_DIR, profilePath);
   try {
     profile = JSON.parse(fs.readFileSync(resolvedProfilePath, "utf8"));
     const environmentKeys = Object.values(MEMORY_V2_ENV_KEYS);
+    const featureKeys = RELEASE_PROFILE_FEATURE_KEYS[profile?.schema];
     if (
       !exactKeys(profile, ["feature_flags", "schema", "sidecar_environment"]) ||
-      profile.schema !== "pupu.memory-v2-release-profile.v1" ||
-      !exactKeys(profile.feature_flags, ["enable_memory_v2"]) ||
+      !featureKeys ||
+      !exactKeys(profile.feature_flags, featureKeys) ||
       profile.feature_flags.enable_memory_v2 !== true ||
+      !featureKeys.every(
+        (key) => typeof profile.feature_flags[key] === "boolean",
+      ) ||
       !exactKeys(profile.sidecar_environment, environmentKeys) ||
       !environmentKeys.every(
         (key) => typeof profile.sidecar_environment[key] === "string",

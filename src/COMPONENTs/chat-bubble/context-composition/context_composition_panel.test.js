@@ -327,6 +327,19 @@ describe("Viewport height follows the active pane, not both stacked", () => {
       height: `${MAX_PANE_VIEWPORT_HEIGHT}px`,
     });
   });
+
+  test("scrolls through the BUILTIN overlay scrollbar, not the platform's own", async () => {
+    // `.scrollable` is the whole opt-in: it is what hides the native bar and
+    // hands the container to BUILTIN Scrollable. Drop it and this popover is
+    // the one menu on the attach row painting a native track and a square
+    // thumb onto a frosted card. The two data-sb values are the placement the
+    // palette-family select dropdown uses, which this card copies elsewhere.
+    await renderPanel({ bundle: dualAvailableBundle() });
+    const viewport = screen.getByTestId("context-composition-viewport");
+    expect(viewport).toHaveClass("scrollable");
+    expect(viewport).toHaveAttribute("data-sb-wall", "2");
+    expect(viewport).toHaveAttribute("data-sb-edge", "12");
+  });
 });
 
 describe("CallPicker rides BUILTIN Select instead of a native <select>", () => {

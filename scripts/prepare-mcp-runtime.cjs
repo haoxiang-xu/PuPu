@@ -796,7 +796,7 @@ async function assertRuntimeLayout(stageRoot, runtimeName, target, targetPin) {
     }
   }
 
-  if (!target.startsWith("win32-")) {
+  if (!target.startsWith("win32-") && process.platform !== "win32") {
     for (const executable of targetPin.executable_files) {
       const executablePath = resolveStagedPath(
         runtimeRoot,
@@ -1062,6 +1062,7 @@ async function verifyMcpRuntime({
   target = detectHostTarget(),
   pinsPath = DEFAULT_PINS_PATH,
   outputDir = DEFAULT_OUTPUT_DIR,
+  verifyTreeChecksum = true,
 } = {}) {
   const safeOutputDir = assertSafeOutputDir(outputDir);
   const { pins, sha256: pinsSha256 } = await readPinsManifest(pinsPath);
@@ -1104,13 +1105,27 @@ async function verifyMcpRuntime({
       }
     }
     await validateTreeLinks(path.join(safeOutputDir, runtimeName));
-    await assertRuntimeLayout(safeOutputDir, runtimeName, target, targetPin);
-    const treeSha256 = await sha256Tree(path.join(safeOutputDir, runtimeName));
-    if (treeSha256 !== staged.staged_tree_sha256) {
+    await assertRuntimeLayout(
+      safeOutputDir,
+      runtimeName,
+      target,
+      targetPin
+    );
+    if (!SHA256_RE.test(staged.staged_tree_sha256 || "")) {
       throw new Error(
-        `Staged ${runtimeName} tree checksum mismatch: ` +
-          `expected ${staged.staged_tree_sha256}, got ${treeSha256}`,
+        `Staged ${runtimeName}.staged_tree_sha256 is invalid`
       );
+    }
+    if (verifyTreeChecksum) {
+      const treeSha256 = await sha256Tree(
+        path.join(safeOutputDir, runtimeName)
+      );
+      if (treeSha256 !== staged.staged_tree_sha256) {
+        throw new Error(
+          `Staged ${runtimeName} tree checksum mismatch: ` +
+            `expected ${staged.staged_tree_sha256}, got ${treeSha256}`
+        );
+      }
     }
     if (runtime.bootstrap) {
       const bootstrapRoot = resolveStagedPath(

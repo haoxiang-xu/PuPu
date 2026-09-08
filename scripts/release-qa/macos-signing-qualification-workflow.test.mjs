@@ -34,6 +34,7 @@ test("macOS signing qualification is explicit, dual-architecture, protected, and
   assert.match(workflow, /path: \.qualification-unchain/);
   assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\/.qualification-unchain/);
   assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_REF: \$\{\{ inputs\.unchain_ref \}\}/);
+  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(workflow, /build:electron:mac:release/);
   assert.match(workflow, /build:electron:mac:intel:release/);
   assert.match(workflow, /release-signing\.mjs --platform macos/);

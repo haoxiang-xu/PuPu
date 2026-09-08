@@ -158,7 +158,9 @@ runStage({
   name: "Electron strict admission and idempotent storage",
   command: process.execPath,
   args: [
-    path.join(ROOT, "node_modules", ".bin", "jest"),
+    // The package CLI entrypoint, not the .bin shim: on Windows the shim is a
+    // POSIX shell script (plus a .cmd twin) and cannot be executed by Node.
+    path.join(ROOT, "node_modules", "jest", "bin", "jest.js"),
     "--env=node",
     "--runInBand",
     "--silent",
@@ -180,7 +182,7 @@ runStage({
   name: "Renderer accounting barrier and presentation",
   command: process.execPath,
   args: [
-    path.join(ROOT, "node_modules", ".bin", "react-scripts"),
+    path.join(ROOT, "node_modules", "react-scripts", "bin", "react-scripts.js"),
     "test",
     "--watchAll=false",
     "--runInBand",

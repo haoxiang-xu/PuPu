@@ -47,8 +47,8 @@ const assertSharedActionContract = (action) => {
   );
   assert.equal(
     count(action, /uses: azure\/artifact-signing-action@v2/g),
-    2,
-    "the shared action must sign exactly the payload catalogue and installer",
+    3,
+    "the shared action must sign dependencies, the resealed launcher, and installer separately",
   );
 };
 

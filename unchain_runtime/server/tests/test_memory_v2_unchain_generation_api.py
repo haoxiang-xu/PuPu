@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sqlite3
@@ -30,8 +31,20 @@ from memory_v2_unchain_graph_recovery import (
     reset_generation_rebase_recovery_attempts,
 )
 from unchain.context import ArtifactService
+from unchain.context.derived_handoff import DerivedHandoffInputIngress
+from unchain.context.graph_checkpoint import (
+    GraphCheckpointService,
+    GraphExecutionPlan,
+    GraphStepBinding,
+    GraphTerminalStatus,
+    JournalGraphCheckpointRepository,
+)
+from unchain.context.handoff import DurableHandoffRecorder, HandoffService
+from unchain.context.ingress import ContextInputIngress, HostResolvedCurrentInput
+from unchain.context.projector import CanonicalSemanticEventProjector
 from unchain.journal import (
     AttemptRef,
+    DurableEventSink,
     EventRange,
     GenerationRef,
     OperationRef,
@@ -1122,3 +1135,204 @@ def test_inline_recovery_replay_failure_is_bounded_and_escalates(
         "context_v2_rebase_journal_incompatible",
         "context_v2_rebase_journal_incompatible",
     ]
+
+
+def _single_step_graph_runtime(setup: _GenerationSetup):
+    """Admit one real single-step graph plan inside the initial generation.
+
+    Mirrors unchain's ``_graph_checkpoint_runtime`` test helper with one step
+    and a plain message root input, so the sidecar rebase path sees the same
+    canonical producer output the incident journal carried.
+    """
+    generation = GenerationRef(setup.execution_id, setup.receipt.generation_id)
+    orchestration = AttemptRef(generation, "graph-orchestration")
+    step_attempt = AttemptRef(generation, "graph-step-0")
+    journal = setup.store.bind_execution(setup.execution_id)
+    artifacts = ArtifactService(
+        journal,
+        sanitizer=lambda content, _media_type: content,
+    )
+    attempts = (orchestration, step_attempt)
+    projectors = {
+        attempt: CanonicalSemanticEventProjector(
+            attempt=attempt,
+            artifacts=artifacts,
+            payload_sanitizer=lambda _event_type, payload: payload,
+        )
+        for attempt in attempts
+    }
+    sinks = {
+        attempt: DurableEventSink(journal, attempt, projectors[attempt])
+        for attempt in attempts
+    }
+
+    def derived_ingress(consumer_attempt, source_attempt):
+        return DerivedHandoffInputIngress(
+            consumer_attempt=consumer_attempt,
+            source_attempt=source_attempt,
+            handoff_recorder=DurableHandoffRecorder(
+                attempt=consumer_attempt,
+                handoffs=HandoffService(artifacts),
+                projector=projectors[consumer_attempt],
+                sink=sinks[consumer_attempt],
+            ),
+            input_ingress=ContextInputIngress(
+                attempt=consumer_attempt,
+                projector=projectors[consumer_attempt],
+                sink=sinks[consumer_attempt],
+            ),
+        )
+
+    service = GraphCheckpointService(
+        repository=JournalGraphCheckpointRepository(journal),
+        artifacts=artifacts,
+        derived_ingress_resolver=derived_ingress,
+    )
+    root_input = ContextInputIngress(
+        attempt=orchestration,
+        projector=projectors[orchestration],
+        sink=sinks[orchestration],
+    ).persist(
+        HostResolvedCurrentInput(
+            attempt=orchestration,
+            content="run the graph",
+            message_index=0,
+            attachments=(),
+        )
+    )
+    step = GraphStepBinding(
+        index=0,
+        node_id="node-0",
+        attempt=step_attempt,
+        source_attempt=orchestration,
+        provider="openai",
+        model="gpt-test",
+        configuration_sha256=hashlib.sha256(
+            b"node-0-configuration"
+        ).hexdigest(),
+    )
+    plan = GraphExecutionPlan(
+        orchestration_attempt=orchestration,
+        topology_sha256=hashlib.sha256(b"graph-topology").hexdigest(),
+        initial_input_cursor=root_input.cursor,
+        steps=(step,),
+    )
+    service.admit(plan)
+    service.start_step(plan, 0)
+    return (
+        plan,
+        step,
+        sinks[step_attempt],
+        JournalGraphCheckpointRepository(journal),
+    )
+
+
+def _append_live_interaction_event(
+    setup: _GenerationSetup,
+    attempt: AttemptRef,
+    *,
+    event_id: str,
+    event_type: str,
+    interaction_id: str,
+):
+    """Append a raw live-cycle event exactly as the incident journal stored it."""
+    return setup.store.bind_execution(setup.execution_id).append(
+        request=SemanticEventDraft(
+            event_id=event_id,
+            event_type=event_type,
+            attempt=attempt,
+            operation_id=f"operation-{event_id}",
+            payload={
+                "run_id": attempt.attempt_id,
+                "interaction_id": interaction_id,
+            },
+        ).to_append_request()
+    ).event
+
+
+def _append_projected_step_event(sink, attempt, event_type, sequence, **payload):
+    return sink.append_projected(
+        SemanticEventDraft(
+            event_id=f"event-{attempt.attempt_id}-{sequence}-{event_type}",
+            event_type=event_type,
+            attempt=attempt,
+            operation_id=(
+                f"operation-{attempt.attempt_id}-{sequence}-{event_type}"
+            ),
+            payload={"run_id": attempt.attempt_id, **payload},
+        )
+    )
+
+
+def test_live_tool_cycles_rebase_to_v2_ack_and_cold_replay_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    """SEQ-001 through the sidecar: live request/outcome, runtime activity,
+    another live request/outcome, terminal, then a historical resend.
+
+    No ``graph.step.resume.admitted`` exists for either cycle.  Before the
+    repair the rebase reported ``graph_step_seal_foreign`` and PuPu mapped it
+    to the terminal ``context_v2_rebase_journal_incompatible`` code, which
+    deleted the user's outbox entry.
+    """
+    setup = _setup_generation_api(tmp_path / "memory_v2")
+    plan, step, step_sink, repository = _single_step_graph_runtime(setup)
+    for ordinal, outcome in ((1, "tool_confirmed"), (2, "tool_denied")):
+        interaction_id = f"live-tool-{ordinal}"
+        _append_live_interaction_event(
+            setup,
+            step.attempt,
+            event_id=f"live-tool-{ordinal}-request",
+            event_type="tool_confirmation_requested",
+            interaction_id=interaction_id,
+        )
+        _append_live_interaction_event(
+            setup,
+            step.attempt,
+            event_id=f"live-tool-{ordinal}-outcome",
+            event_type=outcome,
+            interaction_id=interaction_id,
+        )
+        if ordinal == 1:
+            # Runtime activity between the cycles proves the attempt kept
+            # running in-process instead of pausing for a durable admission.
+            _append_projected_step_event(
+                step_sink,
+                step.attempt,
+                "iteration_started",
+                17,
+                iteration=2,
+            )
+    terminal = _append_projected_step_event(
+        step_sink,
+        step.attempt,
+        "run_failed",
+        99,
+        status="failed",
+    )
+    repository.terminal(
+        plan,
+        step,
+        status=GraphTerminalStatus.FAILED,
+        terminal_cursor=terminal.cursor,
+    )
+
+    api = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    acknowledged = _rebase(api, setup)
+
+    assert acknowledged["session_revision"] == 2
+    assert acknowledged["reason"] == "edit"
+    assert acknowledged["replayed"] is False
+    assert acknowledged["turn_mutation_event_ref"]
+    assert acknowledged["generation_id"] != setup.receipt.generation_id
+
+    reopened = open_pupu_unchain_generation_api(
+        root_dir=setup.root_dir,
+        owner_chat_id=setup.owner_chat_id,
+    )
+    replay = _rebase(reopened, setup)
+
+    assert replay == {**acknowledged, "replayed": True}

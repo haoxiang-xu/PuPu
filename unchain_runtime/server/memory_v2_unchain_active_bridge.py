@@ -58,7 +58,11 @@ from unchain.journal.models import _required_text
 from unchain.persistence.sqlite_generation_lifecycle_v2 import (
     SQLiteHostGenerationLifecycleV2,
 )
-from unchain.persistence.sqlite_v2 import SQLiteContextV2Store
+from unchain.persistence.sqlite_v2 import (
+    SQLiteContextV2Store,
+    SQLiteContextV2StoreError,
+    existing_context_v2_readonly_connection,
+)
 
 
 class PupuUnchainActiveBridgeError(RuntimeError):
@@ -87,6 +91,31 @@ def _cold_context_store() -> SQLiteContextV2Store:
     )
 
 
+def _open_existing_cold_context_journal(execution_id: str) -> Any | None:
+    """Open one existing execution without creating Context V2 state."""
+
+    execution = _required_text(execution_id, "execution_id", identifier=True)
+    database_path, _object_directory = _cold_context_paths()
+    if not database_path.is_file():
+        return None
+    from unchain.persistence.sqlite_v2 import (
+        SQLiteContextV2StoreError,
+        open_existing_execution_journal_readonly,
+    )
+
+    try:
+        return open_existing_execution_journal_readonly(
+            database_path=database_path,
+            execution_id=execution,
+        )
+    except SQLiteContextV2StoreError as exc:
+        if str(exc) == "SQLite Context V2 execution is unavailable":
+            return None
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction journal is unavailable"
+        ) from exc
+
+
 def _read_existing_active_admission(owner_chat_id: str) -> dict[str, Any] | None:
     """Read PuPu-owned sticky metadata without initializing an absent store."""
 
@@ -95,22 +124,18 @@ def _read_existing_active_admission(owner_chat_id: str) -> dict[str, Any] | None
     if not database_path.is_file():
         return None
     try:
-        connection = sqlite3.connect(
-            f"file:{database_path.as_posix()}?mode=ro",
-            uri=True,
-            timeout=5.0,
-        )
-        connection.row_factory = sqlite3.Row
-        try:
+        with existing_context_v2_readonly_connection(database_path) as connection:
             row = connection.execute(
                 "SELECT * FROM pupu_context_v2_admissions WHERE owner_chat_id=?",
                 (owner,),
             ).fetchone()
-        finally:
-            connection.close()
     except sqlite3.OperationalError as exc:
         if "no such table" in str(exc).casefold():
             return None
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction admission metadata is unavailable"
+        ) from exc
+    except SQLiteContextV2StoreError as exc:
         raise PupuUnchainActiveBridgeError(
             "cold interaction admission metadata is unavailable"
         ) from exc
@@ -138,13 +163,7 @@ def _read_existing_active_session_admissions(
     if not database_path.is_file():
         return ()
     try:
-        connection = sqlite3.connect(
-            f"file:{database_path.as_posix()}?mode=ro",
-            uri=True,
-            timeout=5.0,
-        )
-        connection.row_factory = sqlite3.Row
-        try:
+        with existing_context_v2_readonly_connection(database_path) as connection:
             rows = tuple(
                 connection.execute(
                     "SELECT * FROM pupu_context_v2_admissions "
@@ -152,11 +171,13 @@ def _read_existing_active_session_admissions(
                     (session,),
                 ).fetchall()
             )
-        finally:
-            connection.close()
     except sqlite3.OperationalError as exc:
         if "no such table" in str(exc).casefold():
             return ()
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction admission metadata is unavailable"
+        ) from exc
+    except SQLiteContextV2StoreError as exc:
         raise PupuUnchainActiveBridgeError(
             "cold interaction admission metadata is unavailable"
         ) from exc
@@ -258,10 +279,10 @@ def pupu_unchain_cold_context_interaction_exists(
         raise PupuUnchainActiveBridgeError(
             "cold interaction session must equal its Context execution"
         )
-    database_path, _object_directory = _cold_context_paths()
-    if not database_path.is_file():
+    journal = _open_existing_cold_context_journal(execution)
+    if journal is None:
         return False
-    snapshot = _cold_context_store().bind_execution(execution).capture_snapshot()
+    snapshot = journal.capture_snapshot()
     return any(
         event.event_type == "interaction.requested"
         and event.attempt.generation.execution_id == execution
@@ -295,15 +316,12 @@ def pupu_unchain_cold_context_request_exists(
         raise PupuUnchainActiveBridgeError(
             "cold interaction session must equal its Context execution"
         )
-    database_path, _object_directory = _cold_context_paths()
-    if not database_path.is_file():
+    journal = _open_existing_cold_context_journal(execution)
+    if journal is None:
         return False
     matches = tuple(
         event
-        for event in _cold_context_store()
-        .bind_execution(execution)
-        .capture_snapshot()
-        .events
+        for event in journal.capture_snapshot().events
         if event.event_type == "interaction.requested"
         and event.attempt.generation.execution_id == execution
         and event.attempt.attempt_id == source_attempt
@@ -317,6 +335,119 @@ def pupu_unchain_cold_context_request_exists(
     return bool(matches)
 
 
+def pupu_unchain_cold_graph_interaction_lineage_proof(
+    *,
+    session_id: str,
+    execution_id: str,
+    generation_id: str,
+    coordinator_attempt_id: str,
+    source_attempt_id: str,
+    current_attempt_id: str,
+    interaction_id: str,
+    allow_resolved: bool = False,
+) -> Any | None:
+    """Read one exact graph-interaction proof without initializing Context V2.
+
+    A missing database is reported as absent.  A present database with missing,
+    stale, corrupt, or ambiguous graph facts is an error: callers must not
+    reinterpret it as permission to resume a different execution.
+    """
+
+    session = _required_text(session_id, "session_id", identifier=True)
+    execution = _required_text(execution_id, "execution_id", identifier=True)
+    generation = _required_text(generation_id, "generation_id", identifier=True)
+    coordinator = _required_text(
+        coordinator_attempt_id,
+        "coordinator_attempt_id",
+        identifier=True,
+    )
+    source_attempt = _required_text(
+        source_attempt_id,
+        "source_attempt_id",
+        identifier=True,
+    )
+    current_attempt = _required_text(
+        current_attempt_id,
+        "current_attempt_id",
+        identifier=True,
+    )
+    interaction = _required_text(
+        interaction_id,
+        "interaction_id",
+        identifier=True,
+    )
+    if session != execution:
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction session must equal its Context execution"
+        )
+    database_path, _object_directory = _cold_context_paths()
+    if not database_path.is_file():
+        return None
+    from unchain.context.graph_checkpoint import (
+        GraphCheckpointError,
+        prove_graph_interaction_lineage,
+    )
+    from unchain.persistence.sqlite_v2 import SQLiteContextV2StoreError
+
+    try:
+        journal = _open_existing_cold_context_journal(execution)
+        if journal is None:
+            return None
+        return prove_graph_interaction_lineage(
+            journal,
+            generation_id=generation,
+            coordinator_attempt_id=coordinator,
+            source_attempt_id=source_attempt,
+            current_attempt_id=current_attempt,
+            interaction_id=interaction,
+            allow_resolved=allow_resolved,
+        )
+    except (GraphCheckpointError, SQLiteContextV2StoreError) as exc:
+        raise PupuUnchainActiveBridgeError(
+            "cold graph interaction lineage is unavailable"
+        ) from exc
+
+
+@dataclass(frozen=True, slots=True)
+class GraphLineageLocator:
+    """Names the graph step whose canonical lineage a caller must prove.
+
+    ``bound_source_attempt_id`` is the step the session guard originally
+    parked on; ``current_attempt_id`` (passed separately to the proof call)
+    may be a later step reached after intermediate nodes completed without
+    an interaction.
+    """
+
+    generation_id: str
+    coordinator_attempt_id: str
+    bound_source_attempt_id: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "generation_id",
+            _required_text(self.generation_id, "generation_id", identifier=True),
+        )
+        object.__setattr__(
+            self,
+            "coordinator_attempt_id",
+            _required_text(
+                self.coordinator_attempt_id,
+                "coordinator_attempt_id",
+                identifier=True,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "bound_source_attempt_id",
+            _required_text(
+                self.bound_source_attempt_id,
+                "bound_source_attempt_id",
+                identifier=True,
+            ),
+        )
+
+
 def persist_pupu_unchain_cold_interaction_resolution(
     *,
     owner_chat_id: str,
@@ -324,11 +455,25 @@ def persist_pupu_unchain_cold_interaction_resolution(
     execution_id: str,
     source_attempt_id: str,
     durable_receipt: Any,
+    graph_lineage: "GraphLineageLocator | None" = None,
+    require_unresolved: bool = True,
 ) -> Any:
     """Project an already-applied durable response into its exact old attempt.
 
     This opens only official Context components.  It never starts or resumes
     the suspended agent and never mirrors a raw journal event.
+
+    The commit is atomic. When ``require_unresolved`` is true (the default,
+    used for a live answer submission), an in-transaction acceptance check
+    also requires exactly one open canonical request and no existing
+    canonical resolution, re-verified on the same snapshot the write commits
+    against; when ``graph_lineage`` is given, the same snapshot proves the
+    current step is the exact expected pending successor of the bound source
+    step. Cancellation reconciliation passes ``require_unresolved=False``: it
+    intentionally records a canonical resolution to supersede a historical
+    non-canonical or malformed resolution marker for the same interaction,
+    which the strict check would otherwise reject; the atomic artifact+event
+    commit itself is unaffected either way.
     """
 
     from durable_interaction_host import DurableInteractionReceiptHandoff
@@ -349,6 +494,8 @@ def persist_pupu_unchain_cold_interaction_resolution(
         raise PupuUnchainActiveBridgeError(
             "cold interaction receipt does not match its Context execution"
         )
+    if graph_lineage is not None and not isinstance(graph_lineage, GraphLineageLocator):
+        raise TypeError("graph_lineage must be a GraphLineageLocator")
     if not pupu_unchain_cold_active_admission(
         owner_chat_id=owner,
         session_id=session,
@@ -421,13 +568,40 @@ def persist_pupu_unchain_cold_interaction_resolution(
         projector=projector,
         sink=sink,
     )
+
+    precondition = None
+    if require_unresolved:
+        from unchain.context.graph_checkpoint import prove_graph_interaction_lineage
+        from unchain.context.interaction_acceptance import assert_interaction_unresolved
+
+        def _accept_only_pending(inner_snapshot):
+            assert_interaction_unresolved(
+                inner_snapshot,
+                attempt=attempt,
+                interaction_id=durable_receipt.interaction_id,
+            )
+            if graph_lineage is not None:
+                prove_graph_interaction_lineage(
+                    journal,
+                    generation_id=graph_lineage.generation_id,
+                    coordinator_attempt_id=graph_lineage.coordinator_attempt_id,
+                    source_attempt_id=graph_lineage.bound_source_attempt_id,
+                    current_attempt_id=source_attempt,
+                    interaction_id=durable_receipt.interaction_id,
+                    allow_resolved=False,
+                    snapshot=inner_snapshot,
+                )
+
+        precondition = _accept_only_pending
+
     result = ingress.persist(
         HostResolvedInteractionInput(
             attempt=attempt,
             interaction_id=durable_receipt.interaction_id,
             response=durable_receipt.response,
             submitted_by=durable_receipt.submitted_by,
-        )
+        ),
+        precondition=precondition,
     )
     if (
         result.event.attempt != attempt
@@ -439,6 +613,121 @@ def persist_pupu_unchain_cold_interaction_resolution(
             "cold interaction ingress returned a foreign resolution"
         )
     return result
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedInteractionResolution:
+    """The canonical accepted answer for one interaction, read without a write."""
+
+    interaction_id: str
+    response: Any
+    submitted_by: str
+    resolution_cursor: Any
+    content_sha256: str
+
+
+def pupu_unchain_cold_accepted_interaction_resolution(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+    source_attempt_id: str,
+    interaction_id: str,
+) -> "AcceptedInteractionResolution | None":
+    """Return the canonical accepted answer for one interaction, or ``None``.
+
+    Reads only the existing journal (no file side effects) and verifies the
+    artifact bytes against the resolution event's own content digest before
+    returning the decoded answer. This recovers a canonical acceptance whose
+    host-side receipt projection was interrupted before it committed.
+    """
+
+    owner = _required_text(owner_chat_id, "owner_chat_id", identifier=True)
+    session = _required_text(session_id, "session_id", identifier=True)
+    source_attempt = _required_text(
+        source_attempt_id,
+        "source_attempt_id",
+        identifier=True,
+    )
+    interaction = _required_text(interaction_id, "interaction_id", identifier=True)
+    if not pupu_unchain_cold_active_admission(
+        owner_chat_id=owner,
+        session_id=session,
+        execution_id=session,
+    ):
+        return None
+    database_path, object_directory = _cold_context_paths()
+    if not database_path.is_file():
+        return None
+    from unchain.journal.models import ArtifactRef, EventCursor, ResourceRef
+    from unchain.persistence.sqlite_v2 import (
+        SQLiteContextV2StoreError,
+        open_existing_execution_journal_readonly,
+    )
+
+    try:
+        journal = open_existing_execution_journal_readonly(
+            database_path=database_path,
+            execution_id=session,
+            object_directory=object_directory,
+        )
+    except SQLiteContextV2StoreError as exc:
+        if str(exc) == "SQLite Context V2 execution is unavailable":
+            return None
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction journal is unavailable"
+        ) from exc
+    snapshot = journal.capture_snapshot()
+    resolved = tuple(
+        event
+        for event in snapshot.events
+        if event.event_type == "interaction.resolved"
+        and event.attempt.attempt_id == source_attempt
+        and str(event.payload.get("interaction_id") or "").strip() == interaction
+    )
+    if not resolved:
+        return None
+    if len(resolved) != 1:
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction has an ambiguous canonical resolution"
+        )
+    event = resolved[0]
+    payload = event.payload
+    try:
+        artifact = ArtifactRef(
+            ref=ResourceRef.from_dict(payload["content_ref"]),
+            media_type="application/json",
+            byte_length=int(payload["content_bytes"]),
+            sha256=str(payload["content_sha256"]),
+            preview=str(payload.get("preview") or ""),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction resolution payload is corrupt"
+        ) from exc
+    content = journal.read_artifact_full_verified(artifact=artifact)
+    import json as _json
+
+    try:
+        decoded = _json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, _json.JSONDecodeError) as exc:
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction resolution artifact is corrupt"
+        ) from exc
+    if (
+        not isinstance(decoded, dict)
+        or set(decoded) != {"interaction_id", "response", "submitted_by"}
+        or decoded.get("interaction_id") != interaction
+    ):
+        raise PupuUnchainActiveBridgeError(
+            "cold interaction resolution artifact is corrupt"
+        )
+    return AcceptedInteractionResolution(
+        interaction_id=interaction,
+        response=decoded["response"],
+        submitted_by=str(decoded["submitted_by"]),
+        resolution_cursor=EventCursor(event.store_seq, event.event_id),
+        content_sha256=artifact.sha256,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -766,6 +1055,7 @@ __all__ = [
     "preflight_pupu_unchain_active_host",
     "prepare_pupu_unchain_active_bridge",
     "pupu_unchain_cold_active_admission",
+    "pupu_unchain_cold_graph_interaction_lineage_proof",
     "pupu_unchain_cold_context_interaction_exists",
     "pupu_unchain_cold_context_request_exists",
 ]

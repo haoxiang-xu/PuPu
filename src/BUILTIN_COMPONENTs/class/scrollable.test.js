@@ -18,6 +18,12 @@ const renderScrollable = () =>
     </ConfigContext.Provider>,
   );
 
+const stubScrollMetrics = (el, metrics) => {
+  for (const [key, value] of Object.entries(metrics)) {
+    Object.defineProperty(el, key, { value, configurable: true });
+  }
+};
+
 const makeContainer = () => {
   const parent = document.createElement("div");
   const container = document.createElement("div");
@@ -122,5 +128,28 @@ describe("scrollable observer 收敛", () => {
     spy.mockClear();
     flushRaf(); // 帧到来:合并后的 sync 应只跑一次
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("被 clip 的轴不画 thumb:overflowX:hidden 的超宽内容不生成横向滚动条", () => {
+    // 真实形态:面板用 overflowX:hidden 夹住一条 200% 宽的滑轨做左右切换,
+    // 纵向才是真滚动。scrollWidth 依然大于 clientWidth,若照此画横向 thumb,
+    // 它不只是死的 —— scrollLeft 对被 clip 的轴仍然生效,拖它会把内容推走。
+    const { parent, container } = makeContainer();
+    container.style.overflowX = "hidden";
+    container.style.overflowY = "auto";
+    stubScrollMetrics(container, {
+      scrollWidth: 548,
+      clientWidth: 274,
+      scrollHeight: 400,
+      clientHeight: 200,
+    });
+
+    renderScrollable();
+    flushRaf();
+
+    // overlay 是 attach 追加到 parent 的兄弟节点,内含 [vThumb, hThumb]
+    const [vThumb, hThumb] = parent.lastElementChild.children;
+    expect(vThumb.style.display).not.toBe("none"); // 纵向真能滚 → 有 thumb
+    expect(hThumb.style.display).toBe("none"); // 横向被 clip → 没有 thumb
   });
 });

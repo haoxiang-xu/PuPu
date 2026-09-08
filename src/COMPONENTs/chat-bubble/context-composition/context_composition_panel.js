@@ -1104,9 +1104,21 @@ const ContextCompositionPanel = ({
           exactly. Only scope switches and group expansions AFTER that first
           paint animate, because only then is there a prior numeric height for
           the browser to interpolate from. */}
+      {/* The overlay scrollbar from BUILTIN `Scrollable` (`.scrollable`), not
+          the platform's own bar. The native one paints a full-height track and
+          a hard square thumb straight onto the frosted surface — nothing else
+          on this row shows that, because every other menu here scrolls through
+          `Scrollable`. Geometry mirrors the palette-family select dropdown this
+          card already copies verbatim: thumb 2px off the right wall, so it
+          lands inside the rows' own 8px inset and never crosses their text or
+          hover wash, and a 12px track inset at both ends so it stops clear of
+          the r22 corners. */}
       <div
         ref={listRef}
         data-testid="context-composition-viewport"
+        className="scrollable"
+        data-sb-wall={2}
+        data-sb-edge={12}
         style={{
           minHeight: 0,
           overflowX: "hidden",

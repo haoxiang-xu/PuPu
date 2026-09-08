@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, TypeVar
 
+from unchain.persistence.sqlite_v2 import serialized_context_v2_database_access
+
 
 CONTEXT_V2_DATABASE_FILENAME = "context_v2.sqlite3"
 CONTEXT_V2_OWNER_FILENAME = "context_v2.owner.json"
@@ -183,30 +185,31 @@ def inspect_context_v2_database(
 
     uri = f"{path.as_uri()}?mode=ro"
     try:
-        connection = sqlite3.connect(uri, uri=True, timeout=1.0, isolation_level=None)
-        try:
-            connection.execute("PRAGMA query_only=ON")
-            user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-            table_names = _table_names(connection)
-            tables = frozenset(table_names)
-            if not tables and user_version == 0:
-                family = "blank"
-            elif _legacy_schema_matches(
-                connection,
-                user_version=user_version,
-                tables=tables,
-            ):
-                family = STORE_OWNER_PUPU_LEGACY
-            elif _unchain_schema_matches(
-                connection,
-                user_version=user_version,
-                tables=tables,
-            ):
-                family = STORE_OWNER_UNCHAIN
-            else:
-                family = "incompatible"
-        finally:
-            connection.close()
+        with serialized_context_v2_database_access(path):
+            connection = sqlite3.connect(uri, uri=True, timeout=1.0, isolation_level=None)
+            try:
+                connection.execute("PRAGMA query_only=ON")
+                user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+                table_names = _table_names(connection)
+                tables = frozenset(table_names)
+                if not tables and user_version == 0:
+                    family = "blank"
+                elif _legacy_schema_matches(
+                    connection,
+                    user_version=user_version,
+                    tables=tables,
+                ):
+                    family = STORE_OWNER_PUPU_LEGACY
+                elif _unchain_schema_matches(
+                    connection,
+                    user_version=user_version,
+                    tables=tables,
+                ):
+                    family = STORE_OWNER_UNCHAIN
+                else:
+                    family = "incompatible"
+            finally:
+                connection.close()
     except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
         raise ContextV2StoreBoundaryError(
             "context_v2_store_schema_unreadable",

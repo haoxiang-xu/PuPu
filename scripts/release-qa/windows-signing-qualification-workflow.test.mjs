@@ -37,7 +37,7 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /python -m pip install -r unchain_runtime\/server\/requirements\.txt/);
   assert.match(workflow, /Create controlled Memory V2 build snapshot/);
   assert.match(workflow, /write-build-feature-snapshot\.cjs/);
-  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.shadow\.v1\.json/);
+  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=\$snapshotPath/);
   assert.match(workflow, /uses: \.\/\.github\/actions\/windows-artifact-signing/);
   assert.doesNotMatch(workflow, /uses: azure\/(?:login|artifact-signing-action)/);
@@ -49,7 +49,7 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /evidence-schema: pupu\.windows-signing-qualification\.v1/);
   assert.match(workflow, /evidence-output: windows-signing-qualification\.v1\.json/);
   assert.doesNotMatch(workflow, /Get-AuthenticodeSignature/);
-  assert.equal((signingAction.match(/azure\/artifact-signing-action@v2/g) || []).length, 2);
+  assert.equal((signingAction.match(/azure\/artifact-signing-action@v2/g) || []).length, 3);
   assert.match(signingAction, /azure\/login@v3/);
   assert.match(signingAction, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
   assert.match(signingAction, /contains read-only \.exe or \.dll files/);

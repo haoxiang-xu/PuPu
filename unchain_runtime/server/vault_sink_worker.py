@@ -153,17 +153,19 @@ def _contains_secret_reference(value: Any, *, _depth: int = 0) -> bool:
 
 
 def _validate_intent(payload: Any) -> dict[str, Any]:
-    if not isinstance(payload, dict) or not set(payload).issubset(
-        _ALLOWED_INPUT_KEYS
+    if not isinstance(payload, dict) or set(payload) != _ALLOWED_INPUT_KEYS:
+        raise VaultSinkWorkerError("vault_invalid_request")
+    if (
+        not isinstance(payload["version"], int)
+        or isinstance(payload["version"], bool)
+        or payload["version"] != PROTOCOL_VERSION
     ):
         raise VaultSinkWorkerError("vault_invalid_request")
-    if payload.get("version", PROTOCOL_VERSION) != PROTOCOL_VERSION:
-        raise VaultSinkWorkerError("vault_invalid_request")
-    sink_kind = payload.get("sink_kind")
+    sink_kind = payload["sink_kind"]
     if not isinstance(sink_kind, str) or sink_kind not in _SINK_KINDS:
         raise VaultSinkWorkerError("vault_sink_not_allowed")
 
-    raw_bindings = payload.get("plaintext_bindings")
+    raw_bindings = payload["plaintext_bindings"]
     if (
         not isinstance(raw_bindings, list)
         or not 1 <= len(raw_bindings) <= MAX_BINDINGS
@@ -188,12 +190,17 @@ def _validate_intent(payload: Any) -> dict[str, Any]:
         fields.add(field)
         bindings.append((field, plaintext))
 
-    audit_arguments = payload.get("audit_arguments")
-    toolkit_metadata = payload.get("toolkit_metadata", {})
+    audit_arguments = payload["audit_arguments"]
+    toolkit_metadata = payload["toolkit_metadata"]
     if not isinstance(audit_arguments, dict) or not isinstance(
         toolkit_metadata,
         dict,
     ):
+        raise VaultSinkWorkerError("vault_invalid_request")
+    if sink_kind == "mcp_schema_secret":
+        if set(toolkit_metadata) != _MCP_METADATA_KEYS:
+            raise VaultSinkWorkerError("vault_invalid_request")
+    elif toolkit_metadata:
         raise VaultSinkWorkerError("vault_invalid_request")
     if len(_canonical_bytes(audit_arguments)) > MAX_AUDIT_BYTES:
         raise VaultSinkWorkerError("vault_invalid_request")
@@ -333,12 +340,14 @@ def _terminate_process(process: subprocess.Popen[Any]) -> None:
 def _execute_shell(
     intent: Mapping[str, Any],
     *,
+    containment_attested: bool,
+    platform: str,
     popen_factory: Callable[..., subprocess.Popen[Any]] = subprocess.Popen,
 ) -> dict[str, Any]:
-    # Windows process groups do not provide kill-on-close containment. Until
-    # the launcher owns a Job Object, refuse to resolve plaintext into a shell
-    # there instead of allowing detached descendants to retain it.
-    if os.name == "nt":
+    # A Windows shell may receive plaintext only from the private worker that
+    # the Job-owning supervisor bootstrapped.  The wire payload never carries
+    # this authority, so a direct invocation or a forged request cannot gain it.
+    if platform == "win32" and containment_attested is not True:
         raise VaultSinkWorkerError("vault_shell_containment_unavailable")
     sink_kind = intent["sink_kind"]
     audit = intent["audit_arguments"]
@@ -506,6 +515,7 @@ def _execute_shell(
         else "nonzero"
     )
     return {
+        "version": PROTOCOL_VERSION,
         "ok": True,
         "sink_kind": sink_kind,
         "result": {
@@ -737,6 +747,7 @@ def _execute_computer(
         del exc
         raise VaultSinkWorkerError("vault_secure_field_required") from None
     return {
+        "version": PROTOCOL_VERSION,
         "ok": True,
         "sink_kind": "computer_input",
         "result": {"status": "secure_field_updated"},
@@ -865,9 +876,13 @@ def _default_mcp_builder(toolkit_id: str, data_dir: Path) -> Any:
 def _execute_mcp(
     intent: Mapping[str, Any],
     *,
+    containment_attested: bool,
     mcp_builder: Callable[[str, Path], Any],
     environ: Mapping[str, str],
+    platform: str,
 ) -> dict[str, Any]:
+    if platform == "win32" and containment_attested is not True:
+        raise VaultSinkWorkerError("vault_shell_containment_unavailable")
     metadata = intent["toolkit_metadata"]
     if set(metadata) != _MCP_METADATA_KEYS:
         raise VaultSinkWorkerError("vault_invalid_request")
@@ -988,6 +1003,7 @@ def _execute_mcp(
                 "sha256": hashlib.sha256(encoded).hexdigest(),
             }
         return {
+            "version": PROTOCOL_VERSION,
             "ok": True,
             "sink_kind": "mcp_schema_secret",
             "result": safe_result,
@@ -1009,6 +1025,7 @@ def _execute_mcp(
 def execute_intent(
     payload: Any,
     *,
+    containment_attested: bool = False,
     mcp_builder: Callable[[str, Path], Any] = _default_mcp_builder,
     environ: Mapping[str, str] | None = None,
     platform: str | None = None,
@@ -1017,19 +1034,27 @@ def execute_intent(
 ) -> dict[str, Any]:
     intent = _validate_intent(payload)
     sink_kind = intent["sink_kind"]
+    runtime_platform = sys.platform if platform is None else platform
     if sink_kind in {"shell_secret_env", "shell_secret_stdin"}:
-        return _execute_shell(intent, popen_factory=popen_factory)
+        return _execute_shell(
+            intent,
+            containment_attested=containment_attested,
+            platform=runtime_platform,
+            popen_factory=popen_factory,
+        )
     if sink_kind == "computer_input":
         return _execute_computer(
             intent,
-            platform=sys.platform if platform is None else platform,
+            platform=runtime_platform,
             ax_writer=ax_writer,
         )
     if sink_kind == "mcp_schema_secret":
         return _execute_mcp(
             intent,
+            containment_attested=containment_attested,
             mcp_builder=mcp_builder,
             environ=os.environ if environ is None else environ,
+            platform=runtime_platform,
         )
     raise VaultSinkWorkerError("vault_sink_not_allowed")
 
@@ -1052,7 +1077,39 @@ def _safe_error_payload(error: BaseException) -> dict[str, Any]:
     )
     if _SAFE_ERROR_RE.fullmatch(str(code or "")) is None:
         code = "vault_worker_failed"
-    return {"ok": False, "error": {"code": code}}
+    return {
+        "version": PROTOCOL_VERSION,
+        "ok": False,
+        "error": {"code": code},
+    }
+
+
+def _validate_response(payload: Any) -> dict[str, Any]:
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("version"), int)
+        or isinstance(payload.get("version"), bool)
+        or payload["version"] != PROTOCOL_VERSION
+    ):
+        raise VaultSinkWorkerError("vault_worker_failed")
+    if payload.get("ok") is True:
+        if set(payload) != {"version", "ok", "sink_kind", "result"}:
+            raise VaultSinkWorkerError("vault_worker_failed")
+        if payload["sink_kind"] not in _SINK_KINDS:
+            raise VaultSinkWorkerError("vault_worker_failed")
+    elif payload.get("ok") is False:
+        if set(payload) != {"version", "ok", "error"}:
+            raise VaultSinkWorkerError("vault_worker_failed")
+        error = payload["error"]
+        if (
+            not isinstance(error, dict)
+            or set(error) != {"code"}
+            or _SAFE_ERROR_RE.fullmatch(str(error["code"] or "")) is None
+        ):
+            raise VaultSinkWorkerError("vault_worker_failed")
+    else:
+        raise VaultSinkWorkerError("vault_worker_failed")
+    return payload
 
 
 def process_one_frame(
@@ -1067,13 +1124,13 @@ def process_one_frame(
         if not 1 <= frame_size <= MAX_FRAME_BYTES:
             raise VaultSinkWorkerError("vault_worker_protocol_error")
         raw_payload = _read_exact(input_stream, frame_size)
+        if input_stream.read(1):
+            raise VaultSinkWorkerError("vault_worker_protocol_error")
         try:
             payload = json.loads(raw_payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise VaultSinkWorkerError("vault_worker_protocol_error") from None
-        result = executor(payload)
-        if not isinstance(result, dict):
-            raise VaultSinkWorkerError("vault_worker_failed")
+        result = _validate_response(executor(payload))
         response = _canonical_bytes(result)
         if len(response) > MAX_OUTPUT_BYTES:
             raise VaultSinkWorkerError("vault_worker_output_too_large")
@@ -1088,14 +1145,25 @@ def process_one_frame(
         return 1
 
 
-def main() -> int:
+def main(*, containment_attested: bool = False) -> int:
+    # W2-07 consumes this attestation to gate Windows shell/MCP execution.
+    # Keep the default false so direct invocation can never gain that authority.
+    if sys.platform == "win32" and containment_attested is not True:
+        return 1
     protocol_output: BinaryIO | None = None
     try:
         protocol_output = os.fdopen(os.dup(sys.stdout.fileno()), "wb")
         with open(os.devnull, "wb", buffering=0) as null_output:
             os.dup2(null_output.fileno(), sys.stdout.fileno())
             os.dup2(null_output.fileno(), sys.stderr.fileno())
-        return process_one_frame(sys.stdin.buffer, protocol_output)
+        return process_one_frame(
+            sys.stdin.buffer,
+            protocol_output,
+            executor=lambda payload: execute_intent(
+                payload,
+                containment_attested=containment_attested,
+            ),
+        )
     except BaseException:
         return 1
     finally:

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,6 +27,8 @@ const {
 } = require("../../electron/main/services/unchain/memory_v2_rollout");
 const {
   createVaultSinkExecutor,
+  createVaultSinkExecutors,
+  parseSupervisorControlFrame,
   VAULT_SINK_KINDS,
 } = require("../../electron/main/services/memory_vault/vault_sink_executor");
 
@@ -59,12 +62,12 @@ const readContract = () => {
   }
   assert.ok(sortedUnique(value.vault_sink.recognized_kinds));
   assert.ok(sortedUnique(value.vault_sink.windows.disabled_kinds));
-  assert.deepEqual(value.vault_sink.windows.enabled_kinds, []);
+  assert.ok(sortedUnique(value.vault_sink.windows.enabled_kinds));
   assert.deepEqual(value.vault_sink.windows.unsupported_kinds, ["computer_input"]);
   assert.deepEqual(value.vault_sink.negative_cases, [
     "missing_required_feature",
     "unknown_sink_kind",
-    "disabled_windows_sink",
+    "unsupported_windows_sink",
   ]);
   return value;
 };
@@ -149,7 +152,7 @@ test("W0-04 Node parser consumes the versioned protocol and Windows sink fixture
   assert.deepEqual([...VAULT_SINK_KINDS].sort(), contract.vault_sink.recognized_kinds);
 });
 
-test("W0-04 fixture negative cases reject missing features, unknown sinks, and all Windows sinks", async () => {
+test("W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks", async () => {
   const contract = readContract();
   const requirements = contract.runtime_protocol.required_protocols.map((protocol) => ({
     features: [...protocol.features],
@@ -173,7 +176,7 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
   );
 
   let spawnCount = 0;
-  const executor = createVaultSinkExecutor({
+  const unconfiguredRegistry = createVaultSinkExecutors({
     args: ["-e", "process.exit(0)"],
     command: process.execPath,
     dataDir: "/tmp/pupu-w0-contract",
@@ -184,12 +187,22 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
       throw new Error("must not spawn");
     },
   });
-  for (const sinkKind of contract.vault_sink.recognized_kinds) {
-    await assert.rejects(
-      executor({ sinkKind }),
-      (error) => error?.code === "vault_worker_containment_unavailable",
-    );
-  }
+  assert.deepEqual(Object.keys(unconfiguredRegistry.providers), []);
+  assert.throws(
+    () => createVaultSinkExecutors({
+      args: ["-e", "process.exit(0)"],
+      command: process.execPath,
+      dataDir: "/tmp/pupu-w0-contract",
+      environmentSource: {},
+      platform: "win32",
+      windowsSinkCapability: {
+        containment: "win32_job_list_v1",
+        enabled_sink_kinds: ["computer_input"],
+        protocol: 1,
+      },
+    }),
+    (error) => error?.code === "vault_sink_capability_invalid",
+  );
   assert.equal(spawnCount, 0);
 
   const unknownSinkExecutor = createVaultSinkExecutor({
@@ -204,17 +217,69 @@ test("W0-04 fixture negative cases reject missing features, unknown sinks, and a
     },
   });
   await assert.rejects(
-    unknownSinkExecutor({
-      auditArguments: {},
-      secrets: [],
-      sinkKind: "not_a_contract_sink",
-    }),
+    unknownSinkExecutor.prepare({ sinkKind: "not_a_contract_sink" }),
     (error) => error?.code === "vault_invalid_request",
   );
   assert.equal(spawnCount, 0);
   assert.deepEqual(contract.vault_sink.negative_cases, [
     "missing_required_feature",
     "unknown_sink_kind",
-    "disabled_windows_sink",
+    "unsupported_windows_sink",
   ]);
+});
+
+test("W1-06 Windows registry exposes exactly the attested sink set", () => {
+  const contract = readContract();
+  let spawnCount = 0;
+  const registry = createVaultSinkExecutors({
+    args: ["-e", "process.exit(0)"],
+    command: process.execPath,
+    dataDir: "/tmp/pupu-w1-contract",
+    environmentSource: {},
+    platform: "win32",
+    spawn: () => {
+      spawnCount += 1;
+      throw new Error("must not spawn");
+    },
+    windowsSinkCapability: {
+      containment: "win32_job_list_v1",
+      enabled_sink_kinds: [...contract.vault_sink.windows.enabled_kinds],
+      protocol: contract.vault_sink.worker_protocol_version,
+    },
+  });
+
+  assert.deepEqual(
+    Object.keys(registry.providers).sort(),
+    [...contract.vault_sink.windows.enabled_kinds].sort(),
+  );
+  assert.equal(spawnCount, 0);
+  for (const sinkKind of contract.vault_sink.windows.unsupported_kinds) {
+    assert.equal(registry.providers[sinkKind], undefined);
+  }
+});
+
+test("W2-02 Electron strictly consumes Python supervisor control frames", () => {
+  const serverRoot = path.join(repoRoot, "unchain_runtime/server");
+  const produce = (expression) => {
+    const result = spawnSync(
+      process.env.PYTHON || "python3",
+      [
+        "-c",
+        `from vault_sink_job_supervisor import error_control_frame, ready_control_frame; import sys; sys.stdout.buffer.write(${expression})`,
+      ],
+      { cwd: serverRoot, encoding: null },
+    );
+    assert.equal(result.status, 0, result.stderr?.toString("utf8"));
+    return result.stdout;
+  };
+
+  assert.deepEqual(parseSupervisorControlFrame(produce("ready_control_frame()")), {
+    kind: "ready",
+  });
+  assert.deepEqual(
+    parseSupervisorControlFrame(
+      produce('error_control_frame("vault_worker_job_setup_failed")'),
+    ),
+    { code: "vault_worker_job_setup_failed", kind: "error" },
+  );
 });

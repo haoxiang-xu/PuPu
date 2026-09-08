@@ -958,6 +958,24 @@ describe("AttachPanel reasoning effort capsule", () => {
     expect(within(cells).getByTitle("max")).toHaveTextContent("max");
   });
 
+  test("the EFFORT label is optically centred in its well, not line-box centred", () => {
+    // The label is uppercase, so it never uses the descender space its line
+    // box still reserves — align-items centres that box and leaves the caps a
+    // pixel high in the well. text-box trims to the cap/baseline edges, and it
+    // only applies to a block: on the flex parent it would reach nothing.
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high"],
+      selectedReasoningEffort: "medium",
+      defaultReasoningEffort: "low",
+      onSelectReasoningEffort: () => {},
+    });
+
+    const label = within(footer()).getByText("effort");
+    expect(label.tagName).toBe("SPAN");
+    expect(label.style.display).toBe("block");
+    expect(label.style.textBox).toBe("trim-both cap alphabetic");
+  });
+
   test("the fill reaches the far edge of the chosen level", () => {
     renderPanel({
       reasoningEffortOptions: ["low", "medium", "high", "xhigh"],

@@ -15,6 +15,9 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
   const downloadStep = steps.find((step) => step.name === "Download the deterministic Unchain artifact");
   const artifactStep = steps.find((step) => step.id === "artifact_verify");
   const sessionGuardSmokeStep = steps.find((step) => step.id === "session_guard_smoke");
+  const vaultSupervisorNativeStep = steps.find(
+    (step) => step.id === "vault_supervisor_native_probe",
+  );
   const playwrightStep = steps.find((step) => step.id === "playwright");
   const reportStep = steps.find((step) => step.name === "Write Playwright QA report");
   const reportUploadIndex = steps.findIndex(
@@ -51,6 +54,21 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
     "test-results/session-guard-smoke.json",
   );
   assert.match(sessionGuardSmokeStep.run, /windows-session-guard-smoke\.py/);
+  assert.equal(vaultSupervisorNativeStep.if, "runner.os == 'Windows'");
+  assert.equal(vaultSupervisorNativeStep["continue-on-error"], true);
+  assert.equal(
+    vaultSupervisorNativeStep.env.UNCHAIN_PYTHON_BIN,
+    "${{ steps.artifact_verify.outputs.python_command }}",
+  );
+  assert.equal(
+    vaultSupervisorNativeStep.env.VAULT_SUPERVISOR_NATIVE_EVIDENCE_PATH,
+    "test-results/vault-supervisor-native.json",
+  );
+  assert.match(
+    vaultSupervisorNativeStep.run,
+    /windows-vault-supervisor-native-probe\.py/,
+  );
+  assert.match(vaultSupervisorNativeStep.run, /executed_tests/);
   assert.equal(
     playwrightStep.env.UNCHAIN_PYTHON_BIN,
     "${{ steps.artifact_verify.outputs.python_command }}",
@@ -69,6 +87,7 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
       "playwright-report/**/*",
       "test-results/playwright/**/*",
       "test-results/session-guard-smoke.json",
+      "test-results/vault-supervisor-native.json",
     ],
   );
   assert.match(
@@ -83,6 +102,8 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
     ARTIFACT_VERIFY_OUTCOME: "${{ steps.artifact_verify.outcome }}",
     SESSION_GUARD_SMOKE_OUTCOME:
       "${{ steps.session_guard_smoke.outcome }}",
+    VAULT_SUPERVISOR_NATIVE_OUTCOME:
+      "${{ steps.vault_supervisor_native_probe.outcome }}",
     PLAYWRIGHT_OUTCOME: "${{ steps.playwright.outcome }}",
     PLAYWRIGHT_EVIDENCE_OUTCOME:
       "${{ steps.playwright_evidence.outcome }}",
@@ -91,6 +112,10 @@ test("Playwright release QA consumes Deterministic QA's exact sidecar artifact",
   assert.match(
     enforcementStep.run,
     /-f test-results\/session-guard-smoke\.json/,
+  );
+  assert.match(
+    enforcementStep.run,
+    /-f test-results\/vault-supervisor-native\.json/,
   );
 });
 
@@ -102,6 +127,8 @@ test("Playwright QA report checks are valid JSON after Actions expressions resol
     .replace(/\$\{\{ steps\.artifact_verify\.outputs\.executed_tests \|\| 0 \}\}/g, "2")
     .replace(/\$\{\{ steps\.session_guard_smoke\.outcome \}\}/g, "success")
     .replace(/\$\{\{ steps\.session_guard_smoke\.outcome == 'success' && 1 \|\| 0 \}\}/g, "1")
+    .replace(/\$\{\{ steps\.vault_supervisor_native_probe\.outcome \}\}/g, "success")
+    .replace(/\$\{\{ steps\.vault_supervisor_native_probe\.outputs\.executed_tests \|\| 0 \}\}/g, "3")
     .replace(/\$\{\{ steps\.playwright\.outcome \}\}/g, "success")
     .replace(/\$\{\{ steps\.playwright_evidence\.outputs\.executed_tests \|\| 0 \}\}/g, "2");
   const checks = JSON.parse(resolved);
@@ -111,16 +138,17 @@ test("Playwright QA report checks are valid JSON after Actions expressions resol
     [
       "Unchain artifact continuity",
       "Session guard startup smoke",
+      "Windows Vault supervisor native probe",
       "Playwright Electron release smoke",
     ],
   );
-  assert.deepEqual(
-    JSON.parse(reportStep.env.QA_REQUIRED_CHECKS_JSON),
-    [
-      "Unchain artifact continuity",
-      "Session guard startup smoke",
-      "Playwright Electron release smoke",
-    ],
+  assert.match(
+    reportStep.env.QA_REQUIRED_CHECKS_JSON,
+    /runner\.os == 'Windows'/,
+  );
+  assert.match(
+    reportStep.env.QA_REQUIRED_CHECKS_JSON,
+    /Windows Vault supervisor native probe/,
   );
 });
 

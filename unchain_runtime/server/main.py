@@ -6,6 +6,7 @@ import time
 
 
 _DURABLE_JOB_WORKER_FLAG = "--durable-job-worker"
+_VAULT_SINK_SUPERVISOR_FLAG = "--vault-sink-supervisor"
 _VAULT_SINK_WORKER_FLAG = "--vault-sink-worker"
 _SESSION_GUARD_DIAGNOSTICS_ENV = "PUPU_SESSION_GUARD_DIAGNOSTICS"
 _SESSION_GUARD_DIAGNOSTIC_PREFIX = (
@@ -61,10 +62,32 @@ def _dispatch_vault_sink_worker(argv: list[str]) -> int | None:
     # process environment. The worker then owns stdin/stdout exclusively and
     # exits after exactly one framed request; Flask is never imported here.
     from vault_sink_worker import main as worker_main
+
+    if sys.platform == "win32":
+        from vault_sink_job_supervisor import bootstrap_inner_worker
+
+        try:
+            bootstrap_inner_worker()
+        except Exception:
+            return 2
+        return int(worker_main(containment_attested=True))
+
     from durable_job_runtime import restore_frozen_job_environment
 
     restore_frozen_job_environment()
     return int(worker_main())
+
+
+def _dispatch_vault_sink_supervisor(argv: list[str]) -> int | None:
+    if not argv or argv[0] != _VAULT_SINK_SUPERVISOR_FLAG:
+        return None
+    if len(argv) != 1 or sys.platform != "win32":
+        return 2
+
+    from vault_sink_job_supervisor import main as supervisor_main
+
+    # The same-exe inner worker needs the bootloader's _PYI_* extraction state.
+    return int(supervisor_main())
 
 
 def _dispatch_durable_job_worker(argv: list[str]) -> int | None:
@@ -142,6 +165,9 @@ def _initialize_vault_sink_transport() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    worker_exit_code = _dispatch_vault_sink_supervisor(args)
+    if worker_exit_code is not None:
+        return worker_exit_code
     worker_exit_code = _dispatch_vault_sink_worker(args)
     if worker_exit_code is not None:
         return worker_exit_code
