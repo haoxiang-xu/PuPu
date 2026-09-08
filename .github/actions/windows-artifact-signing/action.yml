@@ -157,11 +157,28 @@ runs:
         if ($readOnlySignableFiles.Count -ne 0) {
           throw "signing payload still contains read-only .exe or .dll files"
         }
+        $launcherPath = Join-Path $payload "PuPu.exe"
+        if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+          throw "missing exact PuPu launcher"
+        }
+        foreach ($relativePath in @("resources/app.asar", "resources/unchain_runtime/dist/windows/windows-vault-runtime-provenance.v1.json")) {
+          (Get-Item -LiteralPath (Join-Path $payload $relativePath)).IsReadOnly = $false
+        }
+        $identityReceipt = Join-Path $signingRoot "windows-pre-sign-identity.v1.json"
+        node scripts/release-qa/seal-windows-sidecar-identity.mjs prepare "$payload" "$identityReceipt"
+        if ($LASTEXITCODE -ne 0) { throw "Windows pre-sign identity verification failed" }
+        # The launcher binds the ASAR header and must be signed after resealing.
+        $dependencyFiles = @($signableFiles | Where-Object { $_.FullName -ne $launcherPath })
+        if ($dependencyFiles.Count -ne ($signableFiles.Count - 1)) {
+          throw "launcher must be excluded from dependency signing exactly once"
+        }
         $signingCatalog = Join-Path $signingRoot "windows-payload-signing-files.txt"
-        $signableFiles | ForEach-Object {
+        $dependencyFiles | ForEach-Object {
           [System.IO.Path]::GetRelativePath($signingRoot, $_.FullName)
         } | Set-Content -LiteralPath $signingCatalog -Encoding utf8
         "path=$signingCatalog" >> $env:GITHUB_OUTPUT
+        "launcher_path=$launcherPath" >> $env:GITHUB_OUTPUT
+        "identity_receipt=$identityReceipt" >> $env:GITHUB_OUTPUT
 
     - name: Azure login for Windows Artifact Signing
       uses: azure/login@v3
@@ -170,13 +187,50 @@ runs:
         tenant-id: ${{ inputs.azure-tenant-id }}
         subscription-id: ${{ inputs.azure-subscription-id }}
 
-    - name: Sign unpacked Windows payload with Artifact Signing
+    - name: Sign Windows dependencies with Artifact Signing
       uses: azure/artifact-signing-action@v2
       with:
         endpoint: ${{ inputs.azure-endpoint }}
         signing-account-name: ${{ inputs.azure-signing-account-name }}
         certificate-profile-name: ${{ inputs.azure-certificate-profile-name }}
         files-catalog: ${{ steps.catalogue.outputs.path }}
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+        exclude-environment-credential: true
+        exclude-workload-identity-credential: true
+        exclude-managed-identity-credential: true
+        exclude-shared-token-cache-credential: true
+        exclude-visual-studio-credential: true
+        exclude-visual-studio-code-credential: true
+        exclude-azure-cli-credential: false
+        exclude-azure-powershell-credential: true
+        exclude-azure-developer-cli-credential: true
+        exclude-interactive-browser-credential: true
+
+    - name: Reseal signed Sidecar identity before signing the launcher
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PAYLOAD_PATH: ${{ inputs.payload-path }}
+        IDENTITY_RECEIPT: ${{ steps.catalogue.outputs.identity_receipt }}
+      run: |
+        $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
+        $sidecar = Join-Path $payload "resources/unchain_runtime/dist/windows/unchain-server.exe"
+        $signature = Get-AuthenticodeSignature -LiteralPath $sidecar
+        if ($signature.Status -ne "Valid" -or $null -eq $signature.SignerCertificate) {
+          throw "Sidecar must have a valid Authenticode signature before identity resealing"
+        }
+        node scripts/release-qa/seal-windows-sidecar-identity.mjs seal "$payload" "$env:IDENTITY_RECEIPT"
+        if ($LASTEXITCODE -ne 0) { throw "Windows signed Sidecar identity resealing failed" }
+
+    - name: Sign resealed Windows launcher with Artifact Signing
+      uses: azure/artifact-signing-action@v2
+      with:
+        endpoint: ${{ inputs.azure-endpoint }}
+        signing-account-name: ${{ inputs.azure-signing-account-name }}
+        certificate-profile-name: ${{ inputs.azure-certificate-profile-name }}
+        files: ${{ steps.catalogue.outputs.launcher_path }}
         file-digest: SHA256
         timestamp-rfc3161: http://timestamp.acs.microsoft.com
         timestamp-digest: SHA256
@@ -202,6 +256,8 @@ runs:
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
         $installerName = [System.IO.Path]::GetFileName($installerPath)
+        node scripts/release-qa/seal-windows-sidecar-identity.mjs verify "$payload"
+        if ($LASTEXITCODE -ne 0) { throw "Windows signed payload identity verification failed" }
         npx electron-builder --win nsis --x64 --prepackaged "$payload" --publish never --config.nsis.artifactName="$installerName" --config.win.verifyUpdateCodeSignature=false --config.nsis.packElevateHelper=false
         if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
           throw "missing exact Windows installer after repackage: $installerPath"
@@ -267,6 +323,8 @@ runs:
       run: |
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
         $installerPath = [System.IO.Path]::GetFullPath($env:INSTALLER_PATH)
+        node scripts/release-qa/seal-windows-sidecar-identity.mjs verify "$payload"
+        if ($LASTEXITCODE -ne 0) { throw "Windows final payload identity verification failed" }
         $payloadFiles = @(Get-ChildItem -LiteralPath $payload -File -Recurse |
           Where-Object { $_.Extension -in ".exe", ".dll" } |
           Sort-Object { [System.IO.Path]::GetRelativePath($payload, $_.FullName) })

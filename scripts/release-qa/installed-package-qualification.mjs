@@ -10,6 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import asar from "@electron/asar";
+import { verifyWindowsSidecarIdentity } from "./seal-windows-sidecar-identity.mjs";
 
 import {
   readJson,
@@ -291,7 +292,7 @@ export const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform
     "unchain_runtime",
     "dist",
     sidecarPlatform,
-    process.platform === "win32" ? "unchain-server.exe" : "unchain-server",
+    sidecarPlatform === "windows" ? "unchain-server.exe" : "unchain-server",
   );
   for (const [label, candidate] of Object.entries({
     executable: executablePath,
@@ -301,6 +302,9 @@ export const inspectResources = ({ resourceRoot, executablePath, sidecarPlatform
     if (!fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) {
       throw new Error(`installed ${label} is missing`);
     }
+  }
+  if (sidecarPlatform === "windows") {
+    verifyWindowsSidecarIdentity(path.dirname(resourceRoot));
   }
   const snapshot = assertSnapshot(asarPath);
   return {
