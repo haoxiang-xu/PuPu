@@ -781,6 +781,21 @@ const ChatInterface = () => {
     ];
   }, [activeModelCapabilities, reasoningEffortOptions]);
 
+  useEffect(() => {
+    const selected = session.selectedReasoningEffort;
+    if (
+      selected &&
+      reasoningEffortOptions.length > 0 &&
+      !reasoningEffortOptions.includes(selected)
+    ) {
+      session.handleSelectReasoningEffort(defaultReasoningEffort);
+    }
+  }, [
+    session.selectedReasoningEffort,
+    session.handleSelectReasoningEffort,
+    reasoningEffortOptions,
+    defaultReasoningEffort,
+  ]);
 
   const onSelectReasoningEffort = useCallback(
     (level) => {

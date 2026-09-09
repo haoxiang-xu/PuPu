@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import threading
 import time
@@ -186,6 +187,15 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
         elif _is_invalid_api_key_error(stream_error):
             code = "invalid_api_key"
             message = "API key is invalid or has been revoked. Please update your API key in Settings."
+        elif "reasoning.effort" in normalized.lower() and any(
+            marker in normalized.lower()
+            for marker in ("unsupported", "invalid", "400")
+        ):
+            code = "unsupported_reasoning_effort"
+            message = (
+                "This model does not support the selected reasoning effort. "
+                "Choose Default or a supported effort level, then resend."
+            )
     return code, message
 
 
@@ -576,9 +586,14 @@ def chat_tool_confirmation() -> Response:
     except root.DurableInteractionHostError as exc:
         return _durable_host_error_response(exc)
     except Exception:
+        logging.getLogger(__name__).exception(
+            "interaction_resolution_persistence_failed session_id=%s interaction_id=%s",
+            session_id,
+            confirmation_id,
+        )
         return root._json_error(
             "interaction_resolution_persistence_failed",
-            "Interaction resolution could not be durably recorded",
+            "Interaction resolution could not be durably recorded. Retry the same decision or stop the run.",
             500,
         )
     if durable_result is not None:

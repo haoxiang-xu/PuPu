@@ -59,6 +59,7 @@ import {
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
@@ -827,6 +828,10 @@ const disconnectStreamTransport = (handle) => {
   }
 };
 
+const cancellationRequiresInteraction = (error) =>
+  [error?.code, error?.cause?.code].includes("interaction_cancel_target_required") ||
+  String(error?.message || "").includes("interaction_cancel_target_required");
+
 const requestExecutionCancellationAndDisconnect = ({
   identity,
   handle,
@@ -855,16 +860,16 @@ const requestExecutionCancellationAndDisconnect = ({
     disconnectOnce,
     EXECUTION_CANCEL_DISCONNECT_GRACE_MS,
   );
-  return Promise.resolve(
-    api.unchain.cancelExecution({
+  return Promise.resolve().then(async () => {
+    const cancel = (target) => api.unchain.cancelExecution({
       owner_chat_id: normalizedIdentity.ownerChatId,
       session_id: normalizedIdentity.sessionId,
       attempt_id: normalizedIdentity.attemptId,
       ...(normalizedIdentity.sourceAttemptId
         ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
         : {}),
-      ...(normalizedIdentity.interactionId
-        ? { interaction_id: normalizedIdentity.interactionId }
+      ...(target.interactionId
+        ? { interaction_id: target.interactionId }
         : {}),
       ...(normalizedIdentity.requestId
         ? { request_id: normalizedIdentity.requestId }
@@ -874,16 +879,50 @@ const requestExecutionCancellationAndDisconnect = ({
         typeof idempotencyKey === "string" && idempotencyKey.trim()
           ? idempotencyKey.trim()
           : `stop:${normalizedIdentity.attemptId}`,
-    }),
-  ).then((response) => {
+    });
+    try {
+      return await cancel(normalizedIdentity);
+    } catch (error) {
+      if (!cancellationRequiresInteraction(error) || normalizedIdentity.interactionId) {
+        throw error;
+      }
+      // A Stop can race the first presentation, or replay an older outbox
+      // entry. Recover only an exact pending target for this attempt.
+      const pending = normalizePendingInteraction(
+        await api.unchain.getPendingInteraction({ session_id: normalizedIdentity.sessionId }),
+        normalizedIdentity.sessionId,
+      );
+      if (!pending || pending.status === "none" || ![
+        pending.activeAttemptId, pending.sourceRunId,
+      ].includes(normalizedIdentity.attemptId)) {
+        throw Object.assign(new Error("The pending interaction changed. Try Stop again."), {
+          code: "interaction_cancel_target_mismatch", retryable: false,
+        });
+      }
+      try {
+        return await cancel({ ...normalizedIdentity, interactionId: pending.interactionId });
+      } catch (retryError) {
+        if (cancellationRequiresInteraction(retryError)) {
+          retryError.retryable = false;
+        }
+        throw retryError;
+      }
+    }
+  }).then((response) => {
     const confirmation = inspectExecutionCancellation(
       response,
       normalizedIdentity,
+    );
+    const failure = !confirmation.terminal && recordExecutionCancelFailure(
+      normalizedIdentity,
+      { message: "The run has not confirmed cancellation. Try Stop again." },
     );
     return {
       ok: confirmation.accepted,
       terminal: confirmation.terminal,
       response,
+      retryBlocked: failure?.retryBlocked === true,
+      error: failure?.lastError || "",
     };
   })
     .catch((error) => {
@@ -893,7 +932,15 @@ const requestExecutionCancellationAndDisconnect = ({
         code: error?.code || "execution_cancel_failed",
         message: error?.message || "Failed to cancel execution",
       });
-      return { ok: false, response: null };
+      const failure = recordExecutionCancelFailure(normalizedIdentity, {
+        message: error?.message,
+        retryable: error?.retryable ?? error?.cause?.retryable,
+      });
+      return {
+        ok: false, response: null,
+        retryBlocked: failure?.retryBlocked === true,
+        error: failure?.lastError || error?.message || "Failed to stop the run",
+      };
     })
     .finally(() => {
       clearTimeout(disconnectTimer);
@@ -3047,6 +3094,12 @@ export const useChatStream = ({
       null;
     const durableInteraction =
       durableInteractionByChatIdRef.current[currentChatId] || null;
+    const liveConfirmationId = Object.entries(
+      pendingToolConfirmationRequestsByChatIdRef.current[currentChatId] || {},
+    ).find(([id, request]) =>
+      request?.sessionId === executionIdentity?.sessionId &&
+      toolConfirmationUiStateByChatIdRef.current[currentChatId]?.[id]?.resolved !== true,
+    )?.[0] || "";
 
     // Invalidate first. Any lookup, retry, receipt, or queue callback that was
     // already in flight must observe the tombstone before transport teardown.
@@ -3074,9 +3127,9 @@ export const useChatStream = ({
       ...(executionIdentity || {}),
       ownerChatId: currentChatId,
       interactionId:
-        typeof durableInteraction?.interactionId === "string"
+        liveConfirmationId || (typeof durableInteraction?.interactionId === "string"
           ? durableInteraction.interactionId.trim()
-          : executionIdentity?.interactionId || "",
+          : executionIdentity?.interactionId || ""),
       reason: "user_stop",
       createdAt: Date.now(),
     });
@@ -3085,6 +3138,9 @@ export const useChatStream = ({
       handle,
       reason: "user_stop",
     }).then((result) => {
+      if (result?.retryBlocked) {
+        setStreamErrorForChat(currentChatId, result.error);
+      }
       if (result?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
@@ -3138,6 +3194,7 @@ export const useChatStream = ({
     materializeStreamingMessages,
     messagesRef,
     setMessages,
+    setStreamErrorForChat,
     storageApi,
     updateDurableInteractionForChat,
     updatePendingContinuationRequestForChat,
@@ -3150,12 +3207,24 @@ export const useChatStream = ({
   useEffect(() => {
     let disposed = false;
     let retryTimer = null;
+    const reported = new Set();
 
     const drainCancellationOutbox = async () => {
       const entries = readExecutionCancelOutbox();
       for (const entry of entries) {
         if (disposed) {
           return;
+        }
+        const key = JSON.stringify([entry.sessionId, entry.attemptId, entry.interactionId]);
+        if (reported.has(key)) {
+          continue;
+        }
+        if (entry.retryBlocked) {
+          if (!reported.has(key)) {
+            setStreamErrorForChat(entry.ownerChatId, entry.lastError);
+            reported.add(key);
+          }
+          continue;
         }
         const result = await requestExecutionCancellationAndDisconnect({
           identity: entry,
@@ -3168,6 +3237,9 @@ export const useChatStream = ({
             entry.attemptId,
             entry.interactionId,
           );
+        } else if (result?.retryBlocked && !reported.has(key)) {
+          setStreamErrorForChat(entry.ownerChatId, result.error);
+          reported.add(key);
         }
       }
       if (!disposed) {
@@ -3185,7 +3257,7 @@ export const useChatStream = ({
         clearTimeout(retryTimer);
       }
     };
-  }, []);
+  }, [setStreamErrorForChat]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
     ({ targetChatId, confirmationId, approved, userResponse }) => {
@@ -9353,6 +9425,14 @@ export const useChatStream = ({
         }
 
         if (pending.status === "none") {
+          // A lookup begun before the tool frame may return stale "none".
+          // Live presentation/continuation signals own this card until the
+          // callback is acknowledged; the lookup must not erase a retry.
+          if (streamingChatIdsRef.current.has(normalizedChatId) && Object.keys(
+            pendingToolConfirmationRequestsByChatIdRef.current[normalizedChatId] || {},
+          ).length > 0) {
+            return pending;
+          }
           const retryTimer = durableResumeRetryTimersRef.current.get(
             normalizedChatId,
           );
@@ -9382,6 +9462,17 @@ export const useChatStream = ({
           );
           error.code = "durable_interaction_receipt_identity_mismatch";
           throw error;
+        }
+
+        const liveRequest = pendingToolConfirmationRequestsByChatIdRef.current[
+          normalizedChatId
+        ]?.[pending.interactionId];
+        if (!hasAuthoritativeRecordedReceipt && liveRequest &&
+            streamingChatIdsRef.current.has(normalizedChatId)) {
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pending, ownerMessageId: liveRequest.ownerMessageId,
+          });
+          return pending;
         }
 
         const pendingAttemptId =

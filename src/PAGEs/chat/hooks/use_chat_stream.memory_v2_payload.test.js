@@ -23,7 +23,7 @@
  * ChatInterface, mocked ChatMessages / ChatInput, payload read from the
  * window.unchainAPI stream mocks.
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   LocaleContext,
   NavigationContext,
@@ -37,6 +37,26 @@ import {
   setChatModel,
 } from "../../../SERVICEs/chat_storage";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
+import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
+import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
+
+const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
+  const toolCall = {
+    call_id: "pending-call", confirmation_id: interactionId, requires_confirmation: true,
+    toolkit_id: "core", toolkit_name: "Core", tool_name: "shell", tool_display_name: "Shell",
+    arguments: { command: "pwd" }, description: "Run pwd", interact_type: "confirmation", interact_config: {},
+  };
+  return {
+    status: "awaiting_response", session_id: sessionId, interaction_id: interactionId,
+    source_run_id: attemptId, active_attempt_id: attemptId, kind: "tool_approval",
+    provider: "openai", model: "gpt-5", resume_available: true,
+    resume_options: { modelId: "openai:gpt-5" },
+    presentation: {
+      trace_frame: { seq: 0, ts: 100, type: "tool_call", run_id: attemptId, stage: "durable_recovery", payload: toolCall },
+      tool_call: { ...toolCall },
+    },
+  };
+};
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -184,6 +204,7 @@ describe("Memory V2 P0 payload seams", () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
     delete window.unchainAPI;
   });
@@ -448,6 +469,135 @@ describe("Memory V2 P0 payload seams", () => {
       v4Runs,
     };
   };
+
+  test("Stop carries a live tool confirmation id and the same chat can send again", async () => {
+    window.unchainAPI.startStreamV2.mockImplementation((payload, handlers) => {
+      streamHandlers = handlers;
+      return { cancel: jest.fn(), requestId: "request-live", attemptId: "attempt-live" };
+    });
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok", execution_id: payload.session_id,
+      attempt_id: payload.attempt_id, state: "cancelled",
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("run a command");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    await act(async () => streamHandlers.onFrame({
+      seq: 1, ts: 100, type: "tool_call", run_id: "live-run", stage: "tools",
+      payload: {
+        call_id: "live-call", confirmation_id: "live-confirmation",
+        requires_confirmation: true, tool_name: "shell", toolkit_id: "core",
+        arguments: { command: "pwd" }, interact_type: "confirmation",
+      },
+    }));
+    await waitFor(() => expect(lastChatMessagesProps.pendingToolConfirmationRequests["live-confirmation"]).toBeDefined());
+    await act(async () => lastChatInputProps.onStop());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    expect(window.unchainAPI.cancelExecution.mock.calls[0][0].interaction_id).toBe("live-confirmation");
+    await waitFor(() => expect(lastChatInputProps.sendDisabled).toBe(false));
+    sendText("next message in the same chat");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+  });
+
+  test("a failed confirmation stays actionable and retries the same decision", async () => {
+    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
+      status: "ok", durable: false, disposition: "live_only", interaction_id: "live-confirmation",
+    });
+    window.unchainAPI.respondToolConfirmation
+      .mockRejectedValueOnce(Object.assign(new Error("Retry the same decision"), {
+        code: "interaction_resolution_persistence_failed",
+      }));
+    renderChat();
+    await waitForReady();
+    sendText("write a file");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    await act(async () => streamHandlers.onFrame({
+      seq: 1, ts: 100, type: "tool_call", run_id: "live-run", stage: "tools",
+      payload: {
+        call_id: "live-call", confirmation_id: "live-confirmation",
+        requires_confirmation: true, tool_name: "shell", toolkit_id: "core",
+        arguments: { command: "pwd" }, interact_type: "confirmation",
+      },
+    }));
+    const decision = { confirmationId: "live-confirmation", approved: true };
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].status).toBe("error");
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests["live-confirmation"]).toBeDefined();
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].resolved).toBe(true);
+    const calls = window.unchainAPI.respondToolConfirmation.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toEqual(calls[1][0]);
+  });
+
+  test.each(["same", "foreign"])("old Stop outbox recovers only a %s attempt target", async (target) => {
+    const chatId = getChatsStore().activeChatId;
+    enqueueExecutionCancel({ ownerChatId: chatId, sessionId: chatId, attemptId: "attempt-stop" });
+    window.unchainAPI.getPendingInteraction = jest.fn(async () => pendingToolInteraction(
+      chatId, target === "same" ? "attempt-stop" : "foreign-attempt", "pending-stop",
+    ));
+    window.unchainAPI.cancelExecution = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("interaction_cancel_target_required"), {
+        code: "interaction_cancel_target_required",
+      }))
+      .mockImplementation(async (payload) => ({
+        status: "ok", execution_id: payload.session_id, attempt_id: payload.attempt_id, state: "cancelled",
+      }));
+    const rendered = renderChat();
+    if (target === "same") {
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(2));
+      expect(window.unchainAPI.cancelExecution.mock.calls[1][0]).toEqual({
+        owner_chat_id: chatId, session_id: chatId, attempt_id: "attempt-stop",
+        interaction_id: "pending-stop", reason: "user_stop", idempotency_key: "stop:attempt-stop",
+      });
+      await waitFor(() => expect(readExecutionCancelOutbox()).toEqual([]));
+    } else {
+      await waitFor(() => expect(readExecutionCancelOutbox()[0]?.retryBlocked).toBe(true));
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    }
+    rendered.unmount();
+  });
+
+  test("cancel failures stop retrying after three attempts and stay stopped after remount", async () => {
+    jest.useFakeTimers();
+    const chatId = getChatsStore().activeChatId;
+    enqueueExecutionCancel({ ownerChatId: chatId, sessionId: chatId, attemptId: "attempt-stop" });
+    window.unchainAPI.cancelExecution = jest.fn(async () => { throw new Error("Stop failed; try again"); });
+    const rendered = renderChat();
+    await act(async () => {});
+    for (let index = 0; index < 6; index += 1) {
+      await act(async () => { jest.advanceTimersByTime(5000); });
+    }
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(3);
+    expect(readExecutionCancelOutbox()[0].retryBlocked).toBe(true);
+    expect(lastChatInputProps.disclaimer).toContain("Stop failed; try again");
+    rendered.unmount();
+    const reopened = renderChat();
+    await act(async () => { jest.advanceTimersByTime(20000); });
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(3);
+    reopened.unmount();
+    jest.useRealTimers();
+  });
+
+  test("Codex replaces a persisted minimal preference with its supported default", async () => {
+    const modelId = "openai:gpt-5.3-codex";
+    setChatModel(getChatsStore().activeChatId, { id: modelId, reasoningEffort: "minimal" });
+    writeReasoningEffortPref(modelId, "minimal");
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: modelId, providers: { openai: ["gpt-5.3-codex"], ollama: [], anthropic: [] },
+      model_capabilities: { [modelId]: {
+        reasoning_efforts: ["low", "medium", "high", "xhigh"], default_reasoning_effort: "medium",
+      } },
+    });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(lastChatInputProps.selectedReasoningEffort).toBe("medium"));
+    expect(lastChatInputProps.reasoningEffortOptions).toEqual(["low", "medium", "high", "xhigh"]);
+    sendText("hello codex");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0].options.reasoningEffort).toBe("medium");
+  });
 
   test("flag off: a durable receipt is sealed without a model payload", async () => {
     const { chatId, interactionId, cancellationPayload, v4Runs } =

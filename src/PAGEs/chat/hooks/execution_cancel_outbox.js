@@ -31,6 +31,13 @@ export const normalizeExecutionCancelOutboxEntry = (value) => {
       Number.isFinite(Number(value?.createdAt)) && Number(value.createdAt) >= 0
         ? Number(value.createdAt)
         : Date.now(),
+    ...(Number.isSafeInteger(value?.retryCount) && value.retryCount > 0
+      ? { retryCount: value.retryCount }
+      : {}),
+    ...(value?.retryBlocked === true ? { retryBlocked: true } : {}),
+    ...(normalizedString(value?.lastError)
+      ? { lastError: normalizedString(value.lastError) }
+      : {}),
   };
 };
 
@@ -150,3 +157,27 @@ export const removeExecutionCancel = (
 };
 
 export const EXECUTION_CANCEL_OUTBOX_STORAGE_KEY = STORAGE_KEY;
+
+// Keep the Stop tombstone on failure, but never retry it forever (including
+// after a renderer restart). An explicit Stop may still make a fresh attempt.
+export const recordExecutionCancelFailure = (identity, error, storage = null) => {
+  const target = normalizeExecutionCancelOutboxEntry(identity);
+  if (!target) return null;
+  const entries = readExecutionCancelOutbox(storage);
+  const index = entries.findIndex((entry) => cancellationKey(entry) === cancellationKey(target));
+  if (index < 0) return null;
+  const retryCount = (entries[index].retryCount || 0) + 1;
+  const retryBlocked = error?.retryable === false || retryCount >= 3;
+  const updated = {
+    ...entries[index],
+    retryCount,
+    retryBlocked,
+    lastError: normalizedString(error?.message) || "The run could not be stopped. Try Stop again.",
+  };
+  entries[index] = updated;
+  if (!writeExecutionCancelOutbox(entries, storage)) {
+    // Without a durable counter, retrying the stale entry would be unbounded.
+    updated.retryBlocked = true;
+  }
+  return updated;
+};

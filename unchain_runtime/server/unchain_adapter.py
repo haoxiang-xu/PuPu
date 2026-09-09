@@ -5265,7 +5265,9 @@ _ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 _CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
 
 
-def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
+def _build_payload(
+    provider: str, options: Dict[str, object], *, model: str = "",
+) -> Dict[str, Any]:
     payload: Dict[str, float] = {}
 
     temperature = options.get("temperature")
@@ -5304,6 +5306,20 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     effort = options.get("reasoningEffort")
     if isinstance(effort, str):
         normalized_effort = effort.strip().lower()
+        if cfg is None and (model or options.get("modelId") or options.get("model")):
+            selected_model = model or get_runtime_config(options).get("model", "")
+            normalized_model = _normalize_provider_model_name(provider, selected_model)
+            capabilities = next((
+                entry for name, entry in _load_raw_capability_catalog().items()
+                if entry.get("provider") == provider
+                and _normalize_provider_model_name(provider, name) == normalized_model
+            ), {})
+            efforts = capabilities.get("reasoning_efforts")
+            if isinstance(efforts, list) and normalized_effort not in efforts:
+                default = capabilities.get("default_reasoning_effort")
+                normalized_effort = default if default in efforts else ""
+            elif capabilities and not efforts:
+                normalized_effort = ""
         if normalized_effort in _REASONING_EFFORT_LEVELS:
             if cfg is not None:
                 # Custom providers speak their declared protocol's shape. A
@@ -10513,6 +10529,7 @@ def _stream_recipe_graph_events(
                         payload=_build_payload(
                             step_config["provider"],
                             options,
+                            model=step_config["model"],
                         ),
                         callback=step_runtime_callback,
                         on_tool_confirm=confirm_cb,
@@ -10535,7 +10552,9 @@ def _stream_recipe_graph_events(
                 else:
                     result = step_agent.run(
                         messages=step_messages,
-                        payload=_build_payload(step_config["provider"], options),
+                        payload=_build_payload(
+                            step_config["provider"], options, model=step_config["model"],
+                        ),
                         callback=step_runtime_callback,
                         max_iterations=max_iterations,
                         max_context_window_tokens=step_agent._max_context_window_tokens or None,
@@ -10997,7 +11016,7 @@ def stream_chat(
         raise RuntimeError(f"{_MEMORY_UNAVAILABLE_CODE}: {reason}")
 
     messages = _normalize_messages(history, message, attachments)
-    payload = _build_payload(agent.provider, options)
+    payload = _build_payload(agent.provider, options, model=getattr(agent, "model", ""))
 
     token_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
@@ -11313,7 +11332,7 @@ def stream_chat_events(
             message,
             attachments,
         )
-        payload = _build_payload(agent.provider, options)
+        payload = _build_payload(agent.provider, options, model=getattr(agent, "model", ""))
         memory_runtime = _memory_runtime_from_agent(agent)
         if (
             durable_interactions_required or memory_runtime["required"]
@@ -12545,7 +12564,9 @@ def resume_chat_interaction_events(
                 # bootstrap or create a second journal representation.
                 result = agent.resume_interaction(
                     session_id=normalized_session_id,
-                    payload=_build_payload(agent.provider, resolved_options),
+                    payload=_build_payload(
+                        agent.provider, resolved_options, model=getattr(agent, "model", ""),
+                    ),
                     callback=runtime_event_callback,
                     on_tool_confirm=confirm_cb,
                     on_human_input=human_input_cb,
