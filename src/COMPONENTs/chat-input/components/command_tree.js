@@ -74,6 +74,10 @@ const CommandTree = ({
      folder row for an inline rename field without the palette knowing that
      renaming exists. */
   nodeOverrides = null,
+  /* Per-folder decoration — (node) => partial merged onto every folder node.
+     The organizer uses it to mark a plugin's folder and to hang a menu on the
+     user's; the palette passes nothing and stays bare. */
+  decorateFolder = null,
   defaultExpanded = true,
 }) => {
   const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
@@ -150,6 +154,7 @@ const CommandTree = ({
         out[nodeId] = {
           ...node,
           on_context_menu: onFolderContextMenu || undefined,
+          ...(decorateFolder ? decorateFolder(node) : null),
         };
         return;
       }
@@ -162,7 +167,13 @@ const CommandTree = ({
            arrow key, and Explorer re-syncs its whole store from that prop. */
         component: ({ node: rowNode, isActive, depth }) => (
           <CommandRow
-            item={rowNode.command}
+            /* Inside its own plugin's folder the folder already names the
+               source; repeating it on every row is noise in both surfaces. */
+            item={
+              rowNode.inOwnPackFolder
+                ? { ...rowNode.command, sourceLabel: "" }
+                : rowNode.command
+            }
             active={!!isActive}
             depth={depth}
             isDark={isDark}
@@ -192,6 +203,7 @@ const CommandTree = ({
     data,
     root,
     nodeOverrides,
+    decorateFolder,
     isDark,
     onPick,
     onHover,

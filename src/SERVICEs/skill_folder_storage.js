@@ -479,6 +479,13 @@ export function buildCommandTree({ commands = [], state } = {}) {
   const push = (levelKey, name) => {
     if (!membersOf.has(levelKey)) membersOf.set(levelKey, []);
     membersOf.get(levelKey).push(name);
+    /* A command sitting inside its own plugin's folder: the folder already
+       says where it came from, so renderers can drop the per-row source tag
+       there. Data, not presentation — the renderer decides what to do with
+       it, but only the projection knows which folder is "its own". */
+    if (levelKey !== ROOT_ORDER_KEY && levelKey === packFolderIdFor(byName.get(name))) {
+      data[name].inOwnPackFolder = true;
+    }
   };
   byName.forEach((command, name) => {
     const stored = Object.prototype.hasOwnProperty.call(commandFolder, name)

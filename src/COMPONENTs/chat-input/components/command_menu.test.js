@@ -236,3 +236,34 @@ describe("CommandMenu corners stay concentric with the palette", () => {
     expect(parseFloat(explorerHost.style.minHeight) || 0).toBe(0);
   });
 });
+
+describe("CommandMenu source tags", () => {
+  const packed = (name) => ({
+    name,
+    description: `${name} desc`,
+    sourceToolkitId: "acme",
+    sourceLabel: "Acme Tools",
+  });
+
+  test("a command inside its own plugin's folder drops the per-row source tag", () => {
+    render(<CommandMenu items={[packed("/a"), packed("/b")]} activeIndex={0} onPick={() => {}} />);
+    // the folder carries the name once; no row repeats it
+    expect(screen.getAllByText("Acme Tools")).toHaveLength(1);
+  });
+
+  test("a command moved into the user's own category keeps its source tag", () => {
+    const state = {
+      folders: {
+        f1: { id: "f1", name: "Mine", parentId: null, childFolderIds: [], expanded: true },
+      },
+      commandFolder: { "/a": "f1" },
+      folderOrder: ["f1"],
+      itemOrder: {},
+    };
+    render(
+      <CommandMenu items={[packed("/a"), packed("/b")]} activeIndex={0} onPick={() => {}} folderState={state} />,
+    );
+    // folder "Acme Tools" (holding /b, tag dropped) + the tag on /a under "Mine"
+    expect(screen.getAllByText("Acme Tools")).toHaveLength(2);
+  });
+});

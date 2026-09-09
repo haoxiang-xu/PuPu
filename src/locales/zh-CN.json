@@ -694,15 +694,15 @@
     "queue": "排队，当前任务完成后执行",
     "organize_action": "整理",
     "organizer_title": "整理 Skills",
-    "organizer_unfiled": "未归类",
-    "organizer_all_filed": "全部已归类。",
     "organizer_new_category": "新建分类",
     "organizer_default_category": "新分类",
-    "organizer_preview_caption": "敲 / 时长这样",
     "organizer_rename": "重命名",
     "organizer_delete": "删除分类",
-    "organizer_done": "完成",
-    "organizer_counts": "{commands} 个命令 · {categories} 个分类 · {unfiled} 个未归类"
+    "organizer_palette_caption": "面板 · {count} 个命令",
+    "organizer_plugin_tag": "插件",
+    "organizer_folder_menu": "分类选项",
+    "organizer_empty": "还没有命令——装一个 skill pack 再来整理。",
+    "organizer_close": "关闭"
   },
   "boot": {
     "starting_runtime": "正在启动本地服务",

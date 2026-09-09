@@ -693,16 +693,16 @@
     "fyi": "Add info to the current task",
     "queue": "Queue for after the current run",
     "organize_action": "Organize",
-    "organizer_title": "Organize Skills",
-    "organizer_unfiled": "UNFILED",
-    "organizer_all_filed": "Everything is filed into a category.",
+    "organizer_title": "Organize skills",
     "organizer_new_category": "New category",
     "organizer_default_category": "New Category",
-    "organizer_preview_caption": "WHAT / SHOWS",
     "organizer_rename": "Rename",
     "organizer_delete": "Delete category",
-    "organizer_done": "Done",
-    "organizer_counts": "{commands} commands · {categories} categories · {unfiled} unfiled"
+    "organizer_palette_caption": "Palette · {count} commands",
+    "organizer_plugin_tag": "Plugin",
+    "organizer_folder_menu": "Category options",
+    "organizer_empty": "No commands yet — install a skill pack to organize.",
+    "organizer_close": "Close"
   },
   "boot": {
     "starting_runtime": "Starting local services",

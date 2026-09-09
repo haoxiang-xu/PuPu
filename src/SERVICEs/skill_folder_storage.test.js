@@ -746,3 +746,29 @@ describe("plugin-declared folders", () => {
     expect(getSkillFolderState()).toEqual(before);
   });
 });
+
+describe("inOwnPackFolder", () => {
+  const packed = (name, toolkitId, label) =>
+    cmd(name, { sourceToolkitId: toolkitId, sourceLabel: label });
+
+  test("a command in its own plugin's folder is flagged; elsewhere it is not", () => {
+    const state = {
+      folders: { [WRITING]: folder(WRITING, "Daily writing") },
+      commandFolder: { "/moved": WRITING, "/loose": null },
+      folderOrder: [WRITING],
+      itemOrder: {},
+    };
+    const { data } = buildCommandTree({
+      commands: [
+        packed("/home", "acme", "Acme"),
+        packed("/moved", "acme", "Acme"),
+        packed("/loose", "acme", "Acme"),
+      ],
+      state,
+    });
+
+    expect(data["/home"].inOwnPackFolder).toBe(true);
+    expect(data["/moved"].inOwnPackFolder).toBeUndefined();
+    expect(data["/loose"].inOwnPackFolder).toBeUndefined();
+  });
+});
