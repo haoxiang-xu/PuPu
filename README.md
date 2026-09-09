@@ -44,21 +44,43 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 ## Get PuPu
 
 <!-- release-downloads:start -->
+**v0.1.10** — Choose your platform and click to download.
+
+> **Coming soon:** v0.1.10 is currently a draft. The download buttons below become publicly available after publication. For the current public version, see the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+
 <a id="macos"></a>
+
 ### macOS
 
-Download a verified macOS package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+[![Download for Mac — Apple Silicon](https://img.shields.io/badge/Mac-Apple_Silicon-111827?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-arm64.dmg)
+[![Download for Mac — Intel](https://img.shields.io/badge/Mac-Intel-64748B?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-x64.dmg)
+
+**Not sure which Mac you have?** Open **Apple menu → About This Mac**. Choose **Apple Silicon** for an Apple M-series chip, or **Intel** for an Intel processor.
 
 <a id="windows"></a>
+
 ### Windows
 
-Download a verified Windows package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+[![Download for Windows x64](https://img.shields.io/badge/Download-Windows_x64-0078D4?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-windows-x64-setup.exe)
+
+Run the installer, then launch PuPu from the Start menu.
 
 <a id="linux"></a>
+
 ### Linux
 
-Download a verified Linux package from the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+[![Download for Ubuntu / Debian x64](https://img.shields.io/badge/Ubuntu_%2F_Debian-x64_DEB-E95420?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.deb)
+[![Download Linux AppImage x64](https://img.shields.io/badge/Linux-x64_AppImage-2563EB?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.AppImage)
+
+For the `.deb`, download it first and install it with:
+
+```bash
+sudo apt install ./PuPu-0.1.10-linux-x64.deb
+```
+
 <!-- release-downloads:end -->
+
+**Upgrading from 0.1.9?** Download and install the matching package manually. Automatic updating from 0.1.9 to 0.1.10 has not been verified. Back up important chats and settings before upgrading.
 
 ## Quick Start
 
