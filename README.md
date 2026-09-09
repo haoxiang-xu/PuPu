@@ -2,10 +2,10 @@
 <div align="center">
   <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
-  <p>Your AI, your way — beautifully simple.</p>
+  <p>Your desktop workspace for local and cloud AI.</p>
   <p>
-    A desktop AI client for local and cloud models — workspace-aware chat and a
-    built-in MCP tool store, in one clean native app.
+    Chat with Ollama locally or cloud providers, with your files, conversation
+    context, and MCP tools together in one native app.
   </p>
   <p>
     <a href="#macos">
@@ -22,9 +22,9 @@
   </p>
 </div>
 
-PuPu is a cross-platform desktop AI client that lets you chat with local models through Ollama or connect to cloud providers such as OpenAI and Anthropic. It is built for people who want one fast desktop app for everyday AI work, not a browser tab maze.
+PuPu is the desktop home for people who use both local and cloud AI: run models privately with Ollama or switch to providers such as OpenAI and Anthropic, while keeping your files, context, and tools together. Install it on macOS, Windows, or Linux and get back to the work—not a browser-tab maze.
 
-If you find the project useful, ⭐⭐⭐ star the repo.
+If PuPu makes your AI work simpler, ⭐ star the repo to help more people find it.
 
 ![PuPu UI](./public/assets/v0.1.5-release/social_preview.png)
 
