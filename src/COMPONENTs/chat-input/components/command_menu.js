@@ -25,6 +25,31 @@ const MAX_VISIBLE_ROWS = 6;
 /* A tree needs more room than the old flat six rows: folder rows spend height
    that carries no command, so the same six commands can cost ten rows. */
 const MAX_VISIBLE_TREE_ROWS = 10;
+const ROW_GAP = 1;
+const LIST_PADDING = 8;
+const ORGANIZE_ENTRY_H = 26;
+const ORGANIZE_ENTRY_MARGIN = 2;
+
+/**
+ * The list's height, from the row count actually rendered.
+ *
+ * ONE definition, exported, because the palette panel sizes the surface this
+ * list sits in. When the two computed it separately they disagreed by 17px —
+ * the inner list capped first and clipped its last row through the middle,
+ * which looks like a rendering bug and is really two height models drifting.
+ */
+export const commandListHeight = ({
+  rowCount = 0,
+  bare = false,
+  withOrganizeEntry = false,
+} = {}) => {
+  const stride = (bare ? BARE_ROW_HEIGHT : ROW_HEIGHT) + ROW_GAP;
+  return (
+    Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * stride +
+    LIST_PADDING +
+    (withOrganizeEntry ? ORGANIZE_ENTRY_H + ORGANIZE_ENTRY_MARGIN : 0)
+  );
+};
 
 /**
  * `bare` strips the floating-card chrome so the list can live inside another
@@ -45,6 +70,7 @@ const CommandMenu = ({
   expandRef = null,
   onOrganize = null,
   organizeLabel = "",
+  visibleRowCount = 0,
   width = 280,
 }) => {
   /* Explorer re-syncs its entire store whenever the `data` prop changes
@@ -93,8 +119,6 @@ const CommandMenu = ({
         padding: 3,
       };
 
-  const rowStride = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
-
   return (
     <div
       role="listbox"
@@ -106,7 +130,11 @@ const CommandMenu = ({
         display: "flex",
         flexDirection: "column",
         gap: 1,
-        maxHeight: MAX_VISIBLE_TREE_ROWS * rowStride,
+        maxHeight: commandListHeight({
+          rowCount: visibleRowCount > 0 ? visibleRowCount : items.length,
+          bare,
+          withOrganizeEntry: !!onOrganize,
+        }),
         overflowY: "auto",
         overscrollBehavior: "contain",
         ...chrome,
@@ -142,9 +170,9 @@ const CommandMenu = ({
             display: "flex",
             alignItems: "center",
             gap: 7,
-            height: 26,
+            height: ORGANIZE_ENTRY_H,
             flexShrink: 0,
-            marginTop: 2,
+            marginTop: ORGANIZE_ENTRY_MARGIN,
             padding: "0 10px",
             borderTop: "1px solid rgba(var(--pupu-text-rgb),0.07)",
             borderRadius: bare ? 14 : 7,

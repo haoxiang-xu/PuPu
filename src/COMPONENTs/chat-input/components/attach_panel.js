@@ -704,12 +704,16 @@ const AttachPanel = forwardRef(({
   );
 
   const kbActiveId = kbIndex >= 0 ? kbControls[kbIndex] : null;
-  /* keyboard focus reads as the control's HOVER state: a Button-style
-     scale-in glow behind the control (wrapper must be position:relative) */
-  const kbGlow = (id) => (
+  /* Keyboard focus reads as the control's HOVER state — so it has to land on
+     the same value hovering does, not merely look similar. This glow sits
+     BEHIND the control, so a filled control paints its own fill back on top
+     of it: `overFill` asks for the layer that still resolves to HOVER_ALPHA
+     once that happens. Anything transparent (the icon buttons) takes the
+     plain wash. */
+  const kbGlow = (id, { overFill = false } = {}) => (
     <ScaleHighlight
       visible={kbActiveId === id}
-      color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+      color={overFill ? hoverWashOverFill : hoverWash}
       borderRadius={999}
     />
   );
@@ -724,6 +728,29 @@ const AttachPanel = forwardRef(({
     ? "rgba(var(--pupu-text-rgb),0.07)"
     : "rgba(var(--pupu-text-rgb),0.05)";
 
+  /* ── Hover / press, aligned across the whole row ──────────────────────
+     One gesture must not read as three different things. Before this, the
+     model pill stacked the theme's hover wash on its own fill and landed at
+     ~0.145, the icon buttons landed at 0.08, and the keyboard glow was 0.10:
+     hovering an icon left it DIMMER than an untouched pill beside it.
+     What is fixed here is the RESULT, not the wash. Whatever a control starts
+     from, hovering it lands on HOVER_ALPHA and pressing it on PRESS_ALPHA, so
+     the control under the pointer is always the brightest thing in the row.
+     `washOver` solves for the layer that gets a filled control there — plain
+     source-over compositing, kept as arithmetic so the relationship cannot
+     drift the way three hand-picked constants did. */
+  const SELECT_FILL_ALPHA = isDark ? 0.07 : 0.05;
+  const HOVER_ALPHA = isDark ? 0.14 : 0.1;
+  const PRESS_ALPHA = isDark ? 0.2 : 0.14;
+  const textWash = (alpha) =>
+    `rgba(var(--pupu-text-rgb),${Math.round(alpha * 1000) / 1000})`;
+  const washOver = (target, base) => textWash((target - base) / (1 - base));
+
+  const hoverWash = textWash(HOVER_ALPHA);
+  const pressWash = textWash(PRESS_ALPHA);
+  const hoverWashOverFill = washOver(HOVER_ALPHA, SELECT_FILL_ALPHA);
+  const pressWashOverFill = washOver(PRESS_ALPHA, SELECT_FILL_ALPHA);
+
   /* shared pill style (model selector) */
   const pillStyle = {
     height: PILL_HEIGHT,
@@ -733,6 +760,9 @@ const AttachPanel = forwardRef(({
     borderRadius: floating ? 999 : 16,
     outline: "none",
     padding: "0 10px",
+    /* this control is filled, so its wash is solved against that fill */
+    hoverBackgroundColor: hoverWashOverFill,
+    activeBackgroundColor: pressWashOverFill,
   };
 
   /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
@@ -745,6 +775,11 @@ const AttachPanel = forwardRef(({
     iconOnlyPaddingVertical: (PILL_HEIGHT - 16) / 2,
     iconOnlyPaddingHorizontal: (PILL_HEIGHT - 16) / 2,
     borderRadius: floating ? 999 : 16,
+    /* these start transparent, so the wash IS the result. Overriding the
+       global button token here is deliberate: the row has to converge, and
+       0.08 over this panel is below the pill's resting fill. */
+    hoverBackgroundColor: hoverWash,
+    activeBackgroundColor: pressWash,
   };
 
   /* badge overlay for icon buttons */
@@ -775,6 +810,8 @@ const AttachPanel = forwardRef(({
     ) : null;
 
   /* stop-propagation wrapper for selects */
+  /* Only the model pill goes through here, and it is the one FILLED control in
+     the row — its glow has to be solved against that fill. */
   const selectWrap = (children, glowId) => (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -789,7 +826,7 @@ const AttachPanel = forwardRef(({
         borderRadius: 999,
       }}
     >
-      {glowId ? kbGlow(glowId) : null}
+      {glowId ? kbGlow(glowId, { overFill: true }) : null}
       {children}
     </div>
   );
@@ -908,6 +945,8 @@ const AttachPanel = forwardRef(({
               usageView={contextUsageView}
               isDark={isDark}
               highlight={highlight}
+              hoverBackgroundColor={hoverWash}
+              activeBackgroundColor={pressWash}
               // Shares openSelector with the model/tools/workspace menus so
               // opening one of the other three closes this, and vice versa —
               // without this it was its own, uncoordinated open/closed island.

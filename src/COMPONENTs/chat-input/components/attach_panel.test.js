@@ -72,6 +72,8 @@ jest.mock("../hooks/use_chat_input_workspaces", () => ({
    overwritten with undefined by whichever Select renders last. */
 const mockKeepOpenBySelector = {};
 
+const mockSelectStyleBySelector = {};
+
 jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
   __esModule: true,
   Select: ({
@@ -88,7 +90,10 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     palette_actions = null,
     palette_footer = null,
     keep_open_on_select,
+    style = {},
   }) => {
+    mockSelectStyleBySelector[search_placeholder || placeholder || "default"] =
+      style;
     /* Surfaced so a test can assert the predicate AttachPanel hands down,
        rather than re-implementing close-on-select inside this mock — the
        real semantics belong to use_select and are tested there. */
@@ -187,6 +192,8 @@ jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
         ref={ref}
         data-testid={dom_props["data-testid"] || `button-${prefix_icon || "default"}`}
         data-icon-size={style.iconSize ?? ""}
+        data-hover-bg={style.hoverBackgroundColor ?? ""}
+        data-active-bg={style.activeBackgroundColor ?? ""}
         title={title}
         aria-label={ariaLabel}
         onClick={onClick}
@@ -1067,5 +1074,129 @@ describe("AttachPanel reasoning effort capsule", () => {
       onSelectReasoningEffort: () => {},
     });
     expect(within(modelSelect()).queryByTestId("palette-footer")).toBeNull();
+  });
+});
+
+/* ======================================================================== */
+/*  Hover convergence                                                       */
+/*                                                                          */
+/*  One gesture, one meaning. Before this the model pill stacked the global  */
+/*  hover wash on its own fill and landed at ~0.145, the icon buttons landed */
+/*  at 0.08 and the keyboard glow at 0.10 — so hovering an icon left it      */
+/*  DIMMER than an untouched pill beside it. These lock the RESULT, not the  */
+/*  constants: a control's wash is whatever gets it to the row's target from */
+/*  wherever it starts.                                                      */
+/* ======================================================================== */
+
+describe("AttachPanel hover lands on one brightness", () => {
+  /* These are written as rgba(var(--pupu-text-rgb),A) — one channel token, not
+     three numbers — so the alpha is simply the last argument. */
+  const alphaOf = (css) => {
+    const m = /,\s*([0-9.]+)\s*\)\s*$/.exec(String(css || "").trim());
+    return m ? parseFloat(m[1]) : null;
+  };
+  /* plain source-over: what the viewer actually sees when `wash` is painted
+     over a control already carrying `fill` */
+  const composite = (fill, wash) => 1 - (1 - fill) * (1 - wash);
+
+  const renderPanel = (isDark) => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+    /* module-level and shared: a stale entry from the previous theme would
+       otherwise be read as this one's */
+    Object.keys(mockSelectStyleBySelector).forEach((k) => {
+      delete mockSelectStyleBySelector[k];
+    });
+    // the ring only mounts when there is usage to show
+    const bundle = buildRunBundleV1();
+    bundle.provider_calls.forEach((call) => {
+      call.usage.input.total_tokens = 1000;
+    });
+    return render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        onAttachScreenshot={() => {}}
+        isDark={isDark}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        showModelSelector
+        modelOptions={[{ value: "openai:gpt-5", label: "GPT-5" }]}
+        selectedModelId="openai:gpt-5"
+        contextCompositionBundle={null}
+        contextUsageView={buildContextUsageView(
+          selectContextUsage(bundle),
+          4000,
+        )}
+      />,
+    );
+  };
+
+  const iconWashes = () =>
+    screen
+      .getAllByTestId(/^button-/)
+      .map((n) => n.getAttribute("data-hover-bg"))
+      .filter(Boolean);
+
+  test.each([
+    ["dark", true, 0.14],
+    ["light", false, 0.1],
+  ])("every bare control reaches the same wash (%s)", (_n, isDark, target) => {
+    const { unmount } = renderPanel(isDark);
+    const washes = iconWashes();
+
+    expect(washes.length).toBeGreaterThan(1);
+    expect(new Set(washes).size).toBe(1);
+    expect(alphaOf(washes[0])).toBeCloseTo(target, 3);
+    unmount();
+  });
+
+  test.each([
+    ["dark", true, 0.07, 0.14],
+    ["light", false, 0.05, 0.1],
+  ])(
+    "the filled model pill is solved against its own fill (%s)",
+    (_n, isDark, fill, target) => {
+      const { unmount } = renderPanel(isDark);
+      const modelStyle = mockSelectStyleBySelector["Search models…"] || {};
+      const wash = alphaOf(modelStyle.hoverBackgroundColor);
+
+      expect(wash).not.toBeNull();
+      // NOT the same number as a bare control's — the same RESULT
+      expect(wash).toBeLessThan(target);
+      expect(composite(fill, wash)).toBeCloseTo(target, 2);
+      unmount();
+    },
+  );
+
+  test("pressing lands above hovering, everywhere", () => {
+    const { unmount } = renderPanel(true);
+    const hover = alphaOf(iconWashes()[0]);
+    const press = alphaOf(
+      screen.getAllByTestId(/^button-/)[0].getAttribute("data-active-bg"),
+    );
+
+    expect(press).toBeGreaterThan(hover);
+    unmount();
+  });
+
+  test("the context ring is not left on the global token", () => {
+    /* Its own comment claims it cannot drift from its neighbours because it
+       borrows Button for everything. The wash colour was the hole in that:
+       the neighbours override theirs, so borrowing the default IS drifting. */
+    const { unmount } = renderPanel(true);
+    const ring = screen.getByTestId("context-composition-progress");
+
+    expect(alphaOf(ring.getAttribute("data-hover-bg"))).toBeCloseTo(0.14, 3);
+    unmount();
   });
 });

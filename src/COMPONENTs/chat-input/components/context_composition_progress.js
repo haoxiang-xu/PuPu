@@ -39,6 +39,12 @@ const ContextCompositionProgress = forwardRef(
       highlight,
       open: openProp,
       onOpenChange,
+      /* The row this sits in decides what hovering ANY of its controls looks
+         like — a filled pill and a bare icon need different washes to land on
+         the same brightness, and only the row knows the target. Undefined
+         keeps Button's global token, which is what standalone callers want. */
+      hoverBackgroundColor,
+      activeBackgroundColor,
     },
     ref,
   ) => {
@@ -221,7 +227,16 @@ const ContextCompositionProgress = forwardRef(
                PILL_HEIGHT square like every other icon control on this row.
                Everything else — the scale-in wash, the pressed inset, focus and
                disabled handling — comes from Button, so this control cannot
-               drift from its neighbours the way a hand-rolled one would. */
+               drift from its neighbours the way a hand-rolled one would.
+               The wash COLOR is the exception: taking Button's global token
+               while the controls beside it override theirs is exactly how this
+               one ended up 0.08 in a row that had converged on 0.14. */
+            ...(hoverBackgroundColor !== undefined
+              ? { hoverBackgroundColor }
+              : {}),
+            ...(activeBackgroundColor !== undefined
+              ? { activeBackgroundColor }
+              : {}),
             paddingVertical: 0,
             paddingHorizontal: 0,
             iconOnlyPaddingVertical: 0,

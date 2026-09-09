@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import CommandMenu from "./command_menu";
+import CommandMenu, { commandListHeight } from "./command_menu";
 
 /**
  * CommandPalettePanel — the "palette morph" (design D, Elevator Push motion).
@@ -18,13 +18,8 @@ import CommandMenu from "./command_menu";
 
 const FALLBACK_H = 40; // pill row height fallback before measurement
 const PANEL_RADIUS = 22; // matches the attach pill container
-const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
-/* A tree costs more rows than a flat list for the same commands: category
-   rows carry none, and the organize entry is one more. Six was the old flat
-   ceiling; ten keeps a couple of categories on screen without the panel
-   swallowing the composer. */
-const MAX_ROWS = 10;
-const ORGANIZE_ENTRY_H = 28;
+/* Row count, stride and the organize entry all live in command_menu, which is
+   what actually renders them — see commandListHeight. */
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
 
@@ -90,9 +85,11 @@ const CommandPalettePanel = ({
      flat count is right by construction. */
   const rowCount = visibleRowCount > 0 ? visibleRowCount : items.length;
   const listH = on
-    ? Math.min(rowCount, MAX_ROWS) * ROW_STRIDE +
-      8 +
-      (onOrganize ? ORGANIZE_ENTRY_H : 0)
+    ? commandListHeight({
+        rowCount,
+        bare: true,
+        withOrganizeEntry: !!onOrganize,
+      })
     : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
@@ -167,6 +164,7 @@ const CommandPalettePanel = ({
               expandRef={expandRef}
               onOrganize={onOrganize}
               organizeLabel={organizeLabel}
+              visibleRowCount={visibleRowCount}
               isDark={isDark}
               bare
               visible={on}

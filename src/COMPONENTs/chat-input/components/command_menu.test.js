@@ -56,10 +56,12 @@ describe("CommandMenu", () => {
     );
     expect(src).toContain('rgba(var(--pupu-surface-rgb),0.72)');
     expect(menu.style.backdropFilter).toBe("blur(18px) saturate(1.4)");
-    /* 10 rows, not the pre-#232 six: the surface is a tree now, and folder
-       rows spend height that carries no command — six commands inside three
-       categories is nine rows before anything scrolls. */
-    expect(menu.style.maxHeight).toBe("320px");
+    /* Height follows the rows actually rendered and caps at ten — not the
+       pre-#232 fixed six. The surface is a tree now: folder rows spend height
+       that carries no command, so six commands inside three categories is
+       nine rows before anything scrolls. Three flat rows at stride 33 plus
+       8px of padding is 107. */
+    expect(menu.style.maxHeight).toBe("107px");
     expect(menu.style.padding).toBe("3px");
     expect(options[0].style.height).toBe("32px");
     /* Asserted per-side rather than as a shorthand: a row now carries a
@@ -199,5 +201,57 @@ describe("CommandMenu tree", () => {
     fireEvent.mouseDown(screen.getByText("Organize skills…"));
     expect(onOrganize).toHaveBeenCalledTimes(1);
     expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+describe("CommandMenu list height", () => {
+  const rows = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      name: `/c${i}`,
+      description: `d${i}`,
+    }));
+
+  const heightOf = (props) => {
+    const { unmount } = render(
+      <CommandMenu activeIndex={0} onPick={() => {}} {...props} />,
+    );
+    const h = parseInt(
+      screen.getByRole("listbox", { name: "斜杠命令" }).style.maxHeight,
+      10,
+    );
+    unmount();
+    return h;
+  };
+
+  test("caps at ten rows however many commands there are", () => {
+    // 10 * (32 + 1) + 8
+    expect(heightOf({ items: rows(10) })).toBe(338);
+    expect(heightOf({ items: rows(40) })).toBe(338);
+  });
+
+  test("the organize entry is counted, not left to overflow", () => {
+    /* The regression this locks: the panel reserved room for the entry while
+       the list did not, so the list scrolled first and clipped its last row
+       through the middle. */
+    const without = heightOf({ items: rows(4) });
+    const with_ = heightOf({
+      items: rows(4),
+      onOrganize: () => {},
+      organizeLabel: "Organize skills…",
+    });
+    expect(with_ - without).toBe(28); // entry 26 + 2 margin
+  });
+
+  test("bare rows are shorter than carded ones", () => {
+    expect(heightOf({ items: rows(4), bare: true })).toBeLessThan(
+      heightOf({ items: rows(4) }),
+    );
+  });
+
+  test("the reported visible row count wins over the command count", () => {
+    // a collapsed category hides children: fewer ROWS than commands
+    expect(heightOf({ items: rows(9), visibleRowCount: 3 })).toBe(
+      heightOf({ items: rows(3) }),
+    );
   });
 });
