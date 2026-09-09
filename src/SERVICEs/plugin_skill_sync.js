@@ -2,7 +2,11 @@
  * catalog) as slash-commands in command_registry.
  *
  * A skill row looks like:
- *   { name, title, description, body, tools: string[], phase }
+ *   { name, title, description, body, tools: string[], phase, icon? }
+ *
+ * `icon` is the plugin AUTHOR's choice — see resolveSkillIcon below. It is
+ * optional; a pack that declares one icon for itself does not have to repeat
+ * it on every skill.
  *
  * Each row becomes a command:
  *   name:        "/" + skill.name
@@ -23,11 +27,41 @@
  */
 import { api } from "./api";
 import { createLogger } from "./console_logger";
+import { isKnownBuiltinIcon } from "./mcp_toolkit_store";
 import { registerCommand, unregisterBySource } from "./command_registry";
 import { normalizeToolkitIdAlias } from "./toolkit_id_aliases";
 import { subscribeToolkitCatalogRefresh } from "./toolkit_catalog_refresh";
 
 const logger = createLogger("COMMANDS", "src/SERVICEs/plugin_skill_sync.js");
+
+/**
+ * The icon a skill shows in the command menu, chosen by its AUTHOR.
+ *
+ * Accepted, in precedence order:
+ *   skill.icon           — a builtin icon name, bare or as { type, name },
+ *                          the same descriptor shape a toolkit already uses
+ *   the toolkit's icon    — so a pack that names one icon for itself does not
+ *                          have to repeat it on every skill
+ *   ""                    — no icon; the row renders without one
+ *
+ * Admission is CLOSED against the shipped icon manifest. Icons come from a
+ * downloaded pack, so an unrecognized name is either a typo or an author
+ * expecting an icon PuPu does not have; either way it falls back rather than
+ * rendering an empty box, and no author-supplied string ever reaches the DOM
+ * as a URL.
+ */
+const resolveDeclaredIcon = (declared) => {
+  if (typeof declared === "string") {
+    return isKnownBuiltinIcon(declared) ? declared : "";
+  }
+  if (declared && typeof declared === "object" && declared.type === "builtin") {
+    return isKnownBuiltinIcon(declared.name) ? declared.name : "";
+  }
+  return "";
+};
+
+export const resolveSkillIcon = (skill, toolkitIcon) =>
+  resolveDeclaredIcon(skill?.icon) || resolveDeclaredIcon(toolkitIcon);
 
 const bakeExpandsTo = (body, tools) => {
   const toolsJoined = (Array.isArray(tools) ? tools : []).join(", ");
@@ -83,7 +117,7 @@ export const syncPluginSkills = (toolkits) => {
       registerCommand({
         name: `/${skillName}`,
         description: skill.description || skill.title || skillName,
-        icon: "",
+        icon: resolveSkillIcon(skill, entry.toolkitIcon),
         source,
         sourceLabel,
         sourceToolkitId: normalizedToolkitId,

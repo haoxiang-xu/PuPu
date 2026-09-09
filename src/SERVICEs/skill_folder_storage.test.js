@@ -308,6 +308,9 @@ describe("applySkillExplorerReorder", () => {
       "/polish": WRITING,
       "/translate": WRITING,
       "/review": CODE,
+      // null, not absent: "/btw" sits at the top level because the user put
+      // it there, which is a different fact from "never touched"
+      "/btw": null,
     });
     expect(getSkillFolderState()).toEqual(next);
   });
@@ -320,7 +323,7 @@ describe("applySkillExplorerReorder", () => {
 
     const next = applySkillExplorerReorder(fixture);
 
-    expect(next.commandFolder["/polish"]).toBeUndefined();
+    expect(next.commandFolder["/polish"]).toBeNull();
     expect(next.itemOrder.__root__).toContain("/polish");
   });
 
@@ -576,5 +579,170 @@ describe("folder mutations", () => {
     expect(
       Object.keys(moduleExports).filter((key) => /forget|prune/i.test(key)),
     ).toEqual([]);
+  });
+});
+
+/* ======================================================================== */
+/*  Plugin-declared default grouping                                        */
+/*                                                                          */
+/*  A skill pack, toolkit or MCP server is already a grouping its author     */
+/*  named. PuPu reads that declaration rather than inventing categories.     */
+/* ======================================================================== */
+
+describe("plugin-declared folders", () => {
+  const packed = (name, toolkitId, label) =>
+    cmd(name, { sourceToolkitId: toolkitId, sourceLabel: label });
+
+  const SUPER = "pack:superpowers";
+
+  test("skills from one pack default into one folder named by the author", () => {
+    const { data, root, unfiled } = buildCommandTree({
+      commands: [
+        packed("/brainstorming", "superpowers", "Superpowers Essentials"),
+        packed("/writing-plans", "superpowers", "Superpowers Essentials"),
+        packed("/plan", "planpack", "Plan"),
+      ],
+      state: undefined,
+    });
+
+    expect(root).toEqual([`folder:${SUPER}`, "folder:pack:planpack"]);
+    expect(data[`folder:${SUPER}`].label).toBe("Superpowers Essentials");
+    expect(data[`folder:${SUPER}`].children).toEqual([
+      "/brainstorming",
+      "/writing-plans",
+    ]);
+    expect(data["folder:pack:planpack"].children).toEqual(["/plan"]);
+    // nothing is left loose, so there is no unfiled pile on first run
+    expect(unfiled).toEqual([]);
+  });
+
+  test("a plugin folder is marked derived so callers can refuse to edit it", () => {
+    const { data } = buildCommandTree({
+      commands: [packed("/plan", "planpack", "Plan")],
+      state: undefined,
+    });
+    expect(data["folder:pack:planpack"].derived).toBe(true);
+  });
+
+  test("a command whose author declared no plugin name stays at root", () => {
+    // /btw is a builtin: it has no owning plugin, and inventing a group name
+    // for it would be exactly the guessing this design avoids
+    const { root, unfiled } = buildCommandTree({
+      commands: [cmd("/btw"), cmd("/fyi", { sourceToolkitId: "x" })],
+      state: undefined,
+    });
+    expect(root).toEqual(["/btw", "/fyi"]);
+    expect(unfiled).toEqual(["/btw", "/fyi"]);
+  });
+
+  test("the user's own filing beats the plugin's default", () => {
+    const state = {
+      folders: { [WRITING]: folder(WRITING, "Daily writing") },
+      commandFolder: { "/brainstorming": WRITING },
+      folderOrder: [WRITING],
+      itemOrder: {},
+    };
+
+    const { data } = buildCommandTree({
+      commands: [
+        packed("/brainstorming", "superpowers", "Superpowers Essentials"),
+        packed("/writing-plans", "superpowers", "Superpowers Essentials"),
+      ],
+      state,
+    });
+
+    expect(data[`folder:${WRITING}`].children).toEqual(["/brainstorming"]);
+    expect(data[`folder:${SUPER}`].children).toEqual(["/writing-plans"]);
+  });
+
+  test("dragged to the top level, a skill STAYS there instead of snapping back", () => {
+    const commands = [packed("/plan", "planpack", "Plan")];
+    setSkillFolderState({
+      folders: {},
+      commandFolder: {},
+      folderOrder: [],
+      itemOrder: {},
+    });
+
+    const first = buildCommandTree({ commands, state: getSkillFolderState() });
+    expect(first.root).toEqual(["folder:pack:planpack"]);
+
+    // the user drags /plan out to the top level
+    applySkillExplorerReorder({
+      data: {
+        "folder:pack:planpack": {
+          id: "folder:pack:planpack",
+          kind: "folder",
+          children: [],
+        },
+        "/plan": { id: "/plan", kind: "command", commandName: "/plan" },
+      },
+      root: ["folder:pack:planpack", "/plan"],
+    });
+
+    expect(getSkillFolderState().commandFolder["/plan"]).toBeNull();
+    const second = buildCommandTree({ commands, state: getSkillFolderState() });
+    expect(second.root).toEqual(["folder:pack:planpack", "/plan"]);
+    expect(second.data["folder:pack:planpack"].children).toEqual([]);
+  });
+
+  test("a plugin folder's position persists without the folder being stored", () => {
+    setSkillFolderState({
+      folders: {},
+      commandFolder: {},
+      folderOrder: [],
+      itemOrder: {},
+    });
+
+    applySkillExplorerReorder({
+      data: {
+        "folder:pack:b": { id: "folder:pack:b", kind: "folder", children: [] },
+        "folder:pack:a": { id: "folder:pack:a", kind: "folder", children: [] },
+      },
+      root: ["folder:pack:b", "folder:pack:a"],
+    });
+
+    const stored = getSkillFolderState();
+    // ordering is the user's and is kept; the folder itself is the plugin's
+    // and is re-derived every projection, so it is never written
+    expect(stored.folderOrder).toEqual(["pack:b", "pack:a"]);
+    expect(stored.folders).toEqual({});
+
+    const { root } = buildCommandTree({
+      commands: [
+        cmd("/one", { sourceToolkitId: "a", sourceLabel: "A" }),
+        cmd("/two", { sourceToolkitId: "b", sourceLabel: "B" }),
+      ],
+      state: stored,
+    });
+    expect(root).toEqual(["folder:pack:b", "folder:pack:a"]);
+  });
+
+  test("uninstalling a pack removes its folder; a user category is untouched", () => {
+    const state = {
+      folders: { [WRITING]: folder(WRITING, "Daily writing") },
+      commandFolder: { "/mine": WRITING },
+      folderOrder: [WRITING, "pack:gone"],
+      itemOrder: {},
+    };
+
+    const { data, root } = buildCommandTree({
+      commands: [cmd("/mine")],
+      state,
+    });
+
+    expect(data["folder:pack:gone"]).toBeUndefined();
+    expect(root).toEqual([`folder:${WRITING}`]);
+    expect(data[`folder:${WRITING}`].children).toEqual(["/mine"]);
+  });
+
+  test("renaming or deleting a plugin folder is a no-op at the storage layer", () => {
+    setSkillFolderState(sampleTree());
+    const before = getSkillFolderState();
+
+    renameSkillFolder("pack:superpowers", "Mine now");
+    deleteSkillFolder("pack:superpowers");
+
+    expect(getSkillFolderState()).toEqual(before);
   });
 });

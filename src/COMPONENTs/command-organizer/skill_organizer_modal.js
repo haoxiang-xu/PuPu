@@ -15,6 +15,7 @@
  * out of the summoned surface for the same reasons.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import ContextMenu from "../../BUILTIN_COMPONENTs/context_menu/context_menu";
@@ -129,6 +130,7 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
   );
   const handleFolderContextMenu = useCallback((node, event) => {
     event.preventDefault();
+    if (node?.derived) return;
     setMenu({
       visible: true,
       x: event.clientX,
@@ -138,7 +140,13 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
   }, []);
   const menuItems = useMemo(() => {
     if (!menu.nodeId) return [];
-    const label = data[menu.nodeId]?.label || "";
+    const node = data[menu.nodeId];
+    const label = node?.label || "";
+    /* A plugin's folder carries the plugin's name and exists only as long as
+       the plugin does. Renaming or deleting it would be editing someone
+       else's declaration — and the next projection would rebuild it anyway.
+       Its contents are still the user's to rearrange. */
+    if (node?.derived) return [];
     return [
       {
         icon: "rename",
@@ -186,6 +194,17 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
   const [drag, setDrag] = useState(null);
   const dragPending = useRef(null);
   const ghostRef = useRef(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
+
+  /* Callback ref rather than a plain one: the ghost mounts a render AFTER the
+     drag begins, so without placing it here the first frame paints at the
+     window's top-left corner. Explorer's own ghost does the same thing. */
+  const ghostCallbackRef = useCallback((el) => {
+    ghostRef.current = el;
+    if (el) {
+      el.style.transform = `translate(${pointerRef.current.x + 16}px, ${pointerRef.current.y - 14}px)`;
+    }
+  }, []);
 
   const handleSourceMouseDown = useCallback((event, nodeId) => {
     if (event.button !== 0) return;
@@ -206,6 +225,7 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
     };
 
     const handleMove = (event) => {
+      pointerRef.current = { x: event.clientX, y: event.clientY };
       const pending = dragPending.current;
       if (pending && !drag) {
         const dx = event.clientX - pending.startX;
@@ -502,10 +522,17 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
         isDark={isDark}
       />
 
-      {/* ── drag ghost ────────────────────────────── */}
-      {drag && data[drag.nodeId] ? (
+      {/* ── drag ghost ────────────────────────────────
+          PORTALLED TO BODY, not rendered in place. Z.DRAG_GHOST (8000) only
+          outranks Z.MODAL (3000) when the two are siblings in the same
+          stacking context; left inline this sits inside the composer's
+          subtree, where an ancestor context clamps it and the ghost paints
+          UNDER the modal it belongs to — the drag still works, the user just
+          cannot see what they are dragging. */}
+      {drag && data[drag.nodeId]
+        ? ReactDOM.createPortal(
         <div
-          ref={ghostRef}
+          ref={ghostCallbackRef}
           style={{
             position: "fixed",
             top: 0,
@@ -529,8 +556,10 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
             rowRadius={7}
             rowHeight={30}
           />
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
     </>
   );
 };

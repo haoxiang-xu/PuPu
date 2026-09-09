@@ -40,6 +40,29 @@ import { parseSettingsStorageErrorCode } from "./bridges/settings_storage_bridge
 const STORAGE_KEY = "skill_folder_tree_v1";
 const ROOT_ORDER_KEY = "__root__";
 const FOLDER_NODE_PREFIX = "folder:";
+/* Folders the PLUGIN defines, not the user. A skill pack, a toolkit or an MCP
+   server is already a grouping its author named; deriving a folder from that
+   is reading their declaration, whereas inventing category names for them
+   would be us guessing at an organization they never asked for. Their ids live
+   in their own namespace so a derived folder can never collide with a
+   user-created one ("sf_..."), and so every writer can tell them apart by
+   looking at the id alone. */
+const PACK_FOLDER_PREFIX = "pack:";
+
+export const isPackFolderId = (folderId) =>
+  typeof folderId === "string" && folderId.startsWith(PACK_FOLDER_PREFIX);
+
+/* A command belongs to a pack folder only when its author declared BOTH the
+   owning plugin and that plugin's display name. No name, no folder — falling
+   back to the toolkit id would put a slug in front of the user, which is the
+   invented label this whole approach exists to avoid. */
+const packFolderIdFor = (command) => {
+  const toolkitId = command?.sourceToolkitId;
+  const label = command?.sourceLabel;
+  if (typeof toolkitId !== "string" || !toolkitId) return null;
+  if (typeof label !== "string" || !label) return null;
+  return `${PACK_FOLDER_PREFIX}${toolkitId}`;
+};
 
 /* CLOSED key set (BC-001). Every key is optional on read — absence means
    "default" — but an unrecognized key fails the whole tree. */
@@ -313,6 +336,18 @@ export function applySkillExplorerReorder({ data, root } = {}) {
       if (!node) return;
 
       const folderId = folderIdFromExplorerNodeId(nodeId);
+
+      /* A pack folder is re-derived from the catalog on every projection, so
+         it is never written into `folders` — only its POSITION is the user's
+         to keep. It also always sits at the top level: nesting it would mean
+         storing parentage for something we do not store at all. */
+      if (folderId && isPackFolderId(folderId)) {
+        itemOrder[orderKey].push(`${FOLDER_NODE_PREFIX}${folderId}`);
+        if (!folderOrder.includes(folderId)) folderOrder.push(folderId);
+        visit(node.children || [], folderId);
+        return;
+      }
+
       if (folderId && previousFolders[folderId]) {
         folders[folderId] = {
           ...previousFolders[folderId],
@@ -337,11 +372,11 @@ export function applySkillExplorerReorder({ data, root } = {}) {
       if (!commandName || commandName.startsWith(FOLDER_NODE_PREFIX)) return;
       itemOrder[orderKey].push(commandName);
       seenCommands.add(commandName);
-      if (parentFolderId) {
-        commandFolder[commandName] = parentFolderId;
-      } else {
-        delete commandFolder[commandName];
-      }
+      /* null, not delete. Absence now means "the user has never moved this,
+         use the folder its plugin declares"; a command dragged out to the top
+         level has to be able to SAY so, or the next projection would file it
+         straight back into its pack. */
+      commandFolder[commandName] = parentFolderId || null;
     });
   };
 
@@ -404,34 +439,83 @@ export function buildCommandTree({ commands = [], state } = {}) {
     };
   });
 
-  Object.values(folders).forEach((folder) => {
+  /* The folder set is the user's stored folders PLUS one per plugin that
+     declared its skills — derived fresh every projection, never written back,
+     so uninstalling a plugin removes its folder and reinstalling brings it
+     back with the author's current name. */
+  const allFolders = { ...folders };
+  byName.forEach((command) => {
+    const packId = packFolderIdFor(command);
+    if (!packId || allFolders[packId]) return;
+    allFolders[packId] = {
+      id: packId,
+      name: command.sourceLabel,
+      parentId: null,
+      childFolderIds: [],
+      derived: true,
+    };
+  });
+
+  Object.values(allFolders).forEach((folder) => {
     data[`${FOLDER_NODE_PREFIX}${folder.id}`] = {
       id: `${FOLDER_NODE_PREFIX}${folder.id}`,
       label: folder.name,
       type: "folder",
       kind: "folder",
       folderId: folder.id,
+      derived: !!folder.derived,
       children: [],
     };
   });
 
-  /* Bucket the currently-registered commands by the level they belong to.
-     A command whose stored folder no longer exists falls back to root rather
-     than vanishing. */
+  /* Where each command sits, in precedence order:
+       stored id   — the user moved it there
+       stored null — the user moved it to the top level, deliberately
+       absent      — never touched, so its plugin's folder decides
+     The null case is why assignments are written rather than deleted: without
+     it, "absent" would have to mean both "never touched" and "at root", and
+     dragging a skill out of its pack would undo itself on the next render. */
   const membersOf = new Map();
   const push = (levelKey, name) => {
     if (!membersOf.has(levelKey)) membersOf.set(levelKey, []);
     membersOf.get(levelKey).push(name);
   };
-  byName.forEach((_command, name) => {
-    const folderId = commandFolder[name];
-    push(folderId && folders[folderId] ? folderId : ROOT_ORDER_KEY, name);
+  byName.forEach((command, name) => {
+    const stored = Object.prototype.hasOwnProperty.call(commandFolder, name)
+      ? commandFolder[name]
+      : undefined;
+    if (stored === null) {
+      push(ROOT_ORDER_KEY, name);
+      return;
+    }
+    if (typeof stored === "string" && allFolders[stored]) {
+      push(stored, name);
+      return;
+    }
+    /* Either untouched, or filed into a folder that no longer exists (the
+       category was deleted, or a pack was uninstalled and its folder went
+       with it) — fall back to the plugin's folder, then to root. */
+    const packId = packFolderIdFor(command);
+    push(packId && allFolders[packId] ? packId : ROOT_ORDER_KEY, name);
   });
+
+  /* Root folders are derived from parentage, not from folderOrder alone:
+     folderOrder is an ORDERING, and a folder missing from it (a pack folder on
+     first run, or one orphaned by an older write) must still be rendered. */
+  const rootFolderIds = () => {
+    const all = Object.keys(allFolders).filter(
+      (id) => !allFolders[id].parentId,
+    );
+    const named = folderOrder.filter((id) => all.includes(id));
+    return named.concat(all.filter((id) => !named.includes(id)));
+  };
 
   const childFolderIdsOf = (parentId) =>
     parentId === null
-      ? folderOrder.filter((id) => folders[id])
-      : (folders[parentId]?.childFolderIds || []).filter((id) => folders[id]);
+      ? rootFolderIds()
+      : (allFolders[parentId]?.childFolderIds || []).filter(
+          (id) => allFolders[id],
+        );
 
   /* Stored order wins for everything it names; anything it does not name —
      a newly installed skill, a newly created folder — appends at the end so
@@ -477,7 +561,7 @@ export function buildCommandTree({ commands = [], state } = {}) {
     const ordered = [];
     orderLevel(parentId).forEach((nodeId) => {
       const folderId = folderIdFromExplorerNodeId(nodeId);
-      if (!folderId || !folders[folderId]) {
+      if (!folderId || !allFolders[folderId]) {
         ordered.push(nodeId);
         return;
       }

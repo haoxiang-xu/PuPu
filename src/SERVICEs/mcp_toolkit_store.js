@@ -88,7 +88,11 @@ const isFileIcon = (icon) =>
 const hasIconPayload = (icon) =>
   Boolean(icon && typeof icon === "object" && Object.keys(icon).length > 0);
 
-const isKnownBuiltinIcon = (name) =>
+/* The one definition of "is this a real builtin icon name" — exported because
+   plugin-declared skill icons admit against the same allowlist. Two copies of
+   an allowlist is how one of them quietly starts accepting something the
+   other rejects. */
+export const isKnownBuiltinIcon = (name) =>
   typeof name === "string" && (name in UISVGs || name in LogoSVGs);
 
 const isExplicitMcpIcon = (icon) => {
