@@ -657,7 +657,6 @@
     "collection_count": "・プラグイン{count}個",
     "get_all": "すべて入手",
     "add_custom_plugin": "カスタムプラグインを追加",
-    "import_skills_link": "フォルダからスキルをインポート",
     "import_skills_title": "スキルをインポート",
     "import_skills_section": "ローカルのスキルフォルダ",
     "import_skills_intro": "SKILL.md ファイルが入ったローカルフォルダをスラッシュコマンドとしてインポートします。指示のみのスキルに対応しています。スクリプトを含むスキルは今回のリリースではスキップされます。",

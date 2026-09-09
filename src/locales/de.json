@@ -657,7 +657,6 @@
     "collection_count": "· {count} Plugins",
     "get_all": "ALLE LADEN",
     "add_custom_plugin": "Eigenes Plugin hinzufügen",
-    "import_skills_link": "Skills aus einem Ordner importieren",
     "import_skills_title": "Skills importieren",
     "import_skills_section": "Lokaler Skill-Ordner",
     "import_skills_intro": "Importiere einen lokalen Ordner mit SKILL.md-Dateien als Slash-Befehle. Reine Anweisungs-Skills werden unterstützt; Skills, die Skripte enthalten, werden in dieser Version übersprungen.",

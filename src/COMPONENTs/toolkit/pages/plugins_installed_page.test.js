@@ -473,3 +473,91 @@ describe("PluginsInstalledPage — organize skills entry", () => {
     expect(screen.queryByTestId("installed-organize-skills")).toBeNull();
   });
 });
+
+describe("PluginsInstalledPage — import skills entry", () => {
+  const withSkillPack = () =>
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        ...CATALOG,
+        {
+          toolkitId: "skillpack.superpowers",
+          toolkitName: "Superpowers Essentials",
+          toolkitDescription: "Imported skill pack",
+          source: "skillpack",
+          tools: [],
+          skills: [{ name: "brainstorming", title: "Brainstorming" }],
+        },
+      ],
+    });
+
+  const renderPage = async (props = {}) => {
+    let rendered;
+    await act(async () => {
+      rendered = render(
+        <PluginsInstalledPage isDark={false} onOpenDetail={() => {}} {...props} />,
+      );
+    });
+    return rendered;
+  };
+
+  test("it sits on the Skill packs header, before Organize, and opens the import flow", async () => {
+    withSkillPack();
+    const onOpenImportSkills = jest.fn();
+    const onOpenSkillOrganizer = jest.fn();
+    await renderPage({ onOpenImportSkills, onOpenSkillOrganizer });
+
+    const entry = screen.getByTestId("installed-import-skills");
+    const section = screen.getByText("Skill packs").closest("div").parentElement;
+    expect(section.contains(entry)).toBe(true);
+    expect(entry).toHaveTextContent("Import skills");
+
+    // add first, then arrange: Import reads before Organize on the row
+    const organize = screen.getByTestId("installed-organize-skills");
+    expect(
+      entry.compareDocumentPosition(organize) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(entry);
+    expect(onOpenImportSkills).toHaveBeenCalledTimes(1);
+    expect(onOpenSkillOrganizer).not.toHaveBeenCalled();
+  });
+
+  test("the footer no longer carries the import link", async () => {
+    withSkillPack();
+    await renderPage({ onOpenImportSkills: jest.fn() });
+    expect(screen.queryByText(/Import skills from a folder/i)).toBeNull();
+    // the custom-MCP entry stays where it was
+    expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
+  });
+
+  test("with no packs installed the section still shows, with the entry and a hint", async () => {
+    /* The entry is the only way to get a first pack, so the section that
+       hosts it cannot depend on a pack already being there. */
+    const onOpenImportSkills = jest.fn();
+    await renderPage({ onOpenImportSkills });
+
+    expect(screen.getByText("Skill packs")).toBeInTheDocument();
+    expect(screen.getByText(/No skill packs yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("installed-import-skills"));
+    expect(onOpenImportSkills).toHaveBeenCalledTimes(1);
+  });
+
+  test("with no packs and no handlers the section stays hidden, as before", async () => {
+    await renderPage();
+    expect(screen.queryByText("Skill packs")).toBeNull();
+    expect(screen.queryByText(/No skill packs yet/)).toBeNull();
+  });
+
+  test("a search that matches no pack hides the section like the others", async () => {
+    withSkillPack();
+    await renderPage({ onOpenImportSkills: jest.fn() });
+
+    fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+      target: { value: "Notion" },
+    });
+
+    expect(screen.getByText("Notion")).toBeInTheDocument();
+    expect(screen.queryByText("Skill packs")).toBeNull();
+    expect(screen.queryByTestId("installed-import-skills")).toBeNull();
+  });
+});

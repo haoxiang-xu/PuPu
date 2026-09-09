@@ -657,7 +657,6 @@
     "collection_count": "· {count} plugins",
     "get_all": "TOUT OBTENIR",
     "add_custom_plugin": "Ajouter un plugin personnalisé",
-    "import_skills_link": "Importer des compétences depuis un dossier",
     "import_skills_title": "Importer des compétences",
     "import_skills_section": "Dossier de compétences local",
     "import_skills_intro": "Importez un dossier local de fichiers SKILL.md en tant que commandes slash. Les compétences composées uniquement d’instructions sont prises en charge ; celles qui embarquent des scripts sont ignorées dans cette version.",

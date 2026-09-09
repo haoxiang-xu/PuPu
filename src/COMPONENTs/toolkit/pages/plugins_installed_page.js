@@ -270,20 +270,55 @@ const PluginsInstalledPage = ({
       >
         {t("toolkit.add_custom_plugin")} ›
       </div>
-      <div
-        role="button"
-        onClick={() => onOpenImportSkills?.()}
-        style={{
-          fontSize: 11,
-          fontFamily,
-          color: tertiaryText,
-          cursor: "pointer",
-        }}
-      >
-        {t("toolkit.import_skills_link")} ›
-      </div>
     </div>
   );
+
+  /* The Skill packs section's own actions, on its header row: bring skills
+     in, then arrange them. Both are BUILTIN buttons in the theme editor's
+     Import / Export register. The bare "… ›" link this replaced kept the
+     only way to add a pack at the bottom of the page, under a divider, far
+     from the packs it adds to. */
+  const sectionActionStyle = {
+    height: 26,
+    borderRadius: 8,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
+    fontSize: 11,
+    gap: 5,
+    iconSize: 12,
+    color: "var(--pupu-text-secondary)",
+    hoverBackgroundColor: "var(--pupu-overlay-hover)",
+    activeBackgroundColor: "var(--pupu-overlay-active)",
+  };
+  const skillPackActions =
+    onOpenImportSkills || onOpenSkillOrganizer ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {onOpenImportSkills ? (
+          <Button
+            prefix_icon="import_tray"
+            label={t("toolkit.import_skills_action")}
+            onClick={() => onOpenImportSkills()}
+            dom_props={{ "data-testid": "installed-import-skills" }}
+            style={sectionActionStyle}
+          />
+        ) : null}
+        {onOpenSkillOrganizer ? (
+          <Button
+            prefix_icon="list_settings"
+            label={t("toolkit.organize_skills_action")}
+            onClick={() => onOpenSkillOrganizer()}
+            dom_props={{ "data-testid": "installed-organize-skills" }}
+            style={sectionActionStyle}
+          />
+        ) : null}
+      </span>
+    ) : null;
+
+  /* The section stays on the page with no packs installed: it is where the
+     way to add one lives. It steps aside only during a search, like the two
+     sections above it, so an empty result still reads as "no matches". */
+  const showSkillPackSection =
+    skillPackRows.length > 0 || (!search.trim() && skillPackActions !== null);
 
   const renderRow = ({ toolkit: tk, presentation }) => {
     const isComputer =
@@ -406,36 +441,29 @@ const PluginsInstalledPage = ({
           </SettingsSection>
         )}
 
-        {skillPackRows.length > 0 && (
+        {showSkillPackSection && (
+          /* Import and Organize live on this header — the place a user is
+             already looking at their skills. Organize opens the same surface
+             as the palette's ORGANIZE; it stacks above this modal. */
           <SettingsSection
             title={t("toolkit.source_skillpack")}
-            /* The way into the skill organizer, from the place a user is
-               already looking at their skills. Same surface it opens from the
-               palette's ORGANIZE; it stacks above this modal. */
-            action={
-              onOpenSkillOrganizer ? (
-                <Button
-                  prefix_icon="list_settings"
-                  label={t("toolkit.organize_skills_action")}
-                  onClick={() => onOpenSkillOrganizer()}
-                  dom_props={{ "data-testid": "installed-organize-skills" }}
-                  style={{
-                    height: 26,
-                    borderRadius: 8,
-                    paddingVertical: 0,
-                    paddingHorizontal: 8,
-                    fontSize: 11,
-                    gap: 5,
-                    iconSize: 12,
-                    color: "var(--pupu-text-secondary)",
-                    hoverBackgroundColor: "var(--pupu-overlay-hover)",
-                    activeBackgroundColor: "var(--pupu-overlay-active)",
-                  }}
-                />
-              ) : null
-            }
+            action={skillPackActions}
           >
-            {skillPackRows.map(renderRow)}
+            {skillPackRows.length > 0 ? (
+              skillPackRows.map(renderRow)
+            ) : (
+              <div
+                style={{
+                  fontSize: 12,
+                  fontFamily,
+                  color: tertiaryText,
+                  padding: "12px 0 6px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {t("toolkit.skillpack_section_empty")}
+              </div>
+            )}
           </SettingsSection>
         )}
 

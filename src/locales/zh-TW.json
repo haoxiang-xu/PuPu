@@ -657,7 +657,6 @@
     "collection_count": "· {count} 個外掛",
     "get_all": "全部取得",
     "add_custom_plugin": "新增自訂外掛",
-    "import_skills_link": "從資料夾匯入技能",
     "import_skills_title": "匯入技能",
     "import_skills_section": "本機技能資料夾",
     "import_skills_intro": "將本機的 SKILL.md 檔案資料夾匯入為斜線指令。支援僅含指示的技能；附帶指令碼的技能在此版本會被略過。",

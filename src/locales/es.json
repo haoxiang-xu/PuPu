@@ -657,7 +657,6 @@
     "collection_count": "· {count} plugins",
     "get_all": "OBTENER TODO",
     "add_custom_plugin": "Añadir un plugin personalizado",
-    "import_skills_link": "Importar habilidades desde una carpeta",
     "import_skills_title": "Importar habilidades",
     "import_skills_section": "Carpeta local de habilidades",
     "import_skills_intro": "Importa una carpeta local de archivos SKILL.md como comandos de barra. Se admiten habilidades solo de instrucciones; las habilidades que incluyen scripts se omiten en esta versión.",

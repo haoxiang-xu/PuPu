@@ -657,7 +657,6 @@
     "collection_count": "· {count} plugins",
     "get_all": "OBTER TUDO",
     "add_custom_plugin": "Adicionar um plugin personalizado",
-    "import_skills_link": "Importar skills de uma pasta",
     "import_skills_title": "Importar skills",
     "import_skills_section": "Pasta local de skills",
     "import_skills_intro": "Importe uma pasta local de arquivos SKILL.md como comandos de barra. Skills apenas de instrução são suportadas; skills que incluem scripts são ignoradas nesta versão.",

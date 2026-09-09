@@ -657,7 +657,6 @@
     "collection_count": "· {count} plugin",
     "get_all": "OTTIENI TUTTO",
     "add_custom_plugin": "Aggiungi un plugin personalizzato",
-    "import_skills_link": "Importa skill da una cartella",
     "import_skills_title": "Importa skill",
     "import_skills_section": "Cartella di skill locale",
     "import_skills_intro": "Importa una cartella locale di file SKILL.md come slash-command. Sono supportate le skill di sole istruzioni; le skill che includono script vengono ignorate in questa versione.",
