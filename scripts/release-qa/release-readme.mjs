@@ -32,26 +32,36 @@ export function renderReleaseDownloadBlock({ manifest, contract, repository = "h
   const appImage = oneAsset(manifest, "linux-x64", "AppImage");
   const deb = oneAsset(manifest, "linux-x64", "deb");
   const link = (asset, label) => `[${label}](${releaseUrl(repository, tag, asset.name)})`;
+  const button = (asset, label, badge) =>
+    link(asset, `![${label}](https://img.shields.io/badge/${badge}?style=for-the-badge)`);
 
   return [
     README_DOWNLOADS_START,
+    `**${tag}** — Choose your platform and click to download.`,
+    "",
     "<a id=\"macos\"></a>",
+    "",
     "### macOS",
     "",
-    `- Apple Silicon: ${link(macArm, "DMG")}`,
-    `- Intel: ${link(macX64, "DMG")}`,
+    button(macArm, "Download for Mac — Apple Silicon", "Mac-Apple_Silicon-111827"),
+    button(macX64, "Download for Mac — Intel", "Mac-Intel-64748B"),
+    "",
+    "**Not sure which Mac you have?** Open **Apple menu → About This Mac**. Choose **Apple Silicon** for an Apple M-series chip, or **Intel** for an Intel processor.",
     "",
     "<a id=\"windows\"></a>",
+    "",
     "### Windows",
     "",
-    `1. Download the ${link(windows, "Windows x64 installer")}.`,
-    "2. Run the installer, then launch PuPu from the Start menu.",
+    button(windows, "Download for Windows x64", "Download-Windows_x64-0078D4"),
+    "",
+    "Run the installer, then launch PuPu from the Start menu.",
     "",
     "<a id=\"linux\"></a>",
+    "",
     "### Linux",
     "",
-    `- ${link(deb, "Debian/Ubuntu .deb")}`,
-    `- ${link(appImage, "AppImage")}`,
+    button(deb, "Download for Ubuntu / Debian x64", "Ubuntu_%2F_Debian-x64_DEB-E95420"),
+    button(appImage, "Download Linux AppImage x64", "Linux-x64_AppImage-2563EB"),
     "",
     "For the `.deb`, download it first and install it with:",
     "",

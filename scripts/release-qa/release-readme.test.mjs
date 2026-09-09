@@ -101,3 +101,26 @@ test("build version preparation no longer mutates README links", () => {
   const source = fs.readFileSync(path.join(ROOT, "scripts/prepare-build-version.cjs"), "utf8");
   assert.doesNotMatch(source, /update-readme-links/);
 });
+
+test("download buttons map exactly to the five manifest installers", () => {
+  const { manifest } = manifestFixture();
+  const block = renderReleaseDownloadBlock({ manifest, contract: CONTRACT });
+  const buttons = [...block.matchAll(/\[!\[([^\]]+)\]\((https:\/\/img\.shields\.io\/[^)]+)\)\]\(([^)]+)\)/g)];
+  assert.equal(buttons.length, 5);
+  assert.deepEqual(buttons.map((button) => button[1]), [
+    "Download for Mac — Apple Silicon",
+    "Download for Mac — Intel",
+    "Download for Windows x64",
+    "Download for Ubuntu / Debian x64",
+    "Download Linux AppImage x64",
+  ]);
+  const expectedNames = manifest.assets.filter((asset) => asset.role === "installer").map((asset) => asset.name).sort();
+  assert.deepEqual(buttons.map((button) => decodeURIComponent(new URL(button[3]).pathname.split("/").at(-1))).sort(), expectedNames);
+});
+
+test("download button destinations honor the supplied repository", () => {
+  const { manifest } = manifestFixture();
+  const block = renderReleaseDownloadBlock({ manifest, contract: CONTRACT, repository: "example/distribution" });
+  assert.equal((block.match(/https:\/\/github\.com\/example\/distribution\/releases\/download\/v0\.1\.10\//g) || []).length, 5);
+  assert.doesNotMatch(block, /github\.com\/haoxiang-xu\/PuPu|releases\/latest/);
+});
