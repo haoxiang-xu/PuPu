@@ -165,43 +165,7 @@ describe("CommandMenu tree", () => {
     expect(rowFor("/review").style.paddingLeft).toBe("8px");
   });
 
-  test("the organize entry only exists when a handler is given", () => {
-    const { rerender } = render(
-      <CommandMenu items={items} activeIndex={0} onPick={() => {}} />,
-    );
-    expect(
-      document.querySelector("[data-command-organize-entry]"),
-    ).toBeNull();
 
-    rerender(
-      <CommandMenu
-        items={items}
-        activeIndex={0}
-        onPick={() => {}}
-        onOrganize={() => {}}
-        organizeLabel="Organize skills…"
-      />,
-    );
-    expect(screen.getByText("Organize skills…")).toBeInTheDocument();
-  });
-
-  test("clicking the organize entry calls back without picking a command", () => {
-    const onOrganize = jest.fn();
-    const onPick = jest.fn();
-    render(
-      <CommandMenu
-        items={items}
-        activeIndex={0}
-        onPick={onPick}
-        onOrganize={onOrganize}
-        organizeLabel="Organize skills…"
-      />,
-    );
-
-    fireEvent.mouseDown(screen.getByText("Organize skills…"));
-    expect(onOrganize).toHaveBeenCalledTimes(1);
-    expect(onPick).not.toHaveBeenCalled();
-  });
 });
 
 describe("CommandMenu list height", () => {
@@ -229,19 +193,6 @@ describe("CommandMenu list height", () => {
     expect(heightOf({ items: rows(40) })).toBe(327);
   });
 
-  test("the organize entry is counted, not left to overflow", () => {
-    /* The regression this locks: the panel reserved room for the entry while
-       the list did not, so the list scrolled first and clipped its last row
-       through the middle. */
-    const without = heightOf({ items: rows(4) });
-    const with_ = heightOf({
-      items: rows(4),
-      onOrganize: () => {},
-      organizeLabel: "Organize skills…",
-    });
-    // listbox gap 1 + margin 2 + entry 26 + its 1px top rule (content-box)
-    expect(with_ - without).toBe(30);
-  });
 
   test("bare rows are shorter than carded ones", () => {
     expect(heightOf({ items: rows(4), bare: true })).toBeLessThan(

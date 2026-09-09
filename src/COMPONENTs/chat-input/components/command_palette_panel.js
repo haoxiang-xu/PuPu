@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import CommandMenu, { commandListHeight } from "./command_menu";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 /**
  * CommandPalettePanel — the "palette morph" (design D, Elevator Push motion).
@@ -84,13 +85,7 @@ const CommandPalettePanel = ({
      organized. The menu reports what it actually rendered; until it has, the
      flat count is right by construction. */
   const rowCount = visibleRowCount > 0 ? visibleRowCount : items.length;
-  const listH = on
-    ? commandListHeight({
-        rowCount,
-        bare: true,
-        withOrganizeEntry: !!onOrganize,
-      })
-    : 0;
+  const listH = on ? commandListHeight({ rowCount, bare: true }) : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
@@ -107,6 +102,13 @@ const CommandPalettePanel = ({
     ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
     : "1px solid rgba(var(--pupu-text-rgb),0.09)";
   const hintColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.38)";
+  /* the organize action sits in this same bar and speaks in the same voice as
+     the hints — a shade stronger at rest so it reads as pressable, a wash on
+     hover; it is an action among the panel's other panel-level things
+     (↑↓ ⏎), which is why it lives here and not as a row in the list */
+  const actionColor = isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.5)";
+  const actionHoverBg = isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)";
+  const actionActiveBg = isDark ? "rgba(var(--pupu-text-rgb),0.14)" : "rgba(var(--pupu-text-rgb),0.1)";
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
 
@@ -162,8 +164,6 @@ const CommandPalettePanel = ({
               onVisibleChange={onVisibleChange}
               folderState={folderState}
               expandRef={expandRef}
-              onOrganize={onOrganize}
-              organizeLabel={organizeLabel}
               visibleRowCount={visibleRowCount}
               isDark={isDark}
               bare
@@ -231,8 +231,47 @@ const CommandPalettePanel = ({
                 WebkitUserSelect: "none",
               }}
             >
-              COMMANDS · ↑↓ · ⏎ · esc
+              {onOrganize ? "COMMANDS · ↑↓ · ⏎" : "COMMANDS · ↑↓ · ⏎ · esc"}
             </span>
+            {onOrganize ? (
+              /* The header is pointer-events:none (it is decorative — the
+                 pill underneath owns the clicks at rest). This one child
+                 re-enables them for itself. mousedown is cancelled on the
+                 wrapper so the composer's textarea keeps focus: a blur would
+                 close the palette before the click ever lands. */
+              <span
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                style={{
+                  marginLeft: "auto",
+                  display: "inline-flex",
+                  pointerEvents: "auto",
+                }}
+              >
+                <Button
+                  prefix_icon="list_settings"
+                  label={organizeLabel}
+                  onClick={onOrganize}
+                  dom_props={{ "data-command-organize-action": "" }}
+                  style={{
+                    height: 18,
+                    fontSize: 10.5,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    color: actionColor,
+                    paddingVertical: 0,
+                    paddingHorizontal: 8,
+                    iconSize: 12,
+                    gap: 5,
+                    borderRadius: 9,
+                    hoverBackgroundColor: actionHoverBg,
+                    activeBackgroundColor: actionActiveBg,
+                  }}
+                />
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

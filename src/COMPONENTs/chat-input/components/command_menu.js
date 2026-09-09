@@ -16,7 +16,6 @@
  * arrow keys can walk a tree without knowing its shape.
  */
 import { useMemo } from "react";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import CommandTree from "./command_tree";
 import { BARE_ROW_HEIGHT, ROW_HEIGHT } from "./command_row";
 import { buildCommandTree } from "../../../SERVICEs/skill_folder_storage";
@@ -30,19 +29,7 @@ const MAX_VISIBLE_TREE_ROWS = 10;
    one. 7 + 1 = 8 = 22 − 14: the row pill's arc and the panel's arc share a
    centre. (8 here read as "concentric" for a long time; it was 1px off.) */
 const LIST_PADDING = 7;
-/* The listbox is a flex column with gap 1 between its TWO children — the tree
-   and the organize entry. Rows inside the tree are contiguous: Explorer stacks
-   them with no gap, unlike the flat list this replaced. A 1px-per-row stride
-   lingered from that list and made the panel 6px taller than what it held;
-   flex-end parked those 6px at the top, on top of the inset, and the top row's
-   corner drifted off the panel's. Measured against the rendered list, item by
-   item: 7 + rows×28 + 1 + 2 + 26 + 1. */
-const TREE_TO_ENTRY_GAP = 1;
-const ORGANIZE_ENTRY_H = 26;
-const ORGANIZE_ENTRY_MARGIN = 2;
-/* content-box (this repo sets no global border-box): the entry's 1px top rule
-   sits outside its height */
-const ORGANIZE_ENTRY_BORDER = 1;
+/* Rows inside the tree are contiguous — Explorer stacks them with no gap. */
 
 /**
  * The list's height, from the row count actually rendered.
@@ -55,19 +42,9 @@ const ORGANIZE_ENTRY_BORDER = 1;
 export const commandListHeight = ({
   rowCount = 0,
   bare = false,
-  withOrganizeEntry = false,
 } = {}) => {
   const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
-  return (
-    Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * rowHeight +
-    LIST_PADDING +
-    (withOrganizeEntry
-      ? TREE_TO_ENTRY_GAP +
-        ORGANIZE_ENTRY_MARGIN +
-        ORGANIZE_ENTRY_H +
-        ORGANIZE_ENTRY_BORDER
-      : 0)
-  );
+  return Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * rowHeight + LIST_PADDING;
 };
 
 /**
@@ -87,8 +64,6 @@ const CommandMenu = ({
   visible = true,
   folderState = null,
   expandRef = null,
-  onOrganize = null,
-  organizeLabel = "",
   visibleRowCount = 0,
   width = 280,
 }) => {
@@ -152,7 +127,6 @@ const CommandMenu = ({
         maxHeight: commandListHeight({
           rowCount: visibleRowCount > 0 ? visibleRowCount : items.length,
           bare,
-          withOrganizeEntry: !!onOrganize,
         }),
         overflowY: "auto",
         overscrollBehavior: "contain",
@@ -173,42 +147,6 @@ const CommandMenu = ({
         expandRef={expandRef}
       />
 
-      {/* ── organize entry ────────────────────────────
-          The moment a user wants to fix this list is the moment they are
-          looking at it, so the way in sits at its foot rather than somewhere
-          in settings. Dragging still never happens here: this opens the
-          organizer, it does not turn the overlay into one. */}
-      {onOrganize ? (
-        <div
-          data-command-organize-entry
-          onMouseDown={(event) => {
-            event.preventDefault();
-            onOrganize();
-          }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            height: ORGANIZE_ENTRY_H,
-            flexShrink: 0,
-            marginTop: ORGANIZE_ENTRY_MARGIN,
-            padding: "0 10px",
-            borderTop: "1px solid rgba(var(--pupu-text-rgb),0.07)",
-            borderRadius: bare ? 14 : 7,
-            fontSize: 11.5,
-            color: "rgba(var(--pupu-text-rgb),0.42)",
-            cursor: "pointer",
-            userSelect: "none",
-          }}
-        >
-          <Icon
-            src="folder_new"
-            color="rgba(var(--pupu-text-rgb),0.38)"
-            style={{ width: 12, height: 12, flexShrink: 0 }}
-          />
-          <span>{organizeLabel}</span>
-        </div>
-      ) : null}
     </div>
   );
 };

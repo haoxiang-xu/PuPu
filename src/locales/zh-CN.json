@@ -692,7 +692,7 @@
     "btw": "立即回答，不打断当前任务",
     "fyi": "补充给当前任务",
     "queue": "排队，当前任务完成后执行",
-    "organize_entry": "整理 skills…",
+    "organize_action": "整理",
     "organizer_title": "整理 Skills",
     "organizer_unfiled": "未归类",
     "organizer_all_filed": "全部已归类。",

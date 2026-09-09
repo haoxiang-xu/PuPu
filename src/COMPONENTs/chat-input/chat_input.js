@@ -562,7 +562,7 @@ const ChatInput = ({
                     setCommandMenuDismissed(true);
                     setOrganizerOpen(true);
                   }}
-                  organizeLabel={t("commands.organize_entry")}
+                  organizeLabel={t("commands.organize_action")}
                   visibleRowCount={commandVisibleIds.length}
                   isDark={isDark}
                 >
