@@ -658,6 +658,7 @@
     "get_all": "全部获取",
     "add_custom_plugin": "添加自定义插件",
     "import_skills_link": "从文件夹导入技能",
+    "organize_skills_action": "整理 skills",
     "import_skills_title": "导入技能",
     "import_skills_section": "本地技能文件夹",
     "import_skills_intro": "从本地文件夹导入 SKILL.md 作为斜杠命令。本期仅支持纯指令技能；携带脚本的技能会被跳过。",

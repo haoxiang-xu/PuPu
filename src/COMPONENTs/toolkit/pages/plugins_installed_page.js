@@ -52,6 +52,7 @@ const PluginsInstalledPage = ({
   onHandlersReady,
   onOpenCustomMcp,
   onOpenImportSkills,
+  onOpenSkillOrganizer,
   onOpenPluginSettings,
 }) => {
   const { theme } = useContext(ConfigContext);
@@ -406,7 +407,34 @@ const PluginsInstalledPage = ({
         )}
 
         {skillPackRows.length > 0 && (
-          <SettingsSection title={t("toolkit.source_skillpack")}>
+          <SettingsSection
+            title={t("toolkit.source_skillpack")}
+            /* The way into the skill organizer, from the place a user is
+               already looking at their skills. Same surface it opens from the
+               palette's ORGANIZE; it stacks above this modal. */
+            action={
+              onOpenSkillOrganizer ? (
+                <Button
+                  prefix_icon="list_settings"
+                  label={t("toolkit.organize_skills_action")}
+                  onClick={() => onOpenSkillOrganizer()}
+                  dom_props={{ "data-testid": "installed-organize-skills" }}
+                  style={{
+                    height: 26,
+                    borderRadius: 8,
+                    paddingVertical: 0,
+                    paddingHorizontal: 8,
+                    fontSize: 11,
+                    gap: 5,
+                    iconSize: 12,
+                    color: "var(--pupu-text-secondary)",
+                    hoverBackgroundColor: "var(--pupu-overlay-hover)",
+                    activeBackgroundColor: "var(--pupu-overlay-active)",
+                  }}
+                />
+              ) : null
+            }
+          >
             {skillPackRows.map(renderRow)}
           </SettingsSection>
         )}

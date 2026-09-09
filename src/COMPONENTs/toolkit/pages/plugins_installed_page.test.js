@@ -427,3 +427,49 @@ describe("PluginsInstalledPage", () => {
     });
   });
 });
+
+describe("PluginsInstalledPage — organize skills entry", () => {
+  const withSkillPack = () =>
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "skillpack.superpowers",
+          toolkitName: "Superpowers Essentials",
+          toolkitDescription: "Imported skill pack",
+          source: "skillpack",
+          tools: [],
+          skills: [{ name: "brainstorming", title: "Brainstorming" }],
+        },
+      ],
+    });
+
+  const renderPage = async (props = {}) => {
+    let rendered;
+    await act(async () => {
+      rendered = render(
+        <PluginsInstalledPage isDark={false} onOpenDetail={() => {}} {...props} />,
+      );
+    });
+    return rendered;
+  };
+
+  test("the Skill packs section carries the entry and it opens the organizer", async () => {
+    withSkillPack();
+    const onOpenSkillOrganizer = jest.fn();
+    await renderPage({ onOpenSkillOrganizer });
+
+    const entry = screen.getByTestId("installed-organize-skills");
+    // it lives in the Skill packs section's own header row, not in the footer
+    const section = screen.getByText("Skill packs").closest("div").parentElement;
+    expect(section.contains(entry)).toBe(true);
+
+    fireEvent.click(entry);
+    expect(onOpenSkillOrganizer).toHaveBeenCalledTimes(1);
+  });
+
+  test("without a handler the section header stays caption-only", async () => {
+    withSkillPack();
+    await renderPage();
+    expect(screen.queryByTestId("installed-organize-skills")).toBeNull();
+  });
+});

@@ -60,13 +60,16 @@ export const SettingsRow = ({ label, description, children }) => {
 /*  SettingsSection — title + grouped rows                                                                                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-export const SettingsSection = ({ title, icon, children }) => {
+/* `action`: an optional control that sits at the right end of the title row —
+   a text button like the theme editor's Import/Export. The row is otherwise
+   caption-only, so an absent action costs nothing. */
+export const SettingsSection = ({ title, icon, action = null, children }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   return (
     <div style={{ marginBottom: 8 }}>
-      {title && (
+      {(title || action) && (
         <div
           style={{
             display: "flex",
@@ -97,6 +100,11 @@ export const SettingsSection = ({ title, icon, children }) => {
           >
             {title}
           </span>
+          {action ? (
+            <span style={{ marginLeft: "auto", display: "inline-flex" }}>
+              {action}
+            </span>
+          ) : null}
         </div>
       )}
       <div

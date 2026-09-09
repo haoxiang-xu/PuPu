@@ -658,6 +658,7 @@
     "get_all": "GET ALL",
     "add_custom_plugin": "Add a custom plugin",
     "import_skills_link": "Import skills from a folder",
+    "organize_skills_action": "Organize skills",
     "import_skills_title": "Import skills",
     "import_skills_section": "Local skill folder",
     "import_skills_intro": "Import a local folder of SKILL.md files as slash-commands. Instruction-only skills are supported; skills that ship scripts are skipped this release.",

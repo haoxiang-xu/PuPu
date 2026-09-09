@@ -4,6 +4,7 @@ import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translat
 import PluginsDiscoverPage from "./pages/plugins_discover_page";
 import PluginsCategoriesPage from "./pages/plugins_categories_page";
 import PluginsInstalledPage from "./pages/plugins_installed_page";
+import SkillOrganizerModal from "../command-organizer/skill_organizer_modal";
 import PluginDetailPage from "./pages/plugin_detail_page";
 import CustomMcpPage from "./pages/custom_mcp_page";
 import ImportSkillsPage from "./pages/import_skills_page";
@@ -150,6 +151,13 @@ export const PluginsShell = ({
 
   /* Import skills — same low-key footer-link + slide-in pattern as custom MCP,
      for the S3 open-skill-ecosystem importer (local directory of SKILL.md). */
+  /* The skill organizer opens ABOVE this modal rather than replacing it, so
+     closing it lands the user back where they were. Modal's Escape handling
+     is stack-aware, so Esc peels one layer at a time. */
+  const [organizerOpen, setOrganizerOpen] = useState(false);
+  const handleOpenSkillOrganizer = useCallback(() => setOrganizerOpen(true), []);
+  const handleCloseSkillOrganizer = useCallback(() => setOrganizerOpen(false), []);
+
   const handleOpenImportSkills = useCallback(() => {
     openDetail({ kind: "import_skills" });
   }, [openDetail]);
@@ -537,6 +545,7 @@ export const PluginsShell = ({
           onHandlersReady={handleHandlersReady}
           onOpenCustomMcp={handleOpenCustomMcp}
           onOpenImportSkills={handleOpenImportSkills}
+          onOpenSkillOrganizer={handleOpenSkillOrganizer}
           onOpenPluginSettings={handleOpenPluginSettings}
         />
       );
@@ -579,6 +588,7 @@ export const PluginsShell = ({
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
   return (
+    <>
     <div style={{ display: "flex", height: "100%", fontSize: 13, fontFamily }}>
       {/* ── Sidebar — settings-modal clone (T1): 140px, bg .03/.04, hairline
          right border, uppercase eyebrow title, Button nav items whose
@@ -887,6 +897,12 @@ export const PluginsShell = ({
         )}
       </div>
     </div>
+    <SkillOrganizerModal
+      open={organizerOpen}
+      onClose={handleCloseSkillOrganizer}
+      isDark={isDark}
+    />
+    </>
   );
 };
 
