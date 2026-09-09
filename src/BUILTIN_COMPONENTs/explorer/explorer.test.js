@@ -568,3 +568,273 @@ describe("row_hover prop", () => {
     expect(layers.every((el) => el.style.opacity !== "1")).toBe(true);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Issue #232 — external drag-in and consumer-supplied highlight            */
+/*                                                                          */
+/*  Both props are additive: every test here also asserts the absent-prop    */
+/*  default, because five product surfaces already render this component     */
+/*  (side menu, recipe list, theme editor, memory inspect) and none of them  */
+/*  passes either one.                                                       */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+describe("external_drag / on_external_drop", () => {
+  const ROW_H = 30;
+  const CONTAINER_TOP = 100;
+  const CONTAINER_LEFT = 0;
+  const CONTAINER_RIGHT = 240;
+
+  /* jsdom gives every element a zero rect, so drop hit-testing needs real
+     numbers. Rows are matched by their exact text content — computeDropTarget
+     only ever measures registered row roots and the container, and the
+     container's text is the concatenation of all rows, so it never collides
+     with a single row's label. */
+  const stubRects = (rowTexts) => {
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function stubbed() {
+      const index = rowTexts.indexOf(this.textContent);
+      if (index !== -1) {
+        const top = CONTAINER_TOP + index * ROW_H;
+        return {
+          top,
+          bottom: top + ROW_H,
+          left: CONTAINER_LEFT,
+          right: CONTAINER_RIGHT,
+          width: CONTAINER_RIGHT - CONTAINER_LEFT,
+          height: ROW_H,
+        };
+      }
+      return {
+        top: CONTAINER_TOP,
+        bottom: CONTAINER_TOP + rowTexts.length * ROW_H,
+        left: CONTAINER_LEFT,
+        right: CONTAINER_RIGHT,
+        width: CONTAINER_RIGHT - CONTAINER_LEFT,
+        height: rowTexts.length * ROW_H,
+      };
+    };
+    return () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+  };
+
+  /* An EMPTY folder plus a plain file. An empty folder takes the collapsed
+     hit-test branch, whose middle 50% is "inside" — the gesture the organizer
+     actually needs (drop an unfiled command into a category). */
+  const tree = {
+    data: {
+      "folder:code": { label: "Code", type: "folder", children: [] },
+      "/review": { label: "/review", type: "file" },
+    },
+    root: ["folder:code", "/review"],
+  };
+  const rowTexts = ["Code", "/review"];
+
+  const incoming = {
+    active: true,
+    nodeId: "/polish",
+    node: { label: "/polish", type: "file" },
+  };
+
+  let restoreRects;
+  afterEach(() => {
+    if (restoreRects) restoreRects();
+    restoreRects = null;
+  });
+
+  test("drops an outside node into the folder under the pointer", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    const onReorder = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: incoming,
+      on_external_drop: onExternalDrop,
+      on_reorder: onReorder,
+    });
+
+    // middle of the "Code" row → "inside"
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).toHaveBeenCalledTimes(1);
+    const [nodeId, result] = onExternalDrop.mock.calls[0];
+    expect(nodeId).toBe("/polish");
+    expect(result.map["folder:code"].children).toEqual(["/polish"]);
+    expect(result.map["/polish"].label).toBe("/polish");
+    // the tree's own reorder callback fires too, so a consumer that only
+    // listens for on_reorder still persists the new shape
+    expect(onReorder).toHaveBeenCalledTimes(1);
+  });
+
+  test("a pointer outside the tree's bounds is not a drop", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: incoming,
+      on_external_drop: onExternalDrop,
+    });
+
+    // far above the container — where the source column would be
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 10 });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+  });
+
+  test("leaving the tree after hovering it clears the pending drop", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: incoming,
+      on_external_drop: onExternalDrop,
+    });
+
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 10 });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+  });
+
+  test("Escape cancels a pending external drop", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: incoming,
+      on_external_drop: onExternalDrop,
+    });
+
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+  });
+
+  test("an id that already exists in the tree is refused", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: {
+        active: true,
+        nodeId: "/review",
+        node: { label: "/review", type: "file" },
+      },
+      on_external_drop: onExternalDrop,
+    });
+
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+  });
+
+  test("without external_drag the same gestures do nothing (default unchanged)", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    const onReorder = jest.fn();
+    renderExplorer({ ...tree, on_external_drop: onExternalDrop, on_reorder: onReorder });
+
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  test("external_drag inactive is inert", () => {
+    restoreRects = stubRects(rowTexts);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      ...tree,
+      external_drag: { ...incoming, active: false },
+      on_external_drop: onExternalDrop,
+    });
+
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).not.toHaveBeenCalled();
+  });
+});
+
+describe("render_highlight", () => {
+  test("receives the rows in visible order and renders into the tree", () => {
+    let captured = null;
+    renderExplorer({
+      data: {
+        "folder:a": { label: "Group", type: "folder", children: ["one", "two"] },
+        one: { label: "One", type: "file" },
+        two: { label: "Two", type: "file" },
+        three: { label: "Three", type: "file" },
+      },
+      root: ["folder:a", "three"],
+      default_expanded: ["folder:a"],
+      row_hover: false,
+      render_highlight: (args) => {
+        captured = args;
+        return <span data-testid="custom-highlight" />;
+      },
+    });
+
+    expect(screen.getByTestId("custom-highlight")).toBeInTheDocument();
+    expect(captured.visibleIds).toEqual(["folder:a", "one", "two", "three"]);
+    // rowRefs.current is a live getter — read AFTER the commit it describes
+    const rows = captured.rowRefs.current;
+    expect(rows).toHaveLength(4);
+    expect(rows.every((el) => el instanceof HTMLElement)).toBe(true);
+    expect(rows[1].textContent).toBe("One");
+  });
+
+  test("collapsing a folder drops its children from the highlight order", () => {
+    let captured = null;
+    renderExplorer({
+      data: {
+        "folder:a": { label: "Group", type: "folder", children: ["one"] },
+        one: { label: "One", type: "file" },
+      },
+      root: ["folder:a"],
+      default_expanded: ["folder:a"],
+      render_highlight: (args) => {
+        captured = args;
+        return null;
+      },
+    });
+
+    expect(captured.visibleIds).toEqual(["folder:a", "one"]);
+    fireEvent.click(screen.getByText("Group"));
+    expect(captured.visibleIds).toEqual(["folder:a"]);
+    expect(captured.rowRefs.current).toHaveLength(1);
+  });
+
+  test("without render_highlight nothing extra is rendered (default unchanged)", () => {
+    const { container } = renderExplorer({
+      data: { one: { label: "One", type: "file" } },
+      root: ["one"],
+    });
+    expect(container.querySelector("[data-testid='custom-highlight']")).toBeNull();
+  });
+});

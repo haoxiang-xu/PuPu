@@ -438,29 +438,15 @@ const computeDropTarget = (
   return null;
 };
 
-/** Execute the drop and return the new { map, root } or null on failure. */
-const performDrop = (store, sourceId, dropTarget, expandedRef) => {
-  if (!dropTarget) return null;
-  const { map, root } = cloneStore(store);
-
-  /* prevent dropping inside own subtree */
-  if (
-    dropTarget.targetId === sourceId ||
-    isDescendantOf(store.map, sourceId, dropTarget.targetId)
-  ) {
-    return null;
-  }
-
-  /* 1. remove source from its current parent */
-  const srcParent = findParentInfo(map, root, sourceId);
-  if (!srcParent) return null;
-  if (srcParent.parentKey === null) {
-    root.splice(srcParent.index, 1);
-  } else {
-    map[srcParent.parentKey].children.splice(srcParent.index, 1);
-  }
-
-  /* 2. insert at target position */
+/** Insert `sourceId` at `dropTarget` inside an ALREADY-CLONED { map, root }.
+ *
+ *  Split out of performDrop so an external drop — a node arriving from
+ *  outside this Explorer, see `external_drag` — lands through the exact same
+ *  placement rules as an internal move instead of a second implementation of
+ *  before/after/inside. performDrop is removal followed by this; an external
+ *  drop is this alone, because there is nothing to remove.
+ */
+const insertAtDropTarget = (map, root, sourceId, dropTarget, expandedRef) => {
   if (dropTarget.type === "inside") {
     const folder = map[dropTarget.targetId];
     if (!folder.children) folder.children = [];
@@ -517,6 +503,43 @@ const performDrop = (store, sourceId, dropTarget, expandedRef) => {
   return null;
 };
 
+/** Execute the drop and return the new { map, root } or null on failure. */
+const performDrop = (store, sourceId, dropTarget, expandedRef) => {
+  if (!dropTarget) return null;
+  const { map, root } = cloneStore(store);
+
+  /* prevent dropping inside own subtree */
+  if (
+    dropTarget.targetId === sourceId ||
+    isDescendantOf(store.map, sourceId, dropTarget.targetId)
+  ) {
+    return null;
+  }
+
+  /* 1. remove source from its current parent */
+  const srcParent = findParentInfo(map, root, sourceId);
+  if (!srcParent) return null;
+  if (srcParent.parentKey === null) {
+    root.splice(srcParent.index, 1);
+  } else {
+    map[srcParent.parentKey].children.splice(srcParent.index, 1);
+  }
+
+  /* 2. insert at target position */
+  return insertAtDropTarget(map, root, sourceId, dropTarget, expandedRef);
+};
+
+/** Land a node that came from OUTSIDE this Explorer. The node's data is
+ *  supplied by the drag source (there is nothing in the store to copy it
+ *  from), and an id already present in the tree is refused — a duplicate id
+ *  would break the flat map the whole component is built on. */
+const performExternalDrop = (store, nodeId, node, dropTarget, expandedRef) => {
+  if (!dropTarget || !nodeId || store.map[nodeId]) return null;
+  const { map, root } = cloneStore(store);
+  map[nodeId] = { ...node };
+  return insertAtDropTarget(map, root, nodeId, dropTarget, expandedRef);
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  ExplorerRow — one row in the tree                                                                                           */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -541,6 +564,10 @@ const ExplorerRowBase = ({
   rowHeight = ROW_HEIGHT,
   rowRadius = 5,
   rowHover = true,
+  /* True when the consumer supplied render_highlight. Its indicator replaces
+     ALL of Explorer's built-in selection washes, so the per-row active block
+     stands down rather than doubling up behind it. */
+  customHighlight = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -773,7 +800,7 @@ const ExplorerRowBase = ({
             backgroundColor: isDark
               ? "rgba(255,255,255,0.10)"
               : "rgba(0,0,0,0.082)",
-            opacity: isActive ? 1 : 0,
+            opacity: isActive && !customHighlight ? 1 : 0,
             transition: "opacity 0.15s ease",
             pointerEvents: "none",
             zIndex: 0,
@@ -803,7 +830,7 @@ const ExplorerRowBase = ({
 
         <div style={{ position: "relative", zIndex: 1 }}>
           {typeof node.component === "function"
-            ? node.component({ node, depth, isExpanded })
+            ? node.component({ node, depth, isExpanded, isActive })
             : node.component}
         </div>
       </div>
@@ -879,7 +906,7 @@ const ExplorerRowBase = ({
           backgroundColor: isDark
             ? "rgba(255,255,255,0.10)"
             : "rgba(0,0,0,0.082)",
-          opacity: isActive ? 1 : 0,
+          opacity: isActive && !customHighlight ? 1 : 0,
           transition: "opacity 0.15s ease",
           pointerEvents: "none",
           zIndex: 0,
@@ -1281,6 +1308,7 @@ const ExplorerBranch = ({
   rowHeight,
   rowRadius,
   rowHover,
+  customHighlight,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1312,6 +1340,7 @@ const ExplorerBranch = ({
           onHoverRow={onHoverRow}
           activeNodeId={activeNodeId}
           contextMenuNodeId={contextMenuNodeId}
+          customHighlight={customHighlight}
           highlightColor={highlightColor}
           isLockedExpanded={isLockedExpanded}
           rowHeight={rowHeight}
@@ -1363,6 +1392,7 @@ const ExplorerBranch = ({
                   onHoverRow={onHoverRow}
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
+                  customHighlight={customHighlight}
                   highlightColor={highlightColor}
                   rowHeight={rowHeight}
                   rowRadius={rowRadius}
@@ -1560,6 +1590,30 @@ const Explorer = ({
   context_menu_node_id,
   locked_expanded,
   row_hover = true,
+  /* ── external drag-in (issue #232) ───────────────────
+     A drag that STARTED somewhere else — the skill organizer's unfiled
+     column — and may land here. The source owns the pointer; this Explorer
+     only hit-tests it, shows the same drop indicator an internal drag gets,
+     and reports where it landed.
+       external_drag: { active, nodeId, node }
+       on_external_drop: (nodeId, { map, root }) => void
+     Both default to absent, and every code path below is gated on
+     `external_drag?.active`, so the five existing consumers are untouched. */
+  external_drag = null,
+  on_external_drop,
+  /* Optional replacement for the built-in hover wash. Called with the rows
+     in VISIBLE order so a consumer can drive its own indicator — the command
+     palette passes SlidingHighlight, keeping the gliding pill it has always
+     had instead of inheriting the per-row scale/opacity block. Pair it with
+     row_hover={false}: that already suppresses both the per-row wash and the
+     scope box, so there is no second suppression switch to keep in sync. */
+  render_highlight,
+  /* Optional handle onto this Explorer's expansion state, for a consumer that
+     drives the tree from the keyboard (the command palette's arrow keys).
+     Expansion stays owned here — this only hands out the verbs, so no consumer
+     has to mirror the state to use them. Populated with
+     { toggle, expand, collapse, isExpanded }. */
+  expand_ref,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1608,6 +1662,24 @@ const Explorer = ({
     [lockedExpandedIds],
   );
 
+  /* Hand the expansion verbs to a keyboard-driving consumer. Assigned during
+     render rather than in an effect so the first keypress after mount already
+     finds them; `expandedRef` keeps isExpanded honest between renders. */
+  if (expand_ref) {
+    expand_ref.current = {
+      toggle: toggleExpand,
+      expand: (id) => {
+        if (lockedExpandedIds.has(id)) return;
+        setExpanded((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+      },
+      collapse: (id) => {
+        if (lockedExpandedIds.has(id)) return;
+        setExpanded((prev) => (prev[id] ? { ...prev, [id]: false } : prev));
+      },
+      isExpanded: (id) => !!expandedRef.current[id],
+    };
+  }
+
   /* ── sizing / colors ───────────────────────────────── */
   const fontSize = style?.fontSize ?? 14;
   const containerWidth = style?.width ?? 260;
@@ -1628,6 +1700,10 @@ const Explorer = ({
   storeRef.current = store;
   const onReorderRef = useRef(on_reorder);
   onReorderRef.current = on_reorder;
+  const onExternalDropRef = useRef(on_external_drop);
+  onExternalDropRef.current = on_external_drop;
+  const externalDragRef = useRef(external_drag);
+  externalDragRef.current = external_drag;
 
   const registerRowRef = useCallback((id, el) => {
     if (el) rowRefsMap.current.set(id, el);
@@ -1641,6 +1717,27 @@ const Explorer = ({
   );
   const visibleItemsRef = useRef(visibleItems);
   visibleItemsRef.current = visibleItems;
+
+  /* Rows in visible order, for `render_highlight`. Shaped like a React ref so
+     it drops straight into SlidingHighlight, but `current` is a GETTER: the
+     highlight renders as a child of this container, so its effects run before
+     this component's, and any array snapshot handed over would be one commit
+     stale on exactly the renders that matter. Reading through the getter is
+     always current, and the arrays are one screen of rows. */
+  const highlightRowRefs = useRef(null);
+  if (!highlightRowRefs.current) {
+    highlightRowRefs.current = {
+      get current() {
+        return visibleItemsRef.current.map(
+          (item) => rowRefsMap.current.get(item.id) || null,
+        );
+      },
+    };
+  }
+  const visibleIds = useMemo(
+    () => visibleItems.map((item) => item.id),
+    [visibleItems],
+  );
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
   /*  Custom drag-and-drop state machine                   */
@@ -1937,6 +2034,109 @@ const Explorer = ({
     };
   }, [draggable, beginDrag, updateDrag, endDrag, row_height]);
 
+  /* ── external drag-in listeners (issue #232) ─────────
+     Deliberately a SECOND effect rather than a branch inside the one above:
+     the internal machine stays exactly as it was, and this one is inert
+     unless a source outside the tree says it is dragging. `dragState` is
+     shared so the drop indicator and the drag-time pointerEvents lock come
+     for free; sourceId stays null, which is also what keeps the drag ghost
+     (rendered on sourceNode) out of it — the external source draws its own. */
+  useEffect(() => {
+    if (!external_drag?.active) return undefined;
+
+    const clearExternal = () => {
+      clearAutoExpand();
+      dropTargetRef.current = null;
+      setDragState({ isDragging: false, sourceId: null, dropTarget: null });
+    };
+
+    const handleMouseMove = (e) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+
+      /* Outside our bounds is NOT a drop — computeDropTarget's "below every
+         row" fallback would otherwise file the node while the pointer is
+         still parked over the source column. */
+      if (
+        e.clientX < containerRect.left ||
+        e.clientX > containerRect.right ||
+        e.clientY < containerRect.top ||
+        e.clientY > containerRect.bottom
+      ) {
+        if (dropTargetRef.current) clearExternal();
+        return;
+      }
+
+      const target = computeDropTarget(
+        e.clientX,
+        e.clientY,
+        null,
+        visibleItemsRef.current,
+        rowRefsMap.current,
+        containerRect.left,
+      );
+      dropTargetRef.current = target;
+      setDragState({ isDragging: true, sourceId: null, dropTarget: target });
+
+      if (target && target.type === "inside") {
+        const folderId = target.targetId;
+        if (
+          autoExpandTargetRef.current !== folderId &&
+          !expandedRef.current[folderId]
+        ) {
+          clearAutoExpand();
+          autoExpandTargetRef.current = folderId;
+          autoExpandTimer.current = setTimeout(() => {
+            setExpanded((prev) => ({ ...prev, [folderId]: true }));
+            autoExpandTargetRef.current = null;
+          }, AUTO_EXPAND_DELAY);
+        }
+      } else {
+        clearAutoExpand();
+      }
+    };
+
+    const handleMouseUp = () => {
+      const target = dropTargetRef.current;
+      const drag = externalDragRef.current;
+      clearExternal();
+      if (!target || !drag?.nodeId) return;
+
+      const result = performExternalDrop(
+        storeRef.current,
+        drag.nodeId,
+        drag.node || { id: drag.nodeId, label: drag.nodeId, type: "file" },
+        target,
+        expandedRef,
+      );
+      if (!result) return;
+
+      setStore(result);
+      if (target.type === "inside") {
+        setExpanded((prev) => ({ ...prev, [target.targetId]: true }));
+      }
+      if (onExternalDropRef.current) {
+        onExternalDropRef.current(drag.nodeId, result);
+      }
+      if (onReorderRef.current) onReorderRef.current(result.map, result.root);
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") clearExternal();
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("keydown", handleKeyDown);
+      clearExternal();
+    };
+  }, [external_drag?.active, clearAutoExpand]);
+
   /* ── drag ghost data ───────────────────────────────── */
   const sourceNode = useMemo(
     () =>
@@ -1992,6 +2192,14 @@ const Explorer = ({
         isDark={isDark}
       />
 
+      {/* ── consumer-supplied highlight ────────────────
+          Sits where BackgroundIndicator does — behind the rows, inside the
+          same position:relative container the rows measure their offsets
+          against, which is what a sliding indicator needs. */}
+      {render_highlight
+        ? render_highlight({ rowRefs: highlightRowRefs.current, visibleIds })
+        : null}
+
       <ExplorerBranch
         childKeys={store.root}
         nodeMap={store.map}
@@ -2014,6 +2222,7 @@ const Explorer = ({
         contextMenuNodeId={context_menu_node_id}
         highlightColor={highlightColor}
         lockedExpandedIds={lockedExpandedIds}
+        customHighlight={!!render_highlight}
       />
 
       {/* ── drop indicator ──────────────────────────── */}

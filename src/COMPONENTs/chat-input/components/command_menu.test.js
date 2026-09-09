@@ -56,7 +56,10 @@ describe("CommandMenu", () => {
     );
     expect(src).toContain('rgba(var(--pupu-surface-rgb),0.72)');
     expect(menu.style.backdropFilter).toBe("blur(18px) saturate(1.4)");
-    expect(menu.style.maxHeight).toBe("192px");
+    /* 10 rows, not the pre-#232 six: the surface is a tree now, and folder
+       rows spend height that carries no command — six commands inside three
+       categories is nine rows before anything scrolls. */
+    expect(menu.style.maxHeight).toBe("320px");
     expect(menu.style.padding).toBe("3px");
     expect(options[0].style.height).toBe("32px");
     expect(options[0].style.padding).toBe("0px 8px");
