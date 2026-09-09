@@ -223,7 +223,12 @@ const CommandTree = ({
       key={folderKey}
       data={decorated}
       root={root}
-      style={{ width, fontSize: 13 }}
+      /* No inset of Explorer's own. Its default container carries
+         padding:4px 0 (a side-menu-era default) — inside the palette that
+         put the top row 13px from the panel's edge while the sides sat at 9,
+         and a 14px pill 4px further from a 22px corner than its sides are is
+         visibly not concentric. The surface around this tree owns the inset. */
+      style={{ width, fontSize: 13, padding: 0, minHeight: 0 }}
       row_height={rowHeight}
       row_radius={rowRadius}
       row_hover={false}

@@ -438,7 +438,10 @@ const SkillOrganizerModal = ({ open, onClose, isDark = false }) => {
                 boxShadow: isDark
                   ? "0 12px 34px rgba(0,0,0,0.42)"
                   : "0 12px 34px rgba(0,0,0,0.14)",
-                padding: "8px 8px 6px",
+                /* 7 + the 1px border = 8 = card radius 22 − row pill 14,
+                   the same inset the real palette uses — this card IS that
+                   palette, so its corners must be concentric the same way */
+                padding: "7px 7px 6px",
               }}
             >
               <div

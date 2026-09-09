@@ -59,9 +59,9 @@ describe("CommandMenu", () => {
     /* Height follows the rows actually rendered and caps at ten — not the
        pre-#232 fixed six. The surface is a tree now: folder rows spend height
        that carries no command, so six commands inside three categories is
-       nine rows before anything scrolls. Three flat rows at stride 33 plus
-       8px of padding is 107. */
-    expect(menu.style.maxHeight).toBe("107px");
+       nine rows before anything scrolls. Three contiguous 32px rows plus
+       the 7px top inset is 103. */
+    expect(menu.style.maxHeight).toBe("103px");
     expect(menu.style.padding).toBe("3px");
     expect(options[0].style.height).toBe("32px");
     /* Asserted per-side rather than as a shorthand: a row now carries a
@@ -224,9 +224,9 @@ describe("CommandMenu list height", () => {
   };
 
   test("caps at ten rows however many commands there are", () => {
-    // 10 * (32 + 1) + 8
-    expect(heightOf({ items: rows(10) })).toBe(338);
-    expect(heightOf({ items: rows(40) })).toBe(338);
+    // 10 * 32 + 7 — rows inside the tree are contiguous, no per-row gap
+    expect(heightOf({ items: rows(10) })).toBe(327);
+    expect(heightOf({ items: rows(40) })).toBe(327);
   });
 
   test("the organize entry is counted, not left to overflow", () => {
@@ -239,7 +239,8 @@ describe("CommandMenu list height", () => {
       onOrganize: () => {},
       organizeLabel: "Organize skills…",
     });
-    expect(with_ - without).toBe(28); // entry 26 + 2 margin
+    // listbox gap 1 + margin 2 + entry 26 + its 1px top rule (content-box)
+    expect(with_ - without).toBe(30);
   });
 
   test("bare rows are shorter than carded ones", () => {
@@ -253,5 +254,34 @@ describe("CommandMenu list height", () => {
     expect(heightOf({ items: rows(9), visibleRowCount: 3 })).toBe(
       heightOf({ items: rows(3) }),
     );
+  });
+});
+
+describe("CommandMenu corners stay concentric with the palette", () => {
+  /* The palette panel is radius 22 with a 1px border outside its width; the
+     row pill is radius 14. Concentric arcs need the pill exactly 22 − 14 = 8
+     from the visible corner on every side — 7 of inset here plus the border.
+     What broke this once: Explorer's own container carries padding:4px 0, so
+     swapping the flat list for the tree quietly pushed the top row to 13 while
+     the sides stayed at 9. */
+  const items = [
+    { name: "/a", description: "a" },
+    { name: "/b", description: "b" },
+  ];
+
+  test("the bare list insets 7 on top and sides, none below", () => {
+    render(<CommandMenu items={items} activeIndex={0} onPick={() => {}} bare />);
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    expect(menu.style.padding).toBe("7px 7px 0px");
+  });
+
+  test("the tree adds no inset of its own", () => {
+    render(<CommandMenu items={items} activeIndex={0} onPick={() => {}} bare />);
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    const explorerHost = menu.firstElementChild;
+    /* numeric: React writes a zero as "0" (no unit) while jsdom re-serialises
+       the padding shorthand as "0px" — the value is what matters */
+    expect(parseFloat(explorerHost.style.padding) || 0).toBe(0);
+    expect(parseFloat(explorerHost.style.minHeight) || 0).toBe(0);
   });
 });

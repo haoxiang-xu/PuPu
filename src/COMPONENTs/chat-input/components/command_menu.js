@@ -25,10 +25,24 @@ const MAX_VISIBLE_ROWS = 6;
 /* A tree needs more room than the old flat six rows: folder rows spend height
    that carries no command, so the same six commands can cost ten rows. */
 const MAX_VISIBLE_TREE_ROWS = 10;
-const ROW_GAP = 1;
-const LIST_PADDING = 8;
+/* Bare inset. The palette panel is radius 22 with a 1px border OUTSIDE its
+   280px width, so the pill's distance from the visible corner is this plus
+   one. 7 + 1 = 8 = 22 − 14: the row pill's arc and the panel's arc share a
+   centre. (8 here read as "concentric" for a long time; it was 1px off.) */
+const LIST_PADDING = 7;
+/* The listbox is a flex column with gap 1 between its TWO children — the tree
+   and the organize entry. Rows inside the tree are contiguous: Explorer stacks
+   them with no gap, unlike the flat list this replaced. A 1px-per-row stride
+   lingered from that list and made the panel 6px taller than what it held;
+   flex-end parked those 6px at the top, on top of the inset, and the top row's
+   corner drifted off the panel's. Measured against the rendered list, item by
+   item: 7 + rows×28 + 1 + 2 + 26 + 1. */
+const TREE_TO_ENTRY_GAP = 1;
 const ORGANIZE_ENTRY_H = 26;
 const ORGANIZE_ENTRY_MARGIN = 2;
+/* content-box (this repo sets no global border-box): the entry's 1px top rule
+   sits outside its height */
+const ORGANIZE_ENTRY_BORDER = 1;
 
 /**
  * The list's height, from the row count actually rendered.
@@ -43,11 +57,16 @@ export const commandListHeight = ({
   bare = false,
   withOrganizeEntry = false,
 } = {}) => {
-  const stride = (bare ? BARE_ROW_HEIGHT : ROW_HEIGHT) + ROW_GAP;
+  const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
   return (
-    Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * stride +
+    Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * rowHeight +
     LIST_PADDING +
-    (withOrganizeEntry ? ORGANIZE_ENTRY_H + ORGANIZE_ENTRY_MARGIN : 0)
+    (withOrganizeEntry
+      ? TREE_TO_ENTRY_GAP +
+        ORGANIZE_ENTRY_MARGIN +
+        ORGANIZE_ENTRY_H +
+        ORGANIZE_ENTRY_BORDER
+      : 0)
   );
 };
 
@@ -103,12 +122,12 @@ const CommandMenu = ({
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
 
-  /* bare mode lives inside the palette panel (radius 22): 8px inset with
-     14px rows keeps the corners truly concentric — 22 - 8 = 14, which is
-     also the max radius a 28px-tall row can render (half its height), so
-     nothing gets silently clamped */
+  /* bare mode lives inside the palette panel (radius 22, 1px border): a
+     7px inset plus that border is 8, and 22 − 8 = 14 is the row pill's
+     radius — the two arcs share a centre. 14 is also the largest radius a
+     28px-tall row can render (half its height), so nothing gets clamped. */
   const chrome = bare
-    ? { padding: "8px 8px 0" }
+    ? { padding: `${LIST_PADDING}px ${LIST_PADDING}px 0` }
     : {
         backgroundColor: surfaceBg,
         backdropFilter: "blur(18px) saturate(1.4)",
