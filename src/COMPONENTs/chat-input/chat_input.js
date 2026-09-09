@@ -13,6 +13,9 @@ import {
   findCommandTokens,
   listCommands,
 } from "../../SERVICEs/command_registry";
+import { getSkillFolderState } from "../../SERVICEs/skill_folder_storage";
+import { isFolderNodeId } from "./components/command_tree";
+import SkillOrganizerModal from "../command-organizer/skill_organizer_modal";
 
 /**
  * Detect an in-progress slash token at the caret: a "/" at the input start or
@@ -141,6 +144,13 @@ const ChatInput = ({
   const [commandMenuActiveIndex, setCommandMenuActiveIndex] = useState(0);
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const prevValueRef = useRef(value);
+  /* The palette is a TREE now (#232). Its row order is no longer commandItems'
+     order — folders add rows, and collapsing one removes several — so the menu
+     reports what is actually on screen and the arrow keys walk that. */
+  const [commandVisibleIds, setCommandVisibleIds] = useState([]);
+  const [skillFolderState, setSkillFolderState] = useState(null);
+  const commandExpandRef = useRef(null);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
 
   /* ── Inline command tokens (overlay-dyed; the value string is untouched) ── */
   const commandTokens = findCommandTokens(value, {
@@ -252,6 +262,31 @@ const ChatInput = ({
   const commandMenuOpen =
     !commandMenuDismissed && !!slashTrigger && commandItems.length > 0;
 
+  /* Re-read the user's categories each time the palette opens. It is the only
+     moment they can have changed (the organizer is modal), so there is no bus
+     to subscribe to and no stale tree to worry about mid-session. */
+  const paletteOpen = !!slashTrigger;
+  useEffect(() => {
+    if (paletteOpen && !organizerOpen) {
+      setSkillFolderState(getSkillFolderState());
+    }
+  }, [paletteOpen, organizerOpen]);
+
+  /* Until the menu has rendered once, its order IS commandItems' order — that
+     is what an unorganized library renders as. */
+  const commandRowIds =
+    commandVisibleIds.length > 0
+      ? commandVisibleIds
+      : commandItems.map((item) => item.name);
+  const commandItemsByName = new Map(
+    commandItems.map((item) => [item.name, item]),
+  );
+  const pickCommandAt = (index) => {
+    const id = commandRowIds[index];
+    const item = commandItemsByName.get(id);
+    if (item) handleCommandPick(item);
+  };
+
   // any edit to the input value re-arms the menu (clears a prior Escape
   // dismissal) and resets the highlighted row back to the top
   useEffect(() => {
@@ -328,27 +363,49 @@ const ChatInput = ({
       }
 
       if (commandMenuOpen) {
+        const rowCount = commandRowIds.length;
+        const activeId = commandRowIds[commandMenuActiveIndex];
+        const activeIsFolder = isFolderNodeId(activeId);
+        const expandApi = commandExpandRef.current;
+
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          setCommandMenuActiveIndex(
-            (i) => (i + 1) % commandItems.length,
-          );
+          setCommandMenuActiveIndex((i) => (i + 1) % rowCount);
           return;
         }
         if (e.key === "ArrowUp") {
           e.preventDefault();
-          setCommandMenuActiveIndex(
-            (i) => (i - 1 + commandItems.length) % commandItems.length,
-          );
+          setCommandMenuActiveIndex((i) => (i - 1 + rowCount) % rowCount);
           return;
         }
+        /* A category is a container, not a choice: Enter opens it rather than
+           writing anything into the composer. Tab keeps the same meaning so
+           the two never disagree about what the highlighted row does. */
         if (e.key === "Enter" || e.key === "Tab") {
           if (e.nativeEvent?.isComposing || e.isComposing) return;
           e.preventDefault();
-          handleCommandPick(
-            commandItems[commandMenuActiveIndex] || commandItems[0],
+          if (activeIsFolder) {
+            expandApi?.toggle?.(activeId);
+            return;
+          }
+          pickCommandAt(
+            commandMenuActiveIndex < rowCount ? commandMenuActiveIndex : 0,
           );
           return;
+        }
+        if (e.key === "ArrowRight" && activeIsFolder) {
+          if (expandApi && !expandApi.isExpanded(activeId)) {
+            e.preventDefault();
+            expandApi.expand(activeId);
+            return;
+          }
+        }
+        if (e.key === "ArrowLeft" && activeIsFolder) {
+          if (expandApi && expandApi.isExpanded(activeId)) {
+            e.preventDefault();
+            expandApi.collapse(activeId);
+            return;
+          }
         }
         if (e.key === "Escape") {
           e.preventDefault();
@@ -395,6 +452,11 @@ const ChatInput = ({
       commandMenuOpen,
       commandItems,
       commandMenuActiveIndex,
+      /* commandRowIds and pickCommandAt are rebuilt every render (they read
+         commandItems and the menu's reported order), so they belong here or
+         the arrow keys walk a stale tree. */
+      commandRowIds,
+      pickCommandAt,
       handleCommandPick,
       activeTokens,
       value,
@@ -488,7 +550,20 @@ const ChatInput = ({
                   items={commandItems}
                   activeIndex={commandMenuActiveIndex}
                   onPick={handleCommandPick}
-                  onHover={setCommandMenuActiveIndex}
+                  onHoverId={(nodeId) =>
+                    setCommandMenuActiveIndex(
+                      Math.max(0, commandRowIds.indexOf(nodeId)),
+                    )
+                  }
+                  onVisibleChange={setCommandVisibleIds}
+                  folderState={skillFolderState}
+                  expandRef={commandExpandRef}
+                  onOrganize={() => {
+                    setCommandMenuDismissed(true);
+                    setOrganizerOpen(true);
+                  }}
+                  organizeLabel={t("commands.organize_entry")}
+                  visibleRowCount={commandVisibleIds.length}
                   isDark={isDark}
                 >
                   {showAttachments ? (
@@ -605,6 +680,14 @@ const ChatInput = ({
           </div>
         )}
       </div>
+
+      {/* The organizer is opened from the palette's foot and portals to body,
+          so it outlives the overlay that launched it. */}
+      <SkillOrganizerModal
+        open={organizerOpen}
+        onClose={() => setOrganizerOpen(false)}
+        isDark={isDark}
+      />
     </div>
   );
 };

@@ -724,7 +724,10 @@ describe("external_drag / on_external_drop", () => {
     expect(onExternalDrop).not.toHaveBeenCalled();
   });
 
-  test("an id that already exists in the tree is refused", () => {
+  test("an id already in the tree is MOVED, not duplicated", () => {
+    /* The organizer's unfiled column lists commands that also sit at the
+       tree's root, so this is the panel's most ordinary gesture, not an edge
+       case: dragging one of them into a category must relocate it. */
     restoreRects = stubRects(rowTexts);
     const onExternalDrop = jest.fn();
     renderExplorer({
@@ -740,6 +743,42 @@ describe("external_drag / on_external_drop", () => {
     fireEvent.mouseMove(document, {
       clientX: 120,
       clientY: CONTAINER_TOP + ROW_H / 2,
+    });
+    fireEvent.mouseUp(document);
+
+    expect(onExternalDrop).toHaveBeenCalledTimes(1);
+    const [, result] = onExternalDrop.mock.calls[0];
+    expect(result.map["folder:code"].children).toEqual(["/review"]);
+    expect(result.root).toEqual(["folder:code"]);
+    expect(Object.keys(result.map).filter((k) => k === "/review")).toHaveLength(1);
+  });
+
+  test("a node already in the tree cannot be dropped into its own subtree", () => {
+    restoreRects = stubRects(["Code", "/review"]);
+    const onExternalDrop = jest.fn();
+    renderExplorer({
+      data: {
+        "folder:code": {
+          label: "Code",
+          type: "folder",
+          children: ["/review"],
+        },
+        "/review": { label: "/review", type: "file" },
+      },
+      root: ["folder:code"],
+      default_expanded: true,
+      external_drag: {
+        active: true,
+        nodeId: "folder:code",
+        node: { label: "Code", type: "folder", children: ["/review"] },
+      },
+      on_external_drop: onExternalDrop,
+    });
+
+    // pointer over "/review", which is inside the folder being dragged
+    fireEvent.mouseMove(document, {
+      clientX: 120,
+      clientY: CONTAINER_TOP + ROW_H + ROW_H / 2,
     });
     fireEvent.mouseUp(document);
 

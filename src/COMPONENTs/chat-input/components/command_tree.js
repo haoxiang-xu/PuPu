@@ -70,6 +70,10 @@ const CommandTree = ({
   externalDrag = null,
   onExternalDrop = null,
   onFolderContextMenu = null,
+  /* Per-node partials merged over the projection — how the organizer swaps a
+     folder row for an inline rename field without the palette knowing that
+     renaming exists. */
+  nodeOverrides = null,
   defaultExpanded = true,
 }) => {
   const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
@@ -156,10 +160,11 @@ const CommandTree = ({
            its row memo already special-cases. Baking the active id into the
            node data instead would hand Explorer a new `data` object on every
            arrow key, and Explorer re-syncs its whole store from that prop. */
-        component: ({ node: rowNode, isActive }) => (
+        component: ({ node: rowNode, isActive, depth }) => (
           <CommandRow
             item={rowNode.command}
             active={!!isActive}
+            depth={depth}
             isDark={isDark}
             onPick={onPick}
             onHover={onHover ? () => onHover(rowNode.id) : null}
@@ -177,10 +182,16 @@ const CommandTree = ({
         ),
       };
     });
+    if (nodeOverrides) {
+      Object.entries(nodeOverrides).forEach(([nodeId, partial]) => {
+        if (out[nodeId]) out[nodeId] = { ...out[nodeId], ...partial };
+      });
+    }
     return out;
   }, [
     data,
     root,
+    nodeOverrides,
     isDark,
     onPick,
     onHover,
@@ -191,8 +202,25 @@ const CommandTree = ({
     visible,
   ]);
 
+  /* Explorer reads default_expanded ONCE at mount. The palette's categories
+     arrive a beat after it mounts (the stored tree is read in an effect), and
+     a category created in the organizer arrives while it is still mounted —
+     in both cases the folder would appear collapsed, hiding the commands the
+     user just filed. Keying on the folder id SET remounts the tree exactly
+     when the set changes, so default_expanded is re-applied then and never on
+     a mere reorder or rename. */
+  const folderKey = useMemo(
+    () =>
+      Object.keys(data)
+        .filter((id) => data[id]?.kind === "folder")
+        .sort()
+        .join("|"),
+    [data],
+  );
+
   return (
     <Explorer
+      key={folderKey}
       data={decorated}
       root={root}
       style={{ width, fontSize: 13 }}

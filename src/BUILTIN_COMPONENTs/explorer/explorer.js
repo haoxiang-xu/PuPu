@@ -529,12 +529,21 @@ const performDrop = (store, sourceId, dropTarget, expandedRef) => {
   return insertAtDropTarget(map, root, sourceId, dropTarget, expandedRef);
 };
 
-/** Land a node that came from OUTSIDE this Explorer. The node's data is
- *  supplied by the drag source (there is nothing in the store to copy it
- *  from), and an id already present in the tree is refused — a duplicate id
- *  would break the flat map the whole component is built on. */
+/** Land a node dragged in from OUTSIDE this Explorer.
+ *
+ *  The source may be handing over a node the tree does not have (a genuine
+ *  arrival) or one it is already showing — the skill organizer's unfiled
+ *  column lists commands that also sit at the tree's root, so dragging from
+ *  it is a MOVE as often as an arrival. Refusing the second case would make
+ *  the most ordinary gesture in that panel silently do nothing, so an id
+ *  already in the store routes through performDrop and is relocated rather
+ *  than duplicated. The flat map keeps exactly one entry per id either way.
+ */
 const performExternalDrop = (store, nodeId, node, dropTarget, expandedRef) => {
-  if (!dropTarget || !nodeId || store.map[nodeId]) return null;
+  if (!dropTarget || !nodeId) return null;
+  if (store.map[nodeId]) {
+    return performDrop(store, nodeId, dropTarget, expandedRef);
+  }
   const { map, root } = cloneStore(store);
   map[nodeId] = { ...node };
   return insertAtDropTarget(map, root, nodeId, dropTarget, expandedRef);
@@ -2068,14 +2077,30 @@ const Explorer = ({
         return;
       }
 
+      /* When the incoming node is already in this tree the gesture is a move,
+         so it hit-tests exactly like an internal drag: its own row is skipped
+         and its own subtree is not a legal destination. */
+      const incomingId = externalDragRef.current?.nodeId || null;
+      const knownId = incomingId && storeRef.current.map[incomingId]
+        ? incomingId
+        : null;
       const target = computeDropTarget(
         e.clientX,
         e.clientY,
-        null,
+        knownId,
         visibleItemsRef.current,
         rowRefsMap.current,
         containerRect.left,
       );
+      if (
+        target &&
+        knownId &&
+        (target.targetId === knownId ||
+          isDescendantOf(storeRef.current.map, knownId, target.targetId))
+      ) {
+        if (dropTargetRef.current) clearExternal();
+        return;
+      }
       dropTargetRef.current = target;
       setDragState({ isDragging: true, sourceId: null, dropTarget: target });
 

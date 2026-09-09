@@ -691,7 +691,18 @@
   "commands": {
     "btw": "Answer now, without interrupting the task",
     "fyi": "Add info to the current task",
-    "queue": "Queue for after the current run"
+    "queue": "Queue for after the current run",
+    "organize_entry": "Organize skills…",
+    "organizer_title": "Organize Skills",
+    "organizer_unfiled": "UNFILED",
+    "organizer_all_filed": "Everything is filed into a category.",
+    "organizer_new_category": "New category",
+    "organizer_default_category": "New Category",
+    "organizer_preview_caption": "WHAT / SHOWS",
+    "organizer_rename": "Rename",
+    "organizer_delete": "Delete category",
+    "organizer_done": "Done",
+    "organizer_counts": "{commands} commands · {categories} categories · {unfiled} unfiled"
   },
   "boot": {
     "starting_runtime": "Starting local services",

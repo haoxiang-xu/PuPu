@@ -10,6 +10,11 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 export const ROW_HEIGHT = 32;
 export const BARE_ROW_HEIGHT = 28;
+/* Matches INDENT in BUILTIN_COMPONENTs/explorer/explorer.js. A custom row is
+   responsible for its own indent — Explorer positions the row's BACKGROUND by
+   depth but hands the content the depth and lets it decide, the same contract
+   CharacterChatRow follows in the side menu. */
+export const INDENT = 16;
 
 const CommandRow = ({
   item,
@@ -20,6 +25,7 @@ const CommandRow = ({
   entrance = null,
   rowRadius = 7,
   rowHeight = ROW_HEIGHT,
+  depth = 0,
   refCallback,
 }) => {
   const nameColor = isDark ? "rgba(var(--pupu-text-rgb),0.92)" : "rgba(var(--pupu-text-rgb),0.86)";
@@ -64,7 +70,7 @@ const CommandRow = ({
         alignItems: "center",
         gap: 8,
         height: rowHeight,
-        padding: "0 8px",
+        padding: `0 8px 0 ${8 + depth * INDENT}px`,
         borderRadius: rowRadius,
         cursor: "pointer",
         ...(entranceStyle || {}),

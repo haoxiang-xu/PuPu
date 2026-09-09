@@ -16,6 +16,7 @@
  * arrow keys can walk a tree without knowing its shape.
  */
 import { useMemo } from "react";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import CommandTree from "./command_tree";
 import { BARE_ROW_HEIGHT, ROW_HEIGHT } from "./command_row";
 import { buildCommandTree } from "../../../SERVICEs/skill_folder_storage";
@@ -42,6 +43,8 @@ const CommandMenu = ({
   visible = true,
   folderState = null,
   expandRef = null,
+  onOrganize = null,
+  organizeLabel = "",
   width = 280,
 }) => {
   /* Explorer re-syncs its entire store whenever the `data` prop changes
@@ -122,6 +125,43 @@ const CommandMenu = ({
         width={bare ? "100%" : width}
         expandRef={expandRef}
       />
+
+      {/* ── organize entry ────────────────────────────
+          The moment a user wants to fix this list is the moment they are
+          looking at it, so the way in sits at its foot rather than somewhere
+          in settings. Dragging still never happens here: this opens the
+          organizer, it does not turn the overlay into one. */}
+      {onOrganize ? (
+        <div
+          data-command-organize-entry
+          onMouseDown={(event) => {
+            event.preventDefault();
+            onOrganize();
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            height: 26,
+            flexShrink: 0,
+            marginTop: 2,
+            padding: "0 10px",
+            borderTop: "1px solid rgba(var(--pupu-text-rgb),0.07)",
+            borderRadius: bare ? 14 : 7,
+            fontSize: 11.5,
+            color: "rgba(var(--pupu-text-rgb),0.42)",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          <Icon
+            src="folder_new"
+            color="rgba(var(--pupu-text-rgb),0.38)"
+            style={{ width: 12, height: 12, flexShrink: 0 }}
+          />
+          <span>{organizeLabel}</span>
+        </div>
+      ) : null}
     </div>
   );
 };

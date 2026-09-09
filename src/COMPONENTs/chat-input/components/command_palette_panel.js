@@ -19,7 +19,12 @@ import CommandMenu from "./command_menu";
 const FALLBACK_H = 40; // pill row height fallback before measurement
 const PANEL_RADIUS = 22; // matches the attach pill container
 const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
-const MAX_ROWS = 6;
+/* A tree costs more rows than a flat list for the same commands: category
+   rows carry none, and the organize entry is one more. Six was the old flat
+   ceiling; ten keeps a couple of categories on screen without the panel
+   swallowing the composer. */
+const MAX_ROWS = 10;
+const ORGANIZE_ENTRY_H = 28;
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
 
@@ -33,7 +38,13 @@ const CommandPalettePanel = ({
   items = [],
   activeIndex = 0,
   onPick = () => {},
-  onHover = null,
+  onHoverId = null,
+  onVisibleChange = null,
+  folderState = null,
+  expandRef = null,
+  onOrganize = null,
+  organizeLabel = "",
+  visibleRowCount = 0,
   isDark = false,
   surfaceBg,
   children,
@@ -73,7 +84,16 @@ const CommandPalettePanel = ({
   }, []);
 
   const headerH = pillH || FALLBACK_H;
-  const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + 8 : 0;
+  /* Rows on screen, not commands available — a collapsed category hides its
+     children, so items.length is the wrong number the moment anything is
+     organized. The menu reports what it actually rendered; until it has, the
+     flat count is right by construction. */
+  const rowCount = visibleRowCount > 0 ? visibleRowCount : items.length;
+  const listH = on
+    ? Math.min(rowCount, MAX_ROWS) * ROW_STRIDE +
+      8 +
+      (onOrganize ? ORGANIZE_ENTRY_H : 0)
+    : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
@@ -141,7 +161,12 @@ const CommandPalettePanel = ({
               items={items}
               activeIndex={activeIndex}
               onPick={onPick}
-              onHover={onHover}
+              onHover={onHoverId}
+              onVisibleChange={onVisibleChange}
+              folderState={folderState}
+              expandRef={expandRef}
+              onOrganize={onOrganize}
+              organizeLabel={organizeLabel}
               isDark={isDark}
               bare
               visible={on}

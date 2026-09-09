@@ -62,7 +62,11 @@ describe("CommandMenu", () => {
     expect(menu.style.maxHeight).toBe("320px");
     expect(menu.style.padding).toBe("3px");
     expect(options[0].style.height).toBe("32px");
-    expect(options[0].style.padding).toBe("0px 8px");
+    /* Asserted per-side rather than as a shorthand: a row now carries a
+       depth-derived left padding, so the shorthand has four parts even at
+       depth 0. */
+    expect(options[0].style.paddingLeft).toBe("8px");
+    expect(options[0].style.paddingRight).toBe("8px");
   });
 
   test("onPick fires with the picked item when a row is clicked", () => {
@@ -104,5 +108,96 @@ describe("CommandMenu", () => {
     rows.forEach((row) => {
       expect(row.children.length).toBe(2);
     });
+  });
+});
+
+describe("CommandMenu tree", () => {
+  const FOLDER = "f1";
+  const treeState = {
+    folders: {
+      [FOLDER]: {
+        id: FOLDER,
+        name: "Daily writing",
+        parentId: null,
+        childFolderIds: [],
+        expanded: true,
+      },
+    },
+    commandFolder: { "/polish": FOLDER },
+    folderOrder: [FOLDER],
+    itemOrder: { __root__: [`folder:${FOLDER}`, "/review"], [FOLDER]: ["/polish"] },
+  };
+  const items = [
+    { name: "/polish", description: "polish text" },
+    { name: "/review", description: "review code" },
+  ];
+
+  test("renders the user's categories with their commands inside", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    expect(screen.getByText("Daily writing")).toBeInTheDocument();
+    expect(screen.getByText("/polish")).toBeInTheDocument();
+    expect(screen.getByText("/review")).toBeInTheDocument();
+  });
+
+  test("a command inside a category is indented; one at root is not", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    const rowFor = (name) =>
+      screen.getByText(name).closest("[data-command-row]");
+    expect(rowFor("/polish").style.paddingLeft).toBe("24px"); // 8 + 1 * 16
+    expect(rowFor("/review").style.paddingLeft).toBe("8px");
+  });
+
+  test("the organize entry only exists when a handler is given", () => {
+    const { rerender } = render(
+      <CommandMenu items={items} activeIndex={0} onPick={() => {}} />,
+    );
+    expect(
+      document.querySelector("[data-command-organize-entry]"),
+    ).toBeNull();
+
+    rerender(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        onOrganize={() => {}}
+        organizeLabel="Organize skills…"
+      />,
+    );
+    expect(screen.getByText("Organize skills…")).toBeInTheDocument();
+  });
+
+  test("clicking the organize entry calls back without picking a command", () => {
+    const onOrganize = jest.fn();
+    const onPick = jest.fn();
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={onPick}
+        onOrganize={onOrganize}
+        organizeLabel="Organize skills…"
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByText("Organize skills…"));
+    expect(onOrganize).toHaveBeenCalledTimes(1);
+    expect(onPick).not.toHaveBeenCalled();
   });
 });
