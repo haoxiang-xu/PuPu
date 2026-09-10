@@ -227,6 +227,60 @@ describe("CommandMenu tree", () => {
     expect(onHover).toHaveBeenLastCalledWith("/review");
   });
 
+  test("the tree never shrinks to the list's cap — the list is what scrolls", () => {
+    /* Locks the regression behind "the command menu cannot scroll": the
+       list is a flex column with maxHeight; a shrinkable tree collapsed to
+       it and clipped the rows past the cap inside its own overflow:hidden. */
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        bare
+      />,
+    );
+    const tree = screen.getByRole("listbox").firstElementChild;
+    expect(tree.style.flexShrink).toBe("0");
+  });
+
+  test("moving the highlight with the keyboard keeps the row in view", () => {
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = jest.fn();
+    try {
+      const { rerender } = render(
+        <CommandMenu
+          items={items}
+          activeIndex={0}
+          onPick={() => {}}
+          folderState={treeState}
+          bare
+        />,
+      );
+      Element.prototype.scrollIntoView.mockClear();
+      rerender(
+        <CommandMenu
+          items={items}
+          activeIndex={2}
+          onPick={() => {}}
+          folderState={treeState}
+          bare
+        />,
+      );
+      const rowFor = (name) =>
+        screen.getByText(name).closest("[data-command-row]").parentElement
+          .parentElement;
+      const calls = Element.prototype.scrollIntoView.mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      expect(Element.prototype.scrollIntoView.mock.instances.at(-1)).toBe(
+        rowFor("/review"),
+      );
+      expect(calls.at(-1)[0]).toEqual({ block: "nearest" });
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   test("outside the palette a category mousedown is left alone (a rename field must be able to take focus)", () => {
     render(
       <CommandMenu

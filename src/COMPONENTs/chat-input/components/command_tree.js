@@ -70,6 +70,23 @@ const VisibleOrderReporter = ({ ids, onReport }) => {
   return null;
 };
 
+/**
+ * Keeps the highlighted row inside the scrolling list. Once the list can
+ * scroll, the arrow keys can carry the highlight past its bottom edge;
+ * `block: "nearest"` moves the list only when the row is actually outside,
+ * so hover (already visible by definition) never scrolls anything.
+ */
+const ActiveRowInView = ({ refs, index, nodeId }) => {
+  useEffect(() => {
+    if (index < 0) return;
+    const el = refs?.current?.[index];
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "nearest" });
+    }
+  }, [refs, index, nodeId]);
+  return null;
+};
+
 const CommandTree = ({
   data = {},
   root = [],
@@ -142,6 +159,7 @@ const CommandTree = ({
       return (
         <>
           <VisibleOrderReporter ids={explorerIds} onReport={reportVisible} />
+          <ActiveRowInView refs={rowRefs} index={index} nodeId={activeNodeId} />
           {index >= 0 ? (
             <SlidingHighlight
               refs={rowRefs}
@@ -258,8 +276,13 @@ const CommandTree = ({
          padding:4px 0 (a side-menu-era default) — inside the palette that
          put the top row 13px from the panel's edge while the sides sat at 9,
          and a 14px pill 4px further from a 22px corner than its sides are is
-         visibly not concentric. The surface around this tree owns the inset. */
-      style={{ width, fontSize: 13, padding: 0, minHeight: 0 }}
+         visibly not concentric. The surface around this tree owns the inset.
+         flexShrink 0 because the palette's list is a flex column capped at
+         ten rows: a shrinkable tree (minHeight 0 above) collapsed to the cap
+         and its own overflow:hidden swallowed the rows past it — the list
+         never overflowed, so it never scrolled. The tree keeps its height;
+         the list around it is what scrolls. */
+      style={{ width, fontSize: 13, padding: 0, minHeight: 0, flexShrink: 0 }}
       row_height={rowHeight}
       row_radius={rowRadius}
       row_hover={false}
