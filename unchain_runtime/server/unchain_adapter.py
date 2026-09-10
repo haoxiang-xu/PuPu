@@ -3667,18 +3667,12 @@ def get_embedding_provider_catalog() -> Dict[str, List[str]]:
     return providers
 
 
-def get_max_context_window_tokens(
-    provider: str,
-    model: str,
-    cfg: "CustomProviderConfig | None" = None,
-) -> int:
-    """Look up max_context_window_tokens for a provider:model pair.
+# Explicit PuPu default for uncatalogued Ollama models. This is also sent as
+# options.num_ctx, so the compiler and daemon use the same finite window.
+_OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS = 32_768
 
-    When ``cfg`` is present the value comes from the custom provider's declared
-    model capabilities (normalizer guarantees a fallback, never 0; design §7.2).
-    """
-    if cfg is not None:
-        return cfg.max_context_window_tokens(model)
+
+def _catalog_model_context_window(provider: str, model: str) -> int:
     raw_catalog = _load_raw_capability_catalog()
     normalized_model = _normalize_provider_model_name(
         str(provider or "").strip().lower(),
@@ -3689,8 +3683,27 @@ def get_max_context_window_tokens(
         cap_model = _normalize_provider_model_name(cap_provider, model_name)
         if cap_provider == str(provider or "").strip().lower() and cap_model == normalized_model:
             val = caps.get("max_context_window_tokens")
-            if isinstance(val, (int, float)) and val > 0:
-                return int(val)
+            if isinstance(val, (int, float)) and not isinstance(val, bool) and val > 0:
+                try:
+                    return int(val)
+                except (OverflowError, ValueError):
+                    pass
+    return 0
+
+
+def get_max_context_window_tokens(
+    provider: str,
+    model: str,
+    cfg: "CustomProviderConfig | None" = None,
+) -> int:
+    """Resolve a catalog/custom window, or PuPu's explicit local-model default."""
+    if cfg is not None:
+        return cfg.max_context_window_tokens(model)
+    declared = _catalog_model_context_window(provider, model)
+    if declared:
+        return declared
+    if str(provider or "").strip().lower() == "ollama":
+        return _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
     return 0
 
 
@@ -5279,6 +5292,13 @@ def _build_payload(
     # "hyperspace", which would otherwise fall into the ollama (num_predict)
     # branch below (design §7.4).
     cfg = parse_custom_provider(options)
+
+    if provider == "ollama" and cfg is None and (
+        model or options.get("modelId") or options.get("model")
+    ):
+        selected_model = model or get_runtime_config(options).get("model", "")
+        if not _catalog_model_context_window(provider, selected_model):
+            payload["num_ctx"] = _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
 
     max_tokens = options.get("maxTokens")
     if isinstance(max_tokens, (int, float)):
