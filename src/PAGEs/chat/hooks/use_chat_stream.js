@@ -9344,6 +9344,7 @@ export const useChatStream = ({
         runGeneration: requestedRunGeneration = null,
         authoritativePending = null,
         authoritativeReceipt = null,
+        speculative = false,
       } = {},
     ) => {
       const normalizedChatId =
@@ -9371,12 +9372,14 @@ export const useChatStream = ({
         return null;
       }
 
+      let receivedPendingRecord = false;
       try {
         const rawPending = isObject(authoritativePending)
           ? authoritativePending
           : await api.unchain.getPendingInteraction({
               session_id: normalizedSessionId,
             });
+        receivedPendingRecord = true;
         const pending = normalizePendingInteraction(
           rawPending,
           normalizedSessionId,
@@ -9778,6 +9781,12 @@ export const useChatStream = ({
         return pendingAfterCancellation;
       } catch (error) {
         if (!isCurrentLookup()) {
+          return null;
+        }
+        // A transport failure while probing an empty chat is not evidence of
+        // an interrupted run. Malformed records and actual recovery failures
+        // still use the blocking, fail-closed path below.
+        if (speculative && !receivedPendingRecord) {
           return null;
         }
         const errorMessage =
@@ -11225,12 +11234,24 @@ export const useChatStream = ({
       return undefined;
     }
 
+    const hasRecoveryEvidence = Boolean(
+      existingState ||
+      isCharacterChat ||
+      storageApi.getChatMessages(targetChatId)?.length ||
+      executionIdentityByChatIdRef.current.has(targetChatId) ||
+      readExecutionCancelOutbox().some((entry) => entry.ownerChatId === targetChatId) ||
+      readTurnMutationOutboxState().entries.some((entry) => entry.chatId === targetChatId)
+    );
     let cancelled = false;
-    updateDurableInteractionForChat(targetChatId, {
-      ...(existingState || {}),
-      status: "checking",
-      lastError: "",
-    });
+    // Keep the authoritative lookup, including recovery with a missing local
+    // projection, but do not block a new chat on speculative network latency.
+    if (hasRecoveryEvidence) {
+      updateDurableInteractionForChat(targetChatId, {
+        ...(existingState || {}),
+        status: "checking",
+        lastError: "",
+      });
+    }
     void (async () => {
       let sessionId = targetChatId;
       if (isCharacterChat) {
@@ -11272,6 +11293,7 @@ export const useChatStream = ({
       ) {
         await lookupDurableInteraction(targetChatId, sessionId, {
           runGeneration,
+          speculative: !hasRecoveryEvidence,
         });
       }
     })();
@@ -11289,6 +11311,7 @@ export const useChatStream = ({
     lookupDurableInteraction,
     setStreamError,
     setStreamErrorForChat,
+    storageApi,
     threadIdRef,
     turnMutationVersion,
     updateDurableInteractionForChat,

@@ -261,6 +261,54 @@ describe("Memory V2 P0 payload seams", () => {
     return priorMessages;
   };
 
+  test.each(["none", "awaiting_response"])("a fresh chat can send before a late %s recovery lookup", async (status) => {
+    const chatId = getChatsStore().activeChatId;
+    let resolveLookup;
+    window.unchainAPI.getPendingInteraction = jest.fn(() => new Promise((resolve) => {
+      resolveLookup = resolve;
+    }));
+    window.unchainAPI.startStreamV4 = window.unchainAPI.startStreamV2;
+    renderChat();
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitForReady();
+    sendText("first message immediately after creation");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    await act(async () => resolveLookup(status === "none"
+      ? { status: "none", session_id: chatId }
+      : pendingToolInteraction(chatId, "old-attempt", "old-confirmation")));
+    expect(lastChatMessagesProps.messages.some((message) => message.content === "first message immediately after creation")).toBe(true);
+    expect(window.unchainAPI.cancelStream).not.toHaveBeenCalled();
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests?.["old-confirmation"]).toBeUndefined();
+  });
+
+  test("a failed speculative lookup does not mark a fresh chat as restoring", async () => {
+    getChatsStore();
+    window.unchainAPI.getPendingInteraction = jest.fn(async () => {
+      throw new Error("temporary lookup failure");
+    });
+    window.unchainAPI.startStreamV4 = window.unchainAPI.startStreamV2;
+    renderChat();
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    await waitForReady();
+    sendText("a new chat has nothing to restore");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+  });
+
+  test("a chat with persisted history stays blocked until its recovery lookup resolves", async () => {
+    const chatId = getChatsStore().activeChatId;
+    seedPriorTurn(chatId);
+    let resolveLookup;
+    window.unchainAPI.getPendingInteraction = jest.fn(() => new Promise((resolve) => {
+      resolveLookup = resolve;
+    }));
+    window.unchainAPI.startStreamV4 = window.unchainAPI.startStreamV2;
+    renderChat();
+    await waitFor(() => expect(window.unchainAPI.getPendingInteraction).toHaveBeenCalled());
+    expect(lastChatInputProps.sendDisabled).toBe(true);
+    await act(async () => resolveLookup({ status: "none", session_id: chatId }));
+    await waitForReady();
+  });
+
   test("flag off: owner_chat_id is the UI chat id and no memory-v2 fields exist", async () => {
     const chatId = getChatsStore().activeChatId;
     seedPriorTurn(chatId);

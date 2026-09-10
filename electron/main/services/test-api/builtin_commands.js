@@ -1,3 +1,10 @@
+const validateTextMessage = (body) => {
+  if (body && Object.prototype.hasOwnProperty.call(body, "attachments")) {
+    return "body.attachments is not supported; this endpoint accepts text only";
+  }
+  return body && typeof body.text === "string" ? null : "body.text required";
+};
+
 const registerBuiltinCommands = ({
   registry,
   bridge,
@@ -45,8 +52,7 @@ const registerBuiltinCommands = ({
   registry.register({
     method: "POST",
     path: "/v1/chats/:id/messages",
-    validator: (body) =>
-      body && typeof body.text === "string" ? null : "body.text required",
+    validator: validateTextMessage,
     handler: (ctx) =>
       bridge.invoke(
         "sendMessage",
@@ -70,8 +76,7 @@ const registerBuiltinCommands = ({
   registry.register({
     method: "POST",
     path: "/v1/chats/:id/runs",
-    validator: (body) =>
-      body && typeof body.text === "string" ? null : "body.text required",
+    validator: validateTextMessage,
     handler: (ctx) =>
       bridge.invoke(
         "startChatRun",

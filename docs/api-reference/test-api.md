@@ -36,13 +36,16 @@ Base: `http://127.0.0.1:<port>/v1`
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/chats/:id/messages` | `{text, attachments?}` | `{message_id, role, content, tool_calls?, finish_reason, latency_ms}` |
+| POST | `/chats/:id/messages` | `{text}` | `{message_id, role, content, tool_calls?, finish_reason, latency_ms}` |
 | POST | `/chats/:id/cancel` | — | `{ok, was_streaming}` |
-| POST | `/chats/:id/runs` | `{text, attachments?}` | `{chat_id, execution_id, attempt_id, status}` |
+| POST | `/chats/:id/runs` | `{text}` | `{chat_id, execution_id, attempt_id, status}` |
 | GET | `/chats/:id/runs/:attempt_id` | — | `{chat_id, execution_id, attempt_id, status, message_id?, content?}` |
 | POST | `/chats/:id/runs/:attempt_id/cancel` | — | `{ok, chat_id, execution_id, attempt_id, status}` |
 
 The blocking call holds the HTTP connection open until the assistant message completes (default timeout 5min).
+Both send endpoints accept text only. An `attachments` field, including an empty
+array or `null`, returns HTTP 400 `invalid_payload` with a message naming the
+unsupported field. Use the chat UI to test attachment input.
 Async start returns as soon as the runtime has assigned an attempt id. Activate the
 chat before starting either form of request. Status and cancel are always scoped to
 the chat and attempt ids in the URL; PuPu never falls back to the currently visible
