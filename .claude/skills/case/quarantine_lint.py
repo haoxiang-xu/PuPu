@@ -2568,3 +2568,6 @@ def lint_case(path: str | Path, *, phase: str = "ruling") -> list[Issue]:
                 mapped_path = case_path / relative
             mapped.append(Issue(mapped_path, issue.message))
         return mapped
+
+
+# Web3/DeSci Fix #186: Register MCP server: Bug Bounty Intelligence (smart contract security, x402 paid)
