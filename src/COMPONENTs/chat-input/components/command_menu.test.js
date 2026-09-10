@@ -165,7 +165,60 @@ describe("CommandMenu tree", () => {
     expect(rowFor("/review").style.paddingLeft).toBe("8px");
   });
 
+  /* The composer's blur is what closes the palette (chat_input clears the
+     slash trigger on blur). A row that lets the browser move focus on
+     mousedown therefore closes the palette before its own click can land —
+     which is exactly what a category row did: click it and the palette
+     vanished instead of the category collapsing. */
+  test("in the palette a mousedown on a category row is default-prevented, so the composer keeps focus", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        bare
+      />,
+    );
 
+    // fireEvent returns false when a handler called preventDefault
+    expect(fireEvent.mouseDown(screen.getByText("Daily writing"))).toBe(false);
+  });
+
+  test("clicking a category row collapses it, and the rest of the list stays", () => {
+    const onVisibleChange = jest.fn();
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        onVisibleChange={onVisibleChange}
+        bare
+      />,
+    );
+    const lastVisible = () => onVisibleChange.mock.calls.at(-1)[0];
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/polish", "/review"]);
+
+    fireEvent.click(screen.getByText("Daily writing"));
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/review"]);
+
+    fireEvent.click(screen.getByText("Daily writing"));
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/polish", "/review"]);
+  });
+
+  test("outside the palette a category mousedown is left alone (a rename field must be able to take focus)", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={-1}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    expect(fireEvent.mouseDown(screen.getByText("Daily writing"))).toBe(true);
+  });
 });
 
 describe("CommandMenu list height", () => {

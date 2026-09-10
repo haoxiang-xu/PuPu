@@ -53,6 +53,23 @@ const walkAllRows = (data, ids, out = []) => {
 const sameOrder = (a, b) =>
   !!a && !!b && a.length === b.length && a.every((id, i) => id === b[i]);
 
+/**
+ * Carries Explorer's visible order out of its render_highlight slot.
+ *
+ * A folder toggled with the mouse is Explorer's own state: Explorer
+ * re-renders, CommandTree does not, and an effect up in CommandTree would
+ * not run until something unrelated re-rendered it — one arrow key later
+ * the caller would still be stepping through rows that had just been
+ * collapsed. Mounted inside Explorer, this child's effect runs after
+ * Explorer's commit whatever caused it. It renders nothing.
+ */
+const VisibleOrderReporter = ({ ids, onReport }) => {
+  useEffect(() => {
+    onReport(ids);
+  }, [ids, onReport]);
+  return null;
+};
+
 const CommandTree = ({
   data = {},
   root = [],
@@ -106,38 +123,42 @@ const CommandTree = ({
       ? visibleIds[activeIndex]
       : null;
 
-  /* Report upward after the commit — publishing from inside render_highlight
-     would be a setState in Explorer's render pass. */
-  const pendingIdsRef = useRef(null);
+  /* Publishing from inside render_highlight itself would be a setState in
+     Explorer's render pass; VisibleOrderReporter (below) defers it to an
+     effect. Same order twice is not a change, so nothing re-renders for it. */
   const onVisibleChangeRef = useRef(onVisibleChange);
   onVisibleChangeRef.current = onVisibleChange;
-  useEffect(() => {
-    const next = pendingIdsRef.current;
-    if (!next || sameOrder(next, reportedIds)) return;
-    setReportedIds(next);
-    if (onVisibleChangeRef.current) onVisibleChangeRef.current(next);
-  });
+  const lastReportedRef = useRef(null);
+  const reportVisible = useCallback((ids) => {
+    if (sameOrder(lastReportedRef.current, ids)) return;
+    lastReportedRef.current = ids;
+    setReportedIds(ids);
+    if (onVisibleChangeRef.current) onVisibleChangeRef.current(ids);
+  }, []);
 
   const renderHighlight = useCallback(
     ({ rowRefs, visibleIds: explorerIds }) => {
-      pendingIdsRef.current = explorerIds;
       const index = activeNodeId ? explorerIds.indexOf(activeNodeId) : -1;
-      if (index < 0) return null;
       return (
-        <SlidingHighlight
-          refs={rowRefs}
-          index={index}
-          color={
-            isDark
-              ? "rgba(var(--pupu-text-rgb),0.10)"
-              : "rgba(var(--pupu-text-rgb),0.06)"
-          }
-          borderRadius={rowRadius}
-          measureKey={`${explorerIds.length}|${explorerIds[0] ?? ""}|${visible}`}
-        />
+        <>
+          <VisibleOrderReporter ids={explorerIds} onReport={reportVisible} />
+          {index >= 0 ? (
+            <SlidingHighlight
+              refs={rowRefs}
+              index={index}
+              color={
+                isDark
+                  ? "rgba(var(--pupu-text-rgb),0.10)"
+                  : "rgba(var(--pupu-text-rgb),0.06)"
+              }
+              borderRadius={rowRadius}
+              measureKey={`${explorerIds.length}|${explorerIds[0] ?? ""}|${visible}`}
+            />
+          ) : null}
+        </>
       );
     },
-    [activeNodeId, isDark, rowRadius, visible],
+    [activeNodeId, isDark, rowRadius, visible, reportVisible],
   );
 
   /* Decorate the projection with what is presentation rather than data: the

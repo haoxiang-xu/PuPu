@@ -29,6 +29,10 @@ const MAX_VISIBLE_TREE_ROWS = 10;
    one. 7 + 1 = 8 = 22 − 14: the row pill's arc and the panel's arc share a
    centre. (8 here read as "concentric" for a long time; it was 1px off.) */
 const LIST_PADDING = 7;
+
+const keepComposerFocus = (event) => {
+  event.preventDefault();
+};
 /* Rows inside the tree are contiguous — Explorer stacks them with no gap. */
 
 /**
@@ -118,6 +122,16 @@ const CommandMenu = ({
       role="listbox"
       aria-label="斜杠命令"
       className="scrollable"
+      /* Nothing in the palette may take focus from the composer: its blur is
+         what closes the palette (chat_input clears the slash trigger on
+         blur), so a mousedown the browser is allowed to act on closes the
+         palette before the click behind it lands. CommandRow already
+         prevents this for command rows; Explorer's own folder rows — and
+         the chevrons, gutters and padding around them — did not, which is
+         why clicking a category closed the palette instead of collapsing
+         it. Bare mode only: the organizer's tree holds a rename field that
+         must be able to take focus. */
+      onMouseDown={bare ? keepComposerFocus : undefined}
       style={{
         position: "relative",
         boxSizing: "border-box",
