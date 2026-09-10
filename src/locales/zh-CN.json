@@ -660,6 +660,8 @@
     "organize_skills_action": "整理 skills",
     "import_skills_action": "导入 skills",
     "skillpack_section_empty": "还没有 skill pack。导入一个包含 SKILL.md 的文件夹即可添加。",
+    "add_custom_mcp_action": "添加自定义 MCP",
+    "mcp_section_empty": "还没有 MCP 插件。可以从 Store 安装，或添加自定义 MCP。",
     "import_skills_title": "导入技能",
     "import_skills_section": "本地技能文件夹",
     "import_skills_intro": "从本地文件夹导入 SKILL.md 作为斜杠命令。本期仅支持纯指令技能；携带脚本的技能会被跳过。",

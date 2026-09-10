@@ -342,32 +342,56 @@ describe("PluginsInstalledPage", () => {
   });
 
   /* T5: the legacy "Custom MCP" store tab (toolkits_page.js's
-     TOOLKIT_SUB_PAGES) is retired — its entry point demotes to a low-key
-     footer link here and on PluginsCategoriesPage, opening the same
-     (unmodified) CustomMcpPage via the shell's onOpenCustomMcp callback. */
-  describe("PluginsInstalledPage — custom MCP footer entry", () => {
-    test("renders a low-key 'Add a custom plugin' footer entry", async () => {
-      await renderPage();
-      expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
-    });
-
-    test("clicking the footer entry calls onOpenCustomMcp", async () => {
+     TOOLKIT_SUB_PAGES) is retired — its entry point now sits on the MCP
+     section's own header row here (and stays a low-key footer link on
+     PluginsCategoriesPage), opening the same (unmodified) CustomMcpPage via
+     the shell's onOpenCustomMcp callback. */
+  describe("PluginsInstalledPage — custom MCP entry on the MCP header", () => {
+    test("the entry sits in the MCP section's header and opens the custom MCP page", async () => {
       const onOpenCustomMcp = jest.fn();
       await renderPage({ onOpenCustomMcp });
 
-      fireEvent.click(screen.getByText(/Add a custom plugin/i));
+      const entry = screen.getByTestId("installed-add-custom-mcp");
+      expect(entry).toHaveTextContent("Add custom MCP");
+      const section = screen.getByText("mcp").closest("div").parentElement;
+      expect(section.contains(entry)).toBe(true);
 
+      fireEvent.click(entry);
       expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
     });
 
-    test("still renders the footer entry when there are no installed plugins", async () => {
+    test("the footer link is gone", async () => {
+      await renderPage({ onOpenCustomMcp: jest.fn() });
+      expect(screen.queryByText(/Add a custom plugin/i)).toBeNull();
+    });
+
+    test("with no installed plugins the MCP section still shows, with the entry and a hint", async () => {
+      /* Custom MCP is one way to get a first MCP plugin, so the section that
+         hosts the entry cannot depend on one already being there. */
       const onOpenCustomMcp = jest.fn();
       api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
       await renderPage({ onOpenCustomMcp });
 
-      expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
-      fireEvent.click(screen.getByText(/Add a custom plugin/i));
+      expect(screen.getByText(/No MCP plugins yet/)).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("installed-add-custom-mcp"));
       expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
+    });
+
+    test("without a handler an empty MCP section stays hidden, as before", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+      await renderPage();
+      expect(screen.queryByText("mcp")).toBeNull();
+      expect(screen.queryByText(/No MCP plugins yet/)).toBeNull();
+    });
+
+    test("a search matching no MCP plugin hides the section and its entry", async () => {
+      await renderPage({ onOpenCustomMcp: jest.fn() });
+      fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+        target: { value: "Plan" },
+      });
+      expect(screen.getByText("Plan")).toBeInTheDocument();
+      expect(screen.queryByText("mcp")).toBeNull();
+      expect(screen.queryByTestId("installed-add-custom-mcp")).toBeNull();
     });
   });
 
@@ -526,8 +550,6 @@ describe("PluginsInstalledPage — import skills entry", () => {
     withSkillPack();
     await renderPage({ onOpenImportSkills: jest.fn() });
     expect(screen.queryByText(/Import skills from a folder/i)).toBeNull();
-    // the custom-MCP entry stays where it was
-    expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
   });
 
   test("with no packs installed the section still shows, with the entry and a hint", async () => {

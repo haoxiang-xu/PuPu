@@ -213,7 +213,6 @@ const PluginsInstalledPage = ({
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.35)";
-  const dividerColor = "rgba(var(--pupu-text-rgb),0.06)";
 
   /* Source grouping (T3) — mockup screen ③ splits Installed into a
      "Built-in" section (source builtin/local), an "MCP" section (source mcp /
@@ -245,39 +244,11 @@ const PluginsInstalledPage = ({
     );
   }
 
-  /* Low-key custom MCP entry — demoted here (and to the same spot on
-     PluginsCategoriesPage) from its own legacy "Custom MCP" store tab. */
-  const customMcpFooter = (
-    <div
-      style={{
-        marginTop: 6,
-        paddingTop: 12,
-        borderTop: `1px solid ${dividerColor}`,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      <div
-        role="button"
-        onClick={() => onOpenCustomMcp?.()}
-        style={{
-          fontSize: 11,
-          fontFamily,
-          color: tertiaryText,
-          cursor: "pointer",
-        }}
-      >
-        {t("toolkit.add_custom_plugin")} ›
-      </div>
-    </div>
-  );
-
-  /* The Skill packs section's own actions, on its header row: bring skills
-     in, then arrange them. Both are BUILTIN buttons in the theme editor's
-     Import / Export register. The bare "… ›" link this replaced kept the
-     only way to add a pack at the bottom of the page, under a divider, far
-     from the packs it adds to. */
+  /* Each section's own actions sit on its header row, next to what they act
+     on: custom MCP on MCP, Import and Organize on Skill packs. All are
+     BUILTIN buttons in the theme editor's Import / Export register. They
+     replaced two bare "… ›" links at the bottom of the page, under a divider,
+     which kept the only way to add a pack far from the packs it adds to. */
   const sectionActionStyle = {
     height: 26,
     borderRadius: 8,
@@ -290,6 +261,15 @@ const PluginsInstalledPage = ({
     hoverBackgroundColor: "var(--pupu-overlay-hover)",
     activeBackgroundColor: "var(--pupu-overlay-active)",
   };
+  const mcpActions = onOpenCustomMcp ? (
+    <Button
+      prefix_icon="add"
+      label={t("toolkit.add_custom_mcp_action")}
+      onClick={() => onOpenCustomMcp()}
+      dom_props={{ "data-testid": "installed-add-custom-mcp" }}
+      style={sectionActionStyle}
+    />
+  ) : null;
   const skillPackActions =
     onOpenImportSkills || onOpenSkillOrganizer ? (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -314,11 +294,20 @@ const PluginsInstalledPage = ({
       </span>
     ) : null;
 
-  /* The section stays on the page with no packs installed: it is where the
-     way to add one lives. It steps aside only during a search, like the two
-     sections above it, so an empty result still reads as "no matches". */
+  /* A section with an action stays on the page when it has no rows: it is
+     where the way to add the first one lives. Both step aside only during a
+     search, like Built-in, so an empty result still reads as "no matches". */
+  const searching = search.trim().length > 0;
+  const showMcpSection = mcpRows.length > 0 || (!searching && mcpActions !== null);
   const showSkillPackSection =
-    skillPackRows.length > 0 || (!search.trim() && skillPackActions !== null);
+    skillPackRows.length > 0 || (!searching && skillPackActions !== null);
+  const emptyHintStyle = {
+    fontSize: 12,
+    fontFamily,
+    color: tertiaryText,
+    padding: "12px 0 6px",
+    lineHeight: 1.5,
+  };
 
   const renderRow = ({ toolkit: tk, presentation }) => {
     const isComputer =
@@ -421,7 +410,7 @@ const PluginsInstalledPage = ({
         />
       </div>
 
-      {/* ── Scrollable body — Built-in / MCP SettingsSections + footer. ── */}
+      {/* ── Scrollable body — Built-in / MCP / Skill packs SettingsSections. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 26px 26px" }}>
         {filteredRows.length === 0 && (
           <div style={{ fontSize: 12, fontFamily, color: tertiaryText, padding: "16px 0" }}>
@@ -435,9 +424,13 @@ const PluginsInstalledPage = ({
           </SettingsSection>
         )}
 
-        {mcpRows.length > 0 && (
-          <SettingsSection title={t("toolkit.source_mcp")}>
-            {mcpRows.map(renderRow)}
+        {showMcpSection && (
+          <SettingsSection title={t("toolkit.source_mcp")} action={mcpActions}>
+            {mcpRows.length > 0 ? (
+              mcpRows.map(renderRow)
+            ) : (
+              <div style={emptyHintStyle}>{t("toolkit.mcp_section_empty")}</div>
+            )}
           </SettingsSection>
         )}
 
@@ -452,22 +445,12 @@ const PluginsInstalledPage = ({
             {skillPackRows.length > 0 ? (
               skillPackRows.map(renderRow)
             ) : (
-              <div
-                style={{
-                  fontSize: 12,
-                  fontFamily,
-                  color: tertiaryText,
-                  padding: "12px 0 6px",
-                  lineHeight: 1.5,
-                }}
-              >
+              <div style={emptyHintStyle}>
                 {t("toolkit.skillpack_section_empty")}
               </div>
             )}
           </SettingsSection>
         )}
-
-        {customMcpFooter}
       </div>
     </div>
   );

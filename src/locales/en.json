@@ -660,6 +660,8 @@
     "organize_skills_action": "Organize skills",
     "import_skills_action": "Import skills",
     "skillpack_section_empty": "No skill packs yet. Import a folder of SKILL.md files to add your own.",
+    "add_custom_mcp_action": "Add custom MCP",
+    "mcp_section_empty": "No MCP plugins yet. Install one from the Store, or add your own.",
     "import_skills_title": "Import skills",
     "import_skills_section": "Local skill folder",
     "import_skills_intro": "Import a local folder of SKILL.md files as slash-commands. Instruction-only skills are supported; skills that ship scripts are skipped this release.",
