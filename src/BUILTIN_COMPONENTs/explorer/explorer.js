@@ -1623,6 +1623,13 @@ const Explorer = ({
      has to mirror the state to use them. Populated with
      { toggle, expand, collapse, isExpanded }. */
   expand_ref,
+  /* Optional: called with a row's id when the pointer enters it, for a
+     consumer that drives its own indicator (render_highlight) from hover.
+     Fires for built-in and custom rows alike — the command palette's folder
+     rows are built-in, and without this its pill stood still while the
+     pointer crossed them. Absent for the other consumers, whose hover is the
+     wash Explorer paints itself. */
+  on_hover_row,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1779,8 +1786,14 @@ const Explorer = ({
     visible: false,
   });
 
+  /* Read through a ref so the callback handed to every row keeps one
+     identity however often the consumer's function changes — rows are
+     memoised on it. */
+  const onHoverRowRef = useRef(on_hover_row);
+  onHoverRowRef.current = on_hover_row;
   const handleHoverRow = useCallback((id) => {
     setHoveredId(id);
+    if (onHoverRowRef.current) onHoverRowRef.current(id);
   }, []);
 
   /* When a context menu is open, lock the highlight on that node */

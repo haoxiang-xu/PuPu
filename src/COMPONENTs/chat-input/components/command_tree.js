@@ -199,7 +199,6 @@ const CommandTree = ({
             depth={depth}
             isDark={isDark}
             onPick={onPick}
-            onHover={onHover ? () => onHover(rowNode.id) : null}
             rowRadius={rowRadius}
             rowHeight={rowHeight}
             entrance={
@@ -227,7 +226,6 @@ const CommandTree = ({
     decorateFolder,
     isDark,
     onPick,
-    onHover,
     onFolderContextMenu,
     rowRadius,
     rowHeight,
@@ -273,6 +271,10 @@ const CommandTree = ({
       on_external_drop={onExternalDrop || undefined}
       render_highlight={renderHighlight}
       expand_ref={expandRef}
+      /* Hover reaches the caller through Explorer for every row, folder or
+         command, so the one highlight follows the pointer over both. The
+         command rows used to report for themselves; that left folders out. */
+      on_hover_row={onHover || undefined}
     />
   );
 };

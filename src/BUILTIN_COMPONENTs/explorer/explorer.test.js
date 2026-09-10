@@ -286,6 +286,28 @@ describe("Explorer", () => {
     });
   });
 
+  test("on_hover_row reports the hovered row's id, for a built-in row and a custom one alike", () => {
+    /* The command palette drives one gliding highlight from hover. Its
+       command rows are custom components that could report for themselves,
+       but a folder row is Explorer's own — without this seam the pill sat
+       still while the pointer crossed a folder. */
+    const onHoverRow = jest.fn();
+    renderExplorer({
+      on_hover_row: onHoverRow,
+      data: {
+        folder: { label: "Folder", children: ["custom"] },
+        custom: { label: "Custom", component: () => <span>Custom row</span> },
+      },
+      root: ["folder"],
+    });
+
+    fireEvent.click(screen.getByText("Folder")); // expand
+    fireEvent.mouseEnter(screen.getByText("Custom row"));
+    expect(onHoverRow).toHaveBeenLastCalledWith("custom");
+    fireEvent.mouseEnter(screen.getByText("Folder"));
+    expect(onHoverRow).toHaveBeenLastCalledWith("folder");
+  });
+
   test("selection-less usage: no active_node_id renders rows without crashing or highlighting", () => {
     expect(() =>
       renderExplorer({

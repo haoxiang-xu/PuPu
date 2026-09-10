@@ -207,6 +207,26 @@ describe("CommandMenu tree", () => {
     expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/polish", "/review"]);
   });
 
+  test("hovering a category row reports it through onHover, so the highlight follows the pointer onto folders too", () => {
+    const onHover = jest.fn();
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        onHover={onHover}
+        folderState={treeState}
+        bare
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByText("Daily writing"));
+    expect(onHover).toHaveBeenLastCalledWith(`folder:${FOLDER}`);
+    // command rows keep reporting the same way
+    fireEvent.mouseEnter(screen.getByText("/review"));
+    expect(onHover).toHaveBeenLastCalledWith("/review");
+  });
+
   test("outside the palette a category mousedown is left alone (a rename field must be able to take focus)", () => {
     render(
       <CommandMenu
