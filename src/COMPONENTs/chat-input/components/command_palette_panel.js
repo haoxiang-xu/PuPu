@@ -23,6 +23,9 @@ const PANEL_RADIUS = 22; // matches the attach pill container
    what actually renders them — see commandListHeight. */
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
+/* The thumb's distance from the panel's wall — the Select palette's value,
+   so the two palettes read as one family. */
+const SCROLLBAR_WALL = 2;
 
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.4, 0, 1, 1)";
@@ -85,7 +88,8 @@ const CommandPalettePanel = ({
      organized. The menu reports what it actually rendered; until it has, the
      flat count is right by construction. */
   const rowCount = visibleRowCount > 0 ? visibleRowCount : items.length;
-  const listH = on ? commandListHeight({ rowCount, bare: true }) : 0;
+  const listMaxH = commandListHeight({ rowCount, bare: true });
+  const listH = on ? listMaxH : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
@@ -153,23 +157,47 @@ const CommandPalettePanel = ({
           pointerEvents: on ? "auto" : "none",
         }}
       >
-        {/* command rows (above the header slot) */}
+        {/* command rows (above the header slot). The outer div is the morph's
+            reveal clip: it shrinks with the panel's height and hides what is
+            not yet grown into view. The inner div — not the menu — is the
+            scroll host, and its viewport is a fixed cap, so nothing scrolls
+            it while the panel is still growing (a shrinking host asked the
+            active row into view and opened the list 7px down). PuPu's
+            scrollbar is the overlay thumb that `.scrollable` hangs on a
+            container's parent, and its track is laid out here against the
+            panel's own frame: it begins where the 22px corner begins (the
+            host sits 1px inside the border) and stops the same distance
+            short of the bottom. Boxed inside the panel with its own inset,
+            the menu could only ever run the thumb from the corner down to
+            the hint bar. */}
         <div style={{ minHeight: 0, overflow: "hidden" }}>
-          {open && (
-            <CommandMenu
-              items={items}
-              activeIndex={activeIndex}
-              onPick={onPick}
-              onHover={onHoverId}
-              onVisibleChange={onVisibleChange}
-              folderState={folderState}
-              expandRef={expandRef}
-              visibleRowCount={visibleRowCount}
-              isDark={isDark}
-              bare
-              visible={on}
-            />
-          )}
+          <div
+            className="scrollable"
+            data-command-list-scroll=""
+            data-sb-edge={PANEL_RADIUS - 1}
+            data-sb-wall={SCROLLBAR_WALL}
+            style={{
+              maxHeight: listMaxH,
+              overflowY: "auto",
+              overscrollBehavior: "contain",
+            }}
+          >
+            {open && (
+              <CommandMenu
+                items={items}
+                activeIndex={activeIndex}
+                onPick={onPick}
+                onHover={onHoverId}
+                onVisibleChange={onVisibleChange}
+                folderState={folderState}
+                expandRef={expandRef}
+                visibleRowCount={visibleRowCount}
+                isDark={isDark}
+                bare
+                visible={on}
+              />
+            )}
+          </div>
         </div>
 
         {/* header slot spacer — same box the pill occupies */}

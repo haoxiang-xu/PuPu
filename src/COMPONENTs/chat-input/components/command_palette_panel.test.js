@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import CommandPalettePanel from "./command_palette_panel";
+import { commandListHeight } from "./command_menu";
 
 /* jsdom has no ResizeObserver; the panel measures the pill row with one */
 beforeAll(() => {
@@ -22,6 +23,45 @@ const renderPanel = (props = {}) =>
       <div>pill</div>
     </CommandPalettePanel>,
   );
+
+describe("CommandPalettePanel list scrolling", () => {
+  /* The panel, not the menu, is the scroll host. PuPu's scrollbar is the
+     overlay thumb that `.scrollable` attaches to a container's parent, and
+     its track is laid out here against the panel's own frame: it starts
+     where the 22px corner begins and stops the same distance short of the
+     bottom. Boxed inside the panel with its own inset, the menu could only
+     ever run the thumb from the corner to the hint bar. */
+  test("the list slot is the scroll host and carries PuPu's overlay scrollbar", () => {
+    renderPanel();
+    const host = document.querySelector("[data-command-list-scroll]");
+    expect(host).not.toBeNull();
+    expect(host.classList.contains("scrollable")).toBe(true);
+    expect(host.style.overflowY).toBe("auto");
+    expect(host.style.maxHeight).toBe(
+      `${commandListHeight({ rowCount: items.length, bare: true })}px`,
+    );
+  });
+
+  test("the thumb's track starts where the corner begins and keeps the same room at the bottom", () => {
+    renderPanel();
+    const host = document.querySelector("[data-command-list-scroll]");
+    // 22px radius, and the slot sits 1px inside the panel's border
+    expect(host.getAttribute("data-sb-edge")).toBe("21");
+    // same inset from the wall as the Select palette's thumb
+    expect(host.getAttribute("data-sb-wall")).toBe("2");
+  });
+
+  test("the menu inside no longer scrolls on its own", () => {
+    renderPanel();
+    const listbox = screen.getByRole("listbox", {
+      name: "斜杠命令",
+      hidden: true,
+    });
+    expect(listbox.classList.contains("scrollable")).toBe(false);
+    expect(listbox.style.maxHeight).toBe("");
+    expect(listbox.style.overflowY).toBe("");
+  });
+});
 
 describe("CommandPalettePanel organize action", () => {
   test("lives in the hint bar, not in the list, and carries its label", () => {

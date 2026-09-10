@@ -116,12 +116,26 @@ const CommandMenu = ({
         boxShadow: shadow,
         padding: 3,
       };
+  /* Bare mode does not scroll: the palette panel's list slot is the scroll
+     host, and PuPu's overlay thumb is laid out there against the panel's
+     frame (the 22px corner, the hint bar). Boxed in here it could only run
+     from corner to bar. The carded menu stands alone and keeps its own. */
+  const scrolling = bare
+    ? {}
+    : {
+        maxHeight: commandListHeight({
+          rowCount: visibleRowCount > 0 ? visibleRowCount : items.length,
+          bare,
+        }),
+        overflowY: "auto",
+        overscrollBehavior: "contain",
+      };
 
   return (
     <div
       role="listbox"
       aria-label="斜杠命令"
-      className="scrollable"
+      className={bare ? undefined : "scrollable"}
       /* Nothing in the palette may take focus from the composer: its blur is
          what closes the palette (chat_input clears the slash trigger on
          blur), so a mousedown the browser is allowed to act on closes the
@@ -138,12 +152,7 @@ const CommandMenu = ({
         display: "flex",
         flexDirection: "column",
         gap: 1,
-        maxHeight: commandListHeight({
-          rowCount: visibleRowCount > 0 ? visibleRowCount : items.length,
-          bare,
-        }),
-        overflowY: "auto",
-        overscrollBehavior: "contain",
+        ...scrolling,
         ...chrome,
       }}
     >

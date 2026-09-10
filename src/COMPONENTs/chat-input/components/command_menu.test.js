@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import CommandMenu from "./command_menu";
+import CommandMenu, { commandListHeight } from "./command_menu";
 
 const makeItems = () => [
   { name: "/btw", description: "立即回答,不打断当前任务", insertText: "/btw " },
@@ -322,9 +322,19 @@ describe("CommandMenu list height", () => {
 
 
   test("bare rows are shorter than carded ones", () => {
-    expect(heightOf({ items: rows(4), bare: true })).toBeLessThan(
-      heightOf({ items: rows(4) }),
+    expect(commandListHeight({ rowCount: 4, bare: true })).toBeLessThan(
+      commandListHeight({ rowCount: 4 }),
     );
+  });
+
+  test("bare mode leaves scrolling to its host: no cap, no overflow, no scrollbar of its own", () => {
+    render(
+      <CommandMenu items={rows(40)} activeIndex={0} onPick={() => {}} bare />,
+    );
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    expect(menu.style.maxHeight).toBe("");
+    expect(menu.style.overflowY).toBe("");
+    expect(menu.classList.contains("scrollable")).toBe(false);
   });
 
   test("the reported visible row count wins over the command count", () => {
