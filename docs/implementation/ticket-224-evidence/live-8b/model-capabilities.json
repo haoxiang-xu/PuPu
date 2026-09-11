@@ -1,0 +1,17 @@
+{
+  "capabilities": [
+    "tools",
+    "thinking",
+    "completion"
+  ],
+  "details": {
+    "parent_model": "",
+    "format": "gguf",
+    "family": "llama",
+    "families": [
+      "llama"
+    ],
+    "parameter_size": "8.0B",
+    "quantization_level": "Q4_K_M"
+  }
+}

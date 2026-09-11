@@ -967,7 +967,10 @@ const isCanonicalHumanInputPayload = (toolCall) => {
       boundaryString(payload.question) &&
       ["single", "multiple"].includes(payload.selection_mode) &&
       Array.isArray(payload.options) &&
-      payload.options.length > 0 &&
+      (payload.options.length > 0 ||
+        (payload.allow_other === true &&
+          [0, 1].includes(payload.min_selected) &&
+          payload.max_selected === 1)) &&
       payload.options.every(
         (option) =>
           isObject(option) &&

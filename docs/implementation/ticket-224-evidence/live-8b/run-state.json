@@ -1,0 +1,21 @@
+{
+  "chat_id": "chat-1789159308605-10e760c63c40e8",
+  "execution_id": "chat-1789159308605-10e760c63c40e8",
+  "attempt_id": "unchain-1789159308632-d3eb246dcd844",
+  "status": "completed",
+  "message_id": "assistant-1789159308630-6cc8be7f0f7ae8",
+  "content": "我先用 `ask_user_question` 工具询问你具体的项目文件夹路径。\n\n```json\n{\n  \"title\": \"项目文件夹\",\n  \"question\": \"请告诉我你希望创建项目的文件夹路径。\",\n  \"selection_mode\": \"single\",\n  \"options\": [\n    {\n      \"label\": \"/home/user/Projects\",\n      \"value\": \"/home/user/Projects\"\n    }\n  ],\n  \"allow_other\": true,\n  \"other_label\": \"自定义路径\",\n  \"other_placeholder\": \"路径\"\n}\n```\n\n收到你的回答后，我会复述该路径并结束当前对话，不会创建或修改文件。",
+  "tool_calls": null,
+  "finish_reason": null,
+  "started_at": 1789159308630,
+  "updated_at": 1789159356507,
+  "error": null,
+  "confirmation_debug": {
+    "pending_requests_ref": {},
+    "pending_requests_rendered": {},
+    "ui_state_ref": {},
+    "ui_state_rendered": {},
+    "runtime": null,
+    "trace_frames": []
+  }
+}

@@ -1,0 +1,537 @@
+{
+  "id": "chat-1789159308605-10e760c63c40e8",
+  "title": "224 audit 8B path input",
+  "model": "ollama:deepseek-r1:8b",
+  "character_id": null,
+  "toolkits": [
+    "core"
+  ],
+  "messages": [
+    {
+      "id": "user-1789159308630",
+      "role": "user",
+      "content": "这是交互测试，不要创建或修改文件。我要你在我电脑上创建一个项目。动手之前，先用 ask_user_question 问我具体要放在哪个文件夹路径；收到回答后只复述该路径并结束。",
+      "createdAt": 1789159308630,
+      "updatedAt": 1789159308630
+    },
+    {
+      "id": "assistant-1789159308630-6cc8be7f0f7ae8",
+      "role": "assistant",
+      "content": "我先用 `ask_user_question` 工具询问你具体的项目文件夹路径。\n\n```json\n{\n  \"title\": \"项目文件夹\",\n  \"question\": \"请告诉我你希望创建项目的文件夹路径。\",\n  \"selection_mode\": \"single\",\n  \"options\": [\n    {\n      \"label\": \"/home/user/Projects\",\n      \"value\": \"/home/user/Projects\"\n    }\n  ],\n  \"allow_other\": true,\n  \"other_label\": \"自定义路径\",\n  \"other_placeholder\": \"路径\"\n}\n```\n\n收到你的回答后，我会复述该路径并结束当前对话，不会创建或修改文件。",
+      "createdAt": 1789159308630,
+      "updatedAt": 1789159356507,
+      "status": "done",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1789159308636,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "stream_started",
+          "payload": {
+            "thread_id": "chat-1789159308605-10e760c63c40e8",
+            "model": "ollama:deepseek-r1:8b",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_704286f5deba4c708db44f2d4e885d1d"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1789159308666,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "run_started",
+          "iteration": 0,
+          "payload": {
+            "status": "running",
+            "provider": "ollama",
+            "model": "deepseek-r1:8b",
+            "run_id": "unchain-1789159308632-d3eb246dcd844",
+            "runtime_event_id": "evt_d97f5d25b0184bcaac79e68ef7961ad5"
+          }
+        },
+        {
+          "seq": 3,
+          "ts": 1789159308666,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "iteration_started",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "runtime_event_id": "evt_8de83ec70eb74604a63812b725fe4410"
+          }
+        },
+        {
+          "seq": 146,
+          "ts": 1789159356430,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "response_received",
+          "iteration": 0,
+          "payload": {
+            "step_id": "model:unchain-1789159308632-d3eb246dcd844:turn-0:response",
+            "step_type": "model_response",
+            "status": "running",
+            "response_id": "",
+            "has_tool_calls": false,
+            "usage": {
+              "model": "deepseek-r1:8b",
+              "consumed_tokens": 1404,
+              "input_tokens": 1006,
+              "output_tokens": 398,
+              "last_turn_tokens": 1404,
+              "last_turn_input_tokens": 1006,
+              "last_turn_output_tokens": 398,
+              "max_context_window_tokens": 13107,
+              "context_window_used_pct": 10.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "runtime_event_id": "evt_cd0a5605d4b643e5adba99c7d76560d9"
+          }
+        },
+        {
+          "seq": 147,
+          "ts": 1789159356432,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "final_message",
+          "iteration": 0,
+          "payload": {
+            "content": "我先用 `ask_user_question` 工具询问你具体的项目文件夹路径。\n\n```json\n{\n  \"title\": \"项目文件夹\",\n  \"question\": \"请告诉我你希望创建项目的文件夹路径。\",\n  \"selection_mode\": \"single\",\n  \"options\": [\n    {\n      \"label\": \"/home/user/Projects\",\n      \"value\": \"/home/user/Projects\"\n    }\n  ],\n  \"allow_other\": true,\n  \"other_label\": \"自定义路径\",\n  \"other_placeholder\": \"路径\"\n}\n```\n\n收到你的回答后，我会复述该路径并结束当前对话，不会创建或修改文件。",
+            "runtime_event_id": "evt_8ac516ad562e47adabc4ad4a60951a71",
+            "finality": "terminal"
+          }
+        },
+        {
+          "seq": 148,
+          "ts": 1789159356433,
+          "run_id": "unchain-1789159308632-d3eb246dcd844",
+          "type": "done",
+          "iteration": 0,
+          "payload": {
+            "status": "completed",
+            "usage": {
+              "model": "deepseek-r1:8b",
+              "consumed_tokens": 1404,
+              "input_tokens": 1006,
+              "output_tokens": 398,
+              "last_turn_tokens": 1404,
+              "last_turn_input_tokens": 1006,
+              "last_turn_output_tokens": 398,
+              "max_context_window_tokens": 13107,
+              "context_window_used_pct": 10.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "bundle": {
+              "model": "deepseek-r1:8b",
+              "consumed_tokens": 1404,
+              "input_tokens": 1006,
+              "output_tokens": 398,
+              "last_turn_tokens": 1404,
+              "last_turn_input_tokens": 1006,
+              "last_turn_output_tokens": 398,
+              "max_context_window_tokens": 13107,
+              "context_window_used_pct": 10.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "runtime_event_id": "evt_84ea8b8259d345f9a5d55b1ffb98e6eb"
+          }
+        }
+      ],
+      "meta": {
+        "model": "ollama:deepseek-r1:8b",
+        "requestId": "unchain-1789159308632-d3eb246dcd844",
+        "attemptId": "unchain-1789159308632-d3eb246dcd844",
+        "executionSessionId": "chat-1789159308605-10e760c63c40e8",
+        "bundle": {
+          "schema": "unchain.run_bundle.v1",
+          "bundle_id": "rb_9fd3a8e7cf223755d1151cd0fe2e089109910f994548c3589a38b820426a10a8",
+          "revision": 2,
+          "bundle_digest": "ef7297426c41b1c713ffdc1f6aaafd5964ee402e8d330fdd50fbc0d813c5ae9b",
+          "identity": {
+            "execution_id": "chat-1789159308605-10e760c63c40e8",
+            "attempt_id": "unchain-1789159308632-d3eb246dcd844",
+            "root_run_id": "unchain-1789159308632-d3eb246dcd844",
+            "run_id": "unchain-1789159308632-d3eb246dcd844",
+            "parent_run_id": null,
+            "relation": "root"
+          },
+          "lifecycle": {
+            "status": "completed",
+            "started_at": "2026-09-11T20:41:48.662468Z",
+            "completed_at": "2026-09-11T20:42:36.434144Z",
+            "continued_from_run_id": null
+          },
+          "descriptor": {
+            "model": "deepseek-r1:8b",
+            "display_model": "ollama:deepseek-r1:8b",
+            "active_agent": "developer",
+            "agent_orchestration": "default",
+            "iteration": 1
+          },
+          "metrics": {
+            "algorithm": "unique_metric_event_set_union.v1",
+            "events": [
+              {
+                "metric_event_id": "me_8fe7198454cbf452d5a567f27c9a80fe10b6a5d066eaa4a2ddb0a26e7b34667e",
+                "execution_id": "chat-1789159308605-10e760c63c40e8",
+                "attempt_id": "unchain-1789159308632-d3eb246dcd844",
+                "root_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "owner_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "parent_run_id": null,
+                "kind": "iteration",
+                "subject_id": "iteration:0",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_d964a647778528577be11731d40b84645b91bce5de666b9b7bf364004ea29b52",
+                "execution_id": "chat-1789159308605-10e760c63c40e8",
+                "attempt_id": "unchain-1789159308632-d3eb246dcd844",
+                "root_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "owner_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "parent_run_id": null,
+                "kind": "model_attempt",
+                "subject_id": "pc_5a29eb36f1a98df14c4103426d2a5dfe031a20b168c3a452e0e5c8fa1ee7af63",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              }
+            ],
+            "direct": {
+              "artifacts": 0,
+              "model_attempts": 1,
+              "iterations": 1,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 0,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "descendant": {
+              "artifacts": 0,
+              "model_attempts": 0,
+              "iterations": 0,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 0,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "all": {
+              "artifacts": 0,
+              "model_attempts": 1,
+              "iterations": 1,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 0,
+              "context_compactions": 0,
+              "errors": 0
+            }
+          },
+          "provider_calls": [
+            {
+              "schema": "unchain.provider_call_usage.v1",
+              "provider_call_id": "pc_5a29eb36f1a98df14c4103426d2a5dfe031a20b168c3a452e0e5c8fa1ee7af63",
+              "identity": {
+                "execution_id": "chat-1789159308605-10e760c63c40e8",
+                "attempt_id": "unchain-1789159308632-d3eb246dcd844",
+                "root_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "owner_run_id": "unchain-1789159308632-d3eb246dcd844",
+                "parent_run_id": null,
+                "iteration": 0,
+                "retry_ordinal": 0,
+                "purpose": "agent_turn",
+                "request_sha256": "e6d96d787af3c679d3129bcb2af770db19a639a3d50f65619fb6eca057d01e43",
+                "route": "ollama.chat"
+              },
+              "provider": {
+                "name": "ollama",
+                "model": "deepseek-r1:8b",
+                "service_tier": null
+              },
+              "status": "completed",
+              "timing": {
+                "started_at": "2026-09-11T20:41:49.817685Z",
+                "completed_at": "2026-09-11T20:42:20.870055Z"
+              },
+              "provider_ids": {
+                "request_id_sha256": null,
+                "response_id_sha256": null
+              },
+              "billing_dimensions": {
+                "billing_surface": null,
+                "batch": null,
+                "inference_geo": null
+              },
+              "usage": {
+                "input": {
+                  "uncached_tokens": 1006,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": 0,
+                  "cache_write_1h_tokens": 0,
+                  "total_tokens": 1006
+                },
+                "output": {
+                  "visible_tokens": null,
+                  "reasoning_tokens": null,
+                  "total_tokens": 398
+                },
+                "total_tokens": 1404,
+                "source": "provider_observed_partial"
+              },
+              "raw_usage_sha256": "7d4079c606e04a61ca95f287c61f80f45024290c8ba49e62f0f019a82dfd1e65",
+              "pricing": {
+                "status": "unavailable",
+                "basis": null,
+                "snapshot": null,
+                "amount_nano_usd": null,
+                "reason": "pricing_service_tier_unknown",
+                "input_multiplier_ppm": null,
+                "output_multiplier_ppm": null
+              },
+              "extensions": {
+                "unchain.context/context_composition_v1": {
+                  "attributed_tokens": 1006,
+                  "categories": [
+                    {
+                      "id": "instructions",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "core_system",
+                          "source_count": 2,
+                          "tokens": 356
+                        }
+                      ],
+                      "tokens": 356
+                    },
+                    {
+                      "id": "tool_definitions",
+                      "source_count": 20,
+                      "subtypes": [
+                        {
+                          "id": "provider_schema",
+                          "source_count": 20,
+                          "tokens": 639
+                        }
+                      ],
+                      "tokens": 639
+                    },
+                    {
+                      "id": "conversation",
+                      "source_count": 1,
+                      "subtypes": [
+                        {
+                          "id": "current_input",
+                          "source_count": 1,
+                          "tokens": 11
+                        }
+                      ],
+                      "tokens": 11
+                    }
+                  ],
+                  "context_window_tokens": 13107,
+                  "coverage": {
+                    "manifest_items": 23,
+                    "matched_items": 23,
+                    "matched_surfaces": 2,
+                    "status": "complete",
+                    "wire_surfaces": 2
+                  },
+                  "method": "utf8_heuristic_v2",
+                  "quality": "reconciled_estimate",
+                  "residual_tokens": 0,
+                  "schema": "unchain.context/context_composition_v1",
+                  "wire": {
+                    "context_mode": "semantic",
+                    "envelope_sha256": "sha256:3b0d7a06560693c5cbc6fc5cc60981874a033c36ab2cc0248f0abd69ed33e8eb",
+                    "route_name": "primary",
+                    "route_sha256": "sha256:9d298de4d3b2bc20854fed38c0e472ef17f5028041a8c464768b03b1717595a1"
+                  }
+                },
+                "unchain.runtime/provider_attempt_classification": "success",
+                "unchain.runtime/usage_capture": "provider_adapter"
+              }
+            }
+          ],
+          "children": [],
+          "aggregation": {
+            "algorithm": "provider_call_set_union.v1",
+            "direct_call_ids": [
+              "pc_5a29eb36f1a98df14c4103426d2a5dfe031a20b168c3a452e0e5c8fa1ee7af63"
+            ],
+            "descendant_call_ids": [],
+            "all_call_ids": [
+              "pc_5a29eb36f1a98df14c4103426d2a5dfe031a20b168c3a452e0e5c8fa1ee7af63"
+            ],
+            "direct_usage": {
+              "input": {
+                "uncached_tokens": 1006,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": 0,
+                "cache_write_1h_tokens": 0,
+                "total_tokens": 1006
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": 398
+              },
+              "total_tokens": 1404,
+              "source": "provider_observed_partial"
+            },
+            "descendant_usage": {
+              "input": {
+                "uncached_tokens": null,
+                "cache_read_tokens": null,
+                "cache_write_tokens": null,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": null
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": null
+              },
+              "total_tokens": null,
+              "source": "unavailable"
+            },
+            "all_usage": {
+              "input": {
+                "uncached_tokens": 1006,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": 0,
+                "cache_write_1h_tokens": 0,
+                "total_tokens": 1006
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": 398
+              },
+              "total_tokens": 1404,
+              "source": "provider_observed_partial"
+            }
+          },
+          "usage_slices": [
+            {
+              "provider": "ollama",
+              "model": "deepseek-r1:8b",
+              "service_tier": null,
+              "call_ids": [
+                "pc_5a29eb36f1a98df14c4103426d2a5dfe031a20b168c3a452e0e5c8fa1ee7af63"
+              ],
+              "usage": {
+                "input": {
+                  "uncached_tokens": 1006,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": 0,
+                  "cache_write_1h_tokens": 0,
+                  "total_tokens": 1006
+                },
+                "output": {
+                  "visible_tokens": null,
+                  "reasoning_tokens": null,
+                  "total_tokens": 398
+                },
+                "total_tokens": 1404,
+                "source": "provider_observed_partial"
+              },
+              "coverage": {
+                "status": "complete",
+                "receipt_count": 1,
+                "observed_usage_count": 1,
+                "missing_usage_count": 0,
+                "uncertain_call_count": 0,
+                "missing_usage_call_ids": []
+              },
+              "cost": {
+                "status": "unavailable",
+                "basis": null,
+                "amount_nano_usd": null,
+                "currency": null,
+                "pricing_snapshot_ids": []
+              }
+            }
+          ],
+          "coverage": {
+            "status": "complete",
+            "receipt_count": 1,
+            "observed_usage_count": 1,
+            "missing_usage_count": 0,
+            "uncertain_call_count": 0,
+            "missing_usage_call_ids": []
+          },
+          "cost": {
+            "status": "unavailable",
+            "basis": null,
+            "amount_nano_usd": null,
+            "currency": null,
+            "pricing_snapshot_ids": []
+          },
+          "legacy": {
+            "status": "canonical",
+            "source": null,
+            "reason": null
+          },
+          "evidence": {
+            "receipt_sha256s": [
+              "f85ac06beaa2d5d3eff75d2dd420d0fef39923bf741b1d4f7377c22db5b8ea11"
+            ],
+            "raw_usage_sha256s": [
+              "7d4079c606e04a61ca95f287c61f80f45024290c8ba49e62f0f019a82dfd1e65"
+            ],
+            "pricing_snapshot_ids": []
+          },
+          "extensions": {
+            "pupu.run/completion_diagnostics_ref_v1": {
+              "diagnostics_schema": "pupu.completion_diagnostics.v1",
+              "diagnostics_sha256": "8194ea58a0e13f71a5ef51d6326ce937d0c96a7682f7631ead3bc34e79911750",
+              "schema": "pupu.completion_diagnostics_ref.v1"
+            },
+            "unchain.runtime/identity_source": "explicit",
+            "unchain.runtime/kernel_status": "completed"
+          }
+        },
+        "completion_diagnostics": {
+          "schema": "pupu.completion_diagnostics.v1",
+          "diagnostics_digest": "8194ea58a0e13f71a5ef51d6326ce937d0c96a7682f7631ead3bc34e79911750",
+          "memory_v2": {
+            "available_input_tokens": 28837,
+            "canary_hash_strategy": "sha256_owner_v1",
+            "canary_percent": 5,
+            "canary_selected": false,
+            "compression_threshold_tokens": 25953,
+            "effective_rollout_mode": "off",
+            "mode": "off",
+            "output_reserve_tokens": 3276,
+            "real_context_window_tokens": 32768,
+            "reason": "",
+            "requested_mode": "off",
+            "requested_rollout_mode": "off",
+            "schema_version": "memory_v2.context.v1",
+            "transport_margin_tokens": 655
+          }
+        }
+      }
+    }
+  ]
+}

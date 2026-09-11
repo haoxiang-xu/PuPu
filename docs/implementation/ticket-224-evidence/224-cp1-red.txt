@@ -1,0 +1,456 @@
+FFFFFFF.FF.FF.....FFFF                                                   [100%]
+=================================== FAILURES ===================================
+___ test_admits_empty_options_as_free_text_for_both_selection_modes[single] ____
+
+selection_mode = 'single'
+
+    @pytest.mark.parametrize("selection_mode", ["single", "multiple"])
+    def test_admits_empty_options_as_free_text_for_both_selection_modes(selection_mode):
+>       request = HumanInputRequest.from_tool_arguments(
+            _arguments(selection_mode=selection_mode), request_id="req-free-text"
+        )
+
+tests/test_human_input_free_text.py:31:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+request_id = 'req-free-text'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+__ test_admits_empty_options_as_free_text_for_both_selection_modes[multiple] ___
+
+selection_mode = 'multiple'
+
+    @pytest.mark.parametrize("selection_mode", ["single", "multiple"])
+    def test_admits_empty_options_as_free_text_for_both_selection_modes(selection_mode):
+>       request = HumanInputRequest.from_tool_arguments(
+            _arguments(selection_mode=selection_mode), request_id="req-free-text"
+        )
+
+tests/test_human_input_free_text.py:31:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'multiple', 'options': [], ...}
+request_id = 'req-free-text'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+____________________ test_admits_free_text_from_json_string ____________________
+
+    def test_admits_free_text_from_json_string():
+>       request = HumanInputRequest.from_tool_arguments(
+            json.dumps(_arguments()), request_id="req-json"
+        )
+
+tests/test_human_input_free_text.py:44:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = '{"title": "Input needed", "question": "What folder should I use?", "selection_mode": "single", "options": [], "allow_other": true, "other_label": "Folder path", "other_placeholder": "/path/to/folder"}'
+request_id = 'req-json'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+_ test_rejects_malformed_or_unknown_admission_arguments[None-must be an object] _
+
+arguments = None, message = 'must be an object'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+>       with pytest.raises(ValueError, match=message):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'must be an object'
+E         Actual message: 'title must be a non-empty string'
+
+tests/test_human_input_free_text.py:67: AssertionError
+_ test_rejects_malformed_or_unknown_admission_arguments[arguments1-must be an object] _
+
+arguments = [], message = 'must be an object'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+>       with pytest.raises(ValueError, match=message):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'must be an object'
+E         Actual message: 'human input tool arguments must be a dict or JSON string'
+
+tests/test_human_input_free_text.py:67: AssertionError
+_ test_rejects_malformed_or_unknown_admission_arguments["text"-must be an object] _
+
+arguments = '"text"', message = 'must be an object'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+        with pytest.raises(ValueError, match=message):
+>           HumanInputRequest.from_tool_arguments(arguments, request_id="req-invalid")
+
+tests/test_human_input_free_text.py:68:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = '"text"', request_id = 'req-invalid'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+>       title = _clean_required_text(raw.get("title"), "title")
+                                     ^^^^^^^
+E       AttributeError: 'str' object has no attribute 'get'
+
+src/unchain/input/human_input.py:144: AttributeError
+_ test_rejects_malformed_or_unknown_admission_arguments[null-must be an object] _
+
+arguments = 'null', message = 'must be an object'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+        with pytest.raises(ValueError, match=message):
+>           HumanInputRequest.from_tool_arguments(arguments, request_id="req-invalid")
+
+tests/test_human_input_free_text.py:68:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>, arguments = 'null'
+request_id = 'req-invalid'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+>       title = _clean_required_text(raw.get("title"), "title")
+                                     ^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'get'
+
+src/unchain/input/human_input.py:144: AttributeError
+_ test_rejects_malformed_or_unknown_admission_arguments[arguments5-options must be an array] _
+
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': {}, ...}
+message = 'options must be an array'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+>       with pytest.raises(ValueError, match=message):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'options must be an array'
+E         Actual message: 'options must be a non-empty array'
+
+tests/test_human_input_free_text.py:67: AssertionError
+_ test_rejects_malformed_or_unknown_admission_arguments[arguments6-allow_other must be a boolean] _
+
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+message = 'allow_other must be a boolean'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+>       with pytest.raises(ValueError, match=message):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'allow_other must be a boolean'
+E         Actual message: 'options must be a non-empty array'
+
+tests/test_human_input_free_text.py:67: AssertionError
+_ test_rejects_malformed_or_unknown_admission_arguments[arguments8-unknown argument field] _
+
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+message = 'unknown argument field'
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (None, "must be an object"),
+            ([], "must be an object"),
+            ('"text"', "must be an object"),
+            ("null", "must be an object"),
+            (_arguments(allow_other=False), "options must be a non-empty array"),
+            (_arguments(options={}), "options must be an array"),
+            (_arguments(allow_other="true"), "allow_other must be a boolean"),
+            (_arguments(selection_mode=1), "selection_mode must be 'single' or 'multiple'"),
+            (_arguments(unknown_field=True), "unknown argument field"),
+        ],
+    )
+    def test_rejects_malformed_or_unknown_admission_arguments(arguments, message):
+>       with pytest.raises(ValueError, match=message):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'unknown argument field'
+E         Actual message: 'options must be a non-empty array'
+
+tests/test_human_input_free_text.py:67: AssertionError
+______________________ test_rejects_unknown_option_fields ______________________
+
+    def test_rejects_unknown_option_fields():
+>       with pytest.raises(ValueError, match="unknown option field"):
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_human_input_free_text.py:72: Failed
+_________ test_free_text_request_roundtrips_through_dict_and_from_dict _________
+
+    def test_free_text_request_roundtrips_through_dict_and_from_dict():
+>       request = HumanInputRequest.from_tool_arguments(
+            _arguments(), request_id="req-roundtrip"
+        )
+
+tests/test_human_input_free_text.py:113:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+request_id = 'req-roundtrip'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+__ test_free_text_response_requires_nonempty_other_text_and_preserves_payload __
+
+    def test_free_text_response_requires_nonempty_other_text_and_preserves_payload():
+>       request = HumanInputRequest.from_tool_arguments(
+            _arguments(), request_id="req-response"
+        )
+
+tests/test_human_input_free_text.py:126:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+request_id = 'req-response'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+__ test_free_text_response_rejects_wrong_id_unsupported_and_duplicate_values ___
+
+    def test_free_text_response_rejects_wrong_id_unsupported_and_duplicate_values():
+>       request = HumanInputRequest.from_tool_arguments(
+            _arguments(), request_id="req-response-errors"
+        )
+
+tests/test_human_input_free_text.py:158:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'unchain.input.human_input.HumanInputRequest'>
+arguments = {'title': 'Input needed', 'question': 'What folder should I use?', 'selection_mode': 'single', 'options': [], ...}
+request_id = 'req-response-errors'
+
+    @classmethod
+    def from_tool_arguments(
+        cls,
+        arguments: dict[str, Any] | str | None,
+        *,
+        request_id: str,
+    ) -> "HumanInputRequest":
+        raw = _parse_tool_arguments(arguments)
+        title = _clean_required_text(raw.get("title"), "title")
+        question = _clean_required_text(raw.get("question"), "question")
+        selection_mode = raw.get("selection_mode")
+        if selection_mode not in {"single", "multiple"}:
+            raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+        raw_options = raw.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+>           raise ValueError("options must be a non-empty array")
+E           ValueError: options must be a non-empty array
+
+src/unchain/input/human_input.py:152: ValueError
+________________ test_prompt_guidance_explains_free_text_shape _________________
+
+    def test_prompt_guidance_explains_free_text_shape():
+        tk = CoreToolkit(workspace_root=".")
+        prompt_block = render_tool_prompt_block(tk)
+
+>       assert "options=[]" in prompt_block
+E       AssertionError: assert 'options=[]' in '<tools>\n# unchain generated tools guidance\nUse provider-native tool schemas as the source of truth for callable arg...lsp: Query a language server for definitions, references, hover text, and symbols for Python or TS/JS files.\n</tools>'
+
+tests/test_human_input_free_text.py:180: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_human_input_free_text.py::test_admits_empty_options_as_free_text_for_both_selection_modes[single]
+FAILED tests/test_human_input_free_text.py::test_admits_empty_options_as_free_text_for_both_selection_modes[multiple]
+FAILED tests/test_human_input_free_text.py::test_admits_free_text_from_json_string
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[None-must be an object]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[arguments1-must be an object]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments["text"-must be an object]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[null-must be an object]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[arguments5-options must be an array]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[arguments6-allow_other must be a boolean]
+FAILED tests/test_human_input_free_text.py::test_rejects_malformed_or_unknown_admission_arguments[arguments8-unknown argument field]
+FAILED tests/test_human_input_free_text.py::test_rejects_unknown_option_fields
+FAILED tests/test_human_input_free_text.py::test_free_text_request_roundtrips_through_dict_and_from_dict
+FAILED tests/test_human_input_free_text.py::test_free_text_response_requires_nonempty_other_text_and_preserves_payload
+FAILED tests/test_human_input_free_text.py::test_free_text_response_rejects_wrong_id_unsupported_and_duplicate_values
+FAILED tests/test_human_input_free_text.py::test_prompt_guidance_explains_free_text_shape
+15 failed, 7 passed in 0.26s
