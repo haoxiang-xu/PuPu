@@ -39,14 +39,12 @@ describe("feature_flags service", () => {
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: false,
       enable_user_access_to_characters: false,
-      enable_app_update_settings: true,
       enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
-    expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
     expect(isFeatureFlagEnabled("enable_custom_model_providers")).toBe(false);
     expect(isFeatureFlagEnabled("enable_computer_use")).toBe(false);
   });
@@ -70,7 +68,6 @@ describe("feature_flags service", () => {
       buildFeatureFlagsEnv: JSON.stringify({
         enable_user_access_to_agents: true,
         enable_user_access_to_characters: true,
-        enable_app_update_settings: false,
         enable_custom_model_providers: true,
         enable_computer_use: true,
         enable_memory_v2: true,
@@ -83,7 +80,6 @@ describe("feature_flags service", () => {
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
-      enable_app_update_settings: false,
       enable_custom_model_providers: true,
       enable_computer_use: true,
       enable_memory_v2: true,
@@ -91,17 +87,13 @@ describe("feature_flags service", () => {
   });
 
   test("an old unversioned full-snapshot namespace is discarded wholesale on read", () => {
-    // Pre-fix shape: every key explicitly resolved, including a now-stale
-    // `false` for enable_app_update_settings, whose code default is true.
-    // That disagreement is what gives this test its teeth — the whole blob
-    // must be ignored, not partially trusted.
+    // A legacy false must not override the current build default of true.
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
         feature_flags: {
           enable_user_access_to_agents: false,
           enable_user_access_to_characters: false,
-          enable_app_update_settings: false,
           enable_custom_model_providers: false,
           enable_computer_use: false,
           enable_memory_v2: false,
@@ -109,15 +101,13 @@ describe("feature_flags service", () => {
       }),
     );
 
-    const { readFeatureFlags } = loadFeatureFlagsModule();
+    const { readFeatureFlags } = loadFeatureFlagsModule({
+      buildFeatureFlagsEnv: JSON.stringify({ enable_user_access_to_agents: true }),
+    });
 
     expect(readFeatureFlags()).toEqual({
-      enable_user_access_to_agents: false,
+      enable_user_access_to_agents: true,
       enable_user_access_to_characters: false,
-      // The stale explicit `false` snapshot value must NOT win: with the
-      // legacy blob discarded, this falls through to the current code
-      // default, which is true.
-      enable_app_update_settings: true,
       enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
@@ -169,7 +159,6 @@ describe("feature_flags service", () => {
     expect(resolved).toEqual({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: false,
-      enable_app_update_settings: true,
       enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
@@ -189,19 +178,19 @@ describe("feature_flags service", () => {
     });
   });
 
-  test("an explicit false override keeps suppressing a true-by-default flag", () => {
+  test("an explicit false override keeps suppressing a build-enabled flag", () => {
     const { writeFeatureFlags, readFeatureFlags, isFeatureFlagEnabled } =
-      loadFeatureFlagsModule();
+      loadFeatureFlagsModule({
+        buildFeatureFlagsEnv: JSON.stringify({ enable_user_access_to_agents: true }),
+      });
 
-    // enable_app_update_settings defaults to true; an explicit false must
-    // keep winning across reads until the user changes it again.
-    writeFeatureFlags({ enable_app_update_settings: false });
+    expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(true);
+    writeFeatureFlags({ enable_user_access_to_agents: false });
 
-    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
-    expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(false);
-
-    // A second, unrelated read must not have relaxed the override.
-    expect(readFeatureFlags().enable_app_update_settings).toBe(false);
+    expect(readFeatureFlags().enable_user_access_to_agents).toBe(false);
+    expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
+    // Repeated reads must retain the explicit override.
+    expect(readFeatureFlags().enable_user_access_to_agents).toBe(false);
   });
 
   test("two sequential writes of different keys both persist as explicit sparse choices", () => {
@@ -213,7 +202,6 @@ describe("feature_flags service", () => {
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: false,
-      enable_app_update_settings: true,
       enable_custom_model_providers: false,
       enable_computer_use: true,
       enable_memory_v2: false,
@@ -238,7 +226,6 @@ describe("feature_flags service", () => {
     expect(readFeatureFlags()).toEqual({
       enable_user_access_to_agents: false,
       enable_user_access_to_characters: false,
-      enable_app_update_settings: true,
       enable_custom_model_providers: false,
       enable_computer_use: false,
       enable_memory_v2: false,
@@ -274,7 +261,6 @@ describe("feature_flags service", () => {
     writeFeatureFlags({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
-      enable_app_update_settings: false,
       enable_custom_model_providers: true,
       enable_computer_use: true,
       enable_memory_v2: true,
@@ -283,7 +269,6 @@ describe("feature_flags service", () => {
     expect(listener).toHaveBeenCalledWith({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
-      enable_app_update_settings: false,
       enable_custom_model_providers: true,
       enable_computer_use: true,
       enable_memory_v2: true,

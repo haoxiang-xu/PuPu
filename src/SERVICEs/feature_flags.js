@@ -30,11 +30,6 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Characters tab inside the Agents modal. The side-menu entry is visible whenever this or enable_user_access_to_agents is enabled.",
     defaultValue: false,
   },
-  enable_app_update_settings: {
-    description:
-      "Show the Update page in Settings and allow access to in-app update controls.",
-    defaultValue: true,
-  },
   enable_custom_model_providers: {
     description:
       "Show Custom Model Providers plus the shipped DeepSeek/Kimi preset sections in Settings, and allow custom models in catalogs, selectors, connection tests, and chat requests.",

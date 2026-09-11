@@ -1,7 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { SettingsModal } from "./settings_modal";
-import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../../BUILTIN_COMPONENTs/modal/modal", () => ({
   __esModule: true,
@@ -89,12 +88,10 @@ describe("SettingsModal", () => {
     expect(screen.queryByText("Computer Use")).not.toBeInTheDocument();
   });
 
-  test("hides the Update page when the app update feature flag is disabled", async () => {
-    writeFeatureFlags({ enable_app_update_settings: false });
-
+  test("opens the Update page without feature flag configuration", async () => {
     renderSettingsModal();
 
-    await screen.findByText("Appearance Content");
-    expect(screen.queryByText("Update")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    expect(await screen.findByText("Update Content")).toBeInTheDocument();
   });
 });

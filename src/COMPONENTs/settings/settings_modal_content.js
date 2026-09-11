@@ -10,10 +10,6 @@ import { AppUpdateSettings } from "./app_update";
 import { TokenUsageSettings } from "./token_usage";
 import { DevSettings } from "./dev";
 import { isDevSettingsAvailable } from "./dev/storage";
-import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../SERVICEs/feature_flags";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const PAGE_COMPONENTS = {
@@ -48,27 +44,15 @@ export const SettingsModalContent = ({ onClose }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const [selectedPage, setSelectedPage] = useState("appearance");
-  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
-
-  useEffect(() => {
-    setFeatureFlags(readFeatureFlags());
-    return subscribeFeatureFlags(setFeatureFlags);
-  }, []);
 
   const settingsPages = useMemo(() => {
-    const pages = BASE_SETTINGS_PAGES.filter((page) => {
-      if (page.key === "app_update") {
-        return featureFlags.enable_app_update_settings === true;
-      }
-
-      return true;
-    });
+    const pages = [...BASE_SETTINGS_PAGES];
 
     if (isDevSettingsAvailable()) {
       pages.push(DEV_SETTINGS_PAGE);
     }
     return pages;
-  }, [featureFlags]);
+  }, []);
   const activePage =
     settingsPages.find((p) => p.key === selectedPage) ||
     settingsPages[0] ||
