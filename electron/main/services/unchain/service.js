@@ -5679,6 +5679,9 @@ const createUnchainService = ({
     if (kind === "provider" && id === "openai" && channel === "embedding") {
       return ["openaiApiKey", "openai_api_key"];
     }
+    if (kind === "provider" && id === "gemini" && channel === "model") {
+      return ["geminiApiKey", "gemini_api_key"];
+    }
     if (kind === "provider" && id === "anthropic" && channel === "model") {
       return ["anthropicApiKey", "anthropic_api_key"];
     }

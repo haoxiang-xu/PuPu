@@ -90,7 +90,7 @@ Provider API keys are **not** injected in the renderer. Since the secret →
   `options.__pupu_secret_injection = [{ kind, id, channel }]` — no key values,
   no ciphertext. `kind` is `"provider"` for a built-in provider or
   `"custom_provider"` for a user-defined one; the provider name itself is carried
-  in `id` (`"openai"` / `"anthropic"` for the built-ins, the credential id for a
+  in `id` (`"openai"` / `"anthropic"` / `"gemini"` for the built-ins, the credential id for a
   custom provider) — so a built-in openai and anthropic descriptor share
   `kind: "provider"` and differ only by `id`. `channel` distinguishes e.g. the
   chat model key (`channel: "model"`) from an OpenAI embedding key
@@ -109,7 +109,7 @@ unavailable / degraded) the renderer falls back to reading the dual-keep legacy
 `localStorage` secret so the request payload stays byte-equivalent to the
 pre-migration behavior.
 
-Supported remote providers: `openai`, `anthropic`, plus custom providers
+Supported remote providers: `openai`, `anthropic`, `gemini`, plus custom providers
 (descriptor `kind: "custom_provider"`).
 
 > Legacy plaintext `localStorage` secrets are kept read-only (dual-keep) for

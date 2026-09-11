@@ -657,6 +657,11 @@
     "collection_count": "· {count} plugins",
     "get_all": "TOUT OBTENIR",
     "add_custom_plugin": "Ajouter un plugin personnalisé",
+    "organize_skills_action": "Organiser les compétences",
+    "import_skills_action": "Importer des compétences",
+    "skillpack_section_empty": "Aucun pack de compétences. Importez un dossier de fichiers SKILL.md pour ajouter les vôtres.",
+    "add_custom_mcp_action": "Ajouter un MCP personnalisé",
+    "mcp_section_empty": "Aucun plugin MCP. Installez-en un depuis la boutique ou ajoutez le vôtre.",
     "import_skills_title": "Importer des compétences",
     "import_skills_section": "Dossier de compétences local",
     "import_skills_intro": "Importez un dossier local de fichiers SKILL.md en tant que commandes slash. Les compétences composées uniquement d’instructions sont prises en charge ; celles qui embarquent des scripts sont ignorées dans cette version.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "Répond maintenant, sans interrompre la tâche",
     "fyi": "Ajoute des infos à la tâche en cours",
-    "queue": "Met en file d'attente, s'exécute à la fin de ce tour"
+    "queue": "Met en file d'attente, s'exécute à la fin de ce tour",
+    "organize_action": "Organiser",
+    "organizer_title": "Organiser les compétences",
+    "organizer_new_category": "Nouvelle catégorie",
+    "organizer_default_category": "Nouvelle catégorie",
+    "organizer_rename": "Renommer",
+    "organizer_delete": "Supprimer la catégorie",
+    "organizer_palette_caption": "Palette · {count} commandes",
+    "organizer_plugin_tag": "Plugin",
+    "organizer_folder_menu": "Options de catégorie",
+    "organizer_empty": "Aucune commande : installez un pack de compétences pour les organiser.",
+    "organizer_close": "Fermer"
   },
   "boot": {
     "starting_runtime": "Démarrage des services locaux",

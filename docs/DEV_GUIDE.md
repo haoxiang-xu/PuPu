@@ -9,7 +9,7 @@
 
 PuPu is a cross-platform desktop AI client built with **React 19 + Electron 40** (frontend) and a **Python Flask sidecar** (`unchain_runtime`) for chat orchestration, memory, workspace context, and character management.
 
-It supports multiple model providers (OpenAI, Anthropic, Gemini, Ollama) and provides features like multi-conversation management, file attachments, tool orchestration, sub-agent delegation, and AI character personas.
+It supports multiple model providers (OpenAI, Anthropic, Gemini via the native Unchain driver, Ollama) and provides features like multi-conversation management, file attachments, tool orchestration, sub-agent delegation, and AI character personas.
 
 ---
 

@@ -657,6 +657,11 @@
     "collection_count": "· {count} plugins",
     "get_all": "OBTER TUDO",
     "add_custom_plugin": "Adicionar um plugin personalizado",
+    "organize_skills_action": "Organizar habilidades",
+    "import_skills_action": "Importar habilidades",
+    "skillpack_section_empty": "Nenhum pacote de habilidades ainda. Importe uma pasta com arquivos SKILL.md para adicionar os seus.",
+    "add_custom_mcp_action": "Adicionar MCP personalizado",
+    "mcp_section_empty": "Nenhum plugin MCP ainda. Instale um pela Loja ou adicione o seu.",
     "import_skills_title": "Importar skills",
     "import_skills_section": "Pasta local de skills",
     "import_skills_intro": "Importe uma pasta local de arquivos SKILL.md como comandos de barra. Skills apenas de instrução são suportadas; skills que incluem scripts são ignoradas nesta versão.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "Responde agora, sem interromper a tarefa",
     "fyi": "Adiciona informações à tarefa atual",
-    "queue": "Entra na fila, executa após este turno"
+    "queue": "Entra na fila, executa após este turno",
+    "organize_action": "Organizar",
+    "organizer_title": "Organizar habilidades",
+    "organizer_new_category": "Nova categoria",
+    "organizer_default_category": "Nova categoria",
+    "organizer_rename": "Renomear",
+    "organizer_delete": "Excluir categoria",
+    "organizer_palette_caption": "Paleta · {count} comandos",
+    "organizer_plugin_tag": "Plugin",
+    "organizer_folder_menu": "Opções da categoria",
+    "organizer_empty": "Nenhum comando ainda — instale um pacote de habilidades para organizar.",
+    "organizer_close": "Fechar"
   },
   "boot": {
     "starting_runtime": "Iniciando os serviços locais",

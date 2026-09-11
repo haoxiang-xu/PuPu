@@ -66,6 +66,8 @@ const buildLegacyCredentials = () => {
   const openai = readProviderSecret("openai_api_key");
   if (nonEmptyString(openai)) credentials.openai = openai;
 
+  const gemini = readProviderSecret("gemini_api_key");
+  if (nonEmptyString(gemini)) credentials.gemini = gemini;
   const anthropic = readProviderSecret("anthropic_api_key");
   if (nonEmptyString(anthropic)) credentials.anthropic = anthropic;
 

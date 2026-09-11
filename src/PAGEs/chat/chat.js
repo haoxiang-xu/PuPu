@@ -74,6 +74,7 @@ const PROVIDER_ICON = {
   ollama: _OllamaSVG,
   openai: _OpenAISVG,
   anthropic: _AnthropicSVG,
+  gemini: LogoSVGs.gemini,
 };
 
 /**
@@ -101,6 +102,7 @@ const isSameUnchainStatus = (current, next) =>
 const readConfiguredBuiltInProviders = () => ({
   hasOpenAI: providerSecretConfigured("openai"),
   hasAnthropic: providerSecretConfigured("anthropic"),
+  hasGemini: providerSecretConfigured("gemini"),
 });
 
 /* Rise-in wrapper that DROPS its animation once finished. The lingering
@@ -1097,6 +1099,9 @@ const ChatInterface = () => {
             {(() => {
               const providers = modelCatalog?.providers || {};
               const chips = [
+                ...(configuredProviders.hasGemini ? providers.gemini || [] : []).map((model) => ({
+                  id: `gemini:${model}`, label: model, provider: "gemini",
+                })),
                 ...(providers.ollama || []).map((model) => ({
                   id: `ollama:${model}`,
                   label: model,

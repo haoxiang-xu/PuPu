@@ -657,6 +657,11 @@
     "collection_count": "· {count} plugin",
     "get_all": "OTTIENI TUTTO",
     "add_custom_plugin": "Aggiungi un plugin personalizzato",
+    "organize_skills_action": "Organizza competenze",
+    "import_skills_action": "Importa competenze",
+    "skillpack_section_empty": "Nessun pacchetto di competenze. Importa una cartella di file SKILL.md per aggiungere i tuoi.",
+    "add_custom_mcp_action": "Aggiungi MCP personalizzato",
+    "mcp_section_empty": "Nessun plugin MCP. Installane uno dallo Store o aggiungi il tuo.",
     "import_skills_title": "Importa skill",
     "import_skills_section": "Cartella di skill locale",
     "import_skills_intro": "Importa una cartella locale di file SKILL.md come slash-command. Sono supportate le skill di sole istruzioni; le skill che includono script vengono ignorate in questa versione.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "Risponde subito, senza interrompere l'attività",
     "fyi": "Aggiunge informazioni all'attività corrente",
-    "queue": "Mette in coda, viene eseguito alla fine di questo turno"
+    "queue": "Mette in coda, viene eseguito alla fine di questo turno",
+    "organize_action": "Organizza",
+    "organizer_title": "Organizza competenze",
+    "organizer_new_category": "Nuova categoria",
+    "organizer_default_category": "Nuova categoria",
+    "organizer_rename": "Rinomina",
+    "organizer_delete": "Elimina categoria",
+    "organizer_palette_caption": "Tavolozza · {count} comandi",
+    "organizer_plugin_tag": "Plugin",
+    "organizer_folder_menu": "Opzioni categoria",
+    "organizer_empty": "Nessun comando: installa un pacchetto di competenze per organizzarli.",
+    "organizer_close": "Chiudi"
   },
   "boot": {
     "starting_runtime": "Avvio dei servizi locali",

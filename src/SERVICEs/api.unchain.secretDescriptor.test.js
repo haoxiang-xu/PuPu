@@ -574,3 +574,22 @@ describe("legacy fallback + mixed authority", () => {
     expect(readCustomProviderSecrets).not.toHaveBeenCalled();
   });
 });
+
+
+test("Gemini uses its own descriptor without reading the plaintext key", () => {
+  installStorageBridge({ secretStorageStatus: "available", configuredCredentials: ["gemini"] });
+  seedLegacy({ gemini_api_key: "gemini-SENTINEL" });
+  const payload = driveV2({ model: "gemini:gemini-2.5-flash", memory_enabled: false });
+  expect(descriptorList(payload)).toEqual([{ kind: "provider", id: "gemini", channel: "model" }]);
+  expect(JSON.stringify(payload)).not.toContain("gemini-SENTINEL");
+  expect(readProviderSecret).not.toHaveBeenCalled();
+});
+
+test("Gemini degraded mode writes only its two provider key fields", () => {
+  seedLegacy({ gemini_api_key: "gemini-SENTINEL", anthropic_api_key: "wrong-provider" });
+  const payload = driveV2({ model: "gemini:gemini-2.5-flash", memory_enabled: false });
+  expect(payload.options.geminiApiKey).toBe("gemini-SENTINEL");
+  expect(payload.options.gemini_api_key).toBe("gemini-SENTINEL");
+  expect(payload.options.anthropicApiKey).toBeUndefined();
+  expect(payload.options.apiKey).toBeUndefined();
+});

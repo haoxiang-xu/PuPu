@@ -657,6 +657,11 @@
     "collection_count": "· {count} 個外掛",
     "get_all": "全部取得",
     "add_custom_plugin": "新增自訂外掛",
+    "organize_skills_action": "整理技能",
+    "import_skills_action": "匯入技能",
+    "skillpack_section_empty": "尚無技能套件。匯入包含 SKILL.md 檔案的資料夾來新增自己的技能。",
+    "add_custom_mcp_action": "新增自訂 MCP",
+    "mcp_section_empty": "尚無 MCP 外掛程式。從商店安裝，或新增自己的外掛程式。",
     "import_skills_title": "匯入技能",
     "import_skills_section": "本機技能資料夾",
     "import_skills_intro": "將本機的 SKILL.md 檔案資料夾匯入為斜線指令。支援僅含指示的技能；附帶指令碼的技能在此版本會被略過。",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "立即回答，不打斷當前任務",
     "fyi": "補充給當前任務",
-    "queue": "排隊，當前任務完成後執行"
+    "queue": "排隊，當前任務完成後執行",
+    "organize_action": "整理",
+    "organizer_title": "整理技能",
+    "organizer_new_category": "新增分類",
+    "organizer_default_category": "新分類",
+    "organizer_rename": "重新命名",
+    "organizer_delete": "刪除分類",
+    "organizer_palette_caption": "指令面板 · {count} 個指令",
+    "organizer_plugin_tag": "外掛程式",
+    "organizer_folder_menu": "分類選項",
+    "organizer_empty": "尚無指令，請先安裝技能套件再整理。",
+    "organizer_close": "關閉"
   },
   "boot": {
     "starting_runtime": "正在啟動本機服務",

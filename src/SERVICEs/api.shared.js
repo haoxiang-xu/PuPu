@@ -22,6 +22,7 @@ const EMPTY_MODEL_CATALOG = {
     ollama: [],
     openai: [],
     anthropic: [],
+    gemini: [],
   },
   embeddingProviders: {
     openai: [],
@@ -358,6 +359,7 @@ const normalizeModelCatalog = (payload) => {
       ollama: normalizeStringList(providers.ollama),
       openai: normalizeStringList(providers.openai),
       anthropic: normalizeStringList(providers.anthropic),
+      gemini: normalizeStringList(providers.gemini),
     },
     embeddingProviders: {
       openai: normalizeStringList(rawEmbeddingProviders.openai),

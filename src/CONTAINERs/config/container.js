@@ -48,10 +48,6 @@ import {
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../SERVICEs/feature_flags";
-import {
   readSettingsRoot,
   readNamespace,
   updateNamespace,
@@ -140,23 +136,15 @@ const resolveThemeDefinition = (themeName, themeMode) => {
   return available_themes?.[themeName]?.[themeMode] || null;
 };
 
-const defaultThemeColorSettings = () => ({
-  preset: "default",
-  custom: { light_mode: {}, dark_mode: {} },
-});
-
 const applyContainerThemeConfig = (
   base,
   locale,
   themeMode,
-  themeColorCustomizationEnabled = false,
 ) => {
   if (!base) return base;
 
   const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
-  const themeSettings = themeColorCustomizationEnabled
-    ? readThemeSettings()
-    : defaultThemeColorSettings();
+  const themeSettings = readThemeSettings();
   const semantic = resolveSemanticPalette(themeMode, {
     preset: themeSettings.preset,
     custom: themeSettings.custom,
@@ -262,11 +250,7 @@ const applyInitialSemanticVars = () => {
       persisted?.appearance?.theme_mode,
       "light_mode",
     );
-    const themeColorCustomizationEnabled =
-      readFeatureFlags().enable_theme_color_customization === true;
-    const themeSettings = themeColorCustomizationEnabled
-      ? persisted?.appearance?.theme || {}
-      : defaultThemeColorSettings();
+    const themeSettings = persisted?.appearance?.theme || {};
     const bootPalette = resolveSemanticPalette(mode, {
       preset: themeSettings.preset,
       custom: themeSettings.custom,
@@ -321,7 +305,6 @@ const ConfigContainer = ({ children }) => {
   const [_persisted] = useState(() => loadSettingsStorage());
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
   const _persistedLocale = _persisted?.appearance?.locale;
-  const [_initialFeatureFlags] = useState(() => readFeatureFlags());
   const [legacyEnvironmentSnapshot] = useState(readLegacyEnvironmentSnapshot);
   const initialThemeMode = resolveInitialThemeMode(
     _persistedThemeMode,
@@ -336,21 +319,17 @@ const ConfigContainer = ({ children }) => {
       resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
       _persistedLocale || "en",
       initialThemeMode,
-      _initialFeatureFlags.enable_theme_color_customization === true,
     ),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
   const [locale, setLocale] = useState(_persistedLocale || "en");
-  const [featureFlags, setFeatureFlags] = useState(_initialFeatureFlags);
   const [isThemeBooting, setIsThemeBooting] = useState(true);
   const availableThemes = THEME_NAMES;
   const selectedTheme = DEFAULT_THEME_NAME;
-  const themeColorCustomizationEnabled =
-    featureFlags.enable_theme_color_customization === true;
 
   useEffect(() => {
     /* Theme settings writes still live in Appearance/ThemeEditor. Direct color
-       commits call setTheme there; this effect handles mode, locale, and flag
+       commits call setTheme there; this effect handles mode and locale
        changes that require re-resolving the base theme. */
     const base = resolveThemeDefinition(selectedTheme, onThemeMode);
     if (base) {
@@ -358,13 +337,10 @@ const ConfigContainer = ({ children }) => {
         base,
         locale,
         onThemeMode,
-        themeColorCustomizationEnabled,
       );
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme(nextTheme);
-      const themeSettings = themeColorCustomizationEnabled
-        ? readThemeSettings()
-        : defaultThemeColorSettings();
+      const themeSettings = readThemeSettings();
       applySemanticCssVars(
         nextTheme.semantic,
         undefined,
@@ -391,11 +367,7 @@ const ConfigContainer = ({ children }) => {
     } else {
       setTheme(base);
     }
-  }, [onThemeMode, selectedTheme, locale, themeColorCustomizationEnabled]);
-  useEffect(() => {
-    setFeatureFlags(readFeatureFlags());
-    return subscribeFeatureFlags(setFeatureFlags);
-  }, []);
+  }, [onThemeMode, selectedTheme, locale]);
   useEffect(() => {
     if (theme?.backgroundColor) {
       themeBridge.setBackgroundColor({

@@ -25,6 +25,7 @@ Returned by `api.unchain.getModelCatalog()`:
     ollama: ModelEntry[],
     openai: ModelEntry[],
     anthropic: ModelEntry[],
+    gemini: ModelEntry[],
   },
   embeddingProviders: {
     openai: ModelEntry[],
@@ -42,7 +43,7 @@ Returned by `api.unchain.getModelCatalog()`:
     input_source_types: ["url", "base64"],
   },
   modelCapabilities: {},
-  providers: { ollama: [], openai: [], anthropic: [] },
+  providers: { ollama: [], openai: [], anthropic: [], gemini: [] },
   embeddingProviders: { openai: [] },
 }
 ```
@@ -58,7 +59,7 @@ Provider configuration is split between a **non-sensitive** part and the
   of `settings.db` (read through the settings repository; `localStorage.settings.model_providers`
   is a browser/degraded fallback). The ordinary settings snapshot exposes only
   provider definitions plus a "configured" boolean — never a raw key.
-- **Secrets** (`openai` / `anthropic` API keys) live as `safeStorage`-encrypted
+- **Secrets** (`openai` / `anthropic` / `gemini` API keys) live as `safeStorage`-encrypted
   ciphertext in the `provider_credentials` table of `settings.db`.
 
 Keys are injected at stream time by the **main process**, not the renderer: the
@@ -66,7 +67,7 @@ renderer emits a secret descriptor `[{ kind, id, channel }]` and the main proces
 decrypts and injects the value before the POST (see
 [Request Flow & Streaming](../architecture/request-flow-and-streaming.md#4-provider-secret-injection-main-process)).
 
-Supported remote providers: `openai`, `anthropic`.
+Supported remote providers: `openai`, `anthropic`, `gemini`.
 
 > Legacy plaintext `localStorage` secrets are dual-keep read-only for rollback;
 > deleting them is a separate N+1 change, not done in this phase.
@@ -107,6 +108,7 @@ Configured in `unchain_adapter.py`:
 |----------|--------------|
 | `openai` | `gpt-4.1` |
 | `anthropic` | `claude-sonnet-4` |
+| `gemini` | `gemini-3.6-flash` |
 
 ---
 
@@ -225,3 +227,25 @@ Ollama runs on `http://localhost:11434` (constant `OLLAMA_BASE`).
 | `src/SERVICEs/model_catalog_refresh.js` | Polling refresh logic |
 | `unchain_runtime/server/unchain_adapter.py` | Backend toolkit discovery |
 | `unchain_runtime/server/route_catalog.py` | Catalog endpoints |
+
+## Gemini
+
+Gemini uses the native `google.genai` driver in Unchain. Settings and first-run
+setup store `gemini_api_key` through the existing secret adapter; Electron uses
+credential owner `(provider, gemini)`. The renderer emits the model-channel
+descriptor and Electron injects exactly `geminiApiKey` and `gemini_api_key`.
+An OpenAI embedding credential remains independent. Headless use accepts
+`GEMINI_API_KEY` or `GOOGLE_API_KEY`.
+
+The default is `gemini:gemini-3.6-flash`, verified against the real API. The picker
+also retains the 2.5 models for existing accounts; Google rejects 2.5 Flash for
+new users. Gemini 3 uses `thinking_level`; 2.5 keeps `thinking_budget`.
+Gemini thought signatures are preserved in private replay data;
+streamed thoughts and text are presented separately. Cached prompt tokens are a
+subset of input tokens and are counted once. Implicit caching is automatic;
+a cache hit is not guaranteed and needs live measurement. Explicit cache
+creation is not enabled.
+
+Gemini requires the matching updated Unchain runtime. Local implementation tests
+are separate from live provider qualification; see
+[issue 163 implementation evidence](../implementation/issue-163-gemini.md).

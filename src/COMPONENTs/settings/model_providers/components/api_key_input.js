@@ -12,6 +12,7 @@ import { toast } from "../../../../SERVICEs/toast";
 const CREDENTIAL_ID_BY_STORAGE_KEY = Object.freeze({
   openai_api_key: "openai",
   anthropic_api_key: "anthropic",
+  gemini_api_key: "gemini",
 });
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {

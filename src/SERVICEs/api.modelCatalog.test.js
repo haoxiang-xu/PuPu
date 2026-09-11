@@ -31,6 +31,7 @@ describe("normalizeModelCatalog", () => {
     expect(normalized.providers).toEqual({
       openai: ["gpt-5", "gpt-5-codex"],
       anthropic: ["claude-sonnet-4-6"],
+      gemini: [],
       ollama: ["deepseek-r1:14b"],
     });
     expect(normalized.embeddingProviders).toEqual({

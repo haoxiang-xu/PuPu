@@ -6,6 +6,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 /* ── Provider definitions ─────────────────────────────────────────────────── */
 const PROVIDERS = [
+  { key: "gemini", name: "Gemini", tag: "API key required", description: "Google Gemini Pro and Flash models.", accent: "#4285f4", icon: "gemini" },
   {
     key: "openai",
     name: "OpenAI",

@@ -1,13 +1,9 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Select from "../../BUILTIN_COMPONENTs/select/select";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ThemeEditor from "./appearance/theme_editor";
-import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../SERVICEs/feature_flags";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  SettingsRow — label + description + children                                                                               */
@@ -134,16 +130,7 @@ export const AppearanceSettings = () => {
 
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
-  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
-
-  useEffect(() => {
-    setFeatureFlags(readFeatureFlags());
-    return subscribeFeatureFlags(setFeatureFlags);
-  }, []);
-
   const themeValue = syncWithSystemTheme ? "sync_with_browser" : onThemeMode;
-  const themeColorCustomizationEnabled =
-    featureFlags.enable_theme_color_customization === true;
 
   const selectStyle = {
     minWidth: 140,
@@ -221,11 +208,9 @@ export const AppearanceSettings = () => {
         </SettingsRow>
       </SettingsSection>
 
-      {themeColorCustomizationEnabled && (
-        <SettingsSection title="Theme colors">
-          <ThemeEditor />
-        </SettingsSection>
-      )}
+      <SettingsSection title="Theme colors">
+        <ThemeEditor />
+      </SettingsSection>
     </div>
   );
 };

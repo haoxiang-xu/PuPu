@@ -657,6 +657,11 @@
     "collection_count": "・プラグイン{count}個",
     "get_all": "すべて入手",
     "add_custom_plugin": "カスタムプラグインを追加",
+    "organize_skills_action": "スキルを整理",
+    "import_skills_action": "スキルをインポート",
+    "skillpack_section_empty": "スキルパックはまだありません。SKILL.md ファイルのフォルダーをインポートして追加してください。",
+    "add_custom_mcp_action": "カスタム MCP を追加",
+    "mcp_section_empty": "MCP プラグインはまだありません。ストアからインストールするか、独自のものを追加してください。",
     "import_skills_title": "スキルをインポート",
     "import_skills_section": "ローカルのスキルフォルダ",
     "import_skills_intro": "SKILL.md ファイルが入ったローカルフォルダをスラッシュコマンドとしてインポートします。指示のみのスキルに対応しています。スクリプトを含むスキルは今回のリリースではスキップされます。",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "今すぐ回答（タスクは中断しない）",
     "fyi": "現在のタスクに補足",
-    "queue": "キューに追加、このターン終了後に実行"
+    "queue": "キューに追加、このターン終了後に実行",
+    "organize_action": "整理",
+    "organizer_title": "スキルを整理",
+    "organizer_new_category": "新しいカテゴリー",
+    "organizer_default_category": "新しいカテゴリー",
+    "organizer_rename": "名前を変更",
+    "organizer_delete": "カテゴリーを削除",
+    "organizer_palette_caption": "パレット · {count} コマンド",
+    "organizer_plugin_tag": "プラグイン",
+    "organizer_folder_menu": "カテゴリーのオプション",
+    "organizer_empty": "コマンドはまだありません。スキルパックをインストールして整理してください。",
+    "organizer_close": "閉じる"
   },
   "boot": {
     "starting_runtime": "ローカルサービスを起動しています",

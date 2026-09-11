@@ -35,11 +35,6 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Update page in Settings and allow access to in-app update controls.",
     defaultValue: true,
   },
-  enable_theme_color_customization: {
-    description:
-      "Show Theme colors in Appearance and apply saved semantic color presets/customizations.",
-    defaultValue: false,
-  },
   enable_custom_model_providers: {
     description:
       "Show Custom Model Providers plus the shipped DeepSeek/Kimi preset sections in Settings, and allow custom models in catalogs, selectors, connection tests, and chat requests.",

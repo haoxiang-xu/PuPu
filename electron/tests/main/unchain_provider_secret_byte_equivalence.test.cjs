@@ -130,6 +130,7 @@ describe("unchain provider-secret POST byte equivalence (Phase 4 S6)", () => {
       secrets || {
         "provider:openai": OPENAI_SECRET,
         "provider:anthropic": ANTHROPIC_SECRET,
+        "provider:gemini": "gemini-SENTINEL",
         "custom_provider:custom.myslug": CUSTOM_SECRET,
       };
     return {
@@ -307,6 +308,32 @@ describe("unchain provider-secret POST byte equivalence (Phase 4 S6)", () => {
     expect(descriptorBody.options.openai_api_key).toBe(OPENAI_SECRET);
     expect(descriptorBody.options.anthropicApiKey).toBe(ANTHROPIC_SECRET);
     expect(descriptorBody.options.anthropic_api_key).toBe(ANTHROPIC_SECRET);
+    expect(descriptorBody.options).not.toHaveProperty("apiKey");
+    expect(descriptorBody.options).not.toHaveProperty("api_key");
+    expect(descriptorBody.options).not.toHaveProperty("__pupu_secret_injection");
+  });
+
+  test("gemini model + openai embedding → two distinct secrets, byte-equivalent", async () => {
+    const { legacyBody, descriptorBody } = await runBothPaths({
+      base: { memory_enabled: true, memory_embedding_provider: "openai" },
+      legacyInline: {
+        openaiApiKey: OPENAI_SECRET,
+        openai_api_key: OPENAI_SECRET,
+        geminiApiKey: "gemini-SENTINEL",
+        gemini_api_key: "gemini-SENTINEL",
+      },
+      descriptor: [
+        { kind: "provider", id: "openai", channel: "embedding" },
+        { kind: "provider", id: "gemini", channel: "model" },
+      ],
+    });
+
+    expect(descriptorBody.options).toEqual(legacyBody.options);
+    // openai 2-field (embedding) + gemini 2-field (model), no generic key.
+    expect(descriptorBody.options.openaiApiKey).toBe(OPENAI_SECRET);
+    expect(descriptorBody.options.openai_api_key).toBe(OPENAI_SECRET);
+    expect(descriptorBody.options.geminiApiKey).toBe("gemini-SENTINEL");
+    expect(descriptorBody.options.gemini_api_key).toBe("gemini-SENTINEL");
     expect(descriptorBody.options).not.toHaveProperty("apiKey");
     expect(descriptorBody.options).not.toHaveProperty("api_key");
     expect(descriptorBody.options).not.toHaveProperty("__pupu_secret_injection");

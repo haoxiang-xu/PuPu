@@ -4,7 +4,6 @@ import ConfigContainer from "./container";
 import { ConfigContext, EnvironmentContext } from "./context";
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
 import { SEMANTIC_TOKEN_KEYS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
-import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 let mockSetWindowSize;
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => {
@@ -210,8 +209,7 @@ describe("ConfigContainer side menu persistence", () => {
     }
   });
 
-  test("provides the semantic highlight color when theme customization is enabled", async () => {
-    writeFeatureFlags({ enable_theme_color_customization: true });
+  test("provides the semantic highlight color by default", async () => {
 
     render(
       <ConfigContainer>
@@ -266,7 +264,6 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("injects theme.semantic with the full default palette", async () => {
-    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -291,7 +288,6 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
-    writeFeatureFlags({ enable_theme_color_customization: true });
     render(
       <ConfigContainer>
         <SemanticProbe />
@@ -303,7 +299,6 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("writes --pupu-accent CSS variable to documentElement", async () => {
-    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -336,7 +331,6 @@ describe("ConfigContainer semantic palette", () => {
         },
       }),
     );
-    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>
@@ -362,53 +356,7 @@ describe("ConfigContainer semantic palette", () => {
     });
   });
 
-  test("ignores persisted semantic colors when theme customization is disabled", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        appearance: {
-          theme: {
-            preset: "default",
-            custom: {
-              light_mode: {
-                accent: "#112233",
-                background: "#abcdef",
-                surface: "#fedcba",
-                text: "#010203",
-              },
-            },
-          },
-        },
-      }),
-    );
-    writeFeatureFlags({ enable_theme_color_customization: false });
 
-    render(
-      <ConfigContainer>
-        <LegacyThemeProbe />
-        <SemanticProbe />
-      </ConfigContainer>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("sem-keys")).toHaveTextContent(
-        SEMANTIC_KEYS.join(","),
-      );
-      expect(screen.getByTestId("sem-accent")).toHaveTextContent("#65c466");
-      expect(screen.getByTestId("sem-bg")).toHaveTextContent("#ffffff");
-      expect(screen.getByTestId("legacy-bg")).toHaveTextContent("#ffffff");
-      expect(screen.getByTestId("legacy-color")).toHaveTextContent("#222222");
-      expect(screen.getByTestId("legacy-highlight")).toHaveTextContent(
-        "#65c466",
-      );
-      expect(
-        document.documentElement.style.getPropertyValue("--pupu-background"),
-      ).toBe("#ffffff");
-      expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
-        expect.objectContaining({ backgroundColor: "#ffffff" }),
-      );
-    });
-  });
 });
 
 describe("ConfigContainer boot-loading-gate integration", () => {
@@ -459,7 +407,6 @@ describe("ConfigContainer boot-loading-gate integration", () => {
         },
       }),
     );
-    writeFeatureFlags({ enable_theme_color_customization: true });
 
     render(
       <ConfigContainer>

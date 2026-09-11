@@ -657,6 +657,11 @@
     "collection_count": "· {count} Plugins",
     "get_all": "ALLE LADEN",
     "add_custom_plugin": "Eigenes Plugin hinzufügen",
+    "organize_skills_action": "Skills organisieren",
+    "import_skills_action": "Skills importieren",
+    "skillpack_section_empty": "Noch keine Skill-Pakete. Importiere einen Ordner mit SKILL.md-Dateien, um eigene hinzuzufügen.",
+    "add_custom_mcp_action": "Eigenen MCP hinzufügen",
+    "mcp_section_empty": "Noch keine MCP-Plugins. Installiere eines aus dem Store oder füge ein eigenes hinzu.",
     "import_skills_title": "Skills importieren",
     "import_skills_section": "Lokaler Skill-Ordner",
     "import_skills_intro": "Importiere einen lokalen Ordner mit SKILL.md-Dateien als Slash-Befehle. Reine Anweisungs-Skills werden unterstützt; Skills, die Skripte enthalten, werden in dieser Version übersprungen.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "Antwortet sofort, ohne die Aufgabe zu unterbrechen",
     "fyi": "Ergänzt Infos zur aktuellen Aufgabe",
-    "queue": "Stellt in die Warteschlange, läuft nach dieser Runde"
+    "queue": "Stellt in die Warteschlange, läuft nach dieser Runde",
+    "organize_action": "Organisieren",
+    "organizer_title": "Skills organisieren",
+    "organizer_new_category": "Neue Kategorie",
+    "organizer_default_category": "Neue Kategorie",
+    "organizer_rename": "Umbenennen",
+    "organizer_delete": "Kategorie löschen",
+    "organizer_palette_caption": "Palette · {count} Befehle",
+    "organizer_plugin_tag": "Plugin",
+    "organizer_folder_menu": "Kategorieoptionen",
+    "organizer_empty": "Noch keine Befehle – installiere ein Skill-Paket zum Organisieren.",
+    "organizer_close": "Schließen"
   },
   "boot": {
     "starting_runtime": "Lokale Dienste werden gestartet",

@@ -40,6 +40,15 @@ const AnthropicSection = () => {
   );
 };
 
+const GeminiSection = () => {
+  const { t } = useTranslation();
+  return (
+    <SettingsSection title="Gemini" icon="gemini">
+      <APIKeyInput storage_key="gemini_api_key" label={t("model_providers.api_key")} placeholder="AIza..." />
+    </SettingsSection>
+  );
+};
+
 const DeepSeekSection = () => (
   <PresetProviderSection
     title="DeepSeek"
@@ -281,6 +290,7 @@ export const ModelProvidersSettings = () => {
     >
       <OpenAISection />
       <AnthropicSection />
+      <GeminiSection />
       {customModelProvidersEnabled && <DeepSeekSection />}
       {customModelProvidersEnabled && <KimiSection />}
       <OllamaSection />

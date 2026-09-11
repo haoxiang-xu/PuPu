@@ -657,6 +657,11 @@
     "collection_count": "· {count} плагинов",
     "get_all": "ПОЛУЧИТЬ ВСЁ",
     "add_custom_plugin": "Добавить свой плагин",
+    "organize_skills_action": "Упорядочить навыки",
+    "import_skills_action": "Импортировать навыки",
+    "skillpack_section_empty": "Пакетов навыков пока нет. Импортируйте папку с файлами SKILL.md, чтобы добавить свои.",
+    "add_custom_mcp_action": "Добавить свой MCP",
+    "mcp_section_empty": "Плагинов MCP пока нет. Установите плагин из магазина или добавьте свой.",
     "import_skills_title": "Импорт навыков",
     "import_skills_section": "Локальная папка навыков",
     "import_skills_intro": "Импортируйте локальную папку с файлами SKILL.md как слэш-команды. Поддерживаются навыки, состоящие только из инструкций; навыки, поставляемые со скриптами, в этом релизе пропускаются.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "Отвечает сразу, не прерывая задачу",
     "fyi": "Добавляет информацию к текущей задаче",
-    "queue": "Ставится в очередь, выполнится после этого хода"
+    "queue": "Ставится в очередь, выполнится после этого хода",
+    "organize_action": "Упорядочить",
+    "organizer_title": "Упорядочить навыки",
+    "organizer_new_category": "Новая категория",
+    "organizer_default_category": "Новая категория",
+    "organizer_rename": "Переименовать",
+    "organizer_delete": "Удалить категорию",
+    "organizer_palette_caption": "Палитра · Команд: {count}",
+    "organizer_plugin_tag": "Плагин",
+    "organizer_folder_menu": "Параметры категории",
+    "organizer_empty": "Команд пока нет — установите пакет навыков, чтобы упорядочить их.",
+    "organizer_close": "Закрыть"
   },
   "boot": {
     "starting_runtime": "Запуск локальных служб",

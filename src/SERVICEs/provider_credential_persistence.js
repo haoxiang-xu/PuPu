@@ -17,6 +17,7 @@ import {
 } from "./bridges/settings_storage_bridge";
 
 const OFFICIAL_TARGETS = Object.freeze({
+  gemini_api_key: Object.freeze({ id: "gemini", kind: "provider", ownerId: "gemini" }),
   openai_api_key: Object.freeze({
     id: "openai",
     kind: "provider",

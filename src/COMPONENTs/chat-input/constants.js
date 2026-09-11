@@ -11,12 +11,14 @@ export const MODEL_GROUPS = {
   OLLAMA: "Ollama",
   OPENAI: "OpenAI",
   ANTHROPIC: "Anthropic",
+  GEMINI: "Gemini",
 };
 
 export const MODEL_PROVIDER_PREFIXES = {
   [MODEL_GROUPS.OLLAMA]: "ollama:",
   [MODEL_GROUPS.OPENAI]: "openai:",
   [MODEL_GROUPS.ANTHROPIC]: "anthropic:",
+  [MODEL_GROUPS.GEMINI]: "gemini:",
 };
 
 /** Literal address prefix for custom (user-defined) providers. */

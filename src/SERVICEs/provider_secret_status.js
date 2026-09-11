@@ -46,6 +46,9 @@ const legacyHasSecret = (id) => {
   if (id === "openai") {
     return readProviderSecret("openai_api_key").length > 0;
   }
+  if (id === "gemini") {
+    return readProviderSecret("gemini_api_key").length > 0;
+  }
   if (id === "anthropic") {
     return readProviderSecret("anthropic_api_key").length > 0;
   }

@@ -72,6 +72,7 @@ const read_configured_providers = () => {
   return {
     hasOpenAI: providerSecretConfigured("openai"),
     hasAnthropic: providerSecretConfigured("anthropic"),
+    hasGemini: providerSecretConfigured("gemini"),
     customGroups: read_custom_provider_groups(),
   };
 };
@@ -91,6 +92,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
   const ollamaProviderModels = model_catalog?.providers?.ollama;
   const openaiProviderModels = model_catalog?.providers?.openai;
   const anthropicProviderModels = model_catalog?.providers?.anthropic;
+  const geminiProviderModels = model_catalog?.providers?.gemini;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +134,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
       build_model_options({
         live_ollama_models: liveOllamaModels,
         providers: {
+          gemini: configuredProviders.hasGemini ? geminiProviderModels : [],
           ollama: ollamaProviderModels,
           openai: configuredProviders.hasOpenAI ? openaiProviderModels : [],
           anthropic: configuredProviders.hasAnthropic
@@ -146,6 +149,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
       ollamaProviderModels,
       openaiProviderModels,
       anthropicProviderModels,
+      geminiProviderModels,
       collapsedGroups,
       configuredProviders,
     ],

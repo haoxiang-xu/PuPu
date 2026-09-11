@@ -262,6 +262,7 @@ def models_catalog() -> Response:
             "providers": {
                 "openai": provider_catalog.get("openai", []),
                 "anthropic": provider_catalog.get("anthropic", []),
+                "gemini": provider_catalog.get("gemini", []),
                 "ollama": provider_catalog.get("ollama", []),
             },
             "embedding_providers": {

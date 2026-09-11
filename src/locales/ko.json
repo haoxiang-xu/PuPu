@@ -657,6 +657,11 @@
     "collection_count": "· 플러그인 {count}개",
     "get_all": "모두 받기",
     "add_custom_plugin": "커스텀 플러그인 추가",
+    "organize_skills_action": "스킬 정리",
+    "import_skills_action": "스킬 가져오기",
+    "skillpack_section_empty": "아직 스킬 팩이 없습니다. SKILL.md 파일이 있는 폴더를 가져와 추가하세요.",
+    "add_custom_mcp_action": "사용자 지정 MCP 추가",
+    "mcp_section_empty": "아직 MCP 플러그인이 없습니다. 스토어에서 설치하거나 직접 추가하세요.",
     "import_skills_title": "스킬 가져오기",
     "import_skills_section": "로컬 스킬 폴더",
     "import_skills_intro": "SKILL.md 파일이 있는 로컬 폴더를 슬래시 명령어로 가져옵니다. 지침 전용 스킬만 지원되며, 스크립트가 포함된 스킬은 이번 릴리스에서 건너뜁니다.",
@@ -690,7 +695,18 @@
   "commands": {
     "btw": "지금 바로 답변(작업 중단 없음)",
     "fyi": "현재 작업에 정보 추가",
-    "queue": "대기열에 추가, 이번 턴 종료 후 실행"
+    "queue": "대기열에 추가, 이번 턴 종료 후 실행",
+    "organize_action": "정리",
+    "organizer_title": "스킬 정리",
+    "organizer_new_category": "새 카테고리",
+    "organizer_default_category": "새 카테고리",
+    "organizer_rename": "이름 변경",
+    "organizer_delete": "카테고리 삭제",
+    "organizer_palette_caption": "팔레트 · 명령 {count}개",
+    "organizer_plugin_tag": "플러그인",
+    "organizer_folder_menu": "카테고리 옵션",
+    "organizer_empty": "아직 명령이 없습니다. 스킬 팩을 설치해 정리하세요.",
+    "organizer_close": "닫기"
   },
   "boot": {
     "starting_runtime": "로컬 서비스를 시작하는 중",

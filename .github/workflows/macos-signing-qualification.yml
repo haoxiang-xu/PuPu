@@ -115,7 +115,7 @@ jobs:
           snapshot_path="$snapshot_root/build_feature_flags.snapshot.json"
           node scripts/write-build-feature-snapshot.cjs \
             --out "$snapshot_path" \
-            --profile contracts/memory-v2/release-profile.all.v2.json
+            --profile contracts/memory-v2/release-profile.all.v1.json
           echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshot_path" >> "$GITHUB_ENV"
 
       - name: Resolve non-interactive build version

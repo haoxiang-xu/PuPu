@@ -128,7 +128,7 @@ jobs:
           SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
           node scripts/write-build-feature-snapshot.cjs \
             --out "$SNAPSHOT_PATH" \
-            --profile contracts/memory-v2/release-profile.all.v2.json
+            --profile contracts/memory-v2/release-profile.all.v1.json
           SNAPSHOT_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
           printf '%s\n' "$SNAPSHOT_SHA256" > "${SNAPSHOT_PATH}.sha256"
           {

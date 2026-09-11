@@ -351,6 +351,19 @@ describeIfSqlite("provider credential store (sqlite)", () => {
 
   // ---- set / read round trip ----------------------------------------------
 
+  test("Gemini credentials persist independently across reopen and delete", () => {
+    const service = startService({ safeStorage: makeFakeSafeStorage() });
+    service.setProviderCredential("provider", "gemini", "gemini-SENTINEL");
+    service.setProviderCredential("provider", "openai", "openai-SENTINEL");
+    expect(service.readDecryptedProviderSecret("provider", "gemini")).toBe("gemini-SENTINEL");
+    const reopened = startService({ safeStorage: makeFakeSafeStorage() });
+    expect(reopened.readDecryptedProviderSecret("provider", "gemini")).toBe("gemini-SENTINEL");
+    reopened.deleteProviderCredential("provider", "gemini");
+    expect(reopened.readDecryptedProviderSecret("provider", "gemini")).toBeNull();
+    expect(reopened.readDecryptedProviderSecret("provider", "openai")).toBe("openai-SENTINEL");
+    expect(() => reopened.setProviderCredential("provider", "unknown", "bad")).toThrow();
+  });
+
   test("set → read round trip returns the exact plaintext", () => {
     const service = startService({ safeStorage: makeFakeSafeStorage() });
     const res = service.setProviderCredential(

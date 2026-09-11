@@ -103,6 +103,7 @@ describe("settings storage limits (constants)", () => {
     expect([...SENSITIVE_MODEL_PROVIDER_KEYS].sort()).toEqual([
       "anthropic_api_key",
       "custom_provider_secrets",
+      "gemini_api_key",
       "openai_api_key",
     ]);
   });

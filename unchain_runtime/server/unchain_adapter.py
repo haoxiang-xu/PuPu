@@ -586,7 +586,7 @@ def _prepare_memory_v2_first_message_recall(
 
 def _memory_v2_provider_default(provider: str) -> Dict[str, str] | None:
     normalized = str(provider or "").strip().lower()
-    if normalized not in {"openai", "anthropic", "ollama"}:
+    if normalized not in {"openai", "anthropic", "ollama", "gemini"}:
         return None
     model_id = str(_provider_default_model(normalized) or "").strip()
     return (
@@ -1859,7 +1859,7 @@ def _is_execution_cancelled_error(error: BaseException | None) -> bool:
         )
     )
 
-_SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
+_SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama", "gemini"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
 _OLLAMA_EMBEDDING_FAMILY_PREFIXES = ("bert", "nomic-bert", "bge")
@@ -2013,6 +2013,7 @@ _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
 _GENERAL_MODEL_BY_PROVIDER = {
     "openai": "gpt-4.1",
     "anthropic": "claude-sonnet-4",
+    "gemini": "gemini-3.6-flash",
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
@@ -3061,6 +3062,8 @@ def _make_continuation_callback(
 
 
 def _provider_default_model(provider: str) -> str:
+    if provider == "gemini":
+        return "gemini-3.6-flash"
     if provider == "openai":
         return "gpt-5"
     if provider == "anthropic":
@@ -3133,14 +3136,14 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
             provider_part, model_part = model_id.split(":", 1)
             provider_candidate = provider_part.strip().lower()
             model_candidate = model_part.strip()
-            if provider_candidate in {"openai", "anthropic", "ollama"} and model_candidate:
+            if provider_candidate in {"openai", "anthropic", "ollama", "gemini"} and model_candidate:
                 overrides["provider"] = provider_candidate
                 overrides["model"] = model_candidate
         else:
             overrides["model"] = model_id
 
     provider_raw = options.get("provider")
-    if isinstance(provider_raw, str) and provider_raw.strip().lower() in {"openai", "anthropic", "ollama"}:
+    if isinstance(provider_raw, str) and provider_raw.strip().lower() in {"openai", "anthropic", "ollama", "gemini"}:
         overrides["provider"] = provider_raw.strip().lower()
 
     model_raw = options.get("model")
@@ -3150,7 +3153,7 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
             provider_part, model_part = model_value.split(":", 1)
             provider_candidate = provider_part.strip().lower()
             model_candidate = model_part.strip()
-            if provider_candidate in {"openai", "anthropic", "ollama"} and model_candidate:
+            if provider_candidate in {"openai", "anthropic", "ollama", "gemini"} and model_candidate:
                 overrides["provider"] = provider_candidate
                 overrides["model"] = model_candidate
             else:
@@ -3166,7 +3169,7 @@ def _get_runtime_config(
     cfg: "CustomProviderConfig | None" = None,
 ) -> Dict[str, str]:
     base_provider = os.environ.get("UNCHAIN_PROVIDER", "ollama").strip().lower() or "ollama"
-    provider = base_provider if base_provider in {"openai", "anthropic", "ollama"} else "ollama"
+    provider = base_provider if base_provider in {"openai", "anthropic", "ollama", "gemini"} else "ollama"
 
     provider_override = (overrides or {}).get("provider", "").strip().lower()
 
@@ -3185,13 +3188,13 @@ def _get_runtime_config(
             "source": "",
         }
 
-    if provider_override in {"openai", "anthropic", "ollama"}:
+    if provider_override in {"openai", "anthropic", "ollama", "gemini"}:
         provider = provider_override
 
     env_model = os.environ.get("UNCHAIN_MODEL", _provider_default_model(provider)).strip()
     model = env_model or _provider_default_model(provider)
 
-    if provider_override and provider_override in {"openai", "anthropic", "ollama"}:
+    if provider_override and provider_override in {"openai", "anthropic", "ollama", "gemini"}:
         model = _provider_default_model(provider_override)
 
     model_override = (overrides or {}).get("model", "").strip()
@@ -3617,6 +3620,7 @@ def get_capability_catalog() -> Dict[str, List[str]]:
     providers: Dict[str, List[str]] = {
         "openai": [],
         "anthropic": [],
+        "gemini": [],
         "ollama": [],
     }
 
@@ -5306,7 +5310,7 @@ def _build_payload(
         if cfg is not None:
             param_name = _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL[cfg.protocol]
             payload[param_name] = max_tokens_value
-        elif provider == "openai":
+        elif provider in {"openai", "gemini"}:
             payload["max_output_tokens"] = max_tokens_value
         elif provider == "anthropic":
             payload["max_tokens"] = max_tokens_value
@@ -5351,6 +5355,18 @@ def _build_payload(
                     payload["reasoning"] = {"effort": normalized_effort}
             elif provider == "openai":
                 payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "gemini":
+                selected_model = model or get_runtime_config(options).get("model", "")
+                if _normalize_provider_model_name(provider, selected_model).startswith("gemini-2.5-"):
+                    payload["thinking_config"] = {
+                        "thinking_budget": {"low": 1024, "medium": 8192, "high": 24576}.get(normalized_effort, 8192),
+                        "include_thoughts": True,
+                    }
+                else:
+                    payload["thinking_config"] = {
+                        "thinking_level": normalized_effort,
+                        "include_thoughts": True,
+                    }
             elif provider == "anthropic":
                 if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
                     payload["output_config"] = {"effort": normalized_effort}
@@ -5645,7 +5661,7 @@ def _extract_api_key_from_options(options: Dict[str, object] | None, provider: s
         return ""
 
     provider = provider.strip().lower()
-    provider_camel_key = "openaiApiKey" if provider == "openai" else "anthropicApiKey"
+    provider_camel_key = "geminiApiKey" if provider == "gemini" else "openaiApiKey" if provider == "openai" else "anthropicApiKey"
     provider_snake_key = f"{provider}_api_key"
 
     candidates = [
@@ -6161,6 +6177,19 @@ def _build_summary_generator(
             except Exception:
                 return previous_summary or ""
 
+        if normalized_provider == "gemini":
+            try:
+                from google import genai
+                with genai.Client(api_key=api_key) as client:
+                    response = client.models.generate_content(
+                        model=model_name or model, contents=user_msg,
+                        config={"system_instruction": _SUMMARY_SYSTEM_PROMPT,
+                                "max_output_tokens": max(256, max_chars // 3)},
+                    )
+                    return (response.text or "").strip()[:max_chars]
+            except Exception:
+                return previous_summary or ""
+
         # Unsupported provider — return previous summary as-is
         return previous_summary or ""
 
@@ -6235,6 +6264,15 @@ def _resolve_agent_api_key(
             )
         register_secret_values((custom_key,), source="provider")
         return custom_key
+
+    if provider == "gemini":
+        api_key = (_extract_api_key_from_options(options, provider)
+                   or os.environ.get("GEMINI_API_KEY")
+                   or os.environ.get("GOOGLE_API_KEY") or "").strip()
+        if not api_key:
+            raise RuntimeError("Provider gemini requires GEMINI_API_KEY or GOOGLE_API_KEY")
+        register_secret_values((api_key,), source="provider")
+        return api_key
 
     api_key = (
         _extract_api_key_from_options(options, provider)

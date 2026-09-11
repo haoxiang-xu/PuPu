@@ -34,7 +34,7 @@ import {
   markSecretStorageUnavailableForSession,
 } from "./bridges/settings_storage_bridge";
 
-const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
+const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic", "gemini"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
 
@@ -156,6 +156,9 @@ const getStoredProviderApiKey = (provider) => {
     return readProviderSecret("openai_api_key").trim();
   }
 
+  if (provider === "gemini") {
+    return readProviderSecret("gemini_api_key").trim();
+  }
   if (provider === "anthropic") {
     return readProviderSecret("anthropic_api_key").trim();
   }
@@ -219,7 +222,7 @@ const injectProviderApiKeyIntoPayload = (payload) => {
 
   const currentOptions = isObject(payload.options) ? payload.options : {};
   const providerSpecificCamelKey =
-    provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
+    provider === "gemini" ? "geminiApiKey" : provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
 
   // Today's value-based short-circuit, preserved verbatim: an explicit key

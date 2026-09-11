@@ -388,6 +388,7 @@ const OllamaSubStep = ({ isDark }) => {
 
 /* ── Provider label map ─────────────────────────────────────────────────────── */
 const PROVIDER_META = {
+  gemini: { label: "Gemini", placeholder: "AIza...", icon: "gemini" },
   openai: { label: "OpenAI", placeholder: "sk-...", icon: "open_ai" },
   anthropic: {
     label: "Anthropic",
@@ -539,6 +540,9 @@ const ConfigureProvidersStep = ({
             placeholder="sk-ant-..."
             isDark={isDark}
           />
+        )}
+        {currentProvider === "gemini" && (
+          <ApiKeySubStep key="gemini" providerKey="gemini" label="Gemini" placeholder="AIza..." isDark={isDark} />
         )}
         {currentProvider === "ollama" && (
           <OllamaSubStep key="ollama" isDark={isDark} />
