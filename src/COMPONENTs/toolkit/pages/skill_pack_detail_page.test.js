@@ -1,5 +1,11 @@
 import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import SkillPackDetailPage from "./skill_pack_detail_page";
+import en from "../../../locales/en.json";
+
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
 
 jest.mock("../utils/skill_pack_store_install", () => ({
   __esModule: true,
@@ -52,7 +58,7 @@ describe("SkillPackDetailPage — provenance-strip detail (option B)", () => {
     const strip = screen.getByTestId("skillpack-provenance");
     expect(strip.textContent).toContain("obra/superpowers");
     expect(strip.textContent).toContain("@ d884ae0");
-    expect(strip.textContent).toContain("SHA-256 verified");
+    expect(strip.textContent).toContain(en.toolkit.trust_hash_on_download);
     expect(strip.textContent).toContain("2026-07-18");
     expect(strip.textContent).toContain("MIT");
 
@@ -72,6 +78,23 @@ describe("SkillPackDetailPage — provenance-strip detail (option B)", () => {
 
     expect(screen.getByText("/brainstorming")).toBeInTheDocument();
     expect(screen.getByText("/writing-plans")).toBeInTheDocument();
+  });
+
+  test("shows raw skill-pack trust without triggering back or install", () => {
+    const onBack = jest.fn();
+    render(<SkillPackDetailPage pack={PACK} isDark={false} onBack={onBack} />);
+
+    const badge = screen.getByTestId("plugin-trust-badge");
+    expect(badge).toHaveAttribute("data-origin", "third_party");
+    expect(badge).toHaveAttribute("data-status", "unverified");
+    expect(badge).toHaveTextContent(en.toolkit.trust_origin_third_party);
+    expect(badge).toHaveTextContent(en.toolkit.trust_status_unverified);
+
+    fireEvent.click(within(badge).getByRole("button"));
+    expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
+
+    expect(onBack).not.toHaveBeenCalled();
+    expect(installStoreSkillPack).not.toHaveBeenCalled();
   });
 
   test("GET runs the install chain; success flips the action to Installed and emits refresh", async () => {

@@ -3,6 +3,11 @@ import PluginsDiscoverPage from "./plugins_discover_page";
 import api from "../../../SERVICEs/api";
 import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked — same rationale as
    plugins_installed_page.test.js: the vocabulary assertion reads rendered
    TEXT and an identity-key mock would leak i18n key NAMES (which themselves
@@ -395,5 +400,57 @@ describe("PluginsDiscoverPage — install error strip", () => {
     });
 
     expect(screen.getByText("Install failed: network error")).toBeInTheDocument();
+  });
+});
+
+describe("PluginsDiscoverPage — trust badges", () => {
+  beforeEach(() => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
+    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
+    loadStoreCuration.mockReturnValue(FULL_CURATION);
+  });
+
+  test("uses raw origin/status on the hero, essentials and expanded collection without opening or installing", async () => {
+    const onOpenDetail = jest.fn();
+    const onInstall = jest.fn();
+    await renderPage({ onOpenDetail, onInstall });
+
+    const hero = screen.getByTestId("discover-featured-aurora");
+    const heroTrust = within(hero).getByTestId("plugin-trust-badge");
+    expect(heroTrust).toHaveAttribute("data-origin", "official");
+    expect(heroTrust).toHaveAttribute("data-status", "unverified");
+    expect(heroTrust).toHaveTextContent("PuPu official");
+    expect(heroTrust).toHaveTextContent("Unverified");
+    fireEvent.click(within(heroTrust).getByRole("button"));
+    expect(within(heroTrust).getByTestId("plugin-trust-details")).toBeVisible();
+
+    const essential = screen.getByTestId(
+      "discover-grid-mcp.productivity.notion-remote",
+    );
+    const essentialTrust = within(essential).getByTestId(
+      "plugin-trust-badge",
+    );
+    expect(essentialTrust).toHaveAttribute("data-origin", "third_party");
+    expect(essentialTrust).toHaveAttribute("data-status", "unverified");
+    expect(essentialTrust).toHaveTextContent("Third-party");
+    fireEvent.click(within(essentialTrust).getByRole("button"));
+    expect(
+      within(essentialTrust).getByTestId("plugin-trust-details"),
+    ).toBeVisible();
+
+    const collection = screen.getByTestId("collection-web-research-kit");
+    fireEvent.click(collection);
+    const collectionBlock = collection.parentElement;
+    const collectionTrust = within(collectionBlock)
+      .getAllByTestId("plugin-trust-badge")
+      .find((badge) => badge.dataset.origin === "third_party");
+    expect(collectionTrust).toHaveAttribute("data-status", "unverified");
+    fireEvent.click(within(collectionTrust).getByRole("button"));
+    expect(
+      within(collectionTrust).getByTestId("plugin-trust-details"),
+    ).toBeVisible();
+
+    expect(onOpenDetail).not.toHaveBeenCalled();
+    expect(onInstall).not.toHaveBeenCalled();
   });
 });

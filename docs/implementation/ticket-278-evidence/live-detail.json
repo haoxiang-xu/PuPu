@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "value": {
+    "href": "http://localhost:2924/#",
+    "title": "PuPu",
+    "details": [
+      "Verification details\nPublished by PuPu. Official origin does not imply verification.\nNo scoped verification record is available for this plugin version. Unverified does not mean unsafe.\nVerification covers only the listed checks. It does not guarantee service quality, payment fulfillment, or freedom from fraud.\nDeclared publisher: PuPu",
+      "Verification details\nPublished by PuPu. Official origin does not imply verification.\nNo scoped verification record is available for this plugin version. Unverified does not mean unsafe.\nVerification covers only the listed checks. It does not guarantee service quality, payment fulfillment, or freedom from fraud.\nDeclared publisher: PuPu"
+    ],
+    "overflow": false,
+    "markers": [
+      {
+        "origin": "official",
+        "status": "unverified",
+        "text": "PuPu official\nUnverified\nVerification details\nPublished by PuPu. Official origin does not imply verification.\nNo scoped verification record is available for this plugin version. Unverified does not mean unsafe.\nVerification covers only the listed checks. It does not guarantee service quality, payment fulfillment, or freedom from fraud.\nDeclared publisher: PuPu"
+      },
+      {
+        "origin": "official",
+        "status": "unverified",
+        "text": "PuPu official\nUnverified"
+      },
+      {
+        "origin": "official",
+        "status": "unverified",
+        "text": "PuPu official\nUnverified"
+      },
+      {
+        "origin": "official",
+        "status": "unverified",
+        "text": "PuPu official\nUnverified\nVerification details\nPublished by PuPu. Official origin does not imply verification.\nNo scoped verification record is available for this plugin version. Unverified does not mean unsafe.\nVerification covers only the listed checks. It does not guarantee service quality, payment fulfillment, or freedom from fraud.\nDeclared publisher: PuPu"
+      }
+    ],
+    "builtinButtonLayer": true
+  }
+}

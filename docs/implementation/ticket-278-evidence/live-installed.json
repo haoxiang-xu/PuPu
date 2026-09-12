@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "value": {
+    "text": "PUPU\nCLICK ANYWHERE TO START\nR\n/\nCOMMANDS · ↑↓ · ⏎\nORGANIZE\ndeepseek-r1:14b\nCurrent model does not support image or file inputs.\ndeepseek-r1:14b\ndeepseek-r1:8b\ngemma4:e2b\nqwen3:14b\nPlugins\nWorkspaces\nCHATS\nNew Chat\n0m\nSettings\nPLUGINS\nDiscover\nStore\nInstalled\n4\nInstalled\nBUILT-IN\nCore\nPuPu official\nUnverified\nDefault coding-agent toolkit for guarded file reads and edits,…\nPlan\n/plan\nPuPu official\nUnverified\nWorkspace-backed planning tools for drafting, updating,…\n👁️\nAgent Reach\nPuPu official\nUnverified\nRead-only Agent-Reach helpers for status checks, web pages, and…\nMCP\nAdd custom MCP\nNo MCP plugins yet. Install one from the Store, or add your own.\nSKILL PACKS\nImport skills\nOrganize skills\nNo skill packs yet. Import a folder of SKILL.md files to add your own.",
+    "catalog": [
+      {
+        "id": "core",
+        "name": "Core",
+        "source": "builtin"
+      },
+      {
+        "id": "plan",
+        "name": "Plan",
+        "source": "builtin"
+      },
+      {
+        "id": "agent_reach",
+        "name": "Agent Reach",
+        "source": "builtin"
+      }
+    ],
+    "markers": [
+      {
+        "text": "PuPu official\nUnverified",
+        "origin": "official",
+        "status": "unverified",
+        "row": "Core\nPuPu official\nUnverified\nDefault coding-agent toolkit for guarded file reads and edits,…"
+      },
+      {
+        "text": "PuPu official\nUnverified",
+        "origin": "official",
+        "status": "unverified",
+        "row": "Plan\n/plan\nPuPu official\nUnverified\nWorkspace-backed planning tools for drafting, updating,…"
+      },
+      {
+        "text": "PuPu official\nUnverified",
+        "origin": "official",
+        "status": "unverified",
+        "row": "Agent Reach\nPuPu official\nUnverified\nRead-only Agent-Reach helpers for status checks, web pages, and…"
+      }
+    ]
+  }
+}

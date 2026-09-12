@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
+import PluginTrustBadge from "./plugin_trust_badge";
 import ShaderBlobBackground from "../../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
 import {
   ToolkitIconFrame,
@@ -67,6 +68,7 @@ const AuroraFeatureCard = ({
   onClick,
   icon,
   source,
+  trustEntry,
   kicker,
   title,
   blurb,
@@ -233,6 +235,9 @@ const AuroraFeatureCard = ({
             }}
           >
             {title}
+          </div>
+          <div style={{ marginTop: 6, "--pupu-text-rgb": "255,255,255" }}>
+            <PluginTrustBadge entry={trustEntry} isDark />
           </div>
           <div
             style={{
