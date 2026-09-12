@@ -1,16 +1,42 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import CommandPalettePanel from "./command_palette_panel";
-import { commandListHeight } from "./command_menu";
+import { commandListCapHeight } from "./command_menu";
 
-/* jsdom has no ResizeObserver; the panel measures the pill row with one */
+/* jsdom has no ResizeObserver and no layout; the panel measures the pill row
+   and the list host with one. The stub records every observer so a test can
+   feed it a size by hand, the way the browser would after layout. */
+const observers = [];
 beforeAll(() => {
   global.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    constructor(callback) {
+      this.callback = callback;
+      this.targets = new Set();
+      observers.push(this);
+    }
+    observe(el) {
+      this.targets.add(el);
+    }
+    unobserve(el) {
+      this.targets.delete(el);
+    }
+    disconnect() {
+      this.targets.clear();
+    }
   };
 });
+beforeEach(() => {
+  observers.length = 0;
+});
+
+/* Simulate layout: tell every observer watching `el` that it is `height` tall. */
+const resizeTo = (el, height) => {
+  act(() => {
+    observers
+      .filter((ro) => ro.targets.has(el))
+      .forEach((ro) => ro.callback([{ target: el, contentRect: { height } }]));
+  });
+};
 
 const items = [
   { name: "/a", description: "a" },
@@ -37,8 +63,11 @@ describe("CommandPalettePanel list scrolling", () => {
     expect(host).not.toBeNull();
     expect(host.classList.contains("scrollable")).toBe(true);
     expect(host.style.overflowY).toBe("auto");
+    /* A fixed cap, not the row count: the host is content-sized below it
+       and scrolls above it, so its height is the rows' own — including
+       every frame of a folder's collapse animation. */
     expect(host.style.maxHeight).toBe(
-      `${commandListHeight({ rowCount: items.length, bare: true })}px`,
+      `${commandListCapHeight({ bare: true })}px`,
     );
   });
 
@@ -60,6 +89,64 @@ describe("CommandPalettePanel list scrolling", () => {
     expect(listbox.classList.contains("scrollable")).toBe(false);
     expect(listbox.style.maxHeight).toBe("");
     expect(listbox.style.overflowY).toBe("");
+  });
+});
+
+describe("CommandPalettePanel frame follows the rows", () => {
+  /* A folder collapsing is Explorer's own 280ms height animation on the
+     rows. The panel's frame used to ease to a height computed from the new
+     ROW COUNT — a second, differently-timed motion — while the scroll host's
+     cap snapped: rows were chopped off at once and the frame drifted down
+     after them (86px of empty panel at the worst frame). Now the frame is
+     measured from the host every frame and, once the open morph has
+     settled, changes without a transition of its own: one motion, the rows'. */
+  const panelOf = () =>
+    document.querySelector("[data-command-list-scroll]").parentElement
+      .parentElement;
+  const hostOf = () => document.querySelector("[data-command-list-scroll]");
+  const HEADER = 40 + 6 * 2; // pill fallback height + bleed on both sides
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const openAndSettle = () => {
+    renderPanel();
+    act(() => jest.advanceTimersByTime(50)); // double-rAF entrance latch
+    act(() => jest.advanceTimersByTime(300)); // open morph (40ms delay + 210ms)
+  };
+
+  test("the frame's height is header plus the host's measured height", () => {
+    openAndSettle();
+    resizeTo(hostOf(), 203);
+    expect(panelOf().style.height).toBe(`${HEADER + 203}px`);
+    resizeTo(hostOf(), 231);
+    expect(panelOf().style.height).toBe(`${HEADER + 231}px`);
+  });
+
+  test("once the open morph has settled, height changes carry no transition of their own", () => {
+    openAndSettle();
+    resizeTo(hostOf(), 203);
+    expect(panelOf().style.transition).not.toMatch(/height/);
+  });
+
+  test("the open morph itself still eases the height", () => {
+    renderPanel();
+    act(() => jest.advanceTimersByTime(50)); // entered, morph in flight
+    resizeTo(hostOf(), 203);
+    expect(panelOf().style.transition).toMatch(/height 210ms/);
+    expect(panelOf().style.height).toBe(`${HEADER + 203}px`);
+  });
+
+  test("closed, the frame is the header alone whatever the host measured", () => {
+    const { rerender } = renderPanel();
+    resizeTo(hostOf(), 203);
+    rerender(
+      <CommandPalettePanel open={false} items={items} activeIndex={0}>
+        <div>pill</div>
+      </CommandPalettePanel>,
+    );
+    expect(panelOf().style.height).toBe(`${HEADER}px`);
+    expect(panelOf().style.transition).toMatch(/height 150ms/);
   });
 });
 

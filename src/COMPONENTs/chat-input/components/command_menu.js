@@ -15,7 +15,7 @@
  * VISIBLE rows, and `onVisibleChange` reports what those are so the caller's
  * arrow keys can walk a tree without knowing its shape.
  */
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import CommandTree from "./command_tree";
 import { BARE_ROW_HEIGHT, ROW_HEIGHT } from "./command_row";
 import { buildCommandTree } from "../../../SERVICEs/skill_folder_storage";
@@ -50,6 +50,16 @@ export const commandListHeight = ({
   const rowHeight = bare ? BARE_ROW_HEIGHT : ROW_HEIGHT;
   return Math.min(rowCount, MAX_VISIBLE_TREE_ROWS) * rowHeight + LIST_PADDING;
 };
+
+/**
+ * The cap alone, for a host that sizes itself to the rows below it and
+ * scrolls above it. The palette panel's list host uses this rather than a
+ * count-derived height: a count changes at once when a folder is toggled,
+ * while the rows themselves take 280ms to fold — a host capped to the new
+ * count chopped them off on the first frame.
+ */
+export const commandListCapHeight = ({ bare = false } = {}) =>
+  commandListHeight({ rowCount: MAX_VISIBLE_TREE_ROWS, bare });
 
 /**
  * `bare` strips the floating-card chrome so the list can live inside another
@@ -175,4 +185,6 @@ const CommandMenu = ({
 };
 
 export { MAX_VISIBLE_ROWS, MAX_VISIBLE_TREE_ROWS };
-export default CommandMenu;
+/* memo: the palette panel re-renders once per frame while a folder folds
+   (it follows the rows' measured height); nothing below this line changed. */
+export default memo(CommandMenu);

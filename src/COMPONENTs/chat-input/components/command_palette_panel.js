@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import CommandMenu, { commandListHeight } from "./command_menu";
+import { flushSync } from "react-dom";
+import CommandMenu, { commandListCapHeight } from "./command_menu";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 /**
@@ -19,8 +20,9 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 const FALLBACK_H = 40; // pill row height fallback before measurement
 const PANEL_RADIUS = 22; // matches the attach pill container
-/* Row count, stride and the organize entry all live in command_menu, which is
-   what actually renders them — see commandListHeight. */
+/* Row stride and the ten-row cap live in command_menu, which is what actually
+   renders the rows — see commandListCapHeight. The list's height itself is
+   measured, not computed (see listContentH below). */
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
 /* The thumb's distance from the panel's wall — the Select palette's value,
@@ -30,6 +32,13 @@ const SCROLLBAR_WALL = 2;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.4, 0, 1, 1)";
 const EASE_SPRING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+
+/* The open morph's height transition: delay + duration. After this the frame
+   stops easing on its own and simply follows the rows (see listH). */
+const OPEN_HEIGHT_DELAY_MS = 40;
+const OPEN_HEIGHT_MS = 210;
+const OPEN_HEIGHT_TRANSITION = `height ${OPEN_HEIGHT_MS}ms cubic-bezier(0.3,1,0.35,1) ${OPEN_HEIGHT_DELAY_MS}ms`;
+const CLOSE_HEIGHT_TRANSITION = "height 150ms cubic-bezier(0.4,0,0.6,1)";
 
 const CommandPalettePanel = ({
   open = false,
@@ -83,13 +92,70 @@ const CommandPalettePanel = ({
   }, []);
 
   const headerH = pillH || FALLBACK_H;
-  /* Rows on screen, not commands available — a collapsed category hides its
-     children, so items.length is the wrong number the moment anything is
-     organized. The menu reports what it actually rendered; until it has, the
-     flat count is right by construction. */
-  const rowCount = visibleRowCount > 0 ? visibleRowCount : items.length;
-  const listMaxH = commandListHeight({ rowCount, bare: true });
-  const listH = on ? listMaxH : 0;
+
+  /* The list's height is MEASURED, not computed from a row count. A folder
+     toggled in the tree is Explorer's own 280ms height animation on the rows;
+     a count-derived height changed at once, so the frame eased to its new
+     size on its own clock while the rows folded on theirs — 86px of empty
+     panel above the rows at the worst frame, rows chopped by a cap that had
+     already snapped. Measuring the host makes the frame the rows' motion,
+     nothing else. flushSync: a ResizeObserver runs after layout and before
+     paint, and the frame has to land in the same paint as the rows it
+     follows — a render scheduled for later paints one frame behind. */
+  const listHostRef = useRef(null);
+  const [listContentH, setListContentH] = useState(0);
+  useEffect(() => {
+    const el = listHostRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = Math.round(entry.contentRect.height);
+        flushSync(() => setListContentH(h));
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const listMaxH = commandListCapHeight({ bare: true });
+  const listH = on ? listContentH : 0;
+
+  /* Which motion owns the height. The open and close morphs ease it — the
+     panel growing out of the pill and folding back into it. Once the open
+     morph has settled, the height carries no transition at all, so the
+     measured value above is applied as the rows move, frame for frame. */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!on) {
+      setSettled(false);
+      return undefined;
+    }
+    const timer = setTimeout(
+      () => setSettled(true),
+      OPEN_HEIGHT_DELAY_MS + OPEN_HEIGHT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [on]);
+  const heightTransition = on
+    ? settled
+      ? null
+      : OPEN_HEIGHT_TRANSITION
+    : CLOSE_HEIGHT_TRANSITION;
+  const panelTransition = [
+    heightTransition,
+    ...(on
+      ? [
+          "background-color 180ms ease",
+          "border-color 180ms ease",
+          "box-shadow 210ms ease",
+        ]
+      : [
+          "background-color 130ms ease 40ms",
+          "border-color 130ms ease 40ms",
+          "box-shadow 130ms ease",
+        ]),
+  ]
+    .filter(Boolean)
+    .join(", ");
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
@@ -150,9 +216,7 @@ const CommandPalettePanel = ({
               ? "0 10px 34px rgba(0,0,0,0.5)"
               : "0 10px 34px rgba(0,0,0,0.12)"
             : "none",
-          transition: on
-            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, border-color 180ms ease, box-shadow 210ms ease"
-            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, border-color 130ms ease 40ms, box-shadow 130ms ease",
+          transition: panelTransition,
           zIndex: 1,
           pointerEvents: on ? "auto" : "none",
         }}
@@ -172,6 +236,7 @@ const CommandPalettePanel = ({
             the hint bar. */}
         <div style={{ minHeight: 0, overflow: "hidden" }}>
           <div
+            ref={listHostRef}
             className="scrollable"
             data-command-list-scroll=""
             data-sb-edge={PANEL_RADIUS - 1}

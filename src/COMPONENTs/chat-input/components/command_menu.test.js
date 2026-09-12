@@ -1,6 +1,9 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import CommandMenu, { commandListHeight } from "./command_menu";
+import CommandMenu, {
+  commandListCapHeight,
+  commandListHeight,
+} from "./command_menu";
 
 const makeItems = () => [
   { name: "/btw", description: "立即回答,不打断当前任务", insertText: "/btw " },
@@ -318,6 +321,16 @@ describe("CommandMenu list height", () => {
     // 10 * 32 + 7 — rows inside the tree are contiguous, no per-row gap
     expect(heightOf({ items: rows(10) })).toBe(327);
     expect(heightOf({ items: rows(40) })).toBe(327);
+  });
+
+  test("the cap is exported on its own, for a host that sizes to content below it", () => {
+    expect(commandListCapHeight()).toBe(327);
+    expect(commandListCapHeight({ bare: true })).toBe(
+      commandListHeight({ rowCount: 10, bare: true }),
+    );
+    expect(commandListCapHeight({ bare: true })).toBe(
+      commandListHeight({ rowCount: 99, bare: true }),
+    );
   });
 
 
