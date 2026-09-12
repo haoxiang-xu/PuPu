@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import { getRuntimePlatform } from "../../side-menu/side_menu_utils";
+import usePresentationPlatform from "../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
@@ -15,7 +15,7 @@ export default function RecipesPage({
   onSelectNode,
   fullscreen,
 }) {
-  const isDarwin = getRuntimePlatform() === "darwin";
+  const isDarwin = usePresentationPlatform() === "darwin";
   const [appFullscreen, setAppFullscreen] = useState(false);
 
   useEffect(() => {

@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "个严重风险",
     "mcp_registry_refresh": "刷新",
     "mcp_registry_delete": "删除",
-    "mcp_registry_error": "错误"
+    "mcp_registry_error": "错误",
+    "platform_presentation": "平台外观预览",
+    "platform_presentation_desc": "让界面按另一个操作系统的样式呈现——标题栏、窗口控件、间距。仅开发环境可用；正式版始终跟随真实平台。",
+    "platform_system": "跟随系统（本机）",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "电脑使用",

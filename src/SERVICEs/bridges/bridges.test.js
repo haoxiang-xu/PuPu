@@ -372,6 +372,25 @@ describe("bridge wrappers", () => {
     expect(actionSpy).toHaveBeenCalledWith("minimize");
   });
 
+  test("windowStateBridge.setPlatformPresentation sends the presentation when preload offers it, and is a quiet no-op when it does not (#256)", () => {
+    const presentSpy = jest.fn();
+    window.windowStateAPI = {
+      windowStateEventHandler: jest.fn(),
+      windowStateEventListener: jest.fn(() => () => {}),
+      setPlatformPresentation: presentSpy,
+    };
+    expect(windowStateBridge.setPlatformPresentation("win32")).toBe(true);
+    expect(presentSpy).toHaveBeenCalledWith("win32");
+    expect(windowStateBridge.setPlatformPresentation(null)).toBe(true);
+    expect(presentSpy).toHaveBeenLastCalledWith(null);
+    /* an older preload without the method: nothing thrown, nothing sent */
+    window.windowStateAPI = {
+      windowStateEventHandler: jest.fn(),
+      windowStateEventListener: jest.fn(() => () => {}),
+    };
+    expect(windowStateBridge.setPlatformPresentation("win32")).toBe(false);
+  });
+
   test("runtimeBridge methods throw FrontendApiError on failure", async () => {
     window.unchainAPI = {
       getRuntimeDirSize: jest.fn(async () => {

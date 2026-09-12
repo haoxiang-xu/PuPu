@@ -22,7 +22,7 @@ import {
   RenameRow,
 } from "./side_menu_components";
 import { sideMenuChatTreeAPI } from "./side_menu_api";
-import { getRuntimePlatform } from "./side_menu_utils";
+import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
@@ -248,7 +248,7 @@ const SideMenu = () => {
     chatStore?.chatsById,
   );
 
-  const platform = getRuntimePlatform();
+  const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark
     ? "var(--pupu-sidebar, #151515)"

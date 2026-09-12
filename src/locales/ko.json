@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "치명적 위험",
     "mcp_registry_refresh": "새로 고침",
     "mcp_registry_delete": "삭제",
-    "mcp_registry_error": "오류"
+    "mcp_registry_error": "오류",
+    "platform_presentation": "플랫폼 표시",
+    "platform_presentation_desc": "제목 표시줄, 창 컨트롤, 간격을 다른 운영체제의 모습으로 표시합니다. 개발 환경 전용이며 배포 빌드는 항상 실제 플랫폼을 따릅니다.",
+    "platform_system": "시스템(이 컴퓨터)",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "컴퓨터 사용",

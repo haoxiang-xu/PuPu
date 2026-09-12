@@ -34,6 +34,9 @@ import { isSetupComplete } from "../../COMPONENTs/init-setup/init_setup_storage"
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
+import { readAppliedPlatformOverride } from "../../SERVICEs/platform_presentation";
+import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import {
   isDevSettingsAvailable,
   readDevSettings,
@@ -288,6 +291,14 @@ const EnvironmentProvider = ({ children }) => {
     () => ({ window_size, env_browser, device_type }),
     [window_size, env_browser, device_type],
   );
+
+  /* #256: the native chrome follows the presented platform. Main holds no
+     record of its own, so the override is sent once on mount (a restart with
+     an override kept) and again on every change; null means "the host". */
+  const presentation = usePresentationPlatform();
+  useEffect(() => {
+    windowStateBridge.setPlatformPresentation(readAppliedPlatformOverride());
+  }, [presentation]);
 
   return (
     <EnvironmentContext.Provider value={environmentValue}>

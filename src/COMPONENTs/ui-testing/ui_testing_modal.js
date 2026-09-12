@@ -9,7 +9,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import { getRuntimePlatform } from "../side-menu/side_menu_utils";
+import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 import { TestDockContext } from "./test_dock_context";
 import ControlDock from "./control_dock";
@@ -73,7 +73,7 @@ const UITestingModal = ({ open, onClose }) => {
   useModalLifecycle("ui-testing-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const isDarwin = getRuntimePlatform() === "darwin";
+  const isDarwin = usePresentationPlatform() === "darwin";
 
   const [initialPrefs] = useState(() => loadPrefs());
   const [selectedKey, setSelectedKey] = useState(COMPONENTS[0].key);

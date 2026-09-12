@@ -102,6 +102,8 @@ const paletteForMode = (mode) => {
 };
 /* ── Theme-preference persistence ──────────────────────────────────── */
 
+const PRESENTABLE_PLATFORMS = new Set(["darwin", "win32", "linux"]);
+
 const createMainWindowService = ({
   app,
   BrowserWindow,
@@ -109,9 +111,18 @@ const createMainWindowService = ({
   fs,
   path,
   nativeTheme,
+  platform = process.platform,
 }) => {
   let mainWindow = null;
   let darwinTrafficLightSyncTimeout = null;
+  /* #256, development only: the platform the renderer presents as, or null
+     for the host. On a darwin host a non-darwin presentation hides the native
+     traffic lights (the renderer draws the other platform's controls) and
+     lets "maximize" maximize instead of going full-screen. */
+  let presentationPlatform = null;
+  const presentsAsDarwin = () =>
+    platform === "darwin" &&
+    (presentationPlatform === null || presentationPlatform === "darwin");
 
   const resolvePublicPath = (...segments) =>
     path.join(app.getAppPath(), "public", ...segments);
@@ -129,7 +140,7 @@ const createMainWindowService = ({
 
   const syncDarwinTrafficLightPosition = () => {
     if (
-      process.platform !== "darwin" ||
+      platform !== "darwin" ||
       !mainWindow ||
       mainWindow.isDestroyed()
     ) {
@@ -141,7 +152,11 @@ const createMainWindowService = ({
     }
 
     if (typeof mainWindow.setWindowButtonVisibility === "function") {
-      mainWindow.setWindowButtonVisibility(true);
+      mainWindow.setWindowButtonVisibility(presentsAsDarwin());
+    }
+    if (!presentsAsDarwin()) {
+      /* presenting another platform: the lights stay hidden, nothing to place */
+      return;
     }
     mainWindow.setWindowButtonPosition({
       x: DARWIN_TRAFFIC_LIGHT_X,
@@ -150,7 +165,7 @@ const createMainWindowService = ({
   };
 
   const scheduleDarwinTrafficLightSync = () => {
-    if (process.platform !== "darwin") {
+    if (platform !== "darwin") {
       return;
     }
 
@@ -213,7 +228,7 @@ const createMainWindowService = ({
       },
     };
 
-    if (process.platform === "darwin") {
+    if (platform === "darwin") {
       return {
         ...baseWindowOptions,
         frame: true,
@@ -228,7 +243,7 @@ const createMainWindowService = ({
       };
     }
 
-    if (process.platform === "win32") {
+    if (platform === "win32") {
       return {
         ...baseWindowOptions,
         frame: true,
@@ -361,7 +376,7 @@ const createMainWindowService = ({
       }
     });
 
-    if (process.platform === "darwin") {
+    if (platform === "darwin") {
       mainWindow.webContents.on(
         "did-finish-load",
         scheduleDarwinTrafficLightSync,
@@ -431,7 +446,7 @@ const createMainWindowService = ({
         mainWindow.minimize();
         break;
       case "maximize":
-        if (process.platform === "darwin") {
+        if (presentsAsDarwin()) {
           mainWindow.setFullScreen(!mainWindow.isFullScreen());
         } else if (mainWindow.isMaximized()) {
           mainWindow.unmaximize();
@@ -448,6 +463,29 @@ const createMainWindowService = ({
     focusMainWindow();
   };
 
+  /* BC-256 consumer. Wire shape: "darwin" | "win32" | "linux" | null.
+     CLOSED: anything else is ignored; a packaged app ignores everything —
+     production follows the real platform. */
+  const handlePlatformPresentation = (value) => {
+    if (app.isPackaged) {
+      return;
+    }
+    if (value !== null && !PRESENTABLE_PLATFORMS.has(value)) {
+      return;
+    }
+    presentationPlatform = value;
+    if (platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    /* Showing the lights again puts them at Electron's default spot, so the
+       position is re-applied in the same breath (the sync does both: it
+       hides while presenting another platform, shows AND places for darwin)
+       — and once more a beat later, the way every show/focus/resize does,
+       for the frame AppKit needs to settle the buttons. */
+    syncDarwinTrafficLightPosition();
+    scheduleDarwinTrafficLightSync();
+  };
+
   return {
     createMainWindow,
     getMainWindow: () => mainWindow,
@@ -457,6 +495,7 @@ const createMainWindowService = ({
     handleThemeSetBackgroundColor,
     handleThemeSetMode,
     handleWindowStateEvent,
+    handlePlatformPresentation,
   };
 };
 

@@ -136,6 +136,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.THEME.SET_BACKGROUND_COLOR,
   CHANNELS.THEME.SET_MODE,
   CHANNELS.WINDOW_STATE.HANDLE_ACTION,
+  CHANNELS.WINDOW_STATE.SET_PRESENTATION,
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_START_V4,
@@ -189,6 +190,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.WINDOW_STATE.HANDLE_ACTION, (_event, action) => {
     windowService.handleWindowStateEvent(action);
+  });
+  ipcMain.on(CHANNELS.WINDOW_STATE.SET_PRESENTATION, (_event, platform) => {
+    windowService.handlePlatformPresentation(platform);
   });
 
   ipcMain.handle(CHANNELS.APP.GET_VERSION, () => app.getVersion());

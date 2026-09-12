@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "risco crítico",
     "mcp_registry_refresh": "Atualizar",
     "mcp_registry_delete": "Excluir",
-    "mcp_registry_error": "erro"
+    "mcp_registry_error": "erro",
+    "platform_presentation": "Apresentação de plataforma",
+    "platform_presentation_desc": "Exibe a interface com a aparência de outro sistema operacional: barra de título, controles da janela, espaçamentos. Apenas em desenvolvimento; a produção segue a plataforma real.",
+    "platform_system": "Sistema (esta máquina)",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "Uso do computador",

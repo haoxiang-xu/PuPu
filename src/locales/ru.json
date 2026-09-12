@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "критический риск",
     "mcp_registry_refresh": "Обновить",
     "mcp_registry_delete": "Удалить",
-    "mcp_registry_error": "ошибка"
+    "mcp_registry_error": "ошибка",
+    "platform_presentation": "Оформление платформы",
+    "platform_presentation_desc": "Показывает интерфейс в стиле другой операционной системы: заголовок окна, кнопки управления, отступы. Только для разработки; в продакшене всегда реальная платформа.",
+    "platform_system": "Система (этот компьютер)",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "Управление компьютером",

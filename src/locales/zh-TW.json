@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "重大風險",
     "mcp_registry_refresh": "重新整理",
     "mcp_registry_delete": "刪除",
-    "mcp_registry_error": "錯誤"
+    "mcp_registry_error": "錯誤",
+    "platform_presentation": "平台外觀預覽",
+    "platform_presentation_desc": "讓介面以另一個作業系統的樣式呈現——標題列、視窗控制項、間距。僅開發環境可用；正式版始終跟隨真實平台。",
+    "platform_system": "跟隨系統（本機）",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "電腦使用",

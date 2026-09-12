@@ -2,6 +2,12 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Select from "../../../BUILTIN_COMPONENTs/select/select";
+import usePresentationPlatform from "../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
+import {
+  readPlatformOverride,
+  writePlatformOverride,
+} from "../../../SERVICEs/platform_presentation";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import {
   FEATURE_FLAG_DEFINITIONS,
@@ -30,6 +36,23 @@ export const DevSettings = () => {
   const [featureFlagsSyncError, setFeatureFlagsSyncError] = useState("");
   const [showUITesting, setShowUITesting] = useState(false);
   const [showMcpRegistries, setShowMcpRegistries] = useState(false);
+  /* #256: the override the UI presents as; the hook re-renders this row when
+     the record changes from anywhere, "system" stands for no override */
+  usePresentationPlatform();
+  const platformOverride = readPlatformOverride() || "system";
+  const platformOptions = [
+    { value: "system", label: t("dev.platform_system") },
+    { value: "darwin", label: t("dev.platform_macos") },
+    { value: "win32", label: t("dev.platform_windows") },
+    { value: "linux", label: t("dev.platform_linux") },
+  ];
+  const platformSelectStyle = {
+    minWidth: 140,
+    fontSize: 13,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+  };
 
   const errorColor = isDark ? "#ff7f7f" : "#c62828";
   const successColor = isDark ? "#86efac" : "#2e7d32";
@@ -171,6 +194,24 @@ export const DevSettings = () => {
         >
           {t("dev.electron_only")}
         </div>
+
+        <SettingsRow
+          label={t("dev.platform_presentation")}
+          description={t("dev.platform_presentation_desc")}
+        >
+          <Select
+            options={platformOptions}
+            value={platformOverride}
+            set_value={(value) =>
+              writePlatformOverride(value === "system" ? null : value)
+            }
+            variant="palette"
+            filterable={false}
+            style={platformSelectStyle}
+            dropdown_style={{ width: 200, maxHeight: 220 }}
+            option_style={{ height: 24, borderRadius: 14 }}
+          />
+        </SettingsRow>
 
         <SettingsRow
           label={t("dev.ui_testing")}

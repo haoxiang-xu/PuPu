@@ -4,6 +4,10 @@ const createWindowStateBridge = (ipcRenderer) => ({
   windowStateEventHandler: (action) => {
     ipcRenderer.send(CHANNELS.WINDOW_STATE.HANDLE_ACTION, action);
   },
+  /* #256 dev only: "darwin" | "win32" | "linux" | null (= the host) */
+  setPlatformPresentation: (platform) => {
+    ipcRenderer.send(CHANNELS.WINDOW_STATE.SET_PRESENTATION, platform);
+  },
   windowStateEventListener: (callback) => {
     if (typeof callback !== "function") {
       return () => {};

@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "重大なリスク",
     "mcp_registry_refresh": "更新",
     "mcp_registry_delete": "削除",
-    "mcp_registry_error": "エラー"
+    "mcp_registry_error": "エラー",
+    "platform_presentation": "プラットフォーム表示",
+    "platform_presentation_desc": "タイトルバー・ウィンドウ操作・余白を別の OS の見た目で表示します。開発環境のみ。製品ビルドは常に実際のプラットフォームに従います。",
+    "platform_system": "システム（このマシン）",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "コンピュータの使用",
