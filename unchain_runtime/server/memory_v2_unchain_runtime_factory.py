@@ -947,6 +947,7 @@ class PupuUnchainContextMemoryV2HostFactory:
         sink = DurableEventSink(journal, attempt, projector)
         coordinator = ContextCompileCoordinator(
             journal=journal,
+            artifacts=artifacts,
             checkpoint_repository=compiler_capabilities.checkpoints,
             build_repository=compiler_capabilities.context_builds,
             partial_attempt_sink=self._partial_attempt_sink,
@@ -958,6 +959,7 @@ class PupuUnchainContextMemoryV2HostFactory:
         handoffs = HandoffService(artifacts)
         request_factory = JournalContextRequestFactory(
             attempt=attempt,
+            artifacts=artifacts,
             journal=journal,
             model_window_fallback=self._model_window_fallback,
         )
