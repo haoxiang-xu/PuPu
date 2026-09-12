@@ -1,0 +1,21 @@
+{
+  "candidate_kind": "Local Electron development candidate; not packaged release certification",
+  "launch": "Electron wrapper only sets app name/path and isolated userData/sessionData, then requires the candidate public/electron.js; CRA serves this clone at http://localhost:2924/#",
+  "user_data": "/tmp/pupu-278-live-profile",
+  "original_app_unchanged": true,
+  "plugin_trust_badge_sha256": "7f79bd982bdb009afc53462bbdf7bbb25b994e951f73e23bdced5a46e4eb4f9e",
+  "loaded_renderer_bundle_sha256": "ac5b81aa92febc5b52732158985d2c4d3464547f3efab5268df2320156a459f4",
+  "live_data": "Own sidecar via unchanged preload bridge; real core/plan/agent_reach catalog records. No synthetic catalog injection.",
+  "python_source_changed": false,
+  "wheel_and_manifest": "N/A: unchanged development runtime consumed through existing contracts; no cross-boundary schema/IPC/persistence/producer change and no packaged deployment",
+  "known_startup_logs": "Initial sidecar-starting IPC errors and Electron GPU mailbox messages occurred before readiness; catalog later loaded successfully and the feature path passed.",
+  "llm": "Not exercised; feature is catalog classification/display and makes no model call.",
+  "checks": [
+    "real catalog -> Installed source/status matches",
+    "marker expansion leaves Installed list visible",
+    "same real plugin -> detail classification matches",
+    "detail explanation renders",
+    "root has no horizontal overflow",
+    "builtin Button interaction layer present"
+  ]
+}

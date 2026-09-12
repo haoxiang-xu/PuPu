@@ -1,5 +1,6 @@
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { resolvePluginTrust } from "../../../SERVICEs/plugin_trust";
@@ -195,36 +196,47 @@ const PluginTrustBadge = ({ entry, isDark = false }) => {
         >
           {originLabel}
         </span>
-        <button
+        <Button
           ref={toggleRef}
-          type="button"
-          data-testid="plugin-trust-toggle"
-          aria-label={toggleLabel}
-          aria-expanded={expanded}
-          aria-controls={detailsId}
+          ariaLabel={toggleLabel}
+          dom_props={{
+            type: "button",
+            "data-testid": "plugin-trust-toggle",
+            "aria-expanded": expanded,
+            "aria-controls": detailsId,
+          }}
           onClick={handleToggle}
           style={{
-            appearance: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            minWidth: 0,
-            margin: 0,
-            padding: "3px 7px",
-            border: 0,
-            borderLeft: `1px solid ${palette.border}`,
-            borderRadius: "0 5px 5px 0",
-            background: "transparent",
-            color: palette[statusConfig.tone],
-            fontFamily,
-            fontSize: 10.5,
-            fontWeight: 500,
-            lineHeight: 1.25,
-            textAlign: "left",
-            whiteSpace: "normal",
-            overflowWrap: "anywhere",
-            cursor: "pointer",
+            root: {
+              gap: 4,
+              minWidth: 0,
+              margin: 0,
+              paddingVertical: 3,
+              paddingHorizontal: 7,
+              borderLeft: `1px solid ${palette.border}`,
+              borderRadius: 5,
+              borderTopLeftRadius: 0,
+              borderBottomLeftRadius: 0,
+              color: palette[statusConfig.tone],
+              fontFamily,
+              fontSize: 10.5,
+              fontWeight: 500,
+              lineHeight: 1.25,
+              textAlign: "left",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+            background: {
+              hoverBackgroundColor: isDark
+                ? "rgba(var(--pupu-text-rgb),0.10)"
+                : "rgba(var(--pupu-text-rgb),0.06)",
+              activeBackgroundColor: isDark
+                ? "rgba(var(--pupu-text-rgb),0.16)"
+                : "rgba(var(--pupu-text-rgb),0.10)",
+            },
+            content: {
+              children: { display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0 },
+            },
           }}
         >
           <Icon
@@ -234,7 +246,7 @@ const PluginTrustBadge = ({ entry, isDark = false }) => {
             style={{ width: 12, height: 12, flexShrink: 0 }}
           />
           <span>{statusLabel}</span>
-        </button>
+        </Button>
       </span>
 
       {expanded && (

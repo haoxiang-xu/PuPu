@@ -7,14 +7,14 @@ PASS src/COMPONENTs/toolkit/pages/plugin_detail_page.test.js
 PASS src/COMPONENTs/toolkit/plugins_shell.test.js
 PASS src/COMPONENTs/toolkit/pages/plugins_installed_page.test.js
 PASS src/COMPONENTs/toolkit/pages/plugins_discover_page.test.js
-PASS src/BUILTIN_COMPONENTs/mini_react/use_translation.test.js
 PASS src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js
 PASS src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js
-PASS src/COMPONENTs/toolkit/components/plugin_list_row.test.js
 PASS src/SERVICEs/plugin_trust_locales.test.js
+PASS src/COMPONENTs/toolkit/components/plugin_list_row.test.js
+PASS src/BUILTIN_COMPONENTs/mini_react/use_translation.test.js
 PASS src/SERVICEs/plugin_trust.test.js
 
 Test Suites: 11 passed, 11 total
 Tests:       213 passed, 213 total
 Snapshots:   0 total
-Time:        3.634 s, estimated 4 s
+Time:        3.606 s, estimated 4 s

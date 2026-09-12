@@ -1,0 +1,32 @@
+{
+  "summary": {
+    "changed_count": 3,
+    "affected_count": 0,
+    "changed_files": 7,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L1:#278 — Plugin publisher origin and verification labels",
+      "name": "#278 — Plugin publisher origin and verification labels",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L57:Implementation-ready evidence",
+      "name": "Implementation-ready evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge",
+      "name": "PluginTrustBadge",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}
