@@ -1,0 +1,3 @@
+rows navigation PuPu plugin labels — component QA
+detail root overflow false
+errors []

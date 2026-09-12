@@ -2,6 +2,11 @@ import { act, render, screen, fireEvent, waitFor, within } from "@testing-librar
 import PluginsCategoriesPage from "./plugins_categories_page";
 import api from "../../../SERVICEs/api";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked, same rationale as
    plugins_installed_page.test.js — the vocabulary assertion reads rendered
    TEXT and an identity-key mock would leak key NAMES (containing "tool")
@@ -388,7 +393,9 @@ describe("PluginsCategoriesPage — release gating", () => {
     const row = screen.getByTestId("category-row-remote-pending");
     expect(within(row).getByText("Coming soon")).toBeInTheDocument();
     expect(within(row).queryByText("Connect")).not.toBeInTheDocument();
-    expect(within(row).getByRole("button")).toBeDisabled();
+    expect(
+      within(row).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
   });
 });
 
@@ -405,6 +412,42 @@ describe("PluginsCategoriesPage — vocabulary", () => {
 
     const rowsArea = container.querySelector(".scrollable");
     expect(rowsArea.textContent).not.toMatch(/tool/i);
+  });
+});
+
+describe("PluginsCategoriesPage — trust badges", () => {
+  test("keeps registry, builtin and custom MCP trust raw and isolates their detail buttons", async () => {
+    const onOpenDetail = jest.fn();
+    const onInstall = jest.fn();
+    await renderPage({ onOpenDetail, onInstall });
+    await waitFor(() => expect(screen.getByText("Home Bridge")).toBeInTheDocument());
+
+    const registryTrust = within(
+      screen.getByTestId("category-row-notion"),
+    ).getByTestId("plugin-trust-badge");
+    expect(registryTrust).toHaveAttribute("data-origin", "third_party");
+    expect(registryTrust).toHaveAttribute("data-status", "unverified");
+    expect(registryTrust).toHaveTextContent("Third-party");
+
+    const builtinTrust = within(
+      screen.getByTestId("category-row-plan"),
+    ).getByTestId("plugin-trust-badge");
+    expect(builtinTrust).toHaveAttribute("data-origin", "official");
+    expect(builtinTrust).toHaveAttribute("data-status", "unverified");
+    expect(builtinTrust).toHaveTextContent("PuPu official");
+
+    const customTrust = within(
+      screen.getByTestId("category-row-mcp.custom.home-bridge"),
+    ).getByTestId("plugin-trust-badge");
+    expect(customTrust).toHaveAttribute("data-origin", "third_party");
+    expect(customTrust).toHaveAttribute("data-status", "unverified");
+
+    [registryTrust, builtinTrust, customTrust].forEach((badge) => {
+      fireEvent.click(within(badge).getByRole("button"));
+      expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
+    });
+    expect(onOpenDetail).not.toHaveBeenCalled();
+    expect(onInstall).not.toHaveBeenCalled();
   });
 });
 
@@ -598,6 +641,27 @@ describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
     expect(
       screen.queryByTestId("skillpack-row-skillpack.test-pack"),
     ).not.toBeInTheDocument();
+  });
+
+  test("shows third-party unverified trust without opening or installing the skill pack", async () => {
+    const onOpenDetail = jest.fn();
+    const onInstall = jest.fn();
+    await renderPage({ onOpenDetail, onInstall });
+    await waitFor(() => expect(screen.getByText("Test Pack")).toBeInTheDocument());
+
+    const row = screen.getByTestId("skillpack-row-skillpack.test-pack");
+    const badge = within(row).getByTestId("plugin-trust-badge");
+    expect(badge).toHaveAttribute("data-origin", "third_party");
+    expect(badge).toHaveAttribute("data-status", "unverified");
+    expect(badge).toHaveTextContent("Third-party");
+    expect(badge).toHaveTextContent("Unverified");
+
+    fireEvent.click(within(badge).getByRole("button"));
+    expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
+
+    expect(onOpenDetail).not.toHaveBeenCalled();
+    expect(onInstall).not.toHaveBeenCalled();
+    expect(installStoreSkillPack).not.toHaveBeenCalled();
   });
 
   test("an already-installed pack (present in the catalog) drops its store row", async () => {

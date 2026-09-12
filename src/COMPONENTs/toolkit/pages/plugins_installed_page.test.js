@@ -7,6 +7,11 @@ import {
   removeInvalidToolkitIds,
 } from "../../../SERVICEs/default_toolkit_store";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked here — the vocabulary
    test below asserts on rendered TEXT, and an identity-key mock would leak
    the i18n key NAME ("toolkit.installed_title") into the DOM, which itself
@@ -448,6 +453,67 @@ describe("PluginsInstalledPage", () => {
 
       expect(screen.getByText("Computer")).toBeInTheDocument();
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("PluginsInstalledPage — trust badges", () => {
+    test("covers Computer, builtin, MCP and imported-skill origins without opening or toggling", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({
+        toolkits: [
+          ...CATALOG,
+          {
+            toolkitId: "skillpack.superpowers",
+            toolkitName: "Superpowers",
+            toolkitDescription: "Imported skill pack",
+            source: "skillpack",
+            tools: [],
+            skills: [
+              {
+                name: "brainstorming",
+                title: "Brainstorming",
+                description: "Explore.",
+              },
+            ],
+          },
+        ],
+      });
+      const onOpenDetail = jest.fn();
+      const onOpenPluginSettings = jest.fn();
+      await renderPage({ onOpenDetail, onOpenPluginSettings });
+
+      const computerTrust = within(
+        screen.getByTestId("installed-row-builtin.computer"),
+      ).getByTestId("plugin-trust-badge");
+      expect(computerTrust).toHaveAttribute("data-origin", "official");
+      expect(computerTrust).toHaveAttribute("data-status", "unverified");
+      expect(computerTrust).toHaveTextContent("PuPu official");
+
+      const builtinTrust = within(
+        screen.getByTestId("installed-row-plan"),
+      ).getByTestId("plugin-trust-badge");
+      expect(builtinTrust).toHaveAttribute("data-origin", "official");
+      expect(builtinTrust).toHaveAttribute("data-status", "unverified");
+
+      const mcpTrust = within(
+        screen.getByTestId("installed-row-mcp.productivity.notion-remote"),
+      ).getByTestId("plugin-trust-badge");
+      expect(mcpTrust).toHaveAttribute("data-origin", "third_party");
+      expect(mcpTrust).toHaveAttribute("data-status", "unverified");
+      expect(mcpTrust).toHaveTextContent("Third-party");
+
+      const skillTrust = within(
+        screen.getByTestId("installed-row-skillpack.superpowers"),
+      ).getByTestId("plugin-trust-badge");
+      expect(skillTrust).toHaveAttribute("data-origin", "third_party");
+      expect(skillTrust).toHaveAttribute("data-status", "unverified");
+
+      [computerTrust, builtinTrust, mcpTrust, skillTrust].forEach((badge) => {
+        fireEvent.click(within(badge).getByRole("button"));
+        expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
+      });
+      expect(onOpenDetail).not.toHaveBeenCalled();
+      expect(onOpenPluginSettings).not.toHaveBeenCalled();
+      expect(setDefaultToolkitEnabled).not.toHaveBeenCalled();
     });
   });
 });

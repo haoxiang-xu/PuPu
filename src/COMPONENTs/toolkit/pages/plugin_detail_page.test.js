@@ -8,6 +8,11 @@ import {
   setToolkitAutoApprove,
 } from "../../../SERVICEs/toolkit_auto_approve_store";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked — same rationale as
    plugins_installed_page.test.js: the vocabulary assertion below reads
    rendered TEXT, and an identity-key mock would leak i18n key NAMES (which
@@ -178,6 +183,44 @@ describe("PluginDetailPage — source pill", () => {
     const entry = { ...NOTION_ENTRY, source: "mcp_registry" };
     renderPage({ entry, forceInstalled: false });
     expect(screen.getByText("registry")).toBeInTheDocument();
+  });
+});
+
+describe("PluginDetailPage — trust badge", () => {
+  test("renders the raw builtin origin and does not invoke install/open/toggle actions", () => {
+    const onInstall = jest.fn();
+    const onOpen = jest.fn();
+    const onToggleAutoEnable = jest.fn();
+    renderPage({
+      entry: PLAN_ENTRY,
+      onInstall,
+      onOpen,
+      onToggleAutoEnable,
+    });
+
+    const badge = screen.getByTestId("plugin-trust-badge");
+    expect(badge).toHaveAttribute("data-origin", "official");
+    expect(badge).toHaveAttribute("data-status", "unverified");
+    expect(badge).toHaveTextContent("PuPu official");
+    expect(badge).toHaveTextContent("Unverified");
+    fireEvent.click(within(badge).getByRole("button"));
+    expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
+
+    expect(onInstall).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(onToggleAutoEnable).not.toHaveBeenCalled();
+  });
+
+  test("a presentation default cannot turn a raw missing source into official", () => {
+    const entry = { ...NOTION_ENTRY };
+    delete entry.source;
+    renderPage({ entry });
+
+    const badge = screen.getByTestId("plugin-trust-badge");
+    expect(badge).toHaveAttribute("data-origin", "unknown");
+    expect(badge).toHaveAttribute("data-status", "unverified");
+    expect(badge).not.toHaveAttribute("data-origin", "official");
+    expect(badge).toHaveTextContent("Unknown origin");
   });
 });
 

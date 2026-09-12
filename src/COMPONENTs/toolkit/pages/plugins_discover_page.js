@@ -8,6 +8,7 @@ import { toPluginPresentation, loadStoreCuration } from "../../../SERVICEs/plugi
 import { ToolkitIconFrame } from "../components/toolkit_icon";
 import AuroraFeatureCard from "../components/aurora_feature_card";
 import BrandOrbCard from "../components/brand_orb_card";
+import PluginTrustBadge from "../components/plugin_trust_badge";
 import PluginInstallPill from "../components/plugin_install_pill";
 
 /* Resolves a curated pluginId against the two sources of truth a plugin can
@@ -309,7 +310,7 @@ const PluginsDiscoverPage = ({
           transition: `opacity 0.34s ease ${open ? 90 + idx * 50 : 0}ms, transform 0.4s cubic-bezier(0.32, 1, 0.32, 1) ${open ? 90 + idx * 50 : 0}ms`,
         }}
       >
-        <ToolkitIconFrame icon={iconFor(resolved)} isDark={isDark} size={32} iconSize={16} borderRadius={9} />
+        <ToolkitIconFrame icon={iconFor(resolved)} isDark={isDark} size={32} iconSize={16} borderRadius={9} style={{ alignSelf: "flex-start", marginTop: 4 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -323,6 +324,9 @@ const PluginsDiscoverPage = ({
             }}
           >
             {presentation.name}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <PluginTrustBadge entry={resolved.entry} isDark={isDark} />
           </div>
           <div
             style={{
@@ -338,7 +342,7 @@ const PluginsDiscoverPage = ({
             {presentation.tagline}
           </div>
         </div>
-        <div onClick={(event) => event.stopPropagation()} style={{ flexShrink: 0 }}>
+        <div onClick={(event) => event.stopPropagation()} style={{ flexShrink: 0, alignSelf: "flex-start", marginTop: 6 }}>
           <PluginInstallPill
             entry={resolved.entry}
             isDark={isDark}
@@ -361,6 +365,7 @@ const PluginsDiscoverPage = ({
     return (
       <BrandOrbCard
         key={id}
+        trustEntry={resolved.entry}
         testId={`discover-grid-${id}`}
         isDark={isDark}
         icon={iconFor(resolved)}
@@ -414,6 +419,7 @@ const PluginsDiscoverPage = ({
           <div style={{ marginBottom: 8 }}>
             <AuroraFeatureCard
               testId="discover-featured-aurora"
+              trustEntry={featured.entry}
               isDark={isDark}
               onClick={() => openDetailFor(featured)}
               icon={iconFor(featured)}
@@ -455,6 +461,8 @@ const PluginsDiscoverPage = ({
                     }
                   />
                   <div
+                    inert={expandedCollectionId !== collection.id ? true : undefined}
+                    aria-hidden={expandedCollectionId !== collection.id}
                     style={{
                       display: "grid",
                       gridTemplateRows: expandedCollectionId === collection.id ? "1fr" : "0fr",
