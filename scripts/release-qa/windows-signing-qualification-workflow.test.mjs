@@ -37,7 +37,7 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /python -m pip install -r unchain_runtime\/server\/requirements\.txt/);
   assert.match(workflow, /Create controlled Memory V2 build snapshot/);
   assert.match(workflow, /write-build-feature-snapshot\.cjs/);
-  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/);
+  assert.match(workflow, /--profile contracts\/memory-v2\/release-profile\.all\.v1\.json/);
   assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=\$snapshotPath/);
   assert.match(workflow, /uses: \.\/\.github\/actions\/windows-artifact-signing/);
   assert.doesNotMatch(workflow, /uses: azure\/(?:login|artifact-signing-action)/);

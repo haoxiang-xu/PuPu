@@ -1,0 +1,19 @@
+Changes: 4 files, 14 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Function normalizeSelectorConfig → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Property question → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Property options → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Property allowOther → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Function MultiSelectInteract → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Function toggle → src/COMPONENTs/chat-bubble/interact/multi_select_interact.js
+  Function normalizeSelectorConfig → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Property question → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Property options → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Property allowOther → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Function SingleSelectInteract → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Function handleSubmit → src/COMPONENTs/chat-bubble/interact/single_select_interact.js
+  Function isCanonicalHumanInputPayload → src/PAGEs/chat/hooks/durable_interaction_recovery.js
+  Function isCanonicalHumanInputPayload → src/SERVICEs/api.unchain.js

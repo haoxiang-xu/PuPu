@@ -3770,16 +3770,17 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+      expect(bridge.runs).toHaveLength(2);
+    });
+    expect(bridge.runs[1].payload).toEqual(
+      expect.objectContaining({
+        threadId: sessionId,
         owner_chat_id: sessionId,
-        session_id: sessionId,
-        attempt_id: sourceRunId,
         source_attempt_id: sourceRunId,
         interaction_id: interactionId,
-        reason: "interaction_suspended",
-        idempotency_key: `interaction-pause:${sourceRunId}:${interactionId}`,
-      });
-    });
+      }),
+    );
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: interactionId,
       session_id: sessionId,
@@ -3795,7 +3796,7 @@ describe("ChatInterface stop flow", () => {
       .toHaveLength(1);
     expect(decisionFrames.filter((frame) => frame.type === "tool_denied"))
       .toHaveLength(0);
-    expect(bridge.resumeRuns()).toHaveLength(0);
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
   });
 
   test("cold fresh send seals the exact awaiting attempt before starting one normal run", async () => {

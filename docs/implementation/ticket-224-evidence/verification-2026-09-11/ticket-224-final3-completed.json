@@ -1,0 +1,2350 @@
+{
+  "id": "chat-1789174073771-06b80f66ddbe78",
+  "text": "PUPU\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。\nFailed after 1 step · 301.4s\nAsk User\ndetail\n+145.5s\nSelected\nProject Folder Path\nWhat folder path should I use for the new project?\nFolder path\ntook\n100.9s\nRESULT\nsubmitted\ntrue\nselected_values\n[\"__other__\"]\nother_text\n/private/tmp/ticket-224-live-qwen/workspace/中文 最终三\nError\ndetail\n+78.8s\ncode\nunchain_process_exit\nmessage\nMiso process exited (code=null, signal=SIGKILL)\nMemory V2 · Complete\ndetail\nActive\n– in · – out · – total\n\n测试完成\n\n/\nCOMMANDS · ↑↓ · ⏎\nORGANIZE\nqwen3:32b\n28\n1\nCurrent model does not support image or file inputs.\nPlugins\nWorkspaces\nCHATS\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。\n1m\nSettings",
+  "pending": {
+    "session_id": "chat-1789174073771-06b80f66ddbe78",
+    "status": "none"
+  },
+  "events": {
+    "after": 0,
+    "events": [
+      {
+        "agent_id": "",
+        "attempt_id": "pupu-bootstrap-attempt-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "cursor": 1,
+        "event": {
+          "generation_rebase": {
+            "empty_snapshot": true,
+            "expected_head_revision": 0,
+            "kind": "create",
+            "previous_generation_id": "",
+            "replacement_message_count": 0
+          },
+          "legacy_provenance": {
+            "capture_status": "legacy_partial",
+            "owner_chat_id": "chat-1789174073771-06b80f66ddbe78",
+            "session_id": "chat-1789174073771-06b80f66ddbe78",
+            "source": "host_sanitized_generation_snapshot",
+            "source_revision": "pupu-chat-revision-6519c896526daec412f3eb1b9a1e48d0e2a5958d3d1af3f0d295748e20fa34e2"
+          },
+          "run_id": "pupu-bootstrap-attempt-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+          "type": "generation.rebased"
+        },
+        "event_id": "generation-rebase-marker-b00a6c3c33567ab4ee4c9cac09716b4bea097f6484e201262c9147daec036597",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 1,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "c44f2a89fa88004a8ad141f891c06b0afb493f51fbb70dc39c48635e6c82873c",
+        "ref": "pupu://context/event/generation-rebase-marker-b00a6c3c33567ab4ee4c9cac09716b4bea097f6484e201262c9147daec036597",
+        "run_id": "pupu-bootstrap-attempt-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 1,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "generation.rebased",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789178205516-f5b9792521f94",
+        "cursor": 2,
+        "event": {
+          "content_bytes": 262,
+          "content_ref": "pupu://artifact/artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a@1",
+          "content_sha256": "0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b",
+          "message": {
+            "content": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。",
+            "role": "user"
+          },
+          "preview": "{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。\",\"role\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "unchain-1789178205516-f5b9792521f94",
+          "type": "message.user"
+        },
+        "event_id": "event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 2,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b",
+        "ref": "pupu://context/event/event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093",
+        "run_id": "unchain-1789178205516-f5b9792521f94",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 2,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789178205516-f5b9792521f94",
+        "cursor": 3,
+        "event": {
+          "graph_plan_id": "graph-plan-19a90cb1b08dd852d79528c9246663a28649c37f1e73dfb62fb18a3ec0fd7838",
+          "graph_scope_id": "graph-scope-29f690a906361b498066127220aeb51ec65cbf5ec39733efa4f9795aa8eea952",
+          "plan": {
+            "initial_input_cursor": {
+              "event_id": "event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 2
+            },
+            "orchestration_attempt": {
+              "attempt_id": "unchain-1789178205516-f5b9792521f94",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "schema": "unchain.graph_execution_plan.v1",
+            "steps": [
+              {
+                "attempt": {
+                  "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                  "generation": {
+                    "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                    "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                },
+                "configuration_sha256": "3a51a92854e5fd4ecd965257e342a51474eb41c7b06012ff031cd64295aed430",
+                "index": 0,
+                "model": "qwen3:32b",
+                "node_id": "agent_main",
+                "provider": "ollama",
+                "source_attempt": {
+                  "attempt_id": "unchain-1789178205516-f5b9792521f94",
+                  "generation": {
+                    "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                    "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                }
+              }
+            ],
+            "topology_sha256": "5c2da6dac2531b985220d4cb1bc962ed7dfd00b01226384af7d62bec660aed5a"
+          },
+          "type": "graph.execution.admitted"
+        },
+        "event_id": "event-0645d39bd6e619bb2d0a14cd3b9ffbe23bfd8cf4ad7c4ccb7ea80cd8631ac7b8",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 3,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e21a64a2d463f25632088d3399627f13f1a16598dd7296a942e97605699c0dc2",
+        "ref": "pupu://context/event/event-0645d39bd6e619bb2d0a14cd3b9ffbe23bfd8cf4ad7c4ccb7ea80cd8631ac7b8",
+        "run_id": "unchain-1789178205516-f5b9792521f94",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 3,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.execution.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 4,
+        "event": {
+          "child_run_id": "unchain-1789178205516-f5b9792521f94",
+          "full_output_artifact": {
+            "byte_length": 1856,
+            "media_type": "application/json",
+            "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"payload_sha256\":\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":262,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试",
+            "ref": "pupu://artifact/artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8"
+          },
+          "handoff_envelope": {
+            "artifact_refs": [],
+            "byte_length": 1856,
+            "child_attempt": {
+              "attempt_id": "unchain-1789178205516-f5b9792521f94",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "child_run_id": "unchain-1789178205516-f5b9792521f94",
+            "full_output_ref": "pupu://artifact/artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420@1",
+            "schema": "unchain.handoff_envelope.v2",
+            "sha256": "c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8",
+            "source_event_range": {
+              "end": {
+                "event_id": "event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 2
+              },
+              "schema": "unchain.event_range.v1",
+              "start": {
+                "event_id": "event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 2
+              }
+            },
+            "status": "complete",
+            "summary": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"payload_sha256\":\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":262,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试"
+          },
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "handoff.recorded"
+        },
+        "event_id": "event-ae6d987c5ba63482646759158a87ea1fbf3a7717f15b5cbd3d2e61261d92838a",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 4,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "dda010ece70c3324cf8cc3b937b9d72aa2643739a11acd4e74ea73e089045de8",
+        "ref": "pupu://context/event/event-ae6d987c5ba63482646759158a87ea1fbf3a7717f15b5cbd3d2e61261d92838a",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 4,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "handoff.recorded",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 5,
+        "event": {
+          "attachment_refs": [
+            "pupu://artifact/artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420@1"
+          ],
+          "attachments": [
+            {
+              "artifact": {
+                "byte_length": 1856,
+                "media_type": "application/json",
+                "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"payload_sha256\":\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":262,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试",
+                "ref": "pupu://artifact/artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420@1",
+                "schema": "unchain.artifact_ref.v1",
+                "sha256": "c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8"
+              },
+              "kind": "handoff",
+              "media_type": "application/json",
+              "name": "unchain-1789178205516-f5b9792521f94.json",
+              "schema": "unchain.host_resolved_attachment.v1"
+            }
+          ],
+          "content_bytes": 7253,
+          "content_ref": "pupu://artifact/artifact-a600b845718bd6dac36b32fb998c5005853b102aaae78410d90e205289ff2a44@1",
+          "content_sha256": "a0edee74a5861f118b29c0dd83cbcfbc922308c7b6b7004120300ac9e1f1ab53",
+          "message": {
+            "attachments": [
+              {
+                "artifact": {
+                  "byte_length": 1856,
+                  "media_type": "application/json",
+                  "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"payload_sha256\":\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":262,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试",
+                  "ref": "pupu://artifact/artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420@1",
+                  "schema": "unchain.artifact_ref.v1",
+                  "sha256": "c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8"
+                },
+                "kind": "handoff",
+                "media_type": "application/json",
+                "name": "unchain-1789178205516-f5b9792521f94.json",
+                "schema": "unchain.host_resolved_attachment.v1"
+              }
+            ],
+            "content": "{\"consumer_attempt\":{\"attempt_id\":\"graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"full_output_artifact\":{\"byte_length\":1856,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789178205516-f5b9792521f94\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789174073771-06b80f66ddbe78\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"payload_sha256\\\":\\\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":262,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试\",\"ref\":{\"fragment\":\"\",\"id\":\"artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.artifact_ref.v1\",\"sha256\":\"c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8\"},\"handoff_envelope\":{\"artifact_refs\":[],\"byte_length\":1856,\"child_attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"child_run_id\":\"unchain-1789178205516-f5b9792521f94\",\"full_output_ref\":{\"fragment\":\"\",\"id\":\"artifact-aadcfebc6c6fbca8a37193ce54d3960be9d5121d555f19721eb79a261f63e420\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.handoff_envelope.v2\",\"sha256\":\"c9a9226b1e1b5bd9e17203e39950fe01e282a46373288d9c7af098e9a29882b8\",\"source_event_range\":{\"end\":{\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":2},\"schema\":\"unchain.event_range.v1\",\"start\":{\"event_id\":\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":2}},\"status\":\"complete\",\"summary\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789178205516-f5b9792521f94\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789174073771-06b80f66ddbe78\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"payload_sha256\\\":\\\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":262,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试\"},\"handoff_event\":{\"event_id\":\"event-ae6d987c5ba63482646759158a87ea1fbf3a7717f15b5cbd3d2e61261d92838a\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":4},\"schema\":\"unchain.derived_handoff_input.v1\",\"source_attempt\":{\"attempt_id\":\"unchain-1789178205516-f5b9792521f94\",\"generation\":{\"execution_id\":\"chat-1789174073771-06b80f66ddbe78\",\"generation_id\":\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"}}",
+            "role": "user"
+          },
+          "preview": "{\"attachments\":[{\"artifact\":{\"byte_length\":1856,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789178205516-f5b9792521f94\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789174073771-06b80f66ddbe78\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44ba5cd64f3013337865213ca84e4208bb50ae88c8029831e607543fe4008093\\\",\\\"payload_sha256\\\":\\\"2ad2599b768ec4cf61eb6fb94322dac27366df3b6039cb03b67ef0d218fc701b\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":262,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-4a0e27b769b41ac781dadde76ec16e13affde68981f8075e6cebcb36fc79400a\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"0dae43e62c675e69cbe4f08ee5786810eb351d7868fac3cc0feee6fc82a16a8b\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手",
+          "preview_truncated": true,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "message.user"
+        },
+        "event_id": "event-ca873f8b96c867537a79a265c5d354f82fa5cc9c744b360d55de0895dd3083ed",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 5,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "7ba71c6e8589f7cc85314414eca5ff42f253a8d3328f393c8e32e91a166ed324",
+        "ref": "pupu://context/event/event-ca873f8b96c867537a79a265c5d354f82fa5cc9c744b360d55de0895dd3083ed",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 5,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 6,
+        "event": {
+          "graph_plan_id": "graph-plan-19a90cb1b08dd852d79528c9246663a28649c37f1e73dfb62fb18a3ec0fd7838",
+          "graph_scope_id": "graph-scope-29f690a906361b498066127220aeb51ec65cbf5ec39733efa4f9795aa8eea952",
+          "handoff_cursor": {
+            "event_id": "event-ae6d987c5ba63482646759158a87ea1fbf3a7717f15b5cbd3d2e61261d92838a",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 4
+          },
+          "input_cursor": {
+            "event_id": "event-ca873f8b96c867537a79a265c5d354f82fa5cc9c744b360d55de0895dd3083ed",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 5
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "3a51a92854e5fd4ecd965257e342a51474eb41c7b06012ff031cd64295aed430",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789178205516-f5b9792521f94",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.started"
+        },
+        "event_id": "event-ae2ee2ad729ee2fd62b473cc406ade00d97b350d4cbf1f467f00b6520c246937",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 6,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "4de22f06d24aab688cd3a53fc42a3649de88d339161e5a37f54306ec182aa212",
+        "ref": "pupu://context/event/event-ae2ee2ad729ee2fd62b473cc406ade00d97b350d4cbf1f467f00b6520c246937",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 6,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 7,
+        "event": {
+          "iteration": 0,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-d241722372273df9ea73a7c8cf741ad96379f23228cdf8862ee656035ac96045",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 7,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "f4683e0358dc7ece94e59a56560008544dd511a5fa847ef842519ba4f56858c7",
+        "ref": "pupu://context/event/event-d241722372273df9ea73a7c8cf741ad96379f23228cdf8862ee656035ac96045",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 7,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 8,
+        "event": {
+          "iteration": 0,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-27188540657aaeddfbe3324b4722260a798a218e533e8fdd9bc9fdaa5ef7877d",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 8,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "a5c79914d26cee8714cfcbd3e3e2af79d7869ecd1f9c0b620813a09c4d684a6d",
+        "ref": "pupu://context/event/event-27188540657aaeddfbe3324b4722260a798a218e533e8fdd9bc9fdaa5ef7877d",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 8,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 9,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-680c172078a30ed49baa5ab86add3a777d27b8492f0dd2ad6b5f43ca06abf4a0@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "7f0cab753c033ced582aa3395f3819393b232e6c35e972fec61ceaaf206ff382"
+          },
+          "catalog_sha256": "953a2ba985bd7beb4c3450485f6d87ad6102e368b680aebbc506eeefa18b40c6",
+          "iteration": 0,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-953a2ba985bd7beb4c3450485f6d87ad",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 9,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "9a8be427aed167d5ea8cc4b48ff0ceb07978dbebaa103e0f68453e29ffba63fc",
+        "ref": "pupu://context/event/provider-authority-catalog-953a2ba985bd7beb4c3450485f6d87ad",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 9,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 10,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "953a2ba985bd7beb4c3450485f6d87ad6102e368b680aebbc506eeefa18b40c6",
+          "envelope_sha256": "f793def24afd286563ad6a370b3026c2e6ea5320300f8980c19911171d70ce06",
+          "iteration": 0,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 45485,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-15ac14101973fc7c579e9f9ed744b66a45cfa8a580b64eccaa03aa472a327edd@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "7a21247a47360b2b707f806b0f6ca162da9e231a82639fc5f91a0abbda94ecb2"
+          }
+        },
+        "event_id": "provider-authority-wire-f793def24afd286563ad6a370b3026c2",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 10,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "098497596645b124af32f4c6ee82b5ad57afb86456faa9ed4754db79abeca118",
+        "ref": "pupu://context/event/provider-authority-wire-f793def24afd286563ad6a370b3026c2",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 10,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 11,
+        "event": {
+          "envelope_sha256": "f793def24afd286563ad6a370b3026c2e6ea5320300f8980c19911171d70ce06",
+          "iteration": 0,
+          "result_artifact": {
+            "byte_length": 31129,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-3ab9e0343a772e5231cbbb6d1a17696fe39cf4e3dd442e35aa6a5605fb1e58a6@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "556e5632ef1c50353c9cfd6dfb28cccce1c01ed57f0bd5dcbf62c55aeb8534b7"
+          },
+          "result_sha256": "c5d843a85e7f0c0e616c0a68c81d36df0b158f0b3a7b3392e19472f2a7264746",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "a90dbd403f86c36893fcca8cd1cc268706fdce6efa2a0b786885ace0fc7fc1a3",
+          "subject_sha256": "a7c8de3232439f391fa9d206efa0377cfe717a139a80af33c083f259fe3af905",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-a7c8de3232439f391fa9d206efa0377cfe717a139a80af33c083f259fe3af905",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 11,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "84c49c41b92701c01f541b5014d8c3a42f3f95b0dd05b4c6e1188ee10922c7f8",
+        "ref": "pupu://context/event/provider-turn-result-a7c8de3232439f391fa9d206efa0377cfe717a139a80af33c083f259fe3af905",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 11,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 12,
+        "event": {
+          "iteration": 0,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "runtime_event"
+        },
+        "event_id": "event-975c8da9b7be29f48cea35ec6d7655f481242d27b2c04f739cd146256493122b",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 12,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "8ac60e61d2492ed9e039575bde7ddc3383d9e94857e67da873de4383b66f9c74",
+        "ref": "pupu://context/event/event-975c8da9b7be29f48cea35ec6d7655f481242d27b2c04f739cd146256493122b",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 12,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 13,
+        "event": {
+          "arguments": {
+            "allow_other": true,
+            "options": [],
+            "other_label": "Folder path",
+            "other_placeholder": "/path/to/project",
+            "question": "What folder path should I use for the new project?",
+            "selection_mode": "single",
+            "title": "Project Folder Path"
+          },
+          "call_id": "call_9b54wtlu",
+          "iteration": 0,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "tool_name": "ask_user_question",
+          "type": "tool_call"
+        },
+        "event_id": "event-4e08a21ecf7c723469bf1ca1ff218160aebbeb77cfcee43a1f588db2a178493d",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 13,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "080db597da97f85b2f717920c24278fa3be3babc762a8eedbf9c66134175e16c",
+        "ref": "pupu://context/event/event-4e08a21ecf7c723469bf1ca1ff218160aebbeb77cfcee43a1f588db2a178493d",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 13,
+        "tool_call_id": "call_9b54wtlu",
+        "turn_id": "",
+        "type": "tool_call",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 14,
+        "event": {
+          "has_tool_calls": true,
+          "iteration": 0,
+          "response_id": null,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "status": "awaiting_human_input",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-61624e82296870449c789defa5ca9d32f59966e0326353e39b49daf7d6e33075",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 14,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "58898fd0166d583d5a9fc7f516526007c8db8a49285b3c3d6a922ac4c9bcaa26",
+        "ref": "pupu://context/event/event-61624e82296870449c789defa5ca9d32f59966e0326353e39b49daf7d6e33075",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 14,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 15,
+        "event": {
+          "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+          "interaction_request": {
+            "created_revision": 0,
+            "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+            "kind": "human_input",
+            "occurrence": "human:call_9b54wtlu:0",
+            "payload": {
+              "allow_other": true,
+              "kind": "selector",
+              "max_selected": 1,
+              "min_selected": 1,
+              "options": [],
+              "other_label": "Folder path",
+              "other_placeholder": "/path/to/project",
+              "question": "What folder path should I use for the new project?",
+              "request_id": "call_9b54wtlu",
+              "selection_mode": "single",
+              "title": "Project Folder Path"
+            },
+            "request_digest": "9720c674684e03accac2fae4eccfdb432873163923191daeae27078e26a732c6",
+            "response_contract": {
+              "additionalProperties": false,
+              "properties": {
+                "other_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "selected_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "request_id",
+                "selected_values",
+                "other_text"
+              ],
+              "type": "object"
+            },
+            "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+            "schema_version": 1,
+            "session_id": "chat-1789174073771-06b80f66ddbe78",
+            "source_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+            "subject": {
+              "binding_version": 1,
+              "model": "qwen3:32b",
+              "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+              "provider": "ollama"
+            }
+          },
+          "iteration": 0,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "interaction.requested"
+        },
+        "event_id": "event-e0d567b1d214dcac8224d167443130d803a4266f61c3cdb00618536b8dd1d8e1",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 15,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "de35e3789011011e1513cfe81071c61b38727a4a47a552db415357f4add98f48",
+        "ref": "pupu://context/event/event-e0d567b1d214dcac8224d167443130d803a4266f61c3cdb00618536b8dd1d8e1",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 15,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.requested",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 16,
+        "event": {
+          "content_bytes": 237,
+          "content_ref": "pupu://artifact/artifact-b657a844bf46edc21b8a2f765077bc3b92279d357a0aaa5cd4a60becdd199b84@1",
+          "content_sha256": "8a460b3e54c0a7efabfdd7c4af649d6f29f13be8b57d8e204e11542f811e6dc9",
+          "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+          "preview": "{\"interaction_id\":\"interaction_9720c674684e03accac2fae4eccfdb43\",\"response\":{\"other_text\":\"/private/tmp/ticket-224-live-qwen/workspace/中文 最终三\",\"request_id\":\"call_9b54wtlu\",\"selected_values\":[\"__other__\"]},\"submitted_by\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "submitted_by": "user",
+          "type": "interaction.resolved"
+        },
+        "event_id": "event-d9a49d6c37a4eb3f138c56afcb52f3139565c63b7b223027fb93a7f0ac74d07f",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 16,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "cb4c10903bc89a34b0fc463cb27622b50f515cae6e089a05d296c9fc3f3e25b5",
+        "ref": "pupu://context/event/event-d9a49d6c37a4eb3f138c56afcb52f3139565c63b7b223027fb93a7f0ac74d07f",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 16,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.resolved",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 17,
+        "event": {
+          "graph_plan_id": "graph-plan-19a90cb1b08dd852d79528c9246663a28649c37f1e73dfb62fb18a3ec0fd7838",
+          "graph_scope_id": "graph-scope-29f690a906361b498066127220aeb51ec65cbf5ec39733efa4f9795aa8eea952",
+          "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+          "request_cursor": {
+            "event_id": "event-e0d567b1d214dcac8224d167443130d803a4266f61c3cdb00618536b8dd1d8e1",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 15
+          },
+          "resolution_cursor": {
+            "event_id": "event-d9a49d6c37a4eb3f138c56afcb52f3139565c63b7b223027fb93a7f0ac74d07f",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 16
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "3a51a92854e5fd4ecd965257e342a51474eb41c7b06012ff031cd64295aed430",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789178205516-f5b9792521f94",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.resume.admitted"
+        },
+        "event_id": "event-f3a0ff73a6e433f7d73cdc3ea188e61e0511c043825b70552ba42562ef7a83fb",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 17,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "f434a112c96c42d952652a4ab771834236439573b70b03d0fd334b08c0455291",
+        "ref": "pupu://context/event/event-f3a0ff73a6e433f7d73cdc3ea188e61e0511c043825b70552ba42562ef7a83fb",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 17,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.resume.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 18,
+        "event": {
+          "iteration": 1,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-b3b3fe31d0305f9698f719d6ae4e9ec1f5f1baec52a02f694d635b34991b0156",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 18,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "ac3611a6c85a94581e8ea50317cf4b782a7474d3b02cda41b47841083aaec6f1",
+        "ref": "pupu://context/event/event-b3b3fe31d0305f9698f719d6ae4e9ec1f5f1baec52a02f694d635b34991b0156",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 18,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 19,
+        "event": {
+          "iteration": 1,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-bb5d9872d284972f0cfc27f529f54d3fa6f0dd74ab22f32df9c6b6134ad50565",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 19,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "3a41d3e30b3ef9404508aeba99fcb7f992e49708044eba50b3a1a9647c44deae",
+        "ref": "pupu://context/event/event-bb5d9872d284972f0cfc27f529f54d3fa6f0dd74ab22f32df9c6b6134ad50565",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 19,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 20,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-c3a657212b5143aecbcb98fb90d04637de9fc2a202480637ff8c7e64bd708210@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "216613f191d9e59cb18bd0894060f5d9d8dafab1d0798c9f27bfbf1db47a161d"
+          },
+          "catalog_sha256": "18eebeff51d7d663632150e1b80141b8463ae4eeead8196aa120f74b9012ae4d",
+          "iteration": 1,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-18eebeff51d7d663632150e1b80141b8",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 20,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "d4a59a021e606b84d10c70a46d2c4aa0affcc5c0a1c5a426860ed6f73581bbc6",
+        "ref": "pupu://context/event/provider-authority-catalog-18eebeff51d7d663632150e1b80141b8",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 20,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 21,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "18eebeff51d7d663632150e1b80141b8463ae4eeead8196aa120f74b9012ae4d",
+          "envelope_sha256": "44db916c7ea146599de48a19068f31b89fa84152262cdab786c8abe74053a207",
+          "iteration": 1,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 42004,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-c0f90c2071c45d6f6b9c078f6ace7c0707e1b1fae8e05f05b589ff5ee66496e7@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "3b82fa1a04aa69cc186ec6e82a9acd01c7edca729129f0b6c259892de431ef95"
+          }
+        },
+        "event_id": "provider-authority-wire-44db916c7ea146599de48a19068f31b8",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 21,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "7793102d4ee7f85b57d039e005759aa1388a3c6315083a15642cb679b20ccda7",
+        "ref": "pupu://context/event/provider-authority-wire-44db916c7ea146599de48a19068f31b8",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 21,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 22,
+        "event": {
+          "envelope_sha256": "44db916c7ea146599de48a19068f31b89fa84152262cdab786c8abe74053a207",
+          "iteration": 1,
+          "result_artifact": {
+            "byte_length": 27089,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-0bcf4e903ddda82473579d2c65aac3d78bfc8ac674fb254c1efbda5c4193f559@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "07d701c5317394626508be7ccd7058106b36640b3df6b17ff60fc74088192000"
+          },
+          "result_sha256": "4dd3509974b0968ef26ad257b22a2ea2c88729117c960ebf4943b6682262c652",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "ec530398d92a95a8f931b5fee747dff8e706645ca163ce092718d03369528251",
+          "subject_sha256": "1059907f93615cc4783bcdf89b0c7bdbde8b2fe2ab80f0462157b2128b3c7974",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-1059907f93615cc4783bcdf89b0c7bdbde8b2fe2ab80f0462157b2128b3c7974",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 22,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "7e9ec0e1dfbc23bc267674eb852f01da61159a4d27eeec1166dcf0902af5a46b",
+        "ref": "pupu://context/event/provider-turn-result-1059907f93615cc4783bcdf89b0c7bdbde8b2fe2ab80f0462157b2128b3c7974",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 22,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 23,
+        "event": {
+          "iteration": 1,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "runtime_event"
+        },
+        "event_id": "event-be894ed41d1b61defadf3e179ac6b5166921a5f038fd8a47df288f0f37ab53e1",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 23,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "77e18fe0d9f47e89980c02a932f9620be858ea65a7d172bb045060773a9cad37",
+        "ref": "pupu://context/event/event-be894ed41d1b61defadf3e179ac6b5166921a5f038fd8a47df288f0f37ab53e1",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 23,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 24,
+        "event": {
+          "has_tool_calls": false,
+          "iteration": 1,
+          "response_id": null,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "status": "running",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-8e1f903db82f4c80848d3c0650316a64a9cfcfb40241034489d5418d9904130c",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 24,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "6834956aa41e0da133389f8f391f9cacc978f95eca0f3ac85e0e7561c70e7304",
+        "ref": "pupu://context/event/event-8e1f903db82f4c80848d3c0650316a64a9cfcfb40241034489d5418d9904130c",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 24,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 25,
+        "event": {
+          "content": "测试完成",
+          "iteration": 1,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "type": "final_message",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-276d3547e9c845b8143bad31a405ac6c37fcc69498f3b887aa1055338f522316",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 25,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "dff4df2fa06e5e628db2ba235a55cd4a722443cbf6a577263d2ead6e4c6e2534",
+        "ref": "pupu://context/event/event-276d3547e9c845b8143bad31a405ac6c37fcc69498f3b887aa1055338f522316",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 25,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "final_message",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 26,
+        "event": {
+          "iteration": 1,
+          "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+          "status": "completed",
+          "type": "run_completed",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-c6b44213504487c1bd938636d0c3dcb56824600c2f5f90b6ef5f36dce0d7a31d",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 26,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "2e58d056bdf6e964c14f62f760bbc2fca0bcc585fa992953b1a8d78101de0ea5",
+        "ref": "pupu://context/event/event-c6b44213504487c1bd938636d0c3dcb56824600c2f5f90b6ef5f36dce0d7a31d",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 26,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "cursor": 27,
+        "event": {
+          "execution_event_range": {
+            "end": {
+              "event_id": "event-c6b44213504487c1bd938636d0c3dcb56824600c2f5f90b6ef5f36dce0d7a31d",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 26
+            },
+            "schema": "unchain.event_range.v1",
+            "start": {
+              "event_id": "event-ae2ee2ad729ee2fd62b473cc406ade00d97b350d4cbf1f467f00b6520c246937",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 6
+            }
+          },
+          "graph_plan_id": "graph-plan-19a90cb1b08dd852d79528c9246663a28649c37f1e73dfb62fb18a3ec0fd7838",
+          "graph_scope_id": "graph-scope-29f690a906361b498066127220aeb51ec65cbf5ec39733efa4f9795aa8eea952",
+          "output_artifact": {
+            "byte_length": 86,
+            "media_type": "application/json",
+            "preview": "{\"output\":\"测试完成\",\"schema\":\"unchain.graph_step_output.v1\",\"status\":\"completed\"}",
+            "ref": "pupu://artifact/artifact-93a936cf025a73483646a343e81240804eef1c660f8ab5cfa1c110424261aac1@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f2307a88560e9e0e8c39a30d37f188b59344b94cb1ba17016266bf6b4855471c"
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "3a51a92854e5fd4ecd965257e342a51474eb41c7b06012ff031cd64295aed430",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789178205516-f5b9792521f94",
+              "generation": {
+                "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "terminal_cursor": {
+            "event_id": "event-c6b44213504487c1bd938636d0c3dcb56824600c2f5f90b6ef5f36dce0d7a31d",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 26
+          },
+          "type": "graph.step.completed"
+        },
+        "event_id": "event-08f4c24c3ff18eb6a63e0455d8deb224b9ebb4b5b337ff8abe77350697706100",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 27,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "c8f9441a9cedd8ea58af3452813b98f63d0e686fe8b9276f938bbe1a23f19f62",
+        "ref": "pupu://context/event/event-08f4c24c3ff18eb6a63e0455d8deb224b9ebb4b5b337ff8abe77350697706100",
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 27,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789178205516-f5b9792521f94",
+        "cursor": 28,
+        "event": {
+          "final_step_index": 0,
+          "graph_plan_id": "graph-plan-19a90cb1b08dd852d79528c9246663a28649c37f1e73dfb62fb18a3ec0fd7838",
+          "graph_scope_id": "graph-scope-29f690a906361b498066127220aeb51ec65cbf5ec39733efa4f9795aa8eea952",
+          "output_artifact": {
+            "byte_length": 86,
+            "media_type": "application/json",
+            "preview": "{\"output\":\"测试完成\",\"schema\":\"unchain.graph_step_output.v1\",\"status\":\"completed\"}",
+            "ref": "pupu://artifact/artifact-93a936cf025a73483646a343e81240804eef1c660f8ab5cfa1c110424261aac1@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f2307a88560e9e0e8c39a30d37f188b59344b94cb1ba17016266bf6b4855471c"
+          },
+          "source_event_range": {
+            "end": {
+              "event_id": "event-08f4c24c3ff18eb6a63e0455d8deb224b9ebb4b5b337ff8abe77350697706100",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 27
+            },
+            "schema": "unchain.event_range.v1",
+            "start": {
+              "event_id": "event-08f4c24c3ff18eb6a63e0455d8deb224b9ebb4b5b337ff8abe77350697706100",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 27
+            }
+          },
+          "status": "completed",
+          "type": "graph.execution.completed"
+        },
+        "event_id": "event-2f833b96885ce58f09c9605b695b9328805ac6765f2efe9179d7054a53ee1f74",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 28,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "dd05df906dca9897ec37867e7a29962564b806e79c0454c0f41522cd5b15e3d7",
+        "ref": "pupu://context/event/event-2f833b96885ce58f09c9605b695b9328805ac6765f2efe9179d7054a53ee1f74",
+        "run_id": "unchain-1789178205516-f5b9792521f94",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 28,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.execution.completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789178205516-f5b9792521f94",
+        "cursor": 29,
+        "event": {
+          "content": "测试完成",
+          "iteration": 1,
+          "run_id": "unchain-1789178205516-f5b9792521f94",
+          "type": "final_message"
+        },
+        "event_id": "event-bf3c332015b9c8bc8e3cbc4212e824b12f2e46e4dc2b608cb85489797038e20c",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 29,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "86c44d727b0541b38fc0c730d048c30da485ab4ebf69df6a7bf0f4f995691eef",
+        "ref": "pupu://context/event/event-bf3c332015b9c8bc8e3cbc4212e824b12f2e46e4dc2b608cb85489797038e20c",
+        "run_id": "unchain-1789178205516-f5b9792521f94",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 29,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "final_message",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789178205516-f5b9792521f94",
+        "cursor": 30,
+        "event": {
+          "iteration": 1,
+          "run_id": "unchain-1789178205516-f5b9792521f94",
+          "status": "completed",
+          "type": "run_completed"
+        },
+        "event_id": "event-6fe2e99506417f450b4a46d78966e162ec5e2efba6fbd267190838a2c74c3f27",
+        "generation_id": "pupu-bootstrap-generation-9007cad71a15efe4e01589884c6a38b32533808b973bec6e82c0aef058261fcb",
+        "journal_seq": 30,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "a0c73ae0d3a43621312b14994a623a686638d7342cda3c76960bf3e8479ac8bf",
+        "ref": "pupu://context/event/event-6fe2e99506417f450b4a46d78966e162ec5e2efba6fbd267190838a2c74c3f27",
+        "run_id": "unchain-1789178205516-f5b9792521f94",
+        "session_id": "chat-1789174073771-06b80f66ddbe78",
+        "source_seq": null,
+        "store_seq": 30,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_completed",
+        "visibility": "trace"
+      }
+    ],
+    "has_more": false,
+    "next_after": 30,
+    "owner_chat_id": "chat-1789174073771-06b80f66ddbe78"
+  },
+  "tree": {
+    "schemaVersion": 2,
+    "updatedAt": 1789178507066,
+    "chatsById": {
+      "chat-1789174073771-06b80f66ddbe78": {
+        "id": "chat-1789174073771-06b80f66ddbe78",
+        "kind": "default",
+        "title": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。",
+        "createdAt": 1789174073771,
+        "updatedAt": 1789178507065,
+        "lastMessageAt": 1789178507064,
+        "threadId": "chat-1789174073771-06b80f66ddbe78",
+        "model": {
+          "id": "ollama:qwen3:32b"
+        },
+        "agentOrchestration": {
+          "mode": "default"
+        },
+        "selectedToolkits": [
+          "core"
+        ],
+        "selectedWorkspaceIds": [],
+        "selectedRecipeName": "Default",
+        "systemPromptOverrides": {},
+        "draft": {
+          "text": "",
+          "attachments": [],
+          "updatedAt": 1789178205515
+        },
+        "messages": [
+          {
+            "id": "user-1789178205513",
+            "role": "user",
+            "content": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。",
+            "createdAt": 1789178205513,
+            "updatedAt": 1789178205513
+          },
+          {
+            "id": "assistant-1789178205513-fc8dc059c13288",
+            "role": "assistant",
+            "content": "测试完成",
+            "createdAt": 1789178205513,
+            "updatedAt": 1789178507064,
+            "status": "done",
+            "traceFrames": [
+              {
+                "seq": 1,
+                "ts": 1789178205518,
+                "run_id": "unchain-1789178205516-f5b9792521f94",
+                "type": "stream_started",
+                "payload": {
+                  "thread_id": "chat-1789174073771-06b80f66ddbe78",
+                  "model": "ollama:qwen3:32b",
+                  "trace_level": "minimal",
+                  "runtime_event_id": "evt_7f9832affecb40e29fbc9a68c694d675"
+                }
+              },
+              {
+                "seq": 2,
+                "ts": 1789178206056,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "run_started",
+                "iteration": 0,
+                "payload": {
+                  "status": "running",
+                  "provider": "ollama",
+                  "model": "qwen3:32b",
+                  "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                  "runtime_event_id": "evt_91e8194010f641f0a161ceb84988331b"
+                }
+              },
+              {
+                "seq": 3,
+                "ts": 1789178206058,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "iteration_started",
+                "iteration": 0,
+                "payload": {
+                  "iteration": 0,
+                  "runtime_event_id": "evt_a2d97041f3ae4ad093a8f2d4ac722375"
+                }
+              },
+              {
+                "seq": 5,
+                "ts": 1789178351022,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "response_received",
+                "iteration": 0,
+                "payload": {
+                  "step_id": "model:graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d:turn-0:response",
+                  "step_type": "model_response",
+                  "status": "awaiting_human_input",
+                  "response_id": "",
+                  "has_tool_calls": true,
+                  "usage": {
+                    "model": "qwen3:32b",
+                    "consumed_tokens": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "last_turn_tokens": 0,
+                    "last_turn_input_tokens": 0,
+                    "last_turn_output_tokens": 0,
+                    "max_context_window_tokens": 32768,
+                    "context_window_used_pct": 0,
+                    "status": "running",
+                    "human_input_request": {
+                      "request_id": "call_9b54wtlu",
+                      "kind": "selector",
+                      "title": "Project Folder Path",
+                      "question": "What folder path should I use for the new project?",
+                      "selection_mode": "single",
+                      "options": [],
+                      "allow_other": true,
+                      "other_label": "Folder path",
+                      "other_placeholder": "/path/to/project",
+                      "min_selected": 1,
+                      "max_selected": 1
+                    },
+                    "continuation": {
+                      "type": "human_input_continuation",
+                      "kind": "selector",
+                      "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "provider": "ollama",
+                      "model": "qwen3:32b",
+                      "request_id": "call_9b54wtlu",
+                      "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+                      "call_id": "call_9b54wtlu",
+                      "request": {
+                        "request_id": "call_9b54wtlu",
+                        "kind": "selector",
+                        "title": "Project Folder Path",
+                        "question": "What folder path should I use for the new project?",
+                        "selection_mode": "single",
+                        "options": [],
+                        "allow_other": true,
+                        "other_label": "Folder path",
+                        "other_placeholder": "/path/to/project",
+                        "min_selected": 1,
+                        "max_selected": 1
+                      },
+                      "payload": {
+                        "num_ctx": 32768
+                      },
+                      "response_format": null,
+                      "context_version_id": "kv_ee47858729a7424fb339abd1290de4de",
+                      "iteration": 1,
+                      "max_iterations": 128,
+                      "previous_response_id": null,
+                      "use_openai_previous_response_chain": false,
+                      "provider_replay_handle": {
+                        "id": "provider_replay_21ec265abbe94f13b1b4ec11a87d0e52",
+                        "scope": "process"
+                      },
+                      "session_id": "chat-1789174073771-06b80f66ddbe78",
+                      "memory_namespace": null,
+                      "max_context_window_tokens": 32768,
+                      "consumed_tokens": 0,
+                      "input_tokens": 0,
+                      "output_tokens": 0,
+                      "last_turn_tokens": 0,
+                      "last_turn_input_tokens": 0,
+                      "last_turn_output_tokens": 0,
+                      "workspace_change_state": {}
+                    },
+                    "previous_response_id": null,
+                    "iteration": 1,
+                    "interaction_request": {
+                      "schema_version": 1,
+                      "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+                      "session_id": "chat-1789174073771-06b80f66ddbe78",
+                      "kind": "human_input",
+                      "source_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "occurrence": "human:call_9b54wtlu:0",
+                      "payload": {
+                        "request_id": "call_9b54wtlu",
+                        "kind": "selector",
+                        "title": "Project Folder Path",
+                        "question": "What folder path should I use for the new project?",
+                        "selection_mode": "single",
+                        "options": [],
+                        "allow_other": true,
+                        "other_label": "Folder path",
+                        "other_placeholder": "/path/to/project",
+                        "min_selected": 1,
+                        "max_selected": 1
+                      },
+                      "response_contract": {
+                        "type": "object",
+                        "properties": {
+                          "request_id": {
+                            "type": "string"
+                          },
+                          "selected_values": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "other_text": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "request_id",
+                          "selected_values",
+                          "other_text"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+                      "request_digest": "9720c674684e03accac2fae4eccfdb432873163923191daeae27078e26a732c6",
+                      "created_revision": 0,
+                      "subject": {
+                        "binding_version": 1,
+                        "provider": "ollama",
+                        "model": "qwen3:32b",
+                        "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f"
+                      }
+                    }
+                  },
+                  "runtime_event_id": "evt_e240ce52cf0e4e159f9469b7f7593652"
+                }
+              },
+              {
+                "seq": 6,
+                "ts": 1789178351027,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "tool_call",
+                "payload": {
+                  "step_id": "tool:call_9b54wtlu",
+                  "step_type": "tool",
+                  "tool_name": "ask_user_question",
+                  "call_id": "call_9b54wtlu",
+                  "tool_display_name": "Ask User",
+                  "toolkit_id": "core",
+                  "toolkit_name": "Core",
+                  "description": "What folder path should I use for the new project?",
+                  "confirmation_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+                  "requires_confirmation": true,
+                  "interact_type": "single",
+                  "interact_config": {
+                    "request_id": "call_9b54wtlu",
+                    "kind": "selector",
+                    "title": "Project Folder Path",
+                    "question": "What folder path should I use for the new project?",
+                    "selection_mode": "single",
+                    "options": [],
+                    "allow_other": true,
+                    "other_label": "Folder path",
+                    "other_placeholder": "/path/to/project",
+                    "min_selected": 1,
+                    "max_selected": 1
+                  },
+                  "arguments": {
+                    "request_id": "call_9b54wtlu",
+                    "kind": "selector",
+                    "title": "Project Folder Path",
+                    "question": "What folder path should I use for the new project?",
+                    "selection_mode": "single",
+                    "options": [],
+                    "allow_other": true,
+                    "other_label": "Folder path",
+                    "other_placeholder": "/path/to/project",
+                    "min_selected": 1,
+                    "max_selected": 1
+                  },
+                  "runtime_event_id": "evt_b22d0ac39887444caffe4ea3494ec318"
+                }
+              },
+              {
+                "seq": 6,
+                "ts": 1789178429792,
+                "run_id": "",
+                "type": "error",
+                "payload": {
+                  "code": "unchain_process_exit",
+                  "message": "Miso process exited (code=null, signal=SIGKILL)"
+                }
+              },
+              {
+                "seq": 6.1,
+                "ts": 1789178451552,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "tool_confirmed",
+                "payload": {
+                  "tool_name": "ask_user_question",
+                  "tool_display_name": "Ask User",
+                  "call_id": "call_9b54wtlu",
+                  "confirmation_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+                  "synthetic": true,
+                  "user_response": {
+                    "value": "__other__",
+                    "other_text": "/private/tmp/ticket-224-live-qwen/workspace/中文 最终三"
+                  }
+                }
+              },
+              {
+                "seq": 1,
+                "ts": 1789178451567,
+                "run_id": "unchain-1789178451565-57a9e72524acd8",
+                "type": "stream_started",
+                "payload": {
+                  "thread_id": "chat-1789174073771-06b80f66ddbe78",
+                  "model": "ollama:qwen3:32b",
+                  "trace_level": "minimal",
+                  "runtime_event_id": "evt_a8d9dde5d87c47c0af2974a367d64a53"
+                }
+              },
+              {
+                "seq": 2,
+                "ts": 1789178451975,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "tool_result",
+                "iteration": 0,
+                "payload": {
+                  "step_id": "tool:call_9b54wtlu",
+                  "step_type": "tool",
+                  "tool_name": "ask_user_question",
+                  "call_id": "call_9b54wtlu",
+                  "status": "success",
+                  "result": {
+                    "submitted": true,
+                    "selected_values": [
+                      "__other__"
+                    ],
+                    "other_text": "/private/tmp/ticket-224-live-qwen/workspace/中文 最终三"
+                  },
+                  "runtime_event_id": "evt_1c01c383f1a141559d8080da9d62a2be"
+                }
+              },
+              {
+                "seq": 3,
+                "ts": 1789178451996,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "run_started",
+                "iteration": 1,
+                "payload": {
+                  "status": "running",
+                  "provider": "ollama",
+                  "model": "qwen3:32b",
+                  "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                  "runtime_event_id": "evt_12ada767e1df4edea54f2afc5ddf41aa"
+                }
+              },
+              {
+                "seq": 4,
+                "ts": 1789178451998,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "iteration_started",
+                "iteration": 1,
+                "payload": {
+                  "iteration": 1,
+                  "runtime_event_id": "evt_8518de59cba440b296952d6141130c3f"
+                }
+              },
+              {
+                "seq": 8,
+                "ts": 1789178506864,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "response_received",
+                "iteration": 1,
+                "payload": {
+                  "step_id": "model:graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d:turn-1:response",
+                  "step_type": "model_response",
+                  "status": "running",
+                  "response_id": "",
+                  "has_tool_calls": false,
+                  "usage": {
+                    "model": "qwen3:32b",
+                    "consumed_tokens": 9462,
+                    "input_tokens": 9105,
+                    "output_tokens": 357,
+                    "last_turn_tokens": 9462,
+                    "last_turn_input_tokens": 9105,
+                    "last_turn_output_tokens": 357,
+                    "max_context_window_tokens": 32768,
+                    "context_window_used_pct": 28.88,
+                    "status": "completed",
+                    "human_input_request": null,
+                    "continuation": null,
+                    "previous_response_id": null,
+                    "iteration": 2
+                  },
+                  "runtime_event_id": "evt_aa5c4ed3b8174211b6852e26ff9292e2"
+                }
+              },
+              {
+                "seq": 9,
+                "ts": 1789178506884,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "final_message",
+                "iteration": 1,
+                "payload": {
+                  "content": "测试完成",
+                  "runtime_event_id": "evt_c3dda687672c4c6893a4a7f5d7e33c3b",
+                  "finality": "terminal"
+                }
+              },
+              {
+                "seq": 10,
+                "ts": 1789178506887,
+                "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                "type": "done",
+                "iteration": 1,
+                "payload": {
+                  "status": "completed",
+                  "usage": {
+                    "model": "qwen3:32b",
+                    "consumed_tokens": 9462,
+                    "input_tokens": 9105,
+                    "output_tokens": 357,
+                    "last_turn_tokens": 9462,
+                    "last_turn_input_tokens": 9105,
+                    "last_turn_output_tokens": 357,
+                    "max_context_window_tokens": 32768,
+                    "context_window_used_pct": 28.88,
+                    "status": "completed",
+                    "human_input_request": null,
+                    "continuation": null,
+                    "previous_response_id": null,
+                    "iteration": 2
+                  },
+                  "bundle": {
+                    "model": "qwen3:32b",
+                    "consumed_tokens": 9462,
+                    "input_tokens": 9105,
+                    "output_tokens": 357,
+                    "last_turn_tokens": 9462,
+                    "last_turn_input_tokens": 9105,
+                    "last_turn_output_tokens": 357,
+                    "max_context_window_tokens": 32768,
+                    "context_window_used_pct": 28.88,
+                    "status": "completed",
+                    "human_input_request": null,
+                    "continuation": null,
+                    "previous_response_id": null,
+                    "iteration": 2
+                  },
+                  "runtime_event_id": "evt_8b727ae3b8e6495485ccce30eac1de50"
+                }
+              }
+            ],
+            "meta": {
+              "model": "ollama:qwen3:32b",
+              "requestId": "unchain-1789178451565-57a9e72524acd8",
+              "attemptId": "unchain-1789178451565-57a9e72524acd8",
+              "executionSessionId": "chat-1789174073771-06b80f66ddbe78",
+              "error": {
+                "code": "unchain_process_exit",
+                "message": "Miso process exited (code=null, signal=SIGKILL)"
+              },
+              "bundle": {
+                "schema": "unchain.run_bundle.v1",
+                "bundle_id": "rb_c966e4d4b52e3479590062bbfeca183a989ef0d14ae499e7bca5bb2d6b80f81e",
+                "revision": 3,
+                "bundle_digest": "f5e3d371ab7f17488fecb5974bd64b65063744c5d46cdec6a009e7565ec24d8d",
+                "identity": {
+                  "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                  "attempt_id": "unchain-1789178205516-f5b9792521f94",
+                  "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                  "run_id": "unchain-1789178205516-f5b9792521f94",
+                  "parent_run_id": null,
+                  "relation": "root"
+                },
+                "lifecycle": {
+                  "status": "completed",
+                  "started_at": "2026-09-12T02:00:51.711818000Z",
+                  "completed_at": "2026-09-12T02:01:46.938596000Z",
+                  "continued_from_run_id": null
+                },
+                "descriptor": {
+                  "model": "qwen3:32b",
+                  "display_model": "ollama:qwen3:32b",
+                  "active_agent": "developer",
+                  "agent_orchestration": "default",
+                  "iteration": 1
+                },
+                "metrics": {
+                  "algorithm": "unique_metric_event_set_union.v1",
+                  "events": [
+                    {
+                      "metric_event_id": "me_14a8570a44b06cd793334d18481e98f618e38adee4dd63999474f6a03c6ae7c3",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "tool_call",
+                      "subject_id": "call_9b54wtlu",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": []
+                    },
+                    {
+                      "metric_event_id": "me_14cf39b5676539a7b39d6941e1ded9aaf5138bb45bd46d14357ff09dd17dcc1f",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "context_build",
+                      "subject_id": "context-build-99572ac6e820b4542db3a2bb95b67e5b2584a30b7fbf860423822c446ca60799",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": [
+                        {
+                          "kind": "context_event",
+                          "ref_id": "context_event_149269b5c5525eb32e2760168b399d96a211ebcc2e0147483df99de5d49f5d53"
+                        }
+                      ]
+                    },
+                    {
+                      "metric_event_id": "me_275f0dfc6321ba8c69a9025bb92038591763a21d7e391610645cd8c6d151f686",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "model_attempt",
+                      "subject_id": "pc_408c70dd254ba789e9284d211b80412dfc95083b3aa1dadd56ea306ab2a49261",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": []
+                    },
+                    {
+                      "metric_event_id": "me_2822652cbe1f16d5ef215dbf79524d8a29099bf18a4e0f346ca0ec8067a79b95",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "interaction",
+                      "subject_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+                      "outcome": "requested",
+                      "error": null,
+                      "evidence_refs": [
+                        {
+                          "kind": "interaction",
+                          "ref_id": "interaction_7ae33b0212edc3fd4cb32dbd545d9f07e059f9743701b6f0432513eebda75106"
+                        }
+                      ]
+                    },
+                    {
+                      "metric_event_id": "me_6f8fba328c43fbc6f53404c088b502b971a2393161801c9b9eaf2d831015e2e9",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "context_build",
+                      "subject_id": "context-build-207cbda9d7e5fadf374a07ac2d46d798f9fa747d4d6f28f06396c49042829bf0",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": [
+                        {
+                          "kind": "context_event",
+                          "ref_id": "context_event_52753de58c0913f6527468564b3d773aa9df0ea7aed0c53796d65079c9e742af"
+                        }
+                      ]
+                    },
+                    {
+                      "metric_event_id": "me_a50f50097f151b0fc3a2bf8141474292d4026ba1e0b54f8b6238b2dda3313ee5",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "iteration",
+                      "subject_id": "iteration:1",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": []
+                    },
+                    {
+                      "metric_event_id": "me_b7a867edd54c854e7f49d8b7182111dad37e8ae60349ff015510549836abe479",
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "kind": "model_attempt",
+                      "subject_id": "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045",
+                      "outcome": "completed",
+                      "error": null,
+                      "evidence_refs": []
+                    }
+                  ],
+                  "direct": {
+                    "artifacts": 0,
+                    "model_attempts": 0,
+                    "iterations": 0,
+                    "tool_calls": 0,
+                    "tool_results": 0,
+                    "interactions": 0,
+                    "context_builds": 0,
+                    "context_compactions": 0,
+                    "errors": 0
+                  },
+                  "descendant": {
+                    "artifacts": 0,
+                    "model_attempts": 2,
+                    "iterations": 1,
+                    "tool_calls": 1,
+                    "tool_results": 0,
+                    "interactions": 1,
+                    "context_builds": 2,
+                    "context_compactions": 0,
+                    "errors": 0
+                  },
+                  "all": {
+                    "artifacts": 0,
+                    "model_attempts": 2,
+                    "iterations": 1,
+                    "tool_calls": 1,
+                    "tool_results": 0,
+                    "interactions": 1,
+                    "context_builds": 2,
+                    "context_compactions": 0,
+                    "errors": 0
+                  }
+                },
+                "provider_calls": [
+                  {
+                    "schema": "unchain.provider_call_usage.v1",
+                    "provider_call_id": "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045",
+                    "identity": {
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "iteration": 0,
+                      "retry_ordinal": 0,
+                      "purpose": "agent_turn",
+                      "request_sha256": "9a183841a9ea6badbba74669bcfabd4d95aa8337baacce2c98d78e0a01b0eb6f",
+                      "route": "ollama.chat"
+                    },
+                    "provider": {
+                      "name": "ollama",
+                      "model": "qwen3:32b",
+                      "service_tier": null
+                    },
+                    "status": "completed",
+                    "timing": {
+                      "started_at": "2026-09-12T01:56:46.599869Z",
+                      "completed_at": "2026-09-12T01:59:10.912772Z"
+                    },
+                    "provider_ids": {
+                      "request_id_sha256": null,
+                      "response_id_sha256": null
+                    },
+                    "billing_dimensions": {
+                      "billing_surface": null,
+                      "batch": null,
+                      "inference_geo": null
+                    },
+                    "usage": {
+                      "input": {
+                        "uncached_tokens": null,
+                        "cache_read_tokens": 0,
+                        "cache_write_tokens": 0,
+                        "cache_write_5m_tokens": 0,
+                        "cache_write_1h_tokens": 0,
+                        "total_tokens": null
+                      },
+                      "output": {
+                        "visible_tokens": null,
+                        "reasoning_tokens": null,
+                        "total_tokens": null
+                      },
+                      "total_tokens": null,
+                      "source": "provider_observed_partial"
+                    },
+                    "raw_usage_sha256": null,
+                    "pricing": {
+                      "status": "unavailable",
+                      "basis": null,
+                      "snapshot": null,
+                      "amount_nano_usd": null,
+                      "reason": "pricing_service_tier_unknown",
+                      "input_multiplier_ppm": null,
+                      "output_multiplier_ppm": null
+                    },
+                    "extensions": {
+                      "unchain.context/context_composition_v1": {
+                        "attributed_tokens": 9691,
+                        "categories": [
+                          {
+                            "id": "instructions",
+                            "source_count": 2,
+                            "subtypes": [
+                              {
+                                "id": "core_system",
+                                "source_count": 2,
+                                "tokens": 3011
+                              }
+                            ],
+                            "tokens": 3011
+                          },
+                          {
+                            "id": "tool_definitions",
+                            "source_count": 26,
+                            "subtypes": [
+                              {
+                                "id": "provider_schema",
+                                "source_count": 26,
+                                "tokens": 4422
+                              }
+                            ],
+                            "tokens": 4422
+                          },
+                          {
+                            "id": "conversation",
+                            "source_count": 4,
+                            "subtypes": [
+                              {
+                                "id": "current_input",
+                                "source_count": 1,
+                                "tokens": 1212
+                              },
+                              {
+                                "id": "user_history",
+                                "source_count": 1,
+                                "tokens": 59
+                              },
+                              {
+                                "id": "assistant_history",
+                                "source_count": 2,
+                                "tokens": 987
+                              }
+                            ],
+                            "tokens": 2258
+                          }
+                        ],
+                        "context_window_tokens": 32768,
+                        "coverage": {
+                          "manifest_items": 32,
+                          "matched_items": 32,
+                          "matched_surfaces": 2,
+                          "status": "complete",
+                          "wire_surfaces": 2
+                        },
+                        "method": "utf8_heuristic_v2",
+                        "quality": "estimated",
+                        "residual_tokens": null,
+                        "schema": "unchain.context/context_composition_v1",
+                        "wire": {
+                          "context_mode": "semantic",
+                          "envelope_sha256": "sha256:f793def24afd286563ad6a370b3026c2e6ea5320300f8980c19911171d70ce06",
+                          "route_name": "primary",
+                          "route_sha256": "sha256:a90dbd403f86c36893fcca8cd1cc268706fdce6efa2a0b786885ace0fc7fc1a3"
+                        }
+                      },
+                      "unchain.runtime/provider_attempt_classification": "success",
+                      "unchain.runtime/usage_capture": "provider_adapter"
+                    }
+                  },
+                  {
+                    "schema": "unchain.provider_call_usage.v1",
+                    "provider_call_id": "pc_408c70dd254ba789e9284d211b80412dfc95083b3aa1dadd56ea306ab2a49261",
+                    "identity": {
+                      "execution_id": "chat-1789174073771-06b80f66ddbe78",
+                      "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "root_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "owner_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                      "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                      "iteration": 1,
+                      "retry_ordinal": 0,
+                      "purpose": "agent_turn",
+                      "request_sha256": "6e6d0bb04ae9b521bbfe0557e141b1c1ebc5df54a36c517282fee1d9e14821b1",
+                      "route": "ollama.chat"
+                    },
+                    "provider": {
+                      "name": "ollama",
+                      "model": "qwen3:32b",
+                      "service_tier": null
+                    },
+                    "status": "completed",
+                    "timing": {
+                      "started_at": "2026-09-12T02:00:52.543111Z",
+                      "completed_at": "2026-09-12T02:01:46.809383Z"
+                    },
+                    "provider_ids": {
+                      "request_id_sha256": null,
+                      "response_id_sha256": null
+                    },
+                    "billing_dimensions": {
+                      "billing_surface": null,
+                      "batch": null,
+                      "inference_geo": null
+                    },
+                    "usage": {
+                      "input": {
+                        "uncached_tokens": 9105,
+                        "cache_read_tokens": 0,
+                        "cache_write_tokens": 0,
+                        "cache_write_5m_tokens": 0,
+                        "cache_write_1h_tokens": 0,
+                        "total_tokens": 9105
+                      },
+                      "output": {
+                        "visible_tokens": null,
+                        "reasoning_tokens": null,
+                        "total_tokens": 357
+                      },
+                      "total_tokens": 9462,
+                      "source": "provider_observed_partial"
+                    },
+                    "raw_usage_sha256": "59ae7f44f4e093b0031d4154864c959beb724e5ab29953d65c052a021f77f7ab",
+                    "pricing": {
+                      "status": "unavailable",
+                      "basis": null,
+                      "snapshot": null,
+                      "amount_nano_usd": null,
+                      "reason": "pricing_service_tier_unknown",
+                      "input_multiplier_ppm": null,
+                      "output_multiplier_ppm": null
+                    },
+                    "extensions": {
+                      "unchain.context/context_composition_v1": {
+                        "attributed_tokens": 8917,
+                        "categories": [
+                          {
+                            "id": "instructions",
+                            "source_count": 2,
+                            "subtypes": [
+                              {
+                                "id": "core_system",
+                                "source_count": 2,
+                                "tokens": 3011
+                              }
+                            ],
+                            "tokens": 3011
+                          },
+                          {
+                            "id": "tool_definitions",
+                            "source_count": 26,
+                            "subtypes": [
+                              {
+                                "id": "provider_schema",
+                                "source_count": 26,
+                                "tokens": 4422
+                              }
+                            ],
+                            "tokens": 4422
+                          },
+                          {
+                            "id": "conversation",
+                            "source_count": 5,
+                            "subtypes": [
+                              {
+                                "id": "current_input",
+                                "source_count": 1,
+                                "tokens": 22
+                              },
+                              {
+                                "id": "user_history",
+                                "source_count": 1,
+                                "tokens": 59
+                              },
+                              {
+                                "id": "assistant_history",
+                                "source_count": 3,
+                                "tokens": 1403
+                              }
+                            ],
+                            "tokens": 1484
+                          }
+                        ],
+                        "context_window_tokens": 32768,
+                        "coverage": {
+                          "manifest_items": 33,
+                          "matched_items": 33,
+                          "matched_surfaces": 2,
+                          "status": "complete",
+                          "wire_surfaces": 2
+                        },
+                        "method": "utf8_heuristic_v2",
+                        "quality": "reconciled_estimate",
+                        "residual_tokens": 188,
+                        "schema": "unchain.context/context_composition_v1",
+                        "wire": {
+                          "context_mode": "local_replay",
+                          "envelope_sha256": "sha256:44db916c7ea146599de48a19068f31b89fa84152262cdab786c8abe74053a207",
+                          "route_name": "primary",
+                          "route_sha256": "sha256:ec530398d92a95a8f931b5fee747dff8e706645ca163ce092718d03369528251"
+                        }
+                      },
+                      "unchain.runtime/provider_attempt_classification": "success",
+                      "unchain.runtime/usage_capture": "provider_adapter"
+                    }
+                  }
+                ],
+                "children": [
+                  {
+                    "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                    "attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+                    "parent_run_id": "unchain-1789178205516-f5b9792521f94",
+                    "relation": "graph_node",
+                    "bundle_id": "rb_db565452d47490d94405372d6490013a0bd821f3488fedf0a90c5620ccab7d52",
+                    "status": "completed"
+                  }
+                ],
+                "aggregation": {
+                  "algorithm": "provider_call_set_union.v1",
+                  "direct_call_ids": [],
+                  "descendant_call_ids": [
+                    "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045",
+                    "pc_408c70dd254ba789e9284d211b80412dfc95083b3aa1dadd56ea306ab2a49261"
+                  ],
+                  "all_call_ids": [
+                    "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045",
+                    "pc_408c70dd254ba789e9284d211b80412dfc95083b3aa1dadd56ea306ab2a49261"
+                  ],
+                  "direct_usage": {
+                    "input": {
+                      "uncached_tokens": null,
+                      "cache_read_tokens": null,
+                      "cache_write_tokens": null,
+                      "cache_write_5m_tokens": null,
+                      "cache_write_1h_tokens": null,
+                      "total_tokens": null
+                    },
+                    "output": {
+                      "visible_tokens": null,
+                      "reasoning_tokens": null,
+                      "total_tokens": null
+                    },
+                    "total_tokens": null,
+                    "source": "unavailable"
+                  },
+                  "descendant_usage": {
+                    "input": {
+                      "uncached_tokens": null,
+                      "cache_read_tokens": 0,
+                      "cache_write_tokens": 0,
+                      "cache_write_5m_tokens": 0,
+                      "cache_write_1h_tokens": 0,
+                      "total_tokens": null
+                    },
+                    "output": {
+                      "visible_tokens": null,
+                      "reasoning_tokens": null,
+                      "total_tokens": null
+                    },
+                    "total_tokens": null,
+                    "source": "provider_observed_partial"
+                  },
+                  "all_usage": {
+                    "input": {
+                      "uncached_tokens": null,
+                      "cache_read_tokens": 0,
+                      "cache_write_tokens": 0,
+                      "cache_write_5m_tokens": 0,
+                      "cache_write_1h_tokens": 0,
+                      "total_tokens": null
+                    },
+                    "output": {
+                      "visible_tokens": null,
+                      "reasoning_tokens": null,
+                      "total_tokens": null
+                    },
+                    "total_tokens": null,
+                    "source": "provider_observed_partial"
+                  }
+                },
+                "usage_slices": [
+                  {
+                    "provider": "ollama",
+                    "model": "qwen3:32b",
+                    "service_tier": null,
+                    "call_ids": [
+                      "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045",
+                      "pc_408c70dd254ba789e9284d211b80412dfc95083b3aa1dadd56ea306ab2a49261"
+                    ],
+                    "usage": {
+                      "input": {
+                        "uncached_tokens": null,
+                        "cache_read_tokens": 0,
+                        "cache_write_tokens": 0,
+                        "cache_write_5m_tokens": 0,
+                        "cache_write_1h_tokens": 0,
+                        "total_tokens": null
+                      },
+                      "output": {
+                        "visible_tokens": null,
+                        "reasoning_tokens": null,
+                        "total_tokens": null
+                      },
+                      "total_tokens": null,
+                      "source": "provider_observed_partial"
+                    },
+                    "coverage": {
+                      "status": "partial",
+                      "receipt_count": 2,
+                      "observed_usage_count": 1,
+                      "missing_usage_count": 1,
+                      "uncertain_call_count": 0,
+                      "missing_usage_call_ids": [
+                        "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045"
+                      ]
+                    },
+                    "cost": {
+                      "status": "unavailable",
+                      "basis": null,
+                      "amount_nano_usd": null,
+                      "currency": null,
+                      "pricing_snapshot_ids": []
+                    }
+                  }
+                ],
+                "coverage": {
+                  "status": "partial",
+                  "receipt_count": 2,
+                  "observed_usage_count": 1,
+                  "missing_usage_count": 1,
+                  "uncertain_call_count": 0,
+                  "missing_usage_call_ids": [
+                    "pc_0b93764892153ee7873c2f5242566b66d3b01e66ef3b4b958abdfe0fb2e8c045"
+                  ]
+                },
+                "cost": {
+                  "status": "unavailable",
+                  "basis": null,
+                  "amount_nano_usd": null,
+                  "currency": null,
+                  "pricing_snapshot_ids": []
+                },
+                "legacy": {
+                  "status": "canonical",
+                  "source": null,
+                  "reason": null
+                },
+                "evidence": {
+                  "receipt_sha256s": [
+                    "82486b865acf53dbecd30442bc97f83622ad80bb955a21c5f72fd063b82c5f68",
+                    "f28be69d21982a5f31159611b0d53dccf3be966163d9ca49053ff1b559c60ea5"
+                  ],
+                  "raw_usage_sha256s": [
+                    "59ae7f44f4e093b0031d4154864c959beb724e5ab29953d65c052a021f77f7ab"
+                  ],
+                  "pricing_snapshot_ids": []
+                },
+                "extensions": {
+                  "pupu.run/completion_diagnostics_ref_v1": {
+                    "diagnostics_schema": "pupu.completion_diagnostics.v1",
+                    "diagnostics_sha256": "220f374e1245f7abf3a2b14ef78a82ed485e4c486d63a0e9be39bd81ee12e891",
+                    "schema": "pupu.completion_diagnostics_ref.v1"
+                  }
+                }
+              },
+              "completion_diagnostics": {
+                "schema": "pupu.completion_diagnostics.v1",
+                "diagnostics_digest": "220f374e1245f7abf3a2b14ef78a82ed485e4c486d63a0e9be39bd81ee12e891",
+                "memory_v2": {
+                  "available_input_tokens": 28837,
+                  "canary_hash_strategy": "sha256_owner_v1",
+                  "canary_percent": 100,
+                  "canary_selected": true,
+                  "compression_threshold_tokens": 25953,
+                  "effective_rollout_mode": "all",
+                  "mode": "active",
+                  "output_reserve_tokens": 3276,
+                  "real_context_window_tokens": 32768,
+                  "reason": "",
+                  "requested_mode": "all",
+                  "requested_rollout_mode": "all",
+                  "schema_version": "memory_v2.context.v1",
+                  "transport_margin_tokens": 655
+                }
+              }
+            }
+          }
+        ],
+        "isTransientNewChat": false,
+        "hasUnreadGeneratedReply": false,
+        "isGenerating": false,
+        "stats": {
+          "messageCount": 2,
+          "approxBytes": 25736
+        }
+      }
+    },
+    "activeChatId": "chat-1789174073771-06b80f66ddbe78",
+    "lruChatIds": [
+      "chat-1789174073771-06b80f66ddbe78"
+    ],
+    "tree": {
+      "root": [
+        "chn-chat-1789174073771-06b80f66ddbe78"
+      ],
+      "nodesById": {
+        "chn-chat-1789174073771-06b80f66ddbe78": {
+          "id": "chn-chat-1789174073771-06b80f66ddbe78",
+          "entity": "chat",
+          "type": "file",
+          "chatId": "chat-1789174073771-06b80f66ddbe78",
+          "label": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。先不要创建文件：收到路径后，再通过提问工具让我确认路径；我确认后只回复“测试完成”。",
+          "createdAt": 1789174073771,
+          "updatedAt": 1789178507065
+        }
+      },
+      "selectedNodeId": "chn-chat-1789174073771-06b80f66ddbe78",
+      "expandedFolderIds": []
+    },
+    "ui": {}
+  }
+}

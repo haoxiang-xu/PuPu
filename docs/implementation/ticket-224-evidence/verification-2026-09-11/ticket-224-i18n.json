@@ -1,0 +1,118 @@
+{
+  "sourceLocale": "en",
+  "enKeyCount": 733,
+  "locales": {
+    "de": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "es": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "fr": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "it": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "ja": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "ko": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "pt-BR": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "ru": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "zh-CN": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    },
+    "zh-TW": {
+      "missing": [],
+      "orphan": [],
+      "placeholderMismatch": []
+    }
+  },
+  "code": {
+    "missingInEn": [],
+    "deadKeys": [
+      "model_providers.all",
+      "model_providers.embedding",
+      "model_providers.vision",
+      "model_providers.tools",
+      "model_providers.thinking",
+      "model_providers.custom.coming_soon",
+      "memory.auto",
+      "token_usage.7_days",
+      "token_usage.30_days",
+      "token_usage.90_days",
+      "token_usage.all_time",
+      "token_usage.day",
+      "token_usage.week",
+      "token_usage.month",
+      "token_usage.input",
+      "token_usage.output",
+      "app_update.check_failed",
+      "app_update.install_failed",
+      "local_storage.reset_settings_desc",
+      "local_storage.section_system",
+      "local_storage.mcp_reconnect",
+      "local_storage.mcp_delete_confirm",
+      "local_storage.system_clear_all_confirm",
+      "workspace.saving",
+      "dev.mcp_registry_risk_low",
+      "dev.mcp_registry_risk_medium",
+      "dev.mcp_registry_risk_high",
+      "dev.mcp_registry_risk_critical",
+      "computer_use.degraded",
+      "common.confirm",
+      "common.loading",
+      "common.error",
+      "common.select",
+      "chat.attach.computer",
+      "chat.attach.computer_description",
+      "chat.attach.computer_requires_supported_model",
+      "toolkit.builtin_computer_tagline",
+      "toolkit.store_risk_low",
+      "toolkit.store_risk_medium",
+      "toolkit.store_risk_high",
+      "toolkit.store_risk_critical",
+      "toolkit.store_empty_search",
+      "toolkit.no_toolkits_title",
+      "toolkit.no_toolkits_subtitle",
+      "toolkit.section_featured",
+      "toolkit.get_all",
+      "toolkit.skillpack_err_invalid_payload",
+      "toolkit.skillpack_err_network",
+      "toolkit.skillpack_err_timeout",
+      "toolkit.skillpack_err_not_found",
+      "toolkit.skillpack_err_too_large",
+      "toolkit.skillpack_err_malformed",
+      "toolkit.skillpack_err_integrity",
+      "toolkit.skillpack_err_fs",
+      "toolkit.skillpack_err_generic"
+    ],
+    "dynamicCount": 35,
+    "note": "based on static analysis; dynamically-composed keys (t(variable)) are not covered"
+  }
+}

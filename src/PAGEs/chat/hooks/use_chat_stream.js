@@ -1152,8 +1152,10 @@ export const useChatStream = ({
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const runTurnRequestRef = useRef(null);
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
+  const humanInputSubmissionByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -3691,7 +3693,7 @@ export const useChatStream = ({
   );
 
   const continueFromRecordedReceipt = useCallback(
-    (targetChatId, sessionId, response, runGeneration) => {
+    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "") => {
       if (
         response?.disposition !== "receipt_recorded" ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
@@ -3704,6 +3706,7 @@ export const useChatStream = ({
         void lookup(targetChatId, sessionId, {
           runGeneration,
           authoritativeReceipt: response,
+          submittedHumanInputId,
         });
       }
     },
@@ -3825,6 +3828,13 @@ export const useChatStream = ({
         },
       }));
 
+      const humanInputSubmission = toolName === HUMAN_INPUT_TOOL_NAME && approved
+        ? { interactionId: normalizedConfirmationId, sessionId, runGeneration }
+        : null;
+      if (humanInputSubmission) {
+        humanInputSubmissionByChatIdRef.current.set(targetChatId, humanInputSubmission);
+      }
+
       try {
         const payload = {
           confirmation_id: normalizedConfirmationId,
@@ -3841,6 +3851,9 @@ export const useChatStream = ({
         });
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
+        }
+        if (response?.disposition !== "receipt_recorded" && humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
+          humanInputSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (shouldCacheSessionDecision) {
           let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
@@ -3878,8 +3891,14 @@ export const useChatStream = ({
           sessionId,
           response,
           runGeneration,
+          toolName === HUMAN_INPUT_TOOL_NAME && approved
+            ? normalizedConfirmationId
+            : "",
         );
       } catch (error) {
+        if (humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
+          humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
         }
@@ -7380,6 +7399,15 @@ export const useChatStream = ({
                   }
 
                   if (callId && confirmationId && requiresConfirmation) {
+                    // A later question owns the next suspension, not the old receipt.
+                    if (isDurableResume && confirmationId !== durableInteraction.interactionId) {
+                      updateDurableInteractionForChat(targetChatId, {
+                        status: "awaiting_response",
+                        sessionId: effectiveThreadId,
+                        interactionId: confirmationId,
+                        ownerMessageId: assistantMessageId,
+                      });
+                    }
                     const confirmationRuntime =
                       getConfirmationRuntimeForChat(targetChatId);
                     confirmationRuntime.confirmationIdByCallId.set(
@@ -7699,6 +7727,15 @@ export const useChatStream = ({
                   });
                 }
                 if (callId && confirmationId && requiresConfirmation) {
+                  // A later question owns the next suspension, not the old receipt.
+                  if (isDurableResume && confirmationId !== durableInteraction.interactionId) {
+                    updateDurableInteractionForChat(targetChatId, {
+                      status: "awaiting_response",
+                      sessionId: effectiveThreadId,
+                      interactionId: confirmationId,
+                      ownerMessageId: assistantMessageId,
+                    });
+                  }
                   const confirmationRuntime =
                     getConfirmationRuntimeForChat(targetChatId);
                   confirmationRuntime.confirmationIdByCallId.set(
@@ -9335,6 +9372,9 @@ export const useChatStream = ({
   );
   relayQueuedTurnsAfterRunRef.current = relayQueuedTurnsAfterRun;
 
+  // Keep passive recovery stable when composer/run inputs recreate the sender.
+  runTurnRequestRef.current = runTurnRequest;
+
   const lookupDurableInteraction = useCallback(
     async (
       targetChatId,
@@ -9344,6 +9384,7 @@ export const useChatStream = ({
         runGeneration: requestedRunGeneration = null,
         authoritativePending = null,
         authoritativeReceipt = null,
+        submittedHumanInputId = "",
         speculative = false,
       } = {},
     ) => {
@@ -9465,6 +9506,16 @@ export const useChatStream = ({
           );
           error.code = "durable_interaction_receipt_identity_mismatch";
           throw error;
+        }
+
+        // A passive lookup may race the POST that is recording this answer.
+        // Leave the current submission in charge until its receipt starts resume.
+        const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
+        if (!authoritativeReceipt && activeSubmission &&
+            activeSubmission.runGeneration === activeRunGeneration &&
+            activeSubmission.sessionId === pending.sessionId &&
+            activeSubmission.interactionId === pending.interactionId) {
+          return pending;
         }
 
         const liveRequest = pendingToolConfirmationRequestsByChatIdRef.current[
@@ -9630,8 +9681,8 @@ export const useChatStream = ({
         /* A live stream may still consume the receipt in-process.  Do not
            disturb that path: live_continues, provider retries, and transport
            recovery keep their existing ownership.  Once the run is no longer
-           live, however, a durable interaction is a suspension boundary, not
-           an invitation to replay mode=resume_interaction. */
+           live, observing a durable receipt alone must not resume it. Only
+           an identity-matched explicit human-input submission may do so. */
         if (
           (!hasAuthoritativeRecordedReceipt &&
             streamingChatIdsRef.current.has(normalizedChatId)) ||
@@ -9671,6 +9722,59 @@ export const useChatStream = ({
           );
           error.code = "durable_interaction_cancel_identity_missing";
           throw error;
+        }
+
+        if (submittedHumanInputId) {
+          if (
+            !hasAuthoritativeRecordedReceipt ||
+            submittedHumanInputId !== pending.interactionId ||
+            pending.kind !== "human_input" ||
+            pending.resolution?.outcome !== "submitted"
+          ) {
+            const error = new Error("The submitted answer does not match the suspended interaction.");
+            error.code = "durable_interaction_receipt_identity_mismatch";
+            throw error;
+          }
+          if (!pending.resumeAvailable) {
+            const error = new Error(pending.resumeUnavailableReason || "The submitted interaction cannot be resumed.");
+            error.code = "durable_interaction_resume_unavailable";
+            throw error;
+          }
+          const resumeKey = JSON.stringify([
+            normalizedChatId, pending.sessionId, pending.interactionId,
+            pending.receiptId, activeRunGeneration,
+          ]);
+          if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+            return pendingWithOwner;
+          }
+          durableResumeStartedKeysRef.current.add(resumeKey);
+          let chatKeys = durableResumeStartedKeysByChatIdRef.current.get(normalizedChatId);
+          if (!chatKeys) {
+            chatKeys = new Set();
+            durableResumeStartedKeysByChatIdRef.current.set(normalizedChatId, chatKeys);
+          }
+          chatKeys.add(resumeKey);
+          let started = false;
+          try {
+            started = await runTurnRequestRef.current({
+              mode: "resume_interaction",
+              chatId: normalizedChatId,
+              text: "",
+              attachments: [],
+              baseMessages: ensured.messages,
+              clearComposer: false,
+              durableInteraction: pendingWithOwner,
+              durableOwnerMessageId: ensured.ownerMessageId,
+              runGeneration: activeRunGeneration,
+            });
+          } finally {
+            if (!started) {
+              durableResumeStartedKeysRef.current.delete(resumeKey);
+              chatKeys.delete(resumeKey);
+            }
+          }
+          if (!started) return null;
+          return pendingWithOwner;
         }
 
         const cancellationReason = "interaction_suspended";
@@ -9820,6 +9924,7 @@ export const useChatStream = ({
               lookupAttempt: nextAttempt,
               runGeneration: activeRunGeneration,
               authoritativeReceipt,
+              submittedHumanInputId,
             });
           }, durableInteractionRetryDelayMs(lookupAttempt));
           durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);

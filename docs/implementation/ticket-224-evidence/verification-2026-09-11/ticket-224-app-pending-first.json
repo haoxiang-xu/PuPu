@@ -1,0 +1,129 @@
+{
+  "active_attempt_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+  "graph_coordinator_attempt_id": "unchain-1789171607633-9314576906447",
+  "graph_step_attempt_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+  "interaction_id": "interaction_846e1d497570a904b838614348afe4fd",
+  "kind": "human_input",
+  "model": "qwen3:32b",
+  "presentation": {
+    "tool_call": {
+      "arguments": {
+        "allow_other": true,
+        "kind": "selector",
+        "max_selected": 1,
+        "min_selected": 1,
+        "options": [],
+        "other_label": "Folder path",
+        "other_placeholder": "/path/to/project",
+        "question": "What folder path should I use for the new project?",
+        "request_id": "call_5gspl9kx",
+        "selection_mode": "single",
+        "title": "Project Folder Path"
+      },
+      "call_id": "call_5gspl9kx",
+      "confirmation_id": "interaction_846e1d497570a904b838614348afe4fd",
+      "description": "What folder path should I use for the new project?",
+      "interact_config": {
+        "allow_other": true,
+        "kind": "selector",
+        "max_selected": 1,
+        "min_selected": 1,
+        "options": [],
+        "other_label": "Folder path",
+        "other_placeholder": "/path/to/project",
+        "question": "What folder path should I use for the new project?",
+        "request_id": "call_5gspl9kx",
+        "selection_mode": "single",
+        "title": "Project Folder Path"
+      },
+      "interact_type": "single",
+      "requires_confirmation": true,
+      "tool_display_name": "Ask User",
+      "tool_name": "ask_user_question",
+      "toolkit_id": "core",
+      "toolkit_name": "Core"
+    },
+    "trace_frame": {
+      "payload": {
+        "arguments": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "Folder path",
+          "other_placeholder": "/path/to/project",
+          "question": "What folder path should I use for the new project?",
+          "request_id": "call_5gspl9kx",
+          "selection_mode": "single",
+          "title": "Project Folder Path"
+        },
+        "call_id": "call_5gspl9kx",
+        "confirmation_id": "interaction_846e1d497570a904b838614348afe4fd",
+        "description": "What folder path should I use for the new project?",
+        "interact_config": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "Folder path",
+          "other_placeholder": "/path/to/project",
+          "question": "What folder path should I use for the new project?",
+          "request_id": "call_5gspl9kx",
+          "selection_mode": "single",
+          "title": "Project Folder Path"
+        },
+        "interact_type": "single",
+        "requires_confirmation": true,
+        "tool_display_name": "Ask User",
+        "tool_name": "ask_user_question",
+        "toolkit_id": "core",
+        "toolkit_name": "Core"
+      },
+      "run_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+      "seq": 0,
+      "stage": "durable_recovery",
+      "ts": 1789171761422,
+      "type": "tool_call"
+    }
+  },
+  "provider": "ollama",
+  "resume_available": true,
+  "resume_kind": "graph_step",
+  "resume_options": {
+    "_memory_v2_owner_chat_id": "chat-1789171551629-aaf4afb9ad2728",
+    "agent_orchestration": {
+      "mode": "default"
+    },
+    "durable_interactions_required": true,
+    "memory_embedding_model": "text-embedding-3-small",
+    "memory_embedding_provider": "auto",
+    "memory_enabled": true,
+    "memory_last_n_turns": 8,
+    "memory_long_term_enabled": true,
+    "memory_long_term_episode_min_score": null,
+    "memory_long_term_episode_top_k": 4,
+    "memory_long_term_extract_every_n_turns": 6,
+    "memory_long_term_playbook_min_score": null,
+    "memory_long_term_playbook_top_k": 4,
+    "memory_long_term_vector_min_score": null,
+    "memory_long_term_vector_top_k": 4,
+    "memory_namespace": "pupu:default",
+    "memory_vector_min_score": null,
+    "memory_vector_top_k": 4,
+    "modelId": "ollama:qwen3:32b",
+    "system_prompt_v2": {
+      "defaults": {
+        "rules": "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information."
+      },
+      "enabled": true
+    },
+    "toolkits": [
+      "core"
+    ]
+  },
+  "session_id": "chat-1789171551629-aaf4afb9ad2728",
+  "source_run_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+  "status": "awaiting_response"
+}

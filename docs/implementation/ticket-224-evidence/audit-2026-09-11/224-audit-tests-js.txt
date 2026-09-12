@@ -1,0 +1,12 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js src/SERVICEs/api.humanInputFreeText.test.js
+
+PASS src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+PASS src/SERVICEs/api.humanInputFreeText.test.js
+
+Test Suites: 2 passed, 2 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        0.749 s, estimated 1 s
+Ran all test suites within paths "src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js", "src/SERVICEs/api.humanInputFreeText.test.js".
