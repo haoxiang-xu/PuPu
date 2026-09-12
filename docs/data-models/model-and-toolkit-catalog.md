@@ -255,6 +255,14 @@ Context Usage ring reads the same budget, so it follows the pick immediately. Un
 `allowed_payload_keys` do not list it (it is a native Ollama option), and
 rejects anything that is not a positive integer.
 
+The composer occupancy uses the latest reported input-token count divided by
+the currently selected window (or the declared default), capped by the model's
+maximum when known. It recomputes when the selection changes, even before another
+message is sent; it does not estimate the next prompt. The mini app's current
+readout and composition bar use that same capacity. Explicitly selecting a
+historical call, opening a message's historical details, or viewing the run
+summary preserves the recorded call data and window (#280).
+
 **Why an explicit value.** Ollama's own default depends on the machine, not the
 model: 4k context under 24 GiB of VRAM, 32k between 24 and 48 GiB, 256k above
 (Ollama docs, "Context length"). When the prompt is longer than the daemon's

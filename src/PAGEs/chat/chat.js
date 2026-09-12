@@ -51,6 +51,7 @@ import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 import { selectLatestContextCompositionBundle } from "../../SERVICEs/context_composition_v1";
 import {
   buildContextUsageView,
+  selectActiveContextWindowTokens,
   selectContextWindowTokens,
   selectLatestContextUsage,
 } from "../../SERVICEs/context_usage_v1";
@@ -954,16 +955,26 @@ const ChatInterface = () => {
     [session.messages],
   );
   // Accounting-only pressure. Independent of Context Composition so the
-  // indicator works before any contribution source is instrumented; the window
-  // comes from model capabilities and stays null when the catalog has none.
+  // indicator works before any contribution source is instrumented. Normal
+  // chats use the active composer selection; character chats retain the
+  // catalog-maximum behavior because their request path has no window picker.
   const contextUsageView = useMemo(() => {
     const usage = selectLatestContextUsage(session.messages);
     if (!usage) return null;
-    return buildContextUsageView(
-      usage,
-      selectContextWindowTokens(activeModelCapabilities),
-    );
-  }, [session.messages, activeModelCapabilities]);
+    const windowTokens = session.isCharacterChat
+      ? selectContextWindowTokens(activeModelCapabilities)
+      : selectActiveContextWindowTokens(activeModelCapabilities, {
+          modelId: session.selectedModelId,
+          selectedContextWindow: session.selectedContextWindow,
+        });
+    return buildContextUsageView(usage, windowTokens);
+  }, [
+    session.messages,
+    activeModelCapabilities,
+    session.isCharacterChat,
+    session.selectedModelId,
+    session.selectedContextWindow,
+  ]);
   const {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
