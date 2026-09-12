@@ -71,7 +71,7 @@ These are load-bearing — violating them breaks the build or the architecture. 
 - Do NOT `git commit` — leave the dirty tree for the project owner to commit.
 - The agent currently implementing a direct Release child may refine that issue's GitHub body before or during implementation. `[DRAFT]` is initial intent, not a delivery gate; this body-only authority does not permit scope, title, label, Project-field, assignee, parent/child, release-membership, defer/cancel, or closure changes. GitHub assignee alone does not establish implementation responsibility.
 
-**Retired mechanisms:** Do not use code-owner routing, owner confirmations, Quorum/court roles, cases, hearings, proposals, rulings, handoffs, or acceptance-trial records for new work. Never invoke `.claude/skills/case`, create a new directory under `.claude/court/cases/`, or treat legacy court/agent files as authorization or a delivery gate. They are read-only history only.
+**Removed mechanisms:** Quorum/court workflows, code-owner routing, role confirmations, case tooling, and their role definitions and records have been removed. Do not recreate them or use them as a delivery gate. Historical material is available through Git history only.
 
 **Release workflow:** Prefer the smallest matching release skill: `release-open-sprint`, `release-draft-ticket`, `release-refine-ticket`, `release-feature-audit`, or `release-close-sprint`. These skills plus the Release issue, a direct implementation plan when needed, and evidence-backed tests are the project workflow. If a skill is unavailable, proceed with the equivalent direct workflow; never fall back to a retired mechanism.
 

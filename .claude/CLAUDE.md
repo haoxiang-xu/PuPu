@@ -134,11 +134,10 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 ## 协作与 Release 工作流
 
-### 已退役并禁止的新工作机制
+### 已删除的旧机制
 
-- 不使用 code-owner 路由、owner 确认、Quorum/庭审角色、case、hearing、proposal、ruling、HS/RS/AT 或其他案卷流程。
-- 不调用 `.claude/skills/case`，不在 `.claude/court/cases/` 下创建新目录，也不把 `.claude/court/`、`.claude/codex/`、`.claude/agents/` 中的历史内容当作授权、阻断条件或当前流程。
-- 历史文件保持只读，只能用于理解旧决策和事故，不得继续、继承或扩展其中的程序。
+- Quorum/庭审、code-owner 路由、角色确认、case 工具及相关角色定义、记忆和案卷已删除；历史材料仅通过 Git 历史查阅。
+- 不重建或沿用这些机制，也不把它们作为授权、阻断条件或交付门禁。
 
 ### Release-first
 

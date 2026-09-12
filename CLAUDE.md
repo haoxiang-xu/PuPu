@@ -47,8 +47,8 @@ This project is indexed by GitNexus as **PuPu** (34975 symbols, 121363 relations
 ## Current collaboration workflow
 
 - The former title **CEO** is renamed to **project owner**. Legacy references to CEO identify the same person; always address them as the project owner.
-- Code-owner routing, owner confirmations, Quorum/court roles, cases, hearings, proposals, rulings, and related handoff/acceptance records are retired and prohibited for new work. Historical files under `.claude/court/`, `.claude/codex/`, and `.claude/agents/` are read-only history and never authorize or block implementation.
-- Never invoke `.claude/skills/case` or create a new directory under `.claude/court/cases/`. Use the Release issue, the smallest matching release skill, a direct implementation plan when needed, and test evidence.
+- Quorum/court workflows, code-owner routing, role confirmations, case tooling, and their role definitions and records have been removed. Do not recreate them or use them as a delivery gate. Historical material is available through Git history only.
+- Use the Release issue, the smallest matching release skill, a direct implementation plan when needed, and test evidence.
 
 ## Release-ticket authority
 

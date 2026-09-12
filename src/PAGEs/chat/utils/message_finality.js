@@ -1,7 +1,6 @@
 /*
  * Canonical finality semantics for trace `final_message` segments.
  *
- * Signed contract: .claude/agent-memory/pupu-llm-expert/finality-ownership-contract.md
  * `finality` is segment-level (lives at `frame.payload.finality` on `final_message`
  * trace frames). It replaces the old `frames.some(type === "tool_call")` heuristic so
  * the renderer reads an explicit ownership flag instead of guessing.

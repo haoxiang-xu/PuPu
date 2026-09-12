@@ -83,11 +83,11 @@ Context Runtime 旧路径会读取 durable active receipt，再根据上下文�
 
 ## 七、永久防复发控制
 
-1. Quorum proposal 用 `BC-###` 将边界作为一等对象，用 `SEQ-###` 将时间序列作为一等对象。
-2. 所有 BC/SEQ 必须映射到可执行 `AC-###`；Acceptance 不得 PASS 未映射或未运行的适用单元格。
+1. Release issue 或普通实施 Plan 用 `BC-###` 将边界作为一等对象，用 `SEQ-###` 将时间序列作为一等对象。
+2. 所有 BC/SEQ 必须映射到可执行 `AC-###`；验收不得将未映射或未运行的适用单元格标为通过。
 3. PuPu 全体 Claude 始终加载 `.claude/rules/cross-boundary-contract-gate.md`。
 4. CI/release 使用 real producer → strict consumer、负向未知字段、重复/恢复/重启与 exact locked pair。
-5. private memory 只留索引，canonical 原则与事实分别放在 precedent 和本复盘中。
+5. canonical 原则与事实分别维护在跨边界工程规则和本复盘中。
 
 ## 八、后续非阻断风险
 
