@@ -967,6 +967,7 @@ export const useChatStream = ({
   setDraftAttachments,
   selectedModelId,
   selectedReasoningEffort,
+  selectedContextWindow,
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
@@ -1046,6 +1047,8 @@ export const useChatStream = ({
   selectedModelIdRef.current = selectedModelId;
   const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
   selectedReasoningEffortRef.current = selectedReasoningEffort;
+  const selectedContextWindowRef = useRef(selectedContextWindow);
+  selectedContextWindowRef.current = selectedContextWindow;
   const selectedToolkitsRef = useRef(selectedToolkits);
   selectedToolkitsRef.current = selectedToolkits;
   /* Live translator ref so send-time toasts localize without perturbing the
@@ -7054,6 +7057,14 @@ export const useChatStream = ({
                 typeof selectedReasoningEffortRef.current === "string" &&
                 selectedReasoningEffortRef.current
                   ? { reasoningEffort: selectedReasoningEffortRef.current }
+                  : {}),
+                /* The user's context window for a built-in Ollama model
+                   (#227). Sent only when picked; the sidecar budgets the
+                   compiler and sets num_ctx from this one number. */
+                ...(!runIsCharacterChat &&
+                Number.isInteger(selectedContextWindowRef.current) &&
+                selectedContextWindowRef.current > 0
+                  ? { contextWindow: selectedContextWindowRef.current }
                   : {}),
                 memory_enabled: memoryEnabled,
                 ...(durableInteractionsRequired

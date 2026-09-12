@@ -913,7 +913,7 @@ describe("attach panel semantic surface binding", () => {
   });
 });
 
-describe("AttachPanel reasoning effort capsule", () => {
+describe("AttachPanel reasoning effort slider", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useChatInputToolkits.mockReset();
@@ -947,96 +947,54 @@ describe("AttachPanel reasoning effort capsule", () => {
 
   const modelSelect = () => screen.getByTestId("select-Search models…");
   const footer = () => within(modelSelect()).getByTestId("palette-footer");
-  const fill = () =>
-    footer().querySelector('[aria-hidden="true"]');
+  const row = () => within(footer()).getByTestId("effort-row");
+  const slider = () => within(row()).getByRole("slider");
+  const readout = () => within(row()).getByTestId("effort-readout");
 
-  test("renders one cell per declared level, labelled short", () => {
+  test("the track spans the declared levels and the well reads the chosen one, labelled short", () => {
     renderPanel({
       reasoningEffortOptions: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
-      selectedReasoningEffort: "high",
+      selectedReasoningEffort: "xhigh",
       defaultReasoningEffort: "medium",
       onSelectReasoningEffort: () => {},
     });
-
-    const cells = footer();
-    expect(within(cells).getByTitle("minimal")).toHaveTextContent("min");
-    expect(within(cells).getByTitle("medium")).toHaveTextContent("med");
-    expect(within(cells).getByTitle("xhigh")).toHaveTextContent("x-high");
-    expect(within(cells).getByTitle("max")).toHaveTextContent("max");
+    expect(slider().getAttribute("aria-valuemin")).toBe("0");
+    expect(slider().getAttribute("aria-valuemax")).toBe("6");
+    expect(slider().getAttribute("aria-valuenow")).toBe("5");
+    expect(readout()).toHaveTextContent("x-high");
+    expect(within(row()).getByTestId("slider-track")).toBeInTheDocument();
+    expect(row().getAttribute("data-picked")).toBe("true");
   });
 
   test("the EFFORT label is optically centred in its well, not line-box centred", () => {
-    // The label is uppercase, so it never uses the descender space its line
-    // box still reserves — align-items centres that box and leaves the caps a
-    // pixel high in the well. text-box trims to the cap/baseline edges, and it
-    // only applies to a block: on the flex parent it would reach nothing.
     renderPanel({
       reasoningEffortOptions: ["low", "medium", "high"],
       selectedReasoningEffort: "medium",
       defaultReasoningEffort: "low",
       onSelectReasoningEffort: () => {},
     });
-
     const label = within(footer()).getByText("effort");
     expect(label.tagName).toBe("SPAN");
     expect(label.style.display).toBe("block");
     expect(label.style.textBox).toBe("trim-both cap alphabetic");
   });
 
-  test("the fill reaches the far edge of the chosen level", () => {
-    renderPanel({
-      reasoningEffortOptions: ["low", "medium", "high", "xhigh"],
-      selectedReasoningEffort: "medium",
-      defaultReasoningEffort: "low",
-      onSelectReasoningEffort: () => {},
-    });
-    // second of four levels, inclusive → half the ladder
-    expect(fill().style.width).toBe("50%");
-  });
-
-  test("an untouched model shows no fill at all", () => {
+  test("an untouched model rests on its default with no accent and names it in the tooltip", () => {
     renderPanel({
       reasoningEffortOptions: ["low", "medium", "high", "xhigh"],
       selectedReasoningEffort: null,
       defaultReasoningEffort: "medium",
       onSelectReasoningEffort: () => {},
     });
-    // the default is displayed, never sent — so nothing is filled
-    expect(fill().style.width).toBe("0%");
+    expect(slider().getAttribute("aria-valuenow")).toBe("1");
+    expect(readout()).toHaveTextContent("med");
+    expect(row().getAttribute("data-picked")).toBe("false");
+    expect(row().getAttribute("title")).toBe("Model default: medium");
+    // no accent until a pick: the progress is transparent
+    expect(within(row()).getByTestId("slider-progress").style.background).toMatch(/rgba\(0,\s*0,\s*0,\s*0\)/);
   });
 
-  test("the default is dashed, and a real pick is the raised puck", () => {
-    const { rerender } = renderPanel({
-      reasoningEffortOptions: ["low", "medium", "high"],
-      selectedReasoningEffort: null,
-      defaultReasoningEffort: "medium",
-      onSelectReasoningEffort: () => {},
-    });
-
-    const dashed = within(footer()).getByTitle("Model default: medium");
-    expect(dashed.style.borderStyle).toBe("dashed");
-    expect(dashed.style.boxShadow).toBe("none");
-
-    rerender(
-      <AttachPanel
-        {...baseProps}
-        reasoningEffortOptions={["low", "medium", "high"]}
-        selectedReasoningEffort="medium"
-        defaultReasoningEffort="medium"
-        onSelectReasoningEffort={() => {}}
-      />,
-    );
-
-    // same level, now explicitly picked: no dash left anywhere, and it is raised
-    const picked = within(footer()).getByTitle("medium");
-    expect(picked.style.borderStyle).not.toBe("dashed");
-    expect(picked.style.boxShadow).not.toBe("none");
-    expect(
-      within(footer()).queryByTitle("Model default: medium"),
-    ).toBeNull();
-  });
-
-  test("picking is one-way — re-pressing the chosen level never clears it", () => {
+  test("arrow keys step through the levels and commit at once; the end is not a new pick", () => {
     const onSelectReasoningEffort = jest.fn();
     renderPanel({
       reasoningEffortOptions: ["low", "medium", "high"],
@@ -1044,14 +1002,56 @@ describe("AttachPanel reasoning effort capsule", () => {
       defaultReasoningEffort: "medium",
       onSelectReasoningEffort,
     });
-
-    fireEvent.mouseDown(within(footer()).getByTitle("high"));
+    // the row is controlled: every key steps from the chosen level (medium)
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
     expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("high");
-
-    // there is no reset control, and the chosen cell must not act as one
-    fireEvent.mouseDown(within(footer()).getByTitle("medium"));
-    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("medium");
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("low");
+    fireEvent.keyDown(slider(), { key: "End" });
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("high");
+    expect(onSelectReasoningEffort).toHaveBeenCalledTimes(3);
     expect(onSelectReasoningEffort).not.toHaveBeenCalledWith(null);
+  });
+
+  test("re-choosing the level already chosen commits nothing; never a null", () => {
+    const onSelectReasoningEffort = jest.fn();
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high"],
+      selectedReasoningEffort: "high",
+      defaultReasoningEffort: "medium",
+      onSelectReasoningEffort,
+    });
+    fireEvent.keyDown(slider(), { key: "End" });
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(onSelectReasoningEffort).not.toHaveBeenCalled();
+  });
+
+  test("a drag follows the pointer locally and commits the level once on release", () => {
+    const onSelectReasoningEffort = jest.fn();
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
+      selectedReasoningEffort: "low",
+      defaultReasoningEffort: "medium",
+      onSelectReasoningEffort,
+    });
+    jest
+      .spyOn(slider(), "getBoundingClientRect")
+      .mockReturnValue({ left: 0, width: 150, top: 0, height: 22, right: 150, bottom: 22 });
+    // channel 16 → 8px cap inset, 134 usable; the fourth of five sits at 8 + 0.75 * 134
+    if (window.PointerEvent) {
+      fireEvent.pointerDown(slider(), { clientX: 108, pointerId: 1, buttons: 1 });
+    } else {
+      fireEvent.mouseDown(slider(), { clientX: 108 });
+    }
+    expect(readout()).toHaveTextContent("x-high");
+    expect(onSelectReasoningEffort).not.toHaveBeenCalled();
+    if (window.PointerEvent) {
+      fireEvent.pointerUp(window, { pointerId: 1, buttons: 0 });
+    } else {
+      fireEvent.mouseUp(window);
+    }
+    expect(onSelectReasoningEffort).toHaveBeenCalledTimes(1);
+    expect(onSelectReasoningEffort).toHaveBeenLastCalledWith("xhigh");
   });
 
   test("picking a model never closes the palette, effort or not", () => {
@@ -1198,5 +1198,268 @@ describe("AttachPanel hover lands on one brightness", () => {
 
     expect(alphaOf(ring.getAttribute("data-hover-bg"))).toBeCloseTo(0.14, 3);
     unmount();
+  });
+});
+
+describe("AttachPanel context window slider (#227)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useChatInputToolkits.mockReset();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReset();
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+  });
+
+  const PRESETS = [4096, 8192, 16384, 32768, 65536, 131072];
+
+  const baseProps = {
+    color: "#222",
+    active: false,
+    focused: false,
+    onAttachFile: () => {},
+    isDark: false,
+    attachments: [],
+    selectedToolkits: [],
+    onToolkitsChange: () => {},
+    selectedWorkspaceIds: [],
+    onWorkspaceIdsChange: () => {},
+    modelOptions: [{ value: "ollama:deepseek-r1:14b", label: "deepseek-r1:14b" }],
+    selectedModelId: "ollama:deepseek-r1:14b",
+    onSelectModel: () => {},
+    contextWindowPresets: PRESETS,
+    defaultContextWindow: 32768,
+    maxContextWindow: null,
+    selectedContextWindow: null,
+    onSelectContextWindow: () => {},
+  };
+
+  const renderPanel = (props = {}) =>
+    render(<AttachPanel {...baseProps} {...props} />);
+
+  const modelSelect = () => screen.getByTestId("select-Search models…");
+  const footer = () => within(modelSelect()).getByTestId("palette-footer");
+  const row = () => within(footer()).getByTestId("context-window-row");
+  /* The BUILTIN Slider is the track: role=slider, index space 0..N-1. */
+  const slider = () => within(row()).getByRole("slider");
+  /* jsdom has no layout: give the track a real width so a press at clientX
+     lands on a notch the way it does on screen. The Slider guards against the
+     duplicate mousedown that follows a pointerdown, so press with whichever
+     event family this environment has. */
+  const laidOut = (width = 150) => {
+    jest
+      .spyOn(slider(), "getBoundingClientRect")
+      .mockReturnValue({ left: 0, width, top: 0, height: 22, right: width, bottom: 22 });
+  };
+  const press = (clientX) => {
+    if (window.PointerEvent) {
+      fireEvent.pointerDown(slider(), { clientX, pointerId: 1, buttons: 1 });
+    } else {
+      fireEvent.mouseDown(slider(), { clientX });
+    }
+  };
+
+  test("renders only for a model that declares a default window", () => {
+    const { rerender } = renderPanel({ defaultContextWindow: null });
+    expect(within(modelSelect()).queryByTestId("context-window-row")).toBeNull();
+
+    rerender(<AttachPanel {...baseProps} />);
+    expect(row()).toBeInTheDocument();
+    expect(within(row()).getByText("context")).toBeInTheDocument();
+  });
+
+  const readout = () => within(row()).getByTestId("context-window-readout");
+
+  test("the track is the glass Slider over the presets and reads PuPu's default until a pick", () => {
+    renderPanel();
+    expect(slider().getAttribute("aria-valuemin")).toBe("0");
+    expect(slider().getAttribute("aria-valuemax")).toBe("5");
+    // 32768 is the fourth preset: the untouched track rests there
+    expect(slider().getAttribute("aria-valuenow")).toBe("3");
+    // glass material: the channel and the frosted thumb are the mini_ui ones
+    expect(within(row()).getByTestId("slider-track")).toBeInTheDocument();
+    expect(within(row()).getByTestId("slider-thumb").style.backdropFilter).toContain("blur");
+    // glass carries no centre label, so the well at the end reads the value
+    expect(readout()).toHaveTextContent("32k");
+    expect(row().getAttribute("data-picked")).toBe("false");
+    expect(row().getAttribute("title")).toBe("PuPu default: 32k");
+  });
+
+  test("a real pick moves the track and reads back the value", () => {
+    renderPanel({ selectedContextWindow: 65536 });
+    expect(slider().getAttribute("aria-valuenow")).toBe("4");
+    expect(readout()).toHaveTextContent("64k");
+    expect(row().getAttribute("data-picked")).toBe("true");
+    expect(row().getAttribute("title")).toBeNull();
+  });
+
+  const release = () => {
+    if (window.PointerEvent) {
+      fireEvent.pointerUp(window, { pointerId: 1, buttons: 0 });
+    } else {
+      fireEvent.mouseUp(window);
+    }
+  };
+
+  test("a drag follows the pointer locally and commits once on release", () => {
+    const onSelectContextWindow = jest.fn();
+    renderPanel({ selectedContextWindow: 32768, onSelectContextWindow });
+    laidOut(150);
+
+    // glass insets the travel by the cap radius (8px at channelHeight 16):
+    // 150 - 16 = 134 usable, so the fifth of six notches sits at 8 + 0.8 * 134
+    press(115);
+    // the thumb and the well follow immediately, without a commit …
+    expect(slider().getAttribute("aria-valuenow")).toBe("4");
+    expect(readout()).toHaveTextContent("64k");
+    expect(onSelectContextWindow).not.toHaveBeenCalled();
+    // … the value is committed exactly once when the pointer is released
+    release();
+    expect(onSelectContextWindow).toHaveBeenCalledTimes(1);
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(65536);
+  });
+
+  test("releasing on the notch already chosen commits nothing; never a null", () => {
+    const onSelectContextWindow = jest.fn();
+    renderPanel({ selectedContextWindow: 32768, onSelectContextWindow });
+    laidOut(150);
+
+    press(88); // 60% of the usable travel → the fourth notch, already the value
+    release();
+    expect(onSelectContextWindow).not.toHaveBeenCalled();
+    expect(onSelectContextWindow).not.toHaveBeenCalledWith(null);
+  });
+
+  test("arrow keys step through the presets", () => {
+    const onSelectContextWindow = jest.fn();
+    renderPanel({ selectedContextWindow: 32768, onSelectContextWindow });
+
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(65536);
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(16384);
+    fireEvent.keyDown(slider(), { key: "Home" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(4096);
+    fireEvent.keyDown(slider(), { key: "End" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(131072);
+  });
+
+  test("the track ends on the model's declared window as its own last notch", () => {
+    const onSelectContextWindow = jest.fn();
+    renderPanel({
+      selectedContextWindow: 32768,
+      maxContextWindow: 40960,
+      onSelectContextWindow,
+    });
+
+    // 4k · 8k · 16k · 32k, then the model's own 40k; 64k and 128k are gone.
+    expect(slider().getAttribute("aria-valuemax")).toBe("4");
+    fireEvent.keyDown(slider(), { key: "ArrowRight" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(40960);
+    fireEvent.keyDown(slider(), { key: "End" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(40960);
+    fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(16384);
+  });
+
+  test("a declared window just under a preset becomes that top notch, labelled the way the model is sold", () => {
+    const onSelectContextWindow = jest.fn();
+    // deepseek-r1:14b declares 128000: 2.4% under the 131072 preset
+    renderPanel({
+      selectedContextWindow: 65536,
+      maxContextWindow: 128000,
+      onSelectContextWindow,
+    });
+    expect(slider().getAttribute("aria-valuemax")).toBe("5");
+    fireEvent.keyDown(slider(), { key: "End" });
+    expect(onSelectContextWindow).toHaveBeenLastCalledWith(128000);
+  });
+
+  test("a declared window equal to a preset adds no extra notch", () => {
+    renderPanel({ selectedContextWindow: 32768, maxContextWindow: 65536 });
+    expect(slider().getAttribute("aria-valuemax")).toBe("4");
+  });
+
+  test("a remembered pick above the model's window rests on the model's own top notch", () => {
+    renderPanel({ selectedContextWindow: 131072, maxContextWindow: 40960 });
+    expect(slider().getAttribute("aria-valuenow")).toBe("4");
+    expect(readout()).toHaveTextContent("40k");
+  });
+
+  test("a remembered pick that is the model's own window reads as picked", () => {
+    renderPanel({ selectedContextWindow: 128000, maxContextWindow: 128000 });
+    expect(slider().getAttribute("aria-valuenow")).toBe("5");
+    expect(readout()).toHaveTextContent("128k");
+    expect(row().getAttribute("data-picked")).toBe("true");
+  });
+
+  test("stacks under the effort row inside one footer with a single rule", () => {
+    renderPanel({
+      reasoningEffortOptions: ["low", "medium", "high"],
+      selectedReasoningEffort: null,
+      defaultReasoningEffort: "medium",
+      onSelectReasoningEffort: () => {},
+    });
+    expect(within(footer()).getByText("effort")).toBeInTheDocument();
+    expect(within(footer()).getByText("context")).toBeInTheDocument();
+    const rows = footer().querySelectorAll('[data-testid="context-window-row"], [data-testid="effort-row"]');
+    expect(rows).toHaveLength(2);
+  });
+});
+
+describe("AttachPanel footer rows stack as one family", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useChatInputToolkits.mockReset();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReset();
+    useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
+  });
+
+  test("the label wells and the value wells share one floor width, so the two tracks line up", () => {
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        modelOptions={[{ value: "ollama:gpt-oss:20b", label: "gpt-oss:20b" }]}
+        selectedModelId="ollama:gpt-oss:20b"
+        onSelectModel={() => {}}
+        reasoningEffortOptions={["low", "medium", "high"]}
+        selectedReasoningEffort={null}
+        defaultReasoningEffort="medium"
+        onSelectReasoningEffort={() => {}}
+        contextWindowPresets={[4096, 8192, 16384, 32768, 65536, 131072]}
+        defaultContextWindow={32768}
+        maxContextWindow={null}
+        selectedContextWindow={131072}
+        onSelectContextWindow={() => {}}
+      />,
+    );
+    const footer = within(screen.getByTestId("select-Search models…")).getByTestId("palette-footer");
+    const effort = within(footer).getByTestId("effort-row");
+    const context = within(footer).getByTestId("context-window-row");
+    const labelWell = (row) => row.firstElementChild;
+    expect(labelWell(effort).style.minWidth).toBe(labelWell(context).style.minWidth);
+    expect(labelWell(effort).style.minWidth).not.toBe("");
+    const effortValue = within(effort).getByTestId("effort-readout");
+    const contextValue = within(context).getByTestId("context-window-readout");
+    expect(effortValue.style.minWidth).toBe(contextValue.style.minWidth);
+    expect(effortValue).toHaveTextContent("med");
+    expect(contextValue).toHaveTextContent("128k");
   });
 });

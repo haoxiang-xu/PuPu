@@ -12,6 +12,7 @@ import {
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import { CONTEXT_WINDOW_PRESETS } from "../../COMPONENTs/chat-input/constants";
 import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
@@ -459,6 +460,7 @@ const ChatInterface = () => {
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
     selectedReasoningEffort: session.selectedReasoningEffort,
+    selectedContextWindow: session.selectedContextWindow,
     agentOrchestration: session.agentOrchestration,
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
@@ -818,6 +820,38 @@ const ChatInterface = () => {
     ],
   );
 
+  /* Context window (#227): the picker renders only for a model that declares
+     a default window (built-in Ollama), mirroring how effort renders only for
+     a model that declares levels. The declared maximum, when the catalog has
+     one, makes the notches past it unreachable. */
+  const defaultContextWindow = useMemo(() => {
+    const declared = activeModelCapabilities?.default_context_window_tokens;
+    return Number.isInteger(declared) && declared > 0 ? declared : null;
+  }, [activeModelCapabilities]);
+
+  const maxContextWindow = useMemo(() => {
+    const declared = activeModelCapabilities?.max_context_window_tokens;
+    return Number.isInteger(declared) && declared > 0 ? declared : null;
+  }, [activeModelCapabilities]);
+
+  const onSelectContextWindow = useCallback(
+    (tokens) => {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
+        return;
+      }
+      session.handleSelectContextWindow(tokens);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      session.handleSelectContextWindow,
+      stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
+    ],
+  );
+
   const effectiveDisclaimer = useMemo(() => {
     if (
       stream.durableInteractionStatus === "awaiting" ||
@@ -991,8 +1025,13 @@ const ChatInterface = () => {
       onSelectModel,
       reasoningEffortOptions,
       selectedReasoningEffort: session.selectedReasoningEffort,
+    selectedContextWindow: session.selectedContextWindow,
       defaultReasoningEffort,
       onSelectReasoningEffort,
+      contextWindowPresets: CONTEXT_WINDOW_PRESETS,
+      defaultContextWindow,
+      maxContextWindow,
+      onSelectContextWindow,
       modelSelectDisabled: isModelSelectionDisabled,
       toolSelectDisabled: stream.isSecretCapturePending,
       showModelSelector: !session.isCharacterChat,
@@ -1029,6 +1068,8 @@ const ChatInterface = () => {
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
       reasoningEffortOptions, session.selectedReasoningEffort, onSelectReasoningEffort,
       defaultReasoningEffort,
+      session.selectedContextWindow, defaultContextWindow, maxContextWindow,
+      onSelectContextWindow,
       modelSupportsTools,
       stream.isSecretCapturePending,
       t,

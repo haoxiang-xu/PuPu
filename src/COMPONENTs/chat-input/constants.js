@@ -49,3 +49,11 @@ export const resolveModelGroupKey = (modelId) => {
   }
   return null;
 };
+
+/* Context-window notches offered by the attach-panel slider for built-in
+   Ollama models (#227). The sidecar accepts any integer in [2048, 1048576];
+   these are the six the UI exposes. 32768 is PuPu's default and is what a
+   model gets when the user has never picked. */
+export const CONTEXT_WINDOW_PRESETS = Object.freeze([
+  4096, 8192, 16384, 32768, 65536, 131072,
+]);

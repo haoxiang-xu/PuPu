@@ -522,7 +522,10 @@
       "computer_description": "Consenti al modello di vedere e controllare lo schermo",
       "computer_requires_supported_model": "Richiede un modello Anthropic supportato",
       "effort": "sforzo",
-      "effort_default_hint": "Predefinito del modello: {level}"
+      "effort_default_hint": "Predefinito del modello: {level}",
+      "context": "contesto",
+      "context_default_hint": "Predefinito di PuPu: {tokens}",
+      "context_beyond_max_hint": "Oltre la finestra di {tokens} di questo modello"
     }
   },
   "toolkit": {

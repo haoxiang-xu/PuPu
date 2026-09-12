@@ -522,7 +522,10 @@
       "computer_description": "모델이 화면을 보고 제어하도록 허용",
       "computer_requires_supported_model": "지원되는 Anthropic 모델이 필요합니다",
       "effort": "추론 강도",
-      "effort_default_hint": "모델 기본값: {level}"
+      "effort_default_hint": "모델 기본값: {level}",
+      "context": "컨텍스트",
+      "context_default_hint": "PuPu 기본값: {tokens}",
+      "context_beyond_max_hint": "이 모델의 {tokens} 한도를 초과합니다"
     }
   },
   "toolkit": {

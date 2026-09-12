@@ -17,6 +17,10 @@ import {
   readReasoningEffortPref,
   writeReasoningEffortPref,
 } from "../../../SERVICEs/reasoning_effort_prefs";
+import {
+  readContextWindowPref,
+  writeContextWindowPref,
+} from "../../../SERVICEs/context_window_prefs";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
 import {
   cancelBackgroundPersist,
@@ -35,6 +39,28 @@ const resolveChatReasoningEffort = (chat, modelId) => {
   if (typeof recorded === "string" && recorded.trim()) return recorded;
   return readReasoningEffortPref(modelId);
 };
+
+/* Same rule for the context window (#227): the chat's own recorded window
+   wins, and only a chat that never recorded one takes the model's remembered
+   value. A window is a positive integer number of tokens; anything else is
+   "unset" (the sidecar then applies PuPu's default). */
+const normalizeContextWindow = (tokens) =>
+  typeof tokens === "number" && Number.isInteger(tokens) && tokens > 0
+    ? tokens
+    : null;
+
+const resolveChatContextWindow = (chat, modelId) => {
+  const recorded = normalizeContextWindow(chat?.model?.contextWindow);
+  if (recorded) return recorded;
+  return readContextWindowPref(modelId);
+};
+
+/* The per-chat model record is replaced wholesale by setChatModel, so every
+   write carries BOTH per-model choices or one of them silently disappears. */
+const modelRecordExtras = (reasoningEffort, contextWindow) => ({
+  ...(reasoningEffort ? { reasoningEffort } : {}),
+  ...(contextWindow ? { contextWindow } : {}),
+});
 
 /* ---- Memory V2 P0: draft-persistence secret guard ------------------------
 
@@ -280,6 +306,12 @@ export const useChatSessionState = ({
   const reasoningEffortRef = useRef(
     resolveChatReasoningEffort(initialChat, initialChat.model?.id),
   );
+  const contextWindowRef = useRef(
+    resolveChatContextWindow(initialChat, initialChat.model?.id),
+  );
+  const [selectedContextWindow, setSelectedContextWindow] = useState(
+    () => contextWindowRef.current,
+  );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -392,6 +424,9 @@ export const useChatSessionState = ({
         );
         reasoningEffortRef.current = nextEffort;
         setSelectedReasoningEffort(nextEffort);
+        const nextWindow = resolveChatContextWindow(nextActiveChat, nextModelId);
+        contextWindowRef.current = nextWindow;
+        setSelectedContextWindow(nextWindow);
         threadIdRef.current =
           typeof nextActiveChat.threadId === "string" &&
           nextActiveChat.threadId.trim()
@@ -517,6 +552,11 @@ export const useChatSessionState = ({
         modelIdRef.current,
       );
       setSelectedReasoningEffort(reasoningEffortRef.current);
+      contextWindowRef.current = resolveChatContextWindow(
+        nextActiveChat,
+        modelIdRef.current,
+      );
+      setSelectedContextWindow(contextWindowRef.current);
     };
 
     // The Test API, reload restoration, or another mounted surface can switch
@@ -665,9 +705,10 @@ export const useChatSessionState = ({
         currentChatId,
         {
           id: modelIdRef.current,
-          ...(reasoningEffortRef.current
-            ? { reasoningEffort: reasoningEffortRef.current }
-            : {}),
+          ...modelRecordExtras(
+            reasoningEffortRef.current,
+            contextWindowRef.current,
+          ),
         },
         { source: "chat-page" },
       );
@@ -799,12 +840,15 @@ export const useChatSessionState = ({
       const rememberedEffort = readReasoningEffortPref(modelId);
       reasoningEffortRef.current = rememberedEffort;
       setSelectedReasoningEffort(rememberedEffort);
+      const rememberedWindow = readContextWindowPref(modelId);
+      contextWindowRef.current = rememberedWindow;
+      setSelectedContextWindow(rememberedWindow);
 
       setChatModel(
         currentChatId,
         {
           id: modelId,
-          ...(rememberedEffort ? { reasoningEffort: rememberedEffort } : {}),
+          ...modelRecordExtras(rememberedEffort, rememberedWindow),
         },
         { source: "chat-page" },
       );
@@ -839,7 +883,35 @@ export const useChatSessionState = ({
         currentChatId,
         {
           id: modelIdRef.current,
-          ...(normalized ? { reasoningEffort: normalized } : {}),
+          ...modelRecordExtras(normalized, contextWindowRef.current),
+        },
+        { source: "chat-page" },
+      );
+    },
+    [activeChatKind],
+  );
+
+  /* The context window rides the same per-chat model record as effort (#227):
+     a positive integer persists alongside the model id and is remembered for
+     the model; anything else is unset. Validity against the model's declared
+     window is the picker's and the sidecar's job. */
+  const handleSelectContextWindow = useCallback(
+    (tokens) => {
+      const currentChatId = activeChatIdRef.current;
+      const normalized = normalizeContextWindow(tokens);
+      contextWindowRef.current = normalized;
+      setSelectedContextWindow(normalized);
+
+      if (modelIdRef.current) {
+        writeContextWindowPref(modelIdRef.current, normalized);
+      }
+
+      if (!currentChatId || activeChatKind === "character") return;
+      setChatModel(
+        currentChatId,
+        {
+          id: modelIdRef.current,
+          ...modelRecordExtras(reasoningEffortRef.current, normalized),
         },
         { source: "chat-page" },
       );
@@ -866,6 +938,8 @@ export const useChatSessionState = ({
     setSelectedModelId,
     selectedReasoningEffort,
     handleSelectReasoningEffort,
+    selectedContextWindow,
+    handleSelectContextWindow,
     agentOrchestration,
     setAgentOrchestration,
     selectedToolkits,

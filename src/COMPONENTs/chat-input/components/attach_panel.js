@@ -13,6 +13,7 @@ import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight"
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
@@ -92,10 +93,17 @@ const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
   );
 };
 
-/* ── model palette effort segment — its own row (palette_footer slot) under
-   the palette's chip/search header, rather than sharing the header line with
-   the search input. Levels come from the selected model's capability
-   declaration, so the set is provider-shaped and runs up to seven entries. ── */
+/* ── model palette footer rows: effort and context window, one control ──
+   Both live in the palette_footer slot under the chip/search header, both
+   are ordered ladders the user picks one notch of, and both follow the same
+   rules: the pick is per chat and remembered per model, it is one-way (no
+   reset — the untouched state is the default, marked as such), a drag
+   follows the hand locally and commits once on release, keys commit at
+   once. So they share one row: a 28px capsule (concentric with the panel:
+   radius 22 - padding 8 = 14) holding a label well, the BUILTIN Slider in
+   its glass material driven in index space over the notches, and a value
+   well at the end (glass has no centre label, and a tooltip would be
+   clipped by the footer). ── */
 
 const EFFORT_SHORT_LABELS = {
   none: "none",
@@ -107,88 +115,159 @@ const EFFORT_SHORT_LABELS = {
   max: "max",
 };
 
-/* One capsule, edge to edge, carrying three things at once:
-
-   · WHERE you are — the raised frosted cell, mini_ui's glass-switch puck.
-   · HOW FAR up the ladder that is — the accent fill running from the head of
-     the ladder to the end of the chosen cell. Effort is ordered, and this is
-     the only part of the control that says so.
-   · WHAT the model does untouched — the dashed cell. There is no reset here
-     by design: a level, once chosen, is that model's level from then on
-     (remembered in reasoning_effort_prefs), so the dash marks the state the
-     user is in BEFORE their first pick and never returns after it.
-
-   The label rides inside the capsule, pressed into the same groove the cells
-   sit raised out of. That inset/raised pairing is the switch's own vocabulary
-   and is what says "this end is not a choice" — not merely a dimmer colour. */
-
 /* 28 = 2 x (panel radius 22 - panel padding 8). See the capsule's style. */
 const CAPSULE_HEIGHT = 28;
+/* Both wells carry a floor so that, when the effort and context rows stack,
+   their tracks start and end on the same x whatever the two labels and
+   values happen to be ("effort" vs "context", "low" vs "128k"). */
+const LABEL_WELL_MIN_WIDTH = 66;
+const VALUE_WELL_MIN_WIDTH = 46;
 
-const EffortCapsuleRow = ({
-  efforts,
+/* Presets are powers of two and read in binary k (32768 → 32k, 131072 →
+   128k); a model's own declared window is usually a round decimal figure
+   (128000 → 128k, the way the model is sold), so a round-thousand value
+   reads in decimal k and everything else rounds on the 1024 grid (40960 →
+   40k). */
+const formatWindowShort = (tokens) =>
+  tokens % 1000 === 0
+    ? `${tokens / 1000}k`
+    : `${Math.round(tokens / 1024)}k`;
+
+const NotchSliderRow = ({
+  testId,
+  readoutTestId,
+  label,
+  notches,
+  shownIndex,
   selected,
-  defaultEffort,
+  defaultHint,
   onSelect,
   isDark,
   theme,
-  t,
+  t: _t,
 }) => {
-  const levels = Array.isArray(efforts) ? efforts : [];
-  if (levels.length === 0) return null;
+  /* Local-first drag. Committing means a chat-store write, a per-model
+     memory write and a re-render of the whole chat page — far too much to
+     do on every pointermove, and the thumb was visibly waiting on it. While
+     the pointer is down the row keeps the live notch in its own state
+     (thumb and well follow the hand at once) and commits exactly once on
+     release. Keyboard steps are single events and commit immediately. */
+  const [liveIndex, setLiveIndex] = useState(null);
+  const liveIndexRef = useRef(null);
+  const draggingRef = useRef(false);
+  const endDragRef = useRef(null);
+  const latestRef = useRef({ notches: [], selected: null, onSelect: null });
+  useEffect(
+    () => () => {
+      /* unmount mid-drag: drop the listeners, commit nothing */
+      if (endDragRef.current) {
+        endDragRef.current.detach();
+        endDragRef.current = null;
+      }
+    },
+    [],
+  );
 
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const shownLevel = selected || defaultEffort || levels[0];
-  const shownIndex = Math.max(0, levels.indexOf(shownLevel));
-  /* The fill ends at the far edge of the chosen cell, so it reads as "up to
-     and including this level" rather than stopping at the cell's centre. */
-  const fillPercent = selected ? ((shownIndex + 1) / levels.length) * 100 : 0;
+  const lastIndex = notches.length - 1;
+  const marks = notches.map((_notch, index) => index);
+  latestRef.current = { notches, selected, onSelect };
 
-  /* Materials lifted verbatim from mini_ui's glass switch (switch.js): the
-     channel is a pressed-in gradient with a light seam beneath it, and the
-     puck is frosted with a white rim. Keeping the exact values means the two
-     controls read as the same material rather than merely similar. */
-  /* Tuned lighter than the switch's channel: that control sits on a page,
-     this one sits inside an already-frosted panel, so the full-strength
-     groove read as a dark bar cut out of the menu. Keeps the pressed-in
-     shape (inset + light seam), drops the contrast that fought the surface. */
+  /* One-way and idempotent: the notch already chosen is not a reset, and a
+     key press clamped at the track's end is not a new pick. Reads the latest
+     render's notches and selection so a release after re-renders stays
+     right. */
+  const commit = (index) => {
+    const latest = latestRef.current;
+    const notch = latest.notches[index];
+    if (!notch || notch.value === latest.selected) return;
+    if (typeof latest.onSelect === "function") latest.onSelect(notch.value);
+  };
+  const handleChange = (index) => {
+    const notch = Math.round(index);
+    if (draggingRef.current) {
+      liveIndexRef.current = notch;
+      setLiveIndex(notch);
+      return;
+    }
+    commit(notch);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (endDragRef.current) {
+      endDragRef.current.detach();
+      endDragRef.current = null;
+    }
+    const notch = liveIndexRef.current;
+    liveIndexRef.current = null;
+    setLiveIndex(null);
+    if (notch != null) commit(notch);
+  };
+  const beginDrag = () => {
+    if (draggingRef.current) return;
+    draggingRef.current = true;
+    liveIndexRef.current = shownIndex;
+    setLiveIndex(shownIndex);
+    const end = () => endDrag();
+    const types = ["pointerup", "mouseup", "touchend", "pointercancel", "blur"];
+    types.forEach((type) => window.addEventListener(type, end));
+    endDragRef.current = {
+      detach: () => types.forEach((type) => window.removeEventListener(type, end)),
+    };
+  };
+  const activeIndex = liveIndex ?? shownIndex;
+  const picked = selected != null || liveIndex != null;
+
+  /* Materials lifted from mini_ui's glass switch, tuned lighter for a
+     control that sits inside an already-frosted panel: the groove is a
+     pressed-in gradient with a light seam beneath it, the wells are pressed
+     deeper into it. */
   const grooveBackground = isDark
     ? "rgba(255,255,255,0.07)"
     : "linear-gradient(to bottom, rgba(0,0,0,0.065), rgba(0,0,0,0.025))";
   const grooveShadow = isDark
     ? "inset 0 1px 2px rgba(0,0,0,0.28)"
     : "inset 0 1px 2px rgba(0,0,0,0.07), 0 0.75px 0 rgba(255,255,255,0.5)";
-  const labelWellBackground = isDark
-    ? "rgba(0,0,0,0.16)"
-    : "rgba(0,0,0,0.045)";
+  const labelWellBackground = isDark ? "rgba(0,0,0,0.16)" : "rgba(0,0,0,0.045)";
   const labelWellShadow = isDark
     ? "inset 0 1px 2px rgba(0,0,0,0.32)"
     : "inset 0 1px 2px rgba(0,0,0,0.09)";
-  const puckBackground = isDark
-    ? "rgba(255,255,255,0.14)"
-    : "rgba(255,255,255,0.40)";
-  const puckBorder = isDark
-    ? "1px solid rgba(255,255,255,0.22)"
-    : "1px solid rgba(255,255,255,0.65)";
-  const puckShadow = isDark
-    ? "0 2px 8px rgba(0,0,0,0.5), inset 0 0 0 0.5px rgba(255,255,255,0.14)"
-    : "0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 0.5px rgba(255,255,255,0.7)";
+  /* No accent until a pick: an untouched channel is the default, not a
+     level the user asked for. A transparent progress leaves only the glass
+     channel showing. */
+  const activeColor = picked
+    ? isDark
+      ? "rgba(154,217,160,0.85)"
+      : "rgba(25,125,65,0.7)"
+    : "rgba(0,0,0,0)";
+  const thumbColor = picked
+    ? isDark
+      ? "rgba(154,217,160,0.95)"
+      : "rgba(25,125,65,0.9)"
+    : isDark
+      ? "rgba(255,255,255,0.55)"
+      : "rgba(0,0,0,0.45)";
+  const labelColor = picked
+    ? isDark
+      ? "rgba(255,255,255,0.88)"
+      : "rgba(0,0,0,0.86)"
+    : isDark
+      ? "rgba(255,255,255,0.55)"
+      : "rgba(0,0,0,0.55)";
 
   return (
     <div
+      data-testid={testId}
+      data-picked={picked ? "true" : "false"}
+      title={picked ? undefined : defaultHint}
       style={{
         display: "flex",
         alignItems: "stretch",
         width: "100%",
-        /* Concentric with the panel: the panel's radius is 22 and its padding
-           puts this capsule 8px from that edge, so the capsule's own radius
-           must be 22 - 8 = 14 — which for a stadium means a height of exactly
-           28. Height is pinned here rather than left to the cells' padding so
-           the two radii cannot drift apart when type or padding changes. */
         height: CAPSULE_HEIGHT,
         /* This repo sets no global border-box, so width:100% plus padding
-           would resolve to 100% + 6px and hang the capsule's right end out
-           past the panel — where the footer's overflow:hidden then clips it. */
+           would hang the capsule's right end out past the panel. */
         boxSizing: "border-box",
         padding: 3,
         borderRadius: 999,
@@ -201,6 +280,9 @@ const EffortCapsuleRow = ({
           flexShrink: 0,
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+          minWidth: LABEL_WELL_MIN_WIDTH,
           marginRight: 4,
           padding: "0 8px 0 10px",
           borderRadius: 999,
@@ -215,135 +297,194 @@ const EffortCapsuleRow = ({
           boxShadow: labelWellShadow,
         }}
       >
-        {/* Uppercase text never uses the descender the line box still reserves
-            for it, so centring the LINE box (what align-items does) leaves the
-            caps ~1px above the well's true centre. `text-box` trims the box to
-            the cap/baseline edges so the same centring lands on the ink. It
-            applies to a block container only, never to the anonymous item a
-            flex parent wraps bare text in — hence this span. Unsupported, the
-            box stays untrimmed and this renders exactly as it does today. */}
+        {/* Uppercase text never uses the descender the line box still
+            reserves for it, so centring the LINE box leaves the caps ~1px
+            above the well's true centre. `text-box` trims the box to the
+            cap/baseline edges; it applies to a block only, hence this span.
+            Unsupported, the box stays untrimmed and this renders exactly as
+            it does today. */}
         <span style={{ display: "block", textBox: "trim-both cap alphabetic" }}>
-          {t("chat.attach.effort")}
+          {label}
         </span>
       </span>
 
+      {/* 4px of inset on both ends: the glass channel already insets its
+          travel by its own cap radius, so only a hair of air is needed for
+          the frosted thumb at either extreme. The Slider is fluid: it sizes
+          and measures itself from this span, so its thumb, marks and
+          hit-testing always share one width. */}
       <span
+        onPointerDownCapture={beginDrag}
+        onMouseDownCapture={beginDrag}
+        onTouchStartCapture={beginDrag}
         style={{
-          position: "relative",
           flex: 1,
           minWidth: 0,
           display: "flex",
-          /* stretch, not center: the cells must fill the groove's full inner
-             height so the raised puck is a stadium concentric with the
-             capsule (capsule radius 14 - capsule padding 3 = 11, and the
-             cell's own radius is its 22px height halved). Centering sizes
-             each cell to its text instead, leaving the puck visibly short. */
-          alignItems: "stretch",
+          alignItems: "center",
+          padding: "0 4px",
+          boxSizing: "border-box",
         }}
       >
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: `${fillPercent}%`,
-            borderRadius: 999,
-            backgroundColor: isDark
-              ? "rgba(154,217,160,0.20)"
-              : "rgba(25,125,65,0.18)",
-            /* No transition: the fill jumps straight to the picked level.
-               Animating a bar this wide drew the eye to the travel rather
-               than to the level that was chosen. */
-            pointerEvents: "none",
-          }}
-        />
-        {levels.map((level) => {
-          const isOn = Boolean(selected) && level === selected;
-          const isDefaultMark = !selected && level === defaultEffort;
-          const restColor = isOn
-            ? isDark
-              ? "rgba(255,255,255,0.92)"
-              : "rgba(0,0,0,0.9)"
-            : isDefaultMark
-              ? isDark
-                ? "rgba(255,255,255,0.68)"
-                : "rgba(0,0,0,0.68)"
-              : isDark
-                ? "rgba(255,255,255,0.44)"
-                : "rgba(0,0,0,0.44)";
-          return (
-            <button
-              key={level}
-              type="button"
-              title={
-                isDefaultMark
-                  ? t("chat.attach.effort_default_hint", { level })
-                  : level
-              }
-              onMouseDown={(e) => {
-                e.preventDefault();
-                /* No clearing: picking is one-way. The remembered per-model
-                   level is what a later chat starts from. */
-                if (typeof onSelect === "function") onSelect(level);
-              }}
-              onMouseEnter={(e) => {
-                if (isOn) return;
-                e.currentTarget.style.color = isDark
-                  ? "rgba(255,255,255,0.85)"
-                  : "rgba(0,0,0,0.8)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = restColor;
-              }}
-              style={{
-                position: "relative",
-                flex: 1,
-                minWidth: 0,
-                /* Same no-global-border-box reason as the capsule: without
-                   this each cell's padding and rim land outside its flex
-                   basis, so seven cells silently claim 42px the row never
-                   budgeted for. */
-                boxSizing: "border-box",
-                cursor: "pointer",
-                borderRadius: 999,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 2px",
-                fontFamily,
-                fontSize: 10,
-                fontWeight: isOn ? 500 : 400,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                color: restColor,
-                /* Constant 1px on every cell so neither the dash nor the puck
-                   rim shifts its neighbours when the selection moves. */
-                border: isOn
-                  ? puckBorder
-                  : isDefaultMark
-                    ? `1px dashed ${
-                        isDark
-                          ? "rgba(255,255,255,0.36)"
-                          : "rgba(0,0,0,0.34)"
-                      }`
-                    : "1px solid transparent",
-                background: isOn ? puckBackground : "transparent",
-                backdropFilter: isOn ? "blur(4px)" : "none",
-                WebkitBackdropFilter: isOn ? "blur(4px)" : "none",
-                boxShadow: isOn ? puckShadow : "none",
-                transition:
-                  "background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease",
-              }}
-            >
-              {EFFORT_SHORT_LABELS[level] || level}
-            </button>
-          );
-        })}
+        <span style={{ display: "block", width: "100%" }}>
+          <Slider
+            material="glass"
+            value={activeIndex}
+            set_value={handleChange}
+            min={0}
+            max={lastIndex}
+            step={1}
+            marks={marks}
+            show_tooltip={false}
+            label_format={(index) =>
+              (notches[Math.round(index)] ?? notches[0]).label
+            }
+            style={{
+              width: "100%",
+              height: 22,
+              /* the whole glass geometry fits the 28px capsule, pressed
+                 included: 16px channel, 24px ring, 24 × 1.15 = 27.6 */
+              channelHeight: 16,
+              thumbSize: 24,
+              pressScale: 1.15,
+              activeColor,
+              thumbColor,
+            }}
+          />
+        </span>
+      </span>
+
+      {/* the value well — pressed into the groove like the label well, lit
+          only once something is picked. It reads the notch the track rests
+          on, which is also what the request will carry. */}
+      <span
+        data-testid={readoutTestId}
+        style={{
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+          minWidth: VALUE_WELL_MIN_WIDTH,
+          padding: "0 9px",
+          marginLeft: 4,
+          borderRadius: 999,
+          fontFamily,
+          fontSize: 10,
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          color: labelColor,
+          background: labelWellBackground,
+          boxShadow: labelWellShadow,
+        }}
+      >
+        {notches[activeIndex].label}
       </span>
     </div>
+  );
+};
+
+/* Effort: the levels come from the selected model's capability declaration
+   (provider-shaped, up to seven), already ordered. The untouched track rests
+   on the model's own default level. */
+const EffortSliderRow = ({
+  efforts,
+  selected,
+  defaultEffort,
+  onSelect,
+  isDark,
+  theme,
+  t,
+}) => {
+  const levels = Array.isArray(efforts) ? efforts : [];
+  if (levels.length === 0) return null;
+  const notches = levels.map((level) => ({
+    value: level,
+    label: EFFORT_SHORT_LABELS[level] || level,
+  }));
+  const shownLevel = selected || defaultEffort || levels[0];
+  const shownIndex = Math.max(0, levels.indexOf(shownLevel));
+  return (
+    <NotchSliderRow
+      testId="effort-row"
+      readoutTestId="effort-readout"
+      label={t("chat.attach.effort")}
+      notches={notches}
+      shownIndex={shownIndex}
+      selected={selected || null}
+      defaultHint={
+        defaultEffort
+          ? t("chat.attach.effort_default_hint", { level: defaultEffort })
+          : undefined
+      }
+      onSelect={onSelect}
+      isDark={isDark}
+      theme={theme}
+      t={t}
+    />
+  );
+};
+
+/* Context window (#227): the presets, cut at the model's declared maximum,
+   which becomes the track's own last notch when it sits above the last
+   preset that fits (a 128000 model gets its 128k, a 40960 one its 40k)
+   instead of stopping a notch short of what it can do. The request then
+   carries the declared value exactly. The untouched track rests on PuPu's
+   default window. */
+const ContextWindowSliderRow = ({
+  presets,
+  selected,
+  defaultWindow,
+  maxWindow,
+  onSelect,
+  isDark,
+  theme,
+  t,
+}) => {
+  const windows = Array.isArray(presets)
+    ? presets
+        .filter((tokens) => Number.isInteger(tokens) && tokens > 0)
+        .sort((a, b) => a - b)
+    : [];
+  if (windows.length === 0 || !defaultWindow) return null;
+
+  const maxReachable =
+    Number.isInteger(maxWindow) && maxWindow > 0 ? maxWindow : Infinity;
+  const reachable = windows.filter((tokens) => tokens <= maxReachable);
+  const track =
+    Number.isFinite(maxReachable) &&
+    maxReachable > (reachable[reachable.length - 1] ?? 0)
+      ? [...reachable, maxReachable]
+      : reachable.length > 0
+        ? reachable
+        : windows.slice(0, 1);
+  const shownWindow = selected || defaultWindow;
+  /* A remembered pick above this model's window rests on the last notch the
+     track still has; the sidecar caps the request the same way. */
+  let shownIndex = 0;
+  track.forEach((tokens, index) => {
+    if (tokens <= shownWindow) shownIndex = index;
+  });
+  const notches = track.map((tokens) => ({
+    value: tokens,
+    label: formatWindowShort(tokens),
+  }));
+  return (
+    <NotchSliderRow
+      testId="context-window-row"
+      readoutTestId="context-window-readout"
+      label={t("chat.attach.context")}
+      notches={notches}
+      shownIndex={shownIndex}
+      selected={selected || null}
+      defaultHint={t("chat.attach.context_default_hint", {
+        tokens: formatWindowShort(defaultWindow),
+      })}
+      onSelect={onSelect}
+      isDark={isDark}
+      theme={theme}
+      t={t}
+    />
   );
 };
 
@@ -366,6 +507,11 @@ const AttachPanel = forwardRef(({
   selectedReasoningEffort = null,
   defaultReasoningEffort = null,
   onSelectReasoningEffort,
+  contextWindowPresets = [],
+  selectedContextWindow = null,
+  defaultContextWindow = null,
+  maxContextWindow = null,
+  onSelectContextWindow,
   onGroupToggle,
   modelSelectDisabled,
   isDark,
@@ -490,6 +636,47 @@ const AttachPanel = forwardRef(({
   }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
 
   const modelSelectOptions = modelOptions || [];
+  /* Footer rows belong to the current selection, not to the list: the effort
+     ladder when the model declares levels, the context-window slider when it
+     declares a default window (built-in Ollama), both stacked when it has
+     both, and null — not an empty element — when it has neither, so the
+     footer collapses instead of leaving a rule over an empty band. */
+  const effortRow =
+    reasoningEffortOptions.length > 0 ? (
+      <EffortSliderRow
+        efforts={reasoningEffortOptions}
+        selected={selectedReasoningEffort}
+        defaultEffort={defaultReasoningEffort}
+        onSelect={onSelectReasoningEffort}
+        isDark={isDark}
+        theme={theme}
+        t={t}
+      />
+    ) : null;
+  const contextRow =
+    Array.isArray(contextWindowPresets) &&
+    contextWindowPresets.length > 0 &&
+    Number.isInteger(defaultContextWindow) &&
+    defaultContextWindow > 0 ? (
+      <ContextWindowSliderRow
+        presets={contextWindowPresets}
+        selected={selectedContextWindow}
+        defaultWindow={defaultContextWindow}
+        maxWindow={maxContextWindow}
+        onSelect={onSelectContextWindow}
+        isDark={isDark}
+        theme={theme}
+        t={t}
+      />
+    ) : null;
+  const paletteFooter =
+    effortRow || contextRow ? (
+      <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
+        {effortRow}
+        {contextRow}
+      </div>
+    ) : null;
+
   const modelSelectValue = selectedModelId || null;
 
   const handleSelectValueChange = useCallback(
@@ -923,19 +1110,7 @@ const AttachPanel = forwardRef(({
                  its own separator and padding, so an always-present child
                  would leave a rule and a band of empty height under every
                  model that has no effort at all. */
-              palette_footer={
-                reasoningEffortOptions.length > 0 ? (
-                  <EffortCapsuleRow
-                    efforts={reasoningEffortOptions}
-                    selected={selectedReasoningEffort}
-                    defaultEffort={defaultReasoningEffort}
-                    onSelect={onSelectReasoningEffort}
-                    isDark={isDark}
-                    theme={theme}
-                    t={t}
-                  />
-                ) : null
-              }
+              palette_footer={paletteFooter}
             />,
             "model",
           )}

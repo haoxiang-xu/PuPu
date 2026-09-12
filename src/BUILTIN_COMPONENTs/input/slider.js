@@ -29,6 +29,15 @@ import { useMaterial, resolveComponentMaterial } from "../material";
 const SLIDER_MATERIALS = { plain: true, glass: true };
 const SLIDER_DEFAULT_MATERIAL = "plain";
 
+/* glass material (ported from mini_ui): the track and its progress morph
+   between a thin resting line and the full channel as the thumb wakes —
+   height and corner radius animate together on one deceleration curve. */
+const GE = "cubic-bezier(0.32, 1, 0.32, 1)";
+const GLASS_MORPH = `height 0.24s ${GE}, border-radius 0.24s ${GE}`;
+/* the resting channel is shorter than the woken groove (notch to notch vs.
+   edge to edge), so its left and width morph on the same curve too. */
+const GLASS_MORPH_TRACK = `${GLASS_MORPH}, left 0.24s ${GE}, width 0.24s ${GE}`;
+
 /* ── Ending a drag that was released outside the window ─────────────────
    A mouse released outside the app window never delivers its mouseup. A drag
    armed on mousedown alone therefore stays live: the thumb keeps tracking the
@@ -185,10 +194,19 @@ const Slider = ({
   postfix_icon,
   postfix_label,
   disabled = false,
+  material,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const containerRef = useRef(null);
+  const contextMaterial = useMaterial();
+  const requestedMaterial = material !== undefined ? material : contextMaterial;
+  const resolvedMaterial = resolveComponentMaterial(
+    requestedMaterial,
+    SLIDER_MATERIALS,
+    SLIDER_DEFAULT_MATERIAL,
+  );
+  const glass = resolvedMaterial === "glass";
 
   /* ── uncontrolled fallback ─────────────────────────── */
   const [internalValue, setInternalValue] = useState(
@@ -226,9 +244,31 @@ const Slider = ({
   const [isHovering, setIsHovering] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
 
+  /* ── fluid width (ported from mini_ui) ──────────────
+     style.width "100%" sizes the rail from its container, measured HERE so
+     the thumb, the marks and the pointer hit-testing always share one scale
+     — a width handed in by a host can go stale and draw on another scale
+     than the one the pointer is tested against. A numeric width pins the
+     rail exactly as before. */
+  const fluid = style?.width === "100%";
+  const [measuredW, setMeasuredW] = useState(0);
+  useEffect(() => {
+    if (!fluid) return undefined;
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const update = () => setMeasuredW(el.offsetWidth);
+    update();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fluid]);
+
   /* ── style tokens ──────────────────────────────────── */
   const sliderTheme = theme?.slider || {};
-  const W = style?.width ?? sliderTheme.width ?? 300;
+  const widthFallback =
+    typeof style?.width === "number" ? style.width : (sliderTheme.width ?? 300);
+  const W = fluid ? measuredW || widthFallback : widthFallback;
   const H = style?.height ?? sliderTheme.height ?? 32;
   const trackThickness =
     style?.trackThickness ?? sliderTheme.trackThickness ?? 2;
@@ -249,8 +289,21 @@ const Slider = ({
     (isDark ? "#CCCCCC" : "#222222");
 
   /* ── position math ─────────────────────────────────── */
+  /* glass: thumb and progress travel is inset by the track's cap radius, so
+     at the ends the thumb, the track's rounded cap and the progress cap are
+     concentric circles, and the channel only extends one cap past them. */
+  /* glass geometry, scaled from the channel (mini_ui's 20px channel, 28px
+     ring, 8px progress): a host with a shallower slot passes channelHeight
+     and keeps the same look at a smaller size instead of overflowing its
+     clip. The press scale is mini_ui's 1.18 for glass, 1.35 for plain. */
+  const channelHeight = style?.channelHeight ?? 20;
+  const glassRing = style?.thumbSize ?? channelHeight + 8;
+  const glassProgress = Math.round(channelHeight * 0.4);
+  const pressScale = style?.pressScale ?? (glass ? 1.18 : 1.35);
+  const pad = glass ? channelHeight / 2 : 0; // the channel's cap radius
   const pct = max === min ? 0 : ((currentValue - min) / (max - min)) * 100;
-  const thumbLeftPx = (pct / 100) * W;
+  const travel = Math.max(0, W - 2 * pad);
+  const thumbLeftPx = pad + (pct / 100) * travel;
 
   const centerLabel = label_format
     ? label_format(currentValue)
@@ -261,13 +314,14 @@ const Slider = ({
     (clientX) => {
       if (!containerRef.current) return min;
       const rect = containerRef.current.getBoundingClientRect();
+      const usable = Math.max(1, rect.width - 2 * pad);
       const ratio = Math.min(
         1,
-        Math.max(0, (clientX - rect.left) / rect.width),
+        Math.max(0, (clientX - rect.left - pad) / usable),
       );
       return min + ratio * (max - min);
     },
-    [min, max],
+    [min, max, pad],
   );
 
   const onPointerDown = useCallback(
@@ -361,7 +415,7 @@ const Slider = ({
 
   /* ── transitions ───────────────────────────────────── */
   const thumbVisible = isHovering || isDragging;
-  const thumbScale = !thumbVisible ? 0 : isPressed ? 1.35 : 1;
+  const thumbScale = !thumbVisible ? 0 : isPressed ? pressScale : 1;
   const slideT = isDragging
     ? "none"
     : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), width 0.18s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -371,7 +425,16 @@ const Slider = ({
   const rightStart = Math.max(0, Math.min(thumbLeftPx + halfGap, W));
 
   return (
-    <div style={{ display: "inline-flex", flexDirection: "column" }}>
+    <div
+      style={{
+        /* fluid: a block-level, full-width wrapper so the rail's 100% has
+           something to resolve against (inside inline-flex it collapses to
+           0 and the rail vanishes); pinned: inline-flex, exactly as before. */
+        display: fluid ? "flex" : "inline-flex",
+        flexDirection: "column",
+        ...(fluid ? { width: "100%" } : {}),
+      }}
+    >
       <LabelRow
         prefix_icon={prefix_icon}
         prefix_label={prefix_label}
@@ -389,7 +452,7 @@ const Slider = ({
         tabIndex={disabled ? -1 : 0}
         style={{
           position: "relative",
-          width: W,
+          width: fluid ? "100%" : W,
           height: H,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.4 : 1,
@@ -405,80 +468,126 @@ const Slider = ({
         onMouseLeave={() => setIsHovering(false)}
         onKeyDown={onKeyDown}
       >
-        {/* Left track (active) */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: 0,
-            width: Math.max(0, leftEnd),
-            height: trackThickness,
-            borderRadius: trackThickness / 2,
-            backgroundColor: activeColor,
-            transform: "translateY(-50%)",
-            transition: slideT,
-            pointerEvents: "none",
-          }}
-        />
+        {glass ? (
+          <>
+            {/* the channel. At rest it is a hairline from the first notch to
+                the last — exactly as long as the longest progress can be, so
+                a full progress and the line coincide instead of the line
+                running one cap past the end. Awake it is the full-width
+                groove whose caps are concentric with the thumb at either
+                end; thickness, radius, left and width morph together. */}
+            <div
+              data-testid="slider-track"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: thumbVisible ? 0 : pad,
+                width: thumbVisible ? W : travel,
+                height: thumbVisible ? channelHeight : 3,
+                borderRadius: thumbVisible ? channelHeight / 2 : 1.5,
+                background: isDark
+                  ? "rgba(255,255,255,0.16)"
+                  : "linear-gradient(to bottom, rgba(0,0,0,0.14), rgba(0,0,0,0.05))",
+                boxShadow: isDark
+                  ? "inset 0 1px 2px rgba(0,0,0,0.45)"
+                  : "inset 0 1px 2px rgba(0,0,0,0.12), 0 0.75px 0 rgba(255,255,255,0.6)",
+                transform: "translateY(-50%)",
+                transition: GLASS_MORPH_TRACK,
+                pointerEvents: "none",
+              }}
+            />
+            {/* narrower progress fill — at rest it runs from the first notch
+                to the value's notch (so at the maximum it is the channel);
+                on wake it is inset by the cap radius and cap-aligned, so its
+                left cap is concentric with the track's and its right cap
+                with the thumb. An explicit activeColor tints it; otherwise
+                it is the house neutral gradient. */}
+            <div
+              data-testid="slider-progress"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: thumbVisible ? pad - glassProgress / 2 : pad,
+                width: thumbVisible
+                  ? Math.max(glassProgress, thumbLeftPx - pad + glassProgress)
+                  : pct <= 0
+                    ? 0
+                    : thumbLeftPx - pad,
+                height: thumbVisible ? glassProgress : 3,
+                borderRadius: thumbVisible ? glassProgress / 2 : 1.5,
+                background:
+                  style?.activeColor ??
+                  (isDark
+                    ? "linear-gradient(to bottom, rgba(255,255,255,0.82), rgba(255,255,255,0.62))"
+                    : "linear-gradient(to bottom, rgba(0,0,0,0.62), rgba(0,0,0,0.48))"),
+                transform: "translateY(-50%)",
+                transition: isDragging ? "none" : `${slideT}, ${GLASS_MORPH}`,
+                pointerEvents: "none",
+              }}
+            />
+          </>
+        ) : (
+          <>
+            {/* Left track (active) */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: 0,
+                width: Math.max(0, leftEnd),
+                height: trackThickness,
+                borderRadius: trackThickness / 2,
+                backgroundColor: activeColor,
+                transform: "translateY(-50%)",
+                transition: slideT,
+                pointerEvents: "none",
+              }}
+            />
+            {/* Right track (inactive) */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: rightStart,
+                width: Math.max(0, W - rightStart),
+                height: trackThickness,
+                borderRadius: trackThickness / 2,
+                backgroundColor: inactiveColor,
+                transform: "translateY(-50%)",
+                transition: slideT,
+                pointerEvents: "none",
+              }}
+            />
+          </>
+        )}
 
-        {/* Centre value label */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: thumbLeftPx,
-            transform: `translate(-50%, -50%) scale(${thumbVisible ? 0.7 : 1})`,
-            transition: isDragging
-              ? "opacity 0.15s ease, transform 0.15s ease"
-              : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, transform 0.15s ease",
-            pointerEvents: "none",
-            fontSize: style?.fontSize ?? 11,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            fontWeight: 500,
-            color: labelColor,
-            opacity: thumbVisible ? 0 : 0.65,
-            whiteSpace: "nowrap",
-            lineHeight: 1,
-            letterSpacing: "0.5px",
-          }}
-        >
-          {centerLabel}
-        </div>
-
-        {/* Right track (inactive) */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: rightStart,
-            width: Math.max(0, W - rightStart),
-            height: trackThickness,
-            borderRadius: trackThickness / 2,
-            backgroundColor: inactiveColor,
-            transform: "translateY(-50%)",
-            transition: slideT,
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Snap marks */}
+        {/* Snap marks. Plain leaves the one under the value out because its
+            value label sits there; glass has no label at rest and hides its
+            thumb, so it draws every notch — otherwise the current notch
+            (the first one, whenever the value is the minimum) vanishes. */}
         {marks &&
           marks.map((m) => {
-            if (m === currentValue) return null;
+            if (!glass && m === currentValue) return null;
             const mPct = max === min ? 0 : ((m - min) / (max - min)) * 100;
-            const mPx = (mPct / 100) * W;
+            const mPx = pad + (mPct / 100) * travel;
             return (
               <div
                 key={m}
+                data-testid="slider-mark"
                 style={{
                   position: "absolute",
                   top: "50%",
                   left: mPx,
-                  width: 4,
-                  height: 4,
+                  width: glass ? 3 : 4,
+                  height: glass ? 3 : 4,
                   borderRadius: "50%",
-                  backgroundColor:
-                    m <= currentValue ? activeColor : inactiveColor,
+                  backgroundColor: glass
+                    ? isDark
+                      ? "rgba(255,255,255,0.45)"
+                      : "rgba(0,0,0,0.32)"
+                    : m <= currentValue
+                      ? activeColor
+                      : inactiveColor,
                   transform: "translate(-50%, -50%)",
                   pointerEvents: "none",
                   opacity: 0.7,
@@ -487,24 +596,94 @@ const Slider = ({
             );
           })}
 
+        {/* Centre value label — hidden for glass (the tooltip or the host's
+            own readout carries the value there). */}
+        {!glass && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: thumbLeftPx,
+              transform: `translate(-50%, -50%) scale(${thumbVisible ? 0.7 : 1})`,
+              transition: isDragging
+                ? "opacity 0.15s ease, transform 0.15s ease"
+                : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, transform 0.15s ease",
+              pointerEvents: "none",
+              fontSize: style?.fontSize ?? 11,
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+              fontWeight: 500,
+              color: labelColor,
+              opacity: thumbVisible ? 0 : 0.65,
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {centerLabel}
+          </div>
+        )}
+
         {/* Thumb */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: thumbLeftPx,
-            width: thumbSize,
-            height: thumbSize,
-            borderRadius: "50%",
-            backgroundColor: thumbColor,
-            transform: `translate(-50%, -50%) scale(${thumbScale})`,
-            opacity: thumbVisible ? 1 : 0,
-            transition: isDragging
-              ? "opacity 0.15s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)"
-              : `left 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`,
-            pointerEvents: "none",
-          }}
-        />
+        {glass ? (
+          <div
+            data-testid="slider-thumb"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: thumbLeftPx,
+              width: glassRing,
+              height: glassRing,
+              borderRadius: "50%",
+              boxSizing: "border-box",
+              transform: `translate(-50%, -50%) scale(${thumbScale})`,
+              opacity: thumbVisible ? 1 : 0,
+              transition: isDragging
+                ? "opacity 0.18s ease, box-shadow 0.32s cubic-bezier(0.32,1,0.32,1), transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                : "left 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease, box-shadow 0.32s cubic-bezier(0.32,1,0.32,1), transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              pointerEvents: "none",
+              background: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.22)",
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
+              border: isDark
+                ? "1px solid rgba(255,255,255,0.18)"
+                : "1px solid rgba(255,255,255,0.55)",
+              boxShadow: isDark
+                ? "0 2px 8px rgba(0,0,0,0.5), inset 0 0 0 0.5px rgba(255,255,255,0.12)"
+                : "0 2px 8px rgba(0,0,0,0.18), inset 0 0 0 0.5px rgba(255,255,255,0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* solid core — same width as the progress bar */}
+            <div
+              style={{
+                width: glassProgress,
+                height: glassProgress,
+                borderRadius: "50%",
+                background: thumbColor,
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: thumbLeftPx,
+              width: thumbSize,
+              height: thumbSize,
+              borderRadius: "50%",
+              backgroundColor: thumbColor,
+              transform: `translate(-50%, -50%) scale(${thumbScale})`,
+              opacity: thumbVisible ? 1 : 0,
+              transition: isDragging
+                ? "opacity 0.15s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                : `left 0.18s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
         {/* Floating tooltip above thumb */}
         {show_tooltip && (

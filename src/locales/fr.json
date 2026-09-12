@@ -522,7 +522,10 @@
       "computer_description": "Permettre au modèle de voir et de contrôler votre écran",
       "computer_requires_supported_model": "Nécessite un modèle Anthropic compatible",
       "effort": "effort",
-      "effort_default_hint": "Valeur par défaut du modèle : {level}"
+      "effort_default_hint": "Valeur par défaut du modèle : {level}",
+      "context": "contexte",
+      "context_default_hint": "Valeur par défaut de PuPu : {tokens}",
+      "context_beyond_max_hint": "Dépasse la fenêtre de {tokens} de ce modèle"
     }
   },
   "toolkit": {

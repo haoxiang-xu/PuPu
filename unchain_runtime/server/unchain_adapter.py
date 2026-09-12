@@ -3671,9 +3671,78 @@ def get_embedding_provider_catalog() -> Dict[str, List[str]]:
     return providers
 
 
-# Explicit PuPu default for uncatalogued Ollama models. This is also sent as
-# options.num_ctx, so the compiler and daemon use the same finite window.
+# The context window PuPu requests from the built-in Ollama provider. Every
+# built-in Ollama chat request sends it as options.num_ctx and the compiler
+# budgets to the same number, so neither side can silently outrun the other
+# (#227). Without it the daemon applies its own default (4k on machines under
+# 24 GiB of VRAM per Ollama's docs) and drops the front of the prompt — the
+# system prompt and tool definitions — behind a normal HTTP 200. A catalog
+# entry can only lower this value, never raise it: the KV cache grows linearly
+# with num_ctx, and 32k is the largest window that keeps typical 8B-class
+# models resident on a 16-18 GiB consumer machine. See
+# docs/data-models/model-and-toolkit-catalog.md § "Ollama context window".
 _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS = 32_768
+
+# Bounds for a window the user picks in the attach panel (options.contextWindow).
+# Below 2k nothing useful fits; above 1M nothing PuPu ships can be served.
+_CONTEXT_WINDOW_MIN_TOKENS = 2_048
+_CONTEXT_WINDOW_MAX_TOKENS = 1_048_576
+
+
+class InvalidContextWindowError(ValueError):
+    """options.contextWindow is present but not a usable window (fail closed)."""
+
+    code = "invalid_context_window"
+
+
+def _requested_context_window(options: object) -> int | None:
+    """The window the user picked for this request, validated, or None when absent."""
+    if not isinstance(options, dict) or "contextWindow" not in options:
+        return None
+    raw = options.get("contextWindow")
+    if raw is None:
+        return None
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or raw < _CONTEXT_WINDOW_MIN_TOKENS
+        or raw > _CONTEXT_WINDOW_MAX_TOKENS
+    ):
+        raise InvalidContextWindowError(
+            "contextWindow must be an integer between "
+            f"{_CONTEXT_WINDOW_MIN_TOKENS} and {_CONTEXT_WINDOW_MAX_TOKENS} tokens, got {raw!r}"
+        )
+    return raw
+
+
+def _host_context_window(options: object, provider: str, model: str) -> int | None:
+    """The user's window, but only for the model the chat actually selected.
+
+    Graph steps and subagents may resolve other models through the same
+    function; a window picked for the root model must not leak onto them.
+    """
+    requested = _requested_context_window(options)
+    if requested is None:
+        return None
+    selected = get_runtime_config(options if isinstance(options, dict) else None)
+    normalized_provider = str(provider or "").strip().lower()
+    if str(selected.get("provider", "") or "").strip().lower() != normalized_provider:
+        return None
+    if _normalize_provider_model_name(normalized_provider, str(selected.get("model", "") or "")) != _normalize_provider_model_name(normalized_provider, str(model or "")):
+        return None
+    return requested
+
+
+def _ollama_context_window_tokens(declared: int, requested: int | None = None) -> int:
+    """Window for a built-in Ollama model.
+
+    The user's pick (attach panel) beats PuPu's default; a catalog entry may
+    lower either of them, never raise them.
+    """
+    base = requested if requested else _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+    if declared > 0:
+        return min(declared, base)
+    return base
 
 
 def _catalog_model_context_window(provider: str, model: str) -> int:
@@ -3699,16 +3768,26 @@ def get_max_context_window_tokens(
     provider: str,
     model: str,
     cfg: "CustomProviderConfig | None" = None,
+    *,
+    options: Dict[str, object] | None = None,
 ) -> int:
-    """Resolve a catalog/custom window, or PuPu's explicit local-model default."""
+    """Resolve a catalog/custom window, or PuPu's explicit local-model window.
+
+    For a built-in Ollama model the value returned here is exactly what
+    ``_build_payload`` sends as ``options.num_ctx``, so the compiler budget
+    and the daemon agree: the user's ``options.contextWindow`` (validated,
+    only for the chat's selected model) or PuPu's default, capped by a
+    catalog entry when one exists (#227).
+    """
     if cfg is not None:
         return cfg.max_context_window_tokens(model)
     declared = _catalog_model_context_window(provider, model)
-    if declared:
-        return declared
     if str(provider or "").strip().lower() == "ollama":
-        return _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
-    return 0
+        return _ollama_context_window_tokens(
+            declared,
+            _host_context_window(options, provider, model),
+        )
+    return declared
 
 
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
@@ -3733,6 +3812,13 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
         normalized_capabilities["computer_use"] = resolve_computer_use_capability(
             provider, normalized_model
         )
+        if provider == "ollama":
+            # The picker in the attach panel renders only for models that
+            # declare a default window, the way the effort row renders only
+            # for models that declare levels. Built-in Ollama only.
+            normalized_capabilities["default_context_window_tokens"] = (
+                _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+            )
         catalog[model_id] = normalized_capabilities
 
     # Live Ollama models may not exist in the packaged capability file.  Give
@@ -3747,6 +3833,10 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
             normalized_capabilities["computer_use"] = resolve_computer_use_capability(
                 provider, model
             )
+            if provider == "ollama":
+                normalized_capabilities["default_context_window_tokens"] = (
+                    _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+                )
             catalog[model_id] = normalized_capabilities
 
     ordered_model_ids = sorted(catalog)
@@ -5297,12 +5387,16 @@ def _build_payload(
     # branch below (design §7.4).
     cfg = parse_custom_provider(options)
 
+    # Built-in Ollama: always name the window explicitly. It is the same value
+    # the compiler budgets with (see get_max_context_window_tokens), so the
+    # daemon evaluates exactly what the compiler admitted (#227).
     if provider == "ollama" and cfg is None and (
         model or options.get("modelId") or options.get("model")
     ):
         selected_model = model or get_runtime_config(options).get("model", "")
-        if not _catalog_model_context_window(provider, selected_model):
-            payload["num_ctx"] = _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+        payload["num_ctx"] = get_max_context_window_tokens(
+            provider, selected_model, options=options,
+        )
 
     max_tokens = options.get("maxTokens")
     if isinstance(max_tokens, (int, float)):
@@ -7952,7 +8046,9 @@ def _build_developer_agent(
             and str(resolved_model or "").strip() == memory_v2_admission.model
         ):
             return memory_v2_admission.real_context_window_tokens
-        return get_max_context_window_tokens(resolved_provider, resolved_model)
+        return get_max_context_window_tokens(
+            resolved_provider, resolved_model, options=options,
+        )
 
     def memory_v2_optimizer_module():
         if memory_v2_admission is None or official_context_v2_active:
@@ -8169,6 +8265,7 @@ def _create_agent(
         custom_factory = make_custom_model_io_factory(cfg, api_key)
     raw_max_ctx = get_max_context_window_tokens(
         selected_config["provider"], selected_config["model"], cfg=cfg,
+        options=options,
     )
     memory_v2_active_preflight = None
     memory_v2_agent_selection = None
@@ -8191,6 +8288,7 @@ def _create_agent(
                 get_max_context_window_tokens(
                     resolved_provider,
                     resolved_model,
+                    options=options,
                 )
                 or 0
             ),
@@ -9152,6 +9250,7 @@ def _stream_recipe_graph_events(
         selected_config["provider"],
         selected_config["model"],
         cfg=graph_cfg,
+        options=options,
     )
     if options.get("_memory_v2_requested") is True:
         from memory_v2_unchain_graph_identity import (
@@ -9302,6 +9401,7 @@ def _stream_recipe_graph_events(
                         get_max_context_window_tokens(
                             resolved_provider,
                             resolved_model,
+                            options=options,
                         )
                         or 0
                     ),
@@ -9453,6 +9553,7 @@ def _stream_recipe_graph_events(
                     get_max_context_window_tokens(
                         resolved_provider,
                         resolved_model,
+                        options=options,
                     )
                     or 0
                 ),
@@ -10200,6 +10301,7 @@ def _stream_recipe_graph_events(
                     step_config["provider"],
                     step_config["model"],
                     cfg=step_cfg,
+                    options=options,
                 )
                 step_admission_options = dict(options)
                 step_context_modules = ()

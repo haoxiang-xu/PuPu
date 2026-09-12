@@ -362,3 +362,105 @@ describe("useChatSessionState per-model reasoning effort", () => {
     });
   });
 });
+
+describe("useChatSessionState context window (#227)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  const renderSession = () =>
+    renderHook(() =>
+      useChatSessionState({
+        draftAttachments: [],
+        setDraftAttachments: jest.fn(),
+        activeStreamsRef: { current: new Map() },
+        setStreamError: jest.fn(),
+      }),
+    );
+
+  test("a window chosen for one model is restored when switching back to it", async () => {
+    const { result } = renderSession();
+    const chatId = result.current.activeChatIdRef.current;
+
+    act(() => {
+      result.current.handleSelectModel("ollama:deepseek-r1:14b");
+    });
+    act(() => {
+      result.current.handleSelectContextWindow(65536);
+    });
+    await waitFor(() => {
+      expect(result.current.selectedContextWindow).toBe(65536);
+    });
+    expect(getChatsStore().chatsById[chatId].model.contextWindow).toBe(65536);
+
+    // Switch away: the other model must NOT inherit this window.
+    act(() => {
+      result.current.handleSelectModel("ollama:qwen3:14b");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedContextWindow).toBeNull();
+    });
+    expect(
+      getChatsStore().chatsById[chatId].model.contextWindow,
+    ).toBeUndefined();
+
+    // Switch back: the window this model was set to comes back.
+    act(() => {
+      result.current.handleSelectModel("ollama:deepseek-r1:14b");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedContextWindow).toBe(65536);
+    });
+    expect(getChatsStore().chatsById[chatId].model.contextWindow).toBe(65536);
+  });
+
+  test("effort and window share the per-chat model record without clobbering each other", async () => {
+    const { result } = renderSession();
+    const chatId = result.current.activeChatIdRef.current;
+
+    act(() => {
+      result.current.handleSelectModel("ollama:gpt-oss:20b");
+    });
+    act(() => {
+      result.current.handleSelectReasoningEffort("high");
+    });
+    act(() => {
+      result.current.handleSelectContextWindow(16384);
+    });
+    await waitFor(() => {
+      expect(result.current.selectedContextWindow).toBe(16384);
+    });
+    expect(getChatsStore().chatsById[chatId].model).toEqual({
+      id: "ollama:gpt-oss:20b",
+      reasoningEffort: "high",
+      contextWindow: 16384,
+    });
+
+    // Re-picking effort afterwards must keep the window on the record.
+    act(() => {
+      result.current.handleSelectReasoningEffort("low");
+    });
+    await waitFor(() => {
+      expect(getChatsStore().chatsById[chatId].model.reasoningEffort).toBe("low");
+    });
+    expect(getChatsStore().chatsById[chatId].model.contextWindow).toBe(16384);
+  });
+
+  test("an unusable window is treated as unset", async () => {
+    const { result } = renderSession();
+    const chatId = result.current.activeChatIdRef.current;
+
+    act(() => {
+      result.current.handleSelectModel("ollama:deepseek-r1:14b");
+    });
+    act(() => {
+      result.current.handleSelectContextWindow("65536");
+    });
+    await waitFor(() => {
+      expect(result.current.selectedContextWindow).toBeNull();
+    });
+    expect(
+      getChatsStore().chatsById[chatId].model.contextWindow,
+    ).toBeUndefined();
+  });
+});

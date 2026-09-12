@@ -522,7 +522,10 @@
       "computer_description": "Dem Modell erlauben, deinen Bildschirm zu sehen und zu steuern",
       "computer_requires_supported_model": "Erfordert ein unterstütztes Anthropic-Modell",
       "effort": "Aufwand",
-      "effort_default_hint": "Modellstandard: {level}"
+      "effort_default_hint": "Modellstandard: {level}",
+      "context": "Kontext",
+      "context_default_hint": "PuPu-Standard: {tokens}",
+      "context_beyond_max_hint": "Über dem {tokens}-Fenster dieses Modells"
     }
   },
   "toolkit": {

@@ -522,7 +522,10 @@
       "computer_description": "允許模型查看並控制你的螢幕",
       "computer_requires_supported_model": "需要受支援的 Anthropic 模型",
       "effort": "推理強度",
-      "effort_default_hint": "模型預設：{level}"
+      "effort_default_hint": "模型預設：{level}",
+      "context": "上下文",
+      "context_default_hint": "PuPu 預設：{tokens}",
+      "context_beyond_max_hint": "超過此模型的 {tokens} 上下文上限"
     }
   },
   "toolkit": {

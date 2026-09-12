@@ -230,6 +230,18 @@ const normalizeModelInputCapabilities = (capabilities) => {
   ) {
     normalized.max_context_window_tokens = windowTokens;
   }
+  // The window PuPu requests for a built-in Ollama model when the user has not
+  // picked one (#227). Its presence is what makes the attach panel render the
+  // context picker — the same "declared, therefore shown" rule as effort —
+  // so anything that is not a positive integer stays absent.
+  const defaultWindowTokens = capabilityPayload.default_context_window_tokens;
+  if (
+    typeof defaultWindowTokens === "number" &&
+    Number.isSafeInteger(defaultWindowTokens) &&
+    defaultWindowTokens > 0
+  ) {
+    normalized.default_context_window_tokens = defaultWindowTokens;
+  }
   // Ordered reasoning-effort levels declared by the capability file. Absent
   // for models without selectable effort — callers hide the selector then.
   if (Array.isArray(capabilityPayload.reasoning_efforts)) {

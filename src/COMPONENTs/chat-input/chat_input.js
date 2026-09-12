@@ -54,6 +54,11 @@ const ChatInput = ({
   selectedReasoningEffort = null,
   defaultReasoningEffort = null,
   onSelectReasoningEffort,
+  contextWindowPresets = [],
+  selectedContextWindow = null,
+  defaultContextWindow = null,
+  maxContextWindow = null,
+  onSelectContextWindow,
   modelSelectDisabled = false,
   showModelSelector = true,
   attachments = [],
@@ -581,6 +586,11 @@ const ChatInput = ({
                       selectedReasoningEffort={selectedReasoningEffort}
                       defaultReasoningEffort={defaultReasoningEffort}
                       onSelectReasoningEffort={onSelectReasoningEffort}
+                      contextWindowPresets={contextWindowPresets}
+                      selectedContextWindow={selectedContextWindow}
+                      defaultContextWindow={defaultContextWindow}
+                      maxContextWindow={maxContextWindow}
+                      onSelectContextWindow={onSelectContextWindow}
                       onGroupToggle={handleGroupToggle}
                       modelSelectDisabled={modelSelectDisabled}
                       isDark={isDark}

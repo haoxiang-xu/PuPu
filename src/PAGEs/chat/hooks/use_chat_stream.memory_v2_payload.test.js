@@ -872,4 +872,40 @@ describe("Memory V2 P0 payload seams", () => {
     expect(deepHasKey(cancellationPayload, "context_v2_history")).toBe(false);
     expect(deepHasValue(cancellationPayload, "sk-must-not-leak")).toBe(false);
   });
+
+  test("a picked context window rides the request for a built-in Ollama model (#227)", async () => {
+    const modelId = "ollama:deepseek-r1:14b";
+    setChatModel(getChatsStore().activeChatId, { id: modelId, contextWindow: 65536 });
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: modelId, providers: { openai: [], ollama: ["deepseek-r1:14b"], anthropic: [] },
+      model_capabilities: { [modelId]: {
+        default_context_window_tokens: 32768, max_context_window_tokens: 128000,
+      } },
+    });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(lastChatInputProps.selectedContextWindow).toBe(65536));
+    expect(lastChatInputProps.defaultContextWindow).toBe(32768);
+    expect(lastChatInputProps.maxContextWindow).toBe(128000);
+    expect(lastChatInputProps.contextWindowPresets).toEqual([4096, 8192, 16384, 32768, 65536, 131072]);
+    sendText("hello local");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0].options.contextWindow).toBe(65536);
+  });
+
+  test("no pick means no contextWindow key, and a model without a declared default hides the picker (#227)", async () => {
+    const modelId = "openai:gpt-5";
+    setChatModel(getChatsStore().activeChatId, { id: modelId });
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: modelId, providers: { openai: ["gpt-5"], ollama: [], anthropic: [] },
+      model_capabilities: { [modelId]: { max_context_window_tokens: 400000 } },
+    });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(lastChatInputProps.defaultContextWindow).toBeNull());
+    expect(lastChatInputProps.selectedContextWindow).toBeNull();
+    sendText("hello cloud");
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0].options).not.toHaveProperty("contextWindow");
+  });
 });
