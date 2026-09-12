@@ -309,6 +309,60 @@
       "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
     },
     {
+      "id": "dev.bug-bounty-intelligence",
+      "toolkitId": "mcp.dev.bug-bounty-intelligence",
+      "name": "Bug Bounty Intelligence",
+      "description": "Third-party smart contract security scanner trained on Sherlock/Code4rena audit findings. Two tools are free; scan_contract costs 5 USDC via x402.",
+      "category": "dev",
+      "source": "mcp",
+      "trustLevel": "needs_review",
+      "status": "needs_review",
+      "installable": false,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/holistis/bug-bounty-intelligence-mcp",
+      "docsUrl": "https://github.com/holistis/bug-bounty-intelligence-mcp#readme",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/holistis/bug-bounty-intelligence-mcp",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "bug-bounty-intelligence-mcp@1.0.3"]
+      },
+      "setupPreview": "npx -y bug-bounty-intelligence-mcp@1.0.3",
+      "prerequisites": [],
+      "secrets": [],
+      "tools": [
+        { "name": "list_vulnerability_patterns", "title": "List vulnerability patterns", "requiresConfirmation": false },
+        { "name": "get_scan_report", "title": "Get scan report", "requiresConfirmation": false },
+        { "name": "scan_contract", "title": "Scan contract (paid, 5 USDC via x402)", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Bug Bounty Intelligence (third-party, pending review)\n\nRuns the **third-party** `bug-bounty-intelligence-mcp` server (published by its author, not by PuPu) over stdio, pinned to `@1.0.3`. This is **pending PuPu review** (`needs_review`).\n\n`list_vulnerability_patterns` and `get_scan_report` are free and read-only. `scan_contract` submits a public GitHub repo for a full Solidity security scan and requires paying 5 USDC on Base directly to the author's wallet via x402 (a manual on-chain transfer, not billed through PuPu) before the scan runs; it requires confirmation for that reason.\n\nNo secrets or OAuth are involved. Acceptance-rate numbers in `list_vulnerability_patterns` come from 1,032 findings the author could exactly reconcile against Sherlock's own published outcomes, not the full 27,681-finding corpus the tool is trained on; see the repo's METHODOLOGY.md for how that subset was chosen."
+    },
+    {
       "id": "devops.sentry-remote",
       "toolkitId": "mcp.devops.sentry-remote",
       "name": "Sentry",
