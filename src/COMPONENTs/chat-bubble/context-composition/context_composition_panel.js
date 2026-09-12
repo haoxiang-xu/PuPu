@@ -919,54 +919,79 @@ const ScopePane = ({
   onOpenGroup,
   palette,
   t,
-}) => (
-  <div
-    ref={paneRef}
-    id={`context-composition-${scopeId}-panel`}
-    data-testid={`context-composition-pane-${scopeId}`}
-    role="tabpanel"
-    aria-labelledby={`context-composition-${scopeId}-tab`}
-    aria-live="polite"
-    aria-hidden={!active}
-    inert={!active}
-    style={{ flex: "0 0 50%", minWidth: 0, boxSizing: "border-box" }}
-  >
-    {!view.available && usageView && scopeId === "model_call" ? (
-      <UsageOnlyView usage={usageView} palette={palette} t={t} active={active} />
-    ) : view.available ? (
-      <>
-        {scopeId === "model_call" && (
-          <CallPicker
-            calls={view.calls || []}
-            selectedCallKey={selectedCallKey || view.selectedCallKey}
-            onChange={onSelectCall}
+}) => {
+  // The composer measures the latest observed input against its current
+  // capacity. Explicit call selection and the historical modal keep the
+  // recorded window. Never combine accounting from different model calls.
+  const currentUsage =
+    scopeId === "model_call" &&
+    !selectedCallKey &&
+    (!view.available ||
+      (view.call?.provider === usageView?.provider &&
+        view.call?.model === usageView?.model &&
+        view.providerInputTokens === usageView?.inputTokens))
+      ? usageView
+      : null;
+  const displayView =
+    currentUsage?.percentageAvailable === true &&
+    Number.isSafeInteger(currentUsage.contextWindowTokens) &&
+    currentUsage.contextWindowTokens > 0
+      ? {
+          ...view,
+          contextWindowTokens: currentUsage.contextWindowTokens,
+          windowPressure: currentUsage.windowPressure,
+        }
+      : view;
+
+  return (
+    <div
+      ref={paneRef}
+      id={`context-composition-${scopeId}-panel`}
+      data-testid={`context-composition-pane-${scopeId}`}
+      role="tabpanel"
+      aria-labelledby={`context-composition-${scopeId}-tab`}
+      aria-live="polite"
+      aria-hidden={!active}
+      inert={!active}
+      style={{ flex: "0 0 50%", minWidth: 0, boxSizing: "border-box" }}
+    >
+      {!view.available && currentUsage && scopeId === "model_call" ? (
+        <UsageOnlyView usage={currentUsage} palette={palette} t={t} active={active} />
+      ) : view.available ? (
+        <>
+          {scopeId === "model_call" && (
+            <CallPicker
+              calls={view.calls || []}
+              selectedCallKey={selectedCallKey || view.selectedCallKey}
+              onChange={onSelectCall}
+              palette={palette}
+              t={t}
+            />
+          )}
+          <Headline
+            view={displayView}
+            usageView={currentUsage}
             palette={palette}
             t={t}
+            active={active}
           />
-        )}
-        <Headline
-          view={view}
-          usageView={usageView}
-          palette={palette}
-          t={t}
-          active={active}
-        />
-        <CompositionBar view={view} palette={palette} t={t} active={active} />
-        <GroupList
-          view={view}
-          openGroup={openGroup}
-          onOpenGroup={onOpenGroup}
-          palette={palette}
-          t={t}
-          active={active}
-        />
-        <QualityLine view={view} palette={palette} t={t} active={active} />
-      </>
-    ) : (
-      <UnavailableView reason={view.reason} palette={palette} t={t} active={active} />
-    )}
-  </div>
-);
+          <CompositionBar view={displayView} palette={palette} t={t} active={active} />
+          <GroupList
+            view={view}
+            openGroup={openGroup}
+            onOpenGroup={onOpenGroup}
+            palette={palette}
+            t={t}
+            active={active}
+          />
+          <QualityLine view={view} palette={palette} t={t} active={active} />
+        </>
+      ) : (
+        <UnavailableView reason={view.reason} palette={palette} t={t} active={active} />
+      )}
+    </div>
+  );
+};
 
 /**
  * Shared body for both shells — the anchored popover on the attach panel and

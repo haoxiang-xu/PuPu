@@ -42,6 +42,7 @@ const {
   buildRunBundleV1,
 } = require("../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
 const {
+  computeProviderCallReceiptSha256,
   computeRunBundleDigest,
 } = require("../../../electron/shared/run_bundle_v1");
 
@@ -1854,6 +1855,83 @@ describe("ChatInterface stop flow", () => {
     });
     fireEvent.click(screen.getByTestId("send-button"));
 
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("updates context window pressure when the Ollama selection changes", async () => {
+    const store = getChatsStore();
+    const chatId = store.activeChatId;
+    setChatModel(
+      chatId,
+      { id: "ollama:llama3.2" },
+      { source: "test" },
+    );
+    const bundle = buildRunBundleV1();
+    bundle.provider_calls[0].provider.name = "ollama";
+    bundle.provider_calls[0].provider.model = "llama3.2";
+    bundle.usage_slices[0].provider = "ollama";
+    bundle.usage_slices[0].model = "llama3.2";
+    [
+      bundle.provider_calls[0].usage,
+      bundle.aggregation.direct_usage,
+      bundle.aggregation.all_usage,
+      bundle.usage_slices[0].usage,
+    ].forEach((usage) => {
+      usage.input.uncached_tokens = 7592;
+      usage.input.total_tokens = 8192;
+      usage.total_tokens = 8392;
+    });
+    bundle.evidence.receipt_sha256s = [
+      computeProviderCallReceiptSha256(bundle.provider_calls[0]),
+    ];
+    bundle.bundle_digest = computeRunBundleDigest(bundle);
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "assistant-context-window",
+          role: "assistant",
+          content: "Measured response",
+          meta: { bundle },
+        },
+      ],
+      { source: "test" },
+    );
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: "ollama:llama3.2",
+      providers: {
+        openai: [],
+        ollama: ["llama3.2"],
+        anthropic: [],
+      },
+      model_capabilities: {
+        "ollama:llama3.2": {
+          default_context_window_tokens: 32768,
+          max_context_window_tokens: 131072,
+        },
+      },
+    });
+
+    renderChat();
+    await waitFor(() => {
+      expect(lastChatInputProps?.contextUsageView).toMatchObject({
+        inputTokens: 8192,
+        contextWindowTokens: 32768,
+        windowPressure: 0.25,
+      });
+    });
+
+    act(() => {
+      lastChatInputProps.onSelectContextWindow(65536);
+    });
+
+    await waitFor(() => {
+      expect(lastChatInputProps?.contextUsageView).toMatchObject({
+        inputTokens: 8192,
+        contextWindowTokens: 65536,
+        windowPressure: 0.125,
+      });
+    });
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
   });
 

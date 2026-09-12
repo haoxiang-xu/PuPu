@@ -1,5 +1,6 @@
 import {
   buildContextUsageView,
+  selectActiveContextWindowTokens,
   selectContextUsage,
   selectContextWindowTokens,
   selectLatestContextUsage,
@@ -80,6 +81,127 @@ describe("Context window denominator", () => {
     ["not an object", null],
   ])("rejects %s", (_label, capabilities) => {
     expect(selectContextWindowTokens(capabilities)).toBeNull();
+  });
+
+  describe("active composer window", () => {
+    const ollamaCapabilities = {
+      default_context_window_tokens: 32768,
+      max_context_window_tokens: 131072,
+    };
+
+    test("uses the selected built-in Ollama window before the declared default", () => {
+      expect(
+        selectActiveContextWindowTokens(ollamaCapabilities, {
+          modelId: "ollama:llama3.2",
+          selectedContextWindow: 65536,
+        }),
+      ).toBe(65536);
+    });
+
+    test("uses the declared built-in Ollama default when no selection exists", () => {
+      expect(
+        selectActiveContextWindowTokens(ollamaCapabilities, {
+          modelId: "ollama:llama3.2",
+          selectedContextWindow: null,
+        }),
+      ).toBe(32768);
+    });
+
+    test.each([
+      ["selection", 262144, 32768],
+      ["default", null, 262144],
+    ])("caps a built-in Ollama %s at the catalog maximum", (
+      _label,
+      selectedContextWindow,
+      defaultContextWindow,
+    ) => {
+      expect(
+        selectActiveContextWindowTokens(
+          {
+            default_context_window_tokens: defaultContextWindow,
+            max_context_window_tokens: 131072,
+          },
+          {
+            modelId: "ollama:llama3.2",
+            selectedContextWindow,
+          },
+        ),
+      ).toBe(131072);
+    });
+
+    test.each([
+      ["selection", 65536, null, 65536],
+      ["default", null, 32768, 32768],
+    ])("keeps a valid built-in Ollama %s when the maximum is missing", (
+      _label,
+      selectedContextWindow,
+      defaultContextWindow,
+      expected,
+    ) => {
+      expect(
+        selectActiveContextWindowTokens(
+          { default_context_window_tokens: defaultContextWindow },
+          {
+            modelId: "ollama:llama3.2",
+            selectedContextWindow,
+          },
+        ),
+      ).toBe(expected);
+    });
+
+    test.each([
+      ["zero", 0],
+      ["negative", -1],
+      ["string", "65536"],
+      ["fractional", 65536.5],
+      ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+    ])("ignores an invalid built-in Ollama %s selection", (
+      _label,
+      selectedContextWindow,
+    ) => {
+      expect(
+        selectActiveContextWindowTokens(ollamaCapabilities, {
+          modelId: "ollama:llama3.2",
+          selectedContextWindow,
+        }),
+      ).toBe(32768);
+    });
+
+    test("returns null when built-in Ollama has no valid selection or default", () => {
+      expect(
+        selectActiveContextWindowTokens(
+          { max_context_window_tokens: 131072 },
+          {
+            modelId: "ollama:llama3.2",
+            selectedContextWindow: null,
+          },
+        ),
+      ).toBeNull();
+      expect(
+        selectActiveContextWindowTokens(
+          {
+            default_context_window_tokens: "32768",
+            max_context_window_tokens: 131072,
+          },
+          {
+            modelId: "ollama:llama3.2",
+            selectedContextWindow: 0,
+          },
+        ),
+      ).toBeNull();
+    });
+
+    test.each(["openai:gpt-5", "custom.local:llama3.2", null])(
+      "keeps maximum-only behavior for %s",
+      (modelId) => {
+        expect(
+          selectActiveContextWindowTokens(ollamaCapabilities, {
+            modelId,
+            selectedContextWindow: 65536,
+          }),
+        ).toBe(131072);
+      },
+    );
   });
 });
 

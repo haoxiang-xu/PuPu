@@ -85,6 +85,40 @@ export const selectContextWindowTokens = (capabilities) => {
     : null;
 };
 
+/**
+ * Resolve the window currently configured for the composer. Built-in Ollama
+ * models expose a selectable request window; other providers retain the
+ * catalog-maximum denominator used by historical and general callers.
+ */
+export const selectActiveContextWindowTokens = (
+  capabilities,
+  { modelId, selectedContextWindow } = {},
+) => {
+  const normalizedModelId =
+    typeof modelId === "string" ? modelId.trim() : "";
+  const maximum = selectContextWindowTokens(capabilities);
+  if (!normalizedModelId.startsWith("ollama:")) return maximum;
+
+  const selected =
+    typeof selectedContextWindow === "number" &&
+    Number.isSafeInteger(selectedContextWindow) &&
+    selectedContextWindow > 0
+      ? selectedContextWindow
+      : null;
+  const declaredDefault = isObject(capabilities)
+    ? capabilities.default_context_window_tokens
+    : null;
+  const fallback =
+    typeof declaredDefault === "number" &&
+    Number.isSafeInteger(declaredDefault) &&
+    declaredDefault > 0
+      ? declaredDefault
+      : null;
+  const requested = selected ?? fallback;
+  if (requested === null) return null;
+  return maximum === null ? requested : Math.min(requested, maximum);
+};
+
 export const buildContextUsageView = (usage, windowTokens) => {
   if (!isObject(usage) || usage.inputTokens === null) return null;
   const window =
