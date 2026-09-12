@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import CommandMenu, { commandListCapHeight } from "./command_menu";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
@@ -22,9 +21,12 @@ const FALLBACK_H = 40; // pill row height fallback before measurement
 const PANEL_RADIUS = 22; // matches the attach pill container
 /* Row stride and the ten-row cap live in command_menu, which is what actually
    renders the rows — see commandListCapHeight. The list's height itself is
-   measured, not computed (see listContentH below). */
+   measured, not computed (see listContentHRef below). */
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
+/* The frame's height: header slot plus the list — one formula, used by the
+   render and by the observer callback that follows the rows (see below). */
+const panelHeight = (headerH, listH) => headerH + BLEED * 2 + listH;
 /* The thumb's distance from the panel's wall — the Select palette's value,
    so the two palettes read as one family. */
 const SCROLLBAR_WALL = 2;
@@ -99,25 +101,45 @@ const CommandPalettePanel = ({
      size on its own clock while the rows folded on theirs — 86px of empty
      panel above the rows at the worst frame, rows chopped by a cap that had
      already snapped. Measuring the host makes the frame the rows' motion,
-     nothing else. flushSync: a ResizeObserver runs after layout and before
-     paint, and the frame has to land in the same paint as the rows it
-     follows — a render scheduled for later paints one frame behind. */
+     nothing else.
+
+     The measurement is written straight to the panel's DOM node from the
+     observer callback, not through state. A ResizeObserver runs after layout
+     and before paint, and the frame has to land in the same paint as the
+     rows it follows — a render scheduled for later paints one frame behind.
+     flushSync would land it in time, but flushSync flushes EVERY pending
+     update, the textfield's own measurements included, and re-laying out an
+     observed element inside the observer pass is the "ResizeObserver loop
+     completed with undelivered notifications" error. The value also lives
+     in a ref read during render, so a render for any other reason (the open
+     morph, an arrow key) computes the same height the DOM already shows. */
+  const panelRef = useRef(null);
   const listHostRef = useRef(null);
-  const [listContentH, setListContentH] = useState(0);
+  const listContentHRef = useRef(0);
+  const frameRef = useRef({ on: false, headerH: FALLBACK_H });
+  frameRef.current = { on, headerH };
+  const applyFrameHeight = () => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const { on: isOn, headerH: h } = frameRef.current;
+    panel.style.height = `${panelHeight(h, isOn ? listContentHRef.current : 0)}px`;
+  };
   useEffect(() => {
     const el = listHostRef.current;
     if (!el || typeof ResizeObserver === "undefined") return undefined;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const h = Math.round(entry.contentRect.height);
-        flushSync(() => setListContentH(h));
+        listContentHRef.current = Math.round(entry.contentRect.height);
       }
+      applyFrameHeight();
     });
     ro.observe(el);
     return () => ro.disconnect();
+    // applyFrameHeight reads refs only; it never goes stale
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const listMaxH = commandListCapHeight({ bare: true });
-  const listH = on ? listContentH : 0;
+  const listH = on ? listContentHRef.current : 0;
 
   /* Which motion owns the height. The open and close morphs ease it — the
      panel growing out of the pill and folding back into it. Once the open
@@ -190,6 +212,7 @@ const CommandPalettePanel = ({
     >
       {/* the morphing panel — grows upward from the pill's bounds, BEHIND it */}
       <div
+        ref={panelRef}
         aria-hidden={!on}
         style={{
           position: "absolute",
@@ -197,7 +220,7 @@ const CommandPalettePanel = ({
           bottom: -BLEED,
           width: panelW,
           maxWidth: "calc(100vw - 40px)",
-          height: headerH + BLEED * 2 + listH,
+          height: panelHeight(headerH, listH),
           display: "flex",
           flexDirection: "column",
           justifyContent: "flex-end",
@@ -235,33 +258,44 @@ const CommandPalettePanel = ({
             the menu could only ever run the thumb from the corner down to
             the hint bar. */}
         <div style={{ minHeight: 0, overflow: "hidden" }}>
-          <div
-            ref={listHostRef}
-            className="scrollable"
-            data-command-list-scroll=""
-            data-sb-edge={PANEL_RADIUS - 1}
-            data-sb-wall={SCROLLBAR_WALL}
-            style={{
-              maxHeight: listMaxH,
-              overflowY: "auto",
-              overscrollBehavior: "contain",
-            }}
-          >
-            {open && (
-              <CommandMenu
-                items={items}
-                activeIndex={activeIndex}
-                onPick={onPick}
-                onHover={onHoverId}
-                onVisibleChange={onVisibleChange}
-                folderState={folderState}
-                expandRef={expandRef}
-                visibleRowCount={visibleRowCount}
-                isDark={isDark}
-                bare
-                visible={on}
-              />
-            )}
+          {/* The scrollbar's mount. PuPu's overlay thumb is appended to the
+              scroll host's PARENT and that parent is observed for resizes
+              along with the host. It must not be the reveal clip above: the
+              clip's size follows the frame's, and the frame is set from
+              inside a ResizeObserver callback (applyFrameHeight) — resizing
+              an observed, shallower element in that same pass is the
+              "ResizeObserver loop completed with undelivered notifications"
+              error, once per frame of a fold. This wrapper is sized by its
+              content alone, so the frame's motion never touches it. */}
+          <div data-command-list-mount="">
+            <div
+              ref={listHostRef}
+              className="scrollable"
+              data-command-list-scroll=""
+              data-sb-edge={PANEL_RADIUS - 1}
+              data-sb-wall={SCROLLBAR_WALL}
+              style={{
+                maxHeight: listMaxH,
+                overflowY: "auto",
+                overscrollBehavior: "contain",
+              }}
+            >
+              {open && (
+                <CommandMenu
+                  items={items}
+                  activeIndex={activeIndex}
+                  onPick={onPick}
+                  onHover={onHoverId}
+                  onVisibleChange={onVisibleChange}
+                  folderState={folderState}
+                  expandRef={expandRef}
+                  visibleRowCount={visibleRowCount}
+                  isDark={isDark}
+                  bare
+                  visible={on}
+                />
+              )}
+            </div>
           </div>
         </div>
 

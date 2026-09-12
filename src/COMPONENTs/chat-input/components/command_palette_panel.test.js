@@ -100,10 +100,9 @@ describe("CommandPalettePanel frame follows the rows", () => {
      after them (86px of empty panel at the worst frame). Now the frame is
      measured from the host every frame and, once the open morph has
      settled, changes without a transition of its own: one motion, the rows'. */
-  const panelOf = () =>
-    document.querySelector("[data-command-list-scroll]").parentElement
-      .parentElement;
   const hostOf = () => document.querySelector("[data-command-list-scroll]");
+  const panelOf = () =>
+    hostOf().parentElement.parentElement.parentElement;
   const HEADER = 40 + 6 * 2; // pill fallback height + bleed on both sides
 
   beforeEach(() => jest.useFakeTimers());
@@ -135,6 +134,25 @@ describe("CommandPalettePanel frame follows the rows", () => {
     resizeTo(hostOf(), 203);
     expect(panelOf().style.transition).toMatch(/height 210ms/);
     expect(panelOf().style.height).toBe(`${HEADER + 203}px`);
+  });
+
+  test("the scrollbar's mount is a content-sized wrapper, not the reveal clip", () => {
+    /* PuPu's overlay scrollbar observes the scroll host AND its parent. When
+       that parent was the reveal clip — whose size follows the panel's — the
+       frame's per-frame height change resized it inside the same observer
+       pass, and the browser threw "ResizeObserver loop completed with
+       undelivered notifications" on every frame of a fold (10 per collapse
+       in-app). The wrapper is sized by its content alone, so nothing the
+       frame does re-fires an observer at a shallower depth. */
+    openAndSettle();
+    const wrapper = hostOf().parentElement;
+    const clip = wrapper.parentElement;
+    expect(wrapper.style.overflow).toBe("");
+    expect(wrapper.style.minHeight).toBe("");
+    expect(wrapper.style.height).toBe("");
+    expect(clip.style.overflow).toBe("hidden");
+    // React writes a zero without a unit
+    expect(parseFloat(clip.style.minHeight) || 0).toBe(0);
   });
 
   test("closed, the frame is the header alone whatever the host measured", () => {
