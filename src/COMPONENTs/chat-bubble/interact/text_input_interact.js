@@ -52,6 +52,7 @@ const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !multiline && !disabled && text.trim()) {
+      if (e.nativeEvent?.isComposing || e.isComposing) return;
       e.preventDefault();
       handleSubmit();
     }

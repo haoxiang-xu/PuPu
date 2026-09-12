@@ -278,14 +278,6 @@ const ChatInput = ({
     commandVisibleIds.length > 0
       ? commandVisibleIds
       : commandItems.map((item) => item.name);
-  const commandItemsByName = new Map(
-    commandItems.map((item) => [item.name, item]),
-  );
-  const pickCommandAt = (index) => {
-    const id = commandRowIds[index];
-    const item = commandItemsByName.get(id);
-    if (item) handleCommandPick(item);
-  };
 
   // any edit to the input value re-arms the menu (clears a prior Escape
   // dismissal) and resets the highlighted row back to the top
@@ -335,6 +327,11 @@ const ChatInput = ({
 
   const handleKeyDown = useCallback(
     (e) => {
+      const pickCommandAt = (index) => {
+        const id = commandRowIds[index];
+        const item = commandItems.find((candidate) => candidate.name === id);
+        if (item) handleCommandPick(item);
+      };
       /* attach panel keyboard mode: keys are delegated to the panel until
          it reports "pass" (typing resumes) */
       if (panelKbActive) {
@@ -452,11 +449,7 @@ const ChatInput = ({
       commandMenuOpen,
       commandItems,
       commandMenuActiveIndex,
-      /* commandRowIds and pickCommandAt are rebuilt every render (they read
-         commandItems and the menu's reported order), so they belong here or
-         the arrow keys walk a stale tree. */
       commandRowIds,
-      pickCommandAt,
       handleCommandPick,
       activeTokens,
       value,

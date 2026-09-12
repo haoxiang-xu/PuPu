@@ -1,3 +1,5 @@
+> Verification completed on 2026-09-11. See [final 32B verification and candidate evidence](ticket-224-evidence/verification-2026-09-11/README.md). Earlier pending-test instructions below are historical; GitHub #224 / PR #271 record delivery status.
+
 # Ticket #224 — free-text human input implementation plan
 
 Ticket: https://github.com/haoxiang-xu/PuPu/issues/224

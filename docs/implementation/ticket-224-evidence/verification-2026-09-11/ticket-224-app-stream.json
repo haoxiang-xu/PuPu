@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 3,
+  "updatedAt": 1789171610280,
+  "activeChatId": "chat-1789171551629-aaf4afb9ad2728",
+  "tree": {
+    "root": [
+      "chn-chat-1789171551629-aaf4afb9ad2728"
+    ],
+    "nodesById": {
+      "chn-chat-1789171551629-aaf4afb9ad2728": {
+        "id": "chn-chat-1789171551629-aaf4afb9ad2728",
+        "entity": "chat",
+        "type": "file",
+        "chatId": "chat-1789171551629-aaf4afb9ad2728",
+        "label": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+        "createdAt": 1789171551629,
+        "updatedAt": 1789171610280
+      }
+    },
+    "selectedNodeId": "chn-chat-1789171551629-aaf4afb9ad2728",
+    "expandedFolderIds": []
+  },
+  "chatMetasById": {
+    "chat-1789171551629-aaf4afb9ad2728": {
+      "id": "chat-1789171551629-aaf4afb9ad2728",
+      "kind": "default",
+      "title": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+      "createdAt": 1789171551629,
+      "updatedAt": 1789171610280,
+      "lastMessageAt": 1789171608277,
+      "threadId": "chat-1789171551629-aaf4afb9ad2728",
+      "model": {
+        "id": "ollama:qwen3:32b"
+      },
+      "agentOrchestration": {
+        "mode": "default"
+      },
+      "selectedToolkits": [
+        "core"
+      ],
+      "selectedWorkspaceIds": [],
+      "selectedRecipeName": "Default",
+      "systemPromptOverrides": {},
+      "draft": {
+        "text": "",
+        "attachments": [],
+        "updatedAt": 1789171607632
+      },
+      "isTransientNewChat": false,
+      "hasUnreadGeneratedReply": false,
+      "isGenerating": true,
+      "stats": {
+        "messageCount": 2,
+        "approxBytes": 1706
+      }
+    }
+  },
+  "activeChatMessages": [
+    {
+      "id": "user-1789171607631",
+      "role": "user",
+      "content": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+      "createdAt": 1789171607631,
+      "updatedAt": 1789171607631
+    },
+    {
+      "id": "assistant-1789171607631-5263a37b32795",
+      "role": "assistant",
+      "content": "",
+      "createdAt": 1789171607631,
+      "updatedAt": 1789171608277,
+      "status": "streaming",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1789171607636,
+          "run_id": "unchain-1789171607633-9314576906447",
+          "type": "stream_started",
+          "payload": {
+            "thread_id": "chat-1789171551629-aaf4afb9ad2728",
+            "model": "ollama:qwen3:32b",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_8ad86bf0398a480f948015bbd910b79f"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1789171608211,
+          "run_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+          "type": "run_started",
+          "iteration": 0,
+          "payload": {
+            "status": "running",
+            "provider": "ollama",
+            "model": "qwen3:32b",
+            "run_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+            "runtime_event_id": "evt_6a2fdbce641143d2ad51b2e67162ef85"
+          }
+        },
+        {
+          "seq": 3,
+          "ts": 1789171608214,
+          "run_id": "graph-step-7ff185a64933e742d2ac54e98c3ea94e0ab48f3721dbb444a737e36a436078b3",
+          "type": "iteration_started",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "runtime_event_id": "evt_620089da62c141698b54a3ee9f88747b"
+          }
+        }
+      ],
+      "meta": {
+        "model": "ollama:qwen3:32b",
+        "requestId": "unchain-1789171607633-9314576906447",
+        "attemptId": "unchain-1789171607633-9314576906447",
+        "executionSessionId": "chat-1789171551629-aaf4afb9ad2728"
+      }
+    }
+  ]
+}

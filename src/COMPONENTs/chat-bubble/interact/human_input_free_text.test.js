@@ -88,6 +88,30 @@ describe.each(freeTextCases)(
       });
     });
 
+    test("Enter confirms IME composition without submitting the unfinished path", () => {
+      const onSubmit = jest.fn();
+      renderInteract(Component, {
+        onSubmit,
+        config: freeTextFixture.pending.presentation.tool_call.interact_config,
+      });
+      const textbox = screen.getByPlaceholderText("Enter the folder path");
+      fireEvent.compositionStart(textbox);
+      fireEvent.change(textbox, { target: { value: "/tmp/项目 未完成" } });
+      fireEvent.keyDown(textbox, { key: "Enter", isComposing: true });
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      fireEvent.compositionEnd(textbox);
+      fireEvent.change(textbox, { target: { value: "/tmp/项目 最终路径" } });
+      fireEvent.keyDown(textbox, { key: "Enter", isComposing: false });
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(onSubmit).toHaveBeenCalledWith({
+        ...(freeTextFixture.user_response.values
+          ? { values: ["__other__"] }
+          : { value: "__other__" }),
+        other_text: "/tmp/项目 最终路径",
+      });
+    });
+
     test("shows historical text while disabled", () => {
       renderInteract(Component, {
         disabled: true,

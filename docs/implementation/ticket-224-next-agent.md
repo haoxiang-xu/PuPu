@@ -1,3 +1,5 @@
+> Verification completed on 2026-09-11. See [final 32B verification and candidate evidence](ticket-224-evidence/verification-2026-09-11/README.md). Earlier pending-test instructions below are historical; GitHub #224 / PR #271 record delivery status.
+
 # #224 — start here on the next computer
 
 **Task: verify the implemented change on a tool-calling model, then merge both PRs

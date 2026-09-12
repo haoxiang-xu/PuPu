@@ -1,0 +1,58 @@
+{
+  "blank": {
+    "status": "awaiting_response",
+    "id": "interaction_846e1d497570a904b838614348afe4fd"
+  },
+  "ime": {
+    "status": "awaiting_response",
+    "id": "interaction_846e1d497570a904b838614348afe4fd"
+  },
+  "sidecar": {
+    "status": "ready",
+    "reason": "",
+    "ready": true,
+    "pid": 72751,
+    "port": 5879,
+    "url": "http://127.0.0.1:5879",
+    "contract": {
+      "capabilities": {
+        "automatic_wake_resume": false,
+        "durable_interactions": true,
+        "durable_jobs": {
+          "available": true,
+          "reason": "",
+          "version": "D4.1"
+        },
+        "exact_cancellation": true,
+        "execution_fencing": true,
+        "runtime_events_v4": true
+      },
+      "reasons": {},
+      "schema": "pupu.runtime-capabilities",
+      "version": 1
+    },
+    "memoryV2": {
+      "configured": true,
+      "ready": true,
+      "status": "ready",
+      "reason": "",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 100,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "rolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "sidecarFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "runtimeProtocolDigest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "ec28b85225d4ed2b3588b6bab14fd9053e523b70f9b77b1a49fe087eb205a27c",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  }
+}

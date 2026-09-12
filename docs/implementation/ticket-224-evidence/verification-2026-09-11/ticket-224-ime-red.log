@@ -1,0 +1,78 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+
+FAIL src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+  ✓ InteractWrapper reaches the single free-text selector through the registry (8 ms)
+  single selector free-text interaction
+    ✓ renders a direct labelled textbox without an Other choice (19 ms)
+    ✓ blocks blank input and trims the submitted text (9 ms)
+    ✓ submits through the visible button (22 ms)
+    ✕ Enter confirms IME composition without submitting the unfinished path (4 ms)
+    ✓ shows historical text while disabled (2 ms)
+    ✓ resets text when the request id changes (4 ms)
+    ✓ preserves unsent text when the parent rerenders the same request (4 ms)
+  multiple selector free-text interaction
+    ✓ renders a direct labelled textbox without an Other choice (2 ms)
+    ✓ blocks blank input and trims the submitted text (3 ms)
+    ✓ submits through the visible button (7 ms)
+    ✕ Enter confirms IME composition without submitting the unfinished path (3 ms)
+    ✓ shows historical text while disabled (1 ms)
+    ✓ resets text when the request id changes (3 ms)
+    ✓ preserves unsent text when the parent rerenders the same request (2 ms)
+  single bounded selector behavior
+    ✓ keeps options and Other behavior (8 ms)
+  multiple bounded selector behavior
+    ✓ keeps options and Other behavior (7 ms)
+
+  ● single selector free-text interaction › Enter confirms IME composition without submitting the unfinished path
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: {"other_text": "/tmp/项目 未完成", "value": "__other__"}
+
+       99 |       fireEvent.change(textbox, { target: { value: "/tmp/项目 未完成" } });
+      100 |       fireEvent.keyDown(textbox, { key: "Enter", isComposing: true });
+    > 101 |       expect(onSubmit).not.toHaveBeenCalled();
+          |                            ^
+      102 |
+      103 |       fireEvent.compositionEnd(textbox);
+      104 |       fireEvent.change(textbox, { target: { value: "/tmp/项目 最终路径" } });
+
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:101:28)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple selector free-text interaction › Enter confirms IME composition without submitting the unfinished path
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: {"other_text": "/tmp/项目 未完成", "values": ["__other__"]}
+
+       99 |       fireEvent.change(textbox, { target: { value: "/tmp/项目 未完成" } });
+      100 |       fireEvent.keyDown(textbox, { key: "Enter", isComposing: true });
+    > 101 |       expect(onSubmit).not.toHaveBeenCalled();
+          |                            ^
+      102 |
+      103 |       fireEvent.compositionEnd(textbox);
+      104 |       fireEvent.change(textbox, { target: { value: "/tmp/项目 最终路径" } });
+
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:101:28)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 15 passed, 17 total
+Snapshots:   0 total
+Time:        0.869 s, estimated 1 s
+Ran all test suites within paths "src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js".

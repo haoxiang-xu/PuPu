@@ -1,0 +1,615 @@
+{
+  "summary": {
+    "changed_count": 21,
+    "affected_count": 38,
+    "changed_files": 9,
+    "risk_level": "critical"
+  },
+  "changed_symbols": [
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/interact/text_input_interact.js:TextInputInteract",
+      "name": "TextInputInteract",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/interact/text_input_interact.js:TextInputInteract.handleKeyDown@52:2",
+      "name": "handleKeyDown",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput",
+      "name": "ChatInput",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput.handleKeyDown@327:2",
+      "name": "handleKeyDown",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput.handleKeyDown@328:4.pickCommandAt@329:6",
+      "name": "pickCommandAt",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/chat.js:ChatInterface",
+      "name": "ChatInterface",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/chat.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream",
+      "name": "useChatStream",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.continueFromRecordedReceipt@3692:2",
+      "name": "continueFromRecordedReceipt",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.handleToolConfirmationDecision@3712:2",
+      "name": "handleToolConfirmationDecision",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.handleToolConfirmationDecision@3713:4.confirmation_id@3829:10",
+      "name": "confirmation_id",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.handleToolConfirmationDecision@3713:4.approved@3830:10",
+      "name": "approved",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.handleToolConfirmationDecision@3713:4.reason@3831:10",
+      "name": "reason",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.handleToolConfirmationDecision@3713:4.session_id@3832:10",
+      "name": "session_id",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.lookupDurableInteraction@9337:2",
+      "name": "lookupDurableInteraction",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.sealDurableInteractionForFreshSend@9867:2",
+      "name": "sealDurableInteractionForFreshSend",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/hooks/use_chat_stream.js:useChatStream.sealDurableInteractionForFreshSend@9868:4.failClosed@9900:6",
+      "name": "failClosed",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:fn@154:39.fn@520:84.fn@521:55.attemptId@523:61",
+      "name": "attemptId",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:fn@154:39.fn@520:84.fn@521:55.cancel@523:15",
+      "name": "cancel",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:fn@154:39.fn@520:84.fn@521:55.requestId@523:34",
+      "name": "requestId",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:fn@154:39.fn@550:79.approved@570:60",
+      "name": "approved",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:fn@154:39.fn@550:79.confirmationId@570:23",
+      "name": "confirmationId",
+      "type": "Property",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_75_chatinterface",
+      "name": "ChatInterface → AllGatesSatisfied",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_150_lookupdurableinterac",
+      "name": "LookupDurableInteraction → IsObject",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_245_lookupdurableinterac",
+      "name": "LookupDurableInteraction → NormalizedString",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_297_chatinterface",
+      "name": "ChatInterface → Now",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_367_usechatstream",
+      "name": "UseChatStream → GetActive",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_415_usechatstream",
+      "name": "UseChatStream → DefaultDurationFor",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_475_chatinterface",
+      "name": "ChatInterface → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_546_chatinterface",
+      "name": "ChatInterface → ResolveApi",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_629_runsend",
+      "name": "RunSend → MakeBlock",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_680_runsend",
+      "name": "RunSend → Exec",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_681_chatinterface",
+      "name": "ChatInterface → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_689_sealdurableinteracti",
+      "name": "SealDurableInteractionForFreshSend → EmitMisoRuntimeLog",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_714_runsend",
+      "name": "RunSend → IsBlankLine",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_727_sealdurableinteracti",
+      "name": "SealDurableInteractionForFreshSend → Add",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_728_runsend",
+      "name": "RunSend → HasLineEnd",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_758_runsend",
+      "name": "RunSend → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_778_usechatstream",
+      "name": "UseChatStream → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 6,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_782_sealdurableinteracti",
+      "name": "SealDurableInteractionForFreshSend → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_810_runsend",
+      "name": "RunSend → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 2
+        }
+      ]
+    },
+    {
+      "id": "proc_814_lookupdurableinterac",
+      "name": "LookupDurableInteraction → SplitLines",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_910_sealdurableinteracti",
+      "name": "SealDurableInteractionForFreshSend → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "sealDurableInteractionForFreshSend",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_997_usechatstream",
+      "name": "UseChatStream → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_999_usechatstream",
+      "name": "UseChatStream → GetBar",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1021_lookupdurableinterac",
+      "name": "LookupDurableInteraction → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1023_lookupdurableinterac",
+      "name": "LookupDurableInteraction → GetBar",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1026_handletoolconfirmati",
+      "name": "HandleToolConfirmationDecision → ReadUserAgent",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "handleToolConfirmationDecision",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1034_lookupdurableinterac",
+      "name": "LookupDurableInteraction → ReadUserAgent",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1061_chatinterface",
+      "name": "ChatInterface → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1063_chatinterface",
+      "name": "ChatInterface → GetBar",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1078_handletoolconfirmati",
+      "name": "HandleToolConfirmationDecision → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "handleToolConfirmationDecision",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1088_lookupdurableinterac",
+      "name": "LookupDurableInteraction → ClampPct",
+      "process_type": "intra_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1091_handletoolconfirmati",
+      "name": "HandleToolConfirmationDecision → ReadHeight",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "handleToolConfirmationDecision",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1096_lookupdurableinterac",
+      "name": "LookupDurableInteraction → ReadHeight",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1107_chatinterface",
+      "name": "ChatInterface → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1134_handletoolconfirmati",
+      "name": "HandleToolConfirmationDecision → ReadWidth",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "handleToolConfirmationDecision",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1136_lookupdurableinterac",
+      "name": "LookupDurableInteraction → ReadWidth",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1170_usechatstream",
+      "name": "UseChatStream → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "useChatStream",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1173_lookupdurableinterac",
+      "name": "LookupDurableInteraction → Error",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "lookupDurableInteraction",
+          "step": 1
+        }
+      ]
+    }
+  ]
+}
