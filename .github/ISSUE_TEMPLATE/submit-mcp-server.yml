@@ -10,6 +10,10 @@ body:
         store entry. New entries land as **needs_review** and ship only after a
         security review. See the full guide:
         https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/mcp-store-submission.md
+
+        Prefer to submit a PR? Create your branch from upstream `dev` and select
+        `haoxiang-xu/PuPu` with `base: dev` when opening it. GitHub may default to
+        `main`; change the base to `dev` before submitting.
   - type: input
     id: name
     attributes:

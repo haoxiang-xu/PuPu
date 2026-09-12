@@ -17,6 +17,7 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 - [Runtime Events V3](./architecture/runtime-events-v3.md) — Typed runtime event store, ActivityTree reducer, TraceChain adapter
 - [IPC Boundary](./architecture/ipc-boundary.md) — Electron IPC patterns, bridge layers, channel registry
 - [System Prompt V2](./architecture/system-prompt-v2.md) — 3-layer prompt override architecture
+- [Context V2 & Memory V2](./architecture/context-v2-and-memory-v2.md) — Canonical durable context, Memory V2 admission, execution recovery, and legacy-memory boundary
 - [Memory System](./architecture/memory-system.md) — Embedding resolution, Qdrant, session vs long-term memory
 - [Storage Model](./architecture/storage-model.md) — localStorage persistence, schema versioning, tree structure
 

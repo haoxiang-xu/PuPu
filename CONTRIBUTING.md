@@ -13,7 +13,9 @@ issue. Prefer a PR? Both paths are documented in
 
 1. Read [`.claude/CLAUDE.md`](./.claude/CLAUDE.md) for the project conventions
    (JavaScript only, inline styles, the IPC boundary) and [`docs/DEV_GUIDE.md`](./docs/DEV_GUIDE.md).
-2. Fork, branch, and make your change.
+2. Fork the repository, create your contribution branch from upstream `dev`,
+   and make your change. If your fork only contains `main`, fetch upstream `dev`
+   first.
 3. Run the test suites that cover your area:
 
    ```bash
@@ -21,7 +23,12 @@ issue. Prefer a PR? Both paths are documented in
    npm run validate:mcp     # if you touched the MCP store catalog
    ```
 
-4. Open a PR describing what changed and why.
+4. Open a PR with **`haoxiang-xu/PuPu` → `base: dev`**, describing what changed
+   and why. Check the base before submitting: GitHub may default to `main`.
+
+All ordinary contributions, including MCP catalog entries, target `dev`.
+Maintainers promote `dev` to the release branch `main`; ordinary contribution
+PRs targeting `main` fail the source-branch check.
 
 ## Licensing & CLA
 

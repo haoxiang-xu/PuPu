@@ -1,3 +1,6 @@
+<!-- Ordinary contributions, including MCP catalog entries: select base: dev.
+GitHub may default to main. Maintainer release-promotion PRs use dev → main. -->
+
 ## Summary
 
 Describe the change and the user-visible impact.

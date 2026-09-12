@@ -161,6 +161,7 @@ npm run build:electron:linux       # Linux
 | [Runtime Events V3](architecture/runtime-events-v3.md) | Typed runtime event store, ActivityTree reducer, TraceChain adapter |
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
 | [System Prompt V2](architecture/system-prompt-v2.md) | 3-layer prompt override architecture |
+| [Context V2 & Memory V2](architecture/context-v2-and-memory-v2.md) | Canonical durable context, Memory V2 admission, execution recovery, and legacy-memory boundary |
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
 | [Storage Model](architecture/storage-model.md) | Chat persistence, and App Settings authoritative in `settings.db` (SQLite) with a `localStorage` fallback |
 | [App Settings → SQLite Migration](architecture/settings-sqlite-migration-plan.md) | Settings SQLite architecture, migration state machine, secret storage boundary |

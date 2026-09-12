@@ -11,7 +11,8 @@ a catalog entry and opens the PR for you.
 
 ## Option B — Pull request (for developers)
 
-1. Fork the repo.
+1. Fork the repo and create your contribution branch from the upstream `dev`
+   branch. If your fork only contains `main`, fetch upstream `dev` first.
 2. Add an entry to `src/SERVICEs/mcp_toolkit_registry.json` following the schema
    in `src/SERVICEs/mcp_toolkit_registry.schema.json` and the existing entries.
 3. Run validation locally:
@@ -20,7 +21,12 @@ a catalog entry and opens the PR for you.
    npm run validate:mcp
    ```
 
-4. Open a PR. CI re-runs validation on every change to the catalog.
+4. Open a PR against **`haoxiang-xu/PuPu` with `base: dev`** and your contribution
+   branch as the head. GitHub may default to `main`; change the base to `dev`
+   before submitting. CI re-runs validation on every change to the catalog.
+
+`main` is the release branch. Maintainers promote `dev` to `main`; ordinary
+contribution PRs targeting `main` fail the source-branch check.
 
 ## What we require
 
