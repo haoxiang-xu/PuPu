@@ -833,6 +833,22 @@ const AttachPanel = forwardRef(({
 
   return (
     <div
+      onPointerDownCapture={(e) => {
+        // A selector dismisses on document mousedown, before the next
+        // control receives click. Restore focus on the earlier pointerdown
+        // (document capture can flush before React's mousedown capture) so its
+        // empty panel cannot retract and move that control before mouseup.
+        // Portals bubble through React too: only the actual panel row owns
+        // this focus transfer, never a dropdown's search or content.
+        if (
+          floating &&
+          e.button === 0 &&
+          e.currentTarget.contains(e.target) &&
+          !isTextEntryTarget(e.target)
+        ) {
+          onRequestInputFocus();
+        }
+      }}
       onMouseDown={(e) => {
         if (isTextEntryTarget(e.target)) return;
         e.preventDefault();
