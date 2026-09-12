@@ -312,12 +312,12 @@
       "id": "dev.bug-bounty-intelligence",
       "toolkitId": "mcp.dev.bug-bounty-intelligence",
       "name": "Bug Bounty Intelligence",
-      "description": "Third-party smart contract security scanner trained on Sherlock/Code4rena audit findings. Two tools are free; scan_contract costs 5 USDC via x402.",
+      "description": "Third-party smart contract security tools using Sherlock/Code4rena audit data. Two tools are free; the provider advertises paid scans at 5 USDC. See payment limitations before use.",
       "category": "dev",
       "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "needs_review",
-      "installable": false,
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
       "license": "MIT",
       "sourceRepo": "https://github.com/holistis/bug-bounty-intelligence-mcp",
       "docsUrl": "https://github.com/holistis/bug-bounty-intelligence-mcp#readme",
@@ -360,7 +360,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 1
       },
-      "readmeMarkdown": "## Bug Bounty Intelligence (third-party, pending review)\n\nRuns the **third-party** `bug-bounty-intelligence-mcp` server (published by its author, not by PuPu) over stdio, pinned to `@1.0.3`. This is **pending PuPu review** (`needs_review`).\n\n`list_vulnerability_patterns` and `get_scan_report` are free and read-only. `scan_contract` submits a public GitHub repo for a full Solidity security scan and requires paying 5 USDC on Base directly to the author's wallet via x402 (a manual on-chain transfer, not billed through PuPu) before the scan runs; it requires confirmation for that reason.\n\nNo secrets or OAuth are involved. Acceptance-rate numbers in `list_vulnerability_patterns` come from 1,032 findings the author could exactly reconcile against Sherlock's own published outcomes, not the full 27,681-finding corpus the tool is trained on; see the repo's METHODOLOGY.md for how that subset was chosen."
+      "readmeMarkdown": "## Bug Bounty Intelligence (third-party)\n\nRuns the **third-party** `bug-bounty-intelligence-mcp` server, published and operated by its author, not by PuPu. It is available to install as a community integration, pinned to `@1.0.3`. Catalog inclusion does not imply PuPu endorsement or verification of audit accuracy or paid-service delivery.\n\n`list_vulnerability_patterns` and `get_scan_report` are free. The provider advertises `scan_contract` at 5 USDC on Base; payment is handled by the provider, not billed through PuPu. Calling the paid tool requires confirmation.\n\n### Known payment limitations in version 1.0.3\n\nThe published client contains a stale fallback payment address and does not forward the payment signature required by the live x402 endpoint. Paid scanning may therefore fail to proceed. A manual transfer alone is not proof that the service will accept payment or deliver a report. Upstream source fixes do not change this pinned npm release. Confirm the current payment procedure with the provider before paying; PuPu has not verified a completed paid scan.\n\nNo secrets or OAuth setup is required by this entry. The public MCP client is open source; the hosted scanning backend is not included in that client repository. Acceptance-rate figures for the free patterns tool are based on 1,032 findings reconciled against Sherlock results, not all 27,681 submitted findings in the broader corpus; see the provider's METHODOLOGY.md."
     },
     {
       "id": "devops.sentry-remote",
