@@ -513,9 +513,7 @@
       "add": "+ 添加",
       "search_workspaces": "搜索工作区...",
       "attach_file": "附加图片或 PDF",
-      "attach_file_unsupported": "当前模型不支持文件输入",
       "screenshot": "截图",
-      "screenshot_unsupported": "当前模型不支持图片输入",
       "select_toolkits": "选择插件",
       "select_workspaces": "选择工作区",
       "computer": "电脑",
@@ -525,7 +523,12 @@
       "effort_default_hint": "模型默认：{level}",
       "context": "上下文",
       "context_default_hint": "PuPu 默认：{tokens}",
-      "context_beyond_max_hint": "超过该模型的 {tokens} 上下文上限"
+      "context_beyond_max_hint": "超过该模型的 {tokens} 上下文上限",
+      "more": "更多",
+      "link": "链接",
+      "context_usage": "上下文用量",
+      "done": "完成",
+      "drop_here": "拖到这里收起"
     }
   },
   "toolkit": {

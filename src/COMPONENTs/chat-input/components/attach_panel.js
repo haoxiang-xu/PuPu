@@ -8,12 +8,17 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { Z } from "../../../BUILTIN_COMPONENTs/layer/z_layers";
 import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import useReducedMotion from "../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
 import { QueueAttachSection } from "./queue_pile";
@@ -21,6 +26,13 @@ import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
+import useAttachPanelLayout from "../hooks/use_attach_panel_layout";
+import {
+  MOVABLE_ATTACH_WIDGETS,
+  moveAttachWidget,
+  setAttachWidgetHidden,
+  writeAttachPanelLayout,
+} from "../../../SERVICEs/attach_panel_layout";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
@@ -28,6 +40,48 @@ import {
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
 import ContextCompositionProgress from "./context_composition_progress";
+
+const MOVABLE_ATTACH_WIDGET_SET = new Set(MOVABLE_ATTACH_WIDGETS);
+
+/* ── arrange-mode jiggle ────────────────────────────────────────────────────
+   The iOS home-screen tell: while arranging, every movable widget rocks a
+   couple of degrees around its centre, each on its own phase, so the row
+   reads as "loose" without a word of instruction. Keyframes cannot live in
+   an inline style, so they are injected once into the document head, the
+   way the spinners do it. */
+const JIGGLE_STYLE_ATTR = "data-pupu-attach-jiggle";
+const JIGGLE_NAME = "pupu-attach-jiggle";
+/* the menu's rows are wide and short, so they rock less — the same period,
+   a third of the angle — or the labels would read as shaking */
+const JIGGLE_ROW_NAME = "pupu-attach-jiggle-row";
+const JIGGLE_PERIOD_MS = 260;
+/* the "…" menu's rows cascade in the way the palette's do (option_list.js
+   rowStagger): rise 8px and fade, 200ms on the palette's own curve, 30ms
+   apart top-down */
+const MENU_IN_NAME = "pupu-attach-menu-in";
+const ensureJiggleKeyframes = () => {
+  if (typeof document === "undefined") return;
+  if (document.head.querySelector(`style[${JIGGLE_STYLE_ATTR}]`)) return;
+  const style = document.createElement("style");
+  style.setAttribute(JIGGLE_STYLE_ATTR, "");
+  style.textContent = `
+    @keyframes ${JIGGLE_NAME} {
+      0%   { transform: rotate(-1.6deg) translateY(0.2px); }
+      50%  { transform: rotate(1.6deg) translateY(-0.2px); }
+      100% { transform: rotate(-1.6deg) translateY(0.2px); }
+    }
+    @keyframes ${JIGGLE_ROW_NAME} {
+      0%   { transform: rotate(-0.5deg); }
+      50%  { transform: rotate(0.5deg); }
+      100% { transform: rotate(-0.5deg); }
+    }
+    @keyframes ${MENU_IN_NAME} {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(style);
+};
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -516,7 +570,6 @@ const AttachPanel = forwardRef(({
   modelSelectDisabled,
   isDark,
   attachmentsEnabled = true,
-  attachmentsDisabledReason = "",
   attachments = [],
   onRemoveAttachment,
   isStreaming = false,
@@ -749,26 +802,503 @@ const AttachPanel = forwardRef(({
     [onRequestInputFocus],
   );
 
-  /* ordered, availability-filtered control list for keyboard navigation */
+  /* ── widget layout (#217) ──────────────────────────────────────────────
+     The movable widgets render in the user's order; the ones the user tucked
+     away live in the "…" menu at the end of the row and are invoked from
+     there. Availability is this chat's business (no screenshot handler, tools
+     hidden behind an agent recipe) and the model's (attachments the model
+     cannot read): an unavailable widget is skipped in both places — never
+     shown disabled — and keeps its slot for when it comes back; when the
+     last tucked one goes, the "…" goes with it. The model pill and the
+     queue segment are not movable. */
+  const layout = useAttachPanelLayout();
+  const widgetAvailable = {
+    context_composition: hasContextComposition,
+    attach: Boolean(onAttachFile && attachmentsEnabled),
+    screenshot: Boolean(onAttachFile && onAttachScreenshot && attachmentsEnabled),
+    tools: Boolean(onAttachFile && showToolSelector && !hasActiveAgentRecipe),
+    workspace: Boolean(onAttachFile && showWorkspaceSelector),
+    link: Boolean(onAttachLink),
+  };
+  const visibleWidgets = layout.order.filter(
+    (id) => widgetAvailable[id] && !layout.hidden.includes(id),
+  );
+  const tuckedWidgets = layout.order.filter(
+    (id) => widgetAvailable[id] && layout.hidden.includes(id),
+  );
+  const hasMore = tuckedWidgets.length > 0;
+  const [moreIndex, setMoreIndex] = useState(0);
+  const [arranging, setArranging] = useState(false);
+  /* The "…" menu is open state of its own, not a value of openSelector: a
+     tucked tools/workspace palette or the tucked ring's panel opens FROM a
+     row of this menu (openSelector becomes "tools"…), and the menu has to
+     stay put underneath as their anchor. Opening anything else on the row
+     (the model pill, a visible widget) closes the menu — see the effect. */
+  const [moreOpen, setMoreOpen] = useState(false);
+  const tuckedWidgetsRef = useRef(tuckedWidgets);
+  tuckedWidgetsRef.current = tuckedWidgets;
+
+  const arrangingRef = useRef(false);
+  const handleMoreOpenChange = useCallback(
+    (next) => {
+      setMoreOpen(next);
+      if (next) {
+        setOpenSelector("more");
+        setMoreIndex(0);
+        return;
+      }
+      setOpenSelector((current) =>
+        current === "more" || tuckedWidgetsRef.current.includes(current)
+          ? null
+          : current,
+      );
+      if (kbOpenedSelectorRef.current === "more") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
+      }
+    },
+    [onRequestInputFocus],
+  );
+  useEffect(() => {
+    if (!moreOpen || arranging) return;
+    if (
+      openSelector !== null &&
+      openSelector !== "more" &&
+      !tuckedWidgets.includes(openSelector)
+    ) {
+      setMoreOpen(false);
+    }
+  }, [openSelector, moreOpen, tuckedWidgets, arranging]);
+  arrangingRef.current = arranging;
+
+  /* ── arrange mode (#217) ─────────────────────────────────────────────────
+     The row itself becomes the editor: every movable widget sits in a
+     dashed slot, the "…" button unfolds into a dashed tray holding the
+     tucked widgets, and a Done control ends the session (so do Escape and
+     a click outside). Dragging a slot past its neighbours reorders; dropping
+     it on the tray tucks it; dragging a tray item back out restores it at
+     the drop point. Each drop is written at once, so a closed window loses
+     nothing. Keyboard: ←/→ walk the slots and tray items, Shift+←/→ move
+     the highlighted one, Enter tucks or restores it. */
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const prefersReducedMotion = useReducedMotion();
+  useEffect(() => {
+    if ((arranging || moreOpen) && !prefersReducedMotion) ensureJiggleKeyframes();
+  }, [arranging, moreOpen, prefersReducedMotion]);
+  const slotRefs = useRef(new Map()); /* row slots, id → element */
+  const menuRowRefs = useRef(new Map()); /* menu rows, id → element */
+  const menuRef = useRef(null);
+  const moreWrapRef = useRef(null); /* the "…" button's wrapper */
+  const moreOpenRef = useRef(false);
+  moreOpenRef.current = moreOpen;
+  const dragRef = useRef(null);
+  /* {id, x, y}: the ghost's centre in viewport coordinates (it is portaled
+     to the body so it rides above the menu popover) */
+  const [dragGhost, setDragGhost] = useState(null);
+  /* {zone: "row" | "menu", index} */
+  const [dropTarget, setDropTarget] = useState(null);
+
+  const persist = (nextLayout) => {
+    const persistence = writeAttachPanelLayout(nextLayout);
+    if (persistence && typeof persistence.catch === "function") {
+      persistence.catch(() => {});
+    }
+  };
+  /* Insert `id` before the `index`-th member of `list` (or after its last
+     member) in the record's order, skipping over widgets this chat cannot
+     offer so they keep their own places. `list` is the row (available, not
+     hidden) or the menu (available, hidden), without `id`. */
+  const placeAmong = (baseLayout, id, list, index) => {
+    const withoutId = baseLayout.order.filter((item) => item !== id);
+    let orderIndex;
+    if (index < list.length) {
+      orderIndex = withoutId.indexOf(list[index]);
+    } else if (list.length > 0) {
+      orderIndex = withoutId.indexOf(list[list.length - 1]) + 1;
+    } else {
+      orderIndex = 0;
+    }
+    return moveAttachWidget(baseLayout, id, orderIndex);
+  };
+  const rowListOf = (baseLayout, id) =>
+    baseLayout.order.filter(
+      (item) => item !== id && widgetAvailable[item] && !baseLayout.hidden.includes(item),
+    );
+  const menuListOf = (baseLayout, id) =>
+    baseLayout.order.filter(
+      (item) => item !== id && widgetAvailable[item] && baseLayout.hidden.includes(item),
+    );
+  const placeInRow = (baseLayout, id, visibleIndex) =>
+    placeAmong(baseLayout, id, rowListOf(baseLayout, id), visibleIndex);
+  const placeInMenu = (baseLayout, id, menuIndex) =>
+    placeAmong(baseLayout, id, menuListOf(baseLayout, id), menuIndex);
+  const persistIfChanged = (next) => {
+    const current = layoutRef.current;
+    if (
+      next.order.join("|") === current.order.join("|") &&
+      next.hidden.join("|") === current.hidden.join("|")
+    ) {
+      return;
+    }
+    persist(next);
+  };
+  const applyDrop = (id, target) => {
+    const current = layoutRef.current;
+    if (!target || typeof target.index !== "number") return;
+    if (target.zone === "menu") {
+      const tucked = setAttachWidgetHidden(current, id, true);
+      persistIfChanged(placeInMenu(tucked, id, target.index));
+      return;
+    }
+    const restored = setAttachWidgetHidden(current, id, false);
+    persistIfChanged(placeInRow(restored, id, target.index));
+  };
+  /* The ghost is pointer-transparent, so whatever sits under the hand — the
+     composer's text, most of the time — would set the cursor: an I-beam in
+     the middle of a drag, a grab hand only while passing over a slot. While
+     a widget is in hand the page itself shows the grabbing hand, and nothing
+     can be text-selected by the sweep. Restored on release. */
+  const dragCursorRef = useRef(null);
+  const holdDragCursor = () => {
+    if (typeof document === "undefined" || dragCursorRef.current) return;
+    const { style } = document.body;
+    dragCursorRef.current = {
+      cursor: style.cursor,
+      userSelect: style.userSelect,
+      webkitUserSelect: style.webkitUserSelect,
+    };
+    style.cursor = "grabbing";
+    style.userSelect = "none";
+    style.webkitUserSelect = "none";
+  };
+  const releaseDragCursor = () => {
+    const saved = dragCursorRef.current;
+    if (!saved || typeof document === "undefined") return;
+    dragCursorRef.current = null;
+    const { style } = document.body;
+    style.cursor = saved.cursor;
+    style.userSelect = saved.userSelect;
+    style.webkitUserSelect = saved.webkitUserSelect;
+  };
+  const endDrag = () => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    releaseDragCursor();
+    if (drag) {
+      drag.detach();
+      if (drag.moved && drag.target) applyDrop(drag.id, drag.target);
+      /* a widget carried from the row into the menu: it is in, the menu
+         has done its job and folds away; a move within the menu keeps it */
+      if (
+        drag.target &&
+        drag.target.zone === "menu" &&
+        drag.origin.zone !== "menu" &&
+        moreOpenRef.current
+      ) {
+        moreOpenRef.current = false;
+        handleMoreOpenChangeRef.current(false);
+      }
+    }
+    setDragGhost(null);
+    setDropTarget(null);
+  };
+  const handleMoreOpenChangeRef = useRef(handleMoreOpenChange);
+  handleMoreOpenChangeRef.current = handleMoreOpenChange;
+  /* The menu that a hover on the "…" opened was not there to measure when
+     the hover was read: re-read the target against it once it is (and once
+     more a frame later, after the popover engine has placed it), so the gap
+     opens at the end nearest the button whichever side it hangs on. */
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const reread = () => {
+      const drag = dragRef.current;
+      if (!drag || !drag.last) return;
+      drag.target = computeTargetRef.current(drag.id, drag.last.x, drag.last.y);
+      setDropTarget(drag.target);
+    };
+    reread();
+    const frame =
+      typeof requestAnimationFrame === "function" ? requestAnimationFrame(reread) : null;
+    return () => {
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [moreOpen]);
+  /* The drop target is read against LIVE positions on every move. The
+     panel keeps moving under a drag that starts from a long press (arrange
+     mode marks the panel active, so it floats up over a couple of hundred
+     milliseconds), and a snapshot taken at drag start pointed at where the
+     tray had been. Live reading is stable against the gap the target
+     opens: the gap always moves away from the centre the pointer just
+     crossed, so the comparison never flips back. The menu is checked
+     first; taking it as the target only grows its own rect by a gap row,
+     so it needs no hysteresis. */
+  const moreButtonRect = () => {
+    const wrap = moreWrapRef.current;
+    if (!wrap) return null;
+    const el = wrap.querySelector?.('[data-testid="attach-more"]') || wrap;
+    return el.getBoundingClientRect?.() || null;
+  };
+  const menuEndIndex = (id) => tuckedWidgets.filter((item) => item !== id).length;
+  const computeTarget = (id, clientX, clientY) => {
+    const menu = menuRef.current?.getBoundingClientRect?.();
+    const more = moreButtonRect();
+    /* a hair of slack only: the open gap row already grows the menu's own
+       rect toward the pointer */
+    const slack = 6;
+    const within = (rect, x, y) =>
+      x >= rect.left - slack && x <= rect.right + slack && y >= rect.top - slack && y <= rect.bottom + slack;
+    if (menu) {
+      if (within(menu, clientX, clientY)) {
+        let index = 0;
+        tuckedWidgets.forEach((item) => {
+          if (item === id) return;
+          const rect = menuRowRefs.current.get(item)?.getBoundingClientRect?.();
+          if (rect && rect.top + rect.height / 2 < clientY) index += 1;
+        });
+        return { zone: "menu", index };
+      }
+      /* on the "…" itself, or in the seam between it and the menu (the
+         button's own width only — a row slot that happens to sit under the
+         menu's span is still the row): the end of the menu nearest the
+         button. The engine hangs the menu below the row when there is no
+         room above, so that end is the top there. */
+      if (more) {
+        const seam = {
+          left: more.left,
+          right: more.right,
+          top: Math.min(more.top, menu.top),
+          bottom: Math.max(more.bottom, menu.bottom),
+        };
+        if (within(seam, clientX, clientY)) {
+          const menuAbove = menu.bottom <= more.top + slack;
+          return { zone: "menu", index: menuAbove ? menuEndIndex(id) : 0 };
+        }
+      }
+    } else if (
+      more &&
+      clientX >= more.left - slack &&
+      clientX <= more.right + slack &&
+      clientY >= more.top - slack &&
+      clientY <= more.bottom + slack
+    ) {
+      /* hovering the "…" with a widget in hand: the menu opens as the drop
+         zone (see onMove) and the widget would go at its end */
+      return { zone: "menu", index: menuEndIndex(id) };
+    }
+    let index = 0;
+    visibleWidgets.forEach((item) => {
+      if (item === id) return;
+      const rect = slotRefs.current.get(item)?.getBoundingClientRect?.();
+      if (rect && rect.left + rect.width / 2 < clientX) index += 1;
+    });
+    return { zone: "row", index };
+  };
+  const computeTargetRef = useRef(computeTarget);
+  computeTargetRef.current = computeTarget;
+  const beginDragAt = (id, startX, startY) => {
+    if (dragRef.current) return;
+    /* where it came from: that slot stays open while the widget hovers the
+       other zone, so neither the row's width nor the menu's height shifts
+       under the hand mid-drag */
+    const origin = tuckedWidgets.includes(id)
+      ? { zone: "menu", index: tuckedWidgets.indexOf(id) }
+      : { zone: "row", index: Math.max(0, visibleWidgets.indexOf(id)) };
+    const ghostAt = (event) => ({ id, x: event.clientX, y: event.clientY, origin });
+    const onMove = (event) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (event.buttons === 0) {
+        endDrag();
+        return;
+      }
+      /* through the ref: the latest render's slots and visible list */
+      drag.last = { x: event.clientX, y: event.clientY };
+      drag.target = computeTargetRef.current(id, event.clientX, event.clientY);
+      setDragGhost(ghostAt(event));
+      setDropTarget(drag.target);
+      /* the menu is open exactly while the hand is over it or over the "…":
+         dragging in opens it, dragging out (a menu row leaving, or a row
+         widget carried away again) closes it */
+      const wantOpen = drag.target.zone === "menu";
+      if (wantOpen !== moreOpenRef.current) {
+        moreOpenRef.current = wantOpen;
+        handleMoreOpenChangeRef.current(wantOpen);
+      }
+    };
+    const onUp = () => endDrag();
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
+    /* lifted at once: the ghost sits under the pointer and the gap opens
+       exactly where the widget was, so nothing shifts until it moves */
+    const initialTarget = computeTarget(id, startX, startY);
+    dragRef.current = {
+      id,
+      origin,
+      moved: true,
+      last: { x: startX, y: startY },
+      target: initialTarget,
+      detach: () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("blur", onUp);
+      },
+    };
+    holdDragCursor();
+    setDragGhost(ghostAt({ clientX: startX, clientY: startY }));
+    setDropTarget(initialTarget);
+  };
+  const beginDrag = (id, e) => {
+    if (dragRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    beginDragAt(id, e.clientX, e.clientY);
+  };
+  /* A long press enters arrange mode WITH the pressed widget already in
+     hand: the slots exist only after that render, so the drag is started in
+     an effect once they do, and the pointer that is still down carries on. */
+  const pendingDragRef = useRef(null);
+  const beginDragAtRef = useRef(beginDragAt);
+  beginDragAtRef.current = beginDragAt;
+  useEffect(() => {
+    if (!arranging) return;
+    const pending = pendingDragRef.current;
+    if (!pending) return;
+    pendingDragRef.current = null;
+    beginDragAtRef.current(pending.id, pending.clientX, pending.clientY);
+  }, [arranging]);
+  const endDragRef = useRef(endDrag);
+  endDragRef.current = endDrag;
+  const releaseDragCursorRef = useRef(releaseDragCursor);
+  releaseDragCursorRef.current = releaseDragCursor;
+  useEffect(
+    () => () => {
+      if (dragRef.current) dragRef.current.detach();
+      releaseDragCursorRef.current();
+    },
+    [],
+  );
+  /* Entering from the keyboard keeps the highlighted widget highlighted;
+     entering with the mouse (Arrange…, right-click, long press) highlights
+     nothing — a hover wash on the first icon read as "selected". The first
+     arrow key then lands on the first slot. */
+  const startArranging = () => {
+    const { kbIndex: idx, kbControls: controls } = kbStateRef.current;
+    const highlighted = idx >= 0 ? controls[idx] : null;
+    const keep =
+      highlighted && MOVABLE_ATTACH_WIDGET_SET.has(highlighted) ? highlighted : null;
+    kbActiveWidgetRef.current = keep;
+    arrangingRef.current = true;
+    setArranging(true);
+    setKbIndex(keep ? 0 : -1);
+  };
+  const startArrangingRef = useRef(startArranging);
+  startArrangingRef.current = startArranging;
+  const LONG_PRESS_MS = 500;
+  const longPressTimerRef = useRef(null);
+  const longPressFiredRef = useRef(false);
+  const disarmLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const armLongPress = (id, clientX, clientY) => {
+    disarmLongPress();
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressFiredRef.current = true;
+      /* the pressed widget goes straight into the hand */
+      pendingDragRef.current = { id, clientX, clientY };
+      startArrangingRef.current();
+    }, LONG_PRESS_MS);
+  };
+  useEffect(() => () => disarmLongPress(), []);
+  const finishArranging = useCallback(() => {
+    if (dragRef.current) endDragRef.current();
+    arrangingRef.current = false;
+    setArranging(false);
+    setMoreOpen(false);
+    setOpenSelector((current) => (current === "more" ? null : current));
+    setKbIndex(-1);
+    onRequestInputFocus();
+  }, [onRequestInputFocus]);
+  /* a click anywhere outside the row ends the session */
+  useEffect(() => {
+    if (!arranging) return undefined;
+    const onDocDown = (event) => {
+      const rowEl = rowRef.current;
+      if (rowEl && rowEl.contains(event.target)) return;
+      const menuEl = menuRef.current;
+      if (menuEl && menuEl.contains(event.target)) return;
+      finishArranging();
+    };
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, [arranging, finishArranging]);
+  const rowRef = useRef(null);
+
+  /* keyboard moves while arranging: Shift+←/→ move the highlighted widget one
+     slot; Enter tucks a row widget or restores a tray one (at the end). */
+  const kbMoveArranging = (id, delta) => {
+    const current = layoutRef.current;
+    if (current.hidden.includes(id)) return;
+    const shown = current.order.filter(
+      (item) => widgetAvailable[item] && !current.hidden.includes(item),
+    );
+    const at = shown.indexOf(id);
+    if (at < 0) return;
+    const to = at + delta;
+    if (to < 0 || to >= shown.length) return;
+    /* placeInRow indexes the row WITHOUT this widget, where the neighbour
+       we hop over sits at `to` in either direction */
+    persist(placeInRow(current, id, to));
+  };
+  const kbToggleArranging = (id) => {
+    const current = layoutRef.current;
+    if (current.hidden.includes(id)) {
+      const restored = setAttachWidgetHidden(current, id, false);
+      persist(placeInRow(restored, id, rowListOf(restored, id).length));
+    } else {
+      const tucked = setAttachWidgetHidden(current, id, true);
+      persist(placeInMenu(tucked, id, menuListOf(tucked, id).length));
+    }
+  };
+
+  /* ordered, availability-filtered control list for keyboard navigation:
+     the pill, the visible widgets in the user's order, the "…" button when
+     anything is tucked away, then the queue. */
   const kbControls = [];
-  if (showModelSelector && modelSelectOptions.length > 0)
-    kbControls.push("model");
-  if (hasContextComposition) kbControls.push("context_composition");
-  if (onAttachFile) {
-    kbControls.push("attach");
-    if (onAttachScreenshot) kbControls.push("screenshot");
-    if (showToolSelector && !hasActiveAgentRecipe) kbControls.push("tools");
-    if (showWorkspaceSelector) kbControls.push("workspace");
+  if (arranging) {
+    visibleWidgets.forEach((id) => kbControls.push(id));
+    tuckedWidgets.forEach((id) => kbControls.push(id));
+  } else {
+    if (showModelSelector && modelSelectOptions.length > 0)
+      kbControls.push("model");
+    visibleWidgets.forEach((id) => kbControls.push(id));
+    if (hasMore) kbControls.push("more");
+    if (queueItems.length > 0) kbControls.push("queue");
   }
-  if (onAttachLink) kbControls.push("link");
-  if (queueItems.length > 0) kbControls.push("queue");
 
   const kbStateRef = useRef({});
-  kbStateRef.current = { kbIndex, kbQueueOpen, kbControls };
+  kbStateRef.current = {
+    kbIndex,
+    kbQueueOpen,
+    kbControls,
+    moreOpen,
+    moreIndex,
+    tuckedWidgets,
+    arranging,
+  };
 
   useEffect(() => {
-    onKeyboardActiveChange(kbIndex >= 0);
-  }, [kbIndex, onKeyboardActiveChange]);
+    onKeyboardActiveChange(kbIndex >= 0 || arranging);
+  }, [kbIndex, arranging, onKeyboardActiveChange]);
 
   /* While a dropdown is open, FREEZE the panel's floating state as it was
      at open time: a floating panel must not retract when the dropdown's
@@ -826,9 +1356,36 @@ const AttachPanel = forwardRef(({
       if (onAttachLink) onAttachLink();
     } else if (id === "queue") {
       setKbQueueOpen(true);
+    } else if (id === "more") {
+      kbOpenedSelectorRef.current = "more";
+      handleMoreOpenChange(true);
     }
   };
   const kbActivateRef = useRef(kbActivate);
+
+  /* Invoking a widget from the "…" menu: one-shot actions fire and close the
+     menu; the popover widgets open their own panel anchored to their menu
+     row, so the menu stays put underneath. */
+  const activateTucked = (id) => {
+    if (id === "attach") {
+      handleMoreOpenChange(false);
+      if (attachmentsEnabled && onAttachFile) onAttachFile();
+    } else if (id === "screenshot") {
+      handleMoreOpenChange(false);
+      if (attachmentsEnabled && onAttachScreenshot) onAttachScreenshot();
+    } else if (id === "link") {
+      handleMoreOpenChange(false);
+      if (onAttachLink) onAttachLink();
+    } else if (id === "tools") {
+      handleToolsOpenChange(true);
+    } else if (id === "workspace") {
+      handleWorkspaceOpenChange(true);
+    } else if (id === "context_composition") {
+      setOpenSelector("context_composition");
+    }
+  };
+  const activateTuckedRef = useRef(activateTucked);
+  activateTuckedRef.current = activateTucked;
   kbActivateRef.current = kbActivate;
 
   useImperativeHandle(
@@ -844,13 +1401,83 @@ const AttachPanel = forwardRef(({
       exitKeyboard,
       /* returns "handled" (host must preventDefault) or "pass" (key falls
          through to the input; keyboard mode already exited) */
-      handleKeyboardKey: (key) => {
+      handleKeyboardKey: (key, modifiers = {}) => {
         const {
           kbIndex: idx,
           kbQueueOpen: queueOpen,
           kbControls: controls,
+          arranging: isArranging,
         } = kbStateRef.current;
+        if (isArranging) {
+          const current = controls[idx] ?? null;
+          if (key === "Escape") {
+            finishArranging();
+            return "handled";
+          }
+          if (key === "ArrowLeft" || key === "ArrowRight") {
+            const delta = key === "ArrowRight" ? 1 : -1;
+            if (modifiers.shift && current) {
+              kbMoveArrangingRef.current(current, delta);
+              return "handled";
+            }
+            if (controls.length > 0) {
+              const next =
+                idx < 0
+                  ? delta > 0
+                    ? 0
+                    : controls.length - 1
+                  : (idx + delta + controls.length) % controls.length;
+              kbActiveWidgetRef.current = controls[next];
+              setKbIndex(next);
+              /* the highlight moving onto a tucked widget shows the menu */
+              if (
+                tuckedWidgetsRef.current.includes(controls[next]) &&
+                !kbStateRef.current.moreOpen
+              ) {
+                setMoreOpen(true);
+                setOpenSelector("more");
+              }
+            }
+            return "handled";
+          }
+          if ((key === "Enter" || key === " ") && current) {
+            kbToggleArrangingRef.current(current);
+            return "handled";
+          }
+          /* every other key stays inside the session and does nothing */
+          return "handled";
+        }
         if (idx < 0) return "pass";
+        const { moreOpen, moreIndex: menuIdx, tuckedWidgets: tucked } =
+          kbStateRef.current;
+        if (moreOpen) {
+          if (key === "Escape") {
+            handleMoreOpenChange(false);
+            return "handled";
+          }
+          if (key === "ArrowUp" || key === "ArrowDown") {
+            const delta = key === "ArrowDown" ? 1 : -1;
+            const count = Math.max(1, tucked.length);
+            setMoreIndex((prev) => (prev + delta + count) % count);
+            return "handled";
+          }
+          if (key === "Enter" && modifiers.shift) {
+            /* Shift+Enter on a menu row: arrange, with that row highlighted */
+            kbActiveWidgetRef.current = tucked[menuIdx] ?? null;
+            startArrangingRef.current();
+            return "handled";
+          }
+          if (key === "Enter" || key === " ") {
+            if (menuIdx < tucked.length) {
+              activateTuckedRef.current(tucked[menuIdx]);
+            }
+            return "handled";
+          }
+          if (key === "ArrowLeft" || key === "ArrowRight") return "handled";
+          handleMoreOpenChange(false);
+          exitKeyboard();
+          return "pass";
+        }
         if (queueOpen) {
           if (key === "Escape") {
             setKbQueueOpen(false);
@@ -875,6 +1502,14 @@ const AttachPanel = forwardRef(({
           );
           return "handled";
         }
+        if (
+          key === "Enter" &&
+          modifiers.shift &&
+          MOVABLE_ATTACH_WIDGET_SET.has(controls[idx])
+        ) {
+          startArrangingRef.current();
+          return "handled";
+        }
         if (key === "Enter" || key === " " || key === "ArrowUp") {
           kbActivateRef.current(controls[idx]);
           return "handled";
@@ -887,10 +1522,26 @@ const AttachPanel = forwardRef(({
         return "pass";
       },
     }),
-    [exitKeyboard],
+    [exitKeyboard, handleMoreOpenChange, finishArranging],
   );
-
+  const kbMoveArrangingRef = useRef(kbMoveArranging);
+  kbMoveArrangingRef.current = kbMoveArranging;
+  const kbToggleArrangingRef = useRef(kbToggleArranging);
+  kbToggleArrangingRef.current = kbToggleArranging;
+  /* While arranging the highlight is pinned to a WIDGET, not a slot index,
+     so it follows the widget it sits on when a move or a tuck relocates it.
+     Set on navigation and on entry, read back whenever the control list
+     changes. */
+  const kbActiveWidgetRef = useRef(null);
   const kbActiveId = kbIndex >= 0 ? kbControls[kbIndex] : null;
+  useEffect(() => {
+    if (!arranging) return;
+    const wanted = kbActiveWidgetRef.current;
+    if (!wanted) return;
+    const at = kbControls.indexOf(wanted);
+    if (at >= 0 && at !== kbIndex) setKbIndex(at);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arranging, kbControls.join("|")]);
   /* Keyboard focus reads as the control's HOVER state — so it has to land on
      the same value hovering does, not merely look similar. This glow sits
      BEHIND the control, so a filled control paints its own fill back on top
@@ -999,7 +1650,769 @@ const AttachPanel = forwardRef(({
   /* stop-propagation wrapper for selects */
   /* Only the model pill goes through here, and it is the one FILLED control in
      the row — its glow has to be solved against that fill. */
-  const selectWrap = (children, glowId) => (
+  /* ── one renderer per movable widget, for the row and for the "…" menu ──
+     The row form is the 32px control as it always was; the menu form is a
+     full-width row (icon · label · badge) that invokes the same thing. The
+     two popover widgets (tools, workspace) render their Select in BOTH forms
+     with the form as the trigger, so their palette anchors to wherever the
+     user opened it from; their open state is the shared openSelector either
+     way. */
+  /* The menu is the palette surface (radius 22, padding 8), so a row is a
+     28px pill (radius 14 = 22 - 8, concentric with the menu's corner) and
+     the icon sits in a 28px circle flush with the pill's left cap — the
+     circle, the pill's cap and the menu's corner share one centre. */
+  const MENU_ROW = 28;
+  const menuRowStyle = (active, index = -1) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    height: MENU_ROW,
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "0 12px 0 0",
+    borderRadius: MENU_ROW / 2,
+    ...(index >= 0 && !prefersReducedMotion
+      ? {
+          animationName: MENU_IN_NAME,
+          animationDuration: "200ms",
+          animationTimingFunction: "cubic-bezier(0.22,1,0.36,1)",
+          animationDelay: `${60 + index * 30}ms`,
+          animationFillMode: "both",
+        }
+      : {}),
+    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+    fontSize: 12.5,
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    color: active ? "var(--pupu-text-strong)" : "var(--pupu-text-secondary)",
+    backgroundColor: active ? hoverWash : "transparent",
+    userSelect: "none",
+  });
+  const iconCircleStyle = {
+    width: MENU_ROW,
+    height: MENU_ROW,
+    borderRadius: 999,
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    backgroundColor: "rgba(var(--pupu-text-rgb),0.06)",
+  };
+  const menuIcon = (src, tinted) => (
+    <span data-icon-circle="" style={iconCircleStyle}>
+      <Icon src={src} color={tinted ? highlight : undefined} style={{ width: 15, height: 15 }} />
+    </span>
+  );
+  const menuCount = (count) =>
+    count > 0 ? (
+      <span
+        style={{
+          marginLeft: "auto",
+          minWidth: 13,
+          height: 13,
+          borderRadius: 999,
+          background: highlight,
+          color: "#fff",
+          fontSize: 8,
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 3px",
+          boxSizing: "border-box",
+        }}
+      >
+        {count}
+      </span>
+    ) : null;
+  /* a long press on a menu row is the way into arrange mode from the
+     menu, with that row already in hand (the row's own click, and the
+     Select it may be the trigger of, must not fire off the release) */
+  const menuRowPressProps = (id) => ({
+    onPointerDown: (e) => {
+      if (e.button != null && e.button !== 0) return;
+      armLongPress(id, e.clientX, e.clientY);
+    },
+    onPointerUp: disarmLongPress,
+    onPointerLeave: disarmLongPress,
+    onPointerCancel: disarmLongPress,
+    onClickCapture: (e) => {
+      if (longPressFiredRef.current) {
+        longPressFiredRef.current = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    },
+  });
+  const menuRow = (
+    id,
+    index,
+    { icon, label, count = 0, tinted = false, onAct, inert = false },
+  ) => (
+    <div
+      /* inert (arrange mode): the row is a picture inside a draggable slot
+         that carries the identity — no data-widget, no role, no click */
+      {...(inert ? {} : { "data-widget": id, role: "menuitem", tabIndex: -1 })}
+      {...(inert ? {} : menuRowPressProps(id))}
+      onMouseEnter={inert ? undefined : () => setMoreIndex(index)}
+      /* no stopPropagation: for tools and workspace this row IS the Select's
+         custom trigger, and the click has to reach the Select to open it */
+      onClick={!inert && onAct ? () => onAct() : undefined}
+      style={{
+        ...menuRowStyle(!inert && moreIndex === index, inert ? -1 : index),
+        ...(inert ? { flex: 1, minWidth: 0, cursor: "inherit" } : {}),
+      }}
+    >
+      {menuIcon(icon, tinted)}
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+      {menuCount(count)}
+    </div>
+  );
+
+  /* in the menu the Select's trigger wrapper has to stretch, or the plugin
+     and workspace rows come out narrower than their neighbours */
+  const MENU_TRIGGER_WRAP = { width: "100%", display: "flex" };
+  const toolsSelect = (trigger, extra = {}) => (
+                <Select
+                  {...extra}
+                  multi
+                  options={toolkitOptions}
+                  value={localToolkits}
+                  set_value={handleToolkitsValueChange}
+                  filterable={true}
+                  filter_mode="panel"
+                  search_placeholder={t("toolkit.search_placeholder")}
+                  disabled={toolSelectDisabled}
+                  open={openSelector === "tools"}
+                  on_open_change={handleToolsOpenChange}
+                  dropdown_position="top"
+                  variant="palette"
+                  palette_chip={
+                    localToolkits.length > 0
+                      ? `${t("chat.attach.tools")} ×${localToolkits.length}`
+                      : t("chat.attach.tools")
+                  }
+                  palette_actions={
+                    localToolkits.length > 0 ? (
+                      <HeaderAction
+                        onAct={() => handleToolkitsValueChange([])}
+                        isDark={isDark}
+                        theme={theme}
+                      >
+                        {t("chat.attach.clear")}
+                      </HeaderAction>
+                    ) : null
+                  }
+                  dropdown_style={{ maxHeight: 280 }}
+                  custom_trigger={trigger}
+                />
+  );
+  const workspaceSelect = (trigger, extra = {}) => (
+                <Select
+                  {...extra}
+                  multi
+                  options={workspaceOptions}
+                  value={localWorkspaceIds}
+                  set_value={handleWorkspaceIdsValueChange}
+                  filterable={true}
+                  filter_mode="panel"
+                  search_placeholder={t("chat.attach.search_workspaces")}
+                  open={openSelector === "workspace"}
+                  on_open_change={handleWorkspaceOpenChange}
+                  dropdown_position="top"
+                  variant="palette"
+                  palette_chip={
+                    localWorkspaceIds.length > 0
+                      ? `${t("chat.attach.workspace")} ×${localWorkspaceIds.length}`
+                      : t("chat.attach.workspace")
+                  }
+                  palette_actions={
+                    <>
+                      <HeaderAction
+                        accent
+                        onAct={() => {
+                          setOpenSelector(null);
+                          setWorkspaceModalOpen(true);
+                        }}
+                        isDark={isDark}
+                        theme={theme}
+                      >
+                        {t("chat.attach.add")}
+                      </HeaderAction>
+                      {localWorkspaceIds.length > 0 ? (
+                        <HeaderAction
+                          onAct={() => handleWorkspaceIdsValueChange([])}
+                          isDark={isDark}
+                          theme={theme}
+                        >
+                          {t("chat.attach.clear")}
+                        </HeaderAction>
+                      ) : null}
+                    </>
+                  }
+                  dropdown_style={{ maxHeight: 260 }}
+                  custom_trigger={trigger}
+                />
+  );
+  const toolsRowTrigger = (
+    <div style={{ position: "relative" }}>
+                      <Button
+                        prefix_icon="tool"
+                        ariaLabel={t("chat.attach.select_toolkits")}
+                        title={t("chat.attach.select_toolkits")}
+                        style={{
+                          ...iconBtnStyle,
+                          color:
+                            localToolkits.length > 0
+                              ? highlight
+                              : color,
+                          iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
+                          iconOnlyPaddingVertical:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
+                          iconOnlyPaddingHorizontal:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
+                        }}
+                      />
+                      <Badge count={localToolkits.length} />
+                    </div>
+  );
+  const workspaceRowTrigger = (
+    <div style={{ position: "relative" }}>
+                      <Button
+                        prefix_icon="folder_2"
+                        title={t("chat.attach.select_workspaces")}
+                        style={{
+                          ...iconBtnStyle,
+                          color:
+                            localWorkspaceIds.length > 0
+                              ? highlight
+                              : color,
+                        }}
+                      />
+                      <Badge count={localWorkspaceIds.length} />
+                    </div>
+  );
+
+  const renderRowWidget = (id) => {
+    switch (id) {
+      case "context_composition":
+        return (
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              borderRadius: 999,
+            }}
+          >
+            {kbGlow("context_composition")}
+            <ContextCompositionProgress
+              ref={contextCompositionProgressRef}
+              bundle={contextCompositionBundle}
+              usageView={contextUsageView}
+              isDark={isDark}
+              highlight={highlight}
+              hoverBackgroundColor={hoverWash}
+              activeBackgroundColor={pressWash}
+              // Shares openSelector with the model/tools/workspace menus so
+              // opening one of the other three closes this, and vice versa —
+              // without this it was its own, uncoordinated open/closed island.
+              open={openSelector === "context_composition"}
+              onOpenChange={handleContextCompositionOpenChange}
+            />
+          </div>
+        );
+      case "attach":
+        return (
+            <div
+              title={t("chat.attach.attach_file")}
+              style={{
+                position: "relative",
+                display: "flex",
+                borderRadius: 999,
+              }}
+            >
+              {kbGlow("attach")}
+              <Button
+                prefix_icon="attachment"
+                onClick={onAttachFile}
+                style={iconBtnStyle}
+              />
+            </div>
+        );
+      case "screenshot":
+        return (
+              <div
+                title={t("chat.attach.screenshot")}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  borderRadius: 999,
+                }}
+              >
+                {kbGlow("screenshot")}
+                <Button
+                  prefix_icon="screenshot"
+                  onClick={onAttachScreenshot}
+                  style={iconBtnStyle}
+                />
+              </div>
+        );
+      case "tools":
+        return (
+          <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+            {kbGlow("tools")}
+            {toolsSelect(toolsRowTrigger)}
+          </div>
+        );
+      case "workspace":
+        return (
+          <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+            {kbGlow("workspace")}
+            {workspaceSelect(workspaceRowTrigger)}
+          </div>
+        );
+      case "link":
+        return (
+          <span
+            style={{ position: "relative", display: "flex", borderRadius: 999 }}
+          >
+            {kbGlow("link")}
+            <Button
+              prefix_icon="link"
+              onClick={onAttachLink}
+              style={iconBtnStyle}
+            />
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderMenuWidget = (id, index, { inert = false } = {}) => {
+    switch (id) {
+      case "context_composition":
+        return (
+          <div
+            key={id}
+            {...(inert ? {} : { "data-widget": id, role: "menuitem", tabIndex: -1 })}
+            {...(inert ? {} : menuRowPressProps(id))}
+            onMouseEnter={inert ? undefined : () => setMoreIndex(index)}
+            onClick={inert ? undefined : (e) => {
+              e.stopPropagation();
+              /* the ring is its own trigger; a click on the label reaches it
+                 through the shared open state instead of toggling twice */
+              if (
+                e.target.closest &&
+                e.target.closest('[data-testid="context-composition-progress"]')
+              ) {
+                return;
+              }
+              setOpenSelector("context_composition");
+            }}
+            style={{
+              ...menuRowStyle(!inert && moreIndex === index, inert ? -1 : index),
+              ...(inert ? { flex: 1, minWidth: 0, cursor: "inherit" } : {}),
+            }}
+          >
+            <span data-icon-circle="" style={{ ...iconCircleStyle, position: "relative" }}>
+              {/* the ring is a fixed 32px control: parked at -2,-2 and scaled
+                  by 28/32 about its own centre, so it lands dead centre in
+                  the 28px circle (grid centring left it 2px off) */}
+              <span
+                style={{
+                  position: "absolute",
+                  left: (MENU_ROW - PILL_HEIGHT) / 2,
+                  top: (MENU_ROW - PILL_HEIGHT) / 2,
+                  width: PILL_HEIGHT,
+                  height: PILL_HEIGHT,
+                  display: "flex",
+                  transform: `scale(${MENU_ROW / PILL_HEIGHT})`,
+                  transformOrigin: "50% 50%",
+                }}
+              >
+                <ContextCompositionProgress
+                  ref={contextCompositionProgressRef}
+                  bundle={contextCompositionBundle}
+                  usageView={contextUsageView}
+                  isDark={isDark}
+                  highlight={highlight}
+                  hoverBackgroundColor={hoverWash}
+                  activeBackgroundColor={pressWash}
+                  open={openSelector === "context_composition"}
+                  onOpenChange={handleContextCompositionOpenChange}
+                />
+              </span>
+            </span>
+            <span>{t("chat.attach.context_usage")}</span>
+          </div>
+        );
+      case "attach":
+        return menuRow(id, index, {
+          icon: "attachment",
+          label: t("chat.attach.attach_file"),
+          onAct: () => activateTucked("attach"),
+          inert,
+        });
+      case "screenshot":
+        return menuRow(id, index, {
+          icon: "screenshot",
+          label: t("chat.attach.screenshot"),
+          onAct: () => activateTucked("screenshot"),
+          inert,
+        });
+      case "link":
+        return menuRow(id, index, {
+          icon: "link",
+          label: t("chat.attach.link"),
+          onAct: () => activateTucked("link"),
+          inert,
+        });
+      case "tools": {
+        const picture = menuRow(id, index, {
+          icon: "tool",
+          label: t("chat.attach.select_toolkits"),
+          count: localToolkits.length,
+          tinted: localToolkits.length > 0,
+          inert,
+        });
+        /* inert: the picture alone — a mounted Select would open on the
+           press that is meant to lift the row */
+        return inert ? picture : (
+          <div key={id} style={{ display: "flex" }}>
+            {toolsSelect(picture, { trigger_wrapper_style: MENU_TRIGGER_WRAP })}
+          </div>
+        );
+      }
+      case "workspace": {
+        const picture = menuRow(id, index, {
+          icon: "folder_2",
+          label: t("chat.attach.select_workspaces"),
+          count: localWorkspaceIds.length,
+          tinted: localWorkspaceIds.length > 0,
+          inert,
+        });
+        return inert ? picture : (
+          <div key={id} style={{ display: "flex" }}>
+            {workspaceSelect(picture, { trigger_wrapper_style: MENU_TRIGGER_WRAP })}
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  /* ── arrange-mode pieces ── */
+  const draggingId = dragGhost ? dragGhost.id : null;
+  const rowItemsWhileDragging = visibleWidgets.filter((id) => id !== draggingId);
+  const menuItemsWhileDragging = tuckedWidgets.filter((id) => id !== draggingId);
+  const dragOrigin = dragGhost ? dragGhost.origin : null;
+  const rowGapIndex = !draggingId || !dropTarget
+    ? -1
+    : dropTarget.zone === "row"
+      ? dropTarget.index
+      : dragOrigin && dragOrigin.zone === "row"
+        ? dragOrigin.index
+        : -1;
+  const menuGapIndex = !draggingId || !dropTarget
+    ? -1
+    : dropTarget.zone === "menu"
+      ? dropTarget.index
+      : dragOrigin && dragOrigin.zone === "menu"
+        ? dragOrigin.index
+        : -1;
+  const arrangeGap = (open, size) => (
+    <span
+      aria-hidden="true"
+      data-arrange-gap={open ? "open" : "closed"}
+      style={{
+        display: "block",
+        width: open ? size : 0,
+        height: size,
+        flexShrink: 0,
+        transition: "width 0.14s ease",
+      }}
+    />
+  );
+  /* The widget in hand: portaled to the body at a fixed position so it rides
+     above the menu popover (which is itself a portal at Z.TOOLTIP). */
+  const ghostPortal =
+    dragGhost && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            data-widget={dragGhost.id}
+            data-ghost="true"
+            style={{
+              position: "fixed",
+              left: dragGhost.x - PILL_HEIGHT / 2,
+              top: dragGhost.y - PILL_HEIGHT / 2,
+              width: PILL_HEIGHT,
+              height: PILL_HEIGHT,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 999,
+              backgroundColor: "var(--pupu-surface)",
+              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+              transform: "scale(1.08)",
+              pointerEvents: "none",
+              zIndex: Z.DRAG_GHOST,
+              color,
+            }}
+          >
+            <span style={{ display: "flex", pointerEvents: "none" }}>
+              {renderRowWidget(dragGhost.id)}
+            </span>
+          </span>,
+          document.body,
+        )
+      : null;
+  /* A slot owns the pointer while arranging: the widget inside is inert
+     (its own click never fires), a press on the slot lifts it into a drag,
+     and every slot rocks on its own phase like an iOS home screen. */
+  const arrangeSlot = (id, child, size) => {
+    /* a stable per-widget phase so neighbours never rock in unison */
+    const phase = MOVABLE_ATTACH_WIDGETS.indexOf(id);
+    const jiggling = !prefersReducedMotion;
+    return (
+      <span
+        data-widget={id}
+        ref={(el) => {
+          if (el) slotRefs.current.set(id, el);
+          else slotRefs.current.delete(id);
+        }}
+        onPointerDown={(e) => beginDrag(id, e)}
+        style={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: size,
+          height: size,
+          boxSizing: "border-box",
+          borderRadius: 999,
+          cursor: "grab",
+          touchAction: "none",
+          userSelect: "none",
+          animationName: jiggling ? JIGGLE_NAME : "none",
+          animationDuration: `${JIGGLE_PERIOD_MS}ms`,
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+          animationDelay: `${-((phase * 37) % JIGGLE_PERIOD_MS)}ms`,
+          transformOrigin: "50% 50%",
+        }}
+      >
+        {kbGlow(id)}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 3,
+            borderRadius: 999,
+            border: "1px dashed var(--pupu-border-strong)",
+            pointerEvents: "none",
+          }}
+        />
+        <span
+          style={{
+            display: "flex",
+            pointerEvents: "none",
+            transform: size < PILL_HEIGHT ? `scale(${size / PILL_HEIGHT})` : "none",
+          }}
+        >
+          {child}
+        </span>
+      </span>
+    );
+  };
+
+  /* arrange-mode pieces of the menu: one gap per position (the open one
+     grows to a row's height), rows that can be dragged out, and a caption
+     row when the menu is empty. No heading and no outlines: the rows
+     parting is the whole tell, as in the row. */
+  /* the drop point is plain empty space the rows part to leave — the
+     same tell as the row's gap, no outline, no wash */
+  const menuGap = (open) => (
+    <span
+      aria-hidden="true"
+      data-menu-gap={open ? "open" : "closed"}
+      style={{
+        display: "block",
+        height: open ? MENU_ROW : 0,
+        marginTop: open ? 1 : 0,
+        marginBottom: open ? 1 : 0,
+        transition: "height 0.14s ease, margin 0.14s ease",
+      }}
+    />
+  );
+  const arrangeMenuRow = (id, child) => {
+    const phase = MOVABLE_ATTACH_WIDGETS.indexOf(id);
+    return (
+    <span
+      key={id}
+      data-widget={id}
+      ref={(el) => {
+        if (el) menuRowRefs.current.set(id, el);
+        else menuRowRefs.current.delete(id);
+      }}
+      onPointerDown={(e) => beginDrag(id, e)}
+      style={{
+        position: "relative",
+        display: "flex",
+        cursor: "grab",
+        touchAction: "none",
+        userSelect: "none",
+        animationName: prefersReducedMotion ? "none" : JIGGLE_ROW_NAME,
+        animationDuration: `${JIGGLE_PERIOD_MS}ms`,
+        animationTimingFunction: "ease-in-out",
+        animationIterationCount: "infinite",
+        animationDelay: `${-((phase * 37) % JIGGLE_PERIOD_MS)}ms`,
+        transformOrigin: "50% 50%",
+      }}
+    >
+      {kbGlow(id)}
+      <span style={{ display: "flex", flex: 1, minWidth: 0, pointerEvents: "none" }}>
+        {child}
+      </span>
+    </span>
+    );
+  };
+  const moreMenu = (
+    <div
+      ref={menuRef}
+      data-testid="attach-more-menu"
+      data-surface="palette"
+      data-arranging={arranging ? "true" : "false"}
+      role="menu"
+      onMouseDown={(e) => {
+        if (!isTextEntryTarget(e.target)) e.preventDefault();
+      }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+        minWidth: 200,
+        boxSizing: "border-box",
+        /* the palette surface: same radius, padding, frost and edge as the
+           model / plugins / workspace menus on this row */
+        padding: 8,
+        borderRadius: 22,
+        backgroundColor: isDark
+          ? "rgba(var(--pupu-surface-rgb),0.85)"
+          : "rgba(var(--pupu-surface-rgb),0.9)",
+        border: isDark
+          ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
+          : "1px solid rgba(var(--pupu-text-rgb),0.09)",
+        backdropFilter: "blur(20px) saturate(130%)",
+        WebkitBackdropFilter: "blur(20px) saturate(130%)",
+        boxShadow: isDark
+          ? "0 8px 32px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)"
+          : "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)",
+      }}
+    >
+      {arranging ? (
+        <>
+          {menuItemsWhileDragging.length === 0 ? (
+            <div
+              data-menu-gap={menuGapIndex >= 0 ? "open" : "closed"}
+              style={{
+                height: MENU_ROW,
+                boxSizing: "border-box",
+                borderRadius: MENU_ROW / 2,
+                transition: "color 0.14s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: menuGapIndex >= 0 ? highlight : "var(--pupu-text-faint)",
+                userSelect: "none",
+              }}
+            >
+              {t("chat.attach.drop_here")}
+            </div>
+          ) : null}
+          {menuItemsWhileDragging.map((id, index) => (
+            <span key={id} style={{ display: "flex", flexDirection: "column" }}>
+              {menuGap(menuGapIndex === index)}
+              {arrangeMenuRow(id, renderMenuWidget(id, index, { inert: true }))}
+            </span>
+          ))}
+          {menuItemsWhileDragging.length > 0
+            ? menuGap(menuGapIndex === menuItemsWhileDragging.length)
+            : null}
+        </>
+      ) : (
+        <>
+          {tuckedWidgets.map((id, index) => (
+            <span key={id} style={{ display: "flex", flexDirection: "column" }}>
+              {renderMenuWidget(id, index)}
+            </span>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
+  const moreTargeted =
+    arranging && dragGhost != null && dropTarget && dropTarget.zone === "menu";
+  const moreButton = (
+    <span
+      ref={moreWrapRef}
+      style={{ position: "relative", display: "flex", borderRadius: 999 }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        if (!isTextEntryTarget(e.target)) e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
+      {kbGlow("more")}
+      <Tooltip
+        trigger={["click"]}
+        position="top"
+        align="end"
+        offset={8}
+        show_arrow={false}
+        tooltip_component={moreMenu}
+        open={moreOpen}
+        on_open_change={handleMoreOpenChange}
+        /* arranging marks the composer active and the whole row floats up
+           under the open menu; the menu has to ride along or it ends up
+           under the very row it belongs to */
+        follow_trigger={arranging}
+        style={{
+          padding: 0,
+          backgroundColor: "transparent",
+          boxShadow: "none",
+          border: "none",
+        }}
+      >
+        <Button
+          prefix_icon="more"
+          ariaLabel={t("chat.attach.more")}
+          title={t("chat.attach.more")}
+          onClick={() => {}}
+          dom_props={{
+            "data-testid": "attach-more",
+            "aria-haspopup": "menu",
+            "aria-expanded": moreOpen,
+          }}
+          style={{
+            ...iconBtnStyle,
+            ...(moreTargeted
+              ? { color: highlight, backgroundColor: hoverWash }
+              : {}),
+          }}
+        />
+      </Tooltip>
+    </span>
+  );
+
+  const selectWrap = (children, glowId, inert = false) => (
     <div
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => {
@@ -1011,6 +2424,7 @@ const AttachPanel = forwardRef(({
         display: "flex",
         alignItems: "center",
         borderRadius: 999,
+        ...(inert ? { opacity: 0.55, pointerEvents: "none" } : {}),
       }}
     >
       {glowId ? kbGlow(glowId, { overFill: true }) : null}
@@ -1056,6 +2470,13 @@ const AttachPanel = forwardRef(({
       />
 
       <div
+        ref={rowRef}
+        data-testid="attach-row"
+        data-kb-active={kbActiveId || ""}
+        data-arranging={arranging ? "true" : "false"}
+        data-drop-target={
+          dropTarget ? `${dropTarget.zone}:${dropTarget.index}` : ""
+        }
         style={{
           display: "flex",
           alignItems: "center",
@@ -1078,7 +2499,7 @@ const AttachPanel = forwardRef(({
             "background-color 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease",
         }}
       >
-        {/* ── Model selector ── */}
+        {/* ── Model selector (not movable: dimmed and inert while arranging) ── */}
         {showModelSelector &&
           modelSelectOptions &&
           modelSelectOptions.length > 0 &&
@@ -1113,234 +2534,93 @@ const AttachPanel = forwardRef(({
               palette_footer={paletteFooter}
             />,
             "model",
+            arranging,
           )}
 
-        {hasContextComposition ? (
+        {/* ── Movable widgets, in the user's order, then the "…" menu ── */}
+        {arranging ? (
           <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              borderRadius: 999,
-              /* The row's gap of 6 separates pills from icons, but icon-to-icon
-                 spacing inside the cluster below is 0. Cancel the gap here so
-                 the ring sits flush against the attach controls instead of
-                 reading as pushed away from them. */
-              marginRight: onAttachFile ? -6 : 0,
-            }}
+            data-testid="attach-widgets"
+            style={{ display: "flex", alignItems: "center", gap: 0 }}
           >
-            {kbGlow("context_composition")}
-            <ContextCompositionProgress
-              ref={contextCompositionProgressRef}
-              bundle={contextCompositionBundle}
-              usageView={contextUsageView}
-              isDark={isDark}
-              highlight={highlight}
-              hoverBackgroundColor={hoverWash}
-              activeBackgroundColor={pressWash}
-              // Shares openSelector with the model/tools/workspace menus so
-              // opening one of the other three closes this, and vice versa —
-              // without this it was its own, uncoordinated open/closed island.
-              open={openSelector === "context_composition"}
-              onOpenChange={handleContextCompositionOpenChange}
-            />
+            {/* While a widget is dragged it leaves the flow (it rides the
+                pointer as a ghost, portaled to the body so it sits above the
+                menu popover) and the icons part to leave an empty slot at
+                the drop point — the way an iOS home screen makes room —
+                rather than marking the point with a line. One gap element
+                sits in every position so the open one can grow and the
+                closing one shrink as the pointer moves. */}
+            <div data-arrange="row" style={{ display: "flex", alignItems: "center", gap: 0 }}>
+              {rowItemsWhileDragging.map((id, index) => (
+                <span key={id} style={{ display: "flex", alignItems: "center" }}>
+                  {arrangeGap(rowGapIndex === index, 32)}
+                  {arrangeSlot(id, renderRowWidget(id), 32)}
+                </span>
+              ))}
+              {arrangeGap(rowGapIndex === rowItemsWhileDragging.length, 32)}
+            </div>
+            {/* the "…" stays where it is: its menu, open for the session, is
+                the place tucked widgets go */}
+            {moreButton}
+            <span style={{ marginLeft: 6, display: "flex" }}>
+              <Button
+                onClick={finishArranging}
+                dom_props={{ "data-testid": "attach-arrange-done" }}
+                /* full PILL_HEIGHT like every other control on the row, so
+                   its curve is concentric with the row's (radius 22 - 4px
+                   padding = 16 = half of 32); a shorter pill sat inset. */
+                style={{
+                  ...pillStyle,
+                  fontSize: 11,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {t("chat.attach.done")}
+              </Button>
+            </span>
+          </div>
+        ) : visibleWidgets.length > 0 || hasMore ? (
+          <div
+            data-testid="attach-widgets"
+            style={{ display: "flex", alignItems: "center", gap: 0 }}
+          >
+            {visibleWidgets.map((id) => (
+              <span
+                key={id}
+                data-widget={id}
+                /* the ways into arrange mode when nothing is tucked yet (so
+                   there is no "…" menu): a right-click, or a long press */
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  startArranging();
+                }}
+                onPointerDown={(e) => {
+                  if (e.button != null && e.button !== 0) return;
+                  armLongPress(id, e.clientX, e.clientY);
+                }}
+                onPointerUp={disarmLongPress}
+                onPointerLeave={disarmLongPress}
+                onPointerCancel={disarmLongPress}
+                onClickCapture={(e) => {
+                  /* the press that opened arrange mode is not a click */
+                  if (longPressFiredRef.current) {
+                    longPressFiredRef.current = false;
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }
+                }}
+                style={{ display: "flex", alignItems: "center" }}
+              >
+                {renderRowWidget(id)}
+              </span>
+            ))}
+            {hasMore ? moreButton : null}
           </div>
         ) : null}
 
-        {onAttachFile && (
-          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-            {/* ── Attach file button ── */}
-            <div
-              title={
-                attachmentsEnabled
-                  ? t("chat.attach.attach_file")
-                  : attachmentsDisabledReason ||
-                    t("chat.attach.attach_file_unsupported")
-              }
-              style={{
-                position: "relative",
-                display: "flex",
-                borderRadius: 999,
-              }}
-            >
-              {kbGlow("attach")}
-              <Button
-                prefix_icon="attachment"
-                onClick={onAttachFile}
-                disabled={!attachmentsEnabled}
-                style={iconBtnStyle}
-              />
-            </div>
-
-            {/* ── Screenshot button ── */}
-            {onAttachScreenshot && (
-              <div
-                title={
-                  attachmentsEnabled
-                    ? t("chat.attach.screenshot")
-                    : attachmentsDisabledReason ||
-                      t("chat.attach.screenshot_unsupported")
-                }
-                style={{
-                  position: "relative",
-                  display: "flex",
-                  borderRadius: 999,
-                }}
-              >
-                {kbGlow("screenshot")}
-                <Button
-                  prefix_icon="screenshot"
-                  onClick={onAttachScreenshot}
-                  disabled={!attachmentsEnabled}
-                  style={iconBtnStyle}
-                />
-              </div>
-            )}
-
-            {/* ── Tools selector (icon button + badge trigger) ── */}
-            {showToolSelector && !hasActiveAgentRecipe ? (
-              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
-                {kbGlow("tools")}
-                <Select
-                  multi
-                  options={toolkitOptions}
-                  value={localToolkits}
-                  set_value={handleToolkitsValueChange}
-                  filterable={true}
-                  filter_mode="panel"
-                  search_placeholder={t("toolkit.search_placeholder")}
-                  disabled={toolSelectDisabled}
-                  open={openSelector === "tools"}
-                  on_open_change={handleToolsOpenChange}
-                  dropdown_position="top"
-                  variant="palette"
-                  palette_chip={
-                    localToolkits.length > 0
-                      ? `${t("chat.attach.tools")} ×${localToolkits.length}`
-                      : t("chat.attach.tools")
-                  }
-                  palette_actions={
-                    localToolkits.length > 0 ? (
-                      <HeaderAction
-                        onAct={() => handleToolkitsValueChange([])}
-                        isDark={isDark}
-                        theme={theme}
-                      >
-                        {t("chat.attach.clear")}
-                      </HeaderAction>
-                    ) : null
-                  }
-                  dropdown_style={{ maxHeight: 280 }}
-                  custom_trigger={
-                    <div style={{ position: "relative" }}>
-                      <Button
-                        prefix_icon="tool"
-                        ariaLabel={t("chat.attach.select_toolkits")}
-                        title={t("chat.attach.select_toolkits")}
-                        style={{
-                          ...iconBtnStyle,
-                          color:
-                            localToolkits.length > 0
-                              ? highlight
-                              : color,
-                          iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
-                          iconOnlyPaddingVertical:
-                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
-                          iconOnlyPaddingHorizontal:
-                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
-                        }}
-                      />
-                      <Badge count={localToolkits.length} />
-                    </div>
-                  }
-                />
-              </div>
-            ) : null}
-
-            {/* ── Workspace selector (icon button + badge trigger) ── */}
-            {showWorkspaceSelector ? (
-              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
-                {kbGlow("workspace")}
-                <Select
-                  multi
-                  options={workspaceOptions}
-                  value={localWorkspaceIds}
-                  set_value={handleWorkspaceIdsValueChange}
-                  filterable={true}
-                  filter_mode="panel"
-                  search_placeholder={t("chat.attach.search_workspaces")}
-                  open={openSelector === "workspace"}
-                  on_open_change={handleWorkspaceOpenChange}
-                  dropdown_position="top"
-                  variant="palette"
-                  palette_chip={
-                    localWorkspaceIds.length > 0
-                      ? `${t("chat.attach.workspace")} ×${localWorkspaceIds.length}`
-                      : t("chat.attach.workspace")
-                  }
-                  palette_actions={
-                    <>
-                      <HeaderAction
-                        accent
-                        onAct={() => {
-                          setOpenSelector(null);
-                          setWorkspaceModalOpen(true);
-                        }}
-                        isDark={isDark}
-                        theme={theme}
-                      >
-                        {t("chat.attach.add")}
-                      </HeaderAction>
-                      {localWorkspaceIds.length > 0 ? (
-                        <HeaderAction
-                          onAct={() => handleWorkspaceIdsValueChange([])}
-                          isDark={isDark}
-                          theme={theme}
-                        >
-                          {t("chat.attach.clear")}
-                        </HeaderAction>
-                      ) : null}
-                    </>
-                  }
-                  dropdown_style={{ maxHeight: 260 }}
-                  custom_trigger={
-                    <div style={{ position: "relative" }}>
-                      <Button
-                        prefix_icon="folder_2"
-                        title={t("chat.attach.select_workspaces")}
-                        style={{
-                          ...iconBtnStyle,
-                          color:
-                            localWorkspaceIds.length > 0
-                              ? highlight
-                              : color,
-                        }}
-                      />
-                      <Badge count={localWorkspaceIds.length} />
-                    </div>
-                  }
-                />
-              </div>
-            ) : null}
-
-          </div>
-        )}
-
-        {onAttachLink && (
-          <span
-            style={{ position: "relative", display: "flex", borderRadius: 999 }}
-          >
-            {kbGlow("link")}
-            <Button
-              prefix_icon="link"
-              onClick={onAttachLink}
-              style={iconBtnStyle}
-            />
-          </span>
-        )}
-
         {/* ── Queue segment — the queued turns' one and only home ── */}
-        {queueItems.length > 0 ? (
+        {queueItems.length > 0 && !arranging ? (
           <QueueAttachSection
             items={queueItems}
             onUndo={onQueueUndo}
@@ -1356,6 +2636,7 @@ const AttachPanel = forwardRef(({
         open={workspaceModalOpen}
         onClose={() => setWorkspaceModalOpen(false)}
       />
+      {ghostPortal}
     </div>
   );
 });

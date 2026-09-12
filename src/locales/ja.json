@@ -513,9 +513,7 @@
       "add": "+ 追加",
       "search_workspaces": "ワークスペースを検索...",
       "attach_file": "画像または PDF を添付",
-      "attach_file_unsupported": "現在のモデルはファイル入力に対応していません",
       "screenshot": "スクリーンショットを撮る",
-      "screenshot_unsupported": "現在のモデルは画像入力に対応していません",
       "select_toolkits": "プラグインを選択",
       "select_workspaces": "ワークスペースを選択",
       "computer": "コンピューター",
@@ -525,7 +523,12 @@
       "effort_default_hint": "モデル既定: {level}",
       "context": "コンテキスト",
       "context_default_hint": "PuPu の既定値：{tokens}",
-      "context_beyond_max_hint": "このモデルの上限 {tokens} を超えています"
+      "context_beyond_max_hint": "このモデルの上限 {tokens} を超えています",
+      "more": "その他",
+      "link": "リンク",
+      "context_usage": "コンテキスト使用量",
+      "done": "完了",
+      "drop_here": "ここにドロップして格納"
     }
   },
   "toolkit": {

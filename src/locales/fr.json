@@ -513,9 +513,7 @@
       "add": "+ AJOUTER",
       "search_workspaces": "Rechercher des espaces...",
       "attach_file": "Joindre une image ou un PDF",
-      "attach_file_unsupported": "Le modèle actuel ne prend pas en charge les fichiers",
       "screenshot": "Faire une capture d'écran",
-      "screenshot_unsupported": "Le modèle actuel ne prend pas en charge les images",
       "select_toolkits": "Choisir des plugins",
       "select_workspaces": "Choisir des espaces",
       "computer": "Ordinateur",
@@ -525,7 +523,12 @@
       "effort_default_hint": "Valeur par défaut du modèle : {level}",
       "context": "contexte",
       "context_default_hint": "Valeur par défaut de PuPu : {tokens}",
-      "context_beyond_max_hint": "Dépasse la fenêtre de {tokens} de ce modèle"
+      "context_beyond_max_hint": "Dépasse la fenêtre de {tokens} de ce modèle",
+      "more": "Plus",
+      "link": "Lien",
+      "context_usage": "Utilisation du contexte",
+      "done": "Terminé",
+      "drop_here": "Déposer ici pour ranger"
     }
   },
   "toolkit": {

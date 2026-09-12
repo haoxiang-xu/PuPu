@@ -513,9 +513,7 @@
       "add": "+ AÑADIR",
       "search_workspaces": "Buscar espacios...",
       "attach_file": "Adjuntar imagen o PDF",
-      "attach_file_unsupported": "El modelo actual no admite archivos",
       "screenshot": "Hacer una captura",
-      "screenshot_unsupported": "El modelo actual no admite imágenes",
       "select_toolkits": "Seleccionar plugins",
       "select_workspaces": "Seleccionar espacios",
       "computer": "Computadora",
@@ -525,7 +523,12 @@
       "effort_default_hint": "Valor por defecto del modelo: {level}",
       "context": "contexto",
       "context_default_hint": "Predeterminado de PuPu: {tokens}",
-      "context_beyond_max_hint": "Supera la ventana de {tokens} de este modelo"
+      "context_beyond_max_hint": "Supera la ventana de {tokens} de este modelo",
+      "more": "Más",
+      "link": "Enlace",
+      "context_usage": "Uso del contexto",
+      "done": "Listo",
+      "drop_here": "Suelta aquí para guardar"
     }
   },
   "toolkit": {

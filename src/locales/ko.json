@@ -513,9 +513,7 @@
       "add": "+ 추가",
       "search_workspaces": "작업 공간 검색...",
       "attach_file": "이미지 또는 PDF 첨부",
-      "attach_file_unsupported": "현재 모델은 파일 입력을 지원하지 않습니다",
       "screenshot": "스크린샷 찍기",
-      "screenshot_unsupported": "현재 모델은 이미지 입력을 지원하지 않습니다",
       "select_toolkits": "플러그인 선택",
       "select_workspaces": "작업 공간 선택",
       "computer": "컴퓨터",
@@ -525,7 +523,12 @@
       "effort_default_hint": "모델 기본값: {level}",
       "context": "컨텍스트",
       "context_default_hint": "PuPu 기본값: {tokens}",
-      "context_beyond_max_hint": "이 모델의 {tokens} 한도를 초과합니다"
+      "context_beyond_max_hint": "이 모델의 {tokens} 한도를 초과합니다",
+      "more": "더 보기",
+      "link": "링크",
+      "context_usage": "컨텍스트 사용량",
+      "done": "완료",
+      "drop_here": "여기에 놓아 정리"
     }
   },
   "toolkit": {

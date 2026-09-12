@@ -513,9 +513,7 @@
       "add": "+ AGGIUNGI",
       "search_workspaces": "Cerca spazi...",
       "attach_file": "Allega immagine o PDF",
-      "attach_file_unsupported": "Il modello attuale non supporta i file",
       "screenshot": "Cattura schermata",
-      "screenshot_unsupported": "Il modello attuale non supporta le immagini",
       "select_toolkits": "Seleziona plugin",
       "select_workspaces": "Seleziona spazi",
       "computer": "Computer",
@@ -525,7 +523,12 @@
       "effort_default_hint": "Predefinito del modello: {level}",
       "context": "contesto",
       "context_default_hint": "Predefinito di PuPu: {tokens}",
-      "context_beyond_max_hint": "Oltre la finestra di {tokens} di questo modello"
+      "context_beyond_max_hint": "Oltre la finestra di {tokens} di questo modello",
+      "more": "Altro",
+      "link": "Link",
+      "context_usage": "Uso del contesto",
+      "done": "Fatto",
+      "drop_here": "Rilascia qui per riporre"
     }
   },
   "toolkit": {

@@ -513,9 +513,7 @@
       "add": "+ ADD",
       "search_workspaces": "Search workspaces...",
       "attach_file": "Attach image or PDF",
-      "attach_file_unsupported": "Current model does not support file inputs",
       "screenshot": "Take a screenshot",
-      "screenshot_unsupported": "Current model does not support image inputs",
       "select_toolkits": "Select plugins",
       "select_workspaces": "Select workspaces",
       "computer": "Computer",
@@ -525,7 +523,12 @@
       "effort_default_hint": "Model default: {level}",
       "context": "context",
       "context_default_hint": "PuPu default: {tokens}",
-      "context_beyond_max_hint": "Beyond this model's {tokens} window"
+      "context_beyond_max_hint": "Beyond this model's {tokens} window",
+      "more": "More",
+      "link": "Link",
+      "context_usage": "Context usage",
+      "done": "Done",
+      "drop_here": "Drop here to tuck away"
     }
   },
   "toolkit": {

@@ -513,9 +513,7 @@
       "add": "+ 新增",
       "search_workspaces": "搜尋工作區...",
       "attach_file": "附加圖片或 PDF",
-      "attach_file_unsupported": "目前模型不支援檔案輸入",
       "screenshot": "螢幕截圖",
-      "screenshot_unsupported": "目前模型不支援圖片輸入",
       "select_toolkits": "選擇外掛",
       "select_workspaces": "選擇工作區",
       "computer": "電腦",
@@ -525,7 +523,12 @@
       "effort_default_hint": "模型預設：{level}",
       "context": "上下文",
       "context_default_hint": "PuPu 預設：{tokens}",
-      "context_beyond_max_hint": "超過此模型的 {tokens} 上下文上限"
+      "context_beyond_max_hint": "超過此模型的 {tokens} 上下文上限",
+      "more": "更多",
+      "link": "連結",
+      "context_usage": "上下文用量",
+      "done": "完成",
+      "drop_here": "拖到這裡收起"
     }
   },
   "toolkit": {

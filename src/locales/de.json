@@ -513,9 +513,7 @@
       "add": "+ HINZUFÜGEN",
       "search_workspaces": "Bereiche suchen...",
       "attach_file": "Bild oder PDF anhängen",
-      "attach_file_unsupported": "Aktuelles Modell unterstützt keine Dateieingaben",
       "screenshot": "Screenshot aufnehmen",
-      "screenshot_unsupported": "Aktuelles Modell unterstützt keine Bildeingaben",
       "select_toolkits": "Plugins auswählen",
       "select_workspaces": "Bereiche auswählen",
       "computer": "Computer",
@@ -525,7 +523,12 @@
       "effort_default_hint": "Modellstandard: {level}",
       "context": "Kontext",
       "context_default_hint": "PuPu-Standard: {tokens}",
-      "context_beyond_max_hint": "Über dem {tokens}-Fenster dieses Modells"
+      "context_beyond_max_hint": "Über dem {tokens}-Fenster dieses Modells",
+      "more": "Mehr",
+      "link": "Link",
+      "context_usage": "Kontextauslastung",
+      "done": "Fertig",
+      "drop_here": "Hier ablegen zum Verstauen"
     }
   },
   "toolkit": {

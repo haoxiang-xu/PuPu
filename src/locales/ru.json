@@ -513,9 +513,7 @@
       "add": "+ ДОБАВИТЬ",
       "search_workspaces": "Поиск рабочих областей...",
       "attach_file": "Прикрепить изображение или PDF",
-      "attach_file_unsupported": "Текущая модель не поддерживает файлы",
       "screenshot": "Сделать снимок экрана",
-      "screenshot_unsupported": "Текущая модель не поддерживает изображения",
       "select_toolkits": "Выбрать плагины",
       "select_workspaces": "Выбрать рабочие области",
       "computer": "Компьютер",
@@ -525,7 +523,12 @@
       "effort_default_hint": "По умолчанию для модели: {level}",
       "context": "контекст",
       "context_default_hint": "По умолчанию в PuPu: {tokens}",
-      "context_beyond_max_hint": "Больше окна {tokens} этой модели"
+      "context_beyond_max_hint": "Больше окна {tokens} этой модели",
+      "more": "Ещё",
+      "link": "Ссылка",
+      "context_usage": "Использование контекста",
+      "done": "Готово",
+      "drop_here": "Перетащите сюда, чтобы убрать"
     }
   },
   "toolkit": {

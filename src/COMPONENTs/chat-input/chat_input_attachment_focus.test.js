@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import defaultTheme from "../../BUILTIN_COMPONENTs/theme/default_mini_theme.json";
 import ChatInput from "./chat_input";
+import {
+  MOVABLE_ATTACH_WIDGETS,
+  writeAttachPanelLayout,
+} from "../../SERVICEs/attach_panel_layout";
 
 // Keep the real composer, panel, Select, Tooltip and Button event handlers.
 // Only catalog providers are replaced: this regression needs no backend.
@@ -108,6 +112,9 @@ test.each(["Select plugins", "Select workspaces"])(
 );
 
 test("a plain attachment action works on the first click after a floating menu", async () => {
+  /* the first-launch layout tucks the attach widget into the "…" menu; this
+     test wants it on the row */
+  writeAttachPanelLayout({ version: 1, order: MOVABLE_ATTACH_WIDGETS, hidden: [] });
   const composer = renderComposer();
   await openFloatingModelMenu(composer);
   const attach = screen.getByTitle("Attach image or PDF").querySelector("button");

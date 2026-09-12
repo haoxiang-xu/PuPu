@@ -180,6 +180,7 @@ npm run build:electron:linux       # Linux
 | [Toolkit & Tool Catalog](features/toolkit-and-tool-catalog.md) | Toolkit discovery, TOML format, tool metadata, auto-approval |
 | [Workspace System](features/workspace-system.md) | Named workspaces, per-chat selection, path resolution |
 | [Agent Orchestration](features/agent-orchestration.md) | Sub-agent delegation, child-run routing, prompt sections |
+| [Attach Panel Layout](features/attach-panel-layout.md) | Movable composer widgets, the "…" overflow menu, arrange mode, persisted order |
 | **[Conventions](conventions/)** | |
 | [Project Conventions](conventions/project-conventions.md) | Naming, styling, file org, component patterns, pitfalls |
 | [Build & Testing](conventions/build-and-testing.md) | Build pipeline, test commands, CI setup |

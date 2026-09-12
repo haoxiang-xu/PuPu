@@ -340,7 +340,9 @@ const ChatInput = ({
       /* attach panel keyboard mode: keys are delegated to the panel until
          it reports "pass" (typing resumes) */
       if (panelKbActive) {
-        const res = attachPanelRef.current?.handleKeyboardKey?.(e.key);
+        const res = attachPanelRef.current?.handleKeyboardKey?.(e.key, {
+          shift: e.shiftKey,
+        });
         if (res === "handled") {
           e.preventDefault();
           return;

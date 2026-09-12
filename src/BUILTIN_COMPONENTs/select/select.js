@@ -868,6 +868,10 @@ const Select = ({
   search_placeholder = "Search...",
   icon,
   custom_trigger,
+  /* style for the Tooltip wrapper around the trigger — a custom trigger
+     inside a full-width host (a menu row) needs width: 100% here or the
+     inline-flex wrapper shrinks the row to its content */
+  trigger_wrapper_style,
   style,
   dropdown_style,
   dropdown_position = "bottom",
@@ -1698,6 +1702,7 @@ const Select = ({
       }}
       open={mergedOpen}
       on_open_change={emit_open_change}
+      wrapper_style={trigger_wrapper_style}
     >
       {custom_trigger || triggerContent}
     </Tooltip>
