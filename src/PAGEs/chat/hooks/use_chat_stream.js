@@ -1152,6 +1152,7 @@ export const useChatStream = ({
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const runTurnRequestRef = useRef(null);
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
   const humanInputSubmissionByChatIdRef = useRef(new Map());
@@ -9371,6 +9372,9 @@ export const useChatStream = ({
   );
   relayQueuedTurnsAfterRunRef.current = relayQueuedTurnsAfterRun;
 
+  // Keep passive recovery stable when composer/run inputs recreate the sender.
+  runTurnRequestRef.current = runTurnRequest;
+
   const lookupDurableInteraction = useCallback(
     async (
       targetChatId,
@@ -9752,7 +9756,7 @@ export const useChatStream = ({
           chatKeys.add(resumeKey);
           let started = false;
           try {
-            started = await runTurnRequest({
+            started = await runTurnRequestRef.current({
               mode: "resume_interaction",
               chatId: normalizedChatId,
               text: "",
@@ -9949,7 +9953,6 @@ export const useChatStream = ({
       getConfirmationRuntimeForChat,
       isRunGenerationCurrent,
       messagesRef,
-      runTurnRequest,
       setStreamError,
       setStreamErrorForChat,
       storageApi,

@@ -598,6 +598,7 @@ describe("Memory V2 P0 payload seams", () => {
 
   test("passive recovery while an explicit answer POST is in flight cannot seal that answer", async () => {
     const { chatId, decision } = await prepareRecoveredHumanInput();
+    const originalNodeId = getChatsStore().tree.selectedNodeId;
     const record = window.unchainAPI.respondToolConfirmation.getMockImplementation();
     let resolveReceipt;
     window.unchainAPI.respondToolConfirmation.mockImplementation(async () => {
@@ -606,10 +607,18 @@ describe("Memory V2 P0 payload seams", () => {
     });
     let submission;
     await act(async () => { submission = lastChatMessagesProps.onToolConfirmationDecision(decision); });
-    await act(async () => { createChatInSelectedContext({ title: "Other chat" }, { source: "test" }); });
+    let otherChat;
+    await act(async () => {
+      otherChat = createChatInSelectedContext({ title: "Other chat" }, { source: "test" });
+      selectTreeNode({ nodeId: otherChat.nodeId }, { source: "test" });
+    });
+    await waitFor(() => expect(document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id")).toBe(otherChat.chatId));
     const before = window.unchainAPI.getPendingInteraction.mock.calls.length;
-    await act(async () => { selectTreeNode(chatId, { source: "test" }); });
-    await waitFor(() => expect(window.unchainAPI.getPendingInteraction.mock.calls.length).toBeGreaterThan(before));
+    await act(async () => { selectTreeNode({ nodeId: originalNodeId }, { source: "test" }); });
+    await waitFor(() => {
+      expect(document.querySelector("[data-chat-id]")?.getAttribute("data-chat-id")).toBe(chatId);
+      expect(window.unchainAPI.getPendingInteraction.mock.calls.length).toBeGreaterThan(before);
+    });
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     await act(async () => { resolveReceipt(); await submission; });
     await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1));

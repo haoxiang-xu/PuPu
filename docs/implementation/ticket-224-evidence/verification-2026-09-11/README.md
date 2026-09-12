@@ -1,3 +1,5 @@
+> **Current delivery candidate:** `546853f3498fcf0aba98723f38c67b1070c3bd4f829e56bf0542e9af741b97bd`. See [final CI correction and repeated live verification](final3.md). The earlier candidate and detailed investigation below are retained as historical evidence; the final correction preserves the tested wire contract and runtime wheel.
+
 # #224 — local verification complete
 
 PuPu issue [#224](https://github.com/haoxiang-xu/PuPu/issues/224), Release #203.
