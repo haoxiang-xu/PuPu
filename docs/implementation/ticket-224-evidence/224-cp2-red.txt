@@ -1,0 +1,742 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --runInBand src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+
+FAIL src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+  ✕ InteractWrapper reaches the single free-text selector through the registry (1 ms)
+  single selector free-text interaction
+    ✕ renders a direct labelled textbox without an Other choice (18 ms)
+    ✕ blocks blank input and trims the submitted text (3 ms)
+    ✕ submits through the visible button (2 ms)
+    ✓ shows historical text while disabled (4 ms)
+    ✕ resets text when the request id changes (2 ms)
+  multiple selector free-text interaction
+    ✕ renders a direct labelled textbox without an Other choice (3 ms)
+    ✕ blocks blank input and trims the submitted text (1 ms)
+    ✕ submits through the visible button (2 ms)
+    ✓ shows historical text while disabled (2 ms)
+    ✕ resets text when the request id changes (1 ms)
+  single bounded selector behavior
+    ✓ keeps options and Other behavior (17 ms)
+  multiple bounded selector behavior
+    ✕ keeps options and Other behavior (3 ms)
+
+  ● single selector free-text interaction › renders a direct labelled textbox without an Other choice
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      35 |       expect(screen.getByText("What folder path should I use?")).toBeInTheDocument();
+      36 |       expect(screen.getByText("Folder path")).toBeInTheDocument();
+    > 37 |       expect(screen.getByPlaceholderText("Enter the folder path")).toBeInTheDocument();
+         |                     ^
+      38 |       expect(screen.queryByText("Other")).not.toBeInTheDocument();
+      39 |       expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+      40 |       expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:37:21)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● single selector free-text interaction › blocks blank input and trims the submitted text
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      47 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+      48 |       });
+    > 49 |       const textbox = screen.getByPlaceholderText("Enter the folder path");
+         |                              ^
+      50 |
+      51 |       fireEvent.keyDown(textbox, { key: "Enter" });
+      52 |       expect(onSubmit).not.toHaveBeenCalled();
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:49:30)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● single selector free-text interaction › submits through the visible button
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      68 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+      69 |       });
+    > 70 |       fireEvent.change(screen.getByPlaceholderText("Enter the folder path"), {
+         |                               ^
+      71 |         target: { value: " /Users/example/button " },
+      72 |       });
+      73 |
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:70:31)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● single selector free-text interaction › resets text when the request id changes
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+       98 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+       99 |       });
+    > 100 |       const textbox = screen.getByPlaceholderText("Enter the folder path");
+          |                              ^
+      101 |       fireEvent.change(textbox, { target: { value: "/first/request" } });
+      102 |
+      103 |       const nextConfig = {
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:100:30)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple selector free-text interaction › renders a direct labelled textbox without an Other choice
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      35 |       expect(screen.getByText("What folder path should I use?")).toBeInTheDocument();
+      36 |       expect(screen.getByText("Folder path")).toBeInTheDocument();
+    > 37 |       expect(screen.getByPlaceholderText("Enter the folder path")).toBeInTheDocument();
+         |                     ^
+      38 |       expect(screen.queryByText("Other")).not.toBeInTheDocument();
+      39 |       expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+      40 |       expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:37:21)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple selector free-text interaction › blocks blank input and trims the submitted text
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      47 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+      48 |       });
+    > 49 |       const textbox = screen.getByPlaceholderText("Enter the folder path");
+         |                              ^
+      50 |
+      51 |       fireEvent.keyDown(textbox, { key: "Enter" });
+      52 |       expect(onSubmit).not.toHaveBeenCalled();
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:49:30)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple selector free-text interaction › submits through the visible button
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      68 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+      69 |       });
+    > 70 |       fireEvent.change(screen.getByPlaceholderText("Enter the folder path"), {
+         |                               ^
+      71 |         target: { value: " /Users/example/button " },
+      72 |       });
+      73 |
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:70:31)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple selector free-text interaction › resets text when the request id changes
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mProject folder[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhat folder path should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mFolder path[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mdisabled[39m=[32m""[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+       98 |         config: freeTextFixture.pending.presentation.tool_call.interact_config,
+       99 |       });
+    > 100 |       const textbox = screen.getByPlaceholderText("Enter the folder path");
+          |                              ^
+      101 |       fireEvent.change(textbox, { target: { value: "/first/request" } });
+      102 |
+      103 |       const nextConfig = {
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:100:30)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● InteractWrapper reaches the single free-text selector through the registry
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Enter the folder path
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+              [36m>[39m
+                [0mProject folder[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+              [36m>[39m
+                [0mWhat folder path should I use?[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+              [36m/>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+                [36m>[39m
+                  [0mFolder path[0m
+                [36m</span>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: default; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); align-self: flex-end;"[39m
+            [36m>[39m
+              [0mSubmit[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      129 |   );
+      130 |
+    > 131 |   fireEvent.change(screen.getByPlaceholderText("Enter the folder path"), {
+          |                           ^
+      132 |     target: { value: " /Users/example/wrapper " },
+      133 |   });
+      134 |   fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:131:27)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● multiple bounded selector behavior › keeps options and Other behavior
+
+    TestingLibraryElementError: Unable to find an element with the placeholder text of: Describe it
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 1px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78); font-size: 12px; font-weight: 600; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mChoose an approach[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.52); font-size: 11px; font-family: Jost, sans-serif;"[39m
+            [36m>[39m
+              [0mWhich approach should I use?[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; opacity: 1; background: rgba(0, 0, 0, 0.04);"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box; border: 2px solid #65c466; background: rgb(101, 196, 102);"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"8"[39m
+                [33mviewBox[39m=[32m"0 0 8 8"[39m
+                [33mwidth[39m=[32m"8"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M1.5 4L3.5 6L6.5 2"[39m
+                  [33mstroke[39m=[32m"white"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"1.4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mExisting[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1.5; transition: background 0.12s; font-family: Jost, sans-serif; background: transparent; opacity: 1;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"width: 14px; height: 14px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.22); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.12s; box-sizing: border-box;"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mstyle[39m=[32m"display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mstyle[39m=[32m"color: rgba(0, 0, 0, 0.78);"[39m
+              [36m>[39m
+                [0mOther approach[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<button[39m
+            [33mstyle[39m=[32m"border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 11.5px; line-height: 1.4; font-family: Menlo, Monaco, Consolas, monospace; margin-top: 4px; color: rgb(6, 95, 70); background-color: rgba(16, 185, 129, 0.16); align-self: flex-end;"[39m
+          [36m>[39m
+            [0mSubmit[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      161 |     fireEvent.click(screen.getByText("Existing"));
+      162 |     fireEvent.click(screen.getByText("Other approach"));
+    > 163 |     fireEvent.change(screen.getByPlaceholderText("Describe it"), {
+          |                             ^
+      164 |       target: { value: " custom " },
+      165 |     });
+      166 |     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByPlaceholderText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:163:29)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 1 failed, 1 total
+Tests:       10 failed, 3 passed, 13 total
+Snapshots:   0 total
+Time:        0.766 s
+Ran all test suites matching /src\/COMPONENTs\/chat-bubble\/interact\/human_input_free_text.test.js/i.

@@ -1,0 +1,11 @@
+{
+  "scope": "Source review identity only; NOT a delivered candidate digest",
+  "sha256": "5535ac00d2b3db3b576460c183e7f481995a898aa73597a7af7a5c53e32eea38",
+  "files": {
+    "pupu/src/COMPONENTs/chat-bubble/interact/single_select_interact.js": "2f35c0edf5d62663666fd0fc2c36f7c1b35bf1c605609b4f0eb8a33a9e6c2f9a",
+    "pupu/src/COMPONENTs/chat-bubble/interact/multi_select_interact.js": "497e8cddf33d8bc83a79010566824ff79aa828c67c5164c70464a59e3c42fc41",
+    "pupu/src/SERVICEs/api.unchain.js": "4e35988529f53683e1b53a5346499b4b59a7343d70d59f08c6f2e065c41865ec",
+    "pupu/src/PAGEs/chat/hooks/durable_interaction_recovery.js": "bc3400f9c74c60e178347f26f150dd11725444fd16539d40eeedcb8ce39271e1",
+    "unchain/src/unchain/input/human_input.py": "a28ff1a98672478a878103083f67be911c59e8941cb6ca035295bebf916d32af"
+  }
+}

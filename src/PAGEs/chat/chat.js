@@ -783,18 +783,19 @@ const ChatInterface = () => {
     ];
   }, [activeModelCapabilities, reasoningEffortOptions]);
 
+  const { selectedReasoningEffort, handleSelectReasoningEffort } = session;
   useEffect(() => {
-    const selected = session.selectedReasoningEffort;
+    const selected = selectedReasoningEffort;
     if (
       selected &&
       reasoningEffortOptions.length > 0 &&
       !reasoningEffortOptions.includes(selected)
     ) {
-      session.handleSelectReasoningEffort(defaultReasoningEffort);
+      handleSelectReasoningEffort(defaultReasoningEffort);
     }
   }, [
-    session.selectedReasoningEffort,
-    session.handleSelectReasoningEffort,
+    selectedReasoningEffort,
+    handleSelectReasoningEffort,
     reasoningEffortOptions,
     defaultReasoningEffort,
   ]);

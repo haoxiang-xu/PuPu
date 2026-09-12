@@ -1,0 +1,1861 @@
+
+> PuPu@0.1.10 test:release-qa
+> npm run test:release-qa:unit && npm run test:long-run-harness
+
+
+> PuPu@0.1.10 test:release-qa:unit
+> node --test scripts/release-qa/*.test.mjs
+
+TAP version 13
+# Subtest: a failed reviewer cannot reuse a stale GO file
+ok 1 - a failed reviewer cannot reuse a stale GO file
+  ---
+  duration_ms: 55.999792
+  type: 'test'
+  ...
+# Subtest: nonzero reviewer output is rejected even when it contains valid JSON
+ok 2 - nonzero reviewer output is rejected even when it contains valid JSON
+  ---
+  duration_ms: 0.148791
+  type: 'test'
+  ...
+# Subtest: schema-invalid reviewer output is rejected after a successful exit
+ok 3 - schema-invalid reviewer output is rejected after a successful exit
+  ---
+  duration_ms: 0.24625
+  type: 'test'
+  ...
+# Subtest: successful schema-valid reviewer output is accepted
+ok 4 - successful schema-valid reviewer output is accepted
+  ---
+  duration_ms: 0.787084
+  type: 'test'
+  ...
+# Subtest: reviewer environment strips credential-like and unrelated values
+ok 5 - reviewer environment strips credential-like and unrelated values
+  ---
+  duration_ms: 0.269667
+  type: 'test'
+  ...
+# Subtest: release builds Unchain once and every test/package consumes the same bytes
+ok 6 - release builds Unchain once and every test/package consumes the same bytes
+  ---
+  duration_ms: 49.551708
+  type: 'test'
+  ...
+# Subtest: active build and local QA paths contain no compatibility lock or dirty bypass
+ok 7 - active build and local QA paths contain no compatibility lock or dirty bypass
+  ---
+  duration_ms: 24.913917
+  type: 'test'
+  ...
+# Subtest: every local package chain prepares or reuses one immutable artifact
+ok 8 - every local package chain prepares or reuses one immutable artifact
+  ---
+  duration_ms: 4.445208
+  type: 'test'
+  ...
+# Subtest: active AI release review requires artifact and protocol continuity, never a SHA lock
+ok 9 - active AI release review requires artifact and protocol continuity, never a SHA lock
+  ---
+  duration_ms: 6.527208
+  type: 'test'
+  ...
+# Subtest: all sidecar builders pin PyInstaller and freeze the private vault entries
+ok 10 - all sidecar builders pin PyInstaller and freeze the private vault entries
+  ---
+  duration_ms: 0.5095
+  type: 'test'
+  ...
+# Subtest: candidate assembler merges architecture-specific updater metadata and seals exact bytes
+ok 11 - candidate assembler merges architecture-specific updater metadata and seals exact bytes
+  ---
+  duration_ms: 938.43975
+  type: 'test'
+  ...
+# Subtest: candidate assembler seals a full RC identity without stable-version filenames
+ok 12 - candidate assembler seals a full RC identity without stable-version filenames
+  ---
+  duration_ms: 1520.93275
+  type: 'test'
+  ...
+# Subtest: candidate assembler and verifier bind Windows signing evidence to the sealed installer
+ok 13 - candidate assembler and verifier bind Windows signing evidence to the sealed installer
+  ---
+  duration_ms: 866.31875
+  type: 'test'
+  ...
+# Subtest: candidate verifier rejects a retained Windows signing proof with a missing helper
+ok 14 - candidate verifier rejects a retained Windows signing proof with a missing helper
+  ---
+  duration_ms: 501.40775
+  type: 'test'
+  ...
+# Subtest: candidate verifier binds QA report and qualification receipt to the requested Actions runs
+ok 15 - candidate verifier binds QA report and qualification receipt to the requested Actions runs
+  ---
+  duration_ms: 669.991417
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects missing updater metadata instead of guessing it
+ok 16 - candidate assembler rejects missing updater metadata instead of guessing it
+  ---
+  duration_ms: 200.774541
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects updater metadata with a fake payload SHA-512
+ok 17 - candidate assembler rejects updater metadata with a fake payload SHA-512
+  ---
+  duration_ms: 198.100459
+  type: 'test'
+  ...
+# Subtest: candidate assembly accepts a Windows installer only after post-sign metadata refresh
+ok 18 - candidate assembly accepts a Windows installer only after post-sign metadata refresh
+  ---
+  duration_ms: 394.291458
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects a QA report from another Actions run
+ok 19 - candidate assembler rejects a QA report from another Actions run
+  ---
+  duration_ms: 126.353208
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects an unallowlisted raw package output
+ok 20 - candidate assembler rejects an unallowlisted raw package output
+  ---
+  duration_ms: 219.311167
+  type: 'test'
+  ...
+# Subtest: qualification feed contains only the exact Windows updater bytes from the sealed candidate
+ok 21 - qualification feed contains only the exact Windows updater bytes from the sealed candidate
+  ---
+  duration_ms: 580.150708
+  type: 'test'
+  ...
+# Subtest: qualification feed fails closed for unsupported targets, altered bytes, and extra files
+ok 22 - qualification feed fails closed for unsupported targets, altered bytes, and extra files
+  ---
+  duration_ms: 655.996333
+  type: 'test'
+  ...
+# Subtest: bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and explicit restart NOT_RUN
+ok 23 - bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and explicit restart NOT_RUN
+  ---
+  duration_ms: 413.951208
+  type: 'test'
+  ...
+# Subtest: bootstrap receipt rejects wrong confirmation, same run, and legacy or target drift
+ok 24 - bootstrap receipt rejects wrong confirmation, same run, and legacy or target drift
+  ---
+  duration_ms: 684.217542
+  type: 'test'
+  ...
+# Subtest: builds a strict qualification receipt from all required targets
+ok 25 - builds a strict qualification receipt from all required targets
+  ---
+  duration_ms: 418.7885
+  type: 'test'
+  ...
+# Subtest: builds the same non-promotable fresh-install receipt for an exact RC identity
+ok 26 - builds the same non-promotable fresh-install receipt for an exact RC identity
+  ---
+  duration_ms: 664.438208
+  type: 'test'
+  ...
+# Subtest: rejects a missing or duplicate installed target report
+ok 27 - rejects a missing or duplicate installed target report
+  ---
+  duration_ms: 840.75925
+  type: 'test'
+  ...
+# Subtest: rejects installer name and hash drift from the sealed candidate
+ok 28 - rejects installer name and hash drift from the sealed candidate
+  ---
+  duration_ms: 312.939625
+  type: 'test'
+  ...
+# Subtest: complete update receipt requires every fresh and restart target with one explicit N-1 source
+ok 29 - complete update receipt requires every fresh and restart target with one explicit N-1 source
+  ---
+  duration_ms: 485.382958
+  type: 'test'
+  ...
+# Subtest: complete update receipt rejects a missing restart report or a fixture source mismatch
+ok 30 - complete update receipt rejects a missing restart report or a fixture source mismatch
+  ---
+  duration_ms: 795.048459
+  type: 'test'
+  ...
+# Subtest: W0-03 release build refuses a missing or malformed feature snapshot
+ok 31 - W0-03 release build refuses a missing or malformed feature snapshot
+  ---
+  duration_ms: 183.999667
+  type: 'test'
+  ...
+# Subtest: W0-03 release build consumes the exact producer snapshot without environment override
+ok 32 - W0-03 release build consumes the exact producer snapshot without environment override
+  ---
+  duration_ms: 165.984583
+  type: 'test'
+  ...
+# Subtest: W0-03 controlled Shadow profile ignores producer process overrides
+ok 33 - W0-03 controlled Shadow profile ignores producer process overrides
+  ---
+  duration_ms: 120.418875
+  type: 'test'
+  ...
+# Subtest: controlled All profile enables active Memory V2 without a theme gate
+ok 34 - controlled All profile enables active Memory V2 without a theme gate
+  ---
+  duration_ms: 92.124541
+  type: 'test'
+  ...
+# Subtest: controlled release profile rejects a missing or extra feature flag
+ok 35 - controlled release profile rejects a missing or extra feature flag
+  ---
+  duration_ms: 229.445333
+  type: 'test'
+  ...
+# Subtest: Windows build embeds only a closed staged Unchain artifact identity
+ok 36 - Windows build embeds only a closed staged Unchain artifact identity # SKIP
+  ---
+  duration_ms: 0.090166
+  type: 'test'
+  ...
+# Subtest: non-Windows builds ignore Windows staged artifact identity
+ok 37 - non-Windows builds ignore Windows staged artifact identity
+  ---
+  duration_ms: 118.876083
+  type: 'test'
+  ...
+# Subtest: canonicalizer reproduces and repairs the RC2 PowerShell ordering inversions
+ok 38 - canonicalizer reproduces and repairs the RC2 PowerShell ordering inversions
+  ---
+  duration_ms: 1.490292
+  type: 'test'
+  ...
+# Subtest: canonicalizer rejects duplicate signed paths before artifact admission
+ok 39 - canonicalizer rejects duplicate signed paths before artifact admission
+  ---
+  duration_ms: 0.606625
+  type: 'test'
+  ...
+# Subtest: canonicalizer supports the shared Windows signing qualification schema
+ok 40 - canonicalizer supports the shared Windows signing qualification schema
+  ---
+  duration_ms: 0.218917
+  type: 'test'
+  ...
+# Subtest: canonicalizer rejects an unsupported evidence schema
+ok 41 - canonicalizer rejects an unsupported evidence schema
+  ---
+  duration_ms: 0.144084
+  type: 'test'
+  ...
+# Subtest: CLI rewrites the producer JSON before the composite action publishes it
+ok 42 - CLI rewrites the producer JSON before the composite action publishes it
+  ---
+  duration_ms: 119.376625
+  type: 'test'
+  ...
+# Subtest: Context V2 release contract keeps all three blocking evidence layers
+ok 43 - Context V2 release contract keeps all three blocking evidence layers
+  ---
+  duration_ms: 17.17275
+  type: 'test'
+  ...
+# Subtest: fake MCP server declares one x-pupu-secret tool and records only a digest
+ok 44 - fake MCP server declares one x-pupu-secret tool and records only a digest
+  ---
+  duration_ms: 141.605792
+  type: 'test'
+  ...
+# Subtest: installed qualification disables the Electron sandbox only for Linux CI launches
+ok 45 - installed qualification disables the Electron sandbox only for Linux CI launches
+  ---
+  duration_ms: 1.603125
+  type: 'test'
+  ...
+# Subtest: installed qualification shuts down the main process before cleaning residuals
+ok 46 - installed qualification shuts down the main process before cleaning residuals
+  ---
+  duration_ms: 0.295958
+  type: 'test'
+  ...
+# Subtest: installed qualification retries transient Windows locks without hiding permanent errors
+ok 47 - installed qualification retries transient Windows locks without hiding permanent errors
+  ---
+  duration_ms: 0.720875
+  type: 'test'
+  ...
+# Subtest: installed qualification cleans observed and candidate-owned residual processes
+ok 48 - installed qualification cleans observed and candidate-owned residual processes
+  ---
+  duration_ms: 0.509166
+  type: 'test'
+  ...
+# Subtest: installed qualification accepts the exact package forms for each target
+ok 49 - installed qualification accepts the exact package forms for each target
+  ---
+  duration_ms: 1.202167
+  type: 'test'
+  ...
+# Subtest: installed qualification fails closed on wrong package forms and zero evidence
+ok 50 - installed qualification fails closed on wrong package forms and zero evidence
+  ---
+  duration_ms: 0.372875
+  type: 'test'
+  ...
+# Subtest: installed qualification rejects identity drift and incomplete lifecycle evidence
+ok 51 - installed qualification rejects identity drift and incomplete lifecycle evidence
+  ---
+  duration_ms: 0.328708
+  type: 'test'
+  ...
+# Subtest: installed qualification rejects installer identity outside the candidate manifest
+ok 52 - installed qualification rejects installer identity outside the candidate manifest
+  ---
+  duration_ms: 0.216416
+  type: 'test'
+  ...
+# Subtest: Linux release contract is AppImage plus deb with no in-app updater channel
+ok 53 - Linux release contract is AppImage plus deb with no in-app updater channel
+  ---
+  duration_ms: 2.992834
+  type: 'test'
+  ...
+# Subtest: Linux installed qualification runs both retained package forms on the closed Ubuntu tuple
+ok 54 - Linux installed qualification runs both retained package forms on the closed Ubuntu tuple
+  ---
+  duration_ms: 7.345625
+  type: 'test'
+  ...
+# Subtest: packaged Linux fails closed before any updater provider or startup timer is used
+ok 55 - packaged Linux fails closed before any updater provider or startup timer is used
+  ---
+  duration_ms: 0.517958
+  type: 'test'
+  ...
+# Subtest: release QA paths both include the fixed long-run harness suite
+ok 56 - release QA paths both include the fixed long-run harness suite
+  ---
+  duration_ms: 1.530042
+  type: 'test'
+  ...
+# (node:53026) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: process table parser and descendant closure preserve the candidate tree
+ok 57 - process table parser and descendant closure preserve the candidate tree
+  ---
+  duration_ms: 1.155917
+  type: 'test'
+  ...
+# Subtest: installed report accepts a nonzero, complete identity chain
+ok 58 - installed report accepts a nonzero, complete identity chain
+  ---
+  duration_ms: 0.311292
+  type: 'test'
+  ...
+# Subtest: installed report rejects zero-test and malformed identity evidence
+ok 59 - installed report rejects zero-test and malformed identity evidence
+  ---
+  duration_ms: 0.272916
+  type: 'test'
+  ...
+# Subtest: macOS certificate extraction passes the output prefix as one codesign option
+ok 60 - macOS certificate extraction passes the output prefix as one codesign option
+  ---
+  duration_ms: 0.857583
+  type: 'test'
+  ...
+# Subtest: macOS qualification and formal signing evidence use closed, non-interchangeable schemas
+ok 61 - macOS qualification and formal signing evidence use closed, non-interchangeable schemas
+  ---
+  duration_ms: 3.437875
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence rejects unknown keys and invalid provenance
+ok 62 - macOS signing evidence rejects unknown keys and invalid provenance
+  ---
+  duration_ms: 0.209083
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence exact-binds application identity and trust checks
+ok 63 - macOS signing evidence exact-binds application identity and trust checks
+  ---
+  duration_ms: 0.627292
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence exact-binds final package files and updater metadata
+ok 64 - macOS signing evidence exact-binds final package files and updater metadata
+  ---
+  duration_ms: 0.320625
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence resolves the checked-in contract before inspecting a package
+ok 65 - macOS signing evidence resolves the checked-in contract before inspecting a package
+  ---
+  duration_ms: 38.047958
+  type: 'test'
+  ...
+# Subtest: macOS updater metadata exactly binds the final ZIP and DMG package payloads
+ok 66 - macOS updater metadata exactly binds the final ZIP and DMG package payloads
+  ---
+  duration_ms: 172.20025
+  type: 'test'
+  ...
+# Subtest: macOS signing qualification is explicit, dual-architecture, protected, and non-publishing
+ok 67 - macOS signing qualification is explicit, dual-architecture, protected, and non-publishing
+  ---
+  duration_ms: 18.081042
+  type: 'test'
+  ...
+# Subtest: packaged smoke refuses a missing build feature snapshot before spawning
+ok 68 - packaged smoke refuses a missing build feature snapshot before spawning
+  ---
+  duration_ms: 67.215958
+  type: 'test'
+  ...
+# Subtest: package projection requires the compatible tuple and exact artifact manifest
+ok 69 - package projection requires the compatible tuple and exact artifact manifest
+  ---
+  duration_ms: 3.175
+  type: 'test'
+  ...
+# Subtest: packaged smoke waits for forced sidecar termination before cleanup
+ok 70 - packaged smoke waits for forced sidecar termination before cleanup
+  ---
+  duration_ms: 9.735042
+  type: 'test'
+  ...
+# Subtest: packaged smoke terminates the complete Windows sidecar process tree
+ok 71 - packaged smoke terminates the complete Windows sidecar process tree
+  ---
+  duration_ms: 0.210292
+  type: 'test'
+  ...
+# Subtest: packaged smoke fails closed when Windows process-tree termination fails
+ok 72 - packaged smoke fails closed when Windows process-tree termination fails
+  ---
+  duration_ms: 0.199625
+  type: 'test'
+  ...
+# Subtest: real child process smoke proves auth, health, status, and nonzero execution
+ok 73 - real child process smoke proves auth, health, status, and nonzero execution
+  ---
+  duration_ms: 262.829375
+  type: 'test'
+  ...
+# Subtest: unpatched dependency reproduces keychain password failure
+ok 74 - unpatched dependency reproduces keychain password failure
+  ---
+  duration_ms: 3.231834
+  type: 'test'
+  ...
+# Subtest: patched real dependency uses separate passwords for both certificates
+ok 75 - patched real dependency uses separate passwords for both certificates
+  ---
+  duration_ms: 1.691
+  type: 'test'
+  ...
+# Subtest: certificate import failures still fail closed
+ok 76 - certificate import failures still fail closed
+  ---
+  duration_ms: 0.675208
+  type: 'test'
+  ...
+# Subtest: patch is idempotent and rejects changed or partially patched bytes
+ok 77 - patch is idempotent and rejects changed or partially patched bytes
+  ---
+  duration_ms: 0.464292
+  type: 'test'
+  ...
+# Subtest: normal dependency installation applies the patch
+ok 78 - normal dependency installation applies the patch
+  ---
+  duration_ms: 1.134625
+  type: 'test'
+  ...
+# Subtest: signed Windows installer refreshes the exact updater SHA-512 and size
+ok 79 - signed Windows installer refreshes the exact updater SHA-512 and size
+  ---
+  duration_ms: 84.420958
+  type: 'test'
+  ...
+# Subtest: updater metadata refuses to refresh an ambiguous primary payload
+ok 80 - updater metadata refuses to refresh an ambiguous primary payload
+  ---
+  duration_ms: 50.18075
+  type: 'test'
+  ...
+# Subtest: release artifact contract seals the four v0.1.10 targets and reserves future ARM slots
+ok 81 - release artifact contract seals the four v0.1.10 targets and reserves future ARM slots
+  ---
+  duration_ms: 1.396708
+  type: 'test'
+  ...
+# Subtest: valid release asset manifest and exact directory pass with merged Mac and Windows updater metadata
+ok 82 - valid release asset manifest and exact directory pass with merged Mac and Windows updater metadata
+  ---
+  duration_ms: 242.493334
+  type: 'test'
+  ...
+# Subtest: RC manifest keeps the full prerelease identity in tag, metadata, and filenames
+ok 83 - RC manifest keeps the full prerelease identity in tag, metadata, and filenames
+  ---
+  duration_ms: 149.721292
+  type: 'test'
+  ...
+# Subtest: missing, extra, renamed, and byte-changed assets fail closed
+ok 84 - missing, extra, renamed, and byte-changed assets fail closed
+  ---
+  duration_ms: 1442.6545
+  type: 'test'
+  ...
+# Subtest: manifest rejects stale identity, altered target state, and stale updater payload metadata
+ok 85 - manifest rejects stale identity, altered target state, and stale updater payload metadata
+  ---
+  duration_ms: 830.16625
+  type: 'test'
+  ...
+# Subtest: updater metadata must carry the real SHA-512 of every payload
+ok 86 - updater metadata must carry the real SHA-512 of every payload
+  ---
+  duration_ms: 273.816166
+  type: 'test'
+  ...
+# Subtest: qualification receipt must bind every required target to the candidate manifest
+ok 87 - qualification receipt must bind every required target to the candidate manifest
+  ---
+  duration_ms: 272.546042
+  type: 'test'
+  ...
+# Subtest: bootstrap policy freezes v0.1.10 and the exact public v0.1.9 legacy projection
+ok 88 - bootstrap policy freezes v0.1.10 and the exact public v0.1.9 legacy projection
+  ---
+  duration_ms: 2.827292
+  type: 'test'
+  ...
+# Subtest: bootstrap policy and legacy projection fail closed on scope or asset drift
+ok 89 - bootstrap policy and legacy projection fail closed on scope or asset drift
+  ---
+  duration_ms: 1.181875
+  type: 'test'
+  ...
+# Subtest: receipt schema selects one closed qualification workflow and rejects old fresh-only promotion
+ok 90 - receipt schema selects one closed qualification workflow and rejects old fresh-only promotion
+  ---
+  duration_ms: 0.618833
+  type: 'test'
+  ...
+# Subtest: bootstrap qualification is exact-tag, approval-gated, fresh-only, and non-publishing
+ok 91 - bootstrap qualification is exact-tag, approval-gated, fresh-only, and non-publishing
+  ---
+  duration_ms: 18.273666
+  type: 'test'
+  ...
+# Subtest: promotion resolves receipt schema to one workflow and preserves the bootstrap warning
+ok 92 - promotion resolves receipt schema to one workflow and preserves the bootstrap warning
+  ---
+  duration_ms: 24.669917
+  type: 'test'
+  ...
+# Subtest: candidate policy resolves stable and numbered RC refs against one stable package version
+ok 93 - candidate policy resolves stable and numbered RC refs against one stable package version
+  ---
+  duration_ms: 1.143333
+  type: 'test'
+  ...
+# Subtest: promotion policy admits only the exact stable tag
+ok 94 - promotion policy admits only the exact stable tag
+  ---
+  duration_ms: 0.262916
+  type: 'test'
+  ...
+# Subtest: release ref parsing rejects non-RC prereleases, metadata, case drift, and invalid counters
+ok 95 - release ref parsing rejects non-RC prereleases, metadata, case drift, and invalid counters
+  ---
+  duration_ms: 0.198416
+  type: 'test'
+  ...
+# Subtest: release ref parsing rejects unstable package versions, identity mismatch, and unknown policy
+ok 96 - release ref parsing rejects unstable package versions, identity mismatch, and unknown policy
+  ---
+  duration_ms: 0.130208
+  type: 'test'
+  ...
+# Subtest: CLI emits the closed ref projection and fails closed on invalid invocation
+ok 97 - CLI emits the closed ref projection and fails closed on invalid invocation
+  ---
+  duration_ms: 155.272209
+  type: 'test'
+  ...
+# Subtest: closed plans map every phase to its exact workflow and inputs without mutation
+ok 98 - closed plans map every phase to its exact workflow and inputs without mutation
+  ---
+  duration_ms: 1.719625
+  type: 'test'
+  ...
+# Subtest: plans fail closed on extra input, wrong repository/ref, weak identity, or invalid sequence
+ok 99 - plans fail closed on extra input, wrong repository/ref, weak identity, or invalid sequence
+  ---
+  duration_ms: 1.442083
+  type: 'test'
+  ...
+# Subtest: dispatch uses only the validated tuple and returns the exact URL produced by gh
+ok 100 - dispatch uses only the validated tuple and returns the exact URL produced by gh
+  ---
+  duration_ms: 0.767791
+  type: 'test'
+  ...
+# Subtest: dispatch preserves an RC tag while rebuilding the stable package version
+ok 101 - dispatch preserves an RC tag while rebuilding the stable package version
+  ---
+  duration_ms: 0.45875
+  type: 'test'
+  ...
+# Subtest: dispatch cannot proceed on stale approval or fuzzy run discovery
+ok 102 - dispatch cannot proceed on stale approval or fuzzy run discovery
+  ---
+  duration_ms: 0.319666
+  type: 'test'
+  ...
+# Subtest: dispatch rejects fabricated plans before invoking GitHub
+ok 103 - dispatch rejects fabricated plans before invoking GitHub
+  ---
+  duration_ms: 0.326292
+  type: 'test'
+  ...
+# Subtest: state projection binds exact run identity, jobs, and required candidate artifacts
+ok 104 - state projection binds exact run identity, jobs, and required candidate artifacts
+  ---
+  duration_ms: 0.641041
+  type: 'test'
+  ...
+# Subtest: state projection reports approval, failure, and incomplete evidence without guessing readiness
+ok 105 - state projection reports approval, failure, and incomplete evidence without guessing readiness
+  ---
+  duration_ms: 0.186125
+  type: 'test'
+  ...
+# Subtest: state projection rejects wrong identity, incomplete pagination, malformed jobs, and duplicate artifacts
+ok 106 - state projection rejects wrong identity, incomplete pagination, malformed jobs, and duplicate artifacts
+  ---
+  duration_ms: 0.543042
+  type: 'test'
+  ...
+# Subtest: stage and publish success require the corresponding exact GitHub Release state
+ok 107 - stage and publish success require the corresponding exact GitHub Release state
+  ---
+  duration_ms: 0.531
+  type: 'test'
+  ...
+# Subtest: live observer performs only exact read calls and consumes a complete single-page response
+ok 108 - live observer performs only exact read calls and consumes a complete single-page response
+  ---
+  duration_ms: 0.33
+  type: 'test'
+  ...
+# Subtest: wait resumes the same run without dispatch and returns a bounded timeout
+ok 109 - wait resumes the same run without dispatch and returns a bounded timeout
+  ---
+  duration_ms: 0.205417
+  type: 'test'
+  ...
+# Subtest: a retry requires another explicit dispatch and preserves distinct run identities
+ok 110 - a retry requires another explicit dispatch and preserves distinct run identities
+  ---
+  duration_ms: 0.262
+  type: 'test'
+  ...
+# Subtest: CLI parsing rejects positional, duplicate, and unknown arguments
+ok 111 - CLI parsing rejects positional, duplicate, and unknown arguments
+  ---
+  duration_ms: 0.224
+  type: 'test'
+  ...
+# Subtest: CLI plan is read-only JSON and both agent entrypoints share one canonical workflow
+ok 112 - CLI plan is read-only JSON and both agent entrypoints share one canonical workflow
+  ---
+  duration_ms: 61.899583
+  type: 'test'
+  ...
+# Subtest: CLI plan projects an RC package version to its stable release base
+ok 113 - CLI plan projects an RC package version to its stable release base
+  ---
+  duration_ms: 154.16525
+  type: 'test'
+  ...
+# Subtest: Playwright release QA consumes Deterministic QA's exact sidecar artifact
+ok 114 - Playwright release QA consumes Deterministic QA's exact sidecar artifact
+  ---
+  duration_ms: 17.337792
+  type: 'test'
+  ...
+# Subtest: Playwright QA report checks are valid JSON after Actions expressions resolve
+ok 115 - Playwright QA report checks are valid JSON after Actions expressions resolve
+  ---
+  duration_ms: 2.417292
+  type: 'test'
+  ...
+# Subtest: manual Windows Playwright scope reuses deterministic QA and skips packaging
+ok 116 - manual Windows Playwright scope reuses deterministic QA and skips packaging
+  ---
+  duration_ms: 6.256792
+  type: 'test'
+  ...
+# Subtest: electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish
+ok 117 - electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish
+  ---
+  duration_ms: 1.260083
+  type: 'test'
+  ...
+# Subtest: release QA keeps its public candidate contract while delegating package execution
+ok 118 - release QA keeps its public candidate contract while delegating package execution
+  ---
+  duration_ms: 29.880375
+  type: 'test'
+  ...
+# Subtest: shared package workflow delegates the closed Windows signing chain to the shared action
+ok 119 - shared package workflow delegates the closed Windows signing chain to the shared action
+  ---
+  duration_ms: 0.494083
+  type: 'test'
+  ...
+# Subtest: stage workflow only promotes verified retained candidate bytes into a Draft Release
+ok 120 - stage workflow only promotes verified retained candidate bytes into a Draft Release
+  ---
+  duration_ms: 2.952333
+  type: 'test'
+  ...
+# Subtest: publish workflow has a protected manual transition and cannot rebuild or upload
+ok 121 - publish workflow has a protected manual transition and cannot rebuild or upload
+  ---
+  duration_ms: 1.79375
+  type: 'test'
+  ...
+# Subtest: README workflow is explicitly called after publication and never regex-rewrites a guessed version
+ok 122 - README workflow is explicitly called after publication and never regex-rewrites a guessed version
+  ---
+  duration_ms: 1.022875
+  type: 'test'
+  ...
+# Subtest: W0-06 freezes the remaining supported report sets after Windows Active retirement
+ok 123 - W0-06 freezes the remaining supported report sets after Windows Active retirement
+  ---
+  duration_ms: 1.271917
+  type: 'test'
+  ...
+# Subtest: W0-06 rejects unknown modes and tampered closed topology entries
+ok 124 - W0-06 rejects unknown modes and tampered closed topology entries
+  ---
+  duration_ms: 0.244792
+  type: 'test'
+  ...
+# Subtest: W0-06 makes missing, duplicate, and zero-evidence required reports fail closed
+ok 125 - W0-06 makes missing, duplicate, and zero-evidence required reports fail closed
+  ---
+  duration_ms: 1.422083
+  type: 'test'
+  ...
+# Subtest: installed qualification workflow verifies retained bytes and seals a non-publishing receipt
+ok 126 - installed qualification workflow verifies retained bytes and seals a non-publishing receipt
+  ---
+  duration_ms: 15.430458
+  type: 'test'
+  ...
+# Subtest: RC qualification is exact-tag, four-target, fresh-only, and non-publishing
+ok 127 - RC qualification is exact-tag, four-target, fresh-only, and non-publishing
+  ---
+  duration_ms: 9.702667
+  type: 'test'
+  ...
+# Subtest: README download block is manifest-derived, explicit, and excludes reserved ARM targets
+ok 128 - README download block is manifest-derived, explicit, and excludes reserved ARM targets
+  ---
+  duration_ms: 282.99875
+  type: 'test'
+  ...
+# Subtest: README CLI requires and consumes a verified manifest rather than package.json
+ok 129 - README CLI requires and consumes a verified manifest rather than package.json
+  ---
+  duration_ms: 401.896375
+  type: 'test'
+  ...
+# Subtest: README renderer fails closed when the marker pair is missing or duplicated
+ok 130 - README renderer fails closed when the marker pair is missing or duplicated
+  ---
+  duration_ms: 0.677042
+  type: 'test'
+  ...
+# Subtest: build version preparation no longer mutates README links
+ok 131 - build version preparation no longer mutates README links
+  ---
+  duration_ms: 9.627541
+  type: 'test'
+  ...
+# Subtest: download buttons map exactly to the five manifest installers
+ok 132 - download buttons map exactly to the five manifest installers
+  ---
+  duration_ms: 561.121416
+  type: 'test'
+  ...
+# Subtest: download button destinations honor the supplied repository
+ok 133 - download button destinations honor the supplied repository
+  ---
+  duration_ms: 610.117292
+  type: 'test'
+  ...
+# Subtest: release signing credentials require macOS code signing plus notarization and Windows Artifact Signing
+ok 134 - release signing credentials require macOS code signing plus notarization and Windows Artifact Signing
+  ---
+  duration_ms: 1.423084
+  type: 'test'
+  ...
+# Subtest: release signing executes its fail-closed CLI entrypoint with a portable URL guard
+ok 135 - release signing executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 53.953083
+  type: 'test'
+  ...
+# Subtest: buildJobReport records failures, version mismatch, and artifact evidence
+ok 136 - buildJobReport records failures, version mismatch, and artifact evidence
+  ---
+  duration_ms: 1.378875
+  type: 'test'
+  ...
+# Subtest: artifact, manifest, provenance, and nonzero evidence are all blocking
+ok 137 - artifact, manifest, provenance, and nonzero evidence are all blocking
+  ---
+  duration_ms: 3.382542
+  type: 'test'
+  ...
+# Subtest: Windows Vault supervisor native probe requires nonzero evidence
+ok 138 - Windows Vault supervisor native probe requires nonzero evidence
+  ---
+  duration_ms: 0.163583
+  type: 'test'
+  ...
+# Subtest: lite merge passes with one deterministic artifact and required matrices
+ok 139 - lite merge passes with one deterministic artifact and required matrices
+  ---
+  duration_ms: 0.896875
+  type: 'test'
+  ...
+# Subtest: local deterministic gates retain their Unchain evidence when the platform has an architecture-bearing name
+ok 140 - local deterministic gates retain their Unchain evidence when the platform has an architecture-bearing name
+  ---
+  duration_ms: 1.308917
+  type: 'test'
+  ...
+# Subtest: release merge requires all package platforms, identical bytes, and real smoke
+ok 141 - release merge requires all package platforms, identical bytes, and real smoke
+  ---
+  duration_ms: 2.706792
+  type: 'test'
+  ...
+# Subtest: release-candidate merge keeps the complete package continuity gate
+ok 142 - release-candidate merge keeps the complete package continuity gate
+  ---
+  duration_ms: 2.458792
+  type: 'test'
+  ...
+# Subtest: a merge with only non-deterministic reports is INCOMPLETE
+ok 143 - a merge with only non-deterministic reports is INCOMPLETE
+  ---
+  duration_ms: 0.299708
+  type: 'test'
+  ...
+# Subtest: renderMarkdown reports artifact continuity, not a compatibility SHA lock
+ok 144 - renderMarkdown reports artifact continuity, not a compatibility SHA lock
+  ---
+  duration_ms: 1.215708
+  type: 'test'
+  ...
+# Subtest: unchain analyst exits zero and writes unavailable analysis without credentials
+ok 145 - unchain analyst exits zero and writes unavailable analysis without credentials
+  ---
+  duration_ms: 1068.983916
+  type: 'test'
+  ...
+# Subtest: restart-update fixture evidence binds the exact installer, signer, source, target, and sole allowed difference
+ok 146 - restart-update fixture evidence binds the exact installer, signer, source, target, and sole allowed difference
+  ---
+  duration_ms: 94.508583
+  type: 'test'
+  ...
+# Subtest: restart-update fixture evidence fails closed on an unrecorded build difference or byte drift
+ok 147 - restart-update fixture evidence fails closed on an unrecorded build difference or byte drift
+  ---
+  duration_ms: 63.062292
+  type: 'test'
+  ...
+# Subtest: restart-update qualification strictly binds the candidate feed, fixture, lifecycle, and retained state
+ok 148 - restart-update qualification strictly binds the candidate feed, fixture, lifecycle, and retained state
+  ---
+  duration_ms: 1.281042
+  type: 'test'
+  ...
+# Subtest: restart-update qualification rejects fixture, feed, sequence, and unknown-field drift
+ok 149 - restart-update qualification rejects fixture, feed, sequence, and unknown-field drift
+  ---
+  duration_ms: 1.59575
+  type: 'test'
+  ...
+# Subtest: N-1 fixture source is an explicit stable tag and immutable lower-version commit
+ok 150 - N-1 fixture source is an explicit stable tag and immutable lower-version commit
+  ---
+  duration_ms: 0.825708
+  type: 'test'
+  ...
+# Subtest: RunBundle release gate freezes exact cross-boundary P0 selectors
+ok 151 - RunBundle release gate freezes exact cross-boundary P0 selectors
+  ---
+  duration_ms: 53.906
+  type: 'test'
+  ...
+# Subtest: Jest execution report rejects skipped-only output and proves a file ran
+ok 152 - Jest execution report rejects skipped-only output and proves a file ran
+  ---
+  duration_ms: 14341.563583
+  type: 'test'
+  ...
+# Subtest: Windows restart qualification uses inherited isolated AppData rather than relaunch-lost userData arguments
+ok 153 - Windows restart qualification uses inherited isolated AppData rather than relaunch-lost userData arguments
+  ---
+  duration_ms: 1.982
+  type: 'test'
+  ...
+# Subtest: restart-update executor accepts only the three supported runtimes and a fixed loopback port
+ok 154 - restart-update executor accepts only the three supported runtimes and a fixed loopback port
+  ---
+  duration_ms: 0.661125
+  type: 'test'
+  ...
+# Subtest: restart-update executor requires observed checking, downloading, and downloaded state without an error terminal
+ok 155 - restart-update executor requires observed checking, downloading, and downloaded state without an error terminal
+  ---
+  duration_ms: 0.242959
+  type: 'test'
+  ...
+# Subtest: signing transition repairs the actual production identity and all Electron integrity layers
+ok 156 - signing transition repairs the actual production identity and all Electron integrity layers
+  ---
+  duration_ms: 2726.517083
+  type: 'test'
+  ...
+# Subtest: prepare refuses reused receipt or receipt inside the payload
+ok 157 - prepare refuses reused receipt or receipt inside the payload
+  ---
+  duration_ms: 263.364833
+  type: 'test'
+  ...
+# Subtest: prepare never mutates a launcher that already has a PE certificate table
+ok 158 - prepare never mutates a launcher that already has a PE certificate table
+  ---
+  duration_ms: 1188.94
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion schema drift
+ok 159 - prepare rejects pre-existing companion schema drift
+  ---
+  duration_ms: 76.139083
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion extra drift
+ok 160 - prepare rejects pre-existing companion extra drift
+  ---
+  duration_ms: 258.445791
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion manifest drift
+ok 161 - prepare rejects pre-existing companion manifest drift
+  ---
+  duration_ms: 58.610458
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion wheel drift
+ok 162 - prepare rejects pre-existing companion wheel drift
+  ---
+  duration_ms: 77.139709
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on receipt-extra
+ok 163 - reseal fails closed on receipt-extra
+  ---
+  duration_ms: 88.445709
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on receipt-schema
+ok 164 - reseal fails closed on receipt-schema
+  ---
+  duration_ms: 247.749875
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on companion-wheel
+ok 165 - reseal fails closed on companion-wheel
+  ---
+  duration_ms: 109.238625
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on companion-extra
+ok 166 - reseal fails closed on companion-extra
+  ---
+  duration_ms: 184.872166
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on archive
+ok 167 - reseal fails closed on archive
+  ---
+  duration_ms: 63.473333
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on launcher
+ok 168 - reseal fails closed on launcher
+  ---
+  duration_ms: 44.019875
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on unsigned-sidecar
+ok 169 - reseal fails closed on unsigned-sidecar
+  ---
+  duration_ms: 1158.306166
+  type: 'test'
+  ...
+# Subtest: prepare rejects broken ASAR identity bytes and launcher header integrity
+ok 170 - prepare rejects broken ASAR identity bytes and launcher header integrity
+  ---
+  duration_ms: 1160.043417
+  type: 'test'
+  ...
+# Subtest: Windows shared action enforces dependency → reseal → launcher → installer signing order
+ok 171 - Windows shared action enforces dependency → reseal → launcher → installer signing order
+  ---
+  duration_ms: 11.360458
+  type: 'test'
+  ...
+# Subtest: artifact denylist accepts ordinary evidence without exposing its contents
+ok 172 - artifact denylist accepts ordinary evidence without exposing its contents
+  ---
+  duration_ms: 122.506375
+  type: 'test'
+  ...
+# Subtest: artifact denylist rejects signing material by safe path/category diagnostics only
+ok 173 - artifact denylist rejects signing material by safe path/category diagnostics only
+  ---
+  duration_ms: 221.468208
+  type: 'test'
+  ...
+# Subtest: artifact denylist rejects paths that resolve outside the declared upload root
+ok 174 - artifact denylist rejects paths that resolve outside the declared upload root
+  ---
+  duration_ms: 13.744917
+  type: 'test'
+  ...
+# Subtest: artifact denylist executes its fail-closed CLI entrypoint with a portable URL guard
+ok 175 - artifact denylist executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 57.565334
+  type: 'test'
+  ...
+# Subtest: qualification feed listens only on loopback and serves exactly sealed updater files
+ok 176 - qualification feed listens only on loopback and serves exactly sealed updater files
+  ---
+  duration_ms: 1373.62425
+  type: 'test'
+  ...
+# Subtest: qualification feed accepts a predeclared loopback port for a signed N-1 fixture
+ok 177 - qualification feed accepts a predeclared loopback port for a signed N-1 fixture
+  ---
+  duration_ms: 590.754917
+  type: 'test'
+  ...
+# Subtest: signing workflows isolate standalone credentials and OIDC to Windows jobs
+ok 178 - signing workflows isolate standalone credentials and OIDC to Windows jobs
+  ---
+  duration_ms: 66.925208
+  type: 'test'
+  ...
+# Subtest: one immutable wheel records artifact, protocol, and source provenance
+ok 179 - one immutable wheel records artifact, protocol, and source provenance
+  ---
+  duration_ms: 108.571875
+  type: 'test'
+  ...
+# Subtest: download verification proves bytes in a bare environment without importing Unchain
+ok 180 - download verification proves bytes in a bare environment without importing Unchain
+  ---
+  duration_ms: 204.561458
+  type: 'test'
+  ...
+# Subtest: installed distribution must be the wheel bytes, never an existing editable
+ok 181 - installed distribution must be the wheel bytes, never an existing editable
+  ---
+  duration_ms: 1.545416
+  type: 'test'
+  ...
+# Subtest: contract tests must come from the clean revision that built the wheel
+ok 182 - contract tests must come from the clean revision that built the wheel
+  ---
+  duration_ms: 1595.392375
+  type: 'test'
+  ...
+# Subtest: artifact bytes, protocol digest, and clean source provenance fail closed
+ok 183 - artifact bytes, protocol digest, and clean source provenance fail closed
+  ---
+  duration_ms: 133.698042
+  type: 'test'
+  ...
+# Subtest: release evidence requires the cold-reconcile and exact-cancel protocol features
+ok 184 - release evidence requires the cold-reconcile and exact-cancel protocol features
+  ---
+  duration_ms: 3.155
+  type: 'test'
+  ...
+# Subtest: release evidence rejects missing provider-turn and RunBundle features
+ok 185 - release evidence rejects missing provider-turn and RunBundle features
+  ---
+  duration_ms: 0.970125
+  type: 'test'
+  ...
+# Subtest: manifest validation matches producer NFC/nonempty rules including whitespace
+ok 186 - manifest validation matches producer NFC/nonempty rules including whitespace
+  ---
+  duration_ms: 0.671709
+  type: 'test'
+  ...
+# Subtest: manifest verification rejects bad digest, empty strings, Unicode drift, and byte-order drift
+ok 187 - manifest verification rejects bad digest, empty strings, Unicode drift, and byte-order drift
+  ---
+  duration_ms: 2.955208
+  type: 'test'
+  ...
+# Subtest: legacy release gap CLI reads a piped GitHub response under Node 24
+ok 188 - legacy release gap CLI reads a piped GitHub response under Node 24
+  ---
+  duration_ms: 162.044459
+  type: 'test'
+  ...
+# Subtest: qualification fixture app-update.yml is exactly the signed loopback provider contract
+ok 189 - qualification fixture app-update.yml is exactly the signed loopback provider contract
+  ---
+  duration_ms: 5.423916
+  type: 'test'
+  ...
+# Subtest: qualification fixture app-update.yml rejects production providers, feed drift, and unreviewed keys
+ok 190 - qualification fixture app-update.yml rejects production providers, feed drift, and unreviewed keys
+  ---
+  duration_ms: 2.467667
+  type: 'test'
+  ...
+# Subtest: Actions run provenance binds the exact successful dispatched workflow to the tag commit
+ok 191 - Actions run provenance binds the exact successful dispatched workflow to the tag commit
+  ---
+  duration_ms: 1.118083
+  type: 'test'
+  ...
+# Subtest: Actions run provenance CLI reads a piped run response under Node 24
+ok 192 - Actions run provenance CLI reads a piped run response under Node 24
+  ---
+  duration_ms: 87.023917
+  type: 'test'
+  ...
+# Subtest: Actions run provenance rejects a mismatched identity, result, event, tag, commit, or workflow
+ok 193 - Actions run provenance rejects a mismatched identity, result, event, tag, commit, or workflow
+  ---
+  duration_ms: 1.298
+  type: 'test'
+  ...
+# Subtest: release environments fail closed without reviewer protection
+ok 194 - release environments fail closed without reviewer protection
+  ---
+  duration_ms: 1.185209
+  type: 'test'
+  ...
+# Subtest: environment verifier executes its fail-closed CLI entrypoint with a portable URL guard
+ok 195 - environment verifier executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 76.007917
+  type: 'test'
+  ...
+# Subtest: environment verifier accepts reviewer-protected JSON through streamed standard input
+ok 196 - environment verifier accepts reviewer-protected JSON through streamed standard input
+  ---
+  duration_ms: 92.671542
+  type: 'test'
+  ...
+# Subtest: Playwright execution evidence counts completed tests but not skipped-only output
+ok 197 - Playwright execution evidence counts completed tests but not skipped-only output
+  ---
+  duration_ms: 2.428291
+  type: 'test'
+  ...
+# Subtest: package output verifier requires the exact artifact set for each supported v0.1.10 target
+ok 198 - package output verifier requires the exact artifact set for each supported v0.1.10 target
+  ---
+  duration_ms: 1056.6875
+  type: 'test'
+  ...
+# Subtest: package output verifier requires full RC filenames on every supported target
+ok 199 - package output verifier requires full RC filenames on every supported target
+  ---
+  duration_ms: 595.888167
+  type: 'test'
+  ...
+# Subtest: package output verifier rejects a missing canonical artifact and future reserved targets
+ok 200 - package output verifier rejects a missing canonical artifact and future reserved targets
+  ---
+  duration_ms: 253.986666
+  type: 'test'
+  ...
+# Subtest: package output verifier permits only documented builder support files
+ok 201 - package output verifier permits only documented builder support files
+  ---
+  duration_ms: 249.35425
+  type: 'test'
+  ...
+# Subtest: package output verifier rejects an extra release-looking filename
+ok 202 - package output verifier rejects an extra release-looking filename
+  ---
+  duration_ms: 95.797917
+  type: 'test'
+  ...
+# Subtest: a complete passing evidence file verifies with no failures
+ok 203 - a complete passing evidence file verifies with no failures
+  ---
+  duration_ms: 4.862625
+  type: 'test'
+  ...
+# Subtest: every drift is rejected at the consumer, independently of the producer
+ok 204 - every drift is rejected at the consumer, independently of the producer
+  ---
+  duration_ms: 17.522625
+  type: 'test'
+  ...
+# Subtest: NOT_RUN cells make the verdict incomplete rather than passing
+ok 205 - NOT_RUN cells make the verdict incomplete rather than passing
+  ---
+  duration_ms: 1.073125
+  type: 'test'
+  ...
+# Subtest: an N/A cell needs a reason and is neither a pass nor a failure by itself
+ok 206 - an N/A cell needs a reason and is neither a pass nor a failure by itself
+  ---
+  duration_ms: 0.518042
+  type: 'test'
+  ...
+# Subtest: CLI verifies files and returns 0 / 1 / 2 for pass, fail and incomplete
+ok 207 - CLI verifies files and returns 0 / 1 / 2 for pass, fail and incomplete
+  ---
+  duration_ms: 774.735917
+  type: 'test'
+  ...
+# Subtest: W0-05 accepts a non-self-referential five-layer candidate chain
+ok 208 - W0-05 accepts a non-self-referential five-layer candidate chain
+  ---
+  duration_ms: 2.885791
+  type: 'test'
+  ...
+# Subtest: W0-05 gives each immutable snapshot a new build identity while retaining payload lineage
+ok 209 - W0-05 gives each immutable snapshot a new build identity while retaining payload lineage
+  ---
+  duration_ms: 0.93425
+  type: 'test'
+  ...
+# Subtest: W0-05 rejects self-reference, future install digests, and unsigned payload deltas
+ok 210 - W0-05 rejects self-reference, future install digests, and unsigned payload deltas
+  ---
+  duration_ms: 0.720083
+  type: 'test'
+  ...
+# Subtest: W0-05 candidate report exposes only a complete verified chain with nonzero evidence
+ok 211 - W0-05 candidate report exposes only a complete verified chain with nonzero evidence
+  ---
+  duration_ms: 1.902375
+  type: 'test'
+  ...
+# Subtest: catalog covers the three declared sink kinds with success and fault cells
+ok 212 - catalog covers the three declared sink kinds with success and fault cells
+  ---
+  duration_ms: 2.313417
+  type: 'test'
+  ...
+# Subtest: cycle schedule is deterministic, bounded to the pool and well mixed
+ok 213 - cycle schedule is deterministic, bounded to the pool and well mixed
+  ---
+  duration_ms: 2.470959
+  type: 'test'
+  ...
+# Subtest: Responses SSE builders produce a completed function_call and a completed text turn
+ok 214 - Responses SSE builders produce a completed function_call and a completed text turn
+  ---
+  duration_ms: 0.995333
+  type: 'test'
+  ...
+# Subtest: secret scan reports encoded variants by digest only and never the plaintext
+ok 215 - secret scan reports encoded variants by digest only and never the plaintext
+  ---
+  duration_ms: 1.777375
+  type: 'test'
+  ...
+# Subtest: evaluateCell accepts exact success observations and rejects each drift
+ok 216 - evaluateCell accepts exact success observations and rejects each drift
+  ---
+  duration_ms: 1.274
+  type: 'test'
+  ...
+# Subtest: evaluateCell encodes the fault semantics of each catalog cell
+ok 217 - evaluateCell encodes the fault semantics of each catalog cell
+  ---
+  duration_ms: 0.612041
+  type: 'test'
+  ...
+# Subtest: handle growth is judged on first versus last sample with a bounded delta
+ok 218 - handle growth is judged on first versus last sample with a bounded delta
+  ---
+  duration_ms: 0.543125
+  type: 'test'
+  ...
+# Subtest: buildEvidence emits the exact top-level key set and observed key set
+ok 219 - buildEvidence emits the exact top-level key set and observed key set
+  ---
+  duration_ms: 2.887583
+  type: 'test'
+  ...
+# Subtest: W0-04 Node parser consumes the versioned protocol and Windows sink fixture
+ok 220 - W0-04 Node parser consumes the versioned protocol and Windows sink fixture
+  ---
+  duration_ms: 11.731167
+  type: 'test'
+  ...
+# Subtest: W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks
+ok 221 - W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks
+  ---
+  duration_ms: 5.830334
+  type: 'test'
+  ...
+# Subtest: W1-06 Windows registry exposes exactly the attested sink set
+ok 222 - W1-06 Windows registry exposes exactly the attested sink set
+  ---
+  duration_ms: 0.959375
+  type: 'test'
+  ...
+# Subtest: W2-02 Electron strictly consumes Python supervisor control frames
+ok 223 - W2-02 Electron strictly consumes Python supervisor control frames
+  ---
+  duration_ms: 612.877458
+  type: 'test'
+  ...
+# Subtest: W0-03 GREEN: release build requires an explicit feature snapshot
+ok 224 - W0-03 GREEN: release build requires an explicit feature snapshot
+  ---
+  duration_ms: 0.990625
+  type: 'test'
+  ...
+# Subtest: W0-03 GREEN: packaged sidecar smoke reuses the immutable build snapshot
+ok 225 - W0-03 GREEN: packaged sidecar smoke reuses the immutable build snapshot
+  ---
+  duration_ms: 17.328792
+  type: 'test'
+  ...
+# Subtest: W1-03 GREEN: Vault prepares before CAS and decrypts only before lease execute
+ok 226 - W1-03 GREEN: Vault prepares before CAS and decrypts only before lease execute
+  ---
+  duration_ms: 18.4405
+  type: 'test'
+  ...
+# Subtest: W0 RED: release Playwright launches source Electron, not an installed candidate
+ok 227 - W0 RED: release Playwright launches source Electron, not an installed candidate
+  ---
+  duration_ms: 13.577209
+  type: 'test'
+  ...
+# Subtest: W0-06 GREEN: final release enforcement uses a frozen mode-aware report topology
+ok 228 - W0-06 GREEN: final release enforcement uses a frozen mode-aware report topology
+  ---
+  duration_ms: 14.2215
+  type: 'test'
+  ...
+# Subtest: W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant
+ok 229 - W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant
+  ---
+  duration_ms: 13.520959
+  type: 'test'
+  ...
+# Subtest: W0-04 GREEN: Electron, sidecar, and release artifact require the same context-memory feature
+ok 230 - W0-04 GREEN: Electron, sidecar, and release artifact require the same context-memory feature
+  ---
+  duration_ms: 15.899958
+  type: 'test'
+  ...
+# Subtest: W0-08 freezes unavailable stop authorities as a promotion-blocking policy
+ok 231 - W0-08 freezes unavailable stop authorities as a promotion-blocking policy
+  ---
+  duration_ms: 3.169625
+  type: 'test'
+  ...
+# Subtest: W0-08 only accepts a new Shadow build identity with retained payload lineage
+ok 232 - W0-08 only accepts a new Shadow build identity with retained payload lineage
+  ---
+  duration_ms: 1.355958
+  type: 'test'
+  ...
+# Subtest: formal candidate and qualification signing share one guarded implementation
+ok 233 - formal candidate and qualification signing share one guarded implementation
+  ---
+  duration_ms: 20.332709
+  type: 'test'
+  ...
+# Subtest: Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check
+ok 234 - Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check
+  ---
+  duration_ms: 13.844541
+  type: 'test'
+  ...
+# Subtest: Windows native probe evidence is independently strict-validated
+ok 235 - Windows native probe evidence is independently strict-validated
+  ---
+  duration_ms: 0.908125
+  type: 'test'
+  ...
+# Subtest: worktree fingerprint covers tracked and untracked content but ignores ignored outputs
+ok 236 - worktree fingerprint covers tracked and untracked content but ignores ignored outputs
+  ---
+  duration_ms: 1539.716666
+  type: 'test'
+  ...
+# Subtest: qualification fixture build config changes only the signed package updater provider
+ok 237 - qualification fixture build config changes only the signed package updater provider
+  ---
+  duration_ms: 29.202167
+  type: 'test'
+  ...
+# Subtest: qualification fixture config rejects every feed other than a runner-loopback root endpoint
+ok 238 - qualification fixture config rejects every feed other than a runner-loopback root endpoint
+  ---
+  duration_ms: 1.343291
+  type: 'test'
+  ...
+# Subtest: qualification fixture config is written once and fails closed on unexpected source publishers
+ok 239 - qualification fixture config is written once and fails closed on unexpected source publishers
+  ---
+  duration_ms: 253.078125
+  type: 'test'
+  ...
+1..239
+# tests 239
+# suites 0
+# pass 238
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 15215.823417
+
+> PuPu@0.1.10 test:long-run-harness
+> node --test scripts/test-api/deterministic-soak-lib.test.mjs scripts/test-api/deterministic-soak-runner-lib.test.mjs scripts/test-api/fake_openai_responses_server.test.mjs scripts/test-api/single-agent-long-run-lib.test.mjs scripts/test-api/run-single-agent-long-run.test.mjs scripts/test-api/live-long-run-lib.test.mjs scripts/test-api/run-live-long-runs.test.mjs
+
+TAP version 13
+# Subtest: deterministic soak configuration
+    # Subtest: keeps quick near two minutes and full strictly at twenty minutes
+    ok 1 - keeps quick near two minutes and full strictly at twenty minutes
+      ---
+      duration_ms: 1.943291
+      type: 'test'
+      ...
+    # Subtest: builds strict lane, phase, and iteration prompts
+    ok 2 - builds strict lane, phase, and iteration prompts
+      ---
+      duration_ms: 0.237708
+      type: 'test'
+      ...
+    # Subtest: builds the custom provider, MCP recipe, and three deterministic workers
+    ok 3 - builds the custom provider, MCP recipe, and three deterministic workers
+      ---
+      duration_ms: 1.037833
+      type: 'test'
+      ...
+    1..3
+ok 1 - deterministic soak configuration
+  ---
+  duration_ms: 4.005833
+  type: 'suite'
+  ...
+# Subtest: deterministic soak evidence validators
+    # Subtest: accepts complete per-lane tool, interject, checkpoint, and worker evidence
+    ok 1 - accepts complete per-lane tool, interject, checkpoint, and worker evidence
+      ---
+      duration_ms: 1.505166
+      type: 'test'
+      ...
+    # Subtest: validates the focused multi-agent boundary evidence without root gates
+    ok 2 - validates the focused multi-agent boundary evidence without root gates
+      ---
+      duration_ms: 1.000125
+      type: 'test'
+      ...
+    # Subtest: reports missing and backwards audit evidence
+    ok 3 - reports missing and backwards audit evidence
+      ---
+      duration_ms: 0.393042
+      type: 'test'
+      ...
+    # Subtest: validates exact chat and attempt isolation
+    ok 4 - validates exact chat and attempt isolation
+      ---
+      duration_ms: 1.6315
+      type: 'test'
+      ...
+    # Subtest: parses JSONL and finds only release-blocking runtime log signatures
+    ok 5 - parses JSONL and finds only release-blocking runtime log signatures
+      ---
+      duration_ms: 1.130583
+      type: 'test'
+      ...
+    1..5
+ok 2 - deterministic soak evidence validators
+  ---
+  duration_ms: 6.081458
+  type: 'suite'
+  ...
+# Subtest: non-macOS sleep guard is a no-op
+ok 3 - non-macOS sleep guard is a no-op
+  ---
+  duration_ms: 2.16125
+  type: 'test'
+  ...
+# Subtest: macOS sleep guard watches the Playwright process with fixed flags
+ok 4 - macOS sleep guard watches the Playwright process with fixed flags
+  ---
+  duration_ms: 0.479917
+  type: 'test'
+  ...
+# Subtest: macOS sleep guard forwards an explicit closed environment
+ok 5 - macOS sleep guard forwards an explicit closed environment
+  ---
+  duration_ms: 0.261
+  type: 'test'
+  ...
+# Subtest: macOS sleep guard reports asynchronous spawn failures
+ok 6 - macOS sleep guard reports asynchronous spawn failures
+  ---
+  duration_ms: 0.196208
+  type: 'test'
+  ...
+# Subtest: sleep guard close reaps an active caffeinate process
+ok 7 - sleep guard close reaps an active caffeinate process
+  ---
+  duration_ms: 0.395583
+  type: 'test'
+  ...
+# Subtest: sleep guard cleanup escalates when graceful termination is ignored
+ok 8 - sleep guard cleanup escalates when graceful termination is ignored
+  ---
+  duration_ms: 4.395666
+  type: 'test'
+  ...
+# Subtest: sleep guard cleanup fails closed when neither termination signal reaps it
+ok 9 - sleep guard cleanup fails closed when neither termination signal reaps it
+  ---
+  duration_ms: 2.56575
+  type: 'test'
+  ...
+# Subtest: full macOS profile is fail-closed and runtime failures are explicit
+ok 10 - full macOS profile is fail-closed and runtime failures are explicit
+  ---
+  duration_ms: 0.355875
+  type: 'test'
+  ...
+# Subtest: deterministic fake OpenAI Responses fixture
+    # Subtest: accepts legal message content blocks and rejects leaked attachment metadata
+    ok 1 - accepts legal message content blocks and rejects leaked attachment metadata
+      ---
+      duration_ms: 4.017334
+      type: 'test'
+      ...
+    # Subtest: returns byte-identical SSE and IDs for repeated identical bodies
+    ok 2 - returns byte-identical SSE and IDs for repeated identical bodies
+      ---
+      duration_ms: 1.607667
+      type: 'test'
+      ...
+    # Subtest: maps every root phase to its strict canonical tool arguments
+    ok 3 - maps every root phase to its strict canonical tool arguments
+      ---
+      duration_ms: 1.327667
+      type: 'test'
+      ...
+    # Subtest: emits fixed three-worker batches for happy and boundary scenarios
+    ok 4 - emits fixed three-worker batches for happy and boundary scenarios
+      ---
+      duration_ms: 2.529125
+      type: 'test'
+      ...
+    # Subtest: makes child clarification a structured ask without a root answer
+    ok 5 - makes child clarification a structured ask without a root answer
+      ---
+      duration_ms: 0.495
+      type: 'test'
+      ...
+    # Subtest: requires the exact child approval fail-closed reason before converging
+    ok 6 - requires the exact child approval fail-closed reason before converging
+      ---
+      duration_ms: 0.560333
+      type: 'test'
+      ...
+    # Subtest: repeats only the fixed sentinel probe until the child iteration budget
+    ok 7 - repeats only the fixed sentinel probe until the child iteration budget
+      ---
+      duration_ms: 0.419417
+      type: 'test'
+      ...
+    # Subtest: only lets the parent converge after all three exact child outcomes
+    ok 8 - only lets the parent converge after all three exact child outcomes
+      ---
+      duration_ms: 1.34075
+      type: 'test'
+      ...
+    # Subtest: finishes after the matching tool result and preserves new-turn addressing
+    ok 9 - finishes after the matching tool result and preserves new-turn addressing
+      ---
+      duration_ms: 0.55075
+      type: 'test'
+      ...
+    # Subtest: keeps one root response chain alive for many fixed tool iterations
+    ok 10 - keeps one root response chain alive for many fixed tool iterations
+      ---
+      duration_ms: 3.5695
+      type: 'test'
+      ...
+    # Subtest: does not count quoted root markers inside child-agent requests
+    ok 11 - does not count quoted root markers inside child-agent requests
+      ---
+      duration_ms: 0.2495
+      type: 'test'
+      ...
+    # Subtest: keeps an in-run BTW ahead of the tool result out of the root continuation route
+    ok 12 - keeps an in-run BTW ahead of the tool result out of the root continuation route
+      ---
+      duration_ms: 0.575083
+      type: 'test'
+      ...
+    # Subtest: does not let a historical queued successor shadow the next root gate
+    ok 13 - does not let a historical queued successor shadow the next root gate
+      ---
+      duration_ms: 0.275708
+      type: 'test'
+      ...
+    # Subtest: routes a side-assistant BTW even when its system context quotes the root task
+    ok 14 - routes a side-assistant BTW even when its system context quotes the root task
+      ---
+      duration_ms: 0.182833
+      type: 'test'
+      ...
+    # Subtest: finishes remote-continuation tool results from the encoded response ID
+    ok 15 - finishes remote-continuation tool results from the encoded response ID
+      ---
+      duration_ms: 0.306459
+      type: 'test'
+      ...
+    # Subtest: routes BTW, queue, and subagent prompts directly to fixed final text
+    ok 16 - routes BTW, queue, and subagent prompts directly to fixed final text
+      ---
+      duration_ms: 0.187958
+      type: 'test'
+      ...
+    # Subtest: serves streaming and non-streaming Responses requests and writes redacted audit
+    ok 17 - serves streaming and non-streaming Responses requests and writes redacted audit
+      ---
+      duration_ms: 111.617917
+      type: 'test'
+      ...
+    # Subtest: fails closed over HTTP when message metadata leaks into Responses input
+    ok 18 - fails closed over HTTP when message metadata leaks into Responses input
+      ---
+      duration_ms: 7.916584
+      type: 'test'
+      ...
+    # Subtest: exposes the CLI ready line and --audit contract
+    ok 19 - exposes the CLI ready line and --audit contract
+      ---
+      duration_ms: 96.66325
+      type: 'test'
+      ...
+    1..19
+ok 11 - deterministic fake OpenAI Responses fixture
+  ---
+  duration_ms: 236.40625
+  type: 'suite'
+  ...
+# Subtest: defines the exact six-cell workload/model matrix
+ok 12 - defines the exact six-cell workload/model matrix
+  ---
+  duration_ms: 2.858709
+  type: 'test'
+  ...
+# Subtest: selects independent cells without accepting model aliases
+ok 13 - selects independent cells without accepting model aliases
+  ---
+  duration_ms: 0.688416
+  type: 'test'
+  ...
+# Subtest: builds one fixed ordered root plan per workload
+ok 14 - builds one fixed ordered root plan per workload
+  ---
+  duration_ms: 1.249834
+  type: 'test'
+  ...
+# Subtest: validates the observed root calls as an exact sequential plan prefix
+ok 15 - validates the observed root calls as an exact sequential plan prefix
+  ---
+  duration_ms: 1.151834
+  type: 'test'
+  ...
+# Subtest: prompt starts the pre-approved plan and cannot know the FYI nonce
+ok 16 - prompt starts the pre-approved plan and cannot know the FYI nonce
+  ---
+  duration_ms: 0.960584
+  type: 'test'
+  ...
+# Subtest: root start helper makes one HTTP mutation and never retries 503
+ok 17 - root start helper makes one HTTP mutation and never retries 503
+  ---
+  duration_ms: 0.503667
+  type: 'test'
+  ...
+# Subtest: derives a fail-closed wait scale from root duration
+ok 18 - derives a fail-closed wait scale from root duration
+  ---
+  duration_ms: 0.143792
+  type: 'test'
+  ...
+# Subtest: creates only isolated coding artifacts and fixed web sources
+ok 19 - creates only isolated coding artifacts and fixed web sources
+  ---
+  duration_ms: 0.262458
+  type: 'test'
+  ...
+# Subtest: extracts bounded root and child identity evidence without flattening
+ok 20 - extracts bounded root and child identity evidence without flattening
+  ---
+  duration_ms: 1.884791
+  type: 'test'
+  ...
+# Subtest: fails closed on absent identity and redacts exact credentials
+ok 21 - fails closed on absent identity and redacts exact credentials
+  ---
+  duration_ms: 0.654
+  type: 'test'
+  ...
+# Subtest: runner defaults to six 20-minute single-root cells in three parallels
+ok 22 - runner defaults to six 20-minute single-root cells in three parallels
+  ---
+  duration_ms: 1.521833
+  type: 'test'
+  ...
+# Subtest: runner supports explicit subsets but rejects the old short-attempt option
+ok 23 - runner supports explicit subsets but rejects the old short-attempt option
+  ---
+  duration_ms: 1.388875
+  type: 'test'
+  ...
+# Subtest: short runs require an explicit smoke-only override
+ok 24 - short runs require an explicit smoke-only override
+  ---
+  duration_ms: 0.169042
+  type: 'test'
+  ...
+# Subtest: paid runner refuses to reuse a nonempty report directory
+ok 25 - paid runner refuses to reuse a nonempty report directory
+  ---
+  duration_ms: 16.260667
+  type: 'test'
+  ...
+# Subtest: credentials resolve from dedicated env, standard env, or secure file
+ok 26 - credentials resolve from dedicated env, standard env, or secure file
+  ---
+  duration_ms: 17.242333
+  type: 'test'
+  ...
+# Subtest: child environment uses a closed allowlist and strips all ambient secrets
+ok 27 - child environment uses a closed allowlist and strips all ambient secrets
+  ---
+  duration_ms: 0.339292
+  type: 'test'
+  ...
+# Subtest: Python capability probe receives only the closed child environment
+ok 28 - Python capability probe receives only the closed child environment
+  ---
+  duration_ms: 1.176042
+  type: 'test'
+  ...
+# Subtest: runner signals the isolated process group and falls back to its child
+ok 29 - runner signals the isolated process group and falls back to its child
+  ---
+  duration_ms: 0.426
+  type: 'test'
+  ...
+# Subtest: templates and recipes enforce exact worker/delegate tool boundaries
+ok 30 - templates and recipes enforce exact worker/delegate tool boundaries
+  ---
+  duration_ms: 0.637416
+  type: 'test'
+  ...
+# Subtest: isolated home writes one fixed recipe and three mode-specific templates
+ok 31 - isolated home writes one fixed recipe and three mode-specific templates
+  ---
+  duration_ms: 48.599208
+  type: 'test'
+  ...
+# Subtest: credential handoff is mode 0600 and never appears in Playwright args
+ok 32 - credential handoff is mode 0600 and never appears in Playwright args
+  ---
+  duration_ms: 37.618792
+  type: 'test'
+  ...
+# Subtest: parses the single-root runner contract without accepting hidden modes
+ok 33 - parses the single-root runner contract without accepting hidden modes
+  ---
+  duration_ms: 2.013458
+  type: 'test'
+  ...
+# Subtest: writes delegate/worker templates and one isolated Default recipe
+ok 34 - writes delegate/worker templates and one isolated Default recipe
+  ---
+  duration_ms: 185.294958
+  type: 'test'
+  ...
+# Subtest: defines a bounded quick smoke and a genuine 20-minute root run
+ok 35 - defines a bounded quick smoke and a genuine 20-minute root run
+  ---
+  duration_ms: 1.008959
+  type: 'test'
+  ...
+# Subtest: builds and parses one canonical root-execution prompt
+ok 36 - builds and parses one canonical root-execution prompt
+  ---
+  duration_ms: 1.455125
+  type: 'test'
+  ...
+# Subtest: uses fixed tool parameters and includes every required control boundary
+ok 37 - uses fixed tool parameters and includes every required control boundary
+  ---
+  duration_ms: 2.437792
+  type: 'test'
+  ...
+# Subtest: fails closed when a root step is missing or FYI is absent
+ok 38 - fails closed when a root step is missing or FYI is absent
+  ---
+  duration_ms: 1.399834
+  type: 'test'
+  ...
+1..38
+# tests 62
+# suites 3
+# pass 62
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 331.852833

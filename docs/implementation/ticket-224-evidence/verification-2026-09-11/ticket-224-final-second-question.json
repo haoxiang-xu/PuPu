@@ -1,0 +1,188 @@
+{
+  "id": "chat-1789171864596-0b9fbabf860b48",
+  "pending": {
+    "active_attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "graph_coordinator_attempt_id": "unchain-1789171873227-601e373af0d198",
+    "graph_step_attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "interaction_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+    "kind": "human_input",
+    "model": "qwen3:32b",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "allow_other": false,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [
+            {
+              "description": "",
+              "label": "是的，使用这个路径",
+              "value": "confirm"
+            },
+            {
+              "description": "",
+              "label": "否，需要修改路径",
+              "value": "modify"
+            }
+          ],
+          "other_label": "Other",
+          "other_placeholder": "",
+          "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+          "request_id": "call_v9f47z22",
+          "selection_mode": "single",
+          "title": "确认项目路径"
+        },
+        "call_id": "call_v9f47z22",
+        "confirmation_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+        "description": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+        "interact_config": {
+          "allow_other": false,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [
+            {
+              "description": "",
+              "label": "是的，使用这个路径",
+              "value": "confirm"
+            },
+            {
+              "description": "",
+              "label": "否，需要修改路径",
+              "value": "modify"
+            }
+          ],
+          "other_label": "Other",
+          "other_placeholder": "",
+          "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+          "request_id": "call_v9f47z22",
+          "selection_mode": "single",
+          "title": "确认项目路径"
+        },
+        "interact_type": "single",
+        "requires_confirmation": true,
+        "tool_display_name": "Ask User",
+        "tool_name": "ask_user_question",
+        "toolkit_id": "core",
+        "toolkit_name": "Core"
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "allow_other": false,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [
+              {
+                "description": "",
+                "label": "是的，使用这个路径",
+                "value": "confirm"
+              },
+              {
+                "description": "",
+                "label": "否，需要修改路径",
+                "value": "modify"
+              }
+            ],
+            "other_label": "Other",
+            "other_placeholder": "",
+            "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+            "request_id": "call_v9f47z22",
+            "selection_mode": "single",
+            "title": "确认项目路径"
+          },
+          "call_id": "call_v9f47z22",
+          "confirmation_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+          "description": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+          "interact_config": {
+            "allow_other": false,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [
+              {
+                "description": "",
+                "label": "是的，使用这个路径",
+                "value": "confirm"
+              },
+              {
+                "description": "",
+                "label": "否，需要修改路径",
+                "value": "modify"
+              }
+            ],
+            "other_label": "Other",
+            "other_placeholder": "",
+            "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+            "request_id": "call_v9f47z22",
+            "selection_mode": "single",
+            "title": "确认项目路径"
+          },
+          "interact_type": "single",
+          "requires_confirmation": true,
+          "tool_display_name": "Ask User",
+          "tool_name": "ask_user_question",
+          "toolkit_id": "core",
+          "toolkit_name": "Core"
+        },
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1789172857116,
+        "type": "tool_call"
+      }
+    },
+    "provider": "ollama",
+    "receipt_id": "receipt_3eb51e173078722fceecd9435ef0450b",
+    "resolution": {
+      "outcome": "submitted",
+      "response": {
+        "other_text": null,
+        "request_id": "call_v9f47z22",
+        "selected_values": [
+          "modify"
+        ]
+      }
+    },
+    "resume_available": true,
+    "resume_kind": "graph_step",
+    "resume_options": {
+      "_memory_v2_owner_chat_id": "chat-1789171864596-0b9fbabf860b48",
+      "agent_orchestration": {
+        "mode": "default"
+      },
+      "durable_interactions_required": true,
+      "memory_embedding_model": "text-embedding-3-small",
+      "memory_embedding_provider": "auto",
+      "memory_enabled": true,
+      "memory_last_n_turns": 8,
+      "memory_long_term_enabled": true,
+      "memory_long_term_episode_min_score": null,
+      "memory_long_term_episode_top_k": 4,
+      "memory_long_term_extract_every_n_turns": 6,
+      "memory_long_term_playbook_min_score": null,
+      "memory_long_term_playbook_top_k": 4,
+      "memory_long_term_vector_min_score": null,
+      "memory_long_term_vector_top_k": 4,
+      "memory_namespace": "pupu:default",
+      "memory_vector_min_score": null,
+      "memory_vector_top_k": 4,
+      "modelId": "ollama:qwen3:32b",
+      "system_prompt_v2": {
+        "defaults": {
+          "rules": "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information."
+        },
+        "enabled": true
+      },
+      "toolkits": [
+        "core"
+      ]
+    },
+    "session_id": "chat-1789171864596-0b9fbabf860b48",
+    "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "status": "receipt_recorded"
+  },
+  "text": "PUPU\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\nThinking…\nAsk User\ndetail\nSelected\n确认项目路径\n您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？\n是的，使用这个路径\n否，需要修改路径\ntook\n53.7s\nRESULT\nsubmitted\ntrue\nselected_values\n[\"modify\"]\nother_text\nnull\nThinking…\n/\nCOMMANDS · ↑↓ · ⏎\nORGANIZE\nqwen3:32b\n1\nRestoring an interrupted Unchain run...\nPlugins\nWorkspaces\nCHATS\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n0m\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n16m\nSettings"
+}

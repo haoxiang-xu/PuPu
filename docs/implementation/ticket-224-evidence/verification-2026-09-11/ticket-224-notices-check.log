@@ -1,0 +1,12 @@
+
+> PuPu@0.1.10 notices:check
+> node ./scripts/generate-third-party-notices.cjs --check
+
+[node] running license-checker over the production graph
+  OK: 1413 npm packages
+[python] running pip-licenses over the build venv
+  OK: 74 python packages
+
+Wrote THIRD_PARTY_NOTICES.txt (1493 packages)
+
+License gate PASSED.

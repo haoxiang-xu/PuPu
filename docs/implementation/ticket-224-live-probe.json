@@ -1,0 +1,160 @@
+[
+  {
+    "run": 1,
+    "prompt": "帮我做一个简单的 todo app",
+    "model": "qwen3:14b",
+    "probe": "supplemental raw provider; no tools executed",
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_3it993x3",
+          "function": {
+            "index": 0,
+            "name": "ask_user_question",
+            "arguments": {
+              "title": "技术栈选择",
+              "question": "您希望使用哪种技术栈来构建这个简单的 todo app？",
+              "selection_mode": "single",
+              "options": [
+                {
+                  "description": "使用 React 作为前端框架，Node.js 作为后端服务器。",
+                  "label": "React + Node.js",
+                  "value": "react_node"
+                },
+                {
+                  "description": "使用 Vue 作为前端框架，Flask 作为后端服务器。",
+                  "label": "Vue + Flask",
+                  "value": "vue_flask"
+                },
+                {
+                  "description": "使用 Svelte 作为前端框架，Express 作为后端服务器。",
+                  "label": "Svelte + Express",
+                  "value": "svelte_express"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "admission": [
+      {
+        "request_id": "probe-1",
+        "kind": "selector",
+        "title": "技术栈选择",
+        "question": "您希望使用哪种技术栈来构建这个简单的 todo app？",
+        "selection_mode": "single",
+        "options": [
+          {
+            "label": "React + Node.js",
+            "value": "react_node",
+            "description": "使用 React 作为前端框架，Node.js 作为后端服务器。"
+          },
+          {
+            "label": "Vue + Flask",
+            "value": "vue_flask",
+            "description": "使用 Vue 作为前端框架，Flask 作为后端服务器。"
+          },
+          {
+            "label": "Svelte + Express",
+            "value": "svelte_express",
+            "description": "使用 Svelte 作为前端框架，Express 作为后端服务器。"
+          }
+        ],
+        "allow_other": false,
+        "other_label": "Other",
+        "other_placeholder": "",
+        "min_selected": 1,
+        "max_selected": 1
+      }
+    ]
+  },
+  {
+    "run": 2,
+    "prompt": "帮我做一个 todo app，放到我电脑上的一个文件夹里",
+    "model": "qwen3:14b",
+    "probe": "supplemental raw provider; no tools executed",
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_9k4xmdf8",
+          "function": {
+            "index": 0,
+            "name": "ask_user_question",
+            "arguments": {
+              "other_label": "Folder path",
+              "other_placeholder": "/path/to/folder",
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "single",
+              "options": [],
+              "allow_other": true
+            }
+          }
+        }
+      ]
+    },
+    "admission": [
+      {
+        "request_id": "probe-2",
+        "kind": "selector",
+        "title": "Project folder",
+        "question": "What folder path should I use?",
+        "selection_mode": "single",
+        "options": [],
+        "allow_other": true,
+        "other_label": "Folder path",
+        "other_placeholder": "/path/to/folder",
+        "min_selected": 1,
+        "max_selected": 1
+      }
+    ]
+  },
+  {
+    "run": 3,
+    "prompt": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+    "model": "qwen3:14b",
+    "probe": "supplemental raw provider; no tools executed",
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_xgfffve3",
+          "function": {
+            "index": 0,
+            "name": "ask_user_question",
+            "arguments": {
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "single",
+              "options": [],
+              "allow_other": true,
+              "other_label": "Folder path",
+              "other_placeholder": "/path/to/folder"
+            }
+          }
+        }
+      ]
+    },
+    "admission": [
+      {
+        "request_id": "probe-3",
+        "kind": "selector",
+        "title": "Project folder",
+        "question": "What folder path should I use?",
+        "selection_mode": "single",
+        "options": [],
+        "allow_other": true,
+        "other_label": "Folder path",
+        "other_placeholder": "/path/to/folder",
+        "min_selected": 1,
+        "max_selected": 1
+      }
+    ]
+  }
+]
