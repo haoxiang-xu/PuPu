@@ -1,0 +1,324 @@
+{
+  "toolkitId": "mcp.productivity.brave-search",
+  "catalog": {
+    "id": "productivity.brave-search",
+    "toolkitId": "mcp.productivity.brave-search",
+    "name": "Brave Search",
+    "description": "Official Brave Search MCP server for web, news, image and video search.",
+    "category": "productivity",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/brave/brave-search-mcp-server",
+    "docsUrl": "https://github.com/brave/brave-search-mcp-server#readme",
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "@brave/brave-search-mcp-server@2.1.0",
+        "--transport",
+        "stdio",
+        "--enabled-tools",
+        "brave_web_search",
+        "brave_news_search",
+        "brave_image_search",
+        "brave_video_search"
+      ]
+    },
+    "setupPreview": "npx -y @brave/brave-search-mcp-server@2.1.0 --transport stdio",
+    "prerequisites": [
+      "Brave Search API account"
+    ],
+    "secrets": [
+      {
+        "key": "BRAVE_API_KEY",
+        "label": "Brave Search API key"
+      }
+    ],
+    "tools": [
+      {
+        "name": "brave_web_search",
+        "title": "Search the web",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "brave_news_search",
+        "title": "Search news",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "brave_image_search",
+        "title": "Search images",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "brave_video_search",
+        "title": "Search videos",
+        "requiresConfirmation": false
+      }
+    ],
+    "policySummary": {
+      "reviewed": false,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 0
+    },
+    "readmeMarkdown": "## Brave Search (official package, pending review)\n\nRuns Brave Software's official `@brave/brave-search-mcp-server` over stdio, pinned to `@2.1.0`; only the four listed search tools are requested and the server does not listen on a port. Search queries and result requests are sent to Brave Search, and the returned results are available to the agent. A Brave Search API account and `BRAVE_API_KEY` are required; usage and any charges follow Brave's current plan. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+  },
+  "checkedAt": "2026-09-13T18:36:59.884343+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "@brave/brave-search-mcp-server",
+  "version": "2.1.0",
+  "download": "https://registry.npmjs.org/@brave/brave-search-mcp-server/-/brave-search-mcp-server-2.1.0.tgz",
+  "artifactSha256": "34487d20ff765f0ad9ae9116b05e1305bed8ef1acb5840a04cde8d43bb4a7528",
+  "registryIntegrity": "sha512-QIQOwbrtv8QcNYQeI9NOgXdqMmhjaOYKwQl4cbpQNIqsEb/spjDKYjzvyl5NJqhEpZjmKRIo3H+0I+oYKOGjNA==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/LICENSE",
+      "sha256": "43dc6a32f9c44dd4647cdb3f48677a8681c500a89cfd0e682808d241ec4250a9",
+      "size": 1110
+    },
+    {
+      "path": "package/dist/config.js",
+      "sha256": "a61ad003f829bc6b3d8617f6bd6d43c80c4f1121d9bdb39ea9063784ed344b44",
+      "size": 5887
+    },
+    {
+      "path": "package/dist/config.test.js",
+      "sha256": "c1f661fac26adfee228f4ad3ecfc2cdf20f0ed59d101527bda7e037937a643f4",
+      "size": 6013
+    },
+    {
+      "path": "package/dist/constants.js",
+      "sha256": "897f33f387ee62972bd7acc2745d9b0ebe6121a0ae3eaa5e94aceb1ded4449c2",
+      "size": 70
+    },
+    {
+      "path": "package/dist/helpers.js",
+      "sha256": "eaa6ee48217168698c38f4f1ff9aaf370695bca3360c5df4a6fa5e603916203b",
+      "size": 329
+    },
+    {
+      "path": "package/dist/protocols/http.js",
+      "sha256": "b48138528ebb63a3f42431aba183dc794f6d3818c18e3f3b0e43035491dd9bb9",
+      "size": 3016
+    },
+    {
+      "path": "package/dist/protocols/http.test.js",
+      "sha256": "57aeff8a3e0672408eac2a0cc9c3dcad5bff7d23fe7deadb9fcffe72895ff7c9",
+      "size": 6481
+    },
+    {
+      "path": "package/dist/BraveAPI/index.js",
+      "sha256": "5a0090070235785291d12c72f246486d12e2e0be279f000e842c690a6a88ef21",
+      "size": 4729
+    },
+    {
+      "path": "package/dist/index.js",
+      "sha256": "fcf201a52a9989ee228f0461dc1f5cf8f27c9e398c56cb75e2c26b6c0a261f50",
+      "size": 550
+    },
+    {
+      "path": "package/dist/protocols/index.js",
+      "sha256": "7f23f2279594efde8adffcd4d6961b51c5951b4917fbc96718b495ffbe2ede5a",
+      "size": 104
+    },
+    {
+      "path": "package/dist/tools/images/index.js",
+      "sha256": "f98ab9ee2132e0af36ab1cce919ecd797a7bac2f941a9d951642766d9b964093",
+      "size": 2208
+    },
+    {
+      "path": "package/dist/tools/index.js",
+      "sha256": "6ae1554e4c4dc57f59ed1521c7a58e55fc535b5345b10de80c48f194ba0da2d5",
+      "size": 579
+    },
+    {
+      "path": "package/dist/tools/llm_context/index.js",
+      "sha256": "7552e1105ff813907b221316e409d0771177a374380f651a58f9aee68845e522",
+      "size": 2363
+    },
+    {
+      "path": "package/dist/tools/local/index.js",
+      "sha256": "dd0068a6bb682e406fcd71bf178069c815670e34f7501f3512c32ae152cb461e",
+      "size": 5876
+    },
+    {
+      "path": "package/dist/tools/news/index.js",
+      "sha256": "332c821ade7d35de104aff9baeb0369b6208d5defef2e2d8571b6ec84c83a051",
+      "size": 2543
+    },
+    {
+      "path": "package/dist/tools/place_search/index.js",
+      "sha256": "b01e84735d8c0fd68d781c132daabc58419213e44606f359bf3cc4f720a7a89e",
+      "size": 2675
+    },
+    {
+      "path": "package/dist/tools/summarizer/index.js",
+      "sha256": "e980667a40440bb36b88b378e91be604b42b69dec913756aada8cc50827a7cec",
+      "size": 3389
+    },
+    {
+      "path": "package/dist/tools/videos/index.js",
+      "sha256": "2633a50f5371fdfe47eb957eeafe4dbac5951cd3395c72642b185a322e5f9b6e",
+      "size": 1561
+    },
+    {
+      "path": "package/dist/tools/web/index.js",
+      "sha256": "ad2f47994a3ff82d7f3b6b7788fbd8b1fcaecec3346c43bf48e8b28299bd4ab5",
+      "size": 4665
+    },
+    {
+      "path": "package/dist/tools/images/schemas/input.js",
+      "sha256": "b224663130f2964473aee0be0217111b9cb24391f097da193481cb4846a94012",
+      "size": 1459
+    },
+    {
+      "path": "package/dist/tools/llm_context/schemas/input.js",
+      "sha256": "fa8a96aae98f7d1b6ce04f6dfc052068d51c08bde5f5bd0b54caa2f0cef6ee06",
+      "size": 7963
+    },
+    {
+      "path": "package/dist/tools/place_search/schemas/input.js",
+      "sha256": "9156be90acdec13564ad012c07b5855f19f04b424ca2099c9b65d2ad6a5da14d",
+      "size": 6037
+    },
+    {
+      "path": "package/dist/tools/images/schemas/output.js",
+      "sha256": "a26b2b399649cfb2fbd90a50debc13cde79bb38e01c65a41bb45551dd91626a9",
+      "size": 626
+    },
+    {
+      "path": "package/dist/tools/llm_context/schemas/output.js",
+      "sha256": "06b2323e176618bc6ae3a8a02ce07b2e4ad0cda611643dac0fe83ff81bbd20f1",
+      "size": 2935
+    },
+    {
+      "path": "package/dist/tools/place_search/schemas/output.js",
+      "sha256": "c9715f3f4f9ed8b75af9f68c860b839364ece6a12d6f72c7ca6ef1fb9df205d9",
+      "size": 13000
+    },
+    {
+      "path": "package/dist/tools/local/params.js",
+      "sha256": "68723beef35614ce8e9ee2fc716c32ccab769695b5f41e173925a9027e6c1412",
+      "size": 307
+    },
+    {
+      "path": "package/dist/tools/news/params.js",
+      "sha256": "84c478cf98cb26a4239da9e6e40316de0d17d1e4c16732077e007bc64503109e",
+      "size": 3326
+    },
+    {
+      "path": "package/dist/tools/summarizer/params.js",
+      "sha256": "8d47e0c84961190dcd9fe47cb346312b2844a66b6aa4d2db14a5bbd6c666c41e",
+      "size": 2617
+    },
+    {
+      "path": "package/dist/tools/videos/params.js",
+      "sha256": "6889f503af532790ce2a1151956bd28e714ce4080d0ad7c9ee6949816fd7c6dd",
+      "size": 2746
+    },
+    {
+      "path": "package/dist/tools/web/params.js",
+      "sha256": "b8b5b9f431b35d451c1ac1c593830d74d25b6f7c4e21c920dd940f0573dbec2c",
+      "size": 6271
+    },
+    {
+      "path": "package/dist/protocols/rebinding.js",
+      "sha256": "cfef03ea49074e60f7d341f56082dd2321666e4e88c1f2dc728277a7192281d6",
+      "size": 4923
+    },
+    {
+      "path": "package/dist/protocols/rebinding.test.js",
+      "sha256": "e4dbc2f22162fba584e56597207ac7a311dd7ef7cedaeb100d9b9e98b5740b82",
+      "size": 3149
+    },
+    {
+      "path": "package/dist/tools/images/schemas/response.js",
+      "sha256": "8d1d8cd974a5b9a2f9536a1f8954849a89c115dbe945bb1d0655168b06020460",
+      "size": 2952
+    },
+    {
+      "path": "package/dist/server.js",
+      "sha256": "4974360d9594730524f0a4f1019f5e38719088d8dd6fde3244618586262879f1",
+      "size": 890
+    },
+    {
+      "path": "package/dist/protocols/stdio.js",
+      "sha256": "5e4f3ce4043a86392d8f26bccb425a770abf4a472e2df6579ef5b5b66f1c113f",
+      "size": 390
+    },
+    {
+      "path": "package/dist/BraveAPI/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/images/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/local/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/news/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/summarizer/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/videos/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/tools/web/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "package/dist/utils.js",
+      "sha256": "2223180004eb02f747b099eb91f2bd0094db0aea29abffd8f25264756574b634",
+      "size": 2924
+    },
+    {
+      "path": "package/dist/utils.test.js",
+      "sha256": "17f687f480093e83c2ef3cbd491c54c41adf5edf99f98044a0d6592ab2614ccc",
+      "size": 4373
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "417a6f9ce4ee009c6efc11e63374a6af534db710c0d7e8d41b6e62bacc09eed3",
+      "size": 1578
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "ee849be60c990b5067e52ba04f95396f303209b9221cd7272fd6515efb91a004",
+      "size": 20934
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/brave/brave-search-mcp-server.git",
+    "type": "git"
+  },
+  "gitHead": "76106c83f9d57319478b540374ba261061d26c3e",
+  "resolvedLockSha256": "1715d9be8fa87bd877a69d576a4bcb60573318ade67951370174681f6d0bf156",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

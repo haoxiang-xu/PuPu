@@ -1,0 +1,101 @@
+{
+  "toolkitId": "mcp.devops.netdata-cloud",
+  "catalog": {
+    "id": "devops.netdata-cloud",
+    "toolkitId": "mcp.devops.netdata-cloud",
+    "name": "Netdata Cloud",
+    "description": "Official Netdata Cloud MCP endpoint for infrastructure metrics, nodes, alerts and functions.",
+    "category": "devops",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "GPL-3.0",
+    "sourceRepo": "https://github.com/netdata/netdata",
+    "docsUrl": "https://github.com/mcp/netdata/mcp-server",
+    "icon": {
+      "type": "file",
+      "mimeType": "image/svg+xml",
+      "displayScale": 0.82,
+      "content": "<svg fill=\"#00AB44\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Netdata</title><path d=\"M14.764 21.827H9.922L0 2.173h14.084c5.476.01 9.913 4.565 9.916 10.183-.009 5.235-4.14 9.47-9.238 9.47z\"/></svg>"
+    },
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/netdata/netdata",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://app.netdata.cloud/api/v1/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "valueFromSecret": "NETDATA_CLOUD_MCP_TOKEN",
+          "prefix": "Bearer "
+        }
+      ]
+    },
+    "setupPreview": "https://app.netdata.cloud/api/v1/mcp",
+    "prerequisites": [
+      "Netdata Cloud paid plan",
+      "Netdata Cloud API token with scope:mcp"
+    ],
+    "secrets": [
+      {
+        "key": "NETDATA_CLOUD_MCP_TOKEN",
+        "label": "Netdata Cloud MCP token"
+      }
+    ],
+    "tools": [
+      {
+        "name": "list_nodes",
+        "title": "List nodes",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "search_metrics",
+        "title": "Search metrics",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_metrics",
+        "title": "Get metrics",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "run_function",
+        "title": "Run function",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Netdata Cloud\n\nConnects directly to Netdata Cloud's HTTPS MCP endpoint over Streamable HTTP. Provide a Netdata Cloud API token with `scope:mcp`. Local Netdata Agent HTTP endpoints should be added through Custom MCP or an approved external registry entry."
+  },
+  "checkedAt": "2026-09-13T18:36:59.027908+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://app.netdata.cloud/api/v1/mcp"
+}

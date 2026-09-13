@@ -1,0 +1,104 @@
+{
+  "toolkitId": "mcp.dev.bug-bounty-intelligence",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "4f4445327d3dc95a0978fc46c39a6a5dd4cfe5f5ea9fd1787182e1a6eff7c80a",
+  "lockSha256": "97e7544e8b6df1b38ffe3106b7b25c5a88a6f54ba25e74829a6285c5ecf861b5",
+  "initialize": "PASS",
+  "server": {
+    "name": "bug-bounty-intelligence",
+    "version": "1.0.0"
+  },
+  "tools": [
+    {
+      "name": "scan_contract",
+      "description": "Submit a public GitHub repository for an automated smart contract security analysis. Trained on 27,681 real findings from Sherlock and Code4rena audits. Cost: $5 USDC on Base (eip155:8453) via x402. Returns a job_id. Use get_scan_report to poll for results (ready within 24h). If payment_required is true, pay $5 USDC to the payTo address on Base, then retry.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repo_url": {
+            "type": "string",
+            "description": "Public GitHub repo URL containing Solidity contracts (e.g. https://github.com/org/repo)"
+          },
+          "protocol_type": {
+            "type": "string",
+            "enum": [
+              "DEX",
+              "LENDING",
+              "BRIDGE",
+              "GOVERNANCE",
+              "STAKING",
+              "DERIVATIVES",
+              "GENERAL"
+            ],
+            "description": "Protocol category for targeted analysis (optional, default GENERAL)"
+          }
+        },
+        "required": [
+          "repo_url"
+        ]
+      }
+    },
+    {
+      "name": "get_scan_report",
+      "description": "Poll the status of a previously submitted scan. Returns status (queued/processing/complete) and report URL when complete.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "The job_id returned by scan_contract"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "name": "list_vulnerability_patterns",
+      "description": "Returns historical vulnerability patterns and acceptance rates from Sherlock audit-competition findings. Numbers are limited to contests where results could be exactly reconciled against Sherlock's own published outcomes (1,032 findings across 10 contests) — no estimated or unverifiable figures. Useful for understanding what types of bugs are most likely to be valid in a given protocol type. This tool is FREE — no payment required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "protocol_type": {
+            "type": "string",
+            "enum": [
+              "DEX",
+              "LENDING",
+              "BRIDGE",
+              "GOVERNANCE",
+              "STAKING",
+              "DERIVATIVES",
+              "GENERAL"
+            ],
+            "description": "Protocol type to filter patterns (default GENERAL)"
+          }
+        }
+      }
+    }
+  ],
+  "toolsSha256": "1ca9d9ed0359bc85eed406bc19a5822123dec50f2f86c0ec91efc2c7a505da3f",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "error": "MCP error -32601: Method not found"
+  },
+  "prompts": {
+    "error": "MCP error -32601: Method not found"
+  },
+  "calls": [],
+  "stderr": "",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

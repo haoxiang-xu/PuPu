@@ -1,0 +1,2962 @@
+[
+  {
+    "id": "mcp.productivity.discord",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENSE",
+        "match": true
+      },
+      {
+        "path": "dist/tools/channel.js",
+        "match": true
+      },
+      {
+        "path": "dist/config.js",
+        "match": true
+      },
+      {
+        "path": "dist/error-handler.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forum.js",
+        "match": true
+      },
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/logger.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/login.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/reactions.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling.js",
+        "match": true
+      },
+      {
+        "path": "dist/schemas.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.js",
+        "match": true
+      },
+      {
+        "path": "dist/server.js",
+        "match": true
+      },
+      {
+        "path": "dist/tool-list.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/tools.js",
+        "match": true
+      },
+      {
+        "path": "dist/transport.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/webhooks.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "dist/tools/channel.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/config.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/error-handler.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forum.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/index.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/logger.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/login.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/reactions.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/schemas.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/server.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tool-list.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/tools.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/transport.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/types.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/webhooks.js.map",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      },
+      {
+        "path": "dist/tools/channel.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/config.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/error-handler.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forum.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/index.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/logger.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/login.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/reactions.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/schemas.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/server.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tool-list.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/tools.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/transport.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/types.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/webhooks.d.ts",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.browser.playwright",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENSE",
+        "match": true
+      },
+      {
+        "path": "cli.js",
+        "match": true
+      },
+      {
+        "path": "index.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      },
+      {
+        "path": "config.d.ts",
+        "match": true
+      },
+      {
+        "path": "index.d.ts",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.productivity.firecrawl",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENSE",
+        "match": true
+      },
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.workspace.filesystem",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/lib.js",
+        "match": true
+      },
+      {
+        "path": "dist/path-utils.js",
+        "match": true
+      },
+      {
+        "path": "dist/path-validation.js",
+        "match": true
+      },
+      {
+        "path": "dist/roots-utils.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.workspace.markitdown",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "markitdown_mcp/__about__.py",
+        "match": true
+      },
+      {
+        "path": "markitdown_mcp/__init__.py",
+        "match": true
+      },
+      {
+        "path": "markitdown_mcp/__main__.py",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.productivity.telegram",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "dist/config.js",
+        "match": true
+      },
+      {
+        "path": "dist/constants.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forward-message.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-info.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-members.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/handler.js",
+        "match": true
+      },
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/message-handlers.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/pin-message.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.js",
+        "match": true
+      },
+      {
+        "path": "dist/services/telegram-service.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/utils.js",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/validators.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "dist/config.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/constants.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forward-message.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-info.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-members.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/handler.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/index.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/message-handlers.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/pin-message.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/services/telegram-service.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/types.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/types.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/utils.js.map",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/validators.js.map",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      },
+      {
+        "path": "dist/config.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/constants.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/forward-message.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-info.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/get-channel-members.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/handler.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/index.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/message-handlers.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/pin-message.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/tools/send-message.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/services/telegram-service.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/types.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/types.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/utils.d.ts",
+        "match": true
+      },
+      {
+        "path": "dist/sampling/validators.d.ts",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.workspace.fetch",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "mcp_server_fetch/__init__.py",
+        "match": true
+      },
+      {
+        "path": "mcp_server_fetch/__main__.py",
+        "match": true
+      },
+      {
+        "path": "mcp_server_fetch/server.py",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.browser.chrome-devtools",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENSE",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/THIRD_PARTY_NOTICES",
+        "match": true
+      },
+      {
+        "path": "build/src/browser.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/categories.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/check-for-updates.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/check-latest-version.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/chrome-devtools-cli-options.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/chrome-devtools-mcp-cli-options.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/chrome-devtools-mcp-main.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/chrome-devtools-mcp.js",
+        "match": true
+      },
+      {
+        "path": "build/src/bin/chrome-devtools.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/ClearcutLogger.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/watchdog/ClearcutSender.js",
+        "match": true
+      },
+      {
+        "path": "build/src/daemon/client.js",
+        "match": true
+      },
+      {
+        "path": "skills/memory-leak-debugging/references/compare_snapshots.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/console.js",
+        "match": true
+      },
+      {
+        "path": "build/src/formatters/ConsoleFormatter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/daemon/daemon.js",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/devtools-formatter-worker.js",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/devtools-heap-snapshot-worker.js",
+        "match": true
+      },
+      {
+        "path": "build/src/devtools/DevToolsConnectionAdapter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/devtools/DevtoolsUtils.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/emulation.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/errors.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/extensions.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/files.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/flagUtils.js",
+        "match": true
+      },
+      {
+        "path": "build/src/formatters/HeapSnapshotFormatter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/HeapSnapshotManager.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/id.js",
+        "match": true
+      },
+      {
+        "path": "build/src/index.js",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/index.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/input.js",
+        "match": true
+      },
+      {
+        "path": "build/src/devtools/issueDescriptions.js",
+        "match": true
+      },
+      {
+        "path": "build/src/formatters/IssueFormatter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/keyboard.js",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/lighthouse-devtools-mcp-bundle.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/lighthouse.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/logger.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/watchdog/main.js",
+        "match": true
+      },
+      {
+        "path": "build/src/McpContext.js",
+        "match": true
+      },
+      {
+        "path": "build/src/devtools/McpHostBindingAdapter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/McpPage.js",
+        "match": true
+      },
+      {
+        "path": "build/src/McpResponse.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/memory.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/metricsRegistry.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/Mutex.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/network.js",
+        "match": true
+      },
+      {
+        "path": "build/src/formatters/NetworkFormatter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/PageCollector.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/pages.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/pagination.js",
+        "match": true
+      },
+      {
+        "path": "build/src/trace-processing/parse.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/performance.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/persistence.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/polyfill.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/screencast.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/screenshot.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/script.js",
+        "match": true
+      },
+      {
+        "path": "build/src/ServiceWorkerCollector.js",
+        "match": true
+      },
+      {
+        "path": "build/src/SlimMcpResponse.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/snapshot.js",
+        "match": true
+      },
+      {
+        "path": "build/src/formatters/SnapshotFormatter.js",
+        "match": true
+      },
+      {
+        "path": "build/src/utils/string.js",
+        "match": true
+      },
+      {
+        "path": "build/src/TextSnapshot.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/thirdPartyDeveloper.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/ToolDefinition.js",
+        "match": true
+      },
+      {
+        "path": "build/src/ToolHandler.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/slim/tools.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/tools.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/transformation.js",
+        "match": true
+      },
+      {
+        "path": "build/src/daemon/types.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/types.js",
+        "match": true
+      },
+      {
+        "path": "build/src/types.js",
+        "match": true
+      },
+      {
+        "path": "build/src/daemon/utils.js",
+        "match": true
+      },
+      {
+        "path": "build/src/version.js",
+        "match": true
+      },
+      {
+        "path": "build/src/WaitForHelper.js",
+        "match": true
+      },
+      {
+        "path": "build/src/telemetry/WatchdogClient.js",
+        "match": true
+      },
+      {
+        "path": "build/src/tools/webmcp.js",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/bundled-packages.json",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "skills/a11y-debugging/references/a11y-snippets.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInsecureContext.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInvalidInfoHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInvalidRegisterOsSourceHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInvalidRegisterOsTriggerHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInvalidRegisterSourceHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arInvalidRegisterTriggerHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNavigationRegistrationUniqueScopeAlreadySet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNavigationRegistrationWithoutTransientUserActivation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNoRegisterOsSourceHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNoRegisterOsTriggerHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNoRegisterSourceHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNoRegisterTriggerHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arNoWebOrOsSupport.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arOsSourceIgnored.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arOsTriggerIgnored.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arPermissionPolicyDisabled.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arSourceAndTriggerHeaders.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arSourceIgnored.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arTriggerIgnored.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arUntrustworthyReportingOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/arWebAndOsHeaders.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/bounceTrackingMitigations.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/clientHintMetaTagAllowListInvalidOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/clientHintMetaTagModifiedHTML.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CoepCoopSandboxedIframeCannotNavigateToCoopPage.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CoepCorpNotSameOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CoepCorpNotSameOriginAfterDefaultedToSameOriginByCoep.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CoepCorpNotSameSite.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CoepFrameResourceNeedsCoepHeader.md",
+        "match": true
+      },
+      {
+        "path": "skills/memory-leak-debugging/references/common-leaks.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CompatibilityModeQuirks.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistInvalidAllowlistItemType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistInvalidHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistInvalidUrlPattern.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistItemNotInnerList.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistMoreThanOneList.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/connectionAllowlistReportingEndpointNotToken.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/CookieAttributeValueExceedsMaxSize.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieCrossSiteRedirectDowngrade.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludeBlockedWithinRelatedWebsiteSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludeDomainNonAscii.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludePortMismatch.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludeSchemeMismatch.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludeThirdPartyPhaseoutRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieExcludeThirdPartyPhaseoutSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieWarnDomainNonAscii.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieWarnMetadataGrantRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieWarnMetadataGrantSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieWarnThirdPartyPhaseoutRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cookieWarnThirdPartyPhaseoutSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsAllowCredentialsRequired.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsDisabledScheme.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsDisallowedByMode.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsHeaderDisallowedByPreflightResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsInvalidHeaderValues.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsLocalNetworkAccessPermissionDenied.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsMethodDisallowedByPreflightResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsNoCorsRedirectModeNotFollow.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsOriginMismatch.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsPreflightResponseInvalid.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsRedirectContainsCredentials.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/corsWildcardOriginNotAllowed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cspEvalViolation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cspInlineViolation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cspTrustedTypesPolicyViolation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cspTrustedTypesSinkViolation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/cspURLViolation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/deprecation.md",
+        "match": true
+      },
+      {
+        "path": "skills/debug-optimize-lcp/references/elements-and-size.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestAccountsEmptyList.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestAccountsHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestAccountsInvalidContentType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestAccountsInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestAccountsNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestDnsFetchFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestDnsInvalidRecord.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestEmailVerificationWellKnownHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestEmailVerificationWellKnownInvalidContentType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestEmailVerificationWellKnownInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestEmailVerificationWellKnownNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestInvalidEmail.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestJwksHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestJwksInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestKeyBindingSigningFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestRpOriginIsOpaque.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenInvalidContentType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenInvalidSdJwt.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenMalformedSdJwt.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbInvalidAudience.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbInvalidIssuedAt.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbInvalidNonce.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbInvalidSdHash.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbInvalidTyp.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbMissingAud.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbMissingCnf.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbMissingIat.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbMissingNonce.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbMissingSdHash.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationKbSignatureFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtInvalidEmail.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtInvalidEmailVerified.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtInvalidHolderKey.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtInvalidIssuedAt.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtInvalidIssuer.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtJwksMissingKeys.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtMissingCnf.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtMissingEmail.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtMissingIat.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtMissingIss.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtSignatureFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestTokenVerificationSdJwtUnsupportedHeaderAlg.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestUserLoggedOut.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownAccountsEndpointCrossOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownInvalidContentType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownIssuanceEndpointCrossOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownListEmpty.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownMissingAccountsEndpoint.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownMissingIssuanceEndpoint.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/emailVerificationRequestWellKnownUnsupportedSigningAlgorithm.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestAccountsHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestAccountsInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestAccountsNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestApprovalDeclined.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestCanceled.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestErrorFetchingSignin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestErrorIdToken.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestIdTokenHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestIdTokenInvalidRequest.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestIdTokenInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestIdTokenNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestInvalidSigninResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestManifestHttpNotFound.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestManifestInvalidResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestManifestNoResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthRequestTooManyRequests.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestInvalidAccountsResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestInvalidConfigOrWellKnown.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNoAccountSharingPermission.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNoApiPermission.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNoReturningUserFromFetchedAccounts.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNotIframe.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNotPotentiallyTrustworthy.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNotSameOrigin.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/federatedAuthUserInfoRequestNotSignedInWithIdp.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/fetchingPartitionedBlobURL.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericBackUINavigationWouldSkipAd.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormAriaLabelledByToNonExistingIdError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormAutocompleteAttributeEmptyError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormDuplicateIdForInputError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormEmptyIdAndNameAttributesForInputError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormInputAssignedAutocompleteValueToIdOrNameAttributeError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormInputHasWrongButWellIntendedAutocompleteValueError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormInputWithNoLabelError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormLabelForMatchesNonExistingIdError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormLabelForNameError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormLabelHasNeitherForNorNestedInputError.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormModelContextMissingToolDescription.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormModelContextMissingToolName.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormModelContextParameterMissingName.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormModelContextParameterMissingTitleAndDescription.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericFormModelContextRequiredParameterMissingName.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericNavigationEntryMarkedSkippable.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/genericResponseWasBlockedByORB.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/heavyAd.md",
+        "match": true
+      },
+      {
+        "path": "skills/chrome-devtools-cli/references/installation.md",
+        "match": true
+      },
+      {
+        "path": "skills/debug-optimize-lcp/references/lcp-breakdown.md",
+        "match": true
+      },
+      {
+        "path": "skills/debug-optimize-lcp/references/lcp-snippets.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/LowTextContrast.md",
+        "match": true
+      },
+      {
+        "path": "skills/memory-leak-debugging/references/memlab.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/mixedContent.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/navigatingPartitionedBlobURL.md",
+        "match": true
+      },
+      {
+        "path": "skills/debug-optimize-lcp/references/optimization-strategies.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementActivationDisabled.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementActivationDisabledWithOccluder.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementActivationDisabledWithOccluderParent.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementCspFrameAncestorsMissing.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementFencedFrameDisallowed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementFontSizeTooLarge.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementFontSizeTooSmall.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementGeolocationDeprecated.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementInsetBoxShadowUnsupported.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementInvalidDisplayStyle.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementInvalidSizeValue.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementInvalidType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementInvalidTypeActivation.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementLowContrast.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementNonOpaqueColor.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementPaddingBottomUnsupported.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementPaddingRightUnsupported.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementPermissionsPolicyBlocked.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementRegistrationFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementRequestInProgress.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementSecurityChecksFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementTypeNotSupported.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/permissionElementUntrustedEvent.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/placeholderDescriptionForInvisibleIssues.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/propertyRuleInvalidNameIssue.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/propertyRuleIssue.md",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteExcludeContextDowngradeRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteExcludeContextDowngradeSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteExcludeNavigationContextDowngrade.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteNoneInsecureErrorRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteNoneInsecureErrorSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteNoneInsecureWarnRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteNoneInsecureWarnSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteUnspecifiedLaxAllowUnsafeRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteUnspecifiedLaxAllowUnsafeSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteWarnCrossDowngradeRead.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteWarnCrossDowngradeSet.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/SameSiteWarnStrictLaxDowngradeStrict.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityDisallowedOptGroupChild.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityDisallowedSelectChild.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityInteractiveContentAttributesSelectDescendant.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityInteractiveContentLegendChild.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityInteractiveContentOptionChild.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectElementAccessibilityNonPhrasingContentOptionChild.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/selectivePermissionsIntervention.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedArrayBuffer.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryUseErrorCrossOriginNoCorsRequest.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryUseErrorDictionaryLoadFailure.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryUseErrorMatchingDictionaryNotUsed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryUseErrorUnexpectedContentDictionaryHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorCossOriginNoCorsRequest.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorDisallowedBySettings.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorExpiredResponse.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorFeatureDisabled.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorInsufficientResources.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorInvalidMatchField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorInvalidStructuredHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorInvalidTTLField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNavigationRequest.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNoMatchField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonIntegerTTLField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonListMatchDestField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonSecureContext.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonStringIdField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonStringInMatchDestList.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonStringMatchField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorNonTokenTypeField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorRequestAborted.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorShuttingDown.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorTooLongIdField.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sharedDictionaryWriteErrorUnsupportedType.md",
+        "match": true
+      },
+      {
+        "path": "skills/a11y-debugging/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "skills/chrome-devtools-cli/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "skills/chrome-devtools/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "skills/debug-optimize-lcp/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "skills/memory-leak-debugging/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "skills/troubleshooting/SKILL.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriInvalidSignatureHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriInvalidSignatureInputHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriMissingSignatureHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriMissingSignatureInputHeader.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureHeaderValueIsIncorrectLength.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureHeaderValueIsNotByteSequence.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureHeaderValueIsParameterized.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderInvalidComponentName.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderInvalidComponentType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderInvalidDerivedComponentParameter.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderInvalidHeaderComponentParameter.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderInvalidParameter.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderKeyIdLength.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderMissingLabel.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderMissingRequiredParameters.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderValueMissingComponents.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriSignatureInputHeaderValueNotInnerList.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriValidationFailedIntegrityMismatch.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriValidationFailedInvalidLength.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriValidationFailedSignatureExpired.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/sriValidationFailedSignatureMismatch.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/stylesheetLateImport.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/stylesheetRequestFailed.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/summaryElementAccessibilityInteractiveContentSummaryDescendant.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/unencodedDigestIncorrectDigestLength.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/unencodedDigestIncorrectDigestType.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/unencodedDigestMalformedDictionary.md",
+        "match": true
+      },
+      {
+        "path": "build/src/third_party/issue-descriptions/unencodedDigestUnknownAlgorithm.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.dev.bug-bounty-intelligence",
+    "allMatched": false,
+    "checks": [
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "vulnerability-acceptance-rates.json",
+        "match": true
+      },
+      {
+        "path": "BENCHMARK.md",
+        "match": true
+      },
+      {
+        "path": "METHODOLOGY.md",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      },
+      {
+        "path": "index.mjs",
+        "match": false
+      }
+    ],
+    "assessedDifference": {
+      "path": "index.mjs",
+      "difference": "Only the shebang CRLF changed to LF during npm installation; all remaining bytes match. Raw allMatched remains false.",
+      "sourceSha256": "6730398458670af2af25b3726f65a253f6b85b44485306e5d46c61daf3e73586",
+      "executedSha256": "1a61b0f23f72e5170d2a93f709308123621f65d8febc5fd90f2115bd06e3917c",
+      "status": "EXPLAINED_NORMALIZATION"
+    }
+  },
+  {
+    "id": "mcp.productivity.tavily",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENCE",
+        "match": true
+      },
+      {
+        "path": "build/index.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.workspace.sqlite",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "mcp_server_sqlite/__init__.py",
+        "match": true
+      },
+      {
+        "path": "mcp_server_sqlite/server.py",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.memory.memory",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.browser.browser-use-local",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "browser_use/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/cli.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/config.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/exceptions.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/init_cmd.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/logging_config.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/observability.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/element.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/mouse.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/page.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/playground/flights.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/playground/mixed_automation.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/actor/playground/playground.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/cloud_events.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/gif.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/judge.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/prompts.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/variable_detector.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/message_manager/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/message_manager/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/message_manager/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/agent/system_prompts/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/beta/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/beta/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/_cdp_timeout.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/chrome.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/demo_mode.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/events.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/profile.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/python_highlights.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/session.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/session_manager.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/video_recorder.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdog_base.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/cloud/cloud.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/cloud/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/aboutblank_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/captcha_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/crash_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/default_action_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/dom_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/downloads_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/har_recording_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/local_browser_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/permissions_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/popups_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/recording_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/screenshot_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/security_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/browser/watchdogs/storage_state_watchdog.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/controller/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/enhanced_snapshot.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/markdown_extractor.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/playground/extraction.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/playground/multi_act.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/serializer/clickable_elements.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/serializer/eval_serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/serializer/html_serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/serializer/paint_order.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/dom/serializer/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/filesystem/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/filesystem/file_system.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/integrations/gmail/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/integrations/gmail/actions.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/integrations/gmail/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/base.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/exceptions.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/messages.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/models.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/schema.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/anthropic/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/anthropic/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/aws/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/aws/chat_anthropic.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/aws/chat_bedrock.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/aws/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/azure/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/browser_use/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/browser_use/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/cerebras/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/cerebras/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/deepseek/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/deepseek/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/google/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/google/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/google/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/groq/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/groq/parser.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/groq/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/litellm/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/litellm/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/litellm/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/mistral/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/mistral/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/mistral/schema.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/oci_raw/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/oci_raw/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/oci_raw/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/ollama/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/ollama/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openai/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openai/like.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openai/responses_serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openai/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openrouter/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/openrouter/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/vercel/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/vercel/chat.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/llm/vercel/serializer.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/__main__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/cli_mcp.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/client.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/controller.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/mcp/server.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sandbox/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sandbox/sandbox.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sandbox/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/screenshots/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/screenshots/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/browser_use.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/install.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/skills/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sync/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sync/auth.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/sync/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/telemetry/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/telemetry/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/telemetry/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/custom_pricing.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/mappings.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/openrouter_pricing.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tokens/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/extraction/__init__.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/extraction/schema_utils.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/extraction/views.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/registry/service.py",
+        "match": true
+      },
+      {
+        "path": "browser_use/tools/registry/views.py",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.productivity.brave-search",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "LICENSE",
+        "match": true
+      },
+      {
+        "path": "dist/config.js",
+        "match": true
+      },
+      {
+        "path": "dist/config.test.js",
+        "match": true
+      },
+      {
+        "path": "dist/constants.js",
+        "match": true
+      },
+      {
+        "path": "dist/helpers.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/http.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/http.test.js",
+        "match": true
+      },
+      {
+        "path": "dist/BraveAPI/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/images/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/llm_context/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/local/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/news/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/place_search/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/summarizer/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/videos/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/web/index.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/images/schemas/input.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/llm_context/schemas/input.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/place_search/schemas/input.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/images/schemas/output.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/llm_context/schemas/output.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/place_search/schemas/output.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/local/params.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/news/params.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/summarizer/params.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/videos/params.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/web/params.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/rebinding.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/rebinding.test.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/images/schemas/response.js",
+        "match": true
+      },
+      {
+        "path": "dist/server.js",
+        "match": true
+      },
+      {
+        "path": "dist/protocols/stdio.js",
+        "match": true
+      },
+      {
+        "path": "dist/BraveAPI/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/images/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/local/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/news/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/summarizer/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/videos/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/tools/web/types.js",
+        "match": true
+      },
+      {
+        "path": "dist/utils.js",
+        "match": true
+      },
+      {
+        "path": "dist/utils.test.js",
+        "match": true
+      },
+      {
+        "path": "package.json",
+        "match": true
+      },
+      {
+        "path": "README.md",
+        "match": true
+      }
+    ]
+  },
+  {
+    "id": "mcp.devops.grafana",
+    "allMatched": true,
+    "checks": [
+      {
+        "path": "mcp_grafana/__init__.py",
+        "match": true,
+        "sha256": "f3d0afb3d82993c30e585de500b1d94eab2c37fec6173e6cfc280eca756a98e7"
+      },
+      {
+        "path": "mcp_grafana/__main__.py",
+        "match": true,
+        "sha256": "22f4e34d886f54eea1f49a5ae398be15fce370a709cb58f0900658fc292089b4"
+      },
+      {
+        "path": "mcp_grafana/bin/mcp-grafana",
+        "match": true,
+        "sha256": "265988f09cd654ffde42266051b34efd165c48215d1aa685126db4c379d3339a"
+      }
+    ]
+  }
+]

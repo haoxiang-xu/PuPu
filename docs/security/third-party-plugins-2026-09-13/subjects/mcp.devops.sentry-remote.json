@@ -1,0 +1,116 @@
+{
+  "toolkitId": "mcp.devops.sentry-remote",
+  "catalog": {
+    "id": "devops.sentry-remote",
+    "toolkitId": "mcp.devops.sentry-remote",
+    "name": "Sentry",
+    "description": "Official hosted Sentry MCP service for issues, traces, projects and debugging workflows.",
+    "category": "devops",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": false,
+    "license": "NOASSERTION",
+    "sourceRepo": "https://github.com/getsentry/sentry-mcp",
+    "docsUrl": "https://mcp.sentry.dev",
+    "icon": {
+      "type": "file",
+      "mimeType": "image/svg+xml",
+      "displayScale": 0.82,
+      "content": "<svg fill=\"#362D59\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Sentry</title><path d=\"M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z\"/></svg>"
+    },
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/getsentry/sentry-mcp",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://mcp.sentry.dev/mcp",
+      "headers": []
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "sentry",
+        "providerLabel": "Sentry",
+        "clientRegistration": "dynamic",
+        "releaseStatus": "ready",
+        "mcpUrl": "https://mcp.sentry.dev/mcp",
+        "transport": "streamable_http",
+        "authorizationServerMetadataUrl": "https://mcp.sentry.dev/.well-known/oauth-authorization-server",
+        "authorizationEndpoint": "https://mcp.sentry.dev/oauth/authorize",
+        "tokenEndpoint": "https://mcp.sentry.dev/oauth/token",
+        "registrationEndpoint": "https://mcp.sentry.dev/oauth/register",
+        "scopes": [
+          "org:read",
+          "project:write",
+          "team:write",
+          "event:write"
+        ],
+        "authUrlParams": {},
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "protected_resource"
+      }
+    },
+    "setupPreview": "https://mcp.sentry.dev/mcp",
+    "prerequisites": [
+      "Sentry account"
+    ],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "search_issues",
+        "title": "Search issues",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "search_events",
+        "title": "Search events",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_issue",
+        "title": "Get issue",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "create_team",
+        "title": "Create team",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Sentry Remote\n\nConnects to Sentry's hosted MCP service over Streamable HTTP with OAuth. It is focused on human-in-the-loop coding and debugging workflows such as issue, event and trace investigation."
+  },
+  "checkedAt": "2026-09-13T18:36:58.995185+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://mcp.sentry.dev/mcp"
+}

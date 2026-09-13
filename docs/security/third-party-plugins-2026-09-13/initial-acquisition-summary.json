@@ -1,0 +1,380 @@
+[
+  {
+    "toolkitId": "mcp.browser.playwright",
+    "checkedAt": "2026-09-13T18:36:58.715639+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@playwright/mcp",
+    "version": "0.0.78",
+    "download": "https://registry.npmjs.org/@playwright/mcp/-/mcp-0.0.78.tgz",
+    "artifactSha256": "cfff0fd8eae3ac3bcb39827861298cb6b483a8d72e3c558e7991658ed3d22562",
+    "registryIntegrity": "sha512-XLTUeA6mEN9sQ+hJ4dfG8EIkDbxS0K3Trc2RBkUJuf02TgE2FQRNTMtq/aJfhyRMINsRl/Ybc4sxcWLtFn4/TQ==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/microsoft/playwright-mcp.git",
+      "type": "git"
+    },
+    "gitHead": "5f8fc00210b27b4407c375b59cda4838045d429c"
+  },
+  {
+    "toolkitId": "mcp.browser.browser-use-local",
+    "checkedAt": "2026-09-13T18:36:58.716271+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "pypi",
+    "package": "browser-use",
+    "version": "0.13.6",
+    "download": "https://files.pythonhosted.org/packages/e5/ab/c9cad020e4394c124bef008b38484f1fec626f8317b541991b47f19df638/browser_use-0.13.6-py3-none-any.whl",
+    "artifactSha256": "dc284a6130d56368a0a2fa6d6d6d467296e61b3ec165b6b290aecc5ca19b4a9c",
+    "registryIntegrity": "sha256-3ChKYTDVY2igovptbW1GcpbmGz7BZbaykK7MXKGbSpw=",
+    "integrityVerified": true,
+    "repository": {
+      "Documentation": "https://docs.browser-use.com",
+      "Homepage": "https://browser-use.com",
+      "Privacy Policy": "https://browser-use.com/privacy/",
+      "Repository": "https://github.com/browser-use/browser-use",
+      "Telemetry": "https://docs.browser-use.com/development/monitoring/telemetry",
+      "Terms of Service": "https://browser-use.com/legal/terms-of-service"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.browser.chrome-devtools",
+    "checkedAt": "2026-09-13T18:36:58.716576+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "chrome-devtools-mcp",
+    "version": "1.6.0",
+    "download": "https://registry.npmjs.org/chrome-devtools-mcp/-/chrome-devtools-mcp-1.6.0.tgz",
+    "artifactSha256": "1e632c2d9714b4f82b4cfab4efb9ce575085c75ffe5e9772383129af012c9c84",
+    "registryIntegrity": "sha512-VZX6f/OjQSYhy2BGGRs+y3LsrsAQAz/HwZCWKBLVyST/4r/3zjVEjjVW7gMCVbRDuspnVdcp5hQDPrQ5UFrdZw==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/ChromeDevTools/chrome-devtools-mcp.git",
+      "type": "git"
+    },
+    "gitHead": "f621d0052fd241dca76e7f615b20e9d320ba965f"
+  },
+  {
+    "toolkitId": "mcp.dev.github-remote",
+    "checkedAt": "2026-09-13T18:36:58.716791+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://api.githubcopilot.com/mcp/"
+  },
+  {
+    "toolkitId": "mcp.dev.figma-remote",
+    "checkedAt": "2026-09-13T18:36:58.717440+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://mcp.figma.com/mcp"
+  },
+  {
+    "toolkitId": "mcp.dev.bug-bounty-intelligence",
+    "checkedAt": "2026-09-13T18:36:58.718555+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "bug-bounty-intelligence-mcp",
+    "version": "1.0.3",
+    "download": "https://registry.npmjs.org/bug-bounty-intelligence-mcp/-/bug-bounty-intelligence-mcp-1.0.3.tgz",
+    "artifactSha256": "4f4445327d3dc95a0978fc46c39a6a5dd4cfe5f5ea9fd1787182e1a6eff7c80a",
+    "registryIntegrity": "sha512-Nln2UgLPe2e9erLFSJ7eFunnkWaOhwtIaIm+QQtQc97ZJ7GElYM5/KpQGCLuolUMh2uD8gkOueL5cqh1vl1Srg==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/holistis/bug-bounty-intelligence-mcp.git",
+      "type": "git"
+    },
+    "gitHead": "0abdc1a0dffe228ff3633398be149756f232993f"
+  },
+  {
+    "toolkitId": "mcp.devops.sentry-remote",
+    "checkedAt": "2026-09-13T18:36:58.995185+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://mcp.sentry.dev/mcp"
+  },
+  {
+    "toolkitId": "mcp.devops.vercel-remote",
+    "checkedAt": "2026-09-13T18:36:58.995542+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://mcp.vercel.com"
+  },
+  {
+    "toolkitId": "mcp.devops.grafana",
+    "checkedAt": "2026-09-13T18:36:58.995819+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "pypi",
+    "package": "mcp-grafana",
+    "version": "0.17.2",
+    "download": "https://files.pythonhosted.org/packages/15/54/3c0c116e16ddf2d8dae0900233fae64c18760bc476829fb6b0c60a83ad80/mcp_grafana-0.17.2-py3-none-macosx_10_9_x86_64.whl",
+    "artifactSha256": "2c56bad4e63eee06df40c02a207533c9db04fdf18e4575fa45afb8638e277ea0",
+    "registryIntegrity": "sha256-LFa61OY+7gbfQMAqIHUzydsE/fGORXX6Ra+4Y44nfqA=",
+    "integrityVerified": true,
+    "repository": {
+      "Homepage": "https://github.com/grafana/mcp-grafana"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.devops.netdata-cloud",
+    "checkedAt": "2026-09-13T18:36:59.027908+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://app.netdata.cloud/api/v1/mcp"
+  },
+  {
+    "toolkitId": "mcp.productivity.notion-remote",
+    "checkedAt": "2026-09-13T18:36:59.028077+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://mcp.notion.com/mcp"
+  },
+  {
+    "toolkitId": "mcp.workspace.filesystem",
+    "checkedAt": "2026-09-13T18:36:59.028215+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@modelcontextprotocol/server-filesystem",
+    "version": "2026.7.10",
+    "download": "https://registry.npmjs.org/@modelcontextprotocol/server-filesystem/-/server-filesystem-2026.7.10.tgz",
+    "artifactSha256": "c17c1da371c8089cff2206cce3001194d8276bae2b5ac1e2b425b6612068e3ba",
+    "registryIntegrity": "sha512-Mmjg4anFBD5OzbPnGJOA0jPPN8645ERhQk38HQLpSenx1ox9bfdPkmAzUnNjeQtqQGFLtKe13J20RtLBmUKMZA==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/modelcontextprotocol/servers.git",
+      "type": "git"
+    },
+    "gitHead": "9a96ea6e5913736f92b88345bf51caeaaa8e719f"
+  },
+  {
+    "toolkitId": "mcp.workspace.markitdown",
+    "checkedAt": "2026-09-13T18:36:59.237193+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "pypi",
+    "package": "markitdown-mcp",
+    "version": "0.0.1a4",
+    "download": "https://files.pythonhosted.org/packages/98/ae/01b865d529365cb311caf69ec944fb417ed78e95a7c6e8529d34375456db/markitdown_mcp-0.0.1a4-py3-none-any.whl",
+    "artifactSha256": "7fb06fff7d722ec108d08752704dc8f313f7fd267e00dff546131ec229645230",
+    "registryIntegrity": "sha256-f7Bv/31yLsEI0IdScE3I8xP3/SZ+AN/1RhMewilkUjA=",
+    "integrityVerified": true,
+    "repository": {
+      "Documentation": "https://github.com/microsoft/markitdown#readme",
+      "Issues": "https://github.com/microsoft/markitdown/issues",
+      "Source": "https://github.com/microsoft/markitdown"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.memory.memory",
+    "checkedAt": "2026-09-13T18:36:59.263186+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@modelcontextprotocol/server-memory",
+    "version": "2026.7.4",
+    "download": "https://registry.npmjs.org/@modelcontextprotocol/server-memory/-/server-memory-2026.7.4.tgz",
+    "artifactSha256": "d9e3040478264a18feb27068b9e1855b4f98dd941c381c68d2ba093af1fc696d",
+    "registryIntegrity": "sha512-D+NNzChsOHN72y58ngDmO+TzjJijGi/sSY/gBydhB3TJCcm1XQEozVWwEpruHeXt/HSkMV3Z/BpHDhdt1MLD5w==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/modelcontextprotocol/servers.git",
+      "type": "git"
+    },
+    "gitHead": "6dd0a683e198783e30feabf7abaf42f925bd18b1"
+  },
+  {
+    "toolkitId": "mcp.productivity.slack-remote",
+    "checkedAt": "2026-09-13T18:36:59.265443+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://mcp.slack.com/mcp"
+  },
+  {
+    "toolkitId": "mcp.workspace.fetch",
+    "checkedAt": "2026-09-13T18:36:59.265601+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "pypi",
+    "package": "mcp-server-fetch",
+    "version": "2026.7.10",
+    "download": "https://files.pythonhosted.org/packages/42/05/8be7be4fbf4ba8448e08dc1ac661bd6c5e616801d3112780c49548aca76b/mcp_server_fetch-2026.7.10-py3-none-any.whl",
+    "artifactSha256": "6991b9a8133726b9f0b76d8c5e9607c8207e19e7c3a47c9e174a8b2e0742fc70",
+    "registryIntegrity": "sha256-aZG5qBM3Jrnwt22MXpYHyCB+GefDpHyeF0qLLgdC/HA=",
+    "integrityVerified": true,
+    "repository": {
+      "Issues": "https://github.com/modelcontextprotocol/servers/issues",
+      "Repository": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.productivity.discord",
+    "checkedAt": "2026-09-13T18:36:59.480810+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@iqai/mcp-discord",
+    "version": "0.0.6",
+    "download": "https://registry.npmjs.org/@iqai/mcp-discord/-/mcp-discord-0.0.6.tgz",
+    "artifactSha256": "0494e82a8481f7f839839105b91ef466165cdd11d5eb51a64d4505c0fd01f789",
+    "registryIntegrity": "sha512-sm+YBQthmRaVVJXwjUZg4HpNJin0pFttKCanU7Ql1KA82Sxo7SKVlmrTvZPQ+wlv8XcMNdDWT4VLu3jefGejFw==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/IQAICOM/mcp-discord.git",
+      "type": "git"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.productivity.telegram",
+    "checkedAt": "2026-09-13T18:36:59.506169+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@iqai/mcp-telegram",
+    "version": "0.1.4",
+    "download": "https://registry.npmjs.org/@iqai/mcp-telegram/-/mcp-telegram-0.1.4.tgz",
+    "artifactSha256": "f8ece32b2cbee865b2905362c80642a2984d5f1c7decd974ee0e005c89995c32",
+    "registryIntegrity": "sha512-t+ANGkVqGwkLMWJZHSHGUWC08LB4Xg+SDEKW/nGIQWORuli5b481fMHvZ4geTA31QybyMpp9J1EpLr5m+uleEA==",
+    "integrityVerified": true,
+    "repository": null,
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.workspace.sqlite",
+    "checkedAt": "2026-09-13T18:36:59.550237+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "pypi",
+    "package": "mcp-server-sqlite",
+    "version": "2025.4.25",
+    "download": "https://files.pythonhosted.org/packages/fc/f3/dbffd53873eafd8773e289fdd0cb96dc4f793071973df07e79a4e9bae425/mcp_server_sqlite-2025.4.25-py3-none-any.whl",
+    "artifactSha256": "5ba5706aa29d249a3cde8226577e021c07792d3198e9db40fd005578d2a0801d",
+    "registryIntegrity": "sha256-W6VwaqKdJJo83oImV34CHAd5LTGY6dtA/QBVeNKggB0=",
+    "integrityVerified": true,
+    "repository": null,
+    "gitHead": null
+  },
+  {
+    "toolkitId": "mcp.dev.microsoft-learn",
+    "checkedAt": "2026-09-13T18:36:59.884192+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "hosted-mcp",
+    "endpoint": "https://learn.microsoft.com/api/mcp"
+  },
+  {
+    "toolkitId": "mcp.productivity.brave-search",
+    "checkedAt": "2026-09-13T18:36:59.884343+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "@brave/brave-search-mcp-server",
+    "version": "2.1.0",
+    "download": "https://registry.npmjs.org/@brave/brave-search-mcp-server/-/brave-search-mcp-server-2.1.0.tgz",
+    "artifactSha256": "34487d20ff765f0ad9ae9116b05e1305bed8ef1acb5840a04cde8d43bb4a7528",
+    "registryIntegrity": "sha512-QIQOwbrtv8QcNYQeI9NOgXdqMmhjaOYKwQl4cbpQNIqsEb/spjDKYjzvyl5NJqhEpZjmKRIo3H+0I+oYKOGjNA==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/brave/brave-search-mcp-server.git",
+      "type": "git"
+    },
+    "gitHead": "76106c83f9d57319478b540374ba261061d26c3e"
+  },
+  {
+    "toolkitId": "mcp.productivity.tavily",
+    "checkedAt": "2026-09-13T18:36:59.892083+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "tavily-mcp",
+    "version": "0.2.21",
+    "download": "https://registry.npmjs.org/tavily-mcp/-/tavily-mcp-0.2.21.tgz",
+    "artifactSha256": "9230fbb16ce309b2db3704606d7c4d1c139df541b9e4808c759108e67697d4f7",
+    "registryIntegrity": "sha512-FPygYCc1n9NHqSY+TO9jK/NpLS9w8usfZwXjKz64l+IsC06NHf255knEW+HPn4qZHL3JDQ8VOWxMHJVd1g4ing==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/tavily-ai/tavily-mcp.git",
+      "type": "git"
+    },
+    "gitHead": "259bfd205de90d74a131e9d2b29cb69ebe11feb7"
+  },
+  {
+    "toolkitId": "mcp.productivity.firecrawl",
+    "checkedAt": "2026-09-13T18:36:59.919672+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "local-mcp",
+    "ecosystem": "npm",
+    "package": "firecrawl-mcp",
+    "version": "3.22.4",
+    "download": "https://registry.npmjs.org/firecrawl-mcp/-/firecrawl-mcp-3.22.4.tgz",
+    "artifactSha256": "0f0f5d4531fa0670aefa0ff8903daa64855ebe17886151e4963471039b466cbe",
+    "registryIntegrity": "sha512-2bEVN3tpFCTztBmAKqJDsIMoQRLar6NV/0yxeq8pc3D6WtIbEzbXNHOVYx6uUj7EWlGqODn49mTC+2wDTJb3pA==",
+    "integrityVerified": true,
+    "repository": {
+      "url": "git+https://github.com/firecrawl/firecrawl-mcp-server.git",
+      "type": "git"
+    },
+    "gitHead": null
+  },
+  {
+    "toolkitId": "skillpack.superpowers-essentials",
+    "checkedAt": "2026-09-13T18:37:00.047839+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "error": "archive contains link/device; manual acquisition required"
+  },
+  {
+    "toolkitId": "skillpack.prompt-master",
+    "checkedAt": "2026-09-13T18:37:00.074963+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "skill-pack",
+    "download": "https://codeload.github.com/nidhinjs/prompt-master/tar.gz/d15eabbe5d2122eedc060bae8a771381e9873d1b",
+    "commit": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+    "artifactSha256": "bde682e56eb53dc2442121983746b2e5eba58c6b34c1e6d6593f307ae817088e",
+    "manifestChecks": [
+      {
+        "path": "SKILL.md",
+        "expected": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b",
+        "actual": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b",
+        "match": true
+      }
+    ],
+    "archiveRoot": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b"
+  },
+  {
+    "toolkitId": "skillpack.frontend-design",
+    "checkedAt": "2026-09-13T18:37:00.132372+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "kind": "skill-pack",
+    "download": "https://codeload.github.com/anthropics/skills/tar.gz/fa0fa64bdc967915dc8399e803be67759e1e62b8",
+    "commit": "fa0fa64bdc967915dc8399e803be67759e1e62b8",
+    "artifactSha256": "3fa5cb4472fc79626be4ebc3bf997b1ef57e413b8801a7ccac874860b287317f",
+    "manifestChecks": [
+      {
+        "path": "skills/frontend-design/SKILL.md",
+        "expected": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd",
+        "actual": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd",
+        "match": true
+      }
+    ],
+    "archiveRoot": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8"
+  },
+  {
+    "toolkitId": "skillpack.vercel-web-review",
+    "checkedAt": "2026-09-13T18:37:00.407468+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "error": "archive contains link/device; manual acquisition required"
+  },
+  {
+    "toolkitId": "skillpack.trailofbits-audit-prep",
+    "checkedAt": "2026-09-13T18:37:01.127384+00:00",
+    "acquisition": "No lifecycle scripts or candidate execution",
+    "error": "archive contains link/device; manual acquisition required"
+  }
+]

@@ -1,0 +1,1986 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.markitdown-requirements.txt",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "annotated-types",
+            "version": "0.8.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "anyio",
+            "version": "4.14.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "azure-ai-documentintelligence",
+            "version": "1.0.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "azure-core",
+            "version": "1.41.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "azure-identity",
+            "version": "1.25.3",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "beautifulsoup4",
+            "version": "4.15.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "certifi",
+            "version": "2026.7.22",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "cffi",
+            "version": "2.1.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "charset-normalizer",
+            "version": "3.4.9",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "click",
+            "version": "8.4.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "cobble",
+            "version": "0.1.4",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "cryptography",
+            "version": "49.0.0",
+            "ecosystem": "PyPI"
+          },
+          "groups": [
+            {
+              "ids": [
+                "PYSEC-2026-3552",
+                "GHSA-g6cj-pr64-35w5"
+              ],
+              "aliases": [
+                "CVE-2026-69247",
+                "GHSA-g6cj-pr64-35w5",
+                "PYSEC-2026-3552"
+              ],
+              "max_severity": "8.2"
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/cryptography/PYSEC-2026-3552.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "cryptography",
+                    "purl": "pkg:pypi/cryptography"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "44.0.0"
+                        },
+                        {
+                          "fixed": "50.0.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "44.0.0",
+                    "44.0.1",
+                    "44.0.2",
+                    "44.0.3",
+                    "45.0.0",
+                    "45.0.1",
+                    "45.0.2",
+                    "45.0.3",
+                    "45.0.4",
+                    "45.0.5",
+                    "45.0.6",
+                    "45.0.7",
+                    "46.0.0",
+                    "46.0.1",
+                    "46.0.2",
+                    "46.0.3",
+                    "46.0.4",
+                    "46.0.5",
+                    "46.0.6",
+                    "46.0.7",
+                    "47.0.0",
+                    "48.0.0",
+                    "48.0.1",
+                    "49.0.0"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-69247",
+                "GHSA-g6cj-pr64-35w5"
+              ],
+              "details": "### Summary\n\n`pkcs7_decrypt_der`, `pkcs7_decrypt_pem`, and `pkcs7_decrypt_smime` reported the\noutcome of decrypting a `RecipientInfo`'s `encryptedKey` in several\ndistinguishable ways, one of which disclosed the exact length recovered from the\nRSA operation. The same distinction was also observable by timing. An\napplication that decrypts attacker-supplied `EnvelopedData` and reflects the\noutcome gives the attacker a Bleichenbacher oracle against the\ncontent-encryption key.\n\nIntroduced in 44.0.0. Fixed in 50.0.0.\n\n### Details\n\nDecryption ran as: RSA PKCS#1 v1.5 decrypt of `encryptedKey` → build an AES\ncipher from the result → AES-CBC decrypt and PKCS#7 unpad. Each stage failed\ndifferently, with no RFC 3218 mitigation:\n\n1. invalid RSA padding → `Decryption failed`\n2. valid padding, bad key length → `Invalid key size (N) for AES.`, disclosing `N`\n3. correct length, wrong key → `Invalid padding bytes.`\n4. the real key → plaintext\n\nCase 1 is reachable only where the linked library lacks implicit rejection:\nOpenSSL 3.0 and 3.1, LibreSSL, and BoringSSL. On OpenSSL 3.2+, used in our wheels,\ninvalid padding instead returns a synthetic plaintext of\npseudorandom length, so the error channel does not distinguish conforming\nciphertexts.\n\nExploitation requires a service that auto-decrypts untrusted `EnvelopedData`\nmatching the victim certificate and answers adaptively at high volume, such as\nan S/MIME gateway or mail filter.\n\n### Fix\n\nPer RFC 3218, the content-encryption algorithm is now resolved before the\nprivate key is used, so the expected key length is known in advance. If the RSA\ndecryption fails or recovers a key of the wrong length, a random key of the\nexpected length is substituted and decryption continues down an identical path.\nAll failures now report identically and perform the same work.\n\n### Not addressed by this fix\n\n`EnvelopedData` does not authenticate its content. Tampering with\n`encryptedContent` alone yields a CBC padding oracle that recovers plaintext at\nroughly 256 queries per byte, without recovering any key, on every backend. This\nis a property of PKCS#7 rather than of this implementation, cannot be fixed in\nthe library, and is now documented.\n\n### Credit\n\nReported by @X1AOxiang.",
+              "id": "PYSEC-2026-3552",
+              "modified": "2026-08-04T14:30:15.036332054Z",
+              "published": "2026-08-04T11:34:47.697724Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/security/advisories/GHSA-g6cj-pr64-35w5"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/pull/15369"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/commit/53fccd93413a8d7f07d6d8999681f27b75cffa3f"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/pyca/cryptography"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/cryptography"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-g6cj-pr64-35w5"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-69247"
+                }
+              ],
+              "schema_version": "1.8.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "cryptography: PKCS#7 EnvelopedData decryption exposes a Bleichenbacher oracle through distinguishable errors and timing"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-g6cj-pr64-35w5/GHSA-g6cj-pr64-35w5.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "cryptography",
+                    "purl": "pkg:pypi/cryptography"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "44.0.0"
+                        },
+                        {
+                          "fixed": "50.0.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "44.0.0",
+                    "44.0.1",
+                    "44.0.2",
+                    "44.0.3",
+                    "45.0.0",
+                    "45.0.1",
+                    "45.0.2",
+                    "45.0.3",
+                    "45.0.4",
+                    "45.0.5",
+                    "45.0.6",
+                    "45.0.7",
+                    "46.0.0",
+                    "46.0.1",
+                    "46.0.2",
+                    "46.0.3",
+                    "46.0.4",
+                    "46.0.5",
+                    "46.0.6",
+                    "46.0.7",
+                    "47.0.0",
+                    "48.0.0",
+                    "48.0.1",
+                    "49.0.0"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-69247",
+                "PYSEC-2026-3552"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-208",
+                  "CWE-209"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-08-03T21:17:00Z",
+                "nvd_published_at": null,
+                "severity": "HIGH"
+              },
+              "details": "### Summary\n\n`pkcs7_decrypt_der`, `pkcs7_decrypt_pem`, and `pkcs7_decrypt_smime` reported the\noutcome of decrypting a `RecipientInfo`'s `encryptedKey` in several\ndistinguishable ways, one of which disclosed the exact length recovered from the\nRSA operation. The same distinction was also observable by timing. An\napplication that decrypts attacker-supplied `EnvelopedData` and reflects the\noutcome gives the attacker a Bleichenbacher oracle against the\ncontent-encryption key.\n\nIntroduced in 44.0.0. Fixed in 50.0.0.\n\n### Details\n\nDecryption ran as: RSA PKCS#1 v1.5 decrypt of `encryptedKey` → build an AES\ncipher from the result → AES-CBC decrypt and PKCS#7 unpad. Each stage failed\ndifferently, with no RFC 3218 mitigation:\n\n1. invalid RSA padding → `Decryption failed`\n2. valid padding, bad key length → `Invalid key size (N) for AES.`, disclosing `N`\n3. correct length, wrong key → `Invalid padding bytes.`\n4. the real key → plaintext\n\nCase 1 is reachable only where the linked library lacks implicit rejection:\nOpenSSL 3.0 and 3.1, LibreSSL, and BoringSSL. On OpenSSL 3.2+, used in our wheels,\ninvalid padding instead returns a synthetic plaintext of\npseudorandom length, so the error channel does not distinguish conforming\nciphertexts.\n\nExploitation requires a service that auto-decrypts untrusted `EnvelopedData`\nmatching the victim certificate and answers adaptively at high volume, such as\nan S/MIME gateway or mail filter.\n\n### Fix\n\nPer RFC 3218, the content-encryption algorithm is now resolved before the\nprivate key is used, so the expected key length is known in advance. If the RSA\ndecryption fails or recovers a key of the wrong length, a random key of the\nexpected length is substituted and decryption continues down an identical path.\nAll failures now report identically and perform the same work.\n\n### Not addressed by this fix\n\n`EnvelopedData` does not authenticate its content. Tampering with\n`encryptedContent` alone yields a CBC padding oracle that recovers plaintext at\nroughly 256 queries per byte, without recovering any key, on every backend. This\nis a property of PKCS#7 rather than of this implementation, cannot be fixed in\nthe library, and is now documented.\n\n### Credit\n\nReported by @X1AOxiang.",
+              "id": "GHSA-g6cj-pr64-35w5",
+              "modified": "2026-09-10T03:50:53.610446769Z",
+              "published": "2026-08-03T21:17:00Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/security/advisories/GHSA-g6cj-pr64-35w5"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/pull/15369"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pyca/cryptography/commit/53fccd93413a8d7f07d6d8999681f27b75cffa3f"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/pyca/cryptography"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "cryptography: PKCS#7 EnvelopedData decryption exposes a Bleichenbacher oracle through distinguishable errors and timing"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "defusedxml",
+            "version": "0.7.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "et-xmlfile",
+            "version": "2.0.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "flatbuffers",
+            "version": "25.12.19",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "h11",
+            "version": "0.16.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "httpcore",
+            "version": "1.0.9",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "httpx",
+            "version": "0.28.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "httpx-sse",
+            "version": "0.4.3",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "idna",
+            "version": "3.18",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "isodate",
+            "version": "0.7.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "lxml",
+            "version": "6.1.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "magika",
+            "version": "0.6.3",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "mammoth",
+            "version": "1.11.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "markdownify",
+            "version": "1.2.3",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "markitdown",
+            "version": "0.1.5",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "markitdown-mcp",
+            "version": "0.0.1a4",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "mcp",
+            "version": "1.8.1",
+            "ecosystem": "PyPI"
+          },
+          "groups": [
+            {
+              "ids": [
+                "PYSEC-2026-1616",
+                "GHSA-3qhf-m339-9g5v"
+              ],
+              "aliases": [
+                "CVE-2025-53366",
+                "GHSA-3qhf-m339-9g5v",
+                "PYSEC-2026-1616"
+              ],
+              "max_severity": "8.7"
+            },
+            {
+              "ids": [
+                "PYSEC-2026-1617",
+                "GHSA-9h52-p55h-vw2f"
+              ],
+              "aliases": [
+                "CVE-2025-66416",
+                "GHSA-9h52-p55h-vw2f",
+                "PYSEC-2026-1617"
+              ],
+              "max_severity": "7.6"
+            },
+            {
+              "ids": [
+                "PYSEC-2026-1618",
+                "GHSA-j975-95f5-7wqh"
+              ],
+              "aliases": [
+                "CVE-2025-53365",
+                "GHSA-j975-95f5-7wqh",
+                "PYSEC-2026-1618"
+              ],
+              "max_severity": "8.7"
+            },
+            {
+              "ids": [
+                "PYSEC-2026-3482",
+                "GHSA-jpw9-pfvf-9f58"
+              ],
+              "aliases": [
+                "CVE-2026-52869",
+                "GHSA-jpw9-pfvf-9f58",
+                "PYSEC-2026-3482"
+              ],
+              "max_severity": "7.1"
+            },
+            {
+              "ids": [
+                "PYSEC-2026-3483",
+                "GHSA-vj7q-gjh5-988w"
+              ],
+              "aliases": [
+                "CVE-2026-59950",
+                "GHSA-vj7q-gjh5-988w",
+                "PYSEC-2026-3483"
+              ],
+              "max_severity": "7.6"
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/mcp/PYSEC-2026-1616.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.9.4"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-53366",
+                "GHSA-3qhf-m339-9g5v"
+              ],
+              "details": "A validation error in the MCP SDK can cause an unhandled exception when processing malformed requests, resulting in service unavailability (500 errors) until manually restarted. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+              "id": "PYSEC-2026-1616",
+              "modified": "2026-07-07T17:47:03.420621263Z",
+              "published": "2026-07-07T16:02:56.172263Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-3qhf-m339-9g5v"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53366"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/822"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/29c69e6a47d0104d0afcea6ac35e7ab02fde809a"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.9.4"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/mcp"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-3qhf-m339-9g5v"
+                }
+              ],
+              "schema_version": "1.7.5",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK vulnerability in the FastMCP Server causes validation error, leading to DoS"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/mcp/PYSEC-2026-1617.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.23.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-66416",
+                "GHSA-9h52-p55h-vw2f"
+              ],
+              "details": "### Description\n\nThe Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default for HTTP-based servers. When an HTTP-based MCP server is run on localhost without authentication using `FastMCP` with streamable HTTP or SSE transport, and has not configured `TransportSecuritySettings`, a malicious website could exploit DNS rebinding to bypass same-origin policy restrictions and send requests to the local MCP server. This could allow an attacker to invoke tools or access resources exposed by the MCP server on behalf of the user in those limited circumstances.\n\nNote that running HTTP-based MCP servers locally without authentication is not recommended per MCP security best practices. This issue does not affect servers using stdio transport.\n\nServers created via `FastMCP()` now have DNS rebinding protection enabled by default when the `host` parameter is `127.0.0.1` or `localhost`. Users are advised to update to version `1.23.0` to receive this automatic protection. Users with custom low-level server configurations using `StreamableHTTPSessionManager` or `SseServerTransport` directly should explicitly configure `TransportSecuritySettings` when running an unauthenticated server on localhost.",
+              "id": "PYSEC-2026-1617",
+              "modified": "2026-07-07T17:47:04.409703799Z",
+              "published": "2026-07-07T16:03:11.859199Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-9h52-p55h-vw2f"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-66416"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/d3a184119e4479ea6a63590bc41f01dc06e3fa99"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/mcp"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-9h52-p55h-vw2f"
+                }
+              ],
+              "schema_version": "1.7.5",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/mcp/PYSEC-2026-1618.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.10.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-53365",
+                "GHSA-j975-95f5-7wqh"
+              ],
+              "details": "If a client deliberately triggers an exception after establishing a streamable HTTP session, this can lead to an uncaught ClosedResourceError on the server side, causing the server to crash and requiring a restart to restore service. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+              "id": "PYSEC-2026-1618",
+              "modified": "2026-07-07T17:47:04.395676741Z",
+              "published": "2026-07-07T16:02:56.105116Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-j975-95f5-7wqh"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53365"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/967"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/7b420656de48cfdb90b39eb582e60b6d55c2f891"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.10.0"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/mcp"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-j975-95f5-7wqh"
+                }
+              ],
+              "schema_version": "1.7.5",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK has Unhandled Exception in Streamable HTTP Transport, Leading to Denial of Service"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/mcp/PYSEC-2026-3482.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.27.2"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.23.0",
+                    "1.23.1",
+                    "1.23.2",
+                    "1.23.3",
+                    "1.24.0",
+                    "1.25.0",
+                    "1.26.0",
+                    "1.27.0",
+                    "1.27.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-52869",
+                "GHSA-jpw9-pfvf-9f58"
+              ],
+              "details": "### Summary\nIn affected versions, the SSE and Streamable HTTP server transports routed incoming requests to an existing session based only on the session identifier, without verifying that the request was authenticated as the same principal that created the session. Anyone who learned or guessed a session ID could send JSON-RPC messages on that session, regardless of which bearer token the request carried.\n\n### Am I affected?\nOnly if a developer's application server uses an HTTP transport (SSE, or Streamable HTTP in stateful mode) **and** authenticates requests. Servers on stdio, stateless Streamable HTTP, or with no authentication configured are not affected.\n\n### Details\nBoth transports look up the target session by its identifier alone — the `session_id` query parameter for SSE (`mcp.server.sse.SseServerTransport`) and the `Mcp-Session-Id` header for Streamable HTTP (`mcp.server.streamable_http_manager.StreamableHTTPSessionManager`). Once the lookup succeeded, the request was handled on that session without comparing its authentication context to the credentials presented when the session was created, so a request authenticated as a different OAuth client could inject messages into the session. On the SSE transport the response is delivered to the original client's event stream; on the Streamable HTTP transport it is returned on the injecting request, so the injecting client can also read the result. The SSE transport has been affected since the first release; the Streamable HTTP transport since version 1.8.0.\n\n### Impact\nServers using either HTTP transport together with the SDK's built-in bearer-token authentication are affected: the per-client isolation that authentication provides can be bypassed for any session whose ID is known. Session IDs are randomly generated UUIDs, so exploitation requires obtaining one out of band (logs, network observation). Servers that do not enable bearer-token authentication have no per-client isolation to bypass and are not addressed by this advisory, and stateless Streamable HTTP deployments do not maintain sessions and are unaffected.\n\n### Mitigation\nUpgrade to version 1.27.2 or later, which records the authenticated principal that created each session — the OAuth client ID together with the token's issuer and subject when the token verifier supplies them — and answers requests presenting a different principal with the same 404 response as for an unknown session.\n\nDeployments where many end users share a single OAuth client (hosted MCP clients, gateways) should ensure their token verifier populates `AccessToken.subject` (e.g. from the token's `sub` claim) so sessions are isolated per user rather than per client. Deployments using a custom authentication backend other than the built-in `BearerAuthBackend` should enforce an equivalent check themselves.",
+              "id": "PYSEC-2026-3482",
+              "modified": "2026-07-23T15:00:13.853115115Z",
+              "published": "2026-07-23T11:41:46.472358Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-jpw9-pfvf-9f58"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-52869"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2690"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2719"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/1abcca2408a6b50e10ec601181f63f9978705c00"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/ce267b6fc515dc4efc1dc70b6975b16ff0feef0a"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.27.2"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/mcp"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-jpw9-pfvf-9f58"
+                }
+              ],
+              "schema_version": "1.7.5",
+              "severity": [
+                {
+                  "score": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:L",
+                  "type": "CVSS_V3"
+                }
+              ],
+              "summary": "MCP Python SDK: HTTP transports serve session requests without verifying the authenticated principal"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/pypa/advisory-database/blob/main/vulns/mcp/PYSEC-2026-3483.yaml"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.28.1"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.23.0",
+                    "1.23.1",
+                    "1.23.2",
+                    "1.23.3",
+                    "1.24.0",
+                    "1.25.0",
+                    "1.26.0",
+                    "1.27.0",
+                    "1.27.1",
+                    "1.27.2",
+                    "1.28.0",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-59950",
+                "GHSA-vj7q-gjh5-988w"
+              ],
+              "details": "### Summary\nIn affected versions, the deprecated WebSocket server transport (`mcp.server.websocket.websocket_server`) accepted the WebSocket handshake without applying any `Host` or `Origin` header validation. The `TransportSecuritySettings` mechanism that the SSE and Streamable HTTP transports use for this purpose was not wired into the WebSocket transport, so there was no SDK-level way to restrict which origins could connect.\n\n### Am I affected?\nOnly if a developer's application server exposes `mcp.server.websocket.websocket_server`. This transport has never been part of the MCP specification, is marked deprecated, and is not reachable through `FastMCP` — a developer must have wired it into an ASGI application themselves. Servers using stdio, SSE, or Streamable HTTP are not affected by this advisory.\n\n### Details\n`websocket_server()` constructed a Starlette `WebSocket` and called `accept(subprotocol=\"mcp\")` immediately, with no inspection of the connection's headers. By contrast, `SseServerTransport` and `StreamableHTTPServerTransport` accept an optional `security_settings: TransportSecuritySettings` and run `TransportSecurityMiddleware.validate_request()` against the incoming `Host` and `Origin` headers before establishing a session. Because browsers attach an `Origin` header to cross-origin WebSocket upgrade requests but do not enforce a same-origin policy on the response, a web page served from any origin could open a WebSocket to a reachable MCP server on this transport, complete the `initialize` handshake, and issue JSON-RPC requests on the resulting session.\n\n### Impact\nA user who runs an MCP server on this transport bound to localhost or a LAN address, without a separate authentication or origin gate in front of it, and visits a malicious web page, can have that page enumerate and invoke the server's tools and read its resources. The consequences depend entirely on what the server exposes. The transport itself requires no token or prior session. Some browsers prompt before allowing a public page to open a connection to a local-network address, which adds a user-interaction step but is not a substitute for server-side validation.\n\n### Mitigation\nUpgrade to version 1.28.1 or later, in which `websocket_server()` accepts the same optional `security_settings: TransportSecuritySettings` argument as the other HTTP-based transports and validates the `Host` and `Origin` headers before accepting the handshake; a request that fails validation is rejected with HTTP 403 and `ValueError(\"Request validation failed\")` is raised to the caller. As with the other transports the parameter defaults to `None`, which leaves validation disabled, so upgrading alone does not change behaviour: pass a `TransportSecuritySettings` with `enable_dns_rebinding_protection=True` and appropriate `allowed_hosts` / `allowed_origins` to receive the protection. The recommended path remains to migrate off this deprecated transport to Streamable HTTP, where `FastMCP` enables this protection automatically for localhost binds. The WebSocket transport has been removed entirely in v2.",
+              "id": "PYSEC-2026-3483",
+              "modified": "2026-07-23T15:00:13.898863418Z",
+              "published": "2026-07-23T11:41:46.534440Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-vj7q-gjh5-988w"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-59950"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2992"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/777b8d06710c140e3606b0d4598e2aa48546c266"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.28.1"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://pypi.org/project/mcp"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-vj7q-gjh5-988w"
+                }
+              ],
+              "schema_version": "1.7.5",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK: WebSocket server transport does not support Host/Origin validation"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2025/07/GHSA-3qhf-m339-9g5v/GHSA-3qhf-m339-9g5v.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.9.4"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-53366",
+                "PYSEC-2026-1616"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-248"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2025-07-04T22:06:49Z",
+                "nvd_published_at": "2025-07-04T22:15:22Z",
+                "severity": "HIGH"
+              },
+              "details": "A validation error in the MCP SDK can cause an unhandled exception when processing malformed requests, resulting in service unavailability (500 errors) until manually restarted. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+              "id": "GHSA-3qhf-m339-9g5v",
+              "modified": "2026-07-16T18:45:48.199122861Z",
+              "published": "2025-07-04T22:06:49Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-3qhf-m339-9g5v"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53366"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/822"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/29c69e6a47d0104d0afcea6ac35e7ab02fde809a"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-3qhf-m339-9g5v"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.9.4"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pypa/advisory-database/tree/main/vulns/mcp/PYSEC-2026-1616.yaml"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://pypi.org/project/mcp"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK vulnerability in the FastMCP Server causes validation error, leading to DoS"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2025/12/GHSA-9h52-p55h-vw2f/GHSA-9h52-p55h-vw2f.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.23.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-66416",
+                "PYSEC-2026-1617"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-1188",
+                  "CWE-350"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2025-12-02T16:52:08Z",
+                "nvd_published_at": "2025-12-02T19:15:52Z",
+                "severity": "HIGH"
+              },
+              "details": "### Description\n\nThe Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default for HTTP-based servers. When an HTTP-based MCP server is run on localhost without authentication using `FastMCP` with streamable HTTP or SSE transport, and has not configured `TransportSecuritySettings`, a malicious website could exploit DNS rebinding to bypass same-origin policy restrictions and send requests to the local MCP server. This could allow an attacker to invoke tools or access resources exposed by the MCP server on behalf of the user in those limited circumstances.\n\nNote that running HTTP-based MCP servers locally without authentication is not recommended per MCP security best practices. This issue does not affect servers using stdio transport.\n\nServers created via `FastMCP()` now have DNS rebinding protection enabled by default when the `host` parameter is `127.0.0.1` or `localhost`. Users are advised to update to version `1.23.0` to receive this automatic protection. Users with custom low-level server configurations using `StreamableHTTPSessionManager` or `SseServerTransport` directly should explicitly configure `TransportSecuritySettings` when running an unauthenticated server on localhost.",
+              "id": "GHSA-9h52-p55h-vw2f",
+              "modified": "2026-09-10T03:50:31.741008234Z",
+              "published": "2025-12-02T16:52:08Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-9h52-p55h-vw2f"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-66416"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/d3a184119e4479ea6a63590bc41f01dc06e3fa99"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-9h52-p55h-vw2f"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pypa/advisory-database/tree/main/vulns/mcp/PYSEC-2026-1617.yaml"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://pypi.org/project/mcp"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2025/07/GHSA-j975-95f5-7wqh/GHSA-j975-95f5-7wqh.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.10.0"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2025-53365",
+                "PYSEC-2026-1618"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-248"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2025-07-04T22:06:31Z",
+                "nvd_published_at": "2025-07-04T22:15:22Z",
+                "severity": "HIGH"
+              },
+              "details": "If a client deliberately triggers an exception after establishing a streamable HTTP session, this can lead to an uncaught ClosedResourceError on the server side, causing the server to crash and requiring a restart to restore service. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+              "id": "GHSA-j975-95f5-7wqh",
+              "modified": "2026-07-16T18:45:48.211743797Z",
+              "published": "2025-07-04T22:06:31Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-j975-95f5-7wqh"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53365"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/967"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/7b420656de48cfdb90b39eb582e60b6d55c2f891"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/advisories/GHSA-j975-95f5-7wqh"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.10.0"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/pypa/advisory-database/tree/main/vulns/mcp/PYSEC-2026-1618.yaml"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://pypi.org/project/mcp"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK has Unhandled Exception in Streamable HTTP Transport, Leading to Denial of Service"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "last_known_affected_version_range": "\u003c= 1.27.1",
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-jpw9-pfvf-9f58/GHSA-jpw9-pfvf-9f58.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.27.2"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.23.0",
+                    "1.23.1",
+                    "1.23.2",
+                    "1.23.3",
+                    "1.24.0",
+                    "1.25.0",
+                    "1.26.0",
+                    "1.27.0",
+                    "1.27.1",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-52869",
+                "PYSEC-2026-3482"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-639"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-07-16T19:58:53Z",
+                "nvd_published_at": "2026-07-15T20:17:38Z",
+                "severity": "HIGH"
+              },
+              "details": "### Summary\nIn affected versions, the SSE and Streamable HTTP server transports routed incoming requests to an existing session based only on the session identifier, without verifying that the request was authenticated as the same principal that created the session. Anyone who learned or guessed a session ID could send JSON-RPC messages on that session, regardless of which bearer token the request carried.\n\n### Am I affected?\nOnly if a developer's application server uses an HTTP transport (SSE, or Streamable HTTP in stateful mode) **and** authenticates requests. Servers on stdio, stateless Streamable HTTP, or with no authentication configured are not affected.\n\n### Details\nBoth transports look up the target session by its identifier alone — the `session_id` query parameter for SSE (`mcp.server.sse.SseServerTransport`) and the `Mcp-Session-Id` header for Streamable HTTP (`mcp.server.streamable_http_manager.StreamableHTTPSessionManager`). Once the lookup succeeded, the request was handled on that session without comparing its authentication context to the credentials presented when the session was created, so a request authenticated as a different OAuth client could inject messages into the session. On the SSE transport the response is delivered to the original client's event stream; on the Streamable HTTP transport it is returned on the injecting request, so the injecting client can also read the result. The SSE transport has been affected since the first release; the Streamable HTTP transport since version 1.8.0.\n\n### Impact\nServers using either HTTP transport together with the SDK's built-in bearer-token authentication are affected: the per-client isolation that authentication provides can be bypassed for any session whose ID is known. Session IDs are randomly generated UUIDs, so exploitation requires obtaining one out of band (logs, network observation). Servers that do not enable bearer-token authentication have no per-client isolation to bypass and are not addressed by this advisory, and stateless Streamable HTTP deployments do not maintain sessions and are unaffected.\n\n### Mitigation\nUpgrade to version 1.27.2 or later, which records the authenticated principal that created each session — the OAuth client ID together with the token's issuer and subject when the token verifier supplies them — and answers requests presenting a different principal with the same 404 response as for an unknown session.\n\nDeployments where many end users share a single OAuth client (hosted MCP clients, gateways) should ensure their token verifier populates `AccessToken.subject` (e.g. from the token's `sub` claim) so sessions are isolated per user rather than per client. Deployments using a custom authentication backend other than the built-in `BearerAuthBackend` should enforce an equivalent check themselves.",
+              "id": "GHSA-jpw9-pfvf-9f58",
+              "modified": "2026-09-10T03:50:52.526763662Z",
+              "published": "2026-07-16T19:58:53Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-jpw9-pfvf-9f58"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-52869"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2690"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2719"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/1abcca2408a6b50e10ec601181f63f9978705c00"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/ce267b6fc515dc4efc1dc70b6975b16ff0feef0a"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.27.2"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:L",
+                  "type": "CVSS_V3"
+                }
+              ],
+              "summary": "MCP Python SDK: HTTP transports serve session requests without verifying the authenticated principal"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-vj7q-gjh5-988w/GHSA-vj7q-gjh5-988w.json"
+                  },
+                  "package": {
+                    "ecosystem": "PyPI",
+                    "name": "mcp",
+                    "purl": "pkg:pypi/mcp"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.28.1"
+                        }
+                      ],
+                      "type": "ECOSYSTEM"
+                    }
+                  ],
+                  "versions": [
+                    "0.9.1",
+                    "1.0.0",
+                    "1.1.0",
+                    "1.1.1",
+                    "1.1.2",
+                    "1.1.3",
+                    "1.10.0",
+                    "1.10.1",
+                    "1.11.0",
+                    "1.12.0",
+                    "1.12.1",
+                    "1.12.2",
+                    "1.12.3",
+                    "1.12.4",
+                    "1.13.0",
+                    "1.13.1",
+                    "1.14.0",
+                    "1.14.1",
+                    "1.15.0",
+                    "1.16.0",
+                    "1.17.0",
+                    "1.18.0",
+                    "1.19.0",
+                    "1.2.0",
+                    "1.2.0rc1",
+                    "1.2.1",
+                    "1.20.0",
+                    "1.21.0",
+                    "1.21.1",
+                    "1.21.2",
+                    "1.22.0",
+                    "1.23.0",
+                    "1.23.1",
+                    "1.23.2",
+                    "1.23.3",
+                    "1.24.0",
+                    "1.25.0",
+                    "1.26.0",
+                    "1.27.0",
+                    "1.27.1",
+                    "1.27.2",
+                    "1.28.0",
+                    "1.3.0",
+                    "1.3.0rc1",
+                    "1.4.0",
+                    "1.4.1",
+                    "1.5.0",
+                    "1.6.0",
+                    "1.7.0",
+                    "1.7.1",
+                    "1.8.0",
+                    "1.8.1",
+                    "1.9.0",
+                    "1.9.1",
+                    "1.9.2",
+                    "1.9.3",
+                    "1.9.4"
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-59950",
+                "PYSEC-2026-3483"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-1385",
+                  "CWE-346"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-07-16T20:14:34Z",
+                "nvd_published_at": "2026-07-15T21:16:55Z",
+                "severity": "HIGH"
+              },
+              "details": "### Summary\nIn affected versions, the deprecated WebSocket server transport (`mcp.server.websocket.websocket_server`) accepted the WebSocket handshake without applying any `Host` or `Origin` header validation. The `TransportSecuritySettings` mechanism that the SSE and Streamable HTTP transports use for this purpose was not wired into the WebSocket transport, so there was no SDK-level way to restrict which origins could connect.\n\n### Am I affected?\nOnly if a developer's application server exposes `mcp.server.websocket.websocket_server`. This transport has never been part of the MCP specification, is marked deprecated, and is not reachable through `FastMCP` — a developer must have wired it into an ASGI application themselves. Servers using stdio, SSE, or Streamable HTTP are not affected by this advisory.\n\n### Details\n`websocket_server()` constructed a Starlette `WebSocket` and called `accept(subprotocol=\"mcp\")` immediately, with no inspection of the connection's headers. By contrast, `SseServerTransport` and `StreamableHTTPServerTransport` accept an optional `security_settings: TransportSecuritySettings` and run `TransportSecurityMiddleware.validate_request()` against the incoming `Host` and `Origin` headers before establishing a session. Because browsers attach an `Origin` header to cross-origin WebSocket upgrade requests but do not enforce a same-origin policy on the response, a web page served from any origin could open a WebSocket to a reachable MCP server on this transport, complete the `initialize` handshake, and issue JSON-RPC requests on the resulting session.\n\n### Impact\nA user who runs an MCP server on this transport bound to localhost or a LAN address, without a separate authentication or origin gate in front of it, and visits a malicious web page, can have that page enumerate and invoke the server's tools and read its resources. The consequences depend entirely on what the server exposes. The transport itself requires no token or prior session. Some browsers prompt before allowing a public page to open a connection to a local-network address, which adds a user-interaction step but is not a substitute for server-side validation.\n\n### Mitigation\nUpgrade to version 1.28.1 or later, in which `websocket_server()` accepts the same optional `security_settings: TransportSecuritySettings` argument as the other HTTP-based transports and validates the `Host` and `Origin` headers before accepting the handshake; a request that fails validation is rejected with HTTP 403 and `ValueError(\"Request validation failed\")` is raised to the caller. As with the other transports the parameter defaults to `None`, which leaves validation disabled, so upgrading alone does not change behaviour: pass a `TransportSecuritySettings` with `enable_dns_rebinding_protection=True` and appropriate `allowed_hosts` / `allowed_origins` to receive the protection. The recommended path remains to migrate off this deprecated transport to Streamable HTTP, where `FastMCP` enables this protection automatically for localhost binds. The WebSocket transport has been removed entirely in v2.",
+              "id": "GHSA-vj7q-gjh5-988w",
+              "modified": "2026-09-10T03:50:53.083568399Z",
+              "published": "2026-07-16T20:14:34Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-vj7q-gjh5-988w"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-59950"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2992"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/commit/777b8d06710c140e3606b0d4598e2aa48546c266"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.28.1"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "MCP Python SDK: WebSocket server transport does not support Host/Origin validation"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "msal",
+            "version": "1.37.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "msal-extensions",
+            "version": "1.3.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "numpy",
+            "version": "2.5.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "olefile",
+            "version": "0.47",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "onnxruntime",
+            "version": "1.28.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "openpyxl",
+            "version": "3.1.5",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "packaging",
+            "version": "26.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pandas",
+            "version": "3.0.5",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pdfminer-six",
+            "version": "20260107",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pdfplumber",
+            "version": "0.11.10",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pillow",
+            "version": "12.3.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "protobuf",
+            "version": "7.35.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pycparser",
+            "version": "3.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pydantic",
+            "version": "2.13.4",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pydantic-core",
+            "version": "2.46.4",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pydantic-settings",
+            "version": "2.14.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pydub",
+            "version": "0.25.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pyjwt",
+            "version": "2.13.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "pypdfium2",
+            "version": "5.12.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "python-dateutil",
+            "version": "2.9.0.post0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "python-dotenv",
+            "version": "1.2.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "python-multipart",
+            "version": "0.0.32",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "python-pptx",
+            "version": "1.0.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "requests",
+            "version": "2.34.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "six",
+            "version": "1.17.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "soupsieve",
+            "version": "2.9.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "speechrecognition",
+            "version": "3.17.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "sse-starlette",
+            "version": "3.4.6",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "starlette",
+            "version": "1.3.1",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "typing-extensions",
+            "version": "4.16.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "typing-inspection",
+            "version": "0.4.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "urllib3",
+            "version": "2.7.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "uvicorn",
+            "version": "0.51.0",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "xlrd",
+            "version": "2.0.2",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "xlsxwriter",
+            "version": "3.2.9",
+            "ecosystem": "PyPI"
+          }
+        },
+        {
+          "package": {
+            "name": "youtube-transcript-api",
+            "version": "1.0.3",
+            "ecosystem": "PyPI"
+          }
+        }
+      ]
+    }
+  ],
+  "experimental_config": {
+    "licenses": {
+      "summary": false,
+      "allowlist": null
+    }
+  }
+}

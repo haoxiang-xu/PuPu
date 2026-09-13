@@ -1,0 +1,965 @@
+{
+  "checkedAt": "2026-09-13T18:57:16.882856+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "cf33af1f0412c74125e92b8048adf33c79d4795d8e9a33353029c688ac5ec6f2"
+    },
+    {
+      "path": "acquisition-summary.json",
+      "sha256": "d1f77069aa088653bb84a317e333b512b56d712597646dc13be6df63022afda9"
+    },
+    {
+      "path": "agent_reach-probe.json",
+      "sha256": "1adb94ebb352ba3257675ae54ffbd7becdde1055e603217f8ae512b7c20147e7"
+    },
+    {
+      "path": "agent_reach-probe.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "catalog-snapshot.json",
+      "sha256": "13873886afda548e98ff030d1b75c110aa95838111f97af6e941a4d2c508ee6f"
+    },
+    {
+      "path": "dependency-assessment.json",
+      "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+    },
+    {
+      "path": "environment.json",
+      "sha256": "558ef7b1ccc33aabad1660f38cc90db6cd67e2c5b87c8f5fe98b8c248b0ff2c0"
+    },
+    {
+      "path": "grafana-derived.go.mod",
+      "sha256": "1a3a1dd5e5dd47b384a505c6f7d63779d5512f6288ed6883c38d4de2d32033e0"
+    },
+    {
+      "path": "grafana-embedded-build-info.txt",
+      "sha256": "7dbad9c0056af13f75b759685e1b200e5bd6b8609068546fc9b3bc72778dcb75"
+    },
+    {
+      "path": "grafana-go-osv.json",
+      "sha256": "6f747d092f81c93b3249f396abf7a5e3fa940a591b7f678bb1beb3cfaaec6676"
+    },
+    {
+      "path": "grafana-go-osv.log",
+      "sha256": "cd31e9a4f2e9864171007dbbd2e064f29054e71fc4e8a16b411a94467e0f6f10"
+    },
+    {
+      "path": "initial-acquisition-summary.json",
+      "sha256": "47ed756318ba9e22f2334746a7a7ea18db77606dbe58198f75f76050ce422886"
+    },
+    {
+      "path": "initial-probes/mcp.browser.browser-use-local-mcp-probe.json",
+      "sha256": "c77440b68ce5e1d789352b7edbd52df39e0c4953e8354dff6f64f3c54fe0ce3a"
+    },
+    {
+      "path": "initial-probes/mcp.browser.chrome-devtools-mcp-probe.json",
+      "sha256": "99e80ff88d3875ab6f1c24e44c35d4d893aaf83026eabecf94f651bde42225c8"
+    },
+    {
+      "path": "initial-probes/mcp.browser.playwright-mcp-probe.json",
+      "sha256": "d11c1fdb872270333075826aec5ed2b9f74dcf58abf5b5293d3b754f81d3af76"
+    },
+    {
+      "path": "initial-probes/mcp.dev.bug-bounty-intelligence-mcp-probe.json",
+      "sha256": "bb8a6e97f0ab39d99323959b928f1099eb789fe470d4f39b1d63a0bab240ef58"
+    },
+    {
+      "path": "initial-probes/mcp.devops.grafana-mcp-probe.json",
+      "sha256": "f6211d7c94060bb4613f79ec459587a7c680ccde70ea73b74e831c569cfad1c8"
+    },
+    {
+      "path": "initial-probes/mcp.memory.memory-mcp-probe.json",
+      "sha256": "0d9930d0ea14b32c83cd51d77c88f4e9fa636575cb38d49b48f1495cd1cc5147"
+    },
+    {
+      "path": "initial-probes/mcp.productivity.brave-search-mcp-probe.json",
+      "sha256": "8f41ba7c8b2bc7d2cbef1b8bf1abe3518737711bba1acdd0efe6320c314662ed"
+    },
+    {
+      "path": "initial-probes/mcp.productivity.discord-mcp-probe.json",
+      "sha256": "aa96fad323e96ab920a6bae6ea6662b034f8d6b77ed91f1be6df06f4a9afc8e2"
+    },
+    {
+      "path": "initial-probes/mcp.productivity.firecrawl-mcp-probe.json",
+      "sha256": "98c480304f234619e17156e8805cfa45aa86b717bda42c945846e345baa8a0c7"
+    },
+    {
+      "path": "initial-probes/mcp.productivity.tavily-mcp-probe.json",
+      "sha256": "f42fc19a91f1278def8825f8a9b2ebbb1193d22b4ddf327e7f2b46a43506d0d1"
+    },
+    {
+      "path": "initial-probes/mcp.productivity.telegram-mcp-probe.json",
+      "sha256": "e89413fd1181c6d9d28bf7a0c058737f0013f7b3022b0879bbaa68829eeca5f5"
+    },
+    {
+      "path": "initial-probes/mcp.workspace.fetch-mcp-probe.json",
+      "sha256": "93277bf0a679e6ea9018a5e47a8eccebf4df933fdf1af68a6349116637ed8902"
+    },
+    {
+      "path": "initial-probes/mcp.workspace.filesystem-mcp-probe.json",
+      "sha256": "cd51471ac0ec7f0f478ff9abc293374419bc7848baef9d9d6662deb765aa54f9"
+    },
+    {
+      "path": "initial-probes/mcp.workspace.markitdown-mcp-probe.json",
+      "sha256": "52d75ab415a2c9354eae8ef5aef6d04ea33e606a435bd53b65a7edbd5372d689"
+    },
+    {
+      "path": "initial-probes/mcp.workspace.sqlite-mcp-probe.json",
+      "sha256": "bf81fe92fd90c191d4c25d4bf75e15cb08379c371fdc897c2910152d651b86b8"
+    },
+    {
+      "path": "integration-report.json",
+      "sha256": "5927445f86bee89d92ee190e3d95502bcfcc2b86fbd0d55a76334a387dfe1242"
+    },
+    {
+      "path": "markitdown-first-timeout.json",
+      "sha256": "6914e7a02df4b3f537146083c2fd5dde96b7167835f2761df3138077eafd5e0f"
+    },
+    {
+      "path": "markitdown-import-diagnostic.log",
+      "sha256": "21cd6cbc9e57661a947d377739f8736f7124c3346cae0ebf2ef86c88917f0282"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-install.log",
+      "sha256": "885eab0c4d96849b5b8a799019d06664f3aafd8d3922a55ded10b1fa3a4463eb"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-mcp-probe.json",
+      "sha256": "c77440b68ce5e1d789352b7edbd52df39e0c4953e8354dff6f64f3c54fe0ce3a"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-osv.json",
+      "sha256": "4d5f5cb9fc7b6e396997cbefdf8af0da950bd62a8887944003fe2843c3428cc1"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-osv.log",
+      "sha256": "220530ae91471d0dae81a9b0333b7407e80614b1f5433fdb4986e86e29b8d34c"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-requirements.txt",
+      "sha256": "0e28d7fa6bfe3439f47639c8f5d896c523deefbdbfc4bac9438f59ed7965f5d4"
+    },
+    {
+      "path": "mcp.browser.browser-use-local-resolve.log",
+      "sha256": "1f3aaf133b1ad531c4db5f611146c03fe13950bc47eb9ae2533166f69f9d6d1d"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-install.log",
+      "sha256": "810eccc67e31a8ef06a9147c7243a6f63a437ff6bf031ae3f246cf12b7dbc138"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-mcp-probe.json",
+      "sha256": "99e80ff88d3875ab6f1c24e44c35d4d893aaf83026eabecf94f651bde42225c8"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-osv.json",
+      "sha256": "6b834479eb9d0140b35933c21496a4502d421de523ed15c4ffc8961e1084d73d"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-osv.log",
+      "sha256": "684db77331bf18b0c421ebf4e01ae77bf63fc056423df7da8893eb83f3e389e6"
+    },
+    {
+      "path": "mcp.browser.chrome-devtools-package-lock.json",
+      "sha256": "8c6b7304f1a74679f99879a1b6833fec0d518ffda97be5ef108d99aed1ee7bcc"
+    },
+    {
+      "path": "mcp.browser.playwright-install.log",
+      "sha256": "550451eb6124d6853c0b8244fc243f06298d4ebf7ac9c794bf04e6e7f2bd2edf"
+    },
+    {
+      "path": "mcp.browser.playwright-mcp-probe.json",
+      "sha256": "d11c1fdb872270333075826aec5ed2b9f74dcf58abf5b5293d3b754f81d3af76"
+    },
+    {
+      "path": "mcp.browser.playwright-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.browser.playwright-osv.json",
+      "sha256": "47ec7fa3c651b207d70212c7151c2092df6161a047e7bc8a6a7230afafd6e393"
+    },
+    {
+      "path": "mcp.browser.playwright-osv.log",
+      "sha256": "2c87b57af6ccbaafca2ae5b4dd5a02f9b7d7002184dd4f33e1f6bda1562dceb3"
+    },
+    {
+      "path": "mcp.browser.playwright-package-lock.json",
+      "sha256": "2d9a5889899031e313d2c802c967932ffb2508392bc64edb35aafd7a86d8b6d6"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-install.log",
+      "sha256": "2b3d622083da6bcdcbd0b0aa50f317d1a273561587c95e6c9371d0251d5bb5a4"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-mcp-probe.json",
+      "sha256": "bb8a6e97f0ab39d99323959b928f1099eb789fe470d4f39b1d63a0bab240ef58"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-osv.json",
+      "sha256": "a09bf29977b184aae95183ab34b1a55dbd793b9ef53d2d389d010682d11e04ff"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-osv.log",
+      "sha256": "f296b8b58e1533b8dd0577d6672d8758ea54382b0d4fc09f8015d33c43be6d17"
+    },
+    {
+      "path": "mcp.dev.bug-bounty-intelligence-package-lock.json",
+      "sha256": "97e7544e8b6df1b38ffe3106b7b25c5a88a6f54ba25e74829a6285c5ecf861b5"
+    },
+    {
+      "path": "mcp.dev.figma-remote-mcp-probe.json",
+      "sha256": "04e675023825d0db082fc67bc54316cc17f55edf0d25a0b0925a283e69c82b5a"
+    },
+    {
+      "path": "mcp.dev.github-remote-mcp-probe.json",
+      "sha256": "d6931b4956bdc2ab71772938b1880cfc0b9f4853edfcfb82d0ad2f37ba43d20b"
+    },
+    {
+      "path": "mcp.dev.microsoft-learn-mcp-probe.json",
+      "sha256": "19cbe1b5a1abe15234ec0f44575ce8eb527957fe36b39fab9c3536c0f1f1c85d"
+    },
+    {
+      "path": "mcp.devops.grafana-install.log",
+      "sha256": "5c1697e7e196f6424317c450551793e1e6add98b6c213bc578ef8f4a25a69ebc"
+    },
+    {
+      "path": "mcp.devops.grafana-mcp-probe.json",
+      "sha256": "2202e3c4c2daaf370baa3e2e38d963fde2f275ff7480b8bc15dfac42a0ff0b47"
+    },
+    {
+      "path": "mcp.devops.grafana-osv.json",
+      "sha256": "df87c7e1b68f2976b02b7ab56ae8dd410b1c467ac858600c139006f0f2db6d69"
+    },
+    {
+      "path": "mcp.devops.grafana-osv.log",
+      "sha256": "587c67bde678cb1c49568f59f252691d693ce7589b994dc92c48280957e00ffe"
+    },
+    {
+      "path": "mcp.devops.grafana-requirements.txt",
+      "sha256": "999546ae541ef5ffda5f9f00a258f7385c983e9c82985f89f8e15d551e7e3cc8"
+    },
+    {
+      "path": "mcp.devops.grafana-resolve.log",
+      "sha256": "9aa325f4f25b669e1a287363445803377b0b698ca204dcdf0673cc4b022bf913"
+    },
+    {
+      "path": "mcp.devops.netdata-cloud-mcp-probe.json",
+      "sha256": "f63c80d7d004c5caaf8181adb9eca127409dfa182ab37362bec402af8753c75b"
+    },
+    {
+      "path": "mcp.devops.sentry-remote-mcp-probe.json",
+      "sha256": "1f82af0b11b64192ab71972ffa1b510e5c9670bcda0b03528d896ab7c3e6e76f"
+    },
+    {
+      "path": "mcp.devops.vercel-remote-mcp-probe.json",
+      "sha256": "11504352b5540cec5194db977c858b43f63a1f49fe232b4ade307e6ea0c59f7d"
+    },
+    {
+      "path": "mcp.memory.memory-install.log",
+      "sha256": "47b74787b631f5d10967f7c037d9dd0793a1ead65164ff596ffdebd6c0d7bd00"
+    },
+    {
+      "path": "mcp.memory.memory-mcp-probe.json",
+      "sha256": "0d9930d0ea14b32c83cd51d77c88f4e9fa636575cb38d49b48f1495cd1cc5147"
+    },
+    {
+      "path": "mcp.memory.memory-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.memory.memory-osv.json",
+      "sha256": "cf3ae1def749069729a7c2ba8023d2ad3c43cd05684afdba042565d283cd2b0f"
+    },
+    {
+      "path": "mcp.memory.memory-osv.log",
+      "sha256": "b5e1f4c1139d36684a24178ebddd80d1e845a254f8cda16ac8a9f363c10dc5fb"
+    },
+    {
+      "path": "mcp.memory.memory-package-lock.json",
+      "sha256": "c576fc215f1cd80a7d558a21085cfc7703e48540b0eb6fe09430da7417645711"
+    },
+    {
+      "path": "mcp.productivity.brave-search-install.log",
+      "sha256": "70fd65cb3873f7ab6e0d97ca68ce1477a60317d20d595d583e961987cc981dd7"
+    },
+    {
+      "path": "mcp.productivity.brave-search-mcp-probe.json",
+      "sha256": "8f41ba7c8b2bc7d2cbef1b8bf1abe3518737711bba1acdd0efe6320c314662ed"
+    },
+    {
+      "path": "mcp.productivity.brave-search-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.productivity.brave-search-osv.json",
+      "sha256": "a140ec49837b334a2ae8a11dbd417812c2d30eed7585d5c8c38ab45e37ded909"
+    },
+    {
+      "path": "mcp.productivity.brave-search-osv.log",
+      "sha256": "5fbbea17660e0fa3f076fa2b94d5f5f23e39e50bfcdbf3e19be51b5aa2335ab2"
+    },
+    {
+      "path": "mcp.productivity.brave-search-package-lock.json",
+      "sha256": "1715d9be8fa87bd877a69d576a4bcb60573318ade67951370174681f6d0bf156"
+    },
+    {
+      "path": "mcp.productivity.discord-install.log",
+      "sha256": "5f287f617176ae025509c6d43e01211bd156e1d16df15017b8866e54ca04d88c"
+    },
+    {
+      "path": "mcp.productivity.discord-mcp-probe.json",
+      "sha256": "aa96fad323e96ab920a6bae6ea6662b034f8d6b77ed91f1be6df06f4a9afc8e2"
+    },
+    {
+      "path": "mcp.productivity.discord-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.productivity.discord-osv.json",
+      "sha256": "072bb07c8cc010eddaaeb77001e6d6dc860c280eafb7c3585997f6d9bde88afb"
+    },
+    {
+      "path": "mcp.productivity.discord-osv.log",
+      "sha256": "f1e52281312a264636b3f3a145d478b2c52ee1902a95d5e4bcdd9d36cc8d0846"
+    },
+    {
+      "path": "mcp.productivity.discord-package-lock.json",
+      "sha256": "8e2ce1b99d01b9275b9664711b8044d46ccc8d90b62fc18414f0f969f6a8c5fb"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-install.log",
+      "sha256": "1eaaf1116abcaef0fd492f5acc7eab2d64894910d805f6d424e940e0d60ec1ab"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-mcp-probe.json",
+      "sha256": "98c480304f234619e17156e8805cfa45aa86b717bda42c945846e345baa8a0c7"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-osv.json",
+      "sha256": "468f18c8f801912c5e7bc970b16b0e7925440d2d395822644c428d4f62884e90"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-osv.log",
+      "sha256": "d17eb849ca5deccd1b9a033a4bf65ce518201b7e34ccf1285b77f8280de62056"
+    },
+    {
+      "path": "mcp.productivity.firecrawl-package-lock.json",
+      "sha256": "10604f451196b71b18b6ca8e1bfbcd25bc5b01b502e62d13aa558fa04fd01841"
+    },
+    {
+      "path": "mcp.productivity.notion-remote-mcp-probe.json",
+      "sha256": "b0cfbbafe39428f3a39f72645c086b83c3bc8b25cf2d4315167e18bbc4629141"
+    },
+    {
+      "path": "mcp.productivity.slack-remote-mcp-probe.json",
+      "sha256": "c89c421c2d468b6423e16f2465fbad85029e102f8b765c57f164203119fd017a"
+    },
+    {
+      "path": "mcp.productivity.tavily-install.log",
+      "sha256": "e10e0d47ceaf77341348e87ccc3b63684a3026e88fc5631a8978e6044c2fd08f"
+    },
+    {
+      "path": "mcp.productivity.tavily-mcp-probe.json",
+      "sha256": "f42fc19a91f1278def8825f8a9b2ebbb1193d22b4ddf327e7f2b46a43506d0d1"
+    },
+    {
+      "path": "mcp.productivity.tavily-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.productivity.tavily-osv.json",
+      "sha256": "61c5ef2bca7e24e2488edc7a18595d691843f0bc348a4b7b8aa15be6e4de1c30"
+    },
+    {
+      "path": "mcp.productivity.tavily-osv.log",
+      "sha256": "b3759fc4e68e732499376bb62d7c5e760bcd8ef1a94f58ca3aa58d9ac2ca3d4c"
+    },
+    {
+      "path": "mcp.productivity.tavily-package-lock.json",
+      "sha256": "9f8ab3ecdee4ed1d58e128d3d16d588fb7013120b1e7e05e003c27eb3908a826"
+    },
+    {
+      "path": "mcp.productivity.telegram-install.log",
+      "sha256": "0583cb9b15836d84408aff8901f45ac7ec1bd9eadcb45a68ef9459596dfb0ea3"
+    },
+    {
+      "path": "mcp.productivity.telegram-mcp-probe.json",
+      "sha256": "e89413fd1181c6d9d28bf7a0c058737f0013f7b3022b0879bbaa68829eeca5f5"
+    },
+    {
+      "path": "mcp.productivity.telegram-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.productivity.telegram-osv.json",
+      "sha256": "4d9dfc837419991c871d9491199d228a734afe7c046d32a212d2c011a98dbb80"
+    },
+    {
+      "path": "mcp.productivity.telegram-osv.log",
+      "sha256": "2c82641df90b466749745ce2812e309d6e71b83bac6a3863d867ca53ad7d258d"
+    },
+    {
+      "path": "mcp.productivity.telegram-package-lock.json",
+      "sha256": "40fd8a89a75667edc056885043f0fde89a2bafff3c20cc5bd9d35d078837b32f"
+    },
+    {
+      "path": "mcp.workspace.fetch-install.log",
+      "sha256": "919932a20c840bb26d86f93a3772e23d0d6516edc22b370fd167470f7479d714"
+    },
+    {
+      "path": "mcp.workspace.fetch-mcp-probe.json",
+      "sha256": "93277bf0a679e6ea9018a5e47a8eccebf4df933fdf1af68a6349116637ed8902"
+    },
+    {
+      "path": "mcp.workspace.fetch-osv.json",
+      "sha256": "729009aadec500281721afc6ba7aa2f0d874f90c45ecb91336c0e7a661200467"
+    },
+    {
+      "path": "mcp.workspace.fetch-osv.log",
+      "sha256": "355afcb410c917cb661d480c855b5d4f35463d4ac2d2a9f11f603b74158bb752"
+    },
+    {
+      "path": "mcp.workspace.fetch-requirements.txt",
+      "sha256": "ded9748a6f4194af8fc67e69cf0b26425c9e1cbe33f43711431bab9fbd12d76a"
+    },
+    {
+      "path": "mcp.workspace.fetch-resolve.log",
+      "sha256": "b1e09f7d0f96a306106b4483ce0f7e395a92cc026ebc51061369ce203be6fa65"
+    },
+    {
+      "path": "mcp.workspace.filesystem-install.log",
+      "sha256": "957791627649679b039f0b5d26eb6fef95300e7aa14e959319a071f75723ce06"
+    },
+    {
+      "path": "mcp.workspace.filesystem-mcp-probe.json",
+      "sha256": "cd51471ac0ec7f0f478ff9abc293374419bc7848baef9d9d6662deb765aa54f9"
+    },
+    {
+      "path": "mcp.workspace.filesystem-osv-initial-error.log",
+      "sha256": "449ae8724a576f3c1846e9499b2859ec49f9793e2f286269b38618e741b756ed"
+    },
+    {
+      "path": "mcp.workspace.filesystem-osv.json",
+      "sha256": "8ab49cacbcd4bea0ed9aca2f38dd035fde81c4609cbda4183534eb80f9cfbf79"
+    },
+    {
+      "path": "mcp.workspace.filesystem-osv.log",
+      "sha256": "0c377c2a019411d799dbeb1fb89751b6f456b1817a969e0dfc8a6d3fb4002b4f"
+    },
+    {
+      "path": "mcp.workspace.filesystem-package-lock.json",
+      "sha256": "92ca99755bbd703fb42bf7c188504bb5d8ecaf9bd77eb4591f7781b207fb6526"
+    },
+    {
+      "path": "mcp.workspace.markitdown-install.log",
+      "sha256": "550df2b3ba9814727c3bfc58b872dd92bb2e7e620c6d4824313458f81e8cb371"
+    },
+    {
+      "path": "mcp.workspace.markitdown-mcp-probe.json",
+      "sha256": "52d75ab415a2c9354eae8ef5aef6d04ea33e606a435bd53b65a7edbd5372d689"
+    },
+    {
+      "path": "mcp.workspace.markitdown-osv.json",
+      "sha256": "92f5b03b12d34bbb0c414bcf3d58a88ce212dde470c6b1c775bd312114762d66"
+    },
+    {
+      "path": "mcp.workspace.markitdown-osv.log",
+      "sha256": "8962ac129906a8ce12a11c9ada89278a09f8c708ee627f4262e90ab33251c139"
+    },
+    {
+      "path": "mcp.workspace.markitdown-requirements.txt",
+      "sha256": "686574a791f884c8300b27a70f3c5b9c26645cdec9569d4a0f0b6968cc886e0f"
+    },
+    {
+      "path": "mcp.workspace.markitdown-resolve.log",
+      "sha256": "d2c4d23d244c457f72e24447e7d98d9b8ab75ccbfc505e9266ab24954ed33f08"
+    },
+    {
+      "path": "mcp.workspace.sqlite-install.log",
+      "sha256": "93ad2876d13fb1bec67c4daa60f3524fe9523c3a606f62d61335b56b03219cf5"
+    },
+    {
+      "path": "mcp.workspace.sqlite-mcp-probe.json",
+      "sha256": "62c512d9f321fef31a15bc23593747e62946471ec7c6c5f41e42075c7dc28ea8"
+    },
+    {
+      "path": "mcp.workspace.sqlite-osv.json",
+      "sha256": "96bc1ce4c83aac73ce3cbc6382e589f7d75a4929f2b75152da2d6f3ce20e6aa2"
+    },
+    {
+      "path": "mcp.workspace.sqlite-osv.log",
+      "sha256": "276441f06f53a2c33524c5fdcae1756ddbba64b0da35c3a1661c86fe038dfc99"
+    },
+    {
+      "path": "mcp.workspace.sqlite-requirements.txt",
+      "sha256": "a1a81bf3dadeec4e9fa7ea29d1b370babd006f131619d42bb02159648f0b6db2"
+    },
+    {
+      "path": "mcp.workspace.sqlite-resolve.log",
+      "sha256": "7ee57f3f3b140806383d972dfdce8b900452937071c145ac86be332fb58c58d3"
+    },
+    {
+      "path": "operators/acquire.py",
+      "sha256": "cda65e766788e21734c66950f854afbb094f36c7b85b003ad4973c333f216003"
+    },
+    {
+      "path": "operators/controls.py",
+      "sha256": "a6ab07fe37e74713fe9eecbc7e602dcbd2431d0adeca1d79f09d8e30fa036801"
+    },
+    {
+      "path": "operators/identity.py",
+      "sha256": "6948050ea994bf8284aadd0437ec000976da5abfd528ef4ef7c497edfb95ab64"
+    },
+    {
+      "path": "operators/markitdown-recheck.mjs",
+      "sha256": "03410f2203cfeb9e50dd291055fd988ef65b283d394bc9be8cba8c594d7f5fde"
+    },
+    {
+      "path": "operators/node-final.mjs",
+      "sha256": "11457cc5f9088657e1a8569b446c9438bad0fe12190b42a689af52ca362293d3"
+    },
+    {
+      "path": "operators/osv.py",
+      "sha256": "aaaceeb76d36f6d02534b9bcddc16a012968a6dfb4da8cf1d6028586a3fabf33"
+    },
+    {
+      "path": "operators/prepare.py",
+      "sha256": "d2cd349aca1f558c5bb1c585b688507341d0081dc33b76b02128c68c58fe8b32"
+    },
+    {
+      "path": "operators/python-final.mjs",
+      "sha256": "c4f83a764ed1928c3a038674eec357c7497f4b0c4f26434b584d3ff359af7e7c"
+    },
+    {
+      "path": "operators/python.py",
+      "sha256": "62cbd4104ce2a53fc951f784170f5ca4660957d39c81195c7828e87ba5b946b6"
+    },
+    {
+      "path": "operators/review-metadata.py",
+      "sha256": "282e654bf0e0a902bf58154b2f70901172f91a2837878a89e6b2f78eb622988f"
+    },
+    {
+      "path": "operators/runtime-check.py",
+      "sha256": "7841f6dcb7debac54a086e2fa7eb2f343f9be663d1165650e410726703481c62"
+    },
+    {
+      "path": "operators/scan-skills.py",
+      "sha256": "3c23b1966c3c59303b339b6c8bf48d314f43ab40ba532a83208c6f44089fe48e"
+    },
+    {
+      "path": "operators/scanner-setup.py",
+      "sha256": "d1ecd6a7a99790f6eebd7f1a705c1ae5611f16165feb22e6f2ec96409b639df4"
+    },
+    {
+      "path": "operators/sqlite-confirmation.py",
+      "sha256": "7bd53d73a29dce89ec50580ab530f18eb0549cfa11b7d918538938be2a426cac"
+    },
+    {
+      "path": "osv-runs.json",
+      "sha256": "d838014050e66f5fd46b654a0e323f39331f763ae7b5299763b388edfc62cb4d"
+    },
+    {
+      "path": "osv-scanner-identity.json",
+      "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+    },
+    {
+      "path": "reports/agent_reach.json",
+      "sha256": "78aadc089c884d6802d1b65ba9813eb098270c03cb337d0b31b4276791d96dde"
+    },
+    {
+      "path": "reports/mcp.browser.browser-use-local.json",
+      "sha256": "58e652168a4c590731f81f364cfd87e1e5a2285ef9eff35b382daafc8c1031b0"
+    },
+    {
+      "path": "reports/mcp.browser.chrome-devtools.json",
+      "sha256": "234813bd44547ecfeab9f31c781be5c3c3999a79f9826bf3ed6fe96b831629d9"
+    },
+    {
+      "path": "reports/mcp.browser.playwright.json",
+      "sha256": "cb8ea862407856f17115fb95911d5813a2aa62a065713e4fa7ddcd658b0f9520"
+    },
+    {
+      "path": "reports/mcp.dev.bug-bounty-intelligence.json",
+      "sha256": "f6991799f9479b3b814d60fde2c49794fe11c4355fe2e94a722c5e94e7ae4a72"
+    },
+    {
+      "path": "reports/mcp.dev.figma-remote.json",
+      "sha256": "1216ecdc5230d7a8655424c6ce4ece52e5b8f2e45bb7e5794c533873633d58c8"
+    },
+    {
+      "path": "reports/mcp.dev.github-remote.json",
+      "sha256": "40116acb6ba55c1564d1b58e59ce4f9c374cce18a7e84fb49674dcd3500db910"
+    },
+    {
+      "path": "reports/mcp.dev.microsoft-learn.json",
+      "sha256": "410565894437d8282996bd36feae838d55326107342f2c165f3c4cd33aac4696"
+    },
+    {
+      "path": "reports/mcp.devops.grafana.json",
+      "sha256": "aee4246c5bdf88996be803d0e63d59a4bade7c14271c2b22bca64e847d89c3bc"
+    },
+    {
+      "path": "reports/mcp.devops.netdata-cloud.json",
+      "sha256": "5092d906dff2114683307ad1bc5af40a654e50c394b3ea4b830b60b5ae352314"
+    },
+    {
+      "path": "reports/mcp.devops.sentry-remote.json",
+      "sha256": "61b5c2305043708af46c434922242aaa8f05d3e12d16fea037a972ea47c6b6a5"
+    },
+    {
+      "path": "reports/mcp.devops.vercel-remote.json",
+      "sha256": "aa7256af17b51435e3eee7bad1b6b7ea10a400ad058dec709660343dd04b9f78"
+    },
+    {
+      "path": "reports/mcp.memory.memory.json",
+      "sha256": "918f5ec6a9dc88f167e86c72f5b5323b384f660255a3f95ad33db1333a1cf615"
+    },
+    {
+      "path": "reports/mcp.productivity.brave-search.json",
+      "sha256": "649a0fbe60cf4f4d0058821b7d70f78b530a38097de9a9d009d06eab48ff0000"
+    },
+    {
+      "path": "reports/mcp.productivity.discord.json",
+      "sha256": "d38c51919a49a923888ea2efb1832427c8fb3bdc84378acd284c88643b5612ce"
+    },
+    {
+      "path": "reports/mcp.productivity.firecrawl.json",
+      "sha256": "dc62e700c7d3a2c1799039eea95e59c786e3712968dd97fd2d1158ceb143d733"
+    },
+    {
+      "path": "reports/mcp.productivity.notion-remote.json",
+      "sha256": "fc359120c0a3bf0f5543a3f7c0fc24629fbb9d9dbebab44bd683e8fa3c9c59b1"
+    },
+    {
+      "path": "reports/mcp.productivity.slack-remote.json",
+      "sha256": "531e3d0c166f0b93704fc4c488f12f2c7f2d72d35443e786489e9d3100bdb693"
+    },
+    {
+      "path": "reports/mcp.productivity.tavily.json",
+      "sha256": "09ba3c3f6d07f4ab3afe868e4008b718a25fa958805d2d3ce0964b3b6d619d24"
+    },
+    {
+      "path": "reports/mcp.productivity.telegram.json",
+      "sha256": "702247b6c5501f5eba94796fe37c6bb04972f87d036bbfd3480cd90f2cee09d8"
+    },
+    {
+      "path": "reports/mcp.workspace.fetch.json",
+      "sha256": "92c5b071aba43fb377d97e752bfeded26248923d668c4c2bfb3bcfda8c5e62fa"
+    },
+    {
+      "path": "reports/mcp.workspace.filesystem.json",
+      "sha256": "73b58a5accfbd692d926d57471d2ed694c26fab93ac3836fb4391ea0cfeb690a"
+    },
+    {
+      "path": "reports/mcp.workspace.markitdown.json",
+      "sha256": "c4d057c3728e16f18d45ac1cc3c235cf07c448f7b7dfd52a1f99797e1e935886"
+    },
+    {
+      "path": "reports/mcp.workspace.sqlite.json",
+      "sha256": "992f0557b3003c49e11752c672dd108cdeb838326b6bed03e2f76bb9cb490342"
+    },
+    {
+      "path": "reports/skillpack.frontend-design.json",
+      "sha256": "6319d00bb9494e26661321d0e18e9b365ac53ffa5b72f33ef8293d76a68f1d5f"
+    },
+    {
+      "path": "reports/skillpack.prompt-master.json",
+      "sha256": "9a60c216e4bc82c9880c24eca8599684a8b756b0015dc8a4f6a3b663176c367b"
+    },
+    {
+      "path": "reports/skillpack.superpowers-essentials.json",
+      "sha256": "6bbc4f36fae6994ba975aed707f380a7e1666a038f275ebaa73336ae7f79527c"
+    },
+    {
+      "path": "reports/skillpack.trailofbits-audit-prep.json",
+      "sha256": "1b4bfe1592f6c456cb51c773c13a17c7870534006464cd6e0c4774d1a0cff594"
+    },
+    {
+      "path": "reports/skillpack.vercel-web-review.json",
+      "sha256": "1d25a416adc76e8bec95146a77869168a3e63ace831fb0cdbfaedbc974ecf6f4"
+    },
+    {
+      "path": "results.json",
+      "sha256": "1717ab3c414da92bbe0938a926bbac0e1d64434046dcb8196b749d1fbe612d47"
+    },
+    {
+      "path": "runtime-artifact-correspondence.json",
+      "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+    },
+    {
+      "path": "runtime-check.py",
+      "sha256": "90017eb78204c57011f7ef0900d103cddd56711d26a390d56a8285c561902a83"
+    },
+    {
+      "path": "runtime-confirmation-check.json",
+      "sha256": "acb07944c96c2d0910facfa029987988f15cdb4762214de30f4bff85f9a3cd2a"
+    },
+    {
+      "path": "runtime-confirmation-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runtime-confirmation-effect-first.json",
+      "sha256": "072facdbb23b125191ae6e8a77846b9ab5f82ca5efdebebc6f34bfd4e903ff7c"
+    },
+    {
+      "path": "runtime-sandbox.sb",
+      "sha256": "f46ab6472d51d61f06e4b6a2bca31777e7fa4569e590a8eddca223335f7d387b"
+    },
+    {
+      "path": "sandbox-controls.json",
+      "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+    },
+    {
+      "path": "sandbox-profile.sb",
+      "sha256": "006f937656dfa638a016282420573b22d10a4538ee6288018dec8e8ef6713690"
+    },
+    {
+      "path": "skill-content-review.json",
+      "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+    },
+    {
+      "path": "skill-scan-runs.json",
+      "sha256": "0af7be5b14f56ca75abc9261d64b91c16beed283f891fdfba18bbd910ae9ff7c"
+    },
+    {
+      "path": "skill-scanner-identity.json",
+      "sha256": "6455273168e35beb34e2e9955b4a1a2974275b0bcb20fee731ada9b848c0b1eb"
+    },
+    {
+      "path": "skill-scanner-rules-manifest.json",
+      "sha256": "6a4cd8481de909389fe7dc640cd68a75f99842d0c1fddbb808c1b52adbd9da6d"
+    },
+    {
+      "path": "skillpack.frontend-design-frontend-design-scanner.json",
+      "sha256": "5ade0bee4335056ac31444897bde9b6df90fc52c35ce6fce9b6c1444d1fd4eb0"
+    },
+    {
+      "path": "skillpack.frontend-design-frontend-design-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.prompt-master-root-scanner.json",
+      "sha256": "0b437d47a63b7b26a3300a387e1cccb72fab76ce77be90a9aa4e80df2a30ebeb"
+    },
+    {
+      "path": "skillpack.prompt-master-root-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-brainstorming-scanner.json",
+      "sha256": "06e3a7fd3894e7aae729bfc2782429b893a7a5095effa5556bb98dc158b49753"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-brainstorming-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-receiving-code-review-scanner.json",
+      "sha256": "4adce4494a8b0e1819b09f492f61b9b42d975c2332ddcc96c809c5a5df2b7fb7"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-receiving-code-review-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-systematic-debugging-scanner.json",
+      "sha256": "8d205bef33180bfecf0ea89cea1be76e67b063c460e12d889e3220be1de8e3ad"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-systematic-debugging-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-verification-before-completion-scanner.json",
+      "sha256": "809733054bc12d6ba14a60a7b6f87531250bea4e9cfe2f4a54c2db9261aac560"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-verification-before-completion-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-writing-plans-scanner.json",
+      "sha256": "15f853a57dd4aaccfdf7780257ce90a8b1eb630e4ab507e6d81d8ebf87c511a9"
+    },
+    {
+      "path": "skillpack.superpowers-essentials-writing-plans-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.trailofbits-audit-prep-audit-prep-assistant-scanner.json",
+      "sha256": "78c17c95301e81600f925c21ba066171e19166ff92a2824a7ed4d97ccf6f39ab"
+    },
+    {
+      "path": "skillpack.trailofbits-audit-prep-audit-prep-assistant-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "skillpack.vercel-web-review-web-design-guidelines-scanner.json",
+      "sha256": "319c5f77fbd93774b250cf2103898ae86c53053bba93c3cafcf5555e54152ee9"
+    },
+    {
+      "path": "skillpack.vercel-web-review-web-design-guidelines-scanner.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "source-commit-correspondence.json",
+      "sha256": "da464e566bfa3ca9f995abe7694b0d06dcda05a331ac855a5bacc939af969bfb"
+    },
+    {
+      "path": "sqlite-confirmation-check.json",
+      "sha256": "ea143802471a98072df5e99a325254302ef367001183707d5a1be70c58787665"
+    },
+    {
+      "path": "sqlite-confirmation-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "sqlite-runtime-check.py",
+      "sha256": "ff58de9268b44b3a7b63b4d9849e15f5c1608c396dce5e6913d3938e28e5247a"
+    },
+    {
+      "path": "subjects/agent_reach.json",
+      "sha256": "be687a2420c288f334e5b799f81c25c8e00959cf5023fe423132a019ba78474b"
+    },
+    {
+      "path": "subjects/mcp.browser.browser-use-local.json",
+      "sha256": "a7cae7e1c84a2fc222b38c247f863d0f2e7f255b8b5991766cb9ef05380ccd87"
+    },
+    {
+      "path": "subjects/mcp.browser.chrome-devtools.json",
+      "sha256": "5da1048800fb7f4c0358190bef115405dca1121ac850c1fd436fded593b1fce5"
+    },
+    {
+      "path": "subjects/mcp.browser.playwright.json",
+      "sha256": "c251a69a401a24c07ec4fbad2b58d0a3c98a325c7e8b32ff50bc79c381c9d84c"
+    },
+    {
+      "path": "subjects/mcp.dev.bug-bounty-intelligence.json",
+      "sha256": "c3280da082cd25a8f27f1627878cba318c4231913ab665dadb3d58ddf6e79392"
+    },
+    {
+      "path": "subjects/mcp.dev.figma-remote.json",
+      "sha256": "e60ceb94ebd2090fc76f60c36a26b0b2192173e17e26588ff24e280fc21e3d56"
+    },
+    {
+      "path": "subjects/mcp.dev.github-remote.json",
+      "sha256": "8e0a29104714aeafde8c6da126169c995cd9b39fbc1bf948f79c39e7f7674951"
+    },
+    {
+      "path": "subjects/mcp.dev.microsoft-learn.json",
+      "sha256": "6202aaee7ae683f8ffd9ae9f84d1f26f2196be2f960db956d265c642c1189d83"
+    },
+    {
+      "path": "subjects/mcp.devops.grafana.json",
+      "sha256": "c2eadb9fb8c36d4ba5e2839d30b4aee3274ab692b2a92da89174e70e4fe14788"
+    },
+    {
+      "path": "subjects/mcp.devops.netdata-cloud.json",
+      "sha256": "a1de2b318141ec4ff5275ae4cbc80bd8d428548c787b488cd6325390539210d8"
+    },
+    {
+      "path": "subjects/mcp.devops.sentry-remote.json",
+      "sha256": "0f9d06cf4b79c35a233bac49595f38b27f5734656aaa1906ae657f5087f3bf4a"
+    },
+    {
+      "path": "subjects/mcp.devops.vercel-remote.json",
+      "sha256": "8358a3146d476afc17a95a912f4b3483a4a35ce0b57838966530d771b92ed181"
+    },
+    {
+      "path": "subjects/mcp.memory.memory.json",
+      "sha256": "42b7dac51c7d64ddafe837fe33be01e15840811c5254ab0d4261ea0a25e7f44f"
+    },
+    {
+      "path": "subjects/mcp.productivity.brave-search.json",
+      "sha256": "d693abdb8338cd1dc15ca81a5a10a4aa736ccf589020ac5d79daa5e1f6e5aaa3"
+    },
+    {
+      "path": "subjects/mcp.productivity.discord.json",
+      "sha256": "6d92cb4b40063088bb1273e5bb994719ffddc6c5cfaf89d631de74e4c0664077"
+    },
+    {
+      "path": "subjects/mcp.productivity.firecrawl.json",
+      "sha256": "f6c6463b75601f8f4d3c0267f1da7379d3d42f57787e1272e14ee84799e1d249"
+    },
+    {
+      "path": "subjects/mcp.productivity.notion-remote.json",
+      "sha256": "d780960dc00e70da0f5b45153047b87616c29fa0ac7e0b46a770305e9b008b7b"
+    },
+    {
+      "path": "subjects/mcp.productivity.slack-remote.json",
+      "sha256": "d7629fb917d0efb66219784e8676b88fe09087819877466ba587200c38b1e454"
+    },
+    {
+      "path": "subjects/mcp.productivity.tavily.json",
+      "sha256": "632c17b08bcaa0abca9da7ee4db6af8d4cbb18ea8a22293a778b3a855591a211"
+    },
+    {
+      "path": "subjects/mcp.productivity.telegram.json",
+      "sha256": "50eeb70bf3e32ef5eccec09e3dc1b30af60e1e01ed62f3449413de4ab30af0f2"
+    },
+    {
+      "path": "subjects/mcp.workspace.fetch.json",
+      "sha256": "338de45cbea45a402e8427b7269aa478ddf5eadab62e03bc0bf0e284277cf81a"
+    },
+    {
+      "path": "subjects/mcp.workspace.filesystem.json",
+      "sha256": "82f9ba7d7ce3baaf4640a0926034dccb76b553c601ba60eb83c0ed4fd1b2d592"
+    },
+    {
+      "path": "subjects/mcp.workspace.markitdown.json",
+      "sha256": "cc7f545933b711b9dfa576e693b5082b612b45519da11db9b262a85b89d998c8"
+    },
+    {
+      "path": "subjects/mcp.workspace.sqlite.json",
+      "sha256": "918f3cd150adbc4f0c3c3ce0dfd0976db44eeb6a7c8cca32883bb0fd0f80ce9f"
+    },
+    {
+      "path": "subjects/skillpack.frontend-design.json",
+      "sha256": "c46def3d075814d7c7f7c271fcbb34270f6f396c80cabc7cde3f9dcf8e0bf8a4"
+    },
+    {
+      "path": "subjects/skillpack.prompt-master.json",
+      "sha256": "9590cf32d58f21c48f8a7a629e7ccea450144a1251c33560aa73c566bb7f261d"
+    },
+    {
+      "path": "subjects/skillpack.superpowers-essentials.json",
+      "sha256": "afce2173b6f8a1a943da3040a643cd77ddd256d910fb539f0c456c2b1e9c3057"
+    },
+    {
+      "path": "subjects/skillpack.trailofbits-audit-prep.json",
+      "sha256": "8ed781c9fdca5f81266a2e1351f56dc5578ea92627454764e4741c489350e000"
+    },
+    {
+      "path": "subjects/skillpack.vercel-web-review.json",
+      "sha256": "68fefbbabcb7a0d417d49701f9afd2cec62644bd7374da2368c1e8d2ae7dee22"
+    },
+    {
+      "path": "ticket-drafts.md",
+      "sha256": "35195672d8b68c9eabe25196dafe709124589d1fac316b49b38cd8c29e2da219"
+    },
+    {
+      "path": "vercel-guidelines-observed.json",
+      "sha256": "5aa6c163a187cf876c56e3aa2c7f490173c37d34fc09162fc1c6f9baa3192f3a"
+    },
+    {
+      "path": "vercel-guidelines-observed.md",
+      "sha256": "5a775e6411f790f518dbc9c1fa7c50a89e6873502d9a3530a6eb223a590bcfe8"
+    }
+  ]
+}

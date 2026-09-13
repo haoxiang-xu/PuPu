@@ -1,0 +1,28 @@
+{
+  "toolkitId": "agent_reach",
+  "kind": "third-party-wrapper",
+  "sourceRepo": "https://github.com/haoxiang-xu/unchain",
+  "commit": "8cd775905758833aa6e7bdcf75d6e4d12c7d9ad1",
+  "package": "agent-reach",
+  "version": null,
+  "artifactSha256": null,
+  "reason": "Wrapper does not pin agent-reach or yt-dlp; neither dependency available in the inspected sidecar venv. No upstream package version chosen arbitrarily.",
+  "files": [
+    {
+      "path": "__init__.py",
+      "sha256": "6015023ce2de8b861636a2c2d37f235e259bebd003f6109f0a3a8babd270995b"
+    },
+    {
+      "path": "README.md",
+      "sha256": "d797947dc9734464be760953cb57db19a04465fdb42fde592e7655354a099a5d"
+    },
+    {
+      "path": "toolkit.toml",
+      "sha256": "76600f04f9b0ff90bc0a2e1b710eec9f098da78f72f4c09338ac76c9d25aad1f"
+    },
+    {
+      "path": "agent_reach.py",
+      "sha256": "b9da4d619a739ecbe121a757b15b68b720c8dec62bdb8acad93479c113004a45"
+    }
+  ]
+}

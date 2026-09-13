@@ -1,0 +1,53 @@
+{
+  "toolkitId": "mcp.dev.microsoft-learn",
+  "catalog": {
+    "id": "dev.microsoft-learn",
+    "toolkitId": "mcp.dev.microsoft-learn",
+    "name": "Microsoft Learn",
+    "description": "Official Microsoft Learn MCP service for searching and fetching Microsoft documentation and code samples.",
+    "category": "dev",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "hosted",
+    "sourceRepo": "https://github.com/MicrosoftDocs/mcp",
+    "docsUrl": "https://learn.microsoft.com/en-us/training/support/mcp",
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "headers": []
+    },
+    "setupPreview": "https://learn.microsoft.com/api/mcp",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "microsoft_docs_search",
+        "title": "Search Microsoft Learn docs",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "microsoft_code_sample_search",
+        "title": "Search Microsoft code samples",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "microsoft_docs_fetch",
+        "title": "Fetch Microsoft docs page",
+        "requiresConfirmation": false
+      }
+    ],
+    "policySummary": {
+      "reviewed": false,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 0
+    },
+    "readmeMarkdown": "## Microsoft Learn (official hosted service, pending review)\n\nConnects to Microsoft's official Microsoft Learn MCP service at `https://learn.microsoft.com/api/mcp`, documented in [`MicrosoftDocs/mcp`](https://github.com/MicrosoftDocs/mcp). It searches and fetches Microsoft documentation and code samples; requests and URLs are sent to Microsoft's hosted endpoint and returned content is available to the agent. Microsoft documents this service as free and requiring no API key, subject to its service limits. Packaged PuPu qualification and maintainer review are pending, so this entry remains `needs_review` and cannot be installed."
+  },
+  "checkedAt": "2026-09-13T18:36:59.884192+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://learn.microsoft.com/api/mcp"
+}

@@ -1,0 +1,2717 @@
+{
+  "toolkitId": "mcp.devops.grafana",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "93254496a3984db9a53585b3527a59b88ad3e1f4c91e51cbb005ff864618aaaf",
+  "initialize": "PASS",
+  "server": {
+    "name": "mcp-grafana",
+    "version": "v0.17.2"
+  },
+  "tools": [
+    {
+      "name": "add_activity_to_incident",
+      "description": "Add a note (userNote activity) to an existing incident's timeline using its ID. The note body can include URLs which will be attached as context. Use this to add context to an incident.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "The body of the activity. URLs will be parsed and attached as context"
+          },
+          "eventTime": {
+            "type": "string",
+            "description": "The time that the activity occurred. If not provided, the current time will be used"
+          },
+          "incidentId": {
+            "type": "string",
+            "description": "The ID of the incident to add the activity to"
+          }
+        },
+        "required": [
+          "incidentId",
+          "body"
+        ]
+      },
+      "annotations": {
+        "title": "Add activity to incident"
+      }
+    },
+    {
+      "name": "alerting_manage_routing",
+      "description": "Manage Grafana alerting routing configuration, including notification policies, contact points and time intervals.\n\nNotification policies define how alerts are grouped, routed, and which contact points receive them.\nTime intervals define active/mute periods for alert notifications.\n\nWhen to use:\n- Understanding how alerts are routed to contact points/receivers\n- Debugging why an alert went to a specific receiver\n- Checking grouping, timing, or mute interval settings\n\nWhen NOT to use:\n- Checking alert rule configuration or state (use alerting_manage_rules)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "contact_point_title": {
+            "type": "string",
+            "description": "Title of the contact point to retrieve (required for get_contact_point operation)"
+          },
+          "datasource_uid": {
+            "type": "string",
+            "description": "Optional: UID of an Alertmanager-compatible datasource to query for receivers. If omitted, returns Grafana-managed contact points. Only used with get_contact_points."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "The maximum number of results to return. Default is 100. Only used with get_contact_points."
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter contact points by name (exact match). Only used with get_contact_points."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "get_notification_policies",
+              "get_contact_points",
+              "get_contact_point",
+              "get_time_intervals",
+              "get_time_interval"
+            ],
+            "description": "The operation to perform: 'get_notification_policies' to retrieve the notification policy tree, 'get_contact_points' to list all contact points, 'get_contact_point' to get a specific contact point by name, 'get_time_intervals' to list all time intervals, 'get_time_interval' to get a specific time interval by name"
+          },
+          "time_interval_name": {
+            "type": "string",
+            "description": "Name of the time interval to retrieve (required for get_time_interval operation)"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "annotations": {
+        "title": "Manage alerting routing",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "alerting_manage_rules",
+      "description": "Manage Grafana alert rules with full CRUD capabilities and filtering.\n\nWhen to use:\n- Understanding why an alert is or isn't firing\n- Auditing alert rule configuration (queries, conditions, labels, notification settings)\n- Finding alert rules by state, folder, group, or name\n- Creating, updating, or deleting alert rules\n- Comparing rule versions to see what changed\n\nWhen NOT to use:\n- Checking how alerts are routed to receivers (use alerting_manage_routing)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "annotations": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Optional annotations for the alert rule"
+          },
+          "condition": {
+            "type": "string",
+            "description": "The query condition identifier, e.g. 'A', 'B' (required for 'create', 'update')"
+          },
+          "data": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "description": "Array of alert query objects (required for 'create'/'update'). Each object has: datasourceUid (string, required), model (object with expr for data queries or type/expression/conditions for expressions), refId (string, auto-assigned if omitted), relativeTimeRange ({from, to} in seconds, defaults to {from:600,to:0}). For server-side expressions use datasourceUid '__expr__'. Example: [{datasourceUid: 'prometheus', model: {expr: 'up == 0'}}, {datasourceUid: '__expr__', model: {type: 'threshold', expression: 'A', conditions: [{evaluator: {type: 'gt', params: [0]}}]}}]"
+          },
+          "datasource_uid": {
+            "type": "string",
+            "description": "Optional: UID of a Prometheus or Loki datasource to query for datasource-managed alert rules (for 'list' operation)"
+          },
+          "disable_provenance": {
+            "type": "boolean",
+            "description": "If true, the alert remains editable in the Grafana UI (sets X-Disable-Provenance header). Defaults to true."
+          },
+          "exec_err_state": {
+            "type": "string",
+            "description": "State on execution error: NoData, Alerting, OK (required for 'create', 'update')"
+          },
+          "folder_uid": {
+            "type": "string",
+            "description": "The folder UID. For 'list': filter by exact folder UID (mutually exclusive with search_folder). For 'create'/'update': the folder to store the rule in (required)."
+          },
+          "for": {
+            "type": "string",
+            "description": "Duration before alert fires, e.g. '5m' (required for 'create', 'update')"
+          },
+          "is_paused": {
+            "type": "boolean",
+            "description": "If true, the alert rule remains inactive, Default is false"
+          },
+          "keep_firing_for": {
+            "type": "string",
+            "description": "Enables continous firing of alert for specified time even when condition is no longer met. Default is 0 (resolves immediately)"
+          },
+          "label_selectors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Prometheus-style selectors to filter alert rules by labels. Each string is a selector e.g. '{severity=\"critical\", team=~\"backend.*\"}'. All selectors must match (AND)."
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Optional labels for the alert rule"
+          },
+          "limit_alerts": {
+            "type": "integer",
+            "description": "Limit alert instances per rule. For list: 0 omits alerts. For get: <=0 defaults to 200. Max 200."
+          },
+          "matchers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Label matchers to filter alert instances. Each string is a Prometheus-style matcher e.g. 'severity=\"critical\"', 'env!=\"dev\"', 'team=~\"backend.*\"'. Requires Grafana 12.4+."
+          },
+          "missing_series_evals_to_resolve": {
+            "type": "integer",
+            "description": "Consecutive evaluation intervals with no data required to mark the alert as resolved. Default is 2."
+          },
+          "no_data_state": {
+            "type": "string",
+            "description": "State when no data: NoData, Alerting, OK (required for 'create', 'update')"
+          },
+          "notification_settings": {
+            "type": "object",
+            "description": "Notification settings object. Fields: receiver (string, required), groupBy ([]string), groupWait/groupInterval/repeatInterval (duration strings), muteTimeIntervals/activeTimeIntervals ([]string)."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "versions",
+              "create",
+              "update",
+              "delete"
+            ],
+            "description": "The operation to perform: 'list', 'get', 'versions', 'create', 'update', or 'delete'. To create a rule, use operation 'create' and provide all required fields in a single call. To update a rule, first use 'get' to retrieve its full configuration, then 'update' with all required fields plus your changes."
+          },
+          "org_id": {
+            "type": "integer",
+            "description": "The organization ID (required for 'create', 'update')"
+          },
+          "record": {
+            "type": "object",
+            "description": "Recording rule config. Fields: from (string, required - ref ID e.g. 'A'), metric (string, required - metric name), targetDatasourceUid (string, optional)."
+          },
+          "rule_group": {
+            "type": "string",
+            "description": "The rule group name (required for 'create', 'update')"
+          },
+          "rule_limit": {
+            "type": "integer",
+            "description": "Maximum number of rules to return (default 200, max 200). Requires Grafana 12.4+ (for 'list' operation)",
+            "default": 200
+          },
+          "rule_type": {
+            "type": "string",
+            "enum": [
+              "alerting",
+              "recording"
+            ],
+            "description": "Filter by rule type (for 'list' operation)"
+          },
+          "rule_uid": {
+            "type": "string",
+            "description": "The UID of the alert rule (required for 'get', 'versions', 'update', 'delete'; optional for 'create')"
+          },
+          "search_folder": {
+            "type": "string",
+            "description": "Search folders by path using partial matching (for 'list' operation). Requires Grafana 12.4+. Mutually exclusive with folder_uid."
+          },
+          "search_rule_name": {
+            "type": "string",
+            "description": "Search alert rule names/titles using partial matching. Requires Grafana 12.4+ (for 'list' operation)"
+          },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Filter by alert state: firing, pending, normal, recovering, nodata, error (for 'list' operation)"
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the alert rule (required for 'create', 'update')"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "annotations": {
+        "title": "Manage alert rules",
+        "destructiveHint": true
+      }
+    },
+    {
+      "name": "analyze_loki_labels",
+      "description": "Audits a Loki label strategy and optionally diagnoses query performance. Returns per-label verdicts, missing base labels, normalisation issues, and a recommended set. Pass datasourceUid for live cardinality or labels for static scoring; both may be combined.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "Datasource UID (live mode)."
+          },
+          "endRfc3339": {
+            "type": "string"
+          },
+          "expectedBaseLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "uniqueValues": {
+                  "type": "integer"
+                },
+                "sampleValues": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "unbounded": {
+                  "type": "boolean"
+                },
+                "usedInQueries": {
+                  "type": "string"
+                },
+                "valueKind": {
+                  "type": "string"
+                }
+              },
+              "type": "object",
+              "required": [
+                "name"
+              ]
+            },
+            "type": "array",
+            "description": "Caller-supplied labels (static mode)."
+          },
+          "maxLabels": {
+            "type": "integer"
+          },
+          "perfMetrics": {
+            "properties": {
+              "queueTimeSec": {
+                "type": "number"
+              },
+              "chunkRefsFetchTimeSec": {
+                "type": "number"
+              },
+              "storeChunksDownloadTimeSec": {
+                "type": "number"
+              },
+              "executionTimeSec": {
+                "type": "number"
+              },
+              "totalBytes": {
+                "type": "integer"
+              },
+              "cacheChunkReqs": {
+                "type": "integer"
+              },
+              "totalLines": {
+                "type": "integer"
+              },
+              "postFilterLines": {
+                "type": "integer"
+              }
+            },
+            "type": "object",
+            "description": "Runtime metrics; presence triggers perf diagnosis."
+          },
+          "selector": {
+            "type": "string",
+            "description": "Optional LogQL selector for stats / perf diagnosis."
+          },
+          "startRfc3339": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Analyze Loki label strategy",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "check_datasources_health",
+      "description": "Check datasource health. Filter by type or UIDs; omit both to check all.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "description": "Number to skip for pagination",
+            "default": 0
+          },
+          "type": {
+            "type": "string",
+            "description": "Plugin type filter; omit to check all"
+          },
+          "uids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "UIDs to check"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Check datasources health",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "create_annotation",
+      "description": "Create a new annotation on a dashboard or panel. Set format to 'graphite' and provide 'what' for Graphite-format annotations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dashboardUid": {
+            "type": "string",
+            "description": "Dashboard UID"
+          },
+          "data": {
+            "type": "object",
+            "description": "Optional JSON payload"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "graphite"
+            ],
+            "description": "Set to 'graphite' to create a Graphite-format annotation"
+          },
+          "graphiteData": {
+            "type": "string",
+            "description": "Optional string payload for Graphite format"
+          },
+          "panelId": {
+            "type": "integer",
+            "description": "Panel ID"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Optional list of tags"
+          },
+          "text": {
+            "type": "string",
+            "description": "Annotation text (required unless format is graphite)"
+          },
+          "time": {
+            "type": "integer",
+            "description": "Start time epoch ms"
+          },
+          "timeEnd": {
+            "type": "integer",
+            "description": "End time epoch ms"
+          },
+          "what": {
+            "type": "string",
+            "description": "Annotation text for Graphite format (required when format is graphite)"
+          },
+          "when": {
+            "type": "integer",
+            "description": "Epoch ms timestamp for Graphite format"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Create Annotation",
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "create_datasource",
+      "description": "Create a datasource. If type is ambiguous, call search_plugin_information first; install the plugin if needed. IMPORTANT: always call this tool twice. First call: provide only the type — the tool returns a field schema. After receiving the schema, you MUST ask the user for every required field value explicitly; do not infer or use defaults without user confirmation. Second call: provide the type, the display name in the top-level name argument, schemaReviewed=true, and the fields map populated with values confirmed by the user. Never handle credentials — remind the user to rotate any detected. Returns UID, health check, and a config page link. ",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "access": {
+            "type": "string",
+            "description": "How Grafana should access the datasource (proxy or direct)"
+          },
+          "basicAuth": {
+            "type": "boolean",
+            "description": "Whether Grafana should use basic auth"
+          },
+          "database": {
+            "type": "string",
+            "description": "Optional database name"
+          },
+          "fields": {
+            "type": "object",
+            "description": "Datasource field values to provision, keyed by field key from the schema returned on the first call. The server uses each field's target (root or jsonData) to place values correctly in the YAML. Example: {\"url\": \"http://prometheus:9090\", \"httpMethod\": \"POST\"}."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Whether this should become the default datasource"
+          },
+          "name": {
+            "type": "string",
+            "description": "Datasource display name"
+          },
+          "schemaReviewed": {
+            "type": "boolean",
+            "description": "Set to true on the second call to confirm you reviewed the schema and collected values from the user."
+          },
+          "type": {
+            "type": "string",
+            "description": "Grafana datasource plugin type, for example prometheus"
+          },
+          "url": {
+            "type": "string",
+            "description": "Datasource base URL when required by the plugin"
+          },
+          "withCredentials": {
+            "type": "boolean",
+            "description": "Whether Grafana should forward credentials such as cookies"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      },
+      "annotations": {
+        "title": "Create datasource",
+        "readOnlyHint": false,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "create_folder",
+      "description": "Create a Grafana folder. Provide a title and optional UID. Returns the created folder.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "parentUid": {
+            "type": "string",
+            "description": "Optional parent folder UID. If set, the folder will be created under this parent."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the folder."
+          },
+          "uid": {
+            "type": "string",
+            "description": "Optional folder UID. If omitted, Grafana will generate one."
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "annotations": {
+        "title": "Create folder",
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "create_incident",
+      "description": "Create a new Grafana incident. Requires title, severity, and room prefix. Allows setting status and labels. This tool should be used judiciously and sparingly, and only after confirmation from the user, as it may notify or alarm lots of people.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "attachCaption": {
+            "type": "string",
+            "description": "The caption of the attachment"
+          },
+          "attachUrl": {
+            "type": "string",
+            "description": "The URL of the attachment"
+          },
+          "isDrill": {
+            "type": "boolean",
+            "description": "Whether the incident is a drill incident"
+          },
+          "labels": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "colorHex": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "description": "The labels to add to the incident"
+          },
+          "roomPrefix": {
+            "type": "string",
+            "description": "The prefix of the room to create the incident in"
+          },
+          "severity": {
+            "type": "string",
+            "description": "The severity of the incident"
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the incident"
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the incident"
+          }
+        },
+        "required": [
+          "title",
+          "severity",
+          "roomPrefix"
+        ]
+      },
+      "annotations": {
+        "title": "Create incident"
+      }
+    },
+    {
+      "name": "create_snapshot",
+      "description": "Create a Grafana snapshot from a full dashboard payload. Supports optional expiration and external snapshot fields.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dashboard": {
+            "type": "object",
+            "description": "Complete dashboard model to snapshot (as returned by Grafana dashboard APIs)"
+          },
+          "deleteKey": {
+            "type": "string",
+            "description": "Secret key for deleting external snapshots. Required when external is true"
+          },
+          "expires": {
+            "type": "integer",
+            "description": "Snapshot expiration in seconds (e.g. 3600 for 1 hour)"
+          },
+          "external": {
+            "type": "boolean",
+            "description": "Store snapshot on external server. Requires key and deleteKey when true"
+          },
+          "key": {
+            "type": "string",
+            "description": "Custom snapshot key. Required when external is true"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional snapshot name"
+          }
+        },
+        "required": [
+          "dashboard"
+        ]
+      },
+      "annotations": {
+        "title": "Create snapshot",
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "delete_snapshot",
+      "description": "Delete a Grafana snapshot by snapshot key.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Snapshot key to delete"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "annotations": {
+        "title": "Delete snapshot",
+        "destructiveHint": true,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "find_error_pattern_logs",
+      "description": "Searches Loki logs for elevated error patterns compared to the last day's average, waits for the analysis to complete, and returns the results including any patterns found.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End time for the investigation. Defaults to now if not specified."
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Labels to scope the analysis"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the investigation"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start time for the investigation. Defaults to 30 minutes ago if not specified."
+          }
+        },
+        "required": [
+          "name",
+          "labels"
+        ]
+      },
+      "annotations": {
+        "title": "Find error patterns in logs",
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "find_slow_requests",
+      "description": "Searches relevant Tempo datasources for slow requests, waits for the analysis to complete, and returns the results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End time for the investigation. Defaults to now if not specified."
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Labels to scope the analysis"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the investigation"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start time for the investigation. Defaults to 30 minutes ago if not specified."
+          }
+        },
+        "required": [
+          "name",
+          "labels"
+        ]
+      },
+      "annotations": {
+        "title": "Find slow requests",
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "generate_deeplink",
+      "description": "Generate deeplink URLs for Grafana resources. Supports dashboards (requires dashboardUid or provisioningPreview), panels (requires dashboardUid or provisioningPreview, plus panelId), and Explore queries (requires datasourceUid and optionally queries). For dashboard and panel links, provisioningPreview points at a dashboard staged on a provisioning repository branch (e.g. a git-sync PR preview). For explore links, the time range and queries are embedded inside the Grafana explore state. Set shorten=true to also attempt a /goto/<uid> short URL; if shortening fails, the full deeplink is returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dashboardUid": {
+            "type": "string",
+            "description": "Dashboard UID (for stored dashboards). Mutually exclusive with provisioningPreview for dashboard and panel types."
+          },
+          "datasourceUid": {
+            "type": "string",
+            "description": "Datasource UID (required for explore type)"
+          },
+          "panelId": {
+            "type": "integer",
+            "description": "Panel ID (required for panel type)"
+          },
+          "provisioningPreview": {
+            "properties": {
+              "repo": {
+                "type": "string",
+                "description": "Provisioning repository slug. List repositories via list_provisioning_repositories if unknown."
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the dashboard file within the repository, relative to its root."
+              },
+              "ref": {
+                "type": "string",
+                "description": "Branch or commit SHA. Defaults to the repository's main branch when omitted."
+              },
+              "pullRequestUrl": {
+                "type": "string",
+                "description": "Upstream pull request URL to surface in Grafana's preview banner."
+              }
+            },
+            "type": "object",
+            "required": [
+              "repo",
+              "path"
+            ],
+            "description": "Identifies a dashboard staged on a provisioning repository branch (e.g. a git-sync PR preview). Mutually exclusive with dashboardUid for dashboard and panel types."
+          },
+          "queries": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "description": "List of query objects for explore links (e.g. [{\"refId\":\"A\",\"expr\":\"up\"}])"
+          },
+          "queryParams": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Additional URL query parameters (for dashboard/panel types)"
+          },
+          "resourceType": {
+            "type": "string",
+            "description": "Type of resource: dashboard, panel, or explore"
+          },
+          "shorten": {
+            "type": "boolean",
+            "description": "If true, try to shorten the generated URL to /goto/<uid>. If shortening fails, return the original deeplink."
+          },
+          "timeRange": {
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "Start time (e.g., 'now-1h')"
+              },
+              "to": {
+                "type": "string",
+                "description": "End time (e.g., 'now')"
+              }
+            },
+            "type": "object",
+            "description": "Time range for the link"
+          }
+        },
+        "required": [
+          "resourceType"
+        ]
+      },
+      "annotations": {
+        "title": "Generate navigation deeplink",
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "get_alert_group",
+      "description": "Get a specific alert group from Grafana OnCall by its ID. Returns the full alert group details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "alertGroupId": {
+            "type": "string",
+            "description": "The ID of the alert group to retrieve"
+          }
+        },
+        "required": [
+          "alertGroupId"
+        ]
+      },
+      "annotations": {
+        "title": "Get IRM alert group",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_annotation_tags",
+      "description": "Returns annotation tags with optional filtering by tag name. Only the provided filters are applied.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "string",
+            "description": "Max results, default 100"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional filter by tag name"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Get Annotation Tags",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_annotations",
+      "description": "Fetch Grafana annotations using filters such as dashboard UID, time range and tags.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "alertUid": {
+            "type": "string",
+            "description": "Filter by alert UID"
+          },
+          "dashboardUid": {
+            "type": "string",
+            "description": "Filter by dashboard UID"
+          },
+          "from": {
+            "type": "integer",
+            "description": "Epoch ms start time"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max results default 100"
+          },
+          "matchAny": {
+            "type": "boolean",
+            "description": "If true, match any tag (OR). If false, match all tags (AND). Default: false"
+          },
+          "panelId": {
+            "type": "integer",
+            "description": "Filter by panel ID"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Filter by tags. Multiple tags allowed; use matchAny to control AND/OR logic"
+          },
+          "to": {
+            "type": "integer",
+            "description": "Epoch ms end time"
+          },
+          "type": {
+            "type": "string",
+            "description": "annotation or alert"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "Filter by creator user ID"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Get Annotations",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_assertions",
+      "description": "Get assertion summary for a given entity with its type, name, env, site, namespace, and a time range",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endTime": {
+            "type": "string",
+            "description": "The end time in RFC3339 format (e.g. 2024-01-01T00:00:00Z) or relative format (e.g. now)"
+          },
+          "entityName": {
+            "type": "string",
+            "description": "The name of the entity to list"
+          },
+          "entityType": {
+            "type": "string",
+            "description": "The type of the entity to list (e.g. Service, Node, Pod, etc.)"
+          },
+          "env": {
+            "type": "string",
+            "description": "The env of the entity to list"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "The namespace of the entity to list"
+          },
+          "site": {
+            "type": "string",
+            "description": "The site of the entity to list"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "The start time in RFC3339 format (e.g. 2024-01-01T00:00:00Z) or relative format (e.g. now-1h)"
+          }
+        },
+        "required": [
+          "startTime",
+          "endTime"
+        ]
+      },
+      "annotations": {
+        "title": "Get assertions summary",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_current_oncall_users",
+      "description": "Get the list of users currently on-call for a specific Grafana OnCall schedule ID. Returns the schedule ID, name, and a list of detailed user objects for those currently on call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "description": "The ID of the schedule to get current on-call users for"
+          }
+        },
+        "required": [
+          "scheduleId"
+        ]
+      },
+      "annotations": {
+        "title": "Get current on-call users",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_dashboard_by_uid",
+      "description": "Retrieves the complete dashboard, including panels, variables, and settings, for a specific dashboard identified by its UID. The response includes 'apiVersion' and 'isV2': when 'isV2' is true the dashboard uses the v2 schema (panels live under 'elements' keyed by name, arranged by 'layout'; variables under 'variables'), otherwise it is classic v1 ('panels[]' with 'templating.list'). WARNING: Large dashboards can consume significant context window space. Consider using get_dashboard_summary for overview or get_dashboard_property for specific data instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "The UID of the dashboard"
+          }
+        },
+        "required": [
+          "uid"
+        ]
+      },
+      "annotations": {
+        "title": "Get dashboard details",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_dashboard_panel_queries",
+      "description": "Retrieve panel queries from a Grafana dashboard. Supports all datasource types (Prometheus, Loki, CloudWatch, SQL, etc.) and row-nested panels. Optionally filter to a specific panel by ID with `panelId`. Optionally provide `variables` for template variable substitution, which populates `processedQuery` and `requiredVariables` fields. Returns an array of objects with fields: title, query (raw expression), datasource (object with uid and type), and optionally processedQuery, refId, and requiredVariables.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "panelId": {
+            "type": "integer",
+            "description": "Optional panel ID to filter to a specific panel"
+          },
+          "uid": {
+            "type": "string",
+            "description": "The UID of the dashboard"
+          },
+          "variables": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Optional variable substitutions (e.g., {\"job\": \"api-server\"})"
+          }
+        },
+        "required": [
+          "uid"
+        ]
+      },
+      "annotations": {
+        "title": "Get dashboard panel queries",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_dashboard_property",
+      "description": "Get specific parts of a dashboard using JSONPath expressions to minimize context window usage. JSONPath targets the dashboard's native schema. Classic v1 paths: '$.title' (title)\\, '$.panels[*].title' (all panel titles)\\, '$.panels[0]' (first panel)\\, '$.templating.list' (variables)\\, '$.annotations.list' (saved dashboard annotation queries/definitions)\\, '$.tags' (tags)\\, '$.panels[*].targets[*].expr' (all queries). v2 dashboards (see isV2 from get_dashboard_by_uid) use different paths: '$.title'\\, '$.elements' (panels\\, keyed by name)\\, '$.variables' (variables)\\, '$.annotations'. Use this instead of get_dashboard_by_uid when you only need specific dashboard properties.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jsonPath": {
+            "type": "string",
+            "description": "JSONPath expression to extract specific data (e.g., '$.panels[0].title' for first panel title, '$.panels[*].title' for all panel titles, '$.templating.list' for variables, '$.annotations.list' for saved dashboard annotation queries/definitions)"
+          },
+          "uid": {
+            "type": "string",
+            "description": "The UID of the dashboard"
+          }
+        },
+        "required": [
+          "uid",
+          "jsonPath"
+        ]
+      },
+      "annotations": {
+        "title": "Get dashboard property",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_dashboard_summary",
+      "description": "Get a compact summary of a dashboard including title\\, panel count\\, panel types\\, variables\\, and other metadata without the full JSON. Use this for dashboard overview and planning modifications without consuming large context windows.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "The UID of the dashboard"
+          }
+        },
+        "required": [
+          "uid"
+        ]
+      },
+      "annotations": {
+        "title": "Get dashboard summary",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_datasource",
+      "description": "Retrieves detailed information about a specific datasource by UID or name. Returns the full datasource model, including name, type, URL, access settings, JSON data, and secure JSON field status. Provide either uid or name; uid takes priority if both are given.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the datasource. Used if UID is not provided."
+          },
+          "uid": {
+            "type": "string",
+            "description": "The UID of the datasource. If provided, takes priority over name."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Get datasource",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_incident",
+      "description": "Get a single incident by ID. Returns the full incident details including title, status, severity, labels, timestamps, and other metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the incident to retrieve"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "title": "Get incident details",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_oncall_shift",
+      "description": "Get detailed information for a specific Grafana OnCall shift using its ID. A shift represents a designated time period within a schedule when users are actively on-call. Returns the full shift details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "shiftId": {
+            "type": "string",
+            "description": "The ID of the shift to get details for"
+          }
+        },
+        "required": [
+          "shiftId"
+        ]
+      },
+      "annotations": {
+        "title": "Get OnCall shift",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_panel_image",
+      "description": "Render a Grafana dashboard panel or full dashboard as a PNG image. Returns the image as base64 encoded data. Requires the Grafana Image Renderer service to be installed. Either dashboardUid (for stored dashboards) or provisioningPreview (for dashboards staged on a provisioning repository branch, e.g. a git-sync PR) must be supplied. Use this for generating visual snapshots of dashboards for reports, alerts, or presentations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dashboardUid": {
+            "type": "string",
+            "description": "The UID of a stored dashboard containing the panel. Required unless provisioningPreview is provided."
+          },
+          "height": {
+            "type": "integer",
+            "description": "Height of the rendered image in pixels. Defaults to 500"
+          },
+          "panelId": {
+            "type": "integer",
+            "description": "The ID of the panel to render. If omitted, the entire dashboard is rendered"
+          },
+          "provisioningPreview": {
+            "properties": {
+              "repo": {
+                "type": "string",
+                "description": "Provisioning repository slug. List repositories via /apis/provisioning.grafana.app/v0alpha1/namespaces/default/repositories if unknown."
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the dashboard file within the repository, relative to its root."
+              },
+              "ref": {
+                "type": "string",
+                "description": "Branch or commit SHA to render from. Defaults to the repository's main branch when omitted."
+              }
+            },
+            "type": "object",
+            "required": [
+              "repo",
+              "path"
+            ],
+            "description": "Render a dashboard from a provisioning repository branch (e.g. a git-sync PR preview). Mutually exclusive with dashboardUid."
+          },
+          "scale": {
+            "type": "integer",
+            "description": "Scale factor for the image (1-3). Defaults to 1"
+          },
+          "theme": {
+            "type": "string",
+            "description": "Theme for the rendered image: light or dark. Defaults to dark"
+          },
+          "timeRange": {
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "Start time (e.g., 'now-1h', '2024-01-01T00:00:00Z')"
+              },
+              "to": {
+                "type": "string",
+                "description": "End time (e.g., 'now', '2024-01-01T12:00:00Z')"
+              }
+            },
+            "type": "object",
+            "description": "Time range for the rendered image"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "Rendering timeout in seconds. Defaults to 60"
+          },
+          "variables": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "type": "object",
+            "description": "Dashboard variables to apply. Values can be a single string or an array of strings for multi-value variables (e.g., {\"var-datasource\": \"prometheus\", \"var-instance\": [\"server1\", \"server2\"]})"
+          },
+          "width": {
+            "type": "integer",
+            "description": "Width of the rendered image in pixels. Defaults to 1000"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Get panel or dashboard image",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_plugin",
+      "description": "Check whether a Grafana plugin is installed and retrieve its details (name, version, type, enabled status). Returns installed=false when the plugin is not found. Use install_plugin when a plugin is not installed to install plugin after confirming this action with the user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pluginId": {
+            "type": "string",
+            "description": "The plugin ID to check (e.g. 'prometheus', 'grafana-piechart-panel', 'grafana-oncall-app')"
+          }
+        },
+        "required": [
+          "pluginId"
+        ]
+      },
+      "annotations": {
+        "title": "Get plugin",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_sift_analysis",
+      "description": "Retrieves a specific analysis from an investigation by its UUID. The investigation ID and analysis ID should be provided as strings in UUID format.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "analysisId": {
+            "type": "string",
+            "description": "The UUID of the specific analysis to retrieve"
+          },
+          "investigationId": {
+            "type": "string",
+            "description": "The UUID of the investigation as a string (e.g. '02adab7c-bf5b-45f2-9459-d71a2c29e11b')"
+          }
+        },
+        "required": [
+          "investigationId",
+          "analysisId"
+        ]
+      },
+      "annotations": {
+        "title": "Get Sift analysis",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_sift_investigation",
+      "description": "Retrieves an existing Sift investigation by its UUID. The ID should be provided as a string in UUID format (e.g. '02adab7c-bf5b-45f2-9459-d71a2c29e11b').",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The UUID of the investigation as a string (e.g. '02adab7c-bf5b-45f2-9459-d71a2c29e11b')"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "title": "Get Sift investigation",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "get_snapshot",
+      "description": "Get a Grafana snapshot by key, including snapshot metadata and dashboard payload.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Snapshot key to retrieve"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "annotations": {
+        "title": "Get snapshot",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "grafana_api_request",
+      "description": "Make an authenticated HTTP request to the Grafana API. Similar to 'gh api' for GitHub. Supports any Grafana API endpoint with optional jq-style response filtering. Use this for API endpoints that don't have a dedicated tool.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Request body (JSON string). Used with POST, PUT, and PATCH requests."
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "The API path relative to the Grafana base URL (e.g. '/api/org', '/api/dashboards/uid/abc123'). Must start with '/'."
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "description": "Additional HTTP headers to include in the request."
+          },
+          "jq": {
+            "type": "string",
+            "description": "A jq expression to filter or transform the JSON response (e.g. '.dashboards[] | .title')."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "description": "HTTP method. Defaults to GET"
+          }
+        },
+        "required": [
+          "endpoint"
+        ]
+      },
+      "annotations": {
+        "title": "Grafana API request"
+      }
+    },
+    {
+      "name": "install_plugin",
+      "description": "Install a Grafana plugin by its plugin ID. If the version is not already confirmed with the user, omit it — the tool will look up the latest version and return it for confirmation before installing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pluginId": {
+            "type": "string",
+            "description": "The plugin ID to install (e.g. 'grafana-image-renderer', 'grafana-piechart-panel')"
+          },
+          "version": {
+            "type": "string",
+            "description": "The exact version to install. Must be confirmed with the user before calling — if unknown, omit this field to look up the latest version first."
+          }
+        },
+        "required": [
+          "pluginId"
+        ]
+      },
+      "annotations": {
+        "title": "Install plugin",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "list_alert_groups",
+      "description": "List alert groups from Grafana OnCall with filtering options. Supports filtering by alert group ID, route ID, integration ID, state (new, acknowledged, resolved, silenced), team ID, time range, labels, and name. For time ranges, use format '{start}_{end}' ISO 8601 timestamp range (e.g., '2025-01-19T00:00:00_2025-01-19T23:59:59' for a specific day). For labels, use format 'key:value' (e.g., ['env:prod', 'severity:high']). Returns a list of alert group objects with their details. Supports pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Filter by specific alert group ID"
+          },
+          "integrationId": {
+            "type": "string",
+            "description": "Filter by integration ID"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Filter by labels in format key:value (e.g., ['env:prod', 'severity:high'])"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by alert group name"
+          },
+          "page": {
+            "type": "integer",
+            "description": "The page number to return"
+          },
+          "routeId": {
+            "type": "string",
+            "description": "Filter by route ID"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "Filter by time range in format '{start}_{end}' ISO 8601 timestamp range (UTC assumed, no timezone indicator needed) (e.g., '2025-01-19T00:00:00_2025-01-19T23:59:59')"
+          },
+          "state": {
+            "type": "string",
+            "description": "Filter by alert group state (one of: new, acknowledged, resolved, silenced)"
+          },
+          "teamId": {
+            "type": "string",
+            "description": "Filter by team ID"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List IRM alert groups",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_datasources",
+      "description": "List all configured datasources in Grafana. Use this to discover available datasources and their UIDs. Supports filtering by type and pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of datasources to return (max 100)",
+            "default": 50
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of datasources to skip for pagination",
+            "default": 0
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of datasources to search for. For example, 'prometheus', 'loki', 'tempo', etc..."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List datasources",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_incidents",
+      "description": "List Grafana incidents. Allows filtering by status ('active', 'resolved') and optionally including drill incidents. Returns a preview list with basic details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "drill": {
+            "type": "boolean",
+            "description": "Whether to include drill incidents"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "The maximum number of incidents to return",
+            "default": 10
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the incidents to include. Valid values: 'active', 'resolved'"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List incidents",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_loki_label_names",
+      "description": "Lists all available label/field names (keys) found in logs within a specified Loki or VictoriaLogs datasource and time range. Returns a list of unique label strings (e.g., `[\"app\", \"env\", \"pod\"]`). If the time range is not provided, it defaults to the last hour.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          }
+        },
+        "required": [
+          "datasourceUid"
+        ]
+      },
+      "annotations": {
+        "title": "List Loki label names",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_loki_label_values",
+      "description": "Retrieves all unique values associated with a specific `labelName` within a Loki or VictoriaLogs datasource and time range. Returns a list of string values (e.g., for `labelName=\"env\"`, might return `[\"prod\", \"staging\", \"dev\"]`). Useful for discovering filter options. Defaults to the last hour if the time range is omitted.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "labelName": {
+            "type": "string",
+            "description": "The name of the label to retrieve values for (e.g. 'app', 'env', 'pod')"
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "labelName"
+        ]
+      },
+      "annotations": {
+        "title": "List Loki label values",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_oncall_schedules",
+      "description": "List Grafana OnCall schedules, optionally filtering by team ID. If a specific schedule ID is provided, retrieves details for only that schedule. Returns a list of schedule summaries including ID, name, team ID, timezone, and shift IDs. Supports pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "The page number to return (1-based)"
+          },
+          "scheduleId": {
+            "type": "string",
+            "description": "The ID of the schedule to get details for. If provided, returns only that schedule's details"
+          },
+          "teamId": {
+            "type": "string",
+            "description": "The ID of the team to list schedules for"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List OnCall schedules",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_oncall_teams",
+      "description": "List teams configured in Grafana OnCall. Returns a list of team objects with their details. Supports pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "The page number to return"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List OnCall teams",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_oncall_users",
+      "description": "List users from Grafana OnCall. These are OnCall users (separate from Grafana users). Can retrieve all users in the OnCall directory, a specific user by ID, or filter by username. Returns a list of user objects with their details. Supports pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "The page number to return"
+          },
+          "userId": {
+            "type": "string",
+            "description": "The ID of the user to get details for. If provided, returns only that user's details"
+          },
+          "username": {
+            "type": "string",
+            "description": "The username to filter users by. If provided, returns only the user matching this username"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List OnCall users",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_prometheus_label_names",
+      "description": "List label names in a PromQL-compatible datasource (Prometheus, Thanos, Mimir, Cloud Monitoring, etc.). Allows filtering by series selectors and time range.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the time range to filter the results by. Supports RFC3339 or relative time (e.g. 'now')"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Optionally, the maximum number of results to return",
+            "default": 100
+          },
+          "matches": {
+            "items": {
+              "properties": {
+                "filters": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The name of the label to match against"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "The value to match against"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "One of the '=' or '!=' or '=~' or '!~'"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "value",
+                      "type"
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "description": "Optionally, a list of label matchers to filter the results by"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the time range to filter the results by. Supports RFC3339 or relative time (e.g. 'now-1h')"
+          }
+        },
+        "required": [
+          "datasourceUid"
+        ]
+      },
+      "annotations": {
+        "title": "List Prometheus label names",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_prometheus_label_values",
+      "description": "Use after list_prometheus_metric_names to find label values for filtering queries. Gets the values for a specific label name in a PromQL-compatible datasource (Prometheus, Thanos, Mimir, Cloud Monitoring, etc.). Allows filtering by series selectors and time range.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query. Supports RFC3339 or relative time (e.g. 'now')"
+          },
+          "labelName": {
+            "type": "string",
+            "description": "The name of the label to query"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Optionally, the maximum number of results to return",
+            "default": 100
+          },
+          "matches": {
+            "items": {
+              "properties": {
+                "filters": {
+                  "items": {
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The name of the label to match against"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "The value to match against"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "One of the '=' or '!=' or '=~' or '!~'"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "value",
+                      "type"
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "description": "Optionally, a list of selectors to filter the results by"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query. Supports RFC3339 or relative time (e.g. 'now-1h')"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "labelName"
+        ]
+      },
+      "annotations": {
+        "title": "List Prometheus label values",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_prometheus_metric_metadata",
+      "description": "List Prometheus metric metadata. Returns metadata about metrics currently scraped from targets. Note: This endpoint is experimental.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "The maximum number of metrics to return",
+            "default": 10
+          },
+          "limitPerMetric": {
+            "type": "integer",
+            "description": "The maximum number of metrics to return per metric"
+          },
+          "metric": {
+            "type": "string",
+            "description": "The metric to query"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          }
+        },
+        "required": [
+          "datasourceUid"
+        ]
+      },
+      "annotations": {
+        "title": "List Prometheus metric metadata",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_prometheus_metric_names",
+      "description": "DISCOVERY: Call this first to find available metrics before querying. Lists metric names in a PromQL-compatible datasource (Prometheus, Thanos, Mimir, Cloud Monitoring, etc.). Retrieves all metric names and filters them using the provided regex. Supports pagination and an optional time range to restrict results to metrics active within that window.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the time range to filter the results by. Supports RFC3339 or relative time (e.g. 'now')"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "The maximum number of results to return",
+            "default": 10
+          },
+          "page": {
+            "type": "integer",
+            "description": "The page number to return",
+            "default": 1
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          },
+          "regex": {
+            "type": "string",
+            "description": "The regex to match against the metric names"
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the time range to filter the results by. Supports RFC3339 or relative time (e.g. 'now-1h')"
+          }
+        },
+        "required": [
+          "datasourceUid"
+        ]
+      },
+      "annotations": {
+        "title": "List Prometheus metric names",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_provisioning_repositories",
+      "description": "List provisioning repositories (e.g. git-sync sources) configured for this Grafana instance. Returns each repository's slug along with its source URL, branch, path, sync state, and health. Use the returned `name` as the `repo` argument when rendering a not-yet-applied dashboard preview via get_panel_image's provisioningPreview parameter.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes-style namespace to list repositories from. Defaults to 'default' which matches single-tenant Grafana deployments."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List provisioning repositories",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_pyroscope_label_names",
+      "description": "\nLists all available label names (keys) found in profiles within a specified Pyroscope datasource, time range, and\noptional label matchers. Label matchers are typically used to qualify a service name ({service_name=\"foo\"}). Returns a\nlist of unique label strings (e.g., [\"app\", \"env\", \"pod\"]). Label names with double underscores (e.g. __name__) are\ninternal and rarely useful to users. If the time range is not provided, it defaults to the last hour.\n",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data_source_uid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "end_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "matchers": {
+            "type": "string"
+          },
+          "start_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          }
+        },
+        "required": [
+          "data_source_uid"
+        ]
+      },
+      "annotations": {
+        "title": "List Pyroscope label names",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_pyroscope_label_values",
+      "description": "\nLists all available label values for a particular label name found in profiles within a specified Pyroscope datasource,\ntime range, and optional label matchers. Label matchers are typically used to qualify a service name ({service_name=\"foo\"}).\nReturns a list of unique label strings (e.g. for label name \"env\": [\"dev\", \"staging\", \"prod\"]). If the time range\nis not provided, it defaults to the last hour.\n",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data_source_uid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "end_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "matchers": {
+            "type": "string",
+            "description": "Optionally, Prometheus style matchers used to filter the result set (defaults to: {})"
+          },
+          "name": {
+            "type": "string",
+            "description": "A label name"
+          },
+          "start_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          }
+        },
+        "required": [
+          "data_source_uid",
+          "name"
+        ]
+      },
+      "annotations": {
+        "title": "List Pyroscope label values",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_pyroscope_profile_types",
+      "description": "\nLists all available profile types available in a specified Pyroscope datasource and time range. Returns a list of all\navailable profile types (example profile type: \"process_cpu:cpu:nanoseconds:cpu:nanoseconds\"). A profile type has the\nfollowing structure: <name>:<sample type>:<sample unit>:<period type>:<period unit>. Not all profile types are available\nfor every service. If the time range is not provided, it defaults to the last hour.\n",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data_source_uid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "end_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "start_rfc_3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          }
+        },
+        "required": [
+          "data_source_uid"
+        ]
+      },
+      "annotations": {
+        "title": "List Pyroscope profile types",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_sift_investigations",
+      "description": "Retrieves a list of Sift investigations with an optional limit. If no limit is specified, defaults to 10 investigations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of investigations to return",
+            "default": 10
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List Sift investigations",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "list_snapshots",
+      "description": "List Grafana dashboard snapshots with optional query and result limit filters.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of snapshots to return (Grafana defaults to 1000 when omitted)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional search query for snapshot name"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List snapshots",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_loki_logs",
+      "description": "Executes a log query against a Loki or VictoriaLogs datasource and returns matching log entries (or metric samples on Loki). Defaults to the last hour, a limit of 10 entries, and 'backward' direction (newest first). The `logql` parameter takes LogQL on Loki and LogsQL on VictoriaLogs (e.g., Loki: `{app=\"foo\"} |= \"error\"`; VictoriaLogs: `{app=\"foo\"} \"error\"`). To count matching log lines precisely, use a `count_over_time()` metric query with queryType='instant'. Prefer using `query_loki_stats` first to cheaply check whether a stream contains data (avoiding expensive queries against empty streams) and `list_loki_label_names` / `list_loki_label_values` to verify labels exist before querying. Note: `query_loki_stats` returns approximate storage-level counts, not exact log line counts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "direction": {
+            "type": "string",
+            "description": "Optionally, the direction of the query: 'forward' (oldest first) or 'backward' (newest first, default)"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Optionally, the maximum number of log lines to return (default max: 100, configurable by MCP server).",
+            "default": 10
+          },
+          "logql": {
+            "type": "string",
+            "description": "The LogQL query to execute against Loki. This can be a simple label matcher or a complex query with filters, parsers, and expressions. Supports full LogQL syntax including label matchers, filter operators, pattern expressions, and pipeline operations."
+          },
+          "queryType": {
+            "type": "string",
+            "description": "Query type: 'range' (default) or 'instant'. Instant queries return a single value at one point in time. Range queries return values over a time window. Use 'instant' for metric queries when you want the current value."
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+          },
+          "stepSeconds": {
+            "type": "integer",
+            "description": "Resolution step in seconds for range metric queries. When running metric queries with queryType='range', this controls the time resolution of the returned data points."
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "logql"
+        ]
+      },
+      "annotations": {
+        "title": "Query Loki logs",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_loki_patterns",
+      "description": "Retrieves detected log patterns from a Loki datasource for a given stream selector and time range. Returns a list of patterns, each containing a pattern string and a total count of occurrences. Patterns help identify common log structures and anomalies. The `logql` parameter must be a stream selector (e.g., `{job=\"nginx\"}`) and does not support line filters or aggregations. Defaults to the last hour if the time range is omitted. **Not supported on VictoriaLogs** datasources - use a `| stats` pipeline instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+          },
+          "logql": {
+            "type": "string",
+            "description": "A LogQL stream selector to identify the logs to analyze for patterns (e.g. {job=\"foo\", namespace=\"bar\"})"
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          },
+          "step": {
+            "type": "string",
+            "description": "Optionally, the query resolution step (e.g. '5m')"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "logql"
+        ]
+      },
+      "annotations": {
+        "title": "Query Loki patterns",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_loki_stats",
+      "description": "Retrieves index-level statistics about log streams matching a given selector within a Loki or VictoriaLogs datasource and time range. Returns an object containing the count of streams, chunks, entries, and total bytes (e.g., `{\"streams\": 5, \"chunks\": 50, \"entries\": 10000, \"bytes\": 512000}`). **Important**: the `entries` count reflects storage-level index entries (chunk metadata), NOT the number of individual log lines matching the selector. To count actual matching log lines, use `query_loki_logs` with a `count_over_time()` metric query instead. On VictoriaLogs only `entries` is populated; the other fields remain zero. The `logql` parameter **must** be a simple label selector (e.g., `{app=\"nginx\", env=\"prod\"}`) and does not support line filters, parsers, or aggregations. Defaults to the last hour if the time range is omitted.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endRfc3339": {
+            "type": "string",
+            "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+          },
+          "logql": {
+            "type": "string",
+            "description": "The LogQL matcher expression to execute. This parameter only accepts label matcher expressions and does not support full LogQL queries. Line filters, pattern operations, and metric aggregations are not supported by the stats API endpoint. Only simple label selectors can be used here."
+          },
+          "startRfc3339": {
+            "type": "string",
+            "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "logql"
+        ]
+      },
+      "annotations": {
+        "title": "Get Loki log statistics",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_prometheus",
+      "description": "WORKFLOW: list_prometheus_metric_names -> list_prometheus_label_values -> query_prometheus. Query a PromQL-compatible datasource (Prometheus, Thanos, Mimir, Cloud Monitoring, etc.) using a PromQL expression. Supports instant queries (single point) and range queries (time range). Time: RFC3339 or relative expressions like 'now'\\, 'now-1h'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "The end time. Supported formats are RFC3339 or relative to now (e.g. 'now', 'now-1.5h', 'now-2h45m'). Valid time units are 'ns', 'us' (or 'µs'), 'ms', 's', 'm', 'h', 'd'."
+          },
+          "expr": {
+            "type": "string",
+            "description": "The PromQL expression to query"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          },
+          "queryType": {
+            "type": "string",
+            "description": "The type of query to use. Either 'range' or 'instant'"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "The start time. Required if queryType is 'range', ignored if queryType is 'instant' Supported formats are RFC3339 or relative to now (e.g. 'now', 'now-1.5h', 'now-2h45m'). Valid time units are 'ns', 'us' (or 'µs'), 'ms', 's', 'm', 'h', 'd'."
+          },
+          "stepSeconds": {
+            "type": "integer",
+            "description": "The time series step size in seconds. Required if queryType is 'range', ignored if queryType is 'instant'"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "expr",
+          "endTime"
+        ]
+      },
+      "annotations": {
+        "title": "Query Prometheus metrics",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_prometheus_histogram",
+      "description": "Query Prometheus histogram percentiles. DISCOVER FIRST: Use list_prometheus_metric_names with regex='.*_bucket$' to find histograms.\n\nGenerates histogram_quantile PromQL. Example: metric='http_duration', percentile=95, labels='job=\"api\"'\n\nTime formats: 'now-1h', '2026-02-02T19:00:00Z', '1738519200000' (Unix ms)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "datasourceUid": {
+            "type": "string",
+            "description": "The UID of the Prometheus datasource"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "End time (default: now). Supports RFC3339, relative, or Unix ms."
+          },
+          "labels": {
+            "type": "string",
+            "description": "Label selector (e.g. job=\"api\", service=\"gateway\")"
+          },
+          "metric": {
+            "type": "string",
+            "description": "Base histogram metric name (without _bucket suffix)"
+          },
+          "percentile": {
+            "type": "number",
+            "description": "Percentile to calculate (e.g. 50, 90, 95, 99)"
+          },
+          "projectName": {
+            "type": "string",
+            "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+          },
+          "rateInterval": {
+            "type": "string",
+            "description": "Rate interval for the query (default: 5m)"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "Start time (default: now-1h). Supports RFC3339, relative (now-1h), or Unix ms."
+          },
+          "stepSeconds": {
+            "type": "integer",
+            "description": "Step size in seconds for range query (default: 60)"
+          }
+        },
+        "required": [
+          "datasourceUid",
+          "metric",
+          "percentile"
+        ]
+      },
+      "annotations": {
+        "title": "Query Prometheus histogram percentile",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "query_pyroscope",
+      "description": "\nUnified Pyroscope query tool for fetching profiles or metrics from Pyroscope. Profile data shows WHICH functions consume resources; metrics data\nshows WHEN consumption spiked. Use query_type=\"both\" for complete analysis in one call.\n\nquery_type options (extends Grafana's PyroscopeQueryType):\n- \"profile\": returns DOT-format call graph\n- \"metrics\": returns time-series data points\n- \"both\" (default): returns both profile and metrics in one response\n",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data_source_uid": {
+            "type": "string",
+            "description": "The UID of the datasource to query"
+          },
+          "end_rfc_3339": {
+            "type": "string",
+            "description": "End time in RFC3339 or relative time (e.g. 'now') (defaults to now)"
+          },
+          "group_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Labels to group metrics series by"
+          },
+          "matchers": {
+            "type": "string",
+            "description": "Prometheus style matchers (defaults to: {})"
+          },
+          "max_node_depth": {
+            "type": "integer",
+            "description": "Max depth for profile call graph (default: 100)"
+          },
+          "profile_type": {
+            "type": "string",
+            "description": "The profile type, use list_pyroscope_profile_types to discover available types"
+          },
+          "query_type": {
+            "type": "string",
+            "description": "Query type: \"profile\" (flamegraph), \"metrics\" (time-series), or \"both\" (default). Use \"both\" for complete analysis"
+          },
+          "start_rfc_3339": {
+            "type": "string",
+            "description": "Start time in RFC3339 or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+          },
+          "step": {
+            "type": "number",
+            "description": "Seconds between metrics data points (default: auto)"
+          }
+        },
+        "required": [
+          "data_source_uid",
+          "profile_type"
+        ]
+      },
+      "annotations": {
+        "title": "Query Pyroscope",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "search_dashboards",
+      "description": "Search for Grafana dashboards by a query string. Returns a list of matching dashboards with details like title, UID, folder, tags, and URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return (max 100)",
+            "default": 50
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-indexed)",
+            "default": 1
+          },
+          "query": {
+            "type": "string",
+            "description": "The query to search for"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Search dashboards",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "search_folders",
+      "description": "Search for Grafana folders by a query string. Returns matching folders with details like title, UID, and URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to search for"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Search folders",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "search_plugin_information",
+      "description": "Search the Grafana plugin catalog by keyword to discover available plugins before installing or getting plugin details on a specific instance. Returns results sorted by trust: official Grafana Labs plugins first, then commercial partner plugins, then community plugins. Use this tool when a user describes a plugin by purpose or partial name (e.g. 'azure monitoring', 'loki', 'database') — it returns the exact pluginId to pass to get_plugin or install_plugin. Results include warnings for enterprise-only or Angular-based plugins.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Keyword to search for plugins (e.g. 'azure', 'prometheus', 'loki', 'database'). Matches against plugin name, slug, description, and keywords."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "annotations": {
+        "title": "Search plugins",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "suggest_loki_alloy_label_config",
+      "description": "Generates an Alloy loki.process snippet enforcing an approved label set via stage.label_keep, with optional log-level normalisation and soft-enforcement placeholders.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approvedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Labels to keep on the index."
+          },
+          "componentName": {
+            "type": "string"
+          },
+          "forwardTo": {
+            "type": "string"
+          },
+          "normalizeLogLevel": {
+            "type": "boolean"
+          },
+          "requiredLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Labels that get an 'unknown' placeholder when missing."
+          }
+        },
+        "required": [
+          "approvedLabels"
+        ]
+      },
+      "annotations": {
+        "title": "Suggest Alloy label enforcement config",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "update_annotation",
+      "description": "Updates the provided properties of an annotation by ID. Only fields included in the request are modified; omitted fields are left unchanged.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Optional JSON payload"
+          },
+          "id": {
+            "type": "integer",
+            "description": "Annotation ID to update"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Tags to replace existing tags"
+          },
+          "text": {
+            "type": "string",
+            "description": "New annotation text"
+          },
+          "time": {
+            "type": "integer",
+            "description": "New start time epoch ms"
+          },
+          "timeEnd": {
+            "type": "integer",
+            "description": "New end time epoch ms"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Update Annotation",
+        "destructiveHint": true,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "update_dashboard",
+      "description": "Create or update a dashboard. Two modes: (1) Full JSON — provide 'dashboard' for new dashboards or complete replacements. (2) Patch — provide 'uid' + 'operations' to make targeted changes to an existing dashboard. One of these two modes is required; 'folderUid'\\, 'message'\\, and 'overwrite' are supplementary and do nothing on their own. Dashboard authoring guidance: if a saved query must support one\\, many\\, or All values from a multi-select variable inside a regex expression or matcher\\, save '${var:regex}' rather than plain '$var'. Saved dashboard annotation queries/definitions must be written into dashboard JSON under 'annotations.list'; the create_annotation tool creates annotation events and does not add a reusable dashboard annotation query/definition to the saved dashboard. For stat panels over the current dashboard range\\, make the query return the range-level result the stat should display; panel-side reduction only reduces returned series and does not compute peak-over-range or ratio-of-peaks semantics for you. Patch operations support JSONPaths like '$.panels[0].targets[0].expr'\\, '$.panels[1].title'\\, '$.panels[2].targets[0].datasource'\\, '$.templating.list/-'\\, and '$.annotations.list/-'. Append to arrays with '/- ' syntax: '$.panels/- '. Remove by index: {\"op\": \"remove\"\\, \"path\": \"$.panels[2]\"}. Multiple removes on the same array are automatically reordered to avoid index-shifting issues. Note: only numeric array indices are supported in patch paths; filter expressions like [?(@.id==2)] and wildcards like [*] are not supported. v2 dashboards (check 'isV2' from get_dashboard_by_uid) use a different shape: patch '$.elements.<name>.spec.title' or '$.elements.<name>.spec.data.spec.queries[0].spec' and edit '$.variables'/'$.layout' rather than '$.panels'/'$.templating.list'. Full-JSON saves containing top-level 'elements'/'layout' are written as v2 and require a Kubernetes-capable Grafana. After creating or updating a dashboard\\, verify that panel queries return data by using `run_panel_query` or the appropriate query tool (`query_prometheus`\\, `query_loki_logs`\\, etc.) to validate expressions before considering the task complete.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dashboard": {
+            "type": "object",
+            "description": "The full dashboard JSON. Use for creating new dashboards or complete updates. Saved dashboard annotation queries/definitions live in 'annotations.list' inside this JSON; they are different from annotation events created with create_annotation. Large dashboards consume significant context - consider using patches for small changes."
+          },
+          "folderUid": {
+            "type": "string",
+            "description": "The UID of the dashboard's folder"
+          },
+          "message": {
+            "type": "string",
+            "description": "Set a commit message for the version history"
+          },
+          "operations": {
+            "items": {
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "description": "Operation type: 'replace', 'add', 'remove'"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "JSONPath to the property to modify. Supports: '$.title', '$.panels[0].title', '$.panels[0].targets[0].expr', '$.panels[1].targets[0].datasource', '$.templating.list/-' (append a variable), '$.annotations.list/-' (append a saved dashboard annotation query/definition). For appending to arrays, use '/- ' syntax: '$.panels/- ' (append to panels array) or '$.panels[2]/- ' (append to nested array at index 2)."
+                },
+                "value": {
+                  "description": "New value for replace/add operations. When adding a saved dashboard annotation query/definition, append an object to '$.annotations.list' rather than calling create_annotation."
+                }
+              },
+              "type": "object",
+              "required": [
+                "op",
+                "path"
+              ]
+            },
+            "type": "array",
+            "description": "Array of patch operations for targeted updates. More efficient than full dashboard JSON for small changes. Common paths: '$.templating.list/-' to add a variable, '$.annotations.list/-' to add a saved dashboard annotation query/definition, '$.panels[0].targets[0].expr' to replace a panel query."
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "Overwrite the dashboard if it exists. Otherwise create one"
+          },
+          "uid": {
+            "type": "string",
+            "description": "UID of existing dashboard to update. Must be used together with 'operations'. Providing 'uid' without 'operations' will fail."
+          },
+          "userId": {
+            "type": "integer",
+            "description": "ID of the user making the change"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Create or update dashboard",
+        "destructiveHint": true
+      }
+    },
+    {
+      "name": "update_datasource",
+      "description": "Update non-secret datasource fields by UID. Omitted fields are preserved. For secrets, direct the user to the Grafana UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "access": {
+            "type": "string",
+            "description": "proxy or direct"
+          },
+          "basicAuth": {
+            "type": "boolean",
+            "description": "Enable basic auth"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Make this the default datasource"
+          },
+          "jsonData": {
+            "type": "object",
+            "description": "Non-secret plugin settings; replaces existing jsonData when set"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name"
+          },
+          "uid": {
+            "type": "string",
+            "description": "UID of the datasource to update"
+          },
+          "url": {
+            "type": "string",
+            "description": "Base URL"
+          }
+        },
+        "required": [
+          "uid"
+        ]
+      },
+      "annotations": {
+        "title": "Update datasource",
+        "readOnlyHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "validate_provisioning_file",
+      "description": "Validate a file in a provisioning repository at a given branch or commit by dry-run applying it. Returns whether the file would be accepted (valid)\\, what resource action would result (create/update)\\, the target resource type\\, and any structured validation errors. Use to confirm a draft dashboard or other resource will be accepted before merging or applying a PR — this is the same validation surface that Grafana's PR commenter reports.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes-style namespace to read the repository from. Defaults to 'default'."
+          },
+          "path": {
+            "type": "string",
+            "description": "File path within the repository (e.g. 'folder/dashboard.json')."
+          },
+          "ref": {
+            "type": "string",
+            "description": "Branch or commit SHA. Defaults to the repository's main branch."
+          },
+          "repo": {
+            "type": "string",
+            "description": "Provisioning repository slug. Get one from list_provisioning_repositories."
+          }
+        },
+        "required": [
+          "repo",
+          "path"
+        ]
+      },
+      "annotations": {
+        "title": "Validate provisioning file",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      }
+    }
+  ],
+  "toolsSha256": "b6e73291c9208ed81ec8903b889047f3c2201d88bbea6d30d921f7dc5631445f",
+  "previewMissing": [],
+  "extraTools": [
+    "add_activity_to_incident",
+    "alerting_manage_routing",
+    "analyze_loki_labels",
+    "check_datasources_health",
+    "create_annotation",
+    "create_datasource",
+    "create_folder",
+    "create_incident",
+    "create_snapshot",
+    "delete_snapshot",
+    "find_error_pattern_logs",
+    "find_slow_requests",
+    "generate_deeplink",
+    "get_alert_group",
+    "get_annotation_tags",
+    "get_annotations",
+    "get_assertions",
+    "get_current_oncall_users",
+    "get_dashboard_panel_queries",
+    "get_dashboard_property",
+    "get_dashboard_summary",
+    "get_datasource",
+    "get_incident",
+    "get_oncall_shift",
+    "get_panel_image",
+    "get_plugin",
+    "get_sift_analysis",
+    "get_sift_investigation",
+    "get_snapshot",
+    "grafana_api_request",
+    "install_plugin",
+    "list_alert_groups",
+    "list_datasources",
+    "list_incidents",
+    "list_loki_label_names",
+    "list_loki_label_values",
+    "list_oncall_schedules",
+    "list_oncall_teams",
+    "list_oncall_users",
+    "list_prometheus_label_names",
+    "list_prometheus_label_values",
+    "list_prometheus_metric_metadata",
+    "list_prometheus_metric_names",
+    "list_provisioning_repositories",
+    "list_pyroscope_label_names",
+    "list_pyroscope_label_values",
+    "list_pyroscope_profile_types",
+    "list_sift_investigations",
+    "list_snapshots",
+    "query_loki_logs",
+    "query_loki_patterns",
+    "query_loki_stats",
+    "query_prometheus_histogram",
+    "query_pyroscope",
+    "search_folders",
+    "search_plugin_information",
+    "suggest_loki_alloy_label_config",
+    "update_annotation",
+    "update_datasource",
+    "validate_provisioning_file"
+  ],
+  "resources": {
+    "error": "MCP error -32601: resources not supported"
+  },
+  "prompts": {
+    "error": "MCP error -32601: prompts not supported"
+  },
+  "calls": [],
+  "stderr": "time=2026-09-13T11:52:38.316-07:00 level=INFO msg=\"Using Grafana configuration\" url=http://127.0.0.1:9 api_key_set=true basic_auth_set=false org_id=0 extra_headers_count=0\ntime=2026-09-13T11:52:38.319-07:00 level=WARN msg=\"Failed to fetch frontend settings\" error=\"Get \\\"http://127.0.0.1:9/api/frontend/settings\\\": dial tcp 127.0.0.1:9: connect: operation not permitted\"\ntime=2026-09-13T11:52:38.320-07:00 level=ERROR msg=\"failed to initialize proxied tools for stdio\" error=\"failed to discover MCP datasources: failed to list datasources: Get \\\"http://127.0.0.1:9/api/datasources\\\": dial tcp 127.0.0.1:9: connect: operation not permitted\"\ntime=2026-09-13T11:52:38.320-07:00 level=INFO msg=\"Starting Grafana MCP server using stdio transport\" version=v0.17.2\ntime=2026-09-13T11:52:38.320-07:00 level=INFO msg=\"Using Grafana configuration\" url=http://127.0.0.1:9 api_key_set=true basic_auth_set=false org_id=0 extra_headers_count=0\ntime=2026-09-13T11:52:38.320-07:00 level=WARN msg=\"Failed to fetch frontend settings\" error=\"Get \\\"http://127.0.0.1:9/api/frontend/settings\\\": dial tcp 127.0.0.1:9: connect: operation not permitted\"\n",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+
+added 188 packages in 5s
+npm warn deprecated koa-router@14.0.0: Please use @koa/router instead, starting from v9! 
+npm notice
+npm notice New major version of npm available! 11.16.0 -> 12.0.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+npm notice To update run: npm install -g npm@12.0.1
+npm notice

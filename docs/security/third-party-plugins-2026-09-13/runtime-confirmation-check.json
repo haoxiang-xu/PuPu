@@ -1,0 +1,1959 @@
+{
+  "sourceCommit": "8cd775905758833aa6e7bdcf75d6e4d12c7d9ad1",
+  "scope": "Real Unchain conversion and dispatcher; real filesystem MCP; no packaged PuPu or model",
+  "conversion": [
+    {
+      "id": "mcp.productivity.brave-search",
+      "convertedTools": [
+        {
+          "name": "brave_web_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Brave Web Search",
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "brave_video_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Brave Video Search",
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "brave_image_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Brave Image Search",
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "brave_news_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Brave News Search",
+            "openWorldHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.devops.netdata-cloud",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.productivity.notion-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.dev.figma-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.productivity.tavily",
+      "convertedTools": [
+        {
+          "name": "tavily_search",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "tavily_extract",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "tavily_crawl",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "tavily_map",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "tavily_research",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.devops.grafana",
+      "convertedTools": [
+        {
+          "name": "add_activity_to_incident",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Add activity to incident"
+          }
+        },
+        {
+          "name": "alerting_manage_routing",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Manage alerting routing",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "alerting_manage_rules",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Manage alert rules",
+            "destructiveHint": true
+          }
+        },
+        {
+          "name": "analyze_loki_labels",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Analyze Loki label strategy",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "check_datasources_health",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Check datasources health",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "create_annotation",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create Annotation",
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "create_datasource",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create datasource",
+            "readOnlyHint": false,
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "create_folder",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create folder",
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "create_incident",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create incident"
+          }
+        },
+        {
+          "name": "create_snapshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create snapshot",
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "delete_snapshot",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Delete snapshot",
+            "destructiveHint": true,
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "find_error_pattern_logs",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Find error patterns in logs",
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "find_slow_requests",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Find slow requests",
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "generate_deeplink",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Generate navigation deeplink",
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "get_alert_group",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get IRM alert group",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_annotation_tags",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get Annotation Tags",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_annotations",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get Annotations",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_assertions",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get assertions summary",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_current_oncall_users",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get current on-call users",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_dashboard_by_uid",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get dashboard details",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_dashboard_panel_queries",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get dashboard panel queries",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_dashboard_property",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get dashboard property",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_dashboard_summary",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get dashboard summary",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_datasource",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get datasource",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_incident",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get incident details",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_oncall_shift",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get OnCall shift",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_panel_image",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get panel or dashboard image",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_plugin",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get plugin",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_sift_analysis",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get Sift analysis",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_sift_investigation",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get Sift investigation",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "get_snapshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get snapshot",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "grafana_api_request",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Grafana API request"
+          }
+        },
+        {
+          "name": "install_plugin",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Install plugin",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "list_alert_groups",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List IRM alert groups",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_datasources",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List datasources",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_incidents",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List incidents",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_loki_label_names",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Loki label names",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_loki_label_values",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Loki label values",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_oncall_schedules",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List OnCall schedules",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_oncall_teams",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List OnCall teams",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_oncall_users",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List OnCall users",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_prometheus_label_names",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Prometheus label names",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_prometheus_label_values",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Prometheus label values",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_prometheus_metric_metadata",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Prometheus metric metadata",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_prometheus_metric_names",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Prometheus metric names",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_provisioning_repositories",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List provisioning repositories",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_pyroscope_label_names",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Pyroscope label names",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_pyroscope_label_values",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Pyroscope label values",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_pyroscope_profile_types",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Pyroscope profile types",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_sift_investigations",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List Sift investigations",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "list_snapshots",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List snapshots",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_loki_logs",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Query Loki logs",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_loki_patterns",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Query Loki patterns",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_loki_stats",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get Loki log statistics",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_prometheus",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Query Prometheus metrics",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_prometheus_histogram",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Query Prometheus histogram percentile",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "query_pyroscope",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Query Pyroscope",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "search_dashboards",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search dashboards",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "search_folders",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search folders",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "search_plugin_information",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search plugins",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "suggest_loki_alloy_label_config",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Suggest Alloy label enforcement config",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "update_annotation",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Update Annotation",
+            "destructiveHint": true,
+            "idempotentHint": false
+          }
+        },
+        {
+          "name": "update_dashboard",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Create or update dashboard",
+            "destructiveHint": true
+          }
+        },
+        {
+          "name": "update_datasource",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Update datasource",
+            "readOnlyHint": false,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "validate_provisioning_file",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Validate provisioning file",
+            "readOnlyHint": true,
+            "idempotentHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.devops.sentry-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.memory.memory",
+      "convertedTools": [
+        {
+          "name": "create_entities",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "create_relations",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "add_observations",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_entities",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_observations",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "delete_relations",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "read_graph",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "search_nodes",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "open_nodes",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.productivity.firecrawl",
+      "convertedTools": [
+        {
+          "name": "firecrawl_scrape",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Scrape a URL",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_map",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Map a website",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search the web",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_search_feedback",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Send feedback on a search result",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_feedback",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Send feedback on a Firecrawl job",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_crawl",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Run a site crawl",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_check_crawl_status",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get crawl status",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_extract",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Extract structured data",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_agent",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Start a research agent",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_agent_status",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get agent job status",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_interact",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Interact with a scraped page",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_interact_stop",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Stop interact session",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_parse",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Parse a local file",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_monitor_create",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Create monitor",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_monitor_list",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List monitors",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_monitor_get",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get monitor",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_monitor_update",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Update monitor",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_monitor_delete",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Delete monitor",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_monitor_run",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Run monitor now",
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_monitor_checks",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List monitor checks",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_monitor_check",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get monitor check",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "firecrawl_research_search_papers",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search research papers",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_research_inspect_paper",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Inspect a paper",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_research_related_papers",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Find related arXiv papers",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_research_read_paper",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Read a paper",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "firecrawl_research_search_github",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Search GitHub history",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.browser.playwright",
+      "convertedTools": [
+        {
+          "name": "browser_close",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Close browser",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_resize",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Resize browser window",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_console_messages",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Get console messages",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_handle_dialog",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Handle a dialog",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_evaluate",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Evaluate JavaScript",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_file_upload",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Upload files",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_drop",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Drop files or data onto an element",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_find",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Find in page snapshot",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_fill_form",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Fill form",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_press_key",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Press a key",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_type",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Type text",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_navigate",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Navigate to a URL",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_navigate_back",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Go back",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_network_requests",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "List network requests",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_network_request",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Show network request details",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_run_code_unsafe",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Run Playwright code (unsafe)",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_take_screenshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Take a screenshot",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_snapshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Page snapshot",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_click",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Click",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_drag",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Drag mouse",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_hover",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Hover mouse",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_select_option",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Select option",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_tabs",
+          "requiresConfirmation": true,
+          "annotations": {
+            "title": "Manage tabs",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "openWorldHint": true
+          }
+        },
+        {
+          "name": "browser_wait_for",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Wait for",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "openWorldHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.browser.browser-use-local",
+      "convertedTools": [
+        {
+          "name": "browser_navigate",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_click",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_type",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_get_state",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_extract_content",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_get_html",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_screenshot",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_scroll",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_go_back",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_list_tabs",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_switch_tab",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_close_tab",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "retry_with_browser_use_agent",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_list_sessions",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_close_session",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "browser_close_all",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.workspace.filesystem",
+      "convertedTools": [
+        {
+          "name": "read_file",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "read_text_file",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "read_media_file",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "read_multiple_files",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "write_file",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "edit_file",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "create_directory",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "list_directory",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "list_directory_with_sizes",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "directory_tree",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "move_file",
+          "requiresConfirmation": true,
+          "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "search_files",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "get_file_info",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        },
+        {
+          "name": "list_allowed_directories",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true,
+            "openWorldHint": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.dev.microsoft-learn",
+      "convertedTools": [
+        {
+          "name": "microsoft_docs_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Microsoft Docs Search",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "microsoft_code_sample_search",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Microsoft Code Sample Search",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true
+          }
+        },
+        {
+          "name": "microsoft_docs_fetch",
+          "requiresConfirmation": false,
+          "annotations": {
+            "title": "Microsoft Docs Fetch",
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.workspace.sqlite",
+      "convertedTools": [
+        {
+          "name": "read_query",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "write_query",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "create_table",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "list_tables",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "describe_table",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "append_insight",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.workspace.markitdown",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.devops.vercel-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.productivity.discord",
+      "convertedTools": [
+        {
+          "name": "discord_create_category",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_edit_category",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_delete_category",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_login",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_send",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_get_forum_channels",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_create_forum_post",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_get_forum_post",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_reply_to_forum",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_create_text_channel",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_delete_channel",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_read_messages",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_get_server_info",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_add_reaction",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_add_multiple_reactions",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_remove_reaction",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_delete_forum_post",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_delete_message",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_create_webhook",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_send_webhook_message",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_edit_webhook",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "discord_delete_webhook",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.productivity.slack-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.productivity.telegram",
+      "convertedTools": [
+        {
+          "name": "SEND_MESSAGE",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "GET_CHANNEL_INFO",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "FORWARD_MESSAGE",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "PIN_MESSAGE",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "GET_CHANNEL_MEMBERS",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.workspace.fetch",
+      "convertedTools": [
+        {
+          "name": "fetch",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    },
+    {
+      "id": "mcp.dev.github-remote",
+      "convertedTools": []
+    },
+    {
+      "id": "mcp.browser.chrome-devtools",
+      "convertedTools": [
+        {
+          "name": "click",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "close_page",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "drag",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "emulate",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "evaluate_script",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "fill",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "fill_form",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "get_console_message",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "get_network_request",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "handle_dialog",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "hover",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "lighthouse_audit",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "list_console_messages",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "list_network_requests",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "list_pages",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "navigate_page",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "new_page",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "performance_analyze_insight",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "performance_start_trace",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "performance_stop_trace",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "press_key",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "resize_page",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "select_page",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        },
+        {
+          "name": "take_heapsnapshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "take_screenshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "take_snapshot",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "type_text",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "upload_file",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": false
+          }
+        },
+        {
+          "name": "wait_for",
+          "requiresConfirmation": false,
+          "annotations": {
+            "readOnlyHint": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp.dev.bug-bounty-intelligence",
+      "convertedTools": [
+        {
+          "name": "scan_contract",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "get_scan_report",
+          "requiresConfirmation": false,
+          "annotations": null
+        },
+        {
+          "name": "list_vulnerability_patterns",
+          "requiresConfirmation": false,
+          "annotations": null
+        }
+      ]
+    }
+  ],
+  "effect": {
+    "tool": "create_directory",
+    "confirmationRequests": 0,
+    "denied": false,
+    "directoryCreated": true,
+    "result": {
+      "content": "Successfully created directory /private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/sandbox/real-runtime-fs/new-directory-2"
+    }
+  }
+}

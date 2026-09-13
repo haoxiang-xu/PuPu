@@ -1,0 +1,2123 @@
+{
+  "toolkitId": "skillpack.frontend-design",
+  "catalog": {
+    "id": "skillpack.frontend-design",
+    "title": "Frontend Design",
+    "titleZh": "\u524d\u7aef\u8bbe\u8ba1",
+    "blurb": "Anthropic's anti-generic UI design methodology \u2014 deliberate palette, typography and one justified aesthetic risk.",
+    "blurbZh": "Anthropic \u5b98\u65b9\u7684\u53cd\u6a21\u677f UI \u8bbe\u8ba1\u65b9\u6cd5\u8bba:\u6df1\u601d\u719f\u8651\u7684\u914d\u8272\u3001\u5b57\u4f53\u7f16\u6392,\u4ee5\u53ca\u4e00\u6b21\u8bf4\u5f97\u51fa\u7406\u7531\u7684\u7f8e\u5b66\u5192\u9669\u3002",
+    "gradient": [
+      "#d97757",
+      "#b05730"
+    ],
+    "source": {
+      "provider": "github",
+      "repo": "anthropics/skills",
+      "sha": "fa0fa64bdc967915dc8399e803be67759e1e62b8",
+      "license": "Apache-2.0"
+    },
+    "subset": [
+      "skills/frontend-design"
+    ],
+    "manifest": [
+      {
+        "path": "skills/frontend-design/SKILL.md",
+        "sha256": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd"
+      }
+    ],
+    "review": {
+      "recordId": "S5-2026-07-21-frontend-design",
+      "reviewedAt": "2026-07-21",
+      "reviewers": [
+        "claude-fable-5"
+      ]
+    },
+    "commandPreviews": [
+      {
+        "name": "frontend-design",
+        "description": "Deliberate palette, typography and one justified aesthetic risk \u2014 anti-generic UI",
+        "descriptionZh": "\u6df1\u601d\u719f\u8651\u7684\u914d\u8272\u4e0e\u5b57\u4f53\u7f16\u6392,\u4e00\u6b21\u8bf4\u5f97\u51fa\u7406\u7531\u7684\u7f8e\u5b66\u5192\u9669"
+      }
+    ]
+  },
+  "checkedAt": "2026-09-13T18:37:00.132372+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "skill-pack",
+  "download": "https://codeload.github.com/anthropics/skills/tar.gz/fa0fa64bdc967915dc8399e803be67759e1e62b8",
+  "commit": "fa0fa64bdc967915dc8399e803be67759e1e62b8",
+  "artifactSha256": "3fa5cb4472fc79626be4ebc3bf997b1ef57e413b8801a7ccac874860b287317f",
+  "files": [
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/.claude-plugin/marketplace.json",
+      "sha256": "af3ab8f818400d66a1febda92d700d2561d4c26a750a89cb770e5b096627f0bc",
+      "size": 1606
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/.gitignore",
+      "sha256": "2e959f6692e32ec34913e75202d399c4f20ee986abeb3303ab421435a18632e0",
+      "size": 40
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/README.md",
+      "sha256": "2fb9c4cc026366ea6e21c60cb23c908a4d27c62071819cc06beffaac102d0694",
+      "size": 5552
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/THIRD_PARTY_NOTICES.md",
+      "sha256": "a8ff7a84dee9dfb42ab448de281784387ceafdf63881b7c070ee2de7f6ed865c",
+      "size": 46162
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/algorithmic-art/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/algorithmic-art/SKILL.md",
+      "sha256": "3bc4092c09804853186524c826bc0621b940bb6122c05b84496dff95388e6eef",
+      "size": 19769
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/algorithmic-art/templates/generator_template.js",
+      "sha256": "9ee0f1da52ef8f7bbfde1917123654880890d43f2d388642d71eab6dd78f94c4",
+      "size": 7826
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/algorithmic-art/templates/viewer.html",
+      "sha256": "86c79d7ce97d2599ebe4bd9b97fdeb7295c9d3ed61ceeb513cbe1b2bb5d1ce29",
+      "size": 20844
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/brand-guidelines/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/brand-guidelines/SKILL.md",
+      "sha256": "1120b3769e2985cefb3d25be981b1f914abeba57ae079b83c20c666c164fa9fe",
+      "size": 2235
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/SKILL.md",
+      "sha256": "a1f288079624402f30682753c1d43920b6664785698d21d3e7aa197450a6448b",
+      "size": 11939
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/ArsenalSC-OFL.txt",
+      "sha256": "8ddd61b18ba2c0d0dbe4a691cf5f1a0673f473d02fa0546e67ee88c006aeff6e",
+      "size": 4373
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/ArsenalSC-Regular.ttf",
+      "sha256": "65e6f89df58f68fd905b3add34a79dd6106aa3b3044df0dad9676fff53d504b9",
+      "size": 165848
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BigShoulders-Bold.ttf",
+      "sha256": "b43bcd198b9fdf717dd42aa61a34dba32e01aceaeae659d689afd0ca52c37ea2",
+      "size": 94528
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BigShoulders-OFL.txt",
+      "sha256": "fbc746aabf0eb1847dfd92e2efc4596d79fa897d60b8e64062a22f585508fb3f",
+      "size": 4397
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BigShoulders-Regular.ttf",
+      "sha256": "18a879fc71978a4447150705caf880a9da3860083c259fd29e6dc03057b6842a",
+      "size": 94396
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Boldonse-OFL.txt",
+      "sha256": "45cc82ab4032273c0924025ffcf8f0665a68e1a5955e3f7247e5daf1deeb1326",
+      "size": 4390
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Boldonse-Regular.ttf",
+      "sha256": "cc2e540604565c0f90a7d8d46194a2f42fc9c45512cd2e39bf03b50eb68c35a4",
+      "size": 77168
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BricolageGrotesque-Bold.ttf",
+      "sha256": "a737b146fe0d77ffe8a86e3cd16700dd431d3b1e420d4fd80e142cd68a1cb50d",
+      "size": 90952
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BricolageGrotesque-OFL.txt",
+      "sha256": "0e4f4eb8534bc66a76aca13dd19c1f9731b2008866b29ccff182b764649df9b4",
+      "size": 4403
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/BricolageGrotesque-Regular.ttf",
+      "sha256": "972a6d098c9867ae131d0ea99e221e63976b11a19d4b931c2c7ace525674e4f6",
+      "size": 90920
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/CrimsonPro-Bold.ttf",
+      "sha256": "48f191e38355c8db100eb3ce157c20f9302a3b9a37b44a660f77ecfce3986609",
+      "size": 107352
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/CrimsonPro-Italic.ttf",
+      "sha256": "52318db3526b644e6efa60be0b3ca5a50e40fbe8bd026c261e0aa206f0772267",
+      "size": 108828
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/CrimsonPro-OFL.txt",
+      "sha256": "35680d14547b6748b6f362a052a46d22764ce5eccf96e18b74f567bb2ee58114",
+      "size": 4394
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/CrimsonPro-Regular.ttf",
+      "sha256": "48fad08cb1917a7b2f2c6fe5135d6c07743a6663cf7631ec4481108aaf081422",
+      "size": 106696
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/DMMono-OFL.txt",
+      "sha256": "bfe7842fcb88323e2981e24710c25202677385a8c75fb6a87217b275a0247ae3",
+      "size": 4392
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/DMMono-Regular.ttf",
+      "sha256": "f98ada968dc3b6b2c08d3f5caaf266977df0bfe0929372b93df5a06cf2ace450",
+      "size": 48852
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/EricaOne-OFL.txt",
+      "sha256": "e0de629968b52255548d5fafcf30b24ff9edae0eda362380755a75816404d0fa",
+      "size": 4410
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/EricaOne-Regular.ttf",
+      "sha256": "db1d89e80e33a8a01beaaac7a85df582857d24a43f1e181461aa7ff5d701476a",
+      "size": 24872
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/GeistMono-Bold.ttf",
+      "sha256": "75c0828d5c1ee44b9ef9f4df577bf41595ec362e2ea3f1e558590c9e92c7949d",
+      "size": 78304
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/GeistMono-OFL.txt",
+      "sha256": "6a873c900f584109b13ae0aaf81d6e3cf0a68751a216b03f7b6c68d547057bb4",
+      "size": 4388
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/GeistMono-Regular.ttf",
+      "sha256": "a55c1b51cda4afeab9e471e7947b85a20f7c8831d7e6b1470c1b7fbdc0f0f15e",
+      "size": 78232
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Gloock-OFL.txt",
+      "sha256": "c0a3f3125ac491ef3d1f09f401be4834c646562f647e44f2bcbc49f0466c656d",
+      "size": 4381
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Gloock-Regular.ttf",
+      "sha256": "e86b4ce66dbd3f1f83eee8db99ec96e0da1128c3f53df0e9b3b7472025dfe960",
+      "size": 95156
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexMono-Bold.ttf",
+      "sha256": "dbd2a2fb024579438d6400a84e57579bfd2dbe67c306c8fd9fde92a61e4f2eea",
+      "size": 136008
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexMono-OFL.txt",
+      "sha256": "5294ce778857e1eb02e830b6ab06435537d38f43055327e73d03a2d4d57d5123",
+      "size": 4363
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexMono-Regular.ttf",
+      "sha256": "ab08018ccd276b79fb2c636bb95b9c543598f9d50505fe92506fcb4dae7810cd",
+      "size": 133796
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexSerif-Bold.ttf",
+      "sha256": "b8d294e9b5c5a0940f167c3ced0f7ef2e3f57082ca3ff096ef30e86e26c1c159",
+      "size": 161000
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexSerif-BoldItalic.ttf",
+      "sha256": "da64b75f4284f53e7b5c71fa190a35b8bf3494fe19f1804c81c3a53340bca570",
+      "size": 169840
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexSerif-Italic.ttf",
+      "sha256": "b11f1048745e715a55c9d837b3f10226ca3d78867b7db7251ddad8f98dcf0f38",
+      "size": 170004
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/IBMPlexSerif-Regular.ttf",
+      "sha256": "77cd233a2af8dc6b1022faea3bb3b01f3c75af68bcf530cb6aeb15982ff3dbb7",
+      "size": 160380
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSans-Bold.ttf",
+      "sha256": "444f85bf1c4b0e1ce1ca624f6be54bcd832207714ccaf4ea99ee531341683bdf",
+      "size": 68084
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSans-BoldItalic.ttf",
+      "sha256": "3762f6cef95d6039489ad5ba5787d4c30f17a1ad01e9ac3c816ed69692722a68",
+      "size": 70004
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSans-Italic.ttf",
+      "sha256": "78e85858e371b2cb4e18f617c10f0f937c0e12a0887ffee98555b24ed305b3a7",
+      "size": 69900
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSans-OFL.txt",
+      "sha256": "bf4dc6d13a8cccd4807133c77a1ee9619a16b92cb23322258725ab6731c2f6e5",
+      "size": 4403
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSans-Regular.ttf",
+      "sha256": "a22cb26e48fd79bcb01bf2fc92d36785474dce36d9c544ab0a8868c2657c4a87",
+      "size": 68028
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSerif-Italic.ttf",
+      "sha256": "9c86e4d5a47b50224a2463a9eca8535835257c8e85c470c2c6b454b1af6f046e",
+      "size": 70868
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/InstrumentSerif-Regular.ttf",
+      "sha256": "56ac3be03ac3ba283196b3e77850ab2ffcf56cfb6fd3212c5620109a972f8c99",
+      "size": 69312
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Italiana-OFL.txt",
+      "sha256": "8373b11312ace78c4cec2e8f9f6aa9f2330601107dac7bcf899c6f2dbd40c5a5",
+      "size": 4394
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Italiana-Regular.ttf",
+      "sha256": "15c4dd6ab8cf4a29ba8826f65edcbe2f6c266c557d34d081f25072dfd5605fd2",
+      "size": 27184
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/JetBrainsMono-Bold.ttf",
+      "sha256": "a2349098b9e45419e7bf0e2958d6c4937a049dded37387b08be725be4c7615f3",
+      "size": 114828
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/JetBrainsMono-OFL.txt",
+      "sha256": "a76abf002c49097d146e86740a3105a5d00450b1592e820a1109a8c5680cd697",
+      "size": 4399
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/JetBrainsMono-Regular.ttf",
+      "sha256": "b6b1ff4ddefe36d7f2a6174e1d001cab374e594519ee9049af028d577b64c5f5",
+      "size": 114904
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Jura-Light.ttf",
+      "sha256": "c891a381df056b2c4dfe85841e911bf45da0890fa21a7b2692cbe5ea1f505e1e",
+      "size": 154308
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Jura-Medium.ttf",
+      "sha256": "c72965cb732a92872643819fd1734128238583cc36b116313859137a51d3368a",
+      "size": 154488
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Jura-OFL.txt",
+      "sha256": "eaf9bdb675f6d87e5feb88199ab3ea581d3bd2082f426e384fa9c394576d7260",
+      "size": 4380
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/LibreBaskerville-OFL.txt",
+      "sha256": "55959eef5b0c3b2e3c1c7631b8ff0f9447d75de20f29cfa7db5bcfb026763343",
+      "size": 4449
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/LibreBaskerville-Regular.ttf",
+      "sha256": "2101302538d9e88adb679031c04623e4578b5745e89566284fd2c508d79acae0",
+      "size": 147584
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Lora-Bold.ttf",
+      "sha256": "7d74015e950c2fb66519c7295b8155621d22200ae2ca2a4c6b43ce3c490cac87",
+      "size": 133828
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Lora-BoldItalic.ttf",
+      "sha256": "152f87e71f5ddb60d5c57ecd9132807c947e65c42977193c9164e7c5a6690081",
+      "size": 140332
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Lora-Italic.ttf",
+      "sha256": "be627e595184e8afe521f08da0607eee613f1997d423bc8dadc5798995581377",
+      "size": 139328
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Lora-OFL.txt",
+      "sha256": "62e37a82d3f1ef2a70712885fa8b3144b65fd144d8e748d6196b690a354d792c",
+      "size": 4423
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Lora-Regular.ttf",
+      "sha256": "7ed00e7c9cdf16ab7e2fd2361fe45d4f0b61263cd60aae398b27b7ee08108827",
+      "size": 133888
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/NationalPark-Bold.ttf",
+      "sha256": "69ac4c301c4a7233c6e602d12a92c54d7967b575f4449951c45ce773f7acff53",
+      "size": 79208
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/NationalPark-OFL.txt",
+      "sha256": "81c6c71d83b5b45d7344f96df12bb4a2477a5b092a9144757ee1d0f50f855175",
+      "size": 4399
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/NationalPark-Regular.ttf",
+      "sha256": "a477338b7e18308d476650dfe31235ef86a883572665e56ffb5fb80f82009b58",
+      "size": 76424
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/NothingYouCouldDo-OFL.txt",
+      "sha256": "7c2a6970584ddad04919816163746f83b378078015899b18468b40f05e9ce128",
+      "size": 4363
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/NothingYouCouldDo-Regular.ttf",
+      "sha256": "d866f985896d3280f4fce72db7e17302c24a0c1fdb0699b6b5ed3af14f944d57",
+      "size": 32020
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Outfit-Bold.ttf",
+      "sha256": "6654b93d21301ec61887d3cedd6c11d9df1b1dfb63f9cf45ac7995f6e2235ab1",
+      "size": 55392
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Outfit-OFL.txt",
+      "sha256": "1945b62cd76da9a3051a1660dde72afaa64ffc2666d30e7a78356d651653ba2f",
+      "size": 4389
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Outfit-Regular.ttf",
+      "sha256": "f24945365147c9e783e91d8649959b59be6b00c9ee4ecd2f6b33afbb2dd871fe",
+      "size": 54912
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/PixelifySans-Medium.ttf",
+      "sha256": "38397504f71c122b03d234ea6f55118e3d5bdbddffd82bedddbd7755d3b3be82",
+      "size": 51072
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/PixelifySans-OFL.txt",
+      "sha256": "7f54d1d9f1ae1ba9f2722f978145f90324fea34ca3c2304b3a29cfa96ac6037e",
+      "size": 4395
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/PoiretOne-OFL.txt",
+      "sha256": "2eaf541f7eb8b512e4c757a5212060abf5b6edfef230e9d7640bf736b315c33a",
+      "size": 4366
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/PoiretOne-Regular.ttf",
+      "sha256": "9cf265b139648b36b6c0afdfeb0bf27f7e66db9a16094bc40f644d8da05bc318",
+      "size": 45244
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/RedHatMono-Bold.ttf",
+      "sha256": "7ef48353f4be5ddb90f000f6fad48f2b62b3e8c27d9818d8d45ff46c201065e0",
+      "size": 34420
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/RedHatMono-OFL.txt",
+      "sha256": "435fbfb7e66988b2a06686a4cb966faec733f35d8fe100a1601573c27f3e0bb8",
+      "size": 4394
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/RedHatMono-Regular.ttf",
+      "sha256": "452fe826871b37539f5212b20c87cf30f82f58dd2741f1c96edd1dcbdc0db6b4",
+      "size": 34488
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Silkscreen-OFL.txt",
+      "sha256": "6b849745119bbe85ec01fd080c9cd50234da9f52ac6e48b55d1a424a0c4d7ca9",
+      "size": 4394
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Silkscreen-Regular.ttf",
+      "sha256": "49567408600809e25147e9225ac4f37f410e2df45a750696c45027531fb65f1b",
+      "size": 31960
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/SmoochSans-Medium.ttf",
+      "sha256": "dd76e6e77cce82f827a8654cd906e9ce58f3aaf78adda63c4a7f655b8ecb41f0",
+      "size": 59704
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/SmoochSans-OFL.txt",
+      "sha256": "74c9c4eb88e891483e1b7bc54780b452cbf4f4df66d4e71881d7569aa2130749",
+      "size": 4396
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Tektur-Medium.ttf",
+      "sha256": "52bbe8c9b057b3d2da4eeace31a524b1ea26a1375ae34319cf6900ccc57a4c82",
+      "size": 76248
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Tektur-OFL.txt",
+      "sha256": "3f1466cb5438f31782eeb6e895f3a655bc4d090e24263e331f555357d1cb734e",
+      "size": 4385
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/Tektur-Regular.ttf",
+      "sha256": "162e1b36c4718c5b051b36c971ad7e50d341944f35618f480422ebbe72988f98",
+      "size": 75604
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/WorkSans-Bold.ttf",
+      "sha256": "240d125fc9f8561363dc1ea3f513501253bd70942f41468f48f0b0cafb0c82e2",
+      "size": 191304
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/WorkSans-BoldItalic.ttf",
+      "sha256": "a5b2cad813df0aaa7d16621f2e93b5117c25e9bc788bc9a3ad218e9d6348ce34",
+      "size": 175772
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/WorkSans-Italic.ttf",
+      "sha256": "6b7f7002e0b0c8b261fe878658ef5551e3e59d9f6b609b04efb90dde1e2c1ada",
+      "size": 174280
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/WorkSans-OFL.txt",
+      "sha256": "ace8c22a3326318b54e67c3691857929634205533f454a70ef5a3473ddb2e2ba",
+      "size": 4397
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/WorkSans-Regular.ttf",
+      "sha256": "e67985a843df0d3cdee51a3d0f329eb1774a344ad9ff0c9ab923751f1577e2a4",
+      "size": 188916
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/YoungSerif-OFL.txt",
+      "sha256": "cdcb8039606b40a027a6d24586ec62d5fe29c701343d82a048c829cb28a3dd28",
+      "size": 4398
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/canvas-design/canvas-fonts/YoungSerif-Regular.ttf",
+      "sha256": "f8dc08f77abad753a00670af70756a8ace938e5c3f0b770f4f4c2071c4bd8fc6",
+      "size": 105136
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/SKILL.md",
+      "sha256": "1d08b3be1c02b6bd2d8c966b1645e234fbb36454d2dd4cbd39802d2f321bd0f4",
+      "size": 73938
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/csharp/claude-api/README.md",
+      "sha256": "16481a361eda1fb0a58ac4581553e3dafab80b6c90ba9be7dcbe426905a8df0f",
+      "size": 18060
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/csharp/claude-api/batches.md",
+      "sha256": "19d17c89efe01f13a2a173a05169dee9b6bbdd5274ec2716395c4faa6ee7029a",
+      "size": 415
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/csharp/claude-api/files-api.md",
+      "sha256": "413d08653a31766fdc3196f25af6ce386b085c41372dcbf33e9205cd35253731",
+      "size": 679
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/csharp/claude-api/streaming.md",
+      "sha256": "8cd323dceb3d28963fcde3ecd18f2fecde0c7d87b441f7361dab5e8795f5fee2",
+      "size": 793
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/csharp/claude-api/tool-use.md",
+      "sha256": "80013059920daaea42a32ccb1786071c36068871c84115fc3dffca334bdd90f6",
+      "size": 6022
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/curl/examples.md",
+      "sha256": "9ddc35cfa47d47e307a9346c569c15c83b0d6185ec2e3cae26d353150c04bbcf",
+      "size": 8609
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/curl/managed-agents.md",
+      "sha256": "ded9c1d2f012a0c0cf29050f9c95180d4b549a0697e4424fecab55a65980dee1",
+      "size": 7546
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/go/claude-api/README.md",
+      "sha256": "24816178eaa12ffd7464326dbbcaedb911e2695bd6aa17fa6184cd346c54631c",
+      "size": 7193
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/go/claude-api/files-api.md",
+      "sha256": "144c12678497f872436aed71944e0e9ba73fea08f4a771e0bec5c1c40d620866",
+      "size": 713
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/go/claude-api/streaming.md",
+      "sha256": "066a5195398a1c66835d306f5d725708788046e34bf70a0f3a2df53e397537ca",
+      "size": 1039
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/go/claude-api/tool-use.md",
+      "sha256": "8a447360fc87b439aff89ef57730f206e76e3ca3f483602f4148638da13b70ec",
+      "size": 8169
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/go/managed-agents/README.md",
+      "sha256": "bc9eb191b42bb217b7b821427c602f1f0770f0984cd23834e8751b3471d2ef6e",
+      "size": 18688
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/java/claude-api/README.md",
+      "sha256": "f69567754943deebaaedb848c5b19193ca8890e2f5c863a0e9108a2f3d00a3f6",
+      "size": 10900
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/java/claude-api/files-api.md",
+      "sha256": "81550cec88f2de0c9af8d6826a4e624668a18ffa25ff7217595e403045a88800",
+      "size": 969
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/java/claude-api/streaming.md",
+      "sha256": "de8d63789e440eb00610908007f6a1593d5fdbdca5708fcafb8e6a50a4f58f3d",
+      "size": 661
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/java/claude-api/tool-use.md",
+      "sha256": "d61ec94bc6d57db1ac6c1eeb6ca8cd852c8bf00124874ef4fe75b2d87155814f",
+      "size": 9546
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/java/managed-agents/README.md",
+      "sha256": "6b56c9fd4585525368062955d125800f948123f4014d45cea4be7f5691590a65",
+      "size": 16695
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/claude-api/README.md",
+      "sha256": "80caa60268f2d27472cef4470312eadde0bae9d765cb80e87f2d22507a290a59",
+      "size": 5786
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/claude-api/batches.md",
+      "sha256": "45cc12df38c2452d28cfb46ef85300b620f7efce0d2c3117f4a1af6916b62b76",
+      "size": 449
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/claude-api/files-api.md",
+      "sha256": "a1f2467c6674696b4036ca13026c1f19c0e661bbf94b6e1da0deeb1492958871",
+      "size": 241
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/claude-api/streaming.md",
+      "sha256": "f4b6b685ff1b0c54631e9a456d9933d1b2f31f50825e0959a74384014808da4c",
+      "size": 684
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/claude-api/tool-use.md",
+      "sha256": "d4474a01bea5fa4bb6d5c27270333dc76bf5be8e71587e1c440fbd217df5345a",
+      "size": 8115
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/php/managed-agents/README.md",
+      "sha256": "df276cf31a3708df4b08171e70b396f16cc8f67410f14374454effb43a7b4cd6",
+      "size": 13265
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/claude-api/README.md",
+      "sha256": "671ad1ce74fcc88c3e21cdf92edec2ad70de120fefac0ad264ef74d4cd71f244",
+      "size": 18763
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/claude-api/batches.md",
+      "sha256": "6849033ccaaf140ac52a0cf4c923fd6ae545754f67d7a72d20c36036cdacbe68",
+      "size": 5592
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/claude-api/files-api.md",
+      "sha256": "68d034200244045b7f8b8ba31e2860ca633d0b7141a151317a5d8aeba013a603",
+      "size": 4379
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/claude-api/streaming.md",
+      "sha256": "a3c980a9256bee23bfd4fbfe044637d58f7ba66464ed6a192f61ee622bd96f5a",
+      "size": 6196
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/claude-api/tool-use.md",
+      "sha256": "490dc14dbaa0cf471bff456aea5eba95101b7c69f767cc9d7032d93feb0f6f43",
+      "size": 16933
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/python/managed-agents/README.md",
+      "sha256": "8f797c6e84c89bc63c0d899f1e2ea9c7457778372d6e35906ac7426e50cc47ac",
+      "size": 10098
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/ruby/claude-api/README.md",
+      "sha256": "036021fee02420d8d9fe9c7283eba932b4ebe9f2ebbcc1be4bf8e3e89d6a8d30",
+      "size": 4164
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/ruby/claude-api/streaming.md",
+      "sha256": "e1edcb452ceeadeead3f58732c33cf58f45af9907f9b30230e88fe2db839c51c",
+      "size": 237
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/ruby/claude-api/tool-use.md",
+      "sha256": "ea7e1cd0a20c9b40e0bfae0b0390ab0f00d6c67d11df87c8abec76121a962551",
+      "size": 1065
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/ruby/managed-agents/README.md",
+      "sha256": "5f3aec036d8b8866a2297d3330e14f8dfc614bbac7a7cff8e894812df453dd3b",
+      "size": 10199
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/agent-design.md",
+      "sha256": "8660a1965bc280ce9264e96ab8960c57f385a03de9f2d8bda6a504482d33b0ff",
+      "size": 8506
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/anthropic-cli.md",
+      "sha256": "7ffa53b02d92e3227d055b80ea3506c066bf7409c59878f722e2088f26f18894",
+      "size": 16220
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/claude-platform-on-aws.md",
+      "sha256": "4213d75b3eace63fa7142389160565a54fc482a949aedad87ca16f02f856e9ef",
+      "size": 3884
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/error-codes.md",
+      "sha256": "30f469fdf1ef7ac423e01d8b66e150bee6017bb3f4238841ac744d0ce206c871",
+      "size": 11898
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/live-sources.md",
+      "sha256": "46ca91c1bb757b97b10a78d8b29152ad11c52213aa328397267535a86de1c949",
+      "size": 18827
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-api-reference.md",
+      "sha256": "489651518999b9401b38cda8561e726ef9e2ffb5aa1bc0f548c9d65ef738dac7",
+      "size": 30692
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-client-patterns.md",
+      "sha256": "de288a933ed7702edba6e6ec54afdb3addcc861245a09255da3496fce2d0f3a8",
+      "size": 9701
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-core.md",
+      "sha256": "5a5b3bd53adb8cfb9be60e4dc41fdd8a5b2b397874ddd4f5c4e186caafcf5a45",
+      "size": 18581
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-environments.md",
+      "sha256": "c26934889eaccb936b2eb900ec2c5a648881784280c1beba0e249864078b90b0",
+      "size": 11530
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-events.md",
+      "sha256": "8e8ce1b6eb7bf52333092674be9d89ea1bb88c474e0e37f02cdff66410efa1b6",
+      "size": 14937
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-memory.md",
+      "sha256": "1c2825364115ccf9d0a779447336764ebbaaf875f79c2a064075ca9235d16c16",
+      "size": 9583
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-multiagent.md",
+      "sha256": "bd1034335c0424df96c91d9e61c519a5e0e05a5031e8fc8a33f954665c1eabd2",
+      "size": 6875
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-onboarding.md",
+      "sha256": "fa44c171a0c12104836f75f9abd51d3ea07c1e3b488f650755ebd12899a24732",
+      "size": 10352
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-outcomes.md",
+      "sha256": "bf195965dca27a07a996c66df16ccb62c745dd000039f1f364b8a4e75dd73b96",
+      "size": 6140
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-overview.md",
+      "sha256": "aa4d4659c5249122ca102d849cd175c1093de38010f878301e89c9a6824feaac",
+      "size": 11082
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-scheduled-deployments.md",
+      "sha256": "63b7b4ca743cfe9a4b3d453dc104820e7ea2410fc18d8d52e6973c3196003ca2",
+      "size": 7082
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-self-hosted-sandboxes.md",
+      "sha256": "225865291eb1eda677451a416849523b9be1bf81661c6c0306408501b089e8bc",
+      "size": 10181
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-tools.md",
+      "sha256": "faaec13061bbd9657653a8731fb727168dfe5fbcc3b53a7a964c49560ac94908",
+      "size": 19373
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/managed-agents-webhooks.md",
+      "sha256": "b2f80f0155b1fe037abaa0ae22d8fd909dbe30a30131e82b18834667b61d0174",
+      "size": 6552
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/model-migration.md",
+      "sha256": "a9d829fef3ad4e0a5afebd4b3caf0e9c584db9579ffdcd811621d37a22560bec",
+      "size": 144443
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/models.md",
+      "sha256": "21d00e97640bafb3c5f2935c1c802792bcc4a7598a95b658fc8cdbae6a87baa1",
+      "size": 10862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/platform-availability.md",
+      "sha256": "54895cf5e812706cd4c6379b41c0781b3292237236a2e71cfbdc3d02f434348c",
+      "size": 5701
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/prompt-caching.md",
+      "sha256": "7c242024cfdfb0b3c9a5a884248df73d1377ab497e7097a4bed1c4444542a7a2",
+      "size": 14540
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/token-counting.md",
+      "sha256": "231c4d669618915958adb2db2d73470f3e2a376aaf5472e39b651d3e5efa044d",
+      "size": 1610
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/shared/tool-use-concepts.md",
+      "sha256": "dc2fe5f4e36a8ccfe6567f0c3349e991e58e65c5bf141263dda6395b648bce92",
+      "size": 25097
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/claude-api/README.md",
+      "sha256": "4668edb425e307708040a87ae20cb5c2d2ca3e5fca8c9c0c3bcd39778df14940",
+      "size": 14560
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/claude-api/batches.md",
+      "sha256": "07e75f7e6864aa79fad1f4135a06f1907dc0149ce3234f0851c950b93e0a9e8f",
+      "size": 2596
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/claude-api/files-api.md",
+      "sha256": "0e70fae5742e78d93314744777dc9359d71d6e3511ca67abe3d51aaf1e107331",
+      "size": 2261
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/claude-api/streaming.md",
+      "sha256": "7af1abfc92f45b8fff0bab3bcbb3d99a011cc19f93f0a8cf0e0cf73e0a1a3276",
+      "size": 5739
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/claude-api/tool-use.md",
+      "sha256": "1f7108408432767cf277090ef9e5b7b75b1fa04a8bcf62f8d48e9dc3dac28039",
+      "size": 16311
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/claude-api/typescript/managed-agents/README.md",
+      "sha256": "ab1fe28ad2e1c2fe9938807d6e634ee3a1b0f35ecb32c0c755120a1908c543fc",
+      "size": 9565
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/doc-coauthoring/SKILL.md",
+      "sha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4",
+      "size": 15815
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/LICENSE.txt",
+      "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa",
+      "size": 1467
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/SKILL.md",
+      "sha256": "8017469ea95fb7d28225c62daf8e2f3492a7b516fc64c18c28977cbf8980b7fe",
+      "size": 6911
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/__init__.py",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "size": 1
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/accept_changes.py",
+      "sha256": "0c991d2bc7304a1248e9f3bf9b1498f0b6e76641fc457e7cbd73c99b4eef3a74",
+      "size": 4051
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/comment.py",
+      "sha256": "37d116e5f56bb142b208c6c6a4bbcf960495abf470ddb7c6675ccfac864ba3d7",
+      "size": 14054
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/merge_runs.py",
+      "sha256": "3ab367fd7fba4647943d0aa5e65203b15458551410f5ffc821d902616a4b9f40",
+      "size": 9398
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/helpers/__init__.py",
+      "sha256": "678e42456d9e10923c8b9a93691cdd993de3433448a184fa72a0c31f4ae086d5",
+      "size": 3358
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/helpers/pptx_chart.py",
+      "sha256": "47ac266f7d39d11ede6bb0d1f3a19d801394fd2964636f1b48beb701f1832964",
+      "size": 5862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/helpers/pptx_slide.py",
+      "sha256": "7b9f69b4a5bd6a2d9eabf9e0e3e796d7a421373145f6a8cd11f60b7ba2d6a5d0",
+      "size": 1675
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/helpers/pptx_theme.py",
+      "sha256": "ebb54c56e9c13807f5f98f0cae22d47cdd0162da8525eaa664e3f2c8c8d6bb03",
+      "size": 3510
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "sha256": "41b93bd8857cc68b1e43be2806a872d736a9bdd6566900062d8fdb57d7bbb354",
+      "size": 74984
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "sha256": "3fd0586f2637b98bb9886f0e0b67d89e1cc987c2d158cc7deb5f5b9890ced412",
+      "size": 6956
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "sha256": "29b254ee0d10414a8504b5a08149c7baec35a60d5ff607d6b3f492aa36815f40",
+      "size": 51302
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "sha256": "5cb76dabd8b97d1e9308a1700b90c20139be4d50792d21a7f09789f5cccd6026",
+      "size": 624
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "sha256": "5375417f0f5394b8dd1a7035b9679151f19a6b65df309dec10cfb4a420cb00e9",
+      "size": 152039
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "sha256": "5d389d42befbebd91945d620242347caecd3367f9a3a7cf8d97949507ae1f53c",
+      "size": 1231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "sha256": "b4532b6d258832953fbb3ee4c711f4fe25d3faf46a10644b2505f17010d01e88",
+      "size": 8862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "sha256": "bdad416b096b61d37b71603b2c949484f9070c830bdaeba93bf35e15c8900614",
+      "size": 14795
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "sha256": "d173c3e5d61e42e2e3a97226c632fd2ab7cc481fc4e492365b87024ab546daff",
+      "size": 83612
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "sha256": "3c6709101c6aaa82888df5d8795c33f9e857196790eb320d9194e64be2b6bdd8",
+      "size": 1269
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "sha256": "0b364451dc36a48dd6dae0f3b6ada05fd9b71e5208211f8ee5537d7e51a587e2",
+      "size": 7328
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "sha256": "e2abacbb9a55ce1365f8961bc1b1395bbc811e512b111000d8c333f98458dece",
+      "size": 6382
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "sha256": "0ef4bb354ff44b923564c4ddbdda5987919d220225129ec94614a618ceafc281",
+      "size": 1248
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "sha256": "0d103b99a4a8652f8871552a69d42d2a3760ac6a5e3ef02d979c4273257ff6a4",
+      "size": 880
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "sha256": "9c085407751b9061c1f996f6c39ce58451be22a8d334f09175f0e89e42736285",
+      "size": 2608
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "sha256": "bc92e36ccd233722d4c5869bec71ddc7b12e2df56059942cce5a39065cc9c368",
+      "size": 3507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "sha256": "7b5b7413e2c895b1e148e82e292a117d53c7ec65b0696c992edca57b61b4a74b",
+      "size": 7507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "sha256": "3213ef1631606250f5010b42cad7ef716f7c59426367798e33c374c0ec391d3a",
+      "size": 23313
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "sha256": "12264f3c03d738311cd9237d212f1c07479e70f0cbe1ae725d29b36539aef637",
+      "size": 1367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "sha256": "beffeed56945c22a77440122c8bdc426f3fcbe7f3b12ea0976c770d1f8d54578",
+      "size": 242277
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "sha256": "f5ee623b08b6a66935e5aced2f5d8ad0fc71bf9e8e833cd490150c0fa94b8763",
+      "size": 26148
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "sha256": "585bedc1313b40888dcc544cb74cd939a105ee674f3b1d3aa1cc6d34f70ff155",
+      "size": 25279
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "sha256": "133c9f64a5c5d573b78d0a474122b22506d8eadb5e063f67cdbbb8fa2f161d0e",
+      "size": 535
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "sha256": "6bdeb169c3717eb01108853bd9fc5a3750fb1fa5b82abbdd854d49855a40f519",
+      "size": 5712
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "sha256": "475dcae1e7d1ea46232db6f8481040c15e53a52a3c256831d3df204212b0e831",
+      "size": 4010
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "sha256": "c2dd9f61f892deae6acd8d20771ea79b12018af25f3bf8d06639c8542d218cfd",
+      "size": 171367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "sha256": "a539aa2fb154fa50e0f5cc97e6ad7cbc66f8ec3e3746f61ec6a8b0d5d15ecdf2",
+      "size": 4646
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "sha256": "9e0b7209fc69ab11987900404540969976000c5ebe4d4f58c43dc3842886bf3a",
+      "size": 1963
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "sha256": "451958454e8588dfc7cd945981ada142ca06ff3307937f5700df059c2b307fa8",
+      "size": 2515
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "sha256": "6de111e11403f7cd49027400755bae0ea1cabef2815f09bd40a24f0017613b24",
+      "size": 2856
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "sha256": "f565adfef5a502044abc3a9153e157edc25af78304d335994afb958874b15e26",
+      "size": 1344
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/mce/mc.xsd",
+      "sha256": "3a37e461ecf5a8670fdec34029703401f8728ab9c96ec1739a6ae58d55212413",
+      "size": 3127
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-2010.xsd",
+      "sha256": "568b26ee156cb9549aa439ca2158965f77b7c1602b7e0316f40ac6cf586e35f2",
+      "size": 26549
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-2012.xsd",
+      "sha256": "0fa75578a000439a7988ba0c59fdc69f774bbd416cbacc14d07125b3f686cb74",
+      "size": 3745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-2018.xsd",
+      "sha256": "be0ff793a22dd31384650c3a4da14c2fa8062751c2e97b0e5ee852bda13c60ad",
+      "size": 901
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "sha256": "fddc2b880cabb9005aebbc7e783e53c19fec1c03df7d0e2f2076a33a0fdfd081",
+      "size": 1778
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "sha256": "127ca209fa73d7cb708449cb355c871867948a96e4a74f7bf5811ef62d17991d",
+      "size": 1002
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "sha256": "842e7163409c8d74f4d7088a8bc99500d80bc75332681a0980055b08f374a604",
+      "size": 600
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "sha256": "16f6f8072249f431370723c2cd8974672e0d9c897e00e97dd918079df934871b",
+      "size": 745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/soffice.py",
+      "sha256": "df2c8d7249c132a4512d744482e4b5ed0ecbe885f0bcfb1295e7e6a7ced0432c",
+      "size": 5927
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validate.py",
+      "sha256": "346a4c89d92fff55e610f11efda48c30228815b29bdb10b987e48f7af70acf1e",
+      "size": 6142
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validators/__init__.py",
+      "sha256": "83e0f035c5abea238d3f2c3968afbd511ed022b527b7c9cb60a9434cc34ff987",
+      "size": 336
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validators/base.py",
+      "sha256": "f818ea28c793ba42960fa4498265e2632a62c86f7b5d6aff6fa89dacc02d59ea",
+      "size": 33756
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validators/docx.py",
+      "sha256": "93d3444c0ef3f043d21a2285c46d2cda478426b930dc33dcf3b11265935517b5",
+      "size": 17482
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validators/pptx.py",
+      "sha256": "17eadad2b7a8374ccbe4cda45693bcd6a36f9d61a7d60f9c9ceef9464dec8299",
+      "size": 15966
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/office/validators/redlining.py",
+      "sha256": "ed50d0885eee4b9c387f546b059bcaed64086815880a5167336244f93e305123",
+      "size": 11231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/templates/comments.xml",
+      "sha256": "a08ba83ee8790ac9e3dc61921f4988f19edd7e06ac09d6f1897a877c1581818d",
+      "size": 2603
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/templates/commentsExtended.xml",
+      "sha256": "544eeecfeceed4b468fff163cd9c366d33641c8b8ab691ce002576197846afe8",
+      "size": 2611
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/templates/commentsExtensible.xml",
+      "sha256": "bad10b3283e6ad6e7ef6d1ca5169683721ed690ee331282c65df04017e080631",
+      "size": 2707
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/templates/commentsIds.xml",
+      "sha256": "db20f9616e004ec42ef736e80c2384e45db0f8d1194d31dc8b37c7d6ecdd6420",
+      "size": 2619
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/docx/scripts/templates/people.xml",
+      "sha256": "056f63aa1197fd8c9dda980c9f1b9ff016fd5fa4a462df8aec5f384f39d23e37",
+      "size": 115
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/frontend-design/LICENSE.txt",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "size": 10174
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/frontend-design/SKILL.md",
+      "sha256": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd",
+      "size": 8260
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/SKILL.md",
+      "sha256": "067b7587a344a928fc6534ef66b1bcd591fc7c26d207ea7ca3334aeb678d6475",
+      "size": 1511
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/examples/3p-updates.md",
+      "sha256": "087e4363c0f3513728a7e695eeb9ead5c3ecd12a4681b59340691180e65b68fc",
+      "size": 3274
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/examples/company-newsletter.md",
+      "sha256": "30f81cfbdb03858a006169c72169024089c7c5d3d32611d337782da4f38c86b5",
+      "size": 3295
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/examples/faq-answers.md",
+      "sha256": "5ecd3356cd6666937f2ebefa753253edfdbdca15e368d07baf398bfcced72484",
+      "size": 2366
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/internal-comms/examples/general-comms.md",
+      "sha256": "4d3a4bb198a77626bcf018e96b2b45a2dbabed172d4ade0fcd70d23ae8a47a47",
+      "size": 602
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/SKILL.md",
+      "sha256": "0f4592dcb53cf2b5d6b7febee6b4152018b565551a1c29e3c612f57b218ab295",
+      "size": 9092
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/reference/evaluation.md",
+      "sha256": "8c99479f8a2d22a636c38e274537aac3610879e26f34e0709825077c4576f427",
+      "size": 21663
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/reference/mcp_best_practices.md",
+      "sha256": "80fb4369a349447cf18ecdd7494fe7938b6065377e9f08c077cec411093a3007",
+      "size": 7330
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/reference/node_mcp_server.md",
+      "sha256": "c3ba35a4f599dd53be9c6555ae72c19a7bf412cd5426576c2c08d42755482c66",
+      "size": 28550
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/reference/python_mcp_server.md",
+      "sha256": "2da52f77e675191014ca2e146a4b95aa04d0ca7dd7e2b100322df15ade685e80",
+      "size": 25099
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/scripts/connections.py",
+      "sha256": "9403668a2041568772082a8b334122c1f88daf0541fb393af4522d0094a47a6e",
+      "size": 4875
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/scripts/evaluation.py",
+      "sha256": "49ed1d17cdce5da101b210197740713f49b935c29d4f339542a14b132658e6f7",
+      "size": 12579
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/scripts/example_evaluation.xml",
+      "sha256": "9272b348ddcc4b06ba562367ccd0770e018158c0068ac5116d5e34aaeff8777a",
+      "size": 1194
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/mcp-builder/scripts/requirements.txt",
+      "sha256": "d5d7558b2368ecea9dfeed7d1fbc71ee9e0750bebd1282faa527d528a344c3c7",
+      "size": 29
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/LICENSE.txt",
+      "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa",
+      "size": 1467
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/SKILL.md",
+      "sha256": "9f78b8359fbd4943ad260a7a1e436e5a96503406d6c34e99f69223d647d85b9c",
+      "size": 8072
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/forms.md",
+      "sha256": "9530b3f57034792e0242a3abfe8b3c296466329551916f2ff6c5a70db78f7e44",
+      "size": 11854
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/reference.md",
+      "sha256": "03a5f964f8abecbbe156f363356e927e864d7ee964f1012c84ee1bfc8acbeb95",
+      "size": 16692
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/check_bounding_boxes.py",
+      "sha256": "0ced522402dd7b3c82a0be9518cf4e485fa9cc0467d7beab6ddb04cb36fcc3e1",
+      "size": 2774
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/check_fillable_fields.py",
+      "sha256": "1fe10b9980a5493c9bbec8c20630c603eaa475b45403751c08f26738736647b8",
+      "size": 268
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/convert_pdf_to_images.py",
+      "sha256": "7f58e292a67e18a8ff000d30bad2469389546731f7e8a698cc1d0aed001ea15d",
+      "size": 1008
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/create_validation_image.py",
+      "sha256": "8fa9fd7962c9f940045b81cf6b991e7c1057c1838e3f9cc6d305007a222ffebf",
+      "size": 1258
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/extract_form_field_info.py",
+      "sha256": "bb235b36f497bbb1c7c6821cecf527bbba7213520de11219da99f7b13a38c109",
+      "size": 4300
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/extract_form_structure.py",
+      "sha256": "6814e3fe8f78c2b16d766c132b5a727ff7a31b71d76a7d46bd6e40fe50bc97c5",
+      "size": 3945
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/fill_fillable_fields.py",
+      "sha256": "d140872c2e92e41b1e05370ae8d270c5b7f5ebdf55d9905f03bc974a9c708ff5",
+      "size": 3819
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pdf/scripts/fill_pdf_form_with_annotations.py",
+      "sha256": "8a56e063a49ed53c0b0e1d312ecf8023af76816ed139486ec3b539873de202fd",
+      "size": 3235
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/LICENSE.txt",
+      "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa",
+      "size": 1467
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/SKILL.md",
+      "sha256": "a7ff03e2c85b636f55232a6b1555f5dd90216b7a1a359ab289d8364e6acbc6a0",
+      "size": 20796
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/add_slide.py",
+      "sha256": "3922f819ee1f6b8bdc6aa146d1a86de70640f5f919321fe3f01a764482ff69c9",
+      "size": 14537
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/clean.py",
+      "sha256": "5c808cd4dff7e02661ef3c68b5917f4e25097cc6610c92a3a7df4a6366a5c3c1",
+      "size": 10415
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/helpers/__init__.py",
+      "sha256": "678e42456d9e10923c8b9a93691cdd993de3433448a184fa72a0c31f4ae086d5",
+      "size": 3358
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/helpers/pptx_chart.py",
+      "sha256": "47ac266f7d39d11ede6bb0d1f3a19d801394fd2964636f1b48beb701f1832964",
+      "size": 5862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/helpers/pptx_slide.py",
+      "sha256": "7b9f69b4a5bd6a2d9eabf9e0e3e796d7a421373145f6a8cd11f60b7ba2d6a5d0",
+      "size": 1675
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/helpers/pptx_theme.py",
+      "sha256": "ebb54c56e9c13807f5f98f0cae22d47cdd0162da8525eaa664e3f2c8c8d6bb03",
+      "size": 3510
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "sha256": "41b93bd8857cc68b1e43be2806a872d736a9bdd6566900062d8fdb57d7bbb354",
+      "size": 74984
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "sha256": "3fd0586f2637b98bb9886f0e0b67d89e1cc987c2d158cc7deb5f5b9890ced412",
+      "size": 6956
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "sha256": "29b254ee0d10414a8504b5a08149c7baec35a60d5ff607d6b3f492aa36815f40",
+      "size": 51302
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "sha256": "5cb76dabd8b97d1e9308a1700b90c20139be4d50792d21a7f09789f5cccd6026",
+      "size": 624
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "sha256": "5375417f0f5394b8dd1a7035b9679151f19a6b65df309dec10cfb4a420cb00e9",
+      "size": 152039
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "sha256": "5d389d42befbebd91945d620242347caecd3367f9a3a7cf8d97949507ae1f53c",
+      "size": 1231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "sha256": "b4532b6d258832953fbb3ee4c711f4fe25d3faf46a10644b2505f17010d01e88",
+      "size": 8862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "sha256": "bdad416b096b61d37b71603b2c949484f9070c830bdaeba93bf35e15c8900614",
+      "size": 14795
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "sha256": "d173c3e5d61e42e2e3a97226c632fd2ab7cc481fc4e492365b87024ab546daff",
+      "size": 83612
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "sha256": "3c6709101c6aaa82888df5d8795c33f9e857196790eb320d9194e64be2b6bdd8",
+      "size": 1269
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "sha256": "0b364451dc36a48dd6dae0f3b6ada05fd9b71e5208211f8ee5537d7e51a587e2",
+      "size": 7328
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "sha256": "e2abacbb9a55ce1365f8961bc1b1395bbc811e512b111000d8c333f98458dece",
+      "size": 6382
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "sha256": "0ef4bb354ff44b923564c4ddbdda5987919d220225129ec94614a618ceafc281",
+      "size": 1248
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "sha256": "0d103b99a4a8652f8871552a69d42d2a3760ac6a5e3ef02d979c4273257ff6a4",
+      "size": 880
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "sha256": "9c085407751b9061c1f996f6c39ce58451be22a8d334f09175f0e89e42736285",
+      "size": 2608
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "sha256": "bc92e36ccd233722d4c5869bec71ddc7b12e2df56059942cce5a39065cc9c368",
+      "size": 3507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "sha256": "7b5b7413e2c895b1e148e82e292a117d53c7ec65b0696c992edca57b61b4a74b",
+      "size": 7507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "sha256": "3213ef1631606250f5010b42cad7ef716f7c59426367798e33c374c0ec391d3a",
+      "size": 23313
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "sha256": "12264f3c03d738311cd9237d212f1c07479e70f0cbe1ae725d29b36539aef637",
+      "size": 1367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "sha256": "beffeed56945c22a77440122c8bdc426f3fcbe7f3b12ea0976c770d1f8d54578",
+      "size": 242277
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "sha256": "f5ee623b08b6a66935e5aced2f5d8ad0fc71bf9e8e833cd490150c0fa94b8763",
+      "size": 26148
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "sha256": "585bedc1313b40888dcc544cb74cd939a105ee674f3b1d3aa1cc6d34f70ff155",
+      "size": 25279
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "sha256": "133c9f64a5c5d573b78d0a474122b22506d8eadb5e063f67cdbbb8fa2f161d0e",
+      "size": 535
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "sha256": "6bdeb169c3717eb01108853bd9fc5a3750fb1fa5b82abbdd854d49855a40f519",
+      "size": 5712
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "sha256": "475dcae1e7d1ea46232db6f8481040c15e53a52a3c256831d3df204212b0e831",
+      "size": 4010
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "sha256": "c2dd9f61f892deae6acd8d20771ea79b12018af25f3bf8d06639c8542d218cfd",
+      "size": 171367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "sha256": "a539aa2fb154fa50e0f5cc97e6ad7cbc66f8ec3e3746f61ec6a8b0d5d15ecdf2",
+      "size": 4646
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "sha256": "9e0b7209fc69ab11987900404540969976000c5ebe4d4f58c43dc3842886bf3a",
+      "size": 1963
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "sha256": "451958454e8588dfc7cd945981ada142ca06ff3307937f5700df059c2b307fa8",
+      "size": 2515
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "sha256": "6de111e11403f7cd49027400755bae0ea1cabef2815f09bd40a24f0017613b24",
+      "size": 2856
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "sha256": "f565adfef5a502044abc3a9153e157edc25af78304d335994afb958874b15e26",
+      "size": 1344
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/mce/mc.xsd",
+      "sha256": "3a37e461ecf5a8670fdec34029703401f8728ab9c96ec1739a6ae58d55212413",
+      "size": 3127
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-2010.xsd",
+      "sha256": "568b26ee156cb9549aa439ca2158965f77b7c1602b7e0316f40ac6cf586e35f2",
+      "size": 26549
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-2012.xsd",
+      "sha256": "0fa75578a000439a7988ba0c59fdc69f774bbd416cbacc14d07125b3f686cb74",
+      "size": 3745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-2018.xsd",
+      "sha256": "be0ff793a22dd31384650c3a4da14c2fa8062751c2e97b0e5ee852bda13c60ad",
+      "size": 901
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "sha256": "fddc2b880cabb9005aebbc7e783e53c19fec1c03df7d0e2f2076a33a0fdfd081",
+      "size": 1778
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "sha256": "127ca209fa73d7cb708449cb355c871867948a96e4a74f7bf5811ef62d17991d",
+      "size": 1002
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "sha256": "842e7163409c8d74f4d7088a8bc99500d80bc75332681a0980055b08f374a604",
+      "size": 600
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "sha256": "16f6f8072249f431370723c2cd8974672e0d9c897e00e97dd918079df934871b",
+      "size": 745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/soffice.py",
+      "sha256": "df2c8d7249c132a4512d744482e4b5ed0ecbe885f0bcfb1295e7e6a7ced0432c",
+      "size": 5927
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validate.py",
+      "sha256": "346a4c89d92fff55e610f11efda48c30228815b29bdb10b987e48f7af70acf1e",
+      "size": 6142
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validators/__init__.py",
+      "sha256": "83e0f035c5abea238d3f2c3968afbd511ed022b527b7c9cb60a9434cc34ff987",
+      "size": 336
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validators/base.py",
+      "sha256": "f818ea28c793ba42960fa4498265e2632a62c86f7b5d6aff6fa89dacc02d59ea",
+      "size": 33756
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validators/docx.py",
+      "sha256": "93d3444c0ef3f043d21a2285c46d2cda478426b930dc33dcf3b11265935517b5",
+      "size": 17482
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validators/pptx.py",
+      "sha256": "17eadad2b7a8374ccbe4cda45693bcd6a36f9d61a7d60f9c9ceef9464dec8299",
+      "size": 15966
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/office/validators/redlining.py",
+      "sha256": "ed50d0885eee4b9c387f546b059bcaed64086815880a5167336244f93e305123",
+      "size": 11231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/pptx/scripts/thumbnail.py",
+      "sha256": "94ef83a84346aa2d63913de0d42bb2fe902ccdc17bfac6130096ca758381793c",
+      "size": 9802
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/SKILL.md",
+      "sha256": "dcd4803e61e913e6fc27294184cd3a71f09f5e924ff20c8a9a20173e7b3c2bcf",
+      "size": 33168
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/agents/analyzer.md",
+      "sha256": "bf68f4cac5a56c673a928c2e6d619586c5b93ea364026ab37547772cb45a663a",
+      "size": 10376
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/agents/comparator.md",
+      "sha256": "fe1fc9787c495d864c5d6eada47396478572325fde1b33a96d78bf4b849b7a3e",
+      "size": 7287
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/agents/grader.md",
+      "sha256": "57134da0c1a4eea33fbd74a1c9c44aa814f07d6bc64de303edb586f941e5d21a",
+      "size": 9049
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/assets/eval_review.html",
+      "sha256": "ce477dcc74dc1c0d1d3352646a79167b5a63634e936b1019160025065974e452",
+      "size": 7058
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/eval-viewer/generate_review.py",
+      "sha256": "fc9d1b9243fe5ab6012ebd579bd76d0035de1b79fd3b969de114defab26478fb",
+      "size": 16365
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/eval-viewer/viewer.html",
+      "sha256": "a53213426ee1100441d701a3a0d49cda7a842f992d2c36463f4d3cc0258575fa",
+      "size": 44998
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/references/schemas.md",
+      "sha256": "8e8876180a8989b406a4d3edddf875b04cdfd5805cc8616686d552b11ce4455f",
+      "size": 12061
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/aggregate_benchmark.py",
+      "sha256": "123ef128ea5ccc01a4b1ac212ef5567f21e9c13d3d240609780beeb3200c49aa",
+      "size": 14386
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/generate_report.py",
+      "sha256": "13df7118a3c50c83c4c3250a606d5f2b20b25a3d44cbc392b3d669ec75281453",
+      "size": 12847
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/improve_description.py",
+      "sha256": "87d864570220b699fac52da309d2d6efdb060647bfebc74f768128e646accf80",
+      "size": 11116
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/package_skill.py",
+      "sha256": "1a33059b0db1ef73375d46d513e5ea81369d2e8838c970597b0d52ddef8d1c0f",
+      "size": 4234
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/quick_validate.py",
+      "sha256": "67cf5703402013936c8fb75ad6a1afecd8841d45cc5e606b634eb05825fde365",
+      "size": 3972
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/run_eval.py",
+      "sha256": "43e3b8f80dbf69c343967ba77e268fae991d9fa3ed68b32a0ff02532cd48657f",
+      "size": 11464
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/run_loop.py",
+      "sha256": "7bd6f674203168520517eec94c55f493c0d154339b061b4d7c0f0dad187d0f21",
+      "size": 13605
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/skill-creator/scripts/utils.py",
+      "sha256": "3af8ae62c40c73ab712207436a0d9a981e845f25c5a7040229eb189cc8e45bb1",
+      "size": 1661
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/SKILL.md",
+      "sha256": "2efca615ce55a3edd8fc05c779068a8085816617991987e446606403cd3abb22",
+      "size": 7841
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/core/easing.py",
+      "sha256": "60bc943449802541f0f0881a874faa7ef408aaaf0b758fde756664ada7740452",
+      "size": 6265
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/core/frame_composer.py",
+      "sha256": "a127ea8f2a58893ea10a5c7b5cab4e2010af6515adc538676eb0cc14f5a03985",
+      "size": 4548
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/core/gif_builder.py",
+      "sha256": "b6f50d738c491ee0438a2e86e897f71cdab9792494ba4605f140befb0bddbf89",
+      "size": 9847
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/core/validators.py",
+      "sha256": "56bd19e3aae05f8387d78ec8185d6098b3dc909d1fa041211753da37212528a3",
+      "size": 3785
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/slack-gif-creator/requirements.txt",
+      "sha256": "edc7108a0c6b56183566c71ee96830f6dc791e3b41952112d9cb56b33a6bd757",
+      "size": 66
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/SKILL.md",
+      "sha256": "c35893e221e28895c52143cc11bf30e41a44817796b39d4b15727dadc9796552",
+      "size": 3124
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/theme-showcase.pdf",
+      "sha256": "3e126eca9fe99088051f7cb984c97cedb31c7d9e09ce0ba5d61bd01e70a0d253",
+      "size": 124310
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/arctic-frost.md",
+      "sha256": "868a75a8fb5b2a61d0f0ab87c437fe632d3cbab6371c418f06aa2816ac109ae0",
+      "size": 544
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/botanical-garden.md",
+      "sha256": "222cb8e7496abc9b75b29453c809fb9839e7e4b01fa45deecdd896b38d087765",
+      "size": 519
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/desert-rose.md",
+      "sha256": "bd065b8629be3b64655183927e248e3d892a27b8d184b009cfba89c96102744f",
+      "size": 496
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/forest-canopy.md",
+      "sha256": "ecb722efa24688e808b5bf323c334ca2349e989cfddd72ce8400ce5d4c4bd3e7",
+      "size": 506
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/golden-hour.md",
+      "sha256": "3444a00df971d3c2f06b665e21a2e9eb5d7d7d6f6281f2758773b8345776a139",
+      "size": 528
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/midnight-galaxy.md",
+      "sha256": "0e134c4c0324df41e34ac314269aa6829cd378cf3c304b31858d0cd158d2f944",
+      "size": 513
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/modern-minimalist.md",
+      "sha256": "b8bc572b75948d4df69c401af703b9262ed6820a3ceb270da30a529e92763614",
+      "size": 549
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/ocean-depths.md",
+      "sha256": "a7ad8eec85341dbfcb2665da827a4b6a4baee08ab3335ac02421f18e6b46b2e2",
+      "size": 555
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/sunset-boulevard.md",
+      "sha256": "658af11ab04be4923692571081ffb42a428141ae537703117b9236d9f8ee22a3",
+      "size": 558
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/theme-factory/themes/tech-innovation.md",
+      "sha256": "183648163026dd5eeba3df5effa335b55ba333c3ee1fe215278605e55f40a52a",
+      "size": 547
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/web-artifacts-builder/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/web-artifacts-builder/SKILL.md",
+      "sha256": "81c5002c6643b0de7b8710b00e7a9038daa6fb9b68d59870ee6adb12da8d10f8",
+      "size": 3087
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/web-artifacts-builder/scripts/bundle-artifact.sh",
+      "sha256": "abf0e480bf6585b56fab8526a407dfb7dc740812bddd70c636e1e8f3df5f9618",
+      "size": 1517
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/web-artifacts-builder/scripts/init-artifact.sh",
+      "sha256": "355e5dd4382aaaee91f01f1627eaeab30b2676ffa8d9b3ec328a1ae450ebccaa",
+      "size": 9924
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/web-artifacts-builder/scripts/shadcn-components.tar.gz",
+      "sha256": "1296f069e825de7933de7e8ac63672495cacce3f88f2dc45554dbcddbcbca60f",
+      "size": 19967
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/LICENSE.txt",
+      "sha256": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362",
+      "size": 11345
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/SKILL.md",
+      "sha256": "51b7349e77ec63b7744a6f63647e7566a0b4d2e301121cc10e8c2113af6556a2",
+      "size": 3913
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/examples/console_logging.py",
+      "sha256": "ea46877289acb82da7e7ce59d0bc37c8977cd57e2a006d0c88d7a1c625bf95da",
+      "size": 1027
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/examples/element_discovery.py",
+      "sha256": "d63c89604a22f8845d724e95dda45db49b1bf57c25ce0a83afbb7b8da3d402f0",
+      "size": 1463
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/examples/static_html_automation.py",
+      "sha256": "9d533aafb875ee3ab8b8ebf8f5b9003ac8d999da3d09b285cce252e623140064",
+      "size": 953
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/webapp-testing/scripts/with_server.py",
+      "sha256": "b0dcf4918935b795f4eda9821579b9902119235ff4447f687a30286e7d0925fd",
+      "size": 3693
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/LICENSE.txt",
+      "sha256": "79f6d8f5b427252fa3b1c11ecdbdb6bf610b944f7530b4de78f770f38741cfaa",
+      "size": 1467
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/SKILL.md",
+      "sha256": "6712b39718fe815054abca9c3ee72f989613e6f771c8a5c58f30a65a6c905622",
+      "size": 8598
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/helpers/__init__.py",
+      "sha256": "678e42456d9e10923c8b9a93691cdd993de3433448a184fa72a0c31f4ae086d5",
+      "size": 3358
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/helpers/pptx_chart.py",
+      "sha256": "47ac266f7d39d11ede6bb0d1f3a19d801394fd2964636f1b48beb701f1832964",
+      "size": 5862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/helpers/pptx_slide.py",
+      "sha256": "7b9f69b4a5bd6a2d9eabf9e0e3e796d7a421373145f6a8cd11f60b7ba2d6a5d0",
+      "size": 1675
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/helpers/pptx_theme.py",
+      "sha256": "ebb54c56e9c13807f5f98f0cae22d47cdd0162da8525eaa664e3f2c8c8d6bb03",
+      "size": 3510
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "sha256": "41b93bd8857cc68b1e43be2806a872d736a9bdd6566900062d8fdb57d7bbb354",
+      "size": 74984
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "sha256": "3fd0586f2637b98bb9886f0e0b67d89e1cc987c2d158cc7deb5f5b9890ced412",
+      "size": 6956
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "sha256": "29b254ee0d10414a8504b5a08149c7baec35a60d5ff607d6b3f492aa36815f40",
+      "size": 51302
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "sha256": "5cb76dabd8b97d1e9308a1700b90c20139be4d50792d21a7f09789f5cccd6026",
+      "size": 624
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "sha256": "5375417f0f5394b8dd1a7035b9679151f19a6b65df309dec10cfb4a420cb00e9",
+      "size": 152039
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "sha256": "5d389d42befbebd91945d620242347caecd3367f9a3a7cf8d97949507ae1f53c",
+      "size": 1231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "sha256": "b4532b6d258832953fbb3ee4c711f4fe25d3faf46a10644b2505f17010d01e88",
+      "size": 8862
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "sha256": "bdad416b096b61d37b71603b2c949484f9070c830bdaeba93bf35e15c8900614",
+      "size": 14795
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "sha256": "d173c3e5d61e42e2e3a97226c632fd2ab7cc481fc4e492365b87024ab546daff",
+      "size": 83612
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "sha256": "3c6709101c6aaa82888df5d8795c33f9e857196790eb320d9194e64be2b6bdd8",
+      "size": 1269
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "sha256": "0b364451dc36a48dd6dae0f3b6ada05fd9b71e5208211f8ee5537d7e51a587e2",
+      "size": 7328
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "sha256": "e2abacbb9a55ce1365f8961bc1b1395bbc811e512b111000d8c333f98458dece",
+      "size": 6382
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "sha256": "0ef4bb354ff44b923564c4ddbdda5987919d220225129ec94614a618ceafc281",
+      "size": 1248
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "sha256": "0d103b99a4a8652f8871552a69d42d2a3760ac6a5e3ef02d979c4273257ff6a4",
+      "size": 880
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "sha256": "9c085407751b9061c1f996f6c39ce58451be22a8d334f09175f0e89e42736285",
+      "size": 2608
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "sha256": "bc92e36ccd233722d4c5869bec71ddc7b12e2df56059942cce5a39065cc9c368",
+      "size": 3507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "sha256": "7b5b7413e2c895b1e148e82e292a117d53c7ec65b0696c992edca57b61b4a74b",
+      "size": 7507
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "sha256": "3213ef1631606250f5010b42cad7ef716f7c59426367798e33c374c0ec391d3a",
+      "size": 23313
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "sha256": "12264f3c03d738311cd9237d212f1c07479e70f0cbe1ae725d29b36539aef637",
+      "size": 1367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "sha256": "beffeed56945c22a77440122c8bdc426f3fcbe7f3b12ea0976c770d1f8d54578",
+      "size": 242277
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "sha256": "f5ee623b08b6a66935e5aced2f5d8ad0fc71bf9e8e833cd490150c0fa94b8763",
+      "size": 26148
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "sha256": "585bedc1313b40888dcc544cb74cd939a105ee674f3b1d3aa1cc6d34f70ff155",
+      "size": 25279
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "sha256": "133c9f64a5c5d573b78d0a474122b22506d8eadb5e063f67cdbbb8fa2f161d0e",
+      "size": 535
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "sha256": "6bdeb169c3717eb01108853bd9fc5a3750fb1fa5b82abbdd854d49855a40f519",
+      "size": 5712
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "sha256": "475dcae1e7d1ea46232db6f8481040c15e53a52a3c256831d3df204212b0e831",
+      "size": 4010
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "sha256": "c2dd9f61f892deae6acd8d20771ea79b12018af25f3bf8d06639c8542d218cfd",
+      "size": 171367
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "sha256": "a539aa2fb154fa50e0f5cc97e6ad7cbc66f8ec3e3746f61ec6a8b0d5d15ecdf2",
+      "size": 4646
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "sha256": "9e0b7209fc69ab11987900404540969976000c5ebe4d4f58c43dc3842886bf3a",
+      "size": 1963
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "sha256": "451958454e8588dfc7cd945981ada142ca06ff3307937f5700df059c2b307fa8",
+      "size": 2515
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "sha256": "6de111e11403f7cd49027400755bae0ea1cabef2815f09bd40a24f0017613b24",
+      "size": 2856
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "sha256": "f565adfef5a502044abc3a9153e157edc25af78304d335994afb958874b15e26",
+      "size": 1344
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/mce/mc.xsd",
+      "sha256": "3a37e461ecf5a8670fdec34029703401f8728ab9c96ec1739a6ae58d55212413",
+      "size": 3127
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-2010.xsd",
+      "sha256": "568b26ee156cb9549aa439ca2158965f77b7c1602b7e0316f40ac6cf586e35f2",
+      "size": 26549
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-2012.xsd",
+      "sha256": "0fa75578a000439a7988ba0c59fdc69f774bbd416cbacc14d07125b3f686cb74",
+      "size": 3745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-2018.xsd",
+      "sha256": "be0ff793a22dd31384650c3a4da14c2fa8062751c2e97b0e5ee852bda13c60ad",
+      "size": 901
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "sha256": "fddc2b880cabb9005aebbc7e783e53c19fec1c03df7d0e2f2076a33a0fdfd081",
+      "size": 1778
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "sha256": "127ca209fa73d7cb708449cb355c871867948a96e4a74f7bf5811ef62d17991d",
+      "size": 1002
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "sha256": "842e7163409c8d74f4d7088a8bc99500d80bc75332681a0980055b08f374a604",
+      "size": 600
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "sha256": "16f6f8072249f431370723c2cd8974672e0d9c897e00e97dd918079df934871b",
+      "size": 745
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/soffice.py",
+      "sha256": "df2c8d7249c132a4512d744482e4b5ed0ecbe885f0bcfb1295e7e6a7ced0432c",
+      "size": 5927
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validate.py",
+      "sha256": "346a4c89d92fff55e610f11efda48c30228815b29bdb10b987e48f7af70acf1e",
+      "size": 6142
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validators/__init__.py",
+      "sha256": "83e0f035c5abea238d3f2c3968afbd511ed022b527b7c9cb60a9434cc34ff987",
+      "size": 336
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validators/base.py",
+      "sha256": "f818ea28c793ba42960fa4498265e2632a62c86f7b5d6aff6fa89dacc02d59ea",
+      "size": 33756
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validators/docx.py",
+      "sha256": "93d3444c0ef3f043d21a2285c46d2cda478426b930dc33dcf3b11265935517b5",
+      "size": 17482
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validators/pptx.py",
+      "sha256": "17eadad2b7a8374ccbe4cda45693bcd6a36f9d61a7d60f9c9ceef9464dec8299",
+      "size": 15966
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/office/validators/redlining.py",
+      "sha256": "ed50d0885eee4b9c387f546b059bcaed64086815880a5167336244f93e305123",
+      "size": 11231
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/skills/xlsx/scripts/recalc.py",
+      "sha256": "66f6e726d5a53cfabea0b6471d6669deb95e54e96cb7913b687e4388da1bb3d9",
+      "size": 10670
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/spec/agent-skills-spec.md",
+      "sha256": "ff22f2be775f4b757c9a7a2df0421de4c94021d34d9382cea5dd567ff0cdad2c",
+      "size": 87
+    },
+    {
+      "path": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8/template/SKILL.md",
+      "sha256": "eb685d91de039ed864fbd790cddf31684b017fd4a34ee1a55760d8d7cdbadefa",
+      "size": 140
+    }
+  ],
+  "manifestChecks": [
+    {
+      "path": "skills/frontend-design/SKILL.md",
+      "expected": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd",
+      "actual": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd",
+      "match": true
+    }
+  ],
+  "archiveRoot": "skills-fa0fa64bdc967915dc8399e803be67759e1e62b8",
+  "skippedArchiveLinks": [],
+  "initialAcquisitionError": null,
+  "selected": [
+    {
+      "path": "skills/frontend-design/SKILL.md",
+      "bytes": 8260
+    }
+  ]
+}

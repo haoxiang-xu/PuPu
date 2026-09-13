@@ -1,0 +1,112 @@
+{
+  "toolkitId": "mcp.productivity.tavily",
+  "catalog": {
+    "id": "productivity.tavily",
+    "toolkitId": "mcp.productivity.tavily",
+    "name": "Tavily",
+    "description": "Official Tavily MCP server for web search, extraction, crawling, mapping and research.",
+    "category": "productivity",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/tavily-ai/tavily-mcp",
+    "docsUrl": "https://github.com/tavily-ai/tavily-mcp#readme",
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "tavily-mcp@0.2.21"
+      ]
+    },
+    "setupPreview": "npx -y tavily-mcp@0.2.21",
+    "prerequisites": [
+      "Tavily API account"
+    ],
+    "secrets": [
+      {
+        "key": "TAVILY_API_KEY",
+        "label": "Tavily API key"
+      }
+    ],
+    "tools": [
+      {
+        "name": "tavily_search",
+        "title": "Search with Tavily",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "tavily_extract",
+        "title": "Extract web content",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "tavily_crawl",
+        "title": "Crawl a website",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "tavily_map",
+        "title": "Map a website",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "tavily_research",
+        "title": "Research with Tavily",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": false,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 5
+    },
+    "readmeMarkdown": "## Tavily (official package, pending review)\n\nRuns Tavily's official `tavily-mcp` package over stdio, pinned to `@0.2.21`. PuPu declares `TAVILY_API_KEY` for a predictable complete tool set even though upstream also documents a keyless mode. Search queries and supplied URLs are sent to Tavily for processing; search, extraction, crawling and research may consume provider credits or incur account charges. The catalog requests confirmation for every listed tool because crawl and research can perform broader external retrieval; enforcement must be qualified with the packaged runtime before promotion. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+  },
+  "checkedAt": "2026-09-13T18:36:59.892083+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "tavily-mcp",
+  "version": "0.2.21",
+  "download": "https://registry.npmjs.org/tavily-mcp/-/tavily-mcp-0.2.21.tgz",
+  "artifactSha256": "9230fbb16ce309b2db3704606d7c4d1c139df541b9e4808c759108e67697d4f7",
+  "registryIntegrity": "sha512-FPygYCc1n9NHqSY+TO9jK/NpLS9w8usfZwXjKz64l+IsC06NHf255knEW+HPn4qZHL3JDQ8VOWxMHJVd1g4ing==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/LICENCE",
+      "sha256": "fb93ba4424b3572bf1c60d2546a3aa39baddd2bc02e950315f55a734c57544da",
+      "size": 1082
+    },
+    {
+      "path": "package/build/index.js",
+      "sha256": "60d2f3d0553f4879225990fd42e43265244ef5ac6d02799f6bafa5aef2d2d05e",
+      "size": 46478
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "7f46205dc599b47e07625b57eb6ec91d345fefa0039f654e902510ef0dda87e8",
+      "size": 1347
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "86143098cdbe88129a577bc63048ee9764b3c05e8e13ea1d95cd74e22cd28927",
+      "size": 8727
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/tavily-ai/tavily-mcp.git",
+    "type": "git"
+  },
+  "gitHead": "259bfd205de90d74a131e9d2b29cb69ebe11feb7",
+  "resolvedLockSha256": "9f8ab3ecdee4ed1d58e128d3d16d588fb7013120b1e7e05e003c27eb3908a826",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

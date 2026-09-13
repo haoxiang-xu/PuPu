@@ -1,0 +1,351 @@
+{
+  "schemaVersion": "pupu.plugin-verification-report.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "INCOMPLETE",
+  "checkedAt": "2026-09-13T18:20:48.061246+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot not exposed",
+    "methods": [
+      "source/dataflow and instruction review",
+      "OSV-Scanner 2.5.1",
+      "Seatbelt synthetic positive/negative probes",
+      "existing regression tests",
+      "same-reviewer skeptical confirmation-dispatch recheck"
+    ],
+    "independentReview": false
+  },
+  "subject": {
+    "kind": "composite-builtin-toolkit",
+    "toolkitId": "builtin.computer",
+    "sourceRepo": "https://github.com/haoxiang-xu/PuPu.git",
+    "commit": "362fd69dc7edfada03121b6cb8a7682742e2b67a",
+    "package": "PuPu sidecar",
+    "packageVersion": null,
+    "toolkitVersion": null,
+    "artifactKind": "git source archive, not installed release",
+    "artifactSha256": "a6a27c9ff5a381282f4494481234a30feb071181f7caac8422a191a6da845186",
+    "dependencyLockSha256": null,
+    "declaredRequirementsSha256": "cc348a6702b363e2dcab2adc8cde3545d1426106b688f662fade4a3a3d038ada",
+    "permissionConfigDigest": "f46ad8fc864ca9380b2f148c093ef2bcc67856e840397a8ef66c1195976d55d7",
+    "permissionConfig": {
+      "toolkitId": "builtin.computer",
+      "syntheticOnly": true,
+      "confirmationCallback": "deny",
+      "network": "denied",
+      "computerHardware": "mocked"
+    },
+    "selectedFileManifest": [
+      {
+        "path": "unchain_runtime/server/computer_control/CLICK3_NOTICE.md",
+        "sha256": "976ef54ddf9797ec5c07bc3e1138f41417d7d045fe7ad314137bcd30784ca4f1"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/__init__.py",
+        "sha256": "809cda0c0cf84904a693377ea9c2a951cb022b71c00b120dcb3256244b913189"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/actions.py",
+        "sha256": "cce88594cd23401db43739037c725a60b2cd26e736e5cf15d37bf35990fb6927"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/backends/__init__.py",
+        "sha256": "46ec8214767d59e3bf799e1dd1254a73d7b53853f6e5baf7f2aa73032aac9698"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/backends/base.py",
+        "sha256": "ccafc5040cbc24aaac00a7d33278d3f6c5c7c827f51dc58565a5d525b2f13b9a"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/backends/pynput_backend.py",
+        "sha256": "88aba2e020472dd0f46cddc59642ae627bfa7fe501f027e2a21a18723d7ee63f"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/capabilities.py",
+        "sha256": "abbdfebd48026c7fcaca66c45abbf4d76db64e4233121bd45f9099893e297243"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/click3_adapter.py",
+        "sha256": "3788d6781e4ce44f7464835b9db3852b5d8937d515b7ecde987f5564427cde7e"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/controller.py",
+        "sha256": "ef3167b47be9fff0b761464d5828fe9586a222bf575ddface8ea756de9c8dd8d"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/coordinates.py",
+        "sha256": "12b464a32480429e39c854f3fe3c71cbc91e89c6a2ef05302f17668e28b6683d"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/errors.py",
+        "sha256": "fe4403180f7089fed8a9212b06feb995f6274982554bbab72a4c46586117a090"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/keymap.py",
+        "sha256": "3d70fd04d6a503c06c2186a54bba362c82d45aa481a97731f6e7580ddc5f1521"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/protocol.py",
+        "sha256": "a15070c5cafc07a331d1d03a3c001c643909681d4355e640fc1af7663728215e"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/screenshot.py",
+        "sha256": "55ba88a560116a140812f6fbd25112f686b5766bfa2bf2baffb3c08d9da23bf8"
+      },
+      {
+        "path": "unchain_runtime/server/computer_control/toolkit.py",
+        "sha256": "81c2e5a084fb815a8e7b40d21e9bdff72e801db31b6f98922348873f470f5ff1"
+      }
+    ],
+    "selectedFileManifestDigest": "d665f50fd7edfe18a312944566a60c1710a7f7c07710f9aeabaca292f4882ba7",
+    "toolDefinitionDigest": null,
+    "liveCatalogDigest": "e433e7735cf54d93e9e66b684bdea53a0ae28d50032de88d02077330eaa018cc",
+    "referencedInstructionManifest": [
+      {
+        "path": "unchain_runtime/server/computer_control/click3_adapter.py",
+        "sha256": "3788d6781e4ce44f7464835b9db3852b5d8937d515b7ecde987f5564427cde7e"
+      }
+    ]
+  },
+  "coverage": {
+    "included": [
+      "All currently observed Official toolkit IDs (core, plan), plus the gated builtin.computer definition",
+      "Computer protocol, metadata, planner instructions, screenshot source and mocked confirmation/runtime tests"
+    ],
+    "excluded": [
+      "No packaged PuPu candidate, reused Unchain wheel or deployed runtime digest was supplied/qualified. Source commit hashes are not installed-package verification.",
+      "No live model prompt-injection trial ran through isolated PuPu. Synthetic hostile tool arguments and real dispatch effects are narrower evidence.",
+      "Computer was disabled in the observed catalog; no real screen capture, OS input injection or GUI-VM isolation was exercised. Hardware-dependent tests use fake controllers.",
+      "Sandbox denies network/TCP/Unix-socket access, user-home reads except the fixed Python runtime/library path, and writes outside synthetic fixture storage. It is not a VM or a full OS service/syscall trace; system paths and Mach services are not comprehensively isolated.",
+      "Dependency findings are preserved with preliminary applicability review; direct requirements are not a complete resolved host dependency closure.",
+      "This proposed PuPu v0.1 policy is not OWASP/OpenSSF/SLSA certification."
+    ],
+    "reviewDepth": "Targeted risk-based source review, not exhaustive review of the full host/repositories",
+    "dynamicCheckIds": []
+  },
+  "checks": [
+    {
+      "id": "PV-01.source",
+      "applicable": true,
+      "status": "PASS",
+      "evidence": [
+        {
+          "reference": "pupu-subject.json",
+          "sha256": "1d2165daf5b5f46a09de2b782a091302432971594b44bd47cc1ce3866ba004b5"
+        }
+      ],
+      "reason": "Immutable source commit and actual archive bytes/manifests captured; source-only identity scope."
+    },
+    {
+      "id": "PV-01.installed-artifact",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "evidence": [],
+      "reason": "No exact packaged candidate/wheel correspondence established."
+    },
+    {
+      "id": "PV-02.code",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "evidence": [
+        {
+          "reference": "findings.json",
+          "sha256": "50b7f0ddfa3c0a30d44e5f6602406acde9bc3b1f7be3306630c83e99abdd14ef"
+        },
+        {
+          "reference": "confirmation-recheck.json",
+          "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+        }
+      ],
+      "reason": "Targeted review and tests completed; complete native backend and dependency applicability coverage is missing."
+    },
+    {
+      "id": "PV-02.dependencies",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "evidence": [
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "4e22210ff39562f5eeccec9f7d6810d22dc59f23387bb7f2d0838b651c1ca460"
+        },
+        {
+          "reference": "pupu-direct-osv.json",
+          "sha256": "55728c6a8b5d2abcb44c49b5ebb89b805f9a6ff2e98cf20196a8c5aa4a0c234f"
+        }
+      ],
+      "reason": "Scanner completed with matches; full applicability/closure adjudication is incomplete, not a scanner operational failure."
+    },
+    {
+      "id": "PV-03.declared-instructions",
+      "applicable": true,
+      "status": "PASS",
+      "evidence": [
+        {
+          "reference": "pupu-subject.json",
+          "sha256": "1d2165daf5b5f46a09de2b782a091302432971594b44bd47cc1ce3866ba004b5"
+        },
+        {
+          "reference": "runtime-catalog.json",
+          "sha256": "e433e7735cf54d93e9e66b684bdea53a0ae28d50032de88d02077330eaa018cc"
+        }
+      ],
+      "reason": "Reviewed declared tool instructions and selected local prompts for hidden action/exfiltration intent. No demonstrated malicious instruction in that bounded surface; intended planning approval policy is not classified as poisoning."
+    },
+    {
+      "id": "PV-03.hostile-model-path",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "evidence": [],
+      "reason": "No live isolated PuPu model/tool cycle with hostile document or screenshot instructions."
+    },
+    {
+      "id": "PV-04.behavior",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "evidence": [
+        {
+          "reference": "security-probes-output.json",
+          "sha256": "f46f0aa026a3cee35f340114920443244c7bf7a267ec0e7dda86195beeeb744b"
+        },
+        {
+          "reference": "confirmation-recheck.json",
+          "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+        },
+        {
+          "reference": "isolated-tests.txt",
+          "sha256": "81909feca28859ead890b57823c94ec78cf2d9c7e305665983f3523a9dace6b2"
+        }
+      ],
+      "reason": "Computer mock confirmation tests passed; real GUI behavior absent."
+    },
+    {
+      "id": "PV-05.evidence",
+      "applicable": true,
+      "status": "PASS",
+      "evidence": [
+        {
+          "reference": "scanner-identity.json",
+          "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+        },
+        {
+          "reference": "sandbox-profile.sb",
+          "sha256": "0327344483b492b7b55078841b69dfce3c81d7fabda42a57afebd79074984fe7"
+        }
+      ],
+      "reason": "Sanitized reproducible local evidence and recheck triggers retained; no badge publication or signature implementation claimed."
+    }
+  ],
+  "findings": [],
+  "tools": [
+    {
+      "name": "OSV-Scanner",
+      "version": "2.5.1",
+      "download": "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_darwin_arm64",
+      "sha256": "75c44d6332f892a1e56286f4105a98ed751ae28d215ca0a8b65cc00d84103054",
+      "verification": "Matches GitHub release asset digest; no SLSA signature claim"
+    },
+    {
+      "name": "pytest",
+      "result": "106 passed; subset includes mocks; does not negate adversarial failures"
+    }
+  ],
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "sandbox": "macOS sandbox-exec (Seatbelt)",
+    "profile": {
+      "reference": "sandbox-profile.sb",
+      "sha256": "0327344483b492b7b55078841b69dfce3c81d7fabda42a57afebd79074984fe7"
+    },
+    "controls": [
+      {
+        "id": "ENV-FS-POSITIVE",
+        "status": "PASS",
+        "observation": "Synthetic allowed file was written and read"
+      },
+      {
+        "id": "ENV-HOME-DENY",
+        "status": "PASS",
+        "observation": {
+          "error": "PermissionError",
+          "errno": 1
+        }
+      },
+      {
+        "id": "ENV-WRITE-DENY",
+        "status": "PASS",
+        "observation": {
+          "error": "PermissionError",
+          "errno": 1
+        }
+      },
+      {
+        "id": "ENV-TCP-DENY",
+        "status": "PASS",
+        "observation": {
+          "errno": 1
+        }
+      },
+      {
+        "id": "ENV-SOCKET-DENY",
+        "status": "PASS",
+        "observation": {
+          "errno": 1
+        }
+      }
+    ],
+    "network": "All network operations denied; TCP and Unix-domain listener controls returned EPERM; no outbound network capture for live provider calls",
+    "filesystem": "Disposable synthetic workspace/outside fixtures; no real credentials passed; user home read denied except runtime and site-packages; writes limited to sandbox fixtures and device streams",
+    "runtime": "Python 3.12.11; actual toolkit modules imported from immutable git-archive snapshot",
+    "runtimePackagesDigest": "dc65d3c1d9de9f980a8866fccdd70f1e7255e7b9a632a9bc8f4a3ef34d6b5298",
+    "model": null,
+    "packagedCandidateDigest": null,
+    "runtimeWheelDigest": null,
+    "hardware": "mocked only",
+    "operationalFailures": [
+      "Initial restrictive sandbox profiles aborted before target code; revised profile passed five controls.",
+      "Initial probe harness omitted shell action; corrected and rerun, error preserved in probe-harness-initial-error.txt."
+    ]
+  },
+  "evidence": [
+    {
+      "reference": "security-probes.py",
+      "sha256": "716a65babb437021a2c7f0359427ce9505fa667c2982ce5c61f89bb25c65c9b8"
+    },
+    {
+      "reference": "security-probes-output.json",
+      "sha256": "f46f0aa026a3cee35f340114920443244c7bf7a267ec0e7dda86195beeeb744b"
+    },
+    {
+      "reference": "confirmation-recheck.py",
+      "sha256": "624b3e324b06b76e9be0a80cf46db0adeffb32a35289cb6bff2112e954835335"
+    },
+    {
+      "reference": "confirmation-recheck.json",
+      "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+    },
+    {
+      "reference": "isolated-tests.txt",
+      "sha256": "81909feca28859ead890b57823c94ec78cf2d9c7e305665983f3523a9dace6b2"
+    },
+    {
+      "reference": "dependency-assessment.json",
+      "sha256": "4e22210ff39562f5eeccec9f7d6810d22dc59f23387bb7f2d0838b651c1ca460"
+    }
+  ],
+  "limitations": [
+    "No packaged PuPu candidate, reused Unchain wheel or deployed runtime digest was supplied/qualified. Source commit hashes are not installed-package verification.",
+    "No live model prompt-injection trial ran through isolated PuPu. Synthetic hostile tool arguments and real dispatch effects are narrower evidence.",
+    "Computer was disabled in the observed catalog; no real screen capture, OS input injection or GUI-VM isolation was exercised. Hardware-dependent tests use fake controllers.",
+    "Sandbox denies network/TCP/Unix-socket access, user-home reads except the fixed Python runtime/library path, and writes outside synthetic fixture storage. It is not a VM or a full OS service/syscall trace; system paths and Mach services are not comprehensively isolated.",
+    "Dependency findings are preserved with preliminary applicability review; direct requirements are not a complete resolved host dependency closure.",
+    "This proposed PuPu v0.1 policy is not OWASP/OpenSSF/SLSA certification."
+  ],
+  "recheckTriggers": [
+    "Code or dependency bytes change",
+    "Tool descriptions/prompts/configuration/permissions change",
+    "New relevant advisory",
+    "Fix any confirmed finding, then rerun negative controls and exact packaged/model path",
+    "Enable Computer or change its backend/provider protocol"
+  ]
+}

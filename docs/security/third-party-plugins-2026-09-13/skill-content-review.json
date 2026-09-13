@@ -1,0 +1,168 @@
+{
+  "checkedAt": "2026-09-13T18:49:57.389519+00:00",
+  "reviewer": "Codex; targeted contextual review alongside full local deterministic scans",
+  "results": [
+    {
+      "id": "skillpack.prompt-master",
+      "catalogLicense": "MIT",
+      "rootLicenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "29e8ba0b54274eaa92b7cb074fe1765ba7b83993e0d2605e5308c6972a47daa7",
+          "firstLine": "MIT License"
+        }
+      ],
+      "scannedInstructionManifest": [
+        {
+          "path": "README.md",
+          "sha256": "0990269b91ccbcd50e6574bd89edbf176043e097cf1584a5746240bc473afefc"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b"
+        },
+        {
+          "path": "references/templates.md",
+          "sha256": "0850a3871058077bfc6a16372fa3beb28d81f02baab8d42d3607ddc3a681ae67"
+        },
+        {
+          "path": "references/patterns.md",
+          "sha256": "2d2eb623396ce5edade402cfcafbd457af093cf85fa5966c34c210e58ce1f9d1"
+        }
+      ],
+      "missingLicenseFrontmatterDisposition": "Informational manifest completeness hint; repository/store license metadata exists. Not evidence of malicious code or prompt.",
+      "modelPath": "NOT_RUN: no isolated PuPu model harness was available for this audit."
+    },
+    {
+      "id": "skillpack.vercel-web-review",
+      "catalogLicense": "MIT",
+      "rootLicenseFiles": [],
+      "scannedInstructionManifest": [
+        {
+          "path": "skills/web-design-guidelines/SKILL.md",
+          "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+        }
+      ],
+      "missingLicenseFrontmatterDisposition": "Informational manifest completeness hint; repository/store license metadata exists. Not evidence of malicious code or prompt.",
+      "modelPath": "NOT_RUN: no isolated PuPu model harness was available for this audit."
+    },
+    {
+      "id": "skillpack.trailofbits-audit-prep",
+      "catalogLicense": "CC-BY-SA-4.0",
+      "rootLicenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "7abe19ec9bb73b36141b999b861d24ad855e808bafe0f81e84cce28556f6c297",
+          "firstLine": "Attribution-ShareAlike 4.0 International"
+        }
+      ],
+      "scannedInstructionManifest": [
+        {
+          "path": "plugins/building-secure-contracts/skills/audit-prep-assistant/SKILL.md",
+          "sha256": "d639b411a315ea9420e40afabe75bbf4b1bfed6ea5c8601a3e963343ac9924f2"
+        }
+      ],
+      "missingLicenseFrontmatterDisposition": "Informational manifest completeness hint; repository/store license metadata exists. Not evidence of malicious code or prompt.",
+      "modelPath": "NOT_RUN: no isolated PuPu model harness was available for this audit."
+    },
+    {
+      "id": "skillpack.superpowers-essentials",
+      "catalogLicense": "MIT",
+      "rootLicenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
+          "firstLine": "MIT License"
+        }
+      ],
+      "scannedInstructionManifest": [
+        {
+          "path": "skills/systematic-debugging/test-pressure-1.md",
+          "sha256": "0b6a915db0054577819834c79be9eb614e97bddba10d73768e1fbe91cfed048a"
+        },
+        {
+          "path": "skills/systematic-debugging/condition-based-waiting.md",
+          "sha256": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26"
+        },
+        {
+          "path": "skills/systematic-debugging/test-pressure-2.md",
+          "sha256": "b2030aeffba07050e8ad573ddf87486457c4a016a786bb326235bebd856f2016"
+        },
+        {
+          "path": "skills/systematic-debugging/CREATION-LOG.md",
+          "sha256": "c24733a5b1821bd6bed1fc950261f0b9f4e90097e0bbb96459d8179713730789"
+        },
+        {
+          "path": "skills/systematic-debugging/test-academic.md",
+          "sha256": "fe2ba480d78ac0d686dc025f41c2a32a43d642bf533f91b0c6053a04d35d6486"
+        },
+        {
+          "path": "skills/systematic-debugging/defense-in-depth.md",
+          "sha256": "1e175fb86fc357e58c6aebf5441e481e1b7868b4380c0456b63a17eefbd18ba7"
+        },
+        {
+          "path": "skills/systematic-debugging/SKILL.md",
+          "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a"
+        },
+        {
+          "path": "skills/systematic-debugging/test-pressure-3.md",
+          "sha256": "96b50a52e2c7989c9cf20fb752c47c1e9a3a70dc362f8f7989f8f5b64dac7708"
+        },
+        {
+          "path": "skills/systematic-debugging/root-cause-tracing.md",
+          "sha256": "6b0622269e098ca1399e123e553fd385f0b6412d88ef0e9c4f5a8ea9cf1cec7b"
+        },
+        {
+          "path": "skills/brainstorming/visual-companion.md",
+          "sha256": "3321a044c777d03d7177df41c77bb83155ff2a6d0c16b8a3d752426d29f14ea8"
+        },
+        {
+          "path": "skills/brainstorming/SKILL.md",
+          "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d"
+        },
+        {
+          "path": "skills/brainstorming/spec-document-reviewer-prompt.md",
+          "sha256": "95a0a195de9d984be2fffa95bab16fc8c563bc296a9cfc5e9c29cb3ece0d7457"
+        },
+        {
+          "path": "skills/writing-plans/plan-document-reviewer-prompt.md",
+          "sha256": "aa728b96aad603c8be28875a4305637f6c984aa81ffcadcb13e743202fa2a0c7"
+        },
+        {
+          "path": "skills/writing-plans/SKILL.md",
+          "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845"
+        },
+        {
+          "path": "skills/receiving-code-review/SKILL.md",
+          "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd"
+        },
+        {
+          "path": "skills/verification-before-completion/SKILL.md",
+          "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"
+        }
+      ],
+      "missingLicenseFrontmatterDisposition": "Informational manifest completeness hint; repository/store license metadata exists. Not evidence of malicious code or prompt.",
+      "modelPath": "NOT_RUN: no isolated PuPu model harness was available for this audit."
+    },
+    {
+      "id": "skillpack.frontend-design",
+      "catalogLicense": "Apache-2.0",
+      "rootLicenseFiles": [],
+      "scannedInstructionManifest": [
+        {
+          "path": "skills/frontend-design/SKILL.md",
+          "sha256": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd"
+        }
+      ],
+      "missingLicenseFrontmatterDisposition": "Informational manifest completeness hint; repository/store license metadata exists. Not evidence of malicious code or prompt.",
+      "modelPath": "NOT_RUN: no isolated PuPu model harness was available for this audit."
+    }
+  ],
+  "notes": {
+    "prompt-master": "Prompt engineering scope and output-format instructions are legitimate selected behavior; examples mentioning reasoning, roles or hidden analysis are not automatically prompt injection. References included in the scanned markdown view.",
+    "superpowers": "Planning, verification and review instructions are legitimate. References to unbundled companion skills and supporting code require host compatibility checks; no authority over this auditing session is granted.",
+    "frontend-design": "Selected design methodology; no confirmed hidden upload or credential request in inspected instruction content.",
+    "trailofbits": "Audit preparation includes testing and code changes; optional analyzers and package installations require their own dependency scope. It is not security certification.",
+    "vercel": "Observed remote guidelines are UI review rules; the skill still fetches mutable main. Saved a dated, hashed observation rather than treating future fetched instructions as verified."
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "toolkitId": "mcp.workspace.fetch",
+  "catalog": {
+    "id": "workspace.fetch",
+    "toolkitId": "mcp.workspace.fetch",
+    "name": "Fetch",
+    "description": "Fetch a URL and convert its contents to Markdown for the agent via the official local Fetch MCP server.",
+    "category": "workspace",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "Apache-2.0 / MIT",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "--exclude-newer=2026-07-28T00:00:00Z",
+        "--from",
+        "mcp-server-fetch==2026.7.10",
+        "--with",
+        "mcp==1.28.0",
+        "mcp-server-fetch"
+      ]
+    },
+    "setupPreview": "uvx mcp-server-fetch==2026.7.10",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "fetch",
+        "title": "Fetch URL",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Fetch\n\nRuns the official local `mcp-server-fetch` server over STDIO. It exposes a single `fetch(url)` tool that retrieves a web page and converts it to Markdown for the agent. Every fetch requires explicit confirmation.\n\nThis server can access local/internal IP addresses and may represent a security risk. Exercise caution when using this MCP server to ensure this does not expose any sensitive data."
+  },
+  "checkedAt": "2026-09-13T18:36:59.265601+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "pypi",
+  "package": "mcp-server-fetch",
+  "version": "2026.7.10",
+  "download": "https://files.pythonhosted.org/packages/42/05/8be7be4fbf4ba8448e08dc1ac661bd6c5e616801d3112780c49548aca76b/mcp_server_fetch-2026.7.10-py3-none-any.whl",
+  "artifactSha256": "6991b9a8133726b9f0b76d8c5e9607c8207e19e7c3a47c9e174a8b2e0742fc70",
+  "registryIntegrity": "sha256-aZG5qBM3Jrnwt22MXpYHyCB+GefDpHyeF0qLLgdC/HA=",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "mcp_server_fetch/__init__.py",
+      "sha256": "217179af51fdef866395396b90bdd6886ab470a4a3e499576626c81908d4d84d",
+      "size": 717
+    },
+    {
+      "path": "mcp_server_fetch/__main__.py",
+      "sha256": "3f98ff5b517742f3ab63bc766084342a563563d78efef4baaeb3a8d662f57ef9",
+      "size": 57
+    },
+    {
+      "path": "mcp_server_fetch/server.py",
+      "sha256": "f66dc973126c9251934fdb5355fa960529546660cad74147a6b31f725a79b358",
+      "size": 10643
+    },
+    {
+      "path": "mcp_server_fetch-2026.7.10.dist-info/METADATA",
+      "sha256": "75b47704b19cdd926caab160813c9a56afb2ccc4d212260ecb93f6378a511959",
+      "size": 8517
+    },
+    {
+      "path": "mcp_server_fetch-2026.7.10.dist-info/WHEEL",
+      "sha256": "942926c567d0b1273d09f20295879abd37507845f6b683eab9f87d808df91100",
+      "size": 87
+    },
+    {
+      "path": "mcp_server_fetch-2026.7.10.dist-info/entry_points.txt",
+      "sha256": "b580380107c00cc564e985827ee3deed38c61a63e693b80ba2c1edfdec0be3c7",
+      "size": 59
+    },
+    {
+      "path": "mcp_server_fetch-2026.7.10.dist-info/licenses/LICENSE",
+      "sha256": "8cc7c6e33b24ed4ee8fcccc33eccf102549d04fa4cb9737cecc9770dad1080ff",
+      "size": 1059
+    },
+    {
+      "path": "mcp_server_fetch-2026.7.10.dist-info/RECORD",
+      "sha256": "642a26e16faa0e238dff4f1603e5e76fcfb94fbc381b2f81ca3316fd7577edb3",
+      "size": 714
+    }
+  ],
+  "repository": {
+    "Issues": "https://github.com/modelcontextprotocol/servers/issues",
+    "Repository": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+  },
+  "gitHead": null
+}

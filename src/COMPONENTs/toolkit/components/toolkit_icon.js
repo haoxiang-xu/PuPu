@@ -28,9 +28,10 @@ const normalizeFileIconDisplayScale = (value) => {
   return Math.max(0.5, scale);
 };
 
-export const getToolkitIconBackground = (icon, isDark) => {
-  if (isBuiltinToolkitIcon(icon)) return icon.backgroundColor;
-  return isDark ? "rgba(var(--pupu-text-rgb),0.05)" : "rgba(var(--pupu-text-rgb),0.04)";
+export const getToolkitIconBackground = (icon) => {
+  // Installed skill packs can still carry the legacy pale command-icon plate.
+  if (isBuiltinToolkitIcon(icon) && icon.name !== "command") return icon.backgroundColor;
+  return "transparent";
 };
 
 export const hasTransparentToolkitIconBackground = (backgroundColor) =>

@@ -1,0 +1,185 @@
+{
+  "toolkitId": "mcp.productivity.telegram",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "f8ece32b2cbee865b2905362c80642a2984d5f1c7decd974ee0e005c89995c32",
+  "lockSha256": "40fd8a89a75667edc056885043f0fde89a2bafff3c20cc5bd9d35d078837b32f",
+  "initialize": "PASS",
+  "server": {
+    "name": "Telegram MCP Server",
+    "version": "0.0.1"
+  },
+  "tools": [
+    {
+      "name": "SEND_MESSAGE",
+      "description": "Send a message to a Telegram chat or channel",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "chatId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "The chat ID or channel username (e.g., @channelname or -1001234567890)"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The message text to send"
+          },
+          "topicId": {
+            "type": "number",
+            "description": "The topic ID for forum channels (optional)"
+          }
+        },
+        "required": [
+          "chatId",
+          "text"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "GET_CHANNEL_INFO",
+      "description": "Get information about a Telegram channel or chat",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "The channel ID or username (e.g., @channelname or -1001234567890)"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "FORWARD_MESSAGE",
+      "description": "Forward a message from one chat to another",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fromChatId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "Source chat ID or username"
+          },
+          "toChatId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "Destination chat ID or username"
+          },
+          "messageId": {
+            "type": "number",
+            "description": "ID of the message to forward"
+          },
+          "disableNotification": {
+            "type": "boolean",
+            "description": "Forward message silently"
+          }
+        },
+        "required": [
+          "fromChatId",
+          "toChatId",
+          "messageId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "PIN_MESSAGE",
+      "description": "Pin a message in a Telegram chat or channel",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "chatId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "The chat ID or channel username"
+          },
+          "messageId": {
+            "type": "number",
+            "description": "ID of the message to pin"
+          },
+          "disableNotification": {
+            "type": "boolean",
+            "description": "Pin message silently"
+          }
+        },
+        "required": [
+          "chatId",
+          "messageId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "GET_CHANNEL_MEMBERS",
+      "description": "Get a list of channel administrators and members",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "The channel ID or username"
+          },
+          "limit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10,
+            "description": "Maximum number of members to retrieve (1-50)"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ],
+  "toolsSha256": "84fb246eee1420cc9394d561b2792cfcc6b04631945686170d1db88c51a9ff4d",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "error": "MCP error -32601: Method not found"
+  },
+  "prompts": {
+    "error": "MCP error -32601: Method not found"
+  },
+  "calls": [],
+  "stderr": "Error starting Telegram bot: FetchError: request to https://api.telegram.org/bot[synthetic credential]/getMe failed, reason: getaddrinfo ENOTFOUND api.telegram.org\n    at ClientRequest.<anonymous> (/private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/runtimes/mcp.productivity.telegram/node_modules/node-fetch/lib/index.js:1501:11)\n    at ClientRequest.emit (node:events:509:28)\n    at emitErrorEvent (node:_http_client:109:11)\n    at TLSSocket.socketErrorListener (node:_http_client:593:5)\n    at TLSSocket.emit (node:events:509:28)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  type: 'system',\n  errno: 'ENOTFOUND',\n  code: 'ENOTFOUND'\n}\n❌ Failed to initialize sampling handler: FetchError: request to https://api.telegram.org/bot[synthetic credential]/getMe failed, reason: getaddrinfo ENOTFOUND api.telegram.org\n    at ClientRequest.<anonymous> (/private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/runtimes/mcp.productivity.telegram/node_modules/node-fetch/lib/index.js:1501:11)\n    at ClientRequest.emit (node:events:509:28)\n    at emitErrorEvent (node:_http_client:109:11)\n    at TLSSocket.socketErrorListener (node:_http_client:593:5)\n    at TLSSocket.emit (node:events:509:28)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  type: 'system',\n  errno: 'ENOTFOUND',\n  code: 'ENOTFOUND'\n}\n",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

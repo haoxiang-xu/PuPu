@@ -1,0 +1,230 @@
+{
+  "schemaVersion": "pupu.plugin-verification-report.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "INCOMPLETE",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot unavailable",
+    "independentReview": false,
+    "methods": [
+      "bounded source/instruction review",
+      "Cisco Skill Scanner 2.1.0 local static/dataflow analyzers",
+      "OSV-Scanner 2.5.1",
+      "real MCP initialize/list/call probes",
+      "synthetic filesystem/SQLite effects through real Unchain confirmation dispatcher"
+    ]
+  },
+  "subject": {
+    "toolkitId": "mcp.devops.grafana",
+    "kind": "local-mcp",
+    "sourceRepo": "https://github.com/grafana/mcp-grafana",
+    "commit": null,
+    "package": "mcp-grafana",
+    "version": "0.17.2",
+    "artifactSha256": "93254496a3984db9a53585b3527a59b88ad3e1f4c91e51cbb005ff864618aaaf",
+    "dependencyLockSha256": "999546ae541ef5ffda5f9f00a258f7385c983e9c82985f89f8e15d551e7e3cc8",
+    "permissionConfigDigest": "11afc7e2ea9c25aa2d2ff052a8d4afee6b243b604248cca008f1060ab1385691",
+    "selectedFileManifest": {
+      "reference": "subjects/mcp.devops.grafana.json",
+      "sha256": "c2eadb9fb8c36d4ba5e2839d30b4aee3274ab692b2a92da89174e70e4fe14788"
+    },
+    "toolDefinitionDigest": "b6e73291c9208ed81ec8903b889047f3c2201d88bbea6d30d921f7dc5631445f",
+    "referencedInstructionManifest": [],
+    "sourceCommitObservation": null,
+    "endpoint": null
+  },
+  "coverage": {
+    "included": [
+      "Top-level artifact and installed-file correspondence",
+      "Resolved dependency scan",
+      "Actual negotiated MCP metadata",
+      "Selected synthetic protocol probes"
+    ],
+    "excluded": [
+      "Authenticated provider/browser workflows, full hostile inputs and complete code/dependency review remain unqualified."
+    ],
+    "scopeNote": "Wheel contains a native Go binary. Actual arm64 runtime wheel was acquired and matched to installed files after initial x86_64 acquisition. 65 tools discovered; 157 embedded Go dependency modules were scanned separately, with advisory matches. No real Grafana endpoint/account was used."
+  },
+  "checks": [
+    {
+      "id": "PV-01.subject",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Acquired fixed package/source bytes and registry hashes, or bounded documented HTTPS endpoint identity; see identity limitations.",
+      "evidence": [
+        {
+          "reference": "subjects/mcp.devops.grafana.json",
+          "sha256": "c2eadb9fb8c36d4ba5e2839d30b4aee3274ab692b2a92da89174e70e4fe14788"
+        },
+        {
+          "reference": "runtime-artifact-correspondence.json",
+          "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+        },
+        {
+          "reference": "source-commit-correspondence.json",
+          "sha256": "da464e566bfa3ca9f995abe7694b0d06dcda05a331ac855a5bacc939af969bfb"
+        }
+      ]
+    },
+    {
+      "id": "PV-01.deployed-pair",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Exact packaged PuPu/Unchain artifact correspondence was not established.",
+      "evidence": []
+    },
+    {
+      "id": "PV-02.scanner-execution",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Resolved dependency scan ran and raw findings were retained. PASS here means scanner execution, not vulnerability clearance.",
+      "evidence": [
+        {
+          "reference": "mcp.devops.grafana-osv.json",
+          "sha256": "df87c7e1b68f2976b02b7ab56ae8dd410b1c467ac858600c139006f0f2db6d69"
+        },
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-02.dependency-disposition",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Full advisory reachability/adjudication and bundled-dependency closure are incomplete.",
+      "evidence": [
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.negotiated-metadata",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Actual tool definitions captured; descriptions and annotations are untrusted evidence, not permission authority.",
+      "evidence": [
+        {
+          "reference": "mcp.devops.grafana-mcp-probe.json",
+          "sha256": "2202e3c4c2daaf370baa3e2e38d963fde2f275ff7480b8bc15dfac42a0ff0b47"
+        }
+      ]
+    },
+    {
+      "id": "PV-04.protocol",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Bounded sandboxed startup and initialize/list observed; only selected harmless calls exercised.",
+      "evidence": [
+        {
+          "reference": "mcp.devops.grafana-mcp-probe.json",
+          "sha256": "2202e3c4c2daaf370baa3e2e38d963fde2f275ff7480b8bc15dfac42a0ff0b47"
+        },
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.hostile-model-path",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "No isolated PuPu model invocation with hostile tool/document instructions.",
+      "evidence": []
+    },
+    {
+      "id": "PV-05.evidence",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Versioned local reports, raw records and digest manifest retained. No signed record or badge publication claimed.",
+      "evidence": [
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        },
+        {
+          "reference": "skill-scanner-identity.json",
+          "sha256": "6455273168e35beb34e2e9955b4a1a2974275b0bcb20fee731ada9b848c0b1eb"
+        },
+        {
+          "reference": "osv-scanner-identity.json",
+          "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+        }
+      ]
+    }
+  ],
+  "findings": [],
+  "tools": [
+    {
+      "name": "Cisco Skill Scanner",
+      "version": "2.1.0",
+      "scope": "Local deterministic and Python dataflow analyzers only"
+    },
+    {
+      "name": "OSV-Scanner",
+      "version": "2.5.1",
+      "scope": "Resolved dependencies, plus extracted Grafana Go module versions"
+    }
+  ],
+  "environment": {
+    "mechanism": "macOS Seatbelt sandbox-exec",
+    "node": "24.18.0",
+    "python": "3.12.11",
+    "profile": {
+      "reference": "sandbox-profile.sb",
+      "sha256": "006f937656dfa638a016282420573b22d10a4538ee6288018dec8e8ef6713690"
+    },
+    "controls": {
+      "reference": "sandbox-controls.json",
+      "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+    },
+    "credentials": "None; synthetic invalid placeholders only",
+    "model": null,
+    "packagedPair": null
+  },
+  "evidence": [
+    {
+      "reference": "subjects/mcp.devops.grafana.json",
+      "sha256": "c2eadb9fb8c36d4ba5e2839d30b4aee3274ab692b2a92da89174e70e4fe14788"
+    },
+    {
+      "reference": "mcp.devops.grafana-mcp-probe.json",
+      "sha256": "2202e3c4c2daaf370baa3e2e38d963fde2f275ff7480b8bc15dfac42a0ff0b47"
+    },
+    {
+      "reference": "runtime-artifact-correspondence.json",
+      "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+    },
+    {
+      "reference": "dependency-assessment.json",
+      "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+    },
+    {
+      "reference": "skill-content-review.json",
+      "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+    }
+  ],
+  "limitations": [
+    "No live isolated PuPu model run with hostile tool/document output was performed.",
+    "No packaged PuPu and fixed Unchain-wheel pair was qualified.",
+    "Source/code review was targeted, not exhaustive review of every acquired file or bundled dependency.",
+    "No real service credentials, private workspace, production database or host browser session were used.",
+    "The sandbox denies network and user-home reads except explicit trusted Python/Node runtime paths; writes are restricted to synthetic fixtures. It is not a VM or a complete Mach-service/syscall monitor.",
+    "API acquisition and hosted MCP probes use the trusted verifier outside candidate sandbox; hosted backend code is not observable.",
+    "Package integrity hashes and reachable Git commits do not establish signed provenance or a complete publisher/build chain.",
+    "No Verified badge or catalog availability changed; this proposed v0.1 policy is not third-party certification."
+  ],
+  "recheckTriggers": [
+    "Package/code/dependency bytes change",
+    "Tool schema/instruction/reference/configuration changes",
+    "Relevant advisory appears",
+    "Host confirmation gap fixed",
+    "Valid scoped test credentials or isolated PuPu model environment becomes available"
+  ]
+}

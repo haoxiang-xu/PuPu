@@ -1,0 +1,65 @@
+[
+  {
+    "id": "skillpack.prompt-master",
+    "path": ".",
+    "exitCode": 0,
+    "report": "skillpack.prompt-master-root-scanner.json",
+    "log": "skillpack.prompt-master-root-scanner.log"
+  },
+  {
+    "id": "skillpack.vercel-web-review",
+    "path": "skills/web-design-guidelines",
+    "exitCode": 0,
+    "report": "skillpack.vercel-web-review-web-design-guidelines-scanner.json",
+    "log": "skillpack.vercel-web-review-web-design-guidelines-scanner.log"
+  },
+  {
+    "id": "skillpack.trailofbits-audit-prep",
+    "path": "plugins/building-secure-contracts/skills/audit-prep-assistant",
+    "exitCode": 0,
+    "report": "skillpack.trailofbits-audit-prep-audit-prep-assistant-scanner.json",
+    "log": "skillpack.trailofbits-audit-prep-audit-prep-assistant-scanner.log"
+  },
+  {
+    "id": "skillpack.superpowers-essentials",
+    "path": "skills/brainstorming",
+    "exitCode": 0,
+    "report": "skillpack.superpowers-essentials-brainstorming-scanner.json",
+    "log": "skillpack.superpowers-essentials-brainstorming-scanner.log"
+  },
+  {
+    "id": "skillpack.superpowers-essentials",
+    "path": "skills/systematic-debugging",
+    "exitCode": 0,
+    "report": "skillpack.superpowers-essentials-systematic-debugging-scanner.json",
+    "log": "skillpack.superpowers-essentials-systematic-debugging-scanner.log"
+  },
+  {
+    "id": "skillpack.superpowers-essentials",
+    "path": "skills/writing-plans",
+    "exitCode": 0,
+    "report": "skillpack.superpowers-essentials-writing-plans-scanner.json",
+    "log": "skillpack.superpowers-essentials-writing-plans-scanner.log"
+  },
+  {
+    "id": "skillpack.superpowers-essentials",
+    "path": "skills/receiving-code-review",
+    "exitCode": 0,
+    "report": "skillpack.superpowers-essentials-receiving-code-review-scanner.json",
+    "log": "skillpack.superpowers-essentials-receiving-code-review-scanner.log"
+  },
+  {
+    "id": "skillpack.superpowers-essentials",
+    "path": "skills/verification-before-completion",
+    "exitCode": 0,
+    "report": "skillpack.superpowers-essentials-verification-before-completion-scanner.json",
+    "log": "skillpack.superpowers-essentials-verification-before-completion-scanner.log"
+  },
+  {
+    "id": "skillpack.frontend-design",
+    "path": "skills/frontend-design",
+    "exitCode": 0,
+    "report": "skillpack.frontend-design-frontend-design-scanner.json",
+    "log": "skillpack.frontend-design-frontend-design-scanner.log"
+  }
+]

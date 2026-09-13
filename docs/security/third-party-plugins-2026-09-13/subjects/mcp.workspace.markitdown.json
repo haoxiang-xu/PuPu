@@ -1,0 +1,124 @@
+{
+  "toolkitId": "mcp.workspace.markitdown",
+  "catalog": {
+    "id": "workspace.markitdown",
+    "toolkitId": "mcp.workspace.markitdown",
+    "name": "MarkItDown",
+    "description": "Convert documents, archives and rich files into Markdown through Microsoft's local MarkItDown MCP server.",
+    "category": "workspace",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/microsoft/markitdown",
+    "docsUrl": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/microsoft/markitdown",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "--exclude-newer=2026-07-28T00:00:00Z",
+        "--from",
+        "markitdown-mcp==0.0.1a4",
+        "markitdown-mcp"
+      ]
+    },
+    "setupPreview": "uvx markitdown-mcp==0.0.1a4",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "convert_to_markdown",
+        "title": "Convert to Markdown",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## MarkItDown\n\nRuns Microsoft's local MarkItDown MCP server over STDIO for local trusted agents. It exposes `convert_to_markdown(uri)` for `file:`, `http:`, `https:`, and `data:` URIs. The server runs with the current user's file and network access, so review URI inputs and avoid exposing HTTP or SSE modes beyond localhost."
+  },
+  "checkedAt": "2026-09-13T18:36:59.237193+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "pypi",
+  "package": "markitdown-mcp",
+  "version": "0.0.1a4",
+  "download": "https://files.pythonhosted.org/packages/98/ae/01b865d529365cb311caf69ec944fb417ed78e95a7c6e8529d34375456db/markitdown_mcp-0.0.1a4-py3-none-any.whl",
+  "artifactSha256": "7fb06fff7d722ec108d08752704dc8f313f7fd267e00dff546131ec229645230",
+  "registryIntegrity": "sha256-f7Bv/31yLsEI0IdScE3I8xP3/SZ+AN/1RhMewilkUjA=",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "markitdown_mcp/__about__.py",
+      "sha256": "3acaf34eaa19d5f6e81234bf6d1f227bc2c6f3dae285348a1d589c2d7b6a930f",
+      "size": 132
+    },
+    {
+      "path": "markitdown_mcp/__init__.py",
+      "sha256": "d332de62c0ddcefcdadaa66d58766d72f8d06d3d9c84658fb2df3d8e480aa4ea",
+      "size": 178
+    },
+    {
+      "path": "markitdown_mcp/__main__.py",
+      "sha256": "eeb0065f1f71a8f1d6f659a90b2b43c6b35bf823c9183aded9df071216134d12",
+      "size": 3586
+    },
+    {
+      "path": "markitdown_mcp/py.typed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "markitdown_mcp-0.0.1a4.dist-info/METADATA",
+      "sha256": "515ba7fc42be5de2fd7bb283a917fd43b2c1c80ada281facce560efa91b5568d",
+      "size": 4907
+    },
+    {
+      "path": "markitdown_mcp-0.0.1a4.dist-info/WHEEL",
+      "sha256": "aad0b0a12256807936d52d4a6f88a1773236ae527564a688bab4e3fe780e8724",
+      "size": 87
+    },
+    {
+      "path": "markitdown_mcp-0.0.1a4.dist-info/entry_points.txt",
+      "sha256": "245df86125d04ba31c713131f8af448c7d091a1d711248ab5913e3e64a00155b",
+      "size": 64
+    },
+    {
+      "path": "markitdown_mcp-0.0.1a4.dist-info/RECORD",
+      "sha256": "9945874242dde46ef03fabd46b6ccc05732028e9dd14e44601d8ed732cb7d89a",
+      "size": 662
+    }
+  ],
+  "repository": {
+    "Documentation": "https://github.com/microsoft/markitdown#readme",
+    "Issues": "https://github.com/microsoft/markitdown/issues",
+    "Source": "https://github.com/microsoft/markitdown"
+  },
+  "gitHead": null
+}

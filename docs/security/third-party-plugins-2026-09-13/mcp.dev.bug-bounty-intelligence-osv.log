@@ -1,0 +1,3 @@
+Starting filesystem walk for root: /
+Scanned /Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.dev.bug-bounty-intelligence-package-lock.json file and found 93 packages
+End status: 0 dirs visited, 1 inodes visited, 1 Extract calls, 1.966875ms elapsed, 1.967ms wall time

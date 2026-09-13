@@ -1,0 +1,238 @@
+{
+  "schemaVersion": "pupu.plugin-verification-report.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "INCOMPLETE",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot unavailable",
+    "independentReview": false,
+    "methods": [
+      "bounded source/instruction review",
+      "Cisco Skill Scanner 2.1.0 local static/dataflow analyzers",
+      "OSV-Scanner 2.5.1",
+      "real MCP initialize/list/call probes",
+      "synthetic filesystem/SQLite effects through real Unchain confirmation dispatcher"
+    ]
+  },
+  "subject": {
+    "toolkitId": "mcp.workspace.filesystem",
+    "kind": "local-mcp",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "commit": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+    "package": "@modelcontextprotocol/server-filesystem",
+    "version": "2026.7.10",
+    "artifactSha256": "c17c1da371c8089cff2206cce3001194d8276bae2b5ac1e2b425b6612068e3ba",
+    "dependencyLockSha256": "92ca99755bbd703fb42bf7c188504bb5d8ecaf9bd77eb4591f7781b207fb6526",
+    "permissionConfigDigest": "dd6fa3c63d601f5bc9056042b137c1f15ef788e1197b98abea530c85e7296f63",
+    "selectedFileManifest": {
+      "reference": "subjects/mcp.workspace.filesystem.json",
+      "sha256": "82f9ba7d7ce3baaf4640a0926034dccb76b553c601ba60eb83c0ed4fd1b2d592"
+    },
+    "toolDefinitionDigest": "d8f4a05b4d9dd045685c76b0c115478b448d8def591b3dd251f579703c6b5520",
+    "referencedInstructionManifest": [],
+    "sourceCommitObservation": {
+      "id": "mcp.workspace.filesystem",
+      "repo": "modelcontextprotocol/servers",
+      "expectedCommit": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+      "resolvedCommit": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+      "url": "https://github.com/modelcontextprotocol/servers/commit/9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+      "match": true,
+      "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+    },
+    "endpoint": null
+  },
+  "coverage": {
+    "included": [
+      "Top-level artifact and installed-file correspondence",
+      "Resolved dependency scan",
+      "Actual negotiated MCP metadata",
+      "Selected synthetic protocol probes"
+    ],
+    "excluded": [
+      "Authenticated provider/browser workflows, full hostile inputs and complete code/dependency review remain unqualified."
+    ],
+    "scopeNote": "Inside-workspace read succeeds; direct outside-root read rejects. Real host dispatcher created a synthetic directory without confirmation. Link races and every filesystem tool were not exhaustively exercised."
+  },
+  "checks": [
+    {
+      "id": "PV-01.subject",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Acquired fixed package/source bytes and registry hashes, or bounded documented HTTPS endpoint identity; see identity limitations.",
+      "evidence": [
+        {
+          "reference": "subjects/mcp.workspace.filesystem.json",
+          "sha256": "82f9ba7d7ce3baaf4640a0926034dccb76b553c601ba60eb83c0ed4fd1b2d592"
+        },
+        {
+          "reference": "runtime-artifact-correspondence.json",
+          "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+        },
+        {
+          "reference": "source-commit-correspondence.json",
+          "sha256": "da464e566bfa3ca9f995abe7694b0d06dcda05a331ac855a5bacc939af969bfb"
+        }
+      ]
+    },
+    {
+      "id": "PV-01.deployed-pair",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Exact packaged PuPu/Unchain artifact correspondence was not established.",
+      "evidence": []
+    },
+    {
+      "id": "PV-02.scanner-execution",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Resolved dependency scan ran and raw findings were retained. PASS here means scanner execution, not vulnerability clearance.",
+      "evidence": [
+        {
+          "reference": "mcp.workspace.filesystem-osv.json",
+          "sha256": "8ab49cacbcd4bea0ed9aca2f38dd035fde81c4609cbda4183534eb80f9cfbf79"
+        },
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-02.dependency-disposition",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Full advisory reachability/adjudication and bundled-dependency closure are incomplete.",
+      "evidence": [
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.negotiated-metadata",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Actual tool definitions captured; descriptions and annotations are untrusted evidence, not permission authority.",
+      "evidence": [
+        {
+          "reference": "mcp.workspace.filesystem-mcp-probe.json",
+          "sha256": "cd51471ac0ec7f0f478ff9abc293374419bc7848baef9d9d6662deb765aa54f9"
+        }
+      ]
+    },
+    {
+      "id": "PV-04.protocol",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Bounded sandboxed startup and initialize/list observed; only selected harmless calls exercised.",
+      "evidence": [
+        {
+          "reference": "mcp.workspace.filesystem-mcp-probe.json",
+          "sha256": "cd51471ac0ec7f0f478ff9abc293374419bc7848baef9d9d6662deb765aa54f9"
+        },
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.hostile-model-path",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "No isolated PuPu model invocation with hostile tool/document instructions.",
+      "evidence": []
+    },
+    {
+      "id": "PV-05.evidence",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Versioned local reports, raw records and digest manifest retained. No signed record or badge publication claimed.",
+      "evidence": [
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        },
+        {
+          "reference": "skill-scanner-identity.json",
+          "sha256": "6455273168e35beb34e2e9955b4a1a2974275b0bcb20fee731ada9b848c0b1eb"
+        },
+        {
+          "reference": "osv-scanner-identity.json",
+          "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+        }
+      ]
+    }
+  ],
+  "findings": [],
+  "tools": [
+    {
+      "name": "Cisco Skill Scanner",
+      "version": "2.1.0",
+      "scope": "Local deterministic and Python dataflow analyzers only"
+    },
+    {
+      "name": "OSV-Scanner",
+      "version": "2.5.1",
+      "scope": "Resolved dependencies, plus extracted Grafana Go module versions"
+    }
+  ],
+  "environment": {
+    "mechanism": "macOS Seatbelt sandbox-exec",
+    "node": "24.18.0",
+    "python": "3.12.11",
+    "profile": {
+      "reference": "sandbox-profile.sb",
+      "sha256": "006f937656dfa638a016282420573b22d10a4538ee6288018dec8e8ef6713690"
+    },
+    "controls": {
+      "reference": "sandbox-controls.json",
+      "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+    },
+    "credentials": "None; synthetic invalid placeholders only",
+    "model": null,
+    "packagedPair": null
+  },
+  "evidence": [
+    {
+      "reference": "subjects/mcp.workspace.filesystem.json",
+      "sha256": "82f9ba7d7ce3baaf4640a0926034dccb76b553c601ba60eb83c0ed4fd1b2d592"
+    },
+    {
+      "reference": "mcp.workspace.filesystem-mcp-probe.json",
+      "sha256": "cd51471ac0ec7f0f478ff9abc293374419bc7848baef9d9d6662deb765aa54f9"
+    },
+    {
+      "reference": "runtime-artifact-correspondence.json",
+      "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+    },
+    {
+      "reference": "dependency-assessment.json",
+      "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+    },
+    {
+      "reference": "skill-content-review.json",
+      "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+    }
+  ],
+  "limitations": [
+    "No live isolated PuPu model run with hostile tool/document output was performed.",
+    "No packaged PuPu and fixed Unchain-wheel pair was qualified.",
+    "Source/code review was targeted, not exhaustive review of every acquired file or bundled dependency.",
+    "No real service credentials, private workspace, production database or host browser session were used.",
+    "The sandbox denies network and user-home reads except explicit trusted Python/Node runtime paths; writes are restricted to synthetic fixtures. It is not a VM or a complete Mach-service/syscall monitor.",
+    "API acquisition and hosted MCP probes use the trusted verifier outside candidate sandbox; hosted backend code is not observable.",
+    "Package integrity hashes and reachable Git commits do not establish signed provenance or a complete publisher/build chain.",
+    "No Verified badge or catalog availability changed; this proposed v0.1 policy is not third-party certification."
+  ],
+  "recheckTriggers": [
+    "Package/code/dependency bytes change",
+    "Tool schema/instruction/reference/configuration changes",
+    "Relevant advisory appears",
+    "Host confirmation gap fixed",
+    "Valid scoped test credentials or isolated PuPu model environment becomes available"
+  ]
+}

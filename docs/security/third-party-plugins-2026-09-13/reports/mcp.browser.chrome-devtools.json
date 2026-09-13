@@ -1,0 +1,261 @@
+{
+  "schemaVersion": "pupu.plugin-verification-report.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "INCOMPLETE",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot unavailable",
+    "independentReview": false,
+    "methods": [
+      "bounded source/instruction review",
+      "Cisco Skill Scanner 2.1.0 local static/dataflow analyzers",
+      "OSV-Scanner 2.5.1",
+      "real MCP initialize/list/call probes",
+      "synthetic filesystem/SQLite effects through real Unchain confirmation dispatcher"
+    ]
+  },
+  "subject": {
+    "toolkitId": "mcp.browser.chrome-devtools",
+    "kind": "local-mcp",
+    "sourceRepo": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "commit": "f621d0052fd241dca76e7f615b20e9d320ba965f",
+    "package": "chrome-devtools-mcp",
+    "version": "1.6.0",
+    "artifactSha256": "1e632c2d9714b4f82b4cfab4efb9ce575085c75ffe5e9772383129af012c9c84",
+    "dependencyLockSha256": "8c6b7304f1a74679f99879a1b6833fec0d518ffda97be5ef108d99aed1ee7bcc",
+    "permissionConfigDigest": "fd27f1659927ddaf0c70bb9db4b73ca19544e9742c91735e2fabf58952fc6d0a",
+    "selectedFileManifest": {
+      "reference": "subjects/mcp.browser.chrome-devtools.json",
+      "sha256": "5da1048800fb7f4c0358190bef115405dca1121ac850c1fd436fded593b1fce5"
+    },
+    "toolDefinitionDigest": "1c77d084f62fefc6787fe323a8b20484b34d5043399e0cdd5ff6908e14f21c42",
+    "referencedInstructionManifest": [],
+    "sourceCommitObservation": {
+      "id": "mcp.browser.chrome-devtools",
+      "repo": "ChromeDevTools/chrome-devtools-mcp",
+      "expectedCommit": "f621d0052fd241dca76e7f615b20e9d320ba965f",
+      "resolvedCommit": "f621d0052fd241dca76e7f615b20e9d320ba965f",
+      "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp/commit/f621d0052fd241dca76e7f615b20e9d320ba965f",
+      "match": true,
+      "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+    },
+    "endpoint": null
+  },
+  "coverage": {
+    "included": [
+      "Top-level artifact and installed-file correspondence",
+      "Resolved dependency scan",
+      "Actual negotiated MCP metadata",
+      "Selected synthetic protocol probes"
+    ],
+    "excluded": [
+      "Authenticated provider/browser workflows, full hostile inputs and complete code/dependency review remain unqualified.",
+      "Catalog confirmation requirement is lost in inspected Unchain tool conversion: evaluate_script, performance_start_trace"
+    ],
+    "scopeNote": "29 tools discovered with telemetry/CrUX flags disabled. No real browser connection/input attempted. Embedded third-party JavaScript is not fully described by its outer npm lock."
+  },
+  "checks": [
+    {
+      "id": "PV-01.subject",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Acquired fixed package/source bytes and registry hashes, or bounded documented HTTPS endpoint identity; see identity limitations.",
+      "evidence": [
+        {
+          "reference": "subjects/mcp.browser.chrome-devtools.json",
+          "sha256": "5da1048800fb7f4c0358190bef115405dca1121ac850c1fd436fded593b1fce5"
+        },
+        {
+          "reference": "runtime-artifact-correspondence.json",
+          "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+        },
+        {
+          "reference": "source-commit-correspondence.json",
+          "sha256": "da464e566bfa3ca9f995abe7694b0d06dcda05a331ac855a5bacc939af969bfb"
+        }
+      ]
+    },
+    {
+      "id": "PV-01.deployed-pair",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Exact packaged PuPu/Unchain artifact correspondence was not established.",
+      "evidence": []
+    },
+    {
+      "id": "PV-02.scanner-execution",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Resolved dependency scan ran and raw findings were retained. PASS here means scanner execution, not vulnerability clearance.",
+      "evidence": [
+        {
+          "reference": "mcp.browser.chrome-devtools-osv.json",
+          "sha256": "6b834479eb9d0140b35933c21496a4502d421de523ed15c4ffc8961e1084d73d"
+        },
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-02.dependency-disposition",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Full advisory reachability/adjudication and bundled-dependency closure are incomplete.",
+      "evidence": [
+        {
+          "reference": "dependency-assessment.json",
+          "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.negotiated-metadata",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Actual tool definitions captured; descriptions and annotations are untrusted evidence, not permission authority.",
+      "evidence": [
+        {
+          "reference": "mcp.browser.chrome-devtools-mcp-probe.json",
+          "sha256": "99e80ff88d3875ab6f1c24e44c35d4d893aaf83026eabecf94f651bde42225c8"
+        }
+      ]
+    },
+    {
+      "id": "PV-04.protocol",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Bounded sandboxed startup and initialize/list observed; only selected harmless calls exercised.",
+      "evidence": [
+        {
+          "reference": "mcp.browser.chrome-devtools-mcp-probe.json",
+          "sha256": "99e80ff88d3875ab6f1c24e44c35d4d893aaf83026eabecf94f651bde42225c8"
+        },
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.hostile-model-path",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "No isolated PuPu model invocation with hostile tool/document instructions.",
+      "evidence": []
+    },
+    {
+      "id": "PV-05.evidence",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Versioned local reports, raw records and digest manifest retained. No signed record or badge publication claimed.",
+      "evidence": [
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        },
+        {
+          "reference": "skill-scanner-identity.json",
+          "sha256": "6455273168e35beb34e2e9955b4a1a2974275b0bcb20fee731ada9b848c0b1eb"
+        },
+        {
+          "reference": "osv-scanner-identity.json",
+          "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "PT-INTEGRATION-01",
+      "severity": "HIGH",
+      "status": "CONFIRMED_HOST_CONVERSION_GAP",
+      "applicability": "Inspected Unchain source; not attributed as malicious code in this package. Exact packaged pair remains unqualified.",
+      "tools": [
+        "evaluate_script",
+        "performance_start_trace"
+      ],
+      "existingTicket": "https://github.com/haoxiang-xu/PuPu/issues/164",
+      "evidence": [
+        {
+          "reference": "runtime-confirmation-check.json",
+          "sha256": "acb07944c96c2d0910facfa029987988f15cdb4762214de30f4bff85f9a3cd2a"
+        },
+        {
+          "reference": "sqlite-confirmation-check.json",
+          "sha256": "ea143802471a98072df5e99a325254302ef367001183707d5a1be70c58787665"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "Cisco Skill Scanner",
+      "version": "2.1.0",
+      "scope": "Local deterministic and Python dataflow analyzers only"
+    },
+    {
+      "name": "OSV-Scanner",
+      "version": "2.5.1",
+      "scope": "Resolved dependencies, plus extracted Grafana Go module versions"
+    }
+  ],
+  "environment": {
+    "mechanism": "macOS Seatbelt sandbox-exec",
+    "node": "24.18.0",
+    "python": "3.12.11",
+    "profile": {
+      "reference": "sandbox-profile.sb",
+      "sha256": "006f937656dfa638a016282420573b22d10a4538ee6288018dec8e8ef6713690"
+    },
+    "controls": {
+      "reference": "sandbox-controls.json",
+      "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+    },
+    "credentials": "None; synthetic invalid placeholders only",
+    "model": null,
+    "packagedPair": null
+  },
+  "evidence": [
+    {
+      "reference": "subjects/mcp.browser.chrome-devtools.json",
+      "sha256": "5da1048800fb7f4c0358190bef115405dca1121ac850c1fd436fded593b1fce5"
+    },
+    {
+      "reference": "mcp.browser.chrome-devtools-mcp-probe.json",
+      "sha256": "99e80ff88d3875ab6f1c24e44c35d4d893aaf83026eabecf94f651bde42225c8"
+    },
+    {
+      "reference": "runtime-artifact-correspondence.json",
+      "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+    },
+    {
+      "reference": "dependency-assessment.json",
+      "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+    },
+    {
+      "reference": "skill-content-review.json",
+      "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+    }
+  ],
+  "limitations": [
+    "No live isolated PuPu model run with hostile tool/document output was performed.",
+    "No packaged PuPu and fixed Unchain-wheel pair was qualified.",
+    "Source/code review was targeted, not exhaustive review of every acquired file or bundled dependency.",
+    "No real service credentials, private workspace, production database or host browser session were used.",
+    "The sandbox denies network and user-home reads except explicit trusted Python/Node runtime paths; writes are restricted to synthetic fixtures. It is not a VM or a complete Mach-service/syscall monitor.",
+    "API acquisition and hosted MCP probes use the trusted verifier outside candidate sandbox; hosted backend code is not observable.",
+    "Package integrity hashes and reachable Git commits do not establish signed provenance or a complete publisher/build chain.",
+    "No Verified badge or catalog availability changed; this proposed v0.1 policy is not third-party certification."
+  ],
+  "recheckTriggers": [
+    "Package/code/dependency bytes change",
+    "Tool schema/instruction/reference/configuration changes",
+    "Relevant advisory appears",
+    "Host confirmation gap fixed",
+    "Valid scoped test credentials or isolated PuPu model environment becomes available"
+  ]
+}

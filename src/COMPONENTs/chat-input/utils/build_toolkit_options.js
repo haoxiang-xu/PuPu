@@ -1,5 +1,5 @@
 import ToolkitIcon, {
-  isBuiltinToolkitIcon,
+  getToolkitIconBackground,
   isFileToolkitIcon,
 } from "../../toolkit/components/toolkit_icon";
 
@@ -61,9 +61,7 @@ const buildToolkitOptionIcon = (toolkitIcon) => {
     );
   }
 
-  const backgroundColor = isBuiltinToolkitIcon(toolkitIcon)
-    ? toolkitIcon?.backgroundColor || "rgba(148,163,184,0.14)"
-    : "rgba(148,163,184,0.14)";
+  const backgroundColor = getToolkitIconBackground(toolkitIcon);
 
   return (
     <span

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/private/tmp/pupu-official-verify-mj1zxup1/security-probes.py", line 40, in <module>
+    result=tk.shell(command=str(fake));check('CORE-SHELL-DISGUISED-EFFECT',not (ws/'classifier-marker.txt').exists(),result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: CoreToolkit.shell() missing 1 required positional argument: 'action'

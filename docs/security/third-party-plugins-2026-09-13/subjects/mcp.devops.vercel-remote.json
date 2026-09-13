@@ -1,0 +1,96 @@
+{
+  "toolkitId": "mcp.devops.vercel-remote",
+  "catalog": {
+    "id": "devops.vercel-remote",
+    "toolkitId": "mcp.devops.vercel-remote",
+    "name": "Vercel",
+    "description": "Official Vercel remote MCP server; PuPu connection is pending Vercel client approval.",
+    "category": "devops",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "coming_soon",
+    "installable": false,
+    "license": "hosted",
+    "sourceRepo": "https://vercel.com/docs/agent-resources/vercel-mcp",
+    "docsUrl": "https://vercel.com/docs/agent-resources/vercel-mcp",
+    "icon": {
+      "type": "file",
+      "mimeType": "image/svg+xml",
+      "displayScale": 0.82,
+      "content": "<svg fill=\"#000000\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Vercel</title><path d=\"m12 1.608 12 20.784H0Z\"/></svg>"
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://mcp.vercel.com",
+      "headers": []
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "vercel",
+        "providerLabel": "Vercel",
+        "clientRegistration": "dynamic",
+        "releaseStatus": "approval_required",
+        "mcpUrl": "https://mcp.vercel.com",
+        "transport": "streamable_http",
+        "protectedResourceMetadataUrl": "https://mcp.vercel.com/.well-known/oauth-protected-resource",
+        "scopes": [],
+        "authUrlParams": {},
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "protected_resource"
+      }
+    },
+    "setupPreview": "https://mcp.vercel.com",
+    "prerequisites": [
+      "Vercel account",
+      "Vercel-supported OAuth client access"
+    ],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "search_documentation",
+        "title": "Search docs",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "list_projects",
+        "title": "List projects",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "list_deployments",
+        "title": "List deployments",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_deployment_build_logs",
+        "title": "Build logs",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_runtime_logs",
+        "title": "Runtime logs",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "deploy_to_vercel",
+        "title": "Deploy to Vercel",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Vercel Remote\n\nVercel currently allows only reviewed and approved AI clients to connect to its hosted MCP endpoint. PuPu is not on that list yet, so this entry is intentionally unavailable until provider approval and end-to-end OAuth testing are complete."
+  },
+  "checkedAt": "2026-09-13T18:36:58.995542+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://mcp.vercel.com"
+}

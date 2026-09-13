@@ -1,0 +1,2302 @@
+{
+  "toolkitId": "skillpack.vercel-web-review",
+  "catalog": {
+    "id": "skillpack.vercel-web-review",
+    "title": "Vercel Web Review",
+    "titleZh": "Vercel \u7f51\u9875\u5ba1\u67e5",
+    "blurb": "Vercel\u2019s web-design-guidelines skill reviews accessibility, performance and interface quality. It reads your selected files and fetches current official guidelines online; the full React skills collection is not included.",
+    "blurbZh": "\u7cbe\u9009 Vercel \u7f51\u9875\u5ba1\u67e5\u6280\u80fd\uff0c\u68c0\u67e5\u65e0\u969c\u788d\u3001\u6027\u80fd\u4e0e\u754c\u9762\u4f53\u9a8c\u3002\u9700\u8981\u8bfb\u53d6\u6240\u9009\u6587\u4ef6\u5e76\u8054\u7f51\u83b7\u53d6\u5b98\u65b9\u89c4\u5219\uff1b\u4e0d\u5305\u542b\u5b8c\u6574 React \u6280\u80fd\u5408\u96c6\u3002",
+    "gradient": [
+      "#343434",
+      "#646464"
+    ],
+    "source": {
+      "provider": "github",
+      "repo": "vercel-labs/agent-skills",
+      "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "license": "MIT"
+    },
+    "subset": [
+      "skills/web-design-guidelines"
+    ],
+    "commandPreviews": [
+      {
+        "name": "web-design-guidelines",
+        "description": "Review web interfaces using current Vercel guidelines; requires file read and web fetch.",
+        "descriptionZh": "\u6309 Vercel \u6700\u65b0\u89c4\u5219\u5ba1\u67e5\u7f51\u9875\uff1b\u9700\u8981\u6587\u4ef6\u8bfb\u53d6\u4e0e\u7f51\u9875\u83b7\u53d6\u5de5\u5177\u3002"
+      }
+    ],
+    "manifest": [
+      {
+        "path": "skills/web-design-guidelines/SKILL.md",
+        "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+      }
+    ],
+    "review": {
+      "recordId": "ticket-283-vercel-web-review-content-review",
+      "reviewedAt": "2026-09-12",
+      "reviewers": [
+        "Codex (selected instruction content review)"
+      ]
+    }
+  },
+  "checkedAt": "2026-09-13T18:37:00.407468+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "skill-pack",
+  "artifactSha256": "3d11926496b220075c3e9ad57b42deef5d3f7a35c8253719c2059d18ad1a3b35",
+  "files": [
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/.github/workflows/agent-skills-discovery.yml",
+      "sha256": "066241189c39bc26b9d042ba98af3e099b25fa55b6f13384edecf891e37dd57f",
+      "size": 1561
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/.github/workflows/react-best-practices-ci.yml",
+      "sha256": "5d64cedf58aef9b87f23ef53f02b9f3be183f06bbd17916a1bb9540055f73a11",
+      "size": 822
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/.gitignore",
+      "sha256": "7767d3348567bf269391cac851c3a764bf0e6ebf8175a811ce82c4e7cd254328",
+      "size": 48
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/AGENTS.md",
+      "sha256": "f462598b16b597dd77cbdd6686765d722b75ccd2087996e50882a0ded15c60e4",
+      "size": 3367
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/README.md",
+      "sha256": "7c02f64b08fc6c4eef03c01d64f3e2ed478193ccfcbd14edba379abe23304651",
+      "size": 7838
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/package-lock.json",
+      "sha256": "78b163959349404ebd3e4619e65da67bf0496774cf5f82a739b44586c560f74d",
+      "size": 607
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/package.json",
+      "sha256": "4346dba39e76172e83a7f836077b2832a950cec9aeb1caf47d2713151a4391b9",
+      "size": 126
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/.gitignore",
+      "sha256": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
+      "size": 14
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/package.json",
+      "sha256": "a951eb88029b2cd7d1eed3612b857a2a9ad51e4c926321f0ff77d7e34973a172",
+      "size": 931
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/pnpm-lock.yaml",
+      "sha256": "6d4d6ec07744dcea5554aae62d0886eb17d9cca808e67b58eea4ad4a9ff04df7",
+      "size": 10253
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/build.ts",
+      "sha256": "27839168f51dac4e0b82a4efe88fbefcdc1a7f97f7e58259b3c401666171ce33",
+      "size": 9972
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/config.ts",
+      "sha256": "919e1ec913104be04c122c2e5d8f4da53a754a6d12a71e6d985a9be060e08a82",
+      "size": 2902
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/extract-tests.ts",
+      "sha256": "bd57a8d6fe608b6df9aa0c56c69d72cd3cb61925002aa84cd3a5a740cd43a5b6",
+      "size": 2455
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/migrate.ts",
+      "sha256": "acc483aa1cfc68aaaf5f95846bc12505971d51467f3b4f06fb8a64f19a21138c",
+      "size": 5547
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/parser.ts",
+      "sha256": "cd477b564c27f5ad3a716cf11a57140a8dacac1aa0187639b6072daf30bd250b",
+      "size": 7850
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/types.ts",
+      "sha256": "677c9c0ef9108122bf35284e30b60d0c51a0ea17b2f54d9ab318b369b4a0a81e",
+      "size": 1337
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/src/validate.ts",
+      "sha256": "9e6af88e36acaaad49458f5e0d0d55cc496570956b38ee489f108929a2cc85ce",
+      "size": 3537
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/test-cases.json",
+      "sha256": "6279416db0586eba9ff13170505b5518cb4a074c98f6daf76b930126a741284c",
+      "size": 67980
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/react-best-practices-build/tsconfig.json",
+      "sha256": "ce81825a50de5c869d040ae5f399cc7e76f758e884cd8ce38605138e25625d5f",
+      "size": 399
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/package.json",
+      "sha256": "0e3dbb102c7fee036565246b60b5a5ef77ed25648b82565009513551b27844e6",
+      "size": 378
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/account-scope-grading.test.mjs",
+      "sha256": "2f654fa15967f53322a1816b98f9a2ad7212ae845a3c580ae8347c68f3e0f982",
+      "size": 3565
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/budget-summary.test.mjs",
+      "sha256": "7725a4b4c0f2123597f98f1add60ef5f6e33db207b671fef6dee7a0bd99e6975",
+      "size": 10684
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/build-minutes-fanout.test.mjs",
+      "sha256": "a5de50fa5ef2f3014b1a40bddf73fbe7d592b99bfabb3ca8e787e41ebdedebb7",
+      "size": 2790
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/cache-components-suspense-dedupe.test.mjs",
+      "sha256": "da549bbedec6c2a3b723037103bb345082b6a4b2397902f507bc45ad30980c58",
+      "size": 3279
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/check-citations-script.test.mjs",
+      "sha256": "33499bbff5551890f6f23c1c3f587b10d3979bb4d08982db1ee7113ac33ce314",
+      "size": 605
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/citations.test.mjs",
+      "sha256": "2ff3c728133f6cf9cd599e9d169ce3bcd7f01316c243c75ad68086cb2150d552",
+      "size": 5545
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/cold-start-revival.test.mjs",
+      "sha256": "fb86e0edc077a3bb44fca2726d33155a58652583320ee95e7d2ae077913e1826",
+      "size": 3747
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/collect-framework-preflight.test.mjs",
+      "sha256": "bcb05de191976b3318341a1b4c1915788101411b045ecb4cf6713667ded833f9",
+      "size": 22636
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/collect-sub-agent-outputs.test.mjs",
+      "sha256": "3cbc45314e01f46accee0c75924e7d5aed4eccd48f8dc2b9c9ef4567ce7193c1",
+      "size": 7261
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/collection-command-docs.test.mjs",
+      "sha256": "84fa9a99b5913760cb2b087491c962894a92e8becaa8476d84429321c5f547d9",
+      "size": 2059
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/cost-coverage.test.mjs",
+      "sha256": "97c9ed0dd9b4ef583b618b49eeaa366c1f3373c5b9b2d89f97ef998852bd76f3",
+      "size": 4060
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/dedup-recs.test.mjs",
+      "sha256": "28c945fee84f0e55783937a7f4dc24b07284389769025ca645fc4ad1cae180c9",
+      "size": 13142
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/deep-dive-extract.test.mjs",
+      "sha256": "b4a612bd30a46e63412627b6fa8a436e981f452f61af3bf475fb4d1fe9e98a29",
+      "size": 3011
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/deep-dive.test.mjs",
+      "sha256": "d35b75bdca0d471d02ba8f11463c3f9d656ddbe9c759358225de986dad172362",
+      "size": 15828
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/display-labels.test.mjs",
+      "sha256": "628e3a9e0656ad0aee756328eb27c10e01d6493cd633d8c4d49105fcc5a6cf18",
+      "size": 5968
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/edge-heavy-import.test.mjs",
+      "sha256": "83039d7e77add6e844536b960c8f1127deafd39be68d64012217ca1432aebadc",
+      "size": 3437
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/README.md",
+      "sha256": "8f839975ba0e1f80f88d86c970ed004fb46d37f3c1fda55c0086b50000ece456",
+      "size": 4312
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/contract-commitments-empty-200.txt",
+      "sha256": "8f1a6693cc4a37e923db49c0c237b1e282740ee68a0a0d44a0c0e0ffa85edf36",
+      "size": 525
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/contract-empty-commitments.json",
+      "sha256": "85e99197a9c5806f7586e9ca0aadab0b191954a2c4b2b9a226a11cf0cf37eb35",
+      "size": 78
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/README.md",
+      "sha256": "835c8d3aa292b555f2809c07ab724f2eb87d21b40f064567f34f7b04c96fb646",
+      "size": 2189
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/slow_route_latency_p95.json",
+      "sha256": "3f7ed3165917fef3887b34afcd0d38d01324ae5ee8357b1374b3c85b4c7319f9",
+      "size": 515
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/slow_route_perDeployment.json",
+      "sha256": "4c6ac5d7665c4a72b29b650ed41c483e3314c3313c565f84882381b4340d7f91",
+      "size": 718
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/slow_route_startTypeSplit.json",
+      "sha256": "eb0a0e8b850a93ec42d111e0a22d648eaad843240fd8274b39d13f1f25a99732",
+      "size": 752
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/slow_route_statusDist.json",
+      "sha256": "0886070b15f9c4e9881de9978a3f7ef2b91d8d52d25146c561e91bc9798ab188",
+      "size": 623
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/deep-dive/uncached_route_cacheBreakdown.json",
+      "sha256": "a621961fac1ed34b57450a29b533f00473d5008ffb9232a8cbf78f08e4737421",
+      "size": 513
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-bot-id-checks.json",
+      "sha256": "cb3ff4599ca6ff19cc236840adc2e700c44023570c688dd28d8d2455eeeb826f",
+      "size": 367
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-cls-by-route.json",
+      "sha256": "f60e767f43f8d01b7acb9d633d9ba4bd3cd734b92a130fd287159c3dea4c2dc9",
+      "size": 395
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-count-by-route.json",
+      "sha256": "504cd66e902a7bb35d16fd527b7be0709179db3988fcba3b552344eca0fdf79f",
+      "size": 397
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-count.json",
+      "sha256": "3c908f8bb806ae5146f9cb457a245b630cfcd5dbab85635c1160d3aedbba2512",
+      "size": 377
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-inp-by-route.json",
+      "sha256": "7cb1d1fcc9db5dcee9dc089b9be1c698de96a8d812f32a496b80a517366735ab",
+      "size": 395
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-lcp-by-route.json",
+      "sha256": "9468f7d9afcef17c82c475058eaea0ea8652d974e78bc632f04a0ab9db2a45d1",
+      "size": 395
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-cwv-ttfb-by-route.json",
+      "sha256": "973d59d2c32f4b472bca2211271d2d57aa820124744280764effc6cec2e91fba",
+      "size": 399
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-error-invalid-dimension.json",
+      "sha256": "1d5c795ea6e8dc368cde2e9a8800bba25d6e67eb2ae42b6f9794104927ddc6c3",
+      "size": 1012
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-ext-api-p75.json",
+      "sha256": "20b7d8205f8533e1e796a5f3fd5fb35cf9b7be3f96731244dca18af39ee45329",
+      "size": 1539
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-external-api-bytes.json",
+      "sha256": "ca2d3b6dd72d7f0bcc21a5020efb82c70a98895a4009f9c88a2adf3d61a89d3e",
+      "size": 94555
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-external-api-count.json",
+      "sha256": "03e6df4412247f65f910891822aa0c216588f16f24e49742892ae00b8cf425dd",
+      "size": 89690
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fdt-by-bot.json",
+      "sha256": "e65edd801006227adfe738e0084e5cc45e0d1c0e7fe3061d42b8d2aa35ffea48",
+      "size": 157391
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fdt-by-cache.json",
+      "sha256": "d02bc394468bbd98eb84f65e0cd56e172681174e396af981ae48b040c86a7b1d",
+      "size": 175663
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fdt-by-route.json",
+      "sha256": "2fd8f6a90dc176735a80521a5705ee9ec06e18e0489356df3a00b2425578e4c2",
+      "size": 1108939
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-firewall-by-action.json",
+      "sha256": "e5493da304656e413212c29120fd28f0cc8fa18a2db89c85723e7e4cb93afcb9",
+      "size": 49495
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-count-by-route-http-status.json",
+      "sha256": "bd678ead563b42f7a00af5637d2d018f02ece8fcc775584e15af59f96dc0b053",
+      "size": 769
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-cpu-by-route.json",
+      "sha256": "31c98251f9796dec63c9ffb3f0b3754ced7df3759b034efb67a4d92ccb3f5161",
+      "size": 221072
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-duration-p95-by-route.json",
+      "sha256": "b6e0704c9365ca30c48588d01843fe06bacd50f7d4a74056ea3086ff6cfd4cfd",
+      "size": 2670
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-gbhr-by-route.json",
+      "sha256": "855175293214b6ba92bb5a343657e14711ad17db2d15690f66e0fdda04e1a8f1",
+      "size": 226027
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-peak-memory-by-route.json",
+      "sha256": "14dfba8ac9759dc8625dc7fef8a930a7b6b44cee8cf19aac9e117cc34bb4bde0",
+      "size": 216310
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-provisioned-memory-by-route.json",
+      "sha256": "b4ae7b60d0ca388a5a372ad405e3da1e1af54b21bfa218b40e81d37db44d261d",
+      "size": 226630
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-start-type-by-route.json",
+      "sha256": "9033e86f5c71806c0528833cf1adda909e43361b36735a0f7c124ed3b86e629f",
+      "size": 635990
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-fn-ttfb-p95-by-route.json",
+      "sha256": "90d5e4c18e4ee584202bde5dc20c9320ed204fca267cc03b3a78381d673a8a21",
+      "size": 206150
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-image-by-host.json",
+      "sha256": "a48c061f30319616a0cedd36edd3911408badbf0e4ba8397570f9b65b84a4256",
+      "size": 411
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-image-count.json",
+      "sha256": "8cd2435270d94224174ea12ce94671ab486d4cc293158897a4875dd33ba3a3c2",
+      "size": 375
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-image-source-bytes.json",
+      "sha256": "728bb96bcc064d3123ff1ab845c6072f61a54fdf193de1437c5dfec0f474cb0b",
+      "size": 388
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-isr-reads-by-route.json",
+      "sha256": "fb46e93438d5cd918733b7375a4f79b4fe977b0340d98ddcf2fcaee9a63be50f",
+      "size": 1012150
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-isr-writes-by-route.json",
+      "sha256": "49afd8a23ae366dd84fd849d51948bb2e8245f2b97adfa787a99f579a933bc00",
+      "size": 1018525
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-middleware-count.json",
+      "sha256": "74b81c61fedc307cd9061eebbc4f78df01a226ec1835d09aca9612cdaa3177dd",
+      "size": 407
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-middleware-duration-p95.json",
+      "sha256": "0ca3ea7ad8543b0aa3779a07190048adab664d5cf32b0fd179f58f4072e886fa",
+      "size": 413
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-request-count-by-route-method.json",
+      "sha256": "dbab7778991f98bd903071cda2afdda99a8228c4ee32ee9f56f107a4df73c186",
+      "size": 6712
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-request-count-group-by-http-status.json",
+      "sha256": "20c701989825fdc775de3b4eb1c697d3ea760f55b393a00168f86f14ed86e29a",
+      "size": 2067
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-request-count-group-by-route-cache.json",
+      "sha256": "0d5db0827621f700cddd7ba86e7c397d6b4de4b07e2e6d40fabbd318a0820ff6",
+      "size": 2956
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-request-count-group-by-route.json",
+      "sha256": "11ca14b3f9eb73f8f06c85e622a591ffb785594342012418f67e354dda0140ce",
+      "size": 2403
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-request-count-since-30d.json",
+      "sha256": "69155d508f12dbf7391b0d25f648f29b204554da9f1a5159bc5388b023ee7392",
+      "size": 1244
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/metrics-schema.json",
+      "sha256": "0175a49e0c820b4f426f681d5bd52b0f3cec5041fd5706b075bdc5bb65ea08c4",
+      "size": 8463
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/project-v9.json",
+      "sha256": "6ce7cc60d7e33fa9bd27287c944d9e7fdc7fd667257ecf7e1472dc9dd08e49ee",
+      "size": 3166
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/real-cli-output/usage-404-stderr.txt",
+      "sha256": "e273c638510ce4c7733031b9b53881f8511763c520837dc187c5a5b405eac6bd",
+      "size": 66
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/signals.hobby.json",
+      "sha256": "b61f58556d9cb51f4de55645b9421023f5187d7aa6b452c09add4af258dd6485",
+      "size": 1168
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/fixtures/signals.pro-oplus.json",
+      "sha256": "7d46a15aabd90fa65fde4bdf87dad459cc70a23937530d536b1ad3778bfe40e5",
+      "size": 4685
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/flags-gate.test.mjs",
+      "sha256": "2ff70ceda20c6e51fd9d1a41b1c8390ec0b5bec124a7642bff6b2d058aa6f8a4",
+      "size": 9183
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/framework-support.test.mjs",
+      "sha256": "f8724ffe69759b16c6404694b01246dc70b25675e3e83ce5b7851e83601c3e5a",
+      "size": 1383
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/gate-contract.test.mjs",
+      "sha256": "d9b923404b73daf57423ea88ea4ed789a8d2ca0242446f9db0a7ced34c3a30f9",
+      "size": 5306
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/gate-selection.test.mjs",
+      "sha256": "cba50134193555141ced75783641cb94d57b103f02df9930a8122928ed674a3b",
+      "size": 3667
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/gate.test.mjs",
+      "sha256": "9071ecebb565f218c14143b61eae6bc624e2a9b7d74a749a665048cc081d4e66",
+      "size": 6135
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/grade-and-verify.test.mjs",
+      "sha256": "22290e7a532d2f824c0b08fe36514b6c8a41f55961232f22364b97cad0e13621",
+      "size": 51734
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/hallucination-probe.test.mjs",
+      "sha256": "ba8fc91a6ef6459152caa91e038afdc81f91e42c5925d594e46f8af4803c3176",
+      "size": 4191
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/impact-label.test.mjs",
+      "sha256": "769b4f4aaa1f7f9a41c96877d3c9ef0f75fd1fc7ec6f77d68690c78ee68c3487",
+      "size": 4044
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/impact-magnitude.test.mjs",
+      "sha256": "16ecce1370981c523310cacbf9e9ff057b13947dbe666eed4acb197c84084358",
+      "size": 2765
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/infer-plan.test.mjs",
+      "sha256": "bb61f56526319df9aca0e6fb15adc2ea1dfe3739145e134ee8b0cd90532f956b",
+      "size": 5684
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/investigation-brief.test.mjs",
+      "sha256": "af8c5789165ca4569ef4f2d5b16c1d3ea62476e488102bcbb9f30e4c509598d3",
+      "size": 19819
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/large-static-asset.test.mjs",
+      "sha256": "8a1219ef646790ebc66985fa8eb16422f0dd545e45de29dd8e2612fea29053c1",
+      "size": 4147
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/merge-signals.test.mjs",
+      "sha256": "295d141ab67e71358769e3074ff96201440460e179252a1abb18a6d65229003c",
+      "size": 5511
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/new-gates.test.mjs",
+      "sha256": "a585937de343ffd1ed6fe8331d5d06eb2905292f97bd83f37e86b422c52f01ed",
+      "size": 10807
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/observability-events-attribution.test.mjs",
+      "sha256": "476326b040404b9f83040c453642a1b58e848b27186fef56ce8d3acf084ba230",
+      "size": 2723
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/observability-preflight.test.mjs",
+      "sha256": "60a0c0a60b9d384177bb3a3ad2eb40436aaa614098bc692942e3cf3b38628897",
+      "size": 2783
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/observations.test.mjs",
+      "sha256": "0359f46dffda2eae9ddae02bf2635bfa702159e621516a40fcce698cc50dfae0",
+      "size": 4728
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/oplus-diagnose.test.mjs",
+      "sha256": "9e18d98e7ab2008e3b9aae0f72f10252cfb4ff74090ee1019fcf29efe18df501",
+      "size": 5603
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/prepare-investigation-brief-cli.test.mjs",
+      "sha256": "3b2cd769a73b1ed700a141584be71a0ede0807588a605b6e79bd06b15b5ab350",
+      "size": 5182
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/project-config-contradict.test.mjs",
+      "sha256": "0a8bd657ad5c5460c6344776ca10389fbc4a0a5245bbeac05c9ced6ad3faecba",
+      "size": 4778
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/project-facts.test.mjs",
+      "sha256": "84be5d310b02305965d06bef80173983e44fdb9904b84d6e4301ab393e703117",
+      "size": 4380
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/public-release-safety.test.mjs",
+      "sha256": "0bcaa4a3e3209ca42a2110aa90d8b3be56b082661e022b33347f0c340ccfc0ed",
+      "size": 3902
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/queries.test.mjs",
+      "sha256": "7f5b02b32a9c14eedfeee8798c83dcb4ac66937ea99664535515a3fe0b212e99",
+      "size": 8573
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/reconcile-candidates-cli.test.mjs",
+      "sha256": "a24f42c7ce1b7b9e6ededacba0c22d87e4df0e554307f81220f7d4291ef2c554",
+      "size": 1984
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/reconcile-candidates.test.mjs",
+      "sha256": "f7f97bdb7bcf348e586825d86734302f98a533cc7cc8a1a4baef4cf6f2313ebf",
+      "size": 6615
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/reconcile-pipeline.test.mjs",
+      "sha256": "03321d6b209e4da87a307336f459985e87adfd74c123f5bd355154184fde6291",
+      "size": 3447
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/region-misconfig.test.mjs",
+      "sha256": "bbc9509b6d29c94e9b63a16325375d65df2c0471004ee7e84be8d6eb9b1117e8",
+      "size": 2899
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/region-pin-in-config.test.mjs",
+      "sha256": "2ea11d427b55ee0f1313e2683f53cf1536c5c2f2460ee75e34eb07b6533ac2cc",
+      "size": 2314
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/render-report.test.mjs",
+      "sha256": "6e417be1694745f7e10de3c9b38b81c035038f63118a0ec187d99c802e49fc34",
+      "size": 56366
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/repo-root.test.mjs",
+      "sha256": "e8ca957be6d3f3ba0b4275feade2bf8c5527d61fdc438c2a6c5c0131944cb50d",
+      "size": 5614
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/route-errors.test.mjs",
+      "sha256": "230f8ce09ffe614917dbbc4bea28ed9b548c9dac5f964437ddd31b7b0932a410",
+      "size": 2506
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/route-normalize.test.mjs",
+      "sha256": "fc16c7c302b4bab4c44ed0aa9501361c64571690037a98db399cf2cc10329db2",
+      "size": 10211
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/route-shape-warnings.test.mjs",
+      "sha256": "b7604c2cc14045946576043586228ef930a4670d3ac4b81c22d5b01dfacdc33e",
+      "size": 2616
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/sanitizers.test.mjs",
+      "sha256": "63bf5a6a8429a90617eb23ccef3870f8fed0dc3f8113c218b6e153cb82bfaaca",
+      "size": 17383
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/scan-codebase-layouts.test.mjs",
+      "sha256": "4b9eb2fcdbc4e2a1417906770dd4aa515ca76451ea8860b74222217d7ec07b57",
+      "size": 6504
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/slow-route-5xx-disqualify.test.mjs",
+      "sha256": "6b2331e53ab445c98d4503d5b7e74dd8d597f18332de7df7f7d214a320bc2122",
+      "size": 3525
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/support-topics.test.mjs",
+      "sha256": "ee54eda56179a32cb586505cc4b24d28348dc38cb19d9d684a1fab6441ca1e45",
+      "size": 8813
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/sveltekit-parity.test.mjs",
+      "sha256": "e3933998496b691c5d23a6684396eea0666f74ae8a1449ee969474213fe4fc3e",
+      "size": 4784
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/throttle.test.mjs",
+      "sha256": "5ace477e52bdd18778bd238290330197ba7f1900d5d5152991f795c8051e76bb",
+      "size": 10658
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/time-window.test.mjs",
+      "sha256": "058b92849de4fbe8e4f1eab303a6467abfd06502670b844758a4e2790309ed24",
+      "size": 1577
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/turbo-force-bypass.test.mjs",
+      "sha256": "f5c7121cfb4831291b4bdaab60a2e98f9b60bea8e0c7f2397ba5b567c4adff12",
+      "size": 3179
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/uncached-route-method-filter.test.mjs",
+      "sha256": "4731e6d0eadfdd0adbf2d9b39249364a3c8d4c7523912eccaa6c3640d4b05c8f",
+      "size": 3196
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/unoptimized-image-ext.test.mjs",
+      "sha256": "aaa217a41b79056eecee0297364b73609e3d689d337d88305108767e41f8c3a6",
+      "size": 4464
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/usage-spike-triage.test.mjs",
+      "sha256": "0c563fc345a31f29faf3f9a7b93c6b6dc3b50cae612558eac5b879b8d4c0d239",
+      "size": 3348
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/use-cache-date-stamp.test.mjs",
+      "sha256": "94bb3cede996c20414eac935ad268c456255a0eadbcbd5d18209618e11f8ed4a",
+      "size": 2839
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/vercel-command.test.mjs",
+      "sha256": "93e0d2bebe7510e907cb224b3618535cef117f0209362fe582710f5cc6dd0cfd",
+      "size": 2917
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/vercel-redaction.test.mjs",
+      "sha256": "b6485675afc8afc45d3779deb3ebe416a66190e4c8f8163a5fdbd309274f4c7d",
+      "size": 2307
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/verify-and-regen-cli.test.mjs",
+      "sha256": "9857cd4be88fe5e4be3734a15be948f2e34ac0da4ccc253e7a910a6a3632d511",
+      "size": 9719
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/voice-drift.test.mjs",
+      "sha256": "13ae64c45aba627aaacf145db6e66e0a0f4f4845a091f86f1ebdc7631ec2f331",
+      "size": 4476
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/packages/vercel-optimize-tests/test/workspace-resolver.test.mjs",
+      "sha256": "70e4543cb7f895343829dd62110ef346ead19332a1562133fc3e98def8d8acac",
+      "size": 17056
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/scripts/build-discovery-index.mjs",
+      "sha256": "facf68910f4f1a40797f57603b3ac69d7e6f8a410ef285b70111ddf8b7cdaf07",
+      "size": 4190
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills.sh.json",
+      "sha256": "c24b57a09661f304276506f451b8de1c09b4dd02b53e754be5a115644679704f",
+      "size": 913
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/AGENTS.md",
+      "sha256": "89e3ddd58fcf99a53a50e25dfd21b8cde1be5f10b7df6bacd3dfa6796932f516",
+      "size": 22627
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/README.md",
+      "sha256": "85915a43a6f0b4efe525e3cf6398dd866166da2025837c4460468a24a940da94",
+      "size": 2140
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/SKILL.md",
+      "sha256": "e38e0eaa609316b10423a9a138ed95e35099accd3f735585295c8a8f165c28a3",
+      "size": 2886
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/metadata.json",
+      "sha256": "49262ed5cb4186f31ee980cf8d990be0170c51efed4908d0464a1cff9905bd05",
+      "size": 530
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/_sections.md",
+      "sha256": "a174213b87e6911e2b766995a2cbaf8d1534057076e82fb79fe3f0ecb38047df",
+      "size": 829
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/_template.md",
+      "sha256": "587f7d16b0660eb61fee4a4d3d7df2b3077d6835de170602c7d6e60bee559131",
+      "size": 329
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/architecture-avoid-boolean-props.md",
+      "sha256": "007555ebb020f4d552582a2c4db194db71a1fd33094012e5187bcfa4f8c392d5",
+      "size": 2267
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/architecture-compound-components.md",
+      "sha256": "f246af13dc269b521cf20eb8ad99a0cb645beac381c8c9b117262c34612c8457",
+      "size": 2600
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/patterns-children-over-render-props.md",
+      "sha256": "7c45a0d21b3c4126a32cba916ee31adeae195386ad1dbbe6634aedb7457aa0ad",
+      "size": 1886
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/patterns-explicit-variants.md",
+      "sha256": "8c19e596e61807549d01ce8c6954c6358199f97a8511c0c02c625ec0efda8c0e",
+      "size": 2395
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/react19-no-forwardref.md",
+      "sha256": "881830adb7534c4b2d70db426556646ad9837f5478f744f35641f635ada22227",
+      "size": 953
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/state-context-interface.md",
+      "sha256": "09e73afbf9285fa416679cc864a287b9e8b821d0969272ab784295386d8c9bc3",
+      "size": 4974
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/state-decouple-implementation.md",
+      "sha256": "76a8c1eb29a70d8996ab3f71260345af2f7bc89deab815a421d6c87c6591a9c3",
+      "size": 2699
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/composition-patterns/rules/state-lift-state.md",
+      "sha256": "74c54038a6c554c748fe31cec673b80861b5d920b7553cf78cdf10d18b4b759b",
+      "size": 3224
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/deploy-to-vercel.zip",
+      "sha256": "55b55d8603e2c398f5b925a94169b44c59456a6032a182b182ce05a404e36057",
+      "size": 22239
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/deploy-to-vercel/Archive.zip",
+      "sha256": "37c0d035b3d2c6256105316a2492c1487f3688efa21f030a8a623a9f7f0ee02f",
+      "size": 11314
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/deploy-to-vercel/SKILL.md",
+      "sha256": "cfcc3dd479ab2e0ae721ddf39b8af84d977321487672f1487c8d6855f576927b",
+      "size": 11786
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/deploy-to-vercel/resources/deploy-codex.sh",
+      "sha256": "18b411e2bfe07778bca11d7f0e1ec9c95e5764011dd2e3838f51066728646855",
+      "size": 8855
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/deploy-to-vercel/resources/deploy.sh",
+      "sha256": "418da6ff48c582790799d850a88fd83ca00f2ee00502665caf8dbb06d4dab8b9",
+      "size": 8841
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices.zip",
+      "sha256": "625cd4d178c36cc31822de421bbf1c288d5ba2cbb96dad78b58a4b1cc1cb4ff4",
+      "size": 99338
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/AGENTS.md",
+      "sha256": "fc93e7421177bbf869cce892bc60a6c83a4517d974bc3bf65c4e2c1e58a6ccf6",
+      "size": 108261
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/README.md",
+      "sha256": "9eafb2123d3b8b2aef41fba0db2648a3f4f49996f8c7c8bb2c86263befd8b48a",
+      "size": 3360
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/SKILL.md",
+      "sha256": "71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355",
+      "size": 7251
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/metadata.json",
+      "sha256": "c4e18bac3290fbe1b471a605867d4df68b03144ea26b8befdbe8f9d8fd124354",
+      "size": 921
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/_sections.md",
+      "sha256": "01c59969e4e867f0708c8f8ef9c6d87fab9a07d0586244f429ff84013db8a115",
+      "size": 1554
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/_template.md",
+      "sha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442",
+      "size": 631
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/advanced-effect-event-deps.md",
+      "sha256": "55ed8f9f27a1bff803d6fa55828176207714b02123cbb97ddb8a90d88024a723",
+      "size": 1802
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/advanced-event-handler-refs.md",
+      "sha256": "a3097edeecfb2ff6851cd66ed8cdf0617c3c88180504bee824aa6e75a215bbbc",
+      "size": 1483
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/advanced-init-once.md",
+      "sha256": "3e4dc22173eb0e2b6dcf583e3babd862b8696328f8f59aee7c4d746c5bc05f6c",
+      "size": 958
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/advanced-use-latest.md",
+      "sha256": "8a3f64dfe5a77d1564248faf17fe662ae75b55d497a243cb30b38eb07ccbbf9a",
+      "size": 1072
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-api-routes.md",
+      "sha256": "523338540d73427dc14c0cbb19f2741ebccdf8b105a7b2c1b33d2905cf237a42",
+      "size": 1125
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-cheap-condition-before-await.md",
+      "sha256": "03107c1f70a293cd58a8abc5474c5548e20ea4efdf01b6d45aae7ad0ac1cb32c",
+      "size": 1220
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-defer-await.md",
+      "sha256": "f3c142d090615abdcc99d31c123be37b31f0f1ed8d9ec9f7789a3bc6883ae0fb",
+      "size": 2208
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-dependencies.md",
+      "sha256": "16ef469f877e30c6b8e1e1b4bc3e527312fa3c6318cb785a4eca186ea236131a",
+      "size": 1293
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-parallel.md",
+      "sha256": "6d2f841896279e976dfcdc1ac89e70771ac188baadfd43c096b5706cb838b961",
+      "size": 654
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/async-suspense-boundaries.md",
+      "sha256": "de05fedac2eb7ae563b887b5a424464ec3dfaf84e5b7797467ebe2a796ac8afc",
+      "size": 2510
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-analyzable-paths.md",
+      "sha256": "62090b5c815fd71bf1133dce754f51abc16a9456d0ccd025fd627de27726e92a",
+      "size": 2382
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-barrel-imports.md",
+      "sha256": "e648f6d54525f07a691357040ca5bff6ea3424788a91ff63812adb29622a671b",
+      "size": 2795
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-conditional.md",
+      "sha256": "09c8259c3efb04fc0abb8e412ccbda217c222ae8118516283e571c995fe3a7d4",
+      "size": 949
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-defer-third-party.md",
+      "sha256": "3719fb47b191e8db4fe22686ec88448ad5af9e6838585425abbe103d0b642e37",
+      "size": 920
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-dynamic-imports.md",
+      "sha256": "401817a7369f315fc5a68a1095742ff7d53d0461906880dc9d64a41495ee1986",
+      "size": 791
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/bundle-preload.md",
+      "sha256": "d1f7cc28da7cd5ab249acd287edc5b761afcfb194e9cb62cd44c5f3543db2de2",
+      "size": 1149
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/client-event-listeners.md",
+      "sha256": "242a873349febc1ce685e85617994784dbab92c2eaa68aed7fed5a83e7680e93",
+      "size": 1969
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/client-localstorage-schema.md",
+      "sha256": "0fb7cdf9dc93fdf22f87e3669f953fb9d4ac9b0be42eec4a29fe9a2560610b88",
+      "size": 1950
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/client-passive-event-listeners.md",
+      "sha256": "1f35016f9053de69e884ee9be00654e37979c2ca85f5e57764dc2626ff7acb4b",
+      "size": 1644
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/client-swr-dedup.md",
+      "sha256": "644652c39c6cc00de8d1c77a7273612e868dc3f7edda30764164c12ec0f764a3",
+      "size": 1159
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-batch-dom-css.md",
+      "sha256": "480b891b9eaf96e929dc1e964274a4828e3a78009b7d00ccd965a0d425215959",
+      "size": 3266
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-cache-function-results.md",
+      "sha256": "3daaa11d24f4295cb6be8bc6f407f2ce83cc7b5bd1f0e68891ea8ab835721dc7",
+      "size": 1949
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-cache-property-access.md",
+      "sha256": "73e47431e74878a927061bf0ddc7cd91a7556cb35d2573f3421e82300d9ae311",
+      "size": 532
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-cache-storage.md",
+      "sha256": "11b826b0433898c1ece2d3547010d8e77db9fb240185748c45db91493de9b6cc",
+      "size": 1651
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-combine-iterations.md",
+      "sha256": "71add08aeeb43091d4ff4c0b2842cce8b4bdef8ad3e732cc034bb5a84827e746",
+      "size": 753
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-early-exit.md",
+      "sha256": "925ce5ce87f3347186ca62212f29cc6baa2b8c85a96d2720ad07c3d0abf781c0",
+      "size": 1133
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-flatmap-filter.md",
+      "sha256": "9e5b166a41914d975bef7635467f8fb32cd98b5c3126c0bc6f163490812fb5f0",
+      "size": 1411
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-hoist-regexp.md",
+      "sha256": "f9e9aef2f7c2307dd7310f283df85dcada45fc43e9bb941b0c3aa414dec21ec4",
+      "size": 1028
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-index-maps.md",
+      "sha256": "5df1bdc2cfabb2c98abd55d26762e5c18189535c2e686184f426082e62920391",
+      "size": 837
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-length-check-first.md",
+      "sha256": "8b54a311c826b299272f29187fc58bc55772a04c4a72eeb29456ee96dc9fc624",
+      "size": 1747
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-min-max-loop.md",
+      "sha256": "87dfb67e2f39df6ad8bcfb5b78c5fb364d3c07554ad188a202408d99f3763421",
+      "size": 2290
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-request-idle-callback.md",
+      "sha256": "ee08f83905b4011abbc33d594033157d77561b5bbd9b36b04f0f409581ffec32",
+      "size": 2647
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-set-map-lookups.md",
+      "sha256": "a7fd781a6ba9ad49065961b6f9a90ef486bf6b648390e1a08704025f98e1642b",
+      "size": 532
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/js-tosorted-immutable.md",
+      "sha256": "d0a5e1b0fec48a0a81397957e2f068e224329f7c42cb5feeed8aae6fa64025e8",
+      "size": 1782
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-activity.md",
+      "sha256": "1e5e7eaf3555e61d6a2e900089c676527d26259501db5594f59544b6c664f85a",
+      "size": 564
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-animate-svg-wrapper.md",
+      "sha256": "9c6ae0ca7a51434e803887c64cded760956579a1452ccb80a461a03f9c937c77",
+      "size": 1185
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-conditional-render.md",
+      "sha256": "2ec2fa23c4148285144687050c52369adba3da2fbe3d486f8d3e0aad8f06f2bc",
+      "size": 980
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-content-visibility.md",
+      "sha256": "64eee6d5b916fe74df33363994b27fc7f71bea3bcedc7ee04bda23107ca3e6e4",
+      "size": 815
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-hoist-jsx.md",
+      "sha256": "93b229560fae92005ed9a2a829064607b39b2e984e92d221d05b2d41df2b7c0e",
+      "size": 1039
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-hydration-no-flicker.md",
+      "sha256": "dc7ab358c67c177bca6e6f360fbc935ebe4efa928c0ba3ebd3f9f3d9e2000ca3",
+      "size": 2308
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-hydration-suppress-warning.md",
+      "sha256": "915bacb934e2927d84b37a3f3d225a47b309ac8f9e494ed2bcb66ce07c5676a2",
+      "size": 872
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-resource-hints.md",
+      "sha256": "351b1095d641717b930f1b2253282b7120af3023bc74e06c17675168d4286864",
+      "size": 2549
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-script-defer-async.md",
+      "sha256": "4cea07b7875ba7fc2c7465ff23b63a2bb334f90aaf2d9293d38d67b05fdb32ab",
+      "size": 1868
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-svg-precision.md",
+      "sha256": "ed468533f6e95f622859c884b122cf21f9f593ed6bb3d500a54de4b9f9bcb9fb",
+      "size": 588
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rendering-usetransition-loading.md",
+      "sha256": "3a1249c3f13026b6f54ab5712c388df219d6af01b12aa542749acd99a46f4bc1",
+      "size": 2074
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-defer-reads.md",
+      "sha256": "234050a77faf50cb306be10a9e15bd4421134ab5907e75f13e6d78e2bd262dc9",
+      "size": 973
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-dependencies.md",
+      "sha256": "17eb5830956fb56486fd3cfc7431f5849d39751730c05ad9e77dd4f0c27169c5",
+      "size": 824
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-derived-state-no-effect.md",
+      "sha256": "cb11ec76f50aa7b6847269f02d79b120c889a30d9ecd2c1d578f75144419c77a",
+      "size": 1201
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-derived-state.md",
+      "sha256": "1c326bb67b01fb084eb00c8911b0a7cff54681c2315b629f88e49b64eaa6481d",
+      "size": 728
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-functional-setstate.md",
+      "sha256": "5e68df6b2ae8058e67f476ff1ac67bde159f5a9d18df439e46eabcdeb7b52e58",
+      "size": 2968
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-lazy-state-init.md",
+      "sha256": "4ae844740f266fc8cbf050701230286624a2440ec5be67b9a63d9edc3c580573",
+      "size": 2016
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-memo-with-default-value.md",
+      "sha256": "81c47476564ad8a79fc68fc442734255ca7d6829424359464503fda0a9f9a0dd",
+      "size": 1173
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-memo.md",
+      "sha256": "1f258990c2f27ff6256b3cc5c43300631bb3f0d81f749aed08d07fcdcc131dd1",
+      "size": 1148
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-move-effect-to-event.md",
+      "sha256": "abc2cbf167bee056743023351e96806a411d3398da8802093620aecf0721f029",
+      "size": 1268
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-no-inline-components.md",
+      "sha256": "1cc32907a770272524ba682eef9e7efdd8ad4533b6f89b718a1fcd7d1d0eb6a3",
+      "size": 2135
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-simple-expression-in-memo.md",
+      "sha256": "5bdcf2d1558ba5204e643c887b7b4060f89630969425651eb68e96427d97f800",
+      "size": 1018
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-split-combined-hooks.md",
+      "sha256": "6f45d703343484ef9acef9388397f3642966ae6a5a258899a0cf1f9977cfbf6c",
+      "size": 1844
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-transitions.md",
+      "sha256": "60f4033909a62df5e5b8c601494f9e50a562e2f8c1c2d81eac24f38142265f1c",
+      "size": 1055
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-use-deferred-value.md",
+      "sha256": "8c3579576a61a949884167745dcfaf1d5426ba305cc61fd0a79602d70fda4909",
+      "size": 1846
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/rerender-use-ref-transient-values.md",
+      "sha256": "f1a649af9d1d0b5c762f6c9c4c1c70c90d7df82aa10296ee87aadb78c1b76c54",
+      "size": 1742
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-after-nonblocking.md",
+      "sha256": "d0b8d24a3db9f0f65f9e2bddbf230b0e03a5f60e1229d93a4a18f5e7a991c7c2",
+      "size": 2012
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-auth-actions.md",
+      "sha256": "a2ca8aa102839251c7971ec784560fab943c20b36fe6f80365d4110c13260c23",
+      "size": 2649
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-cache-lru.md",
+      "sha256": "1924b64561841923b88a657085097a0aeba3e0ba2d5470b9f5c15cc10d6ae70f",
+      "size": 1353
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-cache-react.md",
+      "sha256": "fddeea6c870bb3da4134b61d54b7d09b83d2603f929b7547cd3dc1dc269edd5c",
+      "size": 2228
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-dedup-props.md",
+      "sha256": "c2747424cdac46be62f835f245a0aa887b0090b416d28e2ac8676702645eeb37",
+      "size": 2060
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-hoist-static-io.md",
+      "sha256": "5abea4dd882b13661bd5f7dfb93f9e547d5f08176c61c448ade91b210ed5d49f",
+      "size": 4423
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-no-shared-module-state.md",
+      "sha256": "4d869bf1cd2f1632e5ca4c0e64b1cf0e71c5f5a0f940bc8a22174d205e735ed7",
+      "size": 1766
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-parallel-fetching.md",
+      "sha256": "569a2e9fc04f9606686cd75c5894ef8781b502786a7fffe241396846c7733472",
+      "size": 1554
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-parallel-nested-fetching.md",
+      "sha256": "ad5d9656984d4a959997a2367bf59cc6632297b4634a1dd13a087939d83f30b3",
+      "size": 992
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-best-practices/rules/server-serialization.md",
+      "sha256": "f4c7d68b29c82381baad059c4a7f09e868e71ec9c3115a26ad3ae7d24c0dfe1f",
+      "size": 996
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/AGENTS.md",
+      "sha256": "72996343b8260800fbeb9af63ddaed91f14b65dc547e0922f9f8e9bd72076cbf",
+      "size": 73771
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/README.md",
+      "sha256": "d60d7623005a833b928be6a109ed9d14dea43d7217fb534e8f2e4de5fc1f0ddf",
+      "size": 5064
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/SKILL.md",
+      "sha256": "4012750a5ccbe064ca04af3835d5d1b011979d2d09d9b6df1c8128fac58e0a66",
+      "size": 4439
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/metadata.json",
+      "sha256": "59ee2274cadbd95b2220727028f0dbc26d3e0251e7937226edc9e7640756ba21",
+      "size": 896
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/_sections.md",
+      "sha256": "21d7445e92bd7d393b420118c3fb9ebbf30aaf123a15143afb6c0b1b562cfdfd",
+      "size": 2228
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/_template.md",
+      "sha256": "99df2a3ea088c6c22de2484ddc7e964d0e9923846f44c63380343ecc64455442",
+      "size": 631
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/animation-derived-value.md",
+      "sha256": "689228e9d59227934f296563963951aa9368be0afb2a188f650de161203b1862",
+      "size": 1373
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/animation-gesture-detector-press.md",
+      "sha256": "69408d4be669e74689d865c5f50a22fc3a802d521fe493371761abd20526e58e",
+      "size": 2559
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/animation-gpu-properties.md",
+      "sha256": "f885e4179445da27cbc225e0a4aa3ed9016fc3507ca6f864392ba7a9d0bd7516",
+      "size": 2059
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/design-system-compound-components.md",
+      "sha256": "dcb10900a58fcf57cca2e27c062d02df2325a7949e08fb45e9e05cc2b132b1a6",
+      "size": 1625
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/fonts-config-plugin.md",
+      "sha256": "b92568774064a604e7a479d4c8d7263aed5609740e9161d2f2764bfff761905d",
+      "size": 1393
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/imports-design-system-folder.md",
+      "sha256": "aa6337f7f2869a46a9141ec65e02c3da5c3bf051023899b82e0f0aef5bff8423",
+      "size": 1418
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/js-hoist-intl.md",
+      "sha256": "b4b08622465ffcd5e5961878eb8c6d7359aa242d16c990b59941c9111962fe46",
+      "size": 1645
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-callbacks.md",
+      "sha256": "db800e9dfe0080eb4954b96e2a362ee8344d08e08b1ed06bc8059450f3e6f0dd",
+      "size": 1059
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-function-references.md",
+      "sha256": "b54470e41d578b207ee3223f6853efb7fbf8e5f83d9aecf8da16989072f99544",
+      "size": 4133
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-images.md",
+      "sha256": "e88f16ac113c29230d674b7aa2c66c31d5772a74b1ea378d48a97b1143fe6c19",
+      "size": 1417
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-inline-objects.md",
+      "sha256": "e2a80aac0f29c6abaf0163c1cc273d09cc8a0030ec077ca2022bbf5c309e4625",
+      "size": 2308
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-item-expensive.md",
+      "sha256": "a68cc8ec5dba3c55761bd5df9dfd3d98485f63076868d3e03af15f1e58907ce3",
+      "size": 2466
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-item-memo.md",
+      "sha256": "38ec1d149ee485434d11c2b9e2101dfc914afadae4a0738ca905f26b05f708c1",
+      "size": 2250
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-item-types.md",
+      "sha256": "eed225f4e9e504bfa7db01f5395d1402545cc47de8adf1829a9408cd5d158cf6",
+      "size": 2749
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/list-performance-virtualize.md",
+      "sha256": "98cad308118acb4d6e8e975c0168ce56e2d48ca52ed47f23bc9a30667c066ada",
+      "size": 1742
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/monorepo-native-deps-in-app.md",
+      "sha256": "8368b109027fcec1b8a81bfb99718aef2b64edaba77107f73d7c465cc5a14217",
+      "size": 1091
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/monorepo-single-dependency-versions.md",
+      "sha256": "61c01b9eaab1e319bf078204231fb573bdfea3c43a6eb99e7ef73ee95d474ccc",
+      "size": 1351
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/navigation-native-navigators.md",
+      "sha256": "6642dedb57e72f0b56df5fbc3d5b8aaa91fc4456932c12712cfd076d393f32c6",
+      "size": 4941
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/react-compiler-destructure-functions.md",
+      "sha256": "8048926a4fa3fbd28fc0ecf4ba4c383a2f0ed06c2fd7330dd4a15d7f4e548044",
+      "size": 1274
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/react-compiler-reanimated-shared-values.md",
+      "sha256": "3174303a72b6849ff0eda5cd9f9650f26baa5f31ed28d35a75076af714fb2ffc",
+      "size": 1268
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/react-state-dispatcher.md",
+      "sha256": "7ec5b653e3ff8d9ca97d8d66981cce5590c0e49fa79ab708fd6324542b588870",
+      "size": 2255
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/react-state-fallback.md",
+      "sha256": "eb76e386d71680bfdfc0ab64dba1221f4d3d0fdcb4980bb4a871381d58e9e58b",
+      "size": 1735
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/react-state-minimize.md",
+      "sha256": "31b989de61defda1c61d8578c4700efd64a427218c3f3dbb7062a1666e1cbe43",
+      "size": 1740
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/rendering-no-falsy-and.md",
+      "sha256": "7300fa45ac3a4968db144727a21052421bc62de9b5e9f6f59e28bd16d2fff001",
+      "size": 1812
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/rendering-text-in-text-component.md",
+      "sha256": "fc67897b6126b6b5574f4d284a6c5b2282528fe89de8ec08e6cfd2a86ab5b235",
+      "size": 697
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/scroll-position-no-state.md",
+      "sha256": "70aa1ee679e755556d7b01b326431fe898d3c23ddba40d0da6bdac23c87a1525",
+      "size": 1936
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/state-ground-truth.md",
+      "sha256": "9f3efc73d2e66a5deb3199c9774f42524cd6a0f69784af38301946be5d747cb5",
+      "size": 2172
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-expo-image.md",
+      "sha256": "c3c13cce3dd2cc7f8a9b4861e5743af98f62e28f5699f72f492e79a335cfae55",
+      "size": 1648
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-image-gallery.md",
+      "sha256": "b34d1ba03710ed9622187716541ae618968e7d03bc28895c2ac918d3cc5853f1",
+      "size": 2546
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-measure-views.md",
+      "sha256": "170d058abc4900ea9e851e54f5e8b437ffffc2c9d3847ae35e30a515c8990c3d",
+      "size": 2232
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-menus.md",
+      "sha256": "5964adbecfe9aeb28d736a4eaacec6469a1c4ca3f48779d243eb38b6d181cfe9",
+      "size": 4598
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-native-modals.md",
+      "sha256": "d803493b3046ad31cbb2c189f1fffb948fd0055050e3c322589bd548421e23a8",
+      "size": 1859
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-pressable.md",
+      "sha256": "52cdbad127d713d7d32c59ef74ab1bbd6dca211edc9b25993453f7f4545e79fa",
+      "size": 1534
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-safe-area-scroll.md",
+      "sha256": "3dd776caef2344d73529010940b50042861d06d31a192122a4df64bc06aed0e8",
+      "size": 1579
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-scrollview-content-inset.md",
+      "sha256": "89e4bbe5e9a602660f4155e9d4c0dee09db1adf21c73f47213cd67ec896e5a13",
+      "size": 1317
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-native-skills/rules/ui-styling.md",
+      "sha256": "cdef4d8b1a097b844e5992ab78e66a2dc604faf1e90f8d325a0eb116e8ef6a7e",
+      "size": 2212
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions.zip",
+      "sha256": "186f37766033bdeae9aa9f82b5079fc3c7df5439960ebe699142e9e0cf18fdf1",
+      "size": 28866
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/AGENTS.md",
+      "sha256": "83fd29aec273cf4318a4f428ed2725f2cd3b6adbd76640e495c31f0a2521c702",
+      "size": 58993
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/README.md",
+      "sha256": "aba31b4ac31c1b13d2a8054179604abd4498b0d7324746635ff0e3b0aea9d608",
+      "size": 2231
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/SKILL.md",
+      "sha256": "1520343c8814c972fee001cac6d6185976d6eb3f4edcac33afe95c10f3b3228b",
+      "size": 14407
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/metadata.json",
+      "sha256": "b1a5ae09f3904dc83dab79f518d033bd98f1e2f55caabfdb5beeeaaf0ca5e4c2",
+      "size": 852
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/references/css-recipes.md",
+      "sha256": "f4a5b92a7aad6befd2779e498ab04311277f179b240d2170f0a68a1444024d51",
+      "size": 8337
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/references/implementation.md",
+      "sha256": "87687de5fa2f775a6b5134ee02863ebede9ee6bc42ea8ed99bd53aa5325e78f4",
+      "size": 9280
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/references/nextjs.md",
+      "sha256": "f926a645d5e4c62fcc2d5832be0f3ad048f2ee1d17f8476324e2bc407e4b3a07",
+      "size": 10700
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/references/patterns.md",
+      "sha256": "da24d7f37c7e6b8ecbcf05525ef613d8f5be94655c233d6fa62833c8a746604f",
+      "size": 11941
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/react-view-transitions/references/troubleshooting.md",
+      "sha256": "aa6811d276dcf06dcc9aba90d1e11e1d0a29146604bf7c89a9e93a6fa8883c7a",
+      "size": 4940
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-cli-with-tokens.zip",
+      "sha256": "b6d4e60ca1b48bab44d89ef3d1b65b5011b8200ac64462889f80f43f9f456496",
+      "size": 4335
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-cli-with-tokens/SKILL.md",
+      "sha256": "c06bea99e75eab07fde4fae26069baa002f82f39b53f07981704c2901551dd4c",
+      "size": 10476
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/AGENTS.md",
+      "sha256": "922a35993ffd98c923d61fa3d7a722bc1bc17466ea1e0b5828f67de21fbb0e7a",
+      "size": 1964
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/CONTRIBUTING.md",
+      "sha256": "4a3c6695f23ada3228582f1062509545dbad485e5011434c12b7ddd81bf1370a",
+      "size": 2224
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/README.md",
+      "sha256": "4ebb0ae7c6a2c8cfe7ed8ad26a6bee0be99d8682be331d9d28c1cb81ad3718d0",
+      "size": 4471
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/SKILL.md",
+      "sha256": "95ae2683b30d892d165af92a350c5628b68106f395a59b448857b654e306ed91",
+      "size": 17311
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/auth-route.mjs",
+      "sha256": "c06a222bccd2c57b418b1d935d73f5b81297dac8533c004ec5bb4027cec3307a",
+      "size": 807
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/budget-summary.mjs",
+      "sha256": "8662a2914940b8c548be164c09ce7706ea261549fb61147d2a7a13af1e3337cc",
+      "size": 7145
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/citations.mjs",
+      "sha256": "41a1bafa7addc4b39d144491f178a159cc23ff779b4803f2c152fe579209b384",
+      "size": 4029
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/cost-coverage.mjs",
+      "sha256": "483b0f03f5db08e15388e1c047ffad414bb132bb3ce48418defc0d9a70a20e44",
+      "size": 8628
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/dedup-recs.mjs",
+      "sha256": "5fc631c1f56eea8bf8c59afb773511d9a8f42d29574fa14f03abb60c881206cc",
+      "size": 10151
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/deep-dive.mjs",
+      "sha256": "c86c5ed224c00c2e72a54eef16260b8e7237302a7e69e47310077eae7f65ced1",
+      "size": 10458
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/display-labels.mjs",
+      "sha256": "e56e54a0e19ed3ed4f45112cb358c1df5a77caa7411f5c2267c73064f64d1b08",
+      "size": 7611
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/extract-claims.mjs",
+      "sha256": "a3f44334dad0ba743699860d6b83a06e38c7e465f73418749822cf00d563ee2a",
+      "size": 19136
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/framework-support.mjs",
+      "sha256": "ed8ef73604d5bd91f4aea6fb0de465079474e00299c23bbdba8b04dd70545364",
+      "size": 2126
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/build-minutes-fanout.mjs",
+      "sha256": "c088ab1f91af8b4e86e8f3f3210c7b625757a3699bd5818c905f66ade92064b1",
+      "size": 3016
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/cold-start.mjs",
+      "sha256": "40023aae34ebc37df1382c7c4c00efc3864b2c11a8c9ee8cf05f371762680300",
+      "size": 2797
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/contract.mjs",
+      "sha256": "e0bd012b53b6a70684279a3ad58598f5a1f79698d0e521d0e9d0994e87b3ae65",
+      "size": 3143
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/cwv-poor.mjs",
+      "sha256": "17ab4ae24b5d0220d941215db8544bed68c1af02e6d5d7aba4ff077a46675fbb",
+      "size": 3372
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/external-api-slow.mjs",
+      "sha256": "12ce4f0cf906e5631170a58307758f095069d3051c16f64ddeec00bb99a66dc9",
+      "size": 2173
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/hard-gates.mjs",
+      "sha256": "b31d94495e20721b8ce825bde073ba9a32c14063b0cc711e23e2582fb0ebd677",
+      "size": 2543
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/index.mjs",
+      "sha256": "d473dfce777f68430d2b68836efb184152a59da97d3b06d37a6f618c7d4c59a6",
+      "size": 2066
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/isr-overrevalidation.mjs",
+      "sha256": "333d2dc8523d5850fddb5c13cd78fe62c0838ffd627c41b374804dca26cc63c6",
+      "size": 2442
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/middleware-heavy.mjs",
+      "sha256": "1ad98bc73be97254d6131707ed93c72262c071e54ce071a392549df33d0d7ae7",
+      "size": 2085
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/observability-events-attribution.mjs",
+      "sha256": "8e465217257c771c0be8580c1b9abcf1defd26e5a70c9559dc10f4cc45527c52",
+      "size": 2255
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/platform-bot-protection.mjs",
+      "sha256": "0124cd71876616f7de741d962ff4cbcb79a78654a3026372a18195e2ff99294b",
+      "size": 5089
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/platform-fluid-compute.mjs",
+      "sha256": "de81279134bef9499f1cbe2f38d06bb5caa968daa5438f09c9bad0d2f27efa96",
+      "size": 3630
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/region-misconfig.mjs",
+      "sha256": "0b3976cd50a9fb54601c60ad27c62b64aa7a4eeb338af4226b618ae1d5a9cc4a",
+      "size": 3101
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/route-errors.mjs",
+      "sha256": "a32a29b683557409b351da84e45ab316818f8a90c5af380ba7efc5366c03129f",
+      "size": 3101
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/scanner-driven.mjs",
+      "sha256": "485313169d009ded7bdb1e4083150919e77eb4373aff0252cd5c0c235f2e8f3b",
+      "size": 5191
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/select-candidates.mjs",
+      "sha256": "bde0714be600905caaaa99991d37c31df9e6775b8a107ee2df5eb63ffa9d1e11",
+      "size": 4703
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/slow-route.mjs",
+      "sha256": "b0d330e4244bd3d2e240f6398ead4b235bb69b72fe585771cde4f11ae8726148",
+      "size": 4384
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/types.d.ts",
+      "sha256": "097ea533204446ccc18798fc01656577df8b864c24b0eda4c66ebc913fa36f31",
+      "size": 893
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/uncached-route.mjs",
+      "sha256": "c4f89fa083f13a9360dd5ec6b45b39db3f480c797193c590bf131f53463388cb",
+      "size": 3963
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/gates/usage-spike-triage.mjs",
+      "sha256": "b8f84b57fe9d41323467c765ef9da4893b0cac6eee31603179cd8cb77ffd7be3",
+      "size": 5095
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/grade-recommendation.mjs",
+      "sha256": "e06008677dd1c6a27d767636356b6a68f357a3122b57adca3238bd2ca7576c38",
+      "size": 6887
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/impact-label.mjs",
+      "sha256": "4d55baae79025bfa43b829ff291019bb6a1f6d015c72dd44612d8e3afeb60b9f",
+      "size": 5344
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/impact-magnitude.mjs",
+      "sha256": "a87cec394f9d853da43e633e8ce2cb9f1f62fb2ae7dd6a58f542a5e7024b2c5b",
+      "size": 2172
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/investigation-brief.mjs",
+      "sha256": "f41d9354992fb5c7904b8faa1ad1fa457f8b69533d2113ec9c38192c227bf0c7",
+      "size": 35165
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/observation-safety.mjs",
+      "sha256": "540a4c49f10ceab570513f2834b7fbd88b2090c85690ed0f8b5c5bf0e623badd",
+      "size": 9486
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/project-facts.mjs",
+      "sha256": "d8b508d1077fdb4bcf5c2f267750cb4a6ca529811eecdadb10f9e632e304f30b",
+      "size": 4399
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/queries.mjs",
+      "sha256": "a747292c7bbc69a245799f846c6d081df44506c5c8e3d245b610c0f32edcea69",
+      "size": 10338
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/reconcile-candidates.mjs",
+      "sha256": "4e02dbc4fba1834192f018b05e9d42723fda13dbecf26a7cc09eacbfe1925b75",
+      "size": 15966
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/render-report.mjs",
+      "sha256": "35068fb5df2f2b9a89cabf40e050c40da5d8fadeec33cdbd47c8fc995677a127",
+      "size": 39131
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/repo-root.mjs",
+      "sha256": "77ce8277fa444dea77cb10c17e7a0d2db98a6cbea6e2df0fa2ff01372b52eb0c",
+      "size": 3135
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/route-normalize.mjs",
+      "sha256": "a2e39b3f653695392f096c1b385e31a9b1452714de4908c1d0e6604626274b5d",
+      "size": 8590
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/bot-protection-certainty.mjs",
+      "sha256": "2edac6df3f4565ec7d2f784db7e660767f8a213bfe9f55f6da14f2517f4a071a",
+      "size": 1988
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/cache-tag-invalidation-certainty.mjs",
+      "sha256": "31aec0481e996fd2a9a546c792ff17223747c850806405b2ee3cb95c40e296c0",
+      "size": 1522
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/count-correct.mjs",
+      "sha256": "cf427876a8c64d9591d89da727a2d4cec9dc0dcd717ffba3f82be52c38c73de3",
+      "size": 1956
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/function-duration-invocations.mjs",
+      "sha256": "c745bc90e67722f8584d3d426f28ccc4701504a635dd966cdb8f487ee79eb7b3",
+      "size": 1470
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/index.mjs",
+      "sha256": "99babb880c7d5e7ac209e7eb1bf26f2ae9ac5a795062d01e15d76c57055247bf",
+      "size": 3053
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/middleware-conflict.mjs",
+      "sha256": "89fae25e31662ed7f31fef973e7b969271fc061839112adabf253a3e87380b97",
+      "size": 1586
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/missing-citation.mjs",
+      "sha256": "431ec0944239d4477556a23808733298ecd5bdfb4a810ab887b83f0266eb5904",
+      "size": 497
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/pre-release.mjs",
+      "sha256": "dce1475fd392d245bd4a48e1280c2f0a00fc4dea96cd9f40e4d260fdc0bf5940",
+      "size": 2224
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/rate-limit.mjs",
+      "sha256": "42b2a3ecb07443ab5aeb881ab6dea31a92f767b73697fd0529e877084657629c",
+      "size": 2655
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/rendering-mode-mislabel.mjs",
+      "sha256": "410c60d8f71250d8b443384098f02869e7a1b4d9dcb3e3ca384ca3b875648788",
+      "size": 1670
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/undeclared-dep.mjs",
+      "sha256": "bc2a483311a2c44103b15d9498b5d303101724454c114907d23de6d7725e8769",
+      "size": 2833
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/vercel-directive-strip.mjs",
+      "sha256": "b94a6fcd0a03358dcb853b04a392b0946d8a07d8619e86b562b8b38a6cffac85",
+      "size": 1460
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/sanitizers/window-units.mjs",
+      "sha256": "f7823f1c4705166c313107571f048fd4e7fa160cb982dcbfe07d936ab4cb5a3b",
+      "size": 869
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/cache-components-suspense-dedupe.mjs",
+      "sha256": "ca4c643a30b76df0e8728f8b8854167483f746a9d45aafb467c3bec9125b7878",
+      "size": 4367
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/edge-heavy-import.mjs",
+      "sha256": "0faacf202542cc6ea37290377a61e9c34a84d3d9439822cd7df09d450ff663a3",
+      "size": 3740
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/force-dynamic.mjs",
+      "sha256": "5f378119f8e6d1961cde57dcd6ccd193cc4a9713068d4828ca4eee724b15095d",
+      "size": 1586
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/headers-in-page.mjs",
+      "sha256": "84f72dcd79631561fa54f6a5128337b6b9317bc9b7c720b709078cf0c2758e7d",
+      "size": 1537
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/index.mjs",
+      "sha256": "9443d7e055a4b8368973c027b739742bbf5e98de4dbc5078c4cd7fb2677aeeb9",
+      "size": 1458
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/large-static-asset.mjs",
+      "sha256": "5ee29065ae96b7aff236dd3ea9766765a7c48e1bd95008e261837ae42932b783",
+      "size": 3279
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/max-age-without-s-maxage.mjs",
+      "sha256": "ec722b65530f428232f2b501f5f52e427cd7218c51cceb4783b5f7b03c3ad577",
+      "size": 1629
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/middleware-broad-matcher.mjs",
+      "sha256": "e41e07c4fb8d0b6776e5f27609e719ae42c1644b7adcfa2dc1abc90a511c0492",
+      "size": 1986
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/missing-cache-headers.mjs",
+      "sha256": "cc4ccea4c4f1d8594a97b18ca39b5212060faa3306dccdea0b2c7645d3f3cf8a",
+      "size": 3922
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/prisma-include-tree.mjs",
+      "sha256": "ab107e2732ca1873b4e4ce974e9c08b6ebde83a8f96675b96087213b16aa901e",
+      "size": 1585
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/region-pin-in-config.mjs",
+      "sha256": "906f33c344c98910f1148c86a9c5cd5cfbaf84cc8c06d02e3eb257ecd639b0d3",
+      "size": 3448
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/source-maps-production.mjs",
+      "sha256": "f9ab9cf88a22a4c0fa32f73ac39243b6f61a868b81ca55f804d8c33a9341013c",
+      "size": 1300
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/sveltekit-prerender-missing.mjs",
+      "sha256": "ff5380fa9d8a3e77d8ff430e1b7866a0890b50d163bcc2a599f0b30238947999",
+      "size": 2127
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/turbo-force-bypass.mjs",
+      "sha256": "b84a7774f18e1ea86cb19335fd41324b89635ccb43b75f31e0218516fd9363d2",
+      "size": 4974
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/unoptimized-image.mjs",
+      "sha256": "f2049c073b769838e33f6110f8f139cacd1e8b8a01eda1473ebed0a14ec64b4f",
+      "size": 4516
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/scanners/use-cache-date-stamp.mjs",
+      "sha256": "2d04abd40b888e8c16bccee92dc3423ab86b109551cfab8807367d9cc8ca0878",
+      "size": 4040
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/support-topics.mjs",
+      "sha256": "c9ac60070df4e6707299da5ab0d72a9853659ddfcfd4dca29f5803ef3ce41840",
+      "size": 12836
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/throttle.mjs",
+      "sha256": "1d09d586071838152fe28882cd65f508a508ecd99b59187c84f27b908cc18017",
+      "size": 8992
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/util.mjs",
+      "sha256": "431eb675f0a658e19a1b08cdb064e19f96a62d42a35c5f4d962756c8cf97d523",
+      "size": 544
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/vercel.mjs",
+      "sha256": "01a7bd818b64bd26143f93e4417f6463199a81c154854e9c60d2fcce3aea2e82",
+      "size": 31125
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/verify-claim.mjs",
+      "sha256": "b7956b5e96e0be7e4ed7a107541d5e4ea11475f9b4e7829c4035769d3a879f71",
+      "size": 60992
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/lib/workspace-resolver.mjs",
+      "sha256": "9da10f288418475ab871b5430de38d4b97441794373721844cb540e40986e74c",
+      "size": 17545
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/metadata.json",
+      "sha256": "729f7dcb13ebac414d54232e56acaeae4f7ded041947805a0b30a5d8fee59511",
+      "size": 903
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/candidates.md",
+      "sha256": "1e04722b3924a11a774d87abbf35070cdf480ad02c8487f97a3dd69bb46b59af",
+      "size": 8510
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/data-collection.md",
+      "sha256": "dbc013dfc59c29f38f279fbbb422f19d7cc1ba37d17ee02d9c64ea6cb594bd22",
+      "size": 20925
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/docs-library.json",
+      "sha256": "287d4dabbb3eab789911a6c2b4aea9ffc57206fa4a8449636358503e32b9542c",
+      "size": 31540
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/doctrine.md",
+      "sha256": "4a7eac752141410d134febe786c4b51f4723a55026a5638c38fcb492a1d86df4",
+      "size": 9512
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/observability-plus.md",
+      "sha256": "86b6f6d5bd7f4b9827f70505705ed0f875a0ef2e2cdb85653f0e09f825393333",
+      "size": 5329
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/README.md",
+      "sha256": "9b699bb8d2436b089ced036780cbc108502f3713b15f83440fd042e393487cf3",
+      "size": 2812
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/ai-application.md",
+      "sha256": "e9e353a3f7d5c576e14893ebb0e1eddaa90ee986f0ef3d9edb3be73a2e947ac9",
+      "size": 3933
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/api-service.md",
+      "sha256": "f90e2d558ea697dc06f05794ad47770f379e3268321ab8a6a642abd7f2fa7ed3",
+      "size": 2485
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/content-site.md",
+      "sha256": "9d4b1a7d1c6eb6f58e94c5df5dc8264c5bd6c877f045c7c81228924cbadc9d37",
+      "size": 2502
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/ecommerce.md",
+      "sha256": "f44707fac676e67de04b7ddb2f78bc806f286cd324d05d990641acef3097a0e9",
+      "size": 2737
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/marketing.md",
+      "sha256": "b7e0ed3de01e95f7776891b6a63e0d2929b066c61ccd9b8ac012b42cbc3e4a19",
+      "size": 2675
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/saas.md",
+      "sha256": "f23b518dd7c369144813f80abe6eba3e762db3b737b3271bb8b887307fcec387",
+      "size": 2896
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/playbooks/sveltekit.md",
+      "sha256": "32db0a70f1217c2e3f750ef5e5671da54a07a510369307e38877e3fd3ad21767",
+      "size": 4019
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/recommendations.md",
+      "sha256": "8e65890c1afd942f4bf9dd07ba538b2b9f53a6136ec83e96cc10740c6f8dda87",
+      "size": 10788
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/scanner-patterns.md",
+      "sha256": "e160869045f6456d10bd4f1fdeff76d42d8b3e0c50a7212a607603589798bcaa",
+      "size": 13671
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/scoring.md",
+      "sha256": "44a295b6c65ee5c221815149c7fad1adb02c8ac8750d0604a8dfbfe47d04b6d6",
+      "size": 12505
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/README.md",
+      "sha256": "63e2acd6e221ca52355a5f70ff8d9c3d9704600eb7e176d3cb2f4597ad03db4b",
+      "size": 1785
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/astro-edge-middleware-scope.md",
+      "sha256": "80586e0b110749f2cdd6e56635d6cd88082230b9bd11a8e388ec6d3b280bc65d",
+      "size": 1012
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/astro-output-mode-and-isr.md",
+      "sha256": "6137553e35076795f6c0851b0e93d4686cf937930d35b284567da7c0edfe35ba",
+      "size": 1135
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/auth-preserving-parallelization.md",
+      "sha256": "34cfd687cc106ef15696b8f1f155c30f635234e29f3c4db087193c3c2c3c4bac",
+      "size": 1203
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/bot-protection-product-guardrails.md",
+      "sha256": "892d8f32deb5bded86863a513d3799bfd81dc4654ae4fde5a264638cfd86755d",
+      "size": 1119
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/build-minutes-monorepo-fanout.md",
+      "sha256": "1f54f0ba4d1b2ab873eb166ca2f1661d39b49e70253dea8ce13a44c2b728ba85",
+      "size": 1269
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/cache-components-static-shell-boundaries.md",
+      "sha256": "664a13ced4e985e9b12bdf6730fecccfd79fb715be2998a710068384a0ab4cc0",
+      "size": 1162
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/cache-components-suspense-dedupe-pitfall.md",
+      "sha256": "212f1bedf49c9a1e7aac7745c5b19f57c486456d5e4ef9037fa9689f51930047",
+      "size": 1380
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/cdn-cache-auth-safety.md",
+      "sha256": "5691cd39b3403ef939199c3b9b21e28cb447b2f8d2f6dea6000064e5ef3fdfb5",
+      "size": 1068
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/cold-start-initialization-bundle.md",
+      "sha256": "98961df48eac648e71c73b7dd53a215ac02af62f0bfbc67a1af335e66b8fb7c1",
+      "size": 1159
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/core-web-vitals-client-bottlenecks.md",
+      "sha256": "05d84906be0f1e26787e871c00cd563f18533a7b12d3383c5cb3557fe01ea768",
+      "size": 1037
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/database-egress-pooling-region.md",
+      "sha256": "83fa0f1a3ff67b9f149ba39432834bba88437dbdf09d6b5e7a5e3b552ceb473e",
+      "size": 1015
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/dynamic-rendering-traps.md",
+      "sha256": "a075a13fc3c40d7d249051519cf2384497a34f3f4a207f757bf4343c3896fd64",
+      "size": 1139
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/external-api-critical-path-platform.md",
+      "sha256": "02a7a7e3ba867973c9e45d565e69349cd44a5bdb9e00e6fbbf9c76edd01516e5",
+      "size": 1145
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/external-api-critical-path.md",
+      "sha256": "dade955ceba21150590f8606b993881d6f6b20fef32c147b77ce26d9e9931773",
+      "size": 978
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/fast-data-transfer-payloads.md",
+      "sha256": "d7daca1a05d8f3157aab22b97552247cb0a8f856f08fc49079fd76872f7a50fa",
+      "size": 1050
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/fluid-compute-caveats.md",
+      "sha256": "3408a19b49a9723cfac1b461babe56dc414f0f1f7561bd7e6f4f7579ab26a13f",
+      "size": 1125
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/function-duration-io-and-after.md",
+      "sha256": "693c07390d7cf8b4c0a0d0235176a5f452694d1553c33db4fd385f76c94d307d",
+      "size": 1027
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/function-invocation-reduction.md",
+      "sha256": "1e50e0e24299fc08aaf6b81d6673ce24c0bc250883c8ecc76e52d6d1dca989a9",
+      "size": 1181
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/function-region-misconfiguration-ttfb.md",
+      "sha256": "dd5013cf9bd5b3ee7383d3b9835babc6a93b965e07b7093f48d53ce755510326",
+      "size": 1254
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/image-optimization-cost-control.md",
+      "sha256": "1123f4712ec4a4ff057dadbee25f7de51bc8473862dbb398693f9c091336681c",
+      "size": 1071
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/isr-revalidation-static-generation.md",
+      "sha256": "fafc8585a02b2142b60289177b041d63e1280d1fdccd38a2faa2e89d7c1950cb",
+      "size": 1419
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/middleware-proxy-edge-cost.md",
+      "sha256": "d1c6f3b0f4ecf3c4d430c2ae3999c9485e8f2115e40d9ba973b637541a5a5f32",
+      "size": 991
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-fetch-revalidate-floor.md",
+      "sha256": "65897b4111c75457e1fbe16ce6f9716c5fd58365d8defaeb80b5ea0ca4f2a3b0",
+      "size": 1059
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-font-cls-self-hosting.md",
+      "sha256": "a06d7f692fc902f41a227f5acb20d694e2d47c3098b1fba354b5413e7df32964",
+      "size": 906
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-heavy-ui-lazy-load-boundaries.md",
+      "sha256": "f48f1f61626aa313b3e08a6e43a5550bddef278f5c6aa4093b52bee1e9e1d78b",
+      "size": 1048
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-image-lcp-preload-sizes.md",
+      "sha256": "f176647780339cbd409897cbbaa8666f0dc7c301905651ad39b7feb2a0696a89",
+      "size": 1062
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-route-handler-get-cache-defaults.md",
+      "sha256": "2f7e29b85cc1a8a31db214f59524035d3486c3a26c9fb9a39d62f3b834ee0f0c",
+      "size": 1072
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/next-script-third-party-strategy.md",
+      "sha256": "413fb8dfdb561ccb5073c89b93c0e28420cfa5125bff89317c699167c3b2f35a",
+      "size": 1051
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/nextjs-version-cache-semantics.md",
+      "sha256": "e8bf6e27e63841bb49c44e8d0e93d674866ba28f6217d41d5c4de2b51178b8dc",
+      "size": 996
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/not-found-catchall-request-waste.md",
+      "sha256": "88a9bf8ec200182534957603bda8c3bcc8d9dce8d884ea19c890994424827ab8",
+      "size": 1273
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/nuxt-route-rules-cache-isr.md",
+      "sha256": "639b0a57b50813bfea7f1734a2cb883d8fb756c86a3a4460e08e899d04323cbb",
+      "size": 1188
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/observability-events-cost-attribution.md",
+      "sha256": "60b2aea01836d6554b07cc79c9d8d64a4430782a2a4cec2ccd43ad957d69658e",
+      "size": 1155
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/post-response-work-waituntil.md",
+      "sha256": "da5ff4b2d2a714bc06d2cc4b442e77840b89f9e72e171ec33af4fb95cac8ab26",
+      "size": 1009
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/route-error-durable-offload.md",
+      "sha256": "2ff21304503673bbeb656d92fd9841f8aa874cd93a5428f14a0f9abb55e49b65",
+      "size": 1298
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/route-error-runtime-limits.md",
+      "sha256": "e4a70ec3e1112c658e1ce136359c00fcb6c9fb484887efafb3ba3364ebdb70a6",
+      "size": 988
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/runtime-cache-reusable-data.md",
+      "sha256": "cf59ca89dbfa178d371435e0aa7f5c588c2fc3114b4574049b4d644c63628911",
+      "size": 1180
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/sveltekit-isr-prerender-safety.md",
+      "sha256": "909357c83a7718865cf5e1056653117f08df0042416e17050f22eae7900dfa49",
+      "size": 1167
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/sveltekit-split-cold-start-tradeoff.md",
+      "sha256": "e61fee58a22120acbdfafb2559959749806cf2c1ad242749d30ad6d9f533d5f6",
+      "size": 1040
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/usage-spike-triage.md",
+      "sha256": "850ce351c3cbff86a321b349eaa82330a29e08b78a3d255150dc290a7d095015",
+      "size": 1018
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/use-cache-date-stamp-isr-write-amplifier.md",
+      "sha256": "45d5381f890b552dd672f6577aad203630f9f0e3caf04f3f2170726c0cea86fb",
+      "size": 1189
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/use-cache-remote-shared-origin-data.md",
+      "sha256": "4e8590e6c3ed65e5ec8811cfad82fcecf3cf5ac797e446bbf00e4498bd7e0d68",
+      "size": 1089
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/support-topics/workflow-resumable-stream-routes.md",
+      "sha256": "07145dac55800c709a57a1abfbe29e1764ecd6371ff05f342c8f73f69d101257",
+      "size": 1274
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/verification.md",
+      "sha256": "db3ffb183ae3c141eeb980ea3765ff215da01eb4bb8b569c7f86868ec3cfe5a1",
+      "size": 9000
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/references/voice.md",
+      "sha256": "1bd89b7f12f8ce912d0381b9ca7c251f8183f69bae0abf0021391e8397dfef11",
+      "size": 3731
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/budget-summary.mjs",
+      "sha256": "4dc6cb8ab9278ac9196e4cd70c36ecc1ffe2afeaffe09e99e562de42e62f94ea",
+      "size": 2096
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/build-docs.mjs",
+      "sha256": "ce426e5bb4a803b86981588b733fc97aff13fea1c393d6d6559b97518df31ad8",
+      "size": 3414
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/check-citations.mjs",
+      "sha256": "47acb1d9deba97531ad46ef81cccaa9349bec4a3cf57d8fdc2bd601411b57fdb",
+      "size": 3531
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/check-docs-fresh.mjs",
+      "sha256": "6c47f5595c6e317426606d67afa53d52d822fcc071fee27885cc25df38e7949e",
+      "size": 3910
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/collect-signals.mjs",
+      "sha256": "bc1dcba99aa20ad7863450bc1a336d0ec8d78aac0f3f26f8b6be9183e52e944a",
+      "size": 21576
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/collect-sub-agent-outputs.mjs",
+      "sha256": "21bd960b11c75711e1f51cb362efb5243f19bc8db65a3bfdab48549bb47bf9fb",
+      "size": 10123
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/deep-dive.mjs",
+      "sha256": "f90c74b28a1a1580a45d7d12ab64f683c8c6f1b59d32aa7299980e74980550aa",
+      "size": 12332
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/gate-investigations.mjs",
+      "sha256": "b30d756a3af5bc1170e4eec95e2fca7241999a516d8871497bd4e5a1cd681535",
+      "size": 6353
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/merge-signals.mjs",
+      "sha256": "2d16f83d221ea6bb28f1a05f48829c2e67e315d0acc2125fc8b642813a527f06",
+      "size": 6325
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/prepare-investigation-brief.mjs",
+      "sha256": "8a9c9a840e907985f8a84218251c33c38f3dc17956b851a8b5d7e28c56689edc",
+      "size": 8071
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/reconcile-candidates.mjs",
+      "sha256": "ef8d6ae2f1e7e43c62a46dfe7af14e9618fd2b550724823448f8badf266cccaf",
+      "size": 2442
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/render-report.mjs",
+      "sha256": "ab0a3f0188215fe0f9a464858b3a42c74e2d4daea6fe857b6a969595f27ebf5b",
+      "size": 17424
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/scan-codebase.mjs",
+      "sha256": "4b5c847899604831aafd3fcdf860968792e99203670a3ba6f3947cb7ae708705",
+      "size": 11521
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/verify-and-regen.mjs",
+      "sha256": "9211268107c17f577d24a8994515946b9fd3a1fc1d2353a79dd0a139df25f706",
+      "size": 15238
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/vercel-optimize/scripts/verify-finding.mjs",
+      "sha256": "534590f7900e20648f67cc2d6845502960709ddfeb10cbb6733ade37b2eebe8e",
+      "size": 698
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/web-design-guidelines.zip",
+      "sha256": "249e53e772d4bae2c22d7a85b50c8794958d0e09493a945e5ac1a6fc4fd66331",
+      "size": 946
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/web-design-guidelines/SKILL.md",
+      "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f",
+      "size": 1231
+    },
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/skills/writing-guidelines/SKILL.md",
+      "sha256": "89a5f581193289b80af58b980090aeed535047c8df2b55ccbaae0de40283a99d",
+      "size": 1233
+    }
+  ],
+  "manifestChecks": [
+    {
+      "path": "skills/web-design-guidelines/SKILL.md",
+      "expected": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f",
+      "actual": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f",
+      "match": true
+    }
+  ],
+  "archiveRoot": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278",
+  "skippedArchiveLinks": [
+    {
+      "path": "agent-skills-063bee94c3f4df8453406c830b0a7df0f2860278/CLAUDE.md",
+      "type": "b'2'",
+      "linkname": "AGENTS.md"
+    }
+  ],
+  "initialAcquisitionError": "archive contains link/device; manual acquisition required",
+  "selected": [
+    {
+      "path": "skills/web-design-guidelines/SKILL.md",
+      "bytes": 1231
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "pupu.integration-verification.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "FAIL",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot unavailable",
+    "independentReview": false,
+    "methods": [
+      "bounded source/instruction review",
+      "Cisco Skill Scanner 2.1.0 local static/dataflow analyzers",
+      "OSV-Scanner 2.5.1",
+      "real MCP initialize/list/call probes",
+      "synthetic filesystem/SQLite effects through real Unchain confirmation dispatcher"
+    ]
+  },
+  "subject": {
+    "unchainCommit": "8cd775905758833aa6e7bdcf75d6e4d12c7d9ad1",
+    "mcpPackages": [
+      "@modelcontextprotocol/server-filesystem@2026.7.10",
+      "mcp-server-sqlite==2025.4.25"
+    ],
+    "deployedPuPuPair": null
+  },
+  "coverage": "Real source-based MCP conversion, confirmation dispatcher and two synthetic mutation effects; no live model.",
+  "finding": {
+    "id": "PT-INTEGRATION-01",
+    "severity": "HIGH",
+    "title": "MCP confirmation requirements are not enforced by inspected Unchain conversion",
+    "existingTicket": "https://github.com/haoxiang-xu/PuPu/issues/164",
+    "evidence": [
+      {
+        "reference": "runtime-confirmation-check.json",
+        "sha256": "acb07944c96c2d0910facfa029987988f15cdb4762214de30f4bff85f9a3cd2a"
+      },
+      {
+        "reference": "sqlite-confirmation-check.json",
+        "sha256": "ea143802471a98072df5e99a325254302ef367001183707d5a1be70c58787665"
+      }
+    ],
+    "assessment": "SQLite create_table is explicitly confirmation-required in PuPu catalog, but actual converted tool is not. Deny callback was never called and a synthetic table was created. Filesystem directory creation also executed without confirmation. This is a host integration failure; no claim that the upstream packages are malware."
+  },
+  "limitations": [
+    "No live isolated PuPu model run with hostile tool/document output was performed.",
+    "No packaged PuPu and fixed Unchain-wheel pair was qualified.",
+    "Source/code review was targeted, not exhaustive review of every acquired file or bundled dependency.",
+    "No real service credentials, private workspace, production database or host browser session were used.",
+    "The sandbox denies network and user-home reads except explicit trusted Python/Node runtime paths; writes are restricted to synthetic fixtures. It is not a VM or a complete Mach-service/syscall monitor.",
+    "API acquisition and hosted MCP probes use the trusted verifier outside candidate sandbox; hosted backend code is not observable.",
+    "Package integrity hashes and reachable Git commits do not establish signed provenance or a complete publisher/build chain.",
+    "No Verified badge or catalog availability changed; this proposed v0.1 policy is not third-party certification."
+  ],
+  "resolution": "Unfixed; no duplicate ticket created and existing ticket was not edited."
+}

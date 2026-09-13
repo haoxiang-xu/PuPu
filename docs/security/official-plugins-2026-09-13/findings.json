@@ -1,0 +1,74 @@
+[
+  {
+    "id": "PV-F01",
+    "toolkitId": "core",
+    "title": "Shell confirmation bypass through an attacker-controlled executable named cat",
+    "source": "agent source review + real confirmation dispatcher probe",
+    "claimedSeverity": "HIGH",
+    "assessedSeverity": "HIGH",
+    "status": "CONFIRMED",
+    "applicability": "Requires a model/tool call invoking an attacker-controlled executable whose basename is allowlisted. A file named cat in a repository is sufficient; no user approval occurred in the probe. This does not prove a language model will choose that path without an attacker influence channel.",
+    "sourceLocation": "unchain/src/unchain/toolkits/builtin/core/shell_runtime.py:173-205; coding_backend.py:700-718",
+    "flow": "model shell arguments -> CoreCodingBackend._resolve_shell_confirmation -> ShellRuntime.is_low_risk_command(Path(argv[0]).name) -> requires_confirmation=False -> execute_confirmable_tool_call -> process execution",
+    "evidence": [
+      {
+        "reference": "confirmation-recheck.json",
+        "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+      },
+      {
+        "reference": "confirmation-recheck.py",
+        "sha256": "624b3e324b06b76e9be0a80cf46db0adeffb32a35289cb6bff2112e954835335"
+      }
+    ],
+    "observation": "Ordinary redirection requested confirmation and was denied. Workspace executable cat wrote a marker with confirmationRequests=0, denied=false.",
+    "resolution": "Unfixed. Require confirmation for arbitrary/relative executable paths; resolve and validate the executable identity and arguments before any read-only exemption. Also audit option-driven execution and external helpers."
+  },
+  {
+    "id": "PV-F02",
+    "toolkitId": "core",
+    "title": "Grep follows a file symlink outside the workspace; glob also admits parent traversal",
+    "source": "agent source review + sandboxed toolkit and confirmation dispatcher probes",
+    "claimedSeverity": "HIGH",
+    "assessedSeverity": "HIGH for content disclosure; LOW for glob path disclosure alone",
+    "status": "CONFIRMED",
+    "applicability": "An attacker-controlled workspace contains a symlink to a file readable by the host account outside the selected roots. The normal read tool rejects this same link. grep returns the target content without confirmation. Glob ../outside/* additionally enumerates outside filenames; it does not by itself prove outside content read.",
+    "sourceLocation": "unchain/src/unchain/toolkits/builtin/core/coding_backend.py:273-283,477-505,555-568",
+    "flow": "grep(workspace) -> _iter_candidate_files -> unresolved file symlink -> _read_text_file -> model-visible matches; glob pattern -> Path.glob -> resolve with no root revalidation",
+    "evidence": [
+      {
+        "reference": "security-probes-output.json",
+        "sha256": "f46f0aa026a3cee35f340114920443244c7bf7a267ec0e7dda86195beeeb744b"
+      },
+      {
+        "reference": "confirmation-recheck.json",
+        "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+      }
+    ],
+    "observation": "Synthetic outside canary returned by grep; direct read of outside path and symlink rejected. Parent glob returned outside path.",
+    "resolution": "Unfixed. Revalidate every enumerated resolved target against workspace roots; reject parent traversal patterns. Use race-resistant file opening for boundaries that must withstand concurrent symlink replacement."
+  },
+  {
+    "id": "PV-F03",
+    "toolkitId": "plan",
+    "title": "Plan discovery reads symlinked plan JSON outside the workspace",
+    "source": "agent source review + real confirmation dispatcher probe",
+    "claimedSeverity": "MEDIUM",
+    "assessedSeverity": "MEDIUM",
+    "status": "CONFIRMED",
+    "applicability": "Requires an attacker-controlled plans directory or .json symlink and a readable valid plan-shaped JSON outside the selected workspace. Disclosure proved for title, plan id, status and revision; arbitrary non-JSON file disclosure was not proved.",
+    "sourceLocation": "unchain/src/unchain/toolkits/builtin/plan/plan.py:369-389,653-669",
+    "flow": "plan_list -> _load_plans -> glob/read_text follows symlink without containment validation -> _PlanState.from_raw -> model-visible title",
+    "evidence": [
+      {
+        "reference": "security-probes-output.json",
+        "sha256": "f46f0aa026a3cee35f340114920443244c7bf7a267ec0e7dda86195beeeb744b"
+      },
+      {
+        "reference": "confirmation-recheck.json",
+        "sha256": "7ef1f33c40ce014729ae0472c5fd0322bfca5fdbcba64ff5619954d1520273bf"
+      }
+    ],
+    "observation": "Both a file symlink and a plans-directory symlink returned a synthetic outside plan title. Write containment controls kept the outside JSON unchanged.",
+    "resolution": "Unfixed. Apply workspace containment and regular-file checks to discovery/reads, including directory and file symlinks; retain the existing write-side guard."
+  }
+]

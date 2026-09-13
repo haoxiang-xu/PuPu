@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.playwright-package-lock.json",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "@playwright/mcp",
+            "version": "0.0.78",
+            "ecosystem": "npm"
+          }
+        },
+        {
+          "package": {
+            "name": "fsevents",
+            "version": "2.3.2",
+            "ecosystem": "npm"
+          },
+          "dependency_groups": [
+            "optional"
+          ]
+        },
+        {
+          "package": {
+            "name": "playwright",
+            "version": "1.62.0-alpha-1783623505000",
+            "ecosystem": "npm"
+          }
+        },
+        {
+          "package": {
+            "name": "playwright-core",
+            "version": "1.62.0-alpha-1783623505000",
+            "ecosystem": "npm"
+          }
+        }
+      ]
+    }
+  ],
+  "experimental_config": {
+    "licenses": {
+      "summary": false,
+      "allowlist": null
+    }
+  }
+}

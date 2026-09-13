@@ -1,0 +1,144 @@
+{
+  "toolkitId": "mcp.workspace.sqlite",
+  "catalog": {
+    "id": "workspace.sqlite",
+    "toolkitId": "mcp.workspace.sqlite",
+    "name": "SQLite",
+    "description": "Query and manage a local SQLite database file through the SQLite reference MCP server.",
+    "category": "workspace",
+    "source": "mcp",
+    "trustLevel": "community",
+    "status": "available",
+    "installable": true,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
+    "docsUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/modelcontextprotocol/servers-archived",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "workspace": {
+      "required": true,
+      "placeholder": "${WORKSPACE}",
+      "binding": "agent_workspace_root"
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "--exclude-newer=2026-07-28T00:00:00Z",
+        "--from",
+        "mcp-server-sqlite==2025.4.25",
+        "--with",
+        "mcp==1.28.0",
+        "mcp-server-sqlite",
+        "--db-path",
+        "${WORKSPACE}/pupu-mcp.sqlite"
+      ]
+    },
+    "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "read_query",
+        "title": "Run SELECT query",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "list_tables",
+        "title": "List tables",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "describe_table",
+        "title": "Describe table",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "write_query",
+        "title": "Run INSERT/UPDATE/DELETE query",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "create_table",
+        "title": "Create table",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "append_insight",
+        "title": "Append business insight to memo",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 3
+    },
+    "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository \u2014 it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server opens **`${WORKSPACE}/pupu-mcp.sqlite`**, a local SQLite database file inside the selected agent workspace.\n\n### Use a disposable, non-production workspace\n\nThe agent can read **every table and row** in this database file \u2014 reading the database **is** data exfiltration. Use a **disposable / non-production** workspace whose `pupu-mcp.sqlite` file you are comfortable exposing in full; never copy production or sensitive data into it.\n\n### Gated vs. ungated tools\n\nThe read tools \u2014 `read_query` (SELECT only), `list_tables`, and `describe_table` \u2014 run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` \u2014 INSERT / UPDATE / DELETE.\n- `create_table` \u2014 CREATE TABLE (DDL).\n- `append_insight` \u2014 writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
+  },
+  "checkedAt": "2026-09-13T18:36:59.550237+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "pypi",
+  "package": "mcp-server-sqlite",
+  "version": "2025.4.25",
+  "download": "https://files.pythonhosted.org/packages/fc/f3/dbffd53873eafd8773e289fdd0cb96dc4f793071973df07e79a4e9bae425/mcp_server_sqlite-2025.4.25-py3-none-any.whl",
+  "artifactSha256": "5ba5706aa29d249a3cde8226577e021c07792d3198e9db40fd005578d2a0801d",
+  "registryIntegrity": "sha256-W6VwaqKdJJo83oImV34CHAd5LTGY6dtA/QBVeNKggB0=",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "mcp_server_sqlite/__init__.py",
+      "sha256": "274af74c698c875e153552a3e11e12bc2df0d96618d46c97e55e6fe7d18c3b7c",
+      "size": 504
+    },
+    {
+      "path": "mcp_server_sqlite/server.py",
+      "sha256": "f1355bbe08233914c21c277d45acfe91fc800b7dc0af2020f37be3c9564172e0",
+      "size": 19020
+    },
+    {
+      "path": "mcp_server_sqlite-2025.4.25.dist-info/METADATA",
+      "sha256": "6d69a8a51f13624bcf58078143e0ebba2558f68a27437ccba03f7b42da297919",
+      "size": 7164
+    },
+    {
+      "path": "mcp_server_sqlite-2025.4.25.dist-info/WHEEL",
+      "sha256": "aad0b0a12256807936d52d4a6f88a1773236ae527564a688bab4e3fe780e8724",
+      "size": 87
+    },
+    {
+      "path": "mcp_server_sqlite-2025.4.25.dist-info/entry_points.txt",
+      "sha256": "4f4caae9518e25c2c58c3d3bcd58ace5d8283b8e49ba95d249d701a282232c5d",
+      "size": 61
+    },
+    {
+      "path": "mcp_server_sqlite-2025.4.25.dist-info/RECORD",
+      "sha256": "0e4fd2612299f63739f080e3da41d3600a3aa4594f81f5e18f72018b1fd021ba",
+      "size": 527
+    }
+  ],
+  "repository": null,
+  "gitHead": null
+}
