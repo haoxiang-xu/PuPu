@@ -2,6 +2,10 @@
 
 PuPu base: `65811ee3d7bb62cc86f27c681764d7de0bfeef48`, isolated branch `codex/ticket-283-marketplace-integrations`. Checked 2026-09-12. This is development evidence for a catalog change, not feature-audit acceptance or release qualification.
 
+## Subsequent availability decision (2026-09-13)
+
+The owner explicitly allowed the four MCP entries without review. Current catalog values are available/installable, with Unverified display and policySummary.reviewed=false. The results below, including the rejection-oriented verify_catalog.cjs script, preserve the earlier 2026-09-12 subject; reproduce that historical admission run at commit ebffd0d118b83a96f8e595e7749cbd5c0f62c156. They do not assert that the current available entries are blocked. The new admission checks and unchanged validation limits are recorded in ticket-283.md.
+
 ## Result
 
 - Four pending-review MCP entries added, with official provenance, pinned package versions or HTTPS endpoint, declared secret keys without values, and conservative tool-preview metadata. Existing entries and July 28 dependency cutoff unchanged.
