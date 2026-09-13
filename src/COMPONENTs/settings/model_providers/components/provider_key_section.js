@@ -296,6 +296,11 @@ export const ProviderKeySection = ({
                 options={siteOptions}
                 value={activeSlug}
                 set_value={setActiveSlug}
+                /* Same shape as the Appearance theme/language rows (design pick
+                   B2). The palette variant owns the panel's frosted look and
+                   radius; dropping it while keeping its option_style leaves the
+                   option corners fighting the panel's. */
+                variant="palette"
                 filterable={false}
                 style={{
                   minWidth: 190,
