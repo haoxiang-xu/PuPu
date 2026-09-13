@@ -24,6 +24,7 @@
     "api_key": "API 키",
     "retry": "다시 시도",
     "clear": "지우기",
+    "replace": "변경",
     "save": "저장",
     "saved": "저장됨",
     "all": "전체",
@@ -146,7 +147,10 @@
       "preset_add_title": "프리셋 추가",
       "preset_official": "공식",
       "preset_empty": "사용 가능한 프리셋이 없습니다."
-    }
+    },
+    "platform": "플랫폼",
+    "site_global": "글로벌",
+    "site_china": "중국"
   },
   "memory": {
     "title": "채팅 메모리",

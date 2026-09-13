@@ -24,6 +24,7 @@
     "api_key": "API-ключ",
     "retry": "Повторить",
     "clear": "Очистить",
+    "replace": "Заменить",
     "save": "Сохранить",
     "saved": "Сохранено",
     "all": "Все",
@@ -146,7 +147,10 @@
       "preset_add_title": "Добавить пресет",
       "preset_official": "Официальный",
       "preset_empty": "Нет доступных пресетов."
-    }
+    },
+    "platform": "Платформа",
+    "site_global": "Глобальная",
+    "site_china": "Китай"
   },
   "memory": {
     "title": "Память чата",

@@ -6,6 +6,10 @@
  */
 
 import {
+  isShippedSlug,
+  listShippedSlugs,
+} from "../../../../SERVICEs/shipped_provider_registry";
+import {
   readCustomProviders,
   findCustomProvider,
   addCustomProvider,
@@ -57,7 +61,26 @@ export const parseImportText = (text) => {
  * truth: format/format_version envelope check + full semantic validation).
  * Returns { ok, provider, diagnostics } — same shape as normalizeCustomProvider.
  */
-export const validateImport = (raw) => normalizeCustomProvider(raw);
+export const validateImport = (raw) => {
+  const result = normalizeCustomProvider(raw);
+  if (result.ok && isShippedSlug(result.provider.id)) {
+    // A shipped provider owns its slug (#202). Importing over it would shadow
+    // the app definition and impersonate a first-class section, so it is
+    // refused with the same diagnostic a reserved slug gets.
+    return {
+      ok: false,
+      diagnostics: [
+        {
+          code: "reserved_provider_id",
+          path: "provider.id",
+          message: `id 是保留字，不允许: ${result.provider.id}`,
+          severity: "error",
+        },
+      ],
+    };
+  }
+  return result;
+};
 
 /**
  * Derive a free slug for "rename import": append -2, -3, … until one is not
@@ -69,7 +92,10 @@ export const deriveFreeSlug = (baseSlug) => {
   if (!base) {
     return null;
   }
-  const taken = new Set(readCustomProviders().map((p) => p.id));
+  const taken = new Set([
+    ...readCustomProviders().map((p) => p.id),
+    ...listShippedSlugs(),
+  ]);
   for (let n = 2; n < 1000; n += 1) {
     const suffix = `-${n}`;
     const room = MAX_SLUG_LEN - suffix.length;

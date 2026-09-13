@@ -2,6 +2,7 @@ import { api } from "./api";
 import {
   addCustomProvider,
   normalizeCustomProvider,
+  resolveShippedDefinition,
   setCustomProviderEnabled,
   setCustomProviderSecret,
 } from "./custom_provider_store";
@@ -313,5 +314,121 @@ describe("getModelCatalog merges custom providers", () => {
 
     const catalog = await api.unchain.getModelCatalog();
     expect(catalog.providers["custom.sap-hyperspace"]).toBeUndefined();
+  });
+});
+
+/**
+ * Shipped providers (#202). DeepSeek and Kimi ride this same transport, but
+ * they are a first-class product feature rather than an experimental one, so
+ * enable_custom_model_providers must not reach them. Every test here runs with
+ * the flag at its shipped default of FALSE — if one of them starts needing the
+ * flag, the ticket has regressed.
+ */
+describe("shipped providers are not gated by the custom-provider flag", () => {
+  const originalUnchainApi = window.unchainAPI;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    writeFeatureFlags({ enable_custom_model_providers: false });
+    window.unchainAPI = {
+      startStream: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV4: jest.fn(() => ({ cancel: jest.fn() })),
+      getModelCatalog: jest.fn(async () => ({
+        providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
+        model_capabilities: {},
+      })),
+    };
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    window.unchainAPI = originalUnchainApi;
+  });
+
+  /* AC-02 */
+  test("a shipped model is injected and sent with the flag off", () => {
+    setCustomProviderSecret("deepseek", "sk-deepseek-key");
+
+    api.unchain.startStreamV2({
+      message: "hi",
+      options: { modelId: "custom.deepseek:deepseek-v4-flash" },
+    });
+
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalled();
+    const payload = window.unchainAPI.startStreamV2.mock.calls[0][0];
+    expect(payload.options.custom_provider.id).toBe("deepseek");
+    expect(payload.options.custom_provider.base_url).toBe(
+      "https://api.deepseek.com/anthropic",
+    );
+    // Provenance never travels; the definition arrives as an ordinary custom
+    // provider, which is what keeps the backend contract unchanged.
+    expect(payload.options.custom_provider).not.toHaveProperty("origin");
+  });
+
+  /* AC-02, the other half: the flag still means something. */
+  test("a user-authored model is still blocked with the flag off", () => {
+    seedProvider();
+    setCustomProviderSecret("sap-hyperspace", "hs-secret-value");
+
+    expect(() =>
+      api.unchain.startStreamV2({
+        message: "hi",
+        options: {
+          modelId: "custom.sap-hyperspace:anthropic--claude-4.5-haiku",
+        },
+      }),
+    ).toThrow(expect.objectContaining({ code: "custom_provider_disabled" }));
+  });
+
+  /* Fail-closed behaviour is unchanged for a shipped provider. */
+  test("a shipped model with no key is still blocked before send", () => {
+    expect(() =>
+      api.unchain.startStreamV2({
+        message: "hi",
+        options: { modelId: "custom.kimi:kimi-k3" },
+      }),
+    ).toThrow(
+      expect.objectContaining({ code: "custom_provider_missing_api_key" }),
+    );
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  /* AC-01 at the catalog: the model reaches the selector without the flag. */
+  test("a configured shipped provider is merged into the catalog", async () => {
+    setCustomProviderSecret("kimi", "sk-kimi-key");
+
+    const catalog = await api.unchain.getModelCatalog();
+
+    expect(catalog.providers["custom.kimi"]).toEqual([
+      "kimi-k3",
+      "kimi-k2.7-code",
+      "kimi-k2.6",
+    ]);
+    // The other site has no key of its own, so it stays out.
+    expect(catalog.providers["custom.kimi-cn"]).toBeUndefined();
+  });
+
+  test("an unconfigured shipped provider stays out of the catalog", async () => {
+    const catalog = await api.unchain.getModelCatalog();
+
+    expect(catalog.providers["custom.deepseek"]).toBeUndefined();
+    expect(catalog.providers["custom.kimi"]).toBeUndefined();
+  });
+
+  test("a shipped provider can be connection-tested with the flag off", async () => {
+    window.unchainAPI.testCustomProvider = jest.fn(async () => ({ ok: true }));
+
+    await expect(
+      api.unchain.testCustomProvider(
+        resolveShippedDefinition("deepseek"),
+        "sk-deepseek-key",
+      ),
+    ).resolves.toEqual({ ok: true });
+    expect(window.unchainAPI.testCustomProvider).toHaveBeenCalled();
   });
 });

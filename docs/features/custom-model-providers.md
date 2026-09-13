@@ -14,6 +14,28 @@
 >   `options.custom_provider_api_key` 专名字段仍是主进程注入到出站 payload 的落点）。
 > - 删除 legacy 明文 localStorage secret 是独立的 N+1 变更，本阶段**未做**（dual-keep 只读保留）。
 >
+> **Shipped provider 勘误（#202，0.1.11）**：本文默认「custom provider = 用户自建」，
+> 该前提在 #202 后不再完整。DeepSeek / Kimi 是 **shipped provider**：定义随 app 打包，
+> 运行时从 `custom_provider_presets.json` 解析，用户存储只放 API key。
+> - **注册表**：`src/SERVICEs/shipped_provider_registry.js` 是唯一名单；新增一家 =
+>   一条 registry + 一份 preset + 一个图标，不新增组件、不新增 flag 分支。
+> - **解析**：`resolveShippedDefinition` / `resolveProviderDefinition` /
+>   `readRuntimeProviderDefinitions`（`custom_provider_store.js`）。`readCustomProviders()`
+>   语义不变但**跳过 shipped slug**——旧版「首次存 key 就把 preset 拷进 custom_providers[]」
+>   写下的副本永远不再生效，`migrateShippedProviderCopies` 在 boot 时删掉它（不碰 secret）。
+>   这修掉的就是「preset 更新到不了老用户」的陈旧缺陷。
+> - **enabled**：shipped provider 没有可存的定义，因此没有可关的开关——定义恒生效，
+>   能不能用由下游既有的「是否配了 key」判定，和内置 OpenAI/Anthropic 一致。
+> - **flag**：`enable_custom_model_providers` 从此**只**管用户自建 provider。四处
+>   早退（`injectCustomProviderIntoPayload` / `mergeCustomProvidersIntoCatalog` /
+>   `testCustomProvider` / `read_custom_provider_groups`）改成 per-slug 判定。
+> - **线上形状不变**：仍是 `custom.<slug>:<model>` + `options.custom_provider`，
+>   Flask `parse_custom_provider` 与 unchain 侧零改动。契约证据见
+>   `docs/implementation/ticket-202-evidence/shipped_provider_wire.json` 及其两侧测试。
+> - **设置 UI**：`api_key_input.js` 与 `preset_provider_section.js` 合并为
+>   `components/provider_key_section.js`，七个区块共用一个控件；Kimi 的双站点是一行
+>   Platform `Select`。§6.1 / §8.4 的组件结构按此为准。
+>
 > 其余架构（协议孪生映射、白名单导出、catalog 前端合并、`model_io_factory` 闭包）不变。
 > 动机场景：SAP Hyperspace LLM proxy —— 本地 `hai proxy start` 在 `http://localhost:6655/anthropic` 暴露 Anthropic 兼容 Messages API，`x-api-key` 认证，模型 ID 形如 `anthropic--claude-4.5-haiku`。
 > 文中 file:line 引用来自勘察时点（dev 分支），行号漂移时以函数名为准。

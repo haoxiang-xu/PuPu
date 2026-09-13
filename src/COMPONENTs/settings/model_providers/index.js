@@ -5,67 +5,43 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
-import APIKeyInput from "./components/api_key_input";
-import PresetProviderSection from "./components/preset_provider_section";
+import ProviderKeySection from "./components/provider_key_section";
 import CustomProvidersSection from "./custom-providers";
 import ModelCard from "./components/model_card";
 import ActiveDownloads from "./components/active_downloads";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
 import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
+import { SHIPPED_PROVIDERS } from "../../../SERVICEs/shipped_provider_registry";
 
-const OpenAISection = () => {
-  const { t } = useTranslation();
-  return (
-    <SettingsSection title="OpenAI" icon="open_ai">
-      <APIKeyInput
-        storage_key="openai_api_key"
-        label={t("model_providers.api_key")}
-        placeholder="sk-..."
-      />
-    </SettingsSection>
-  );
-};
-
-const AnthropicSection = () => {
-  const { t } = useTranslation();
-  return (
-    <SettingsSection title="Anthropic" icon="Anthropic">
-      <APIKeyInput
-        storage_key="anthropic_api_key"
-        label={t("model_providers.api_key")}
-        placeholder="sk-ant-..."
-      />
-    </SettingsSection>
-  );
-};
-
-const GeminiSection = () => {
-  const { t } = useTranslation();
-  return (
-    <SettingsSection title="Gemini" icon="gemini">
-      <APIKeyInput storage_key="gemini_api_key" label={t("model_providers.api_key")} placeholder="AIza..." />
-    </SettingsSection>
-  );
-};
-
-const DeepSeekSection = () => (
-  <PresetProviderSection
-    title="DeepSeek"
-    icon="deepseek"
-    slugs={["deepseek"]}
-    placeholder="sk-..."
-  />
-);
-
-const KimiSection = () => (
-  <PresetProviderSection
-    title="Kimi"
-    icon="kimi"
-    slugs={["kimi", "kimi-cn"]}
-    placeholder="sk-..."
-  />
-);
+/* Native providers: a first-party ModelIO inside unchain, a dedicated storage
+   key, a credential identity of its own. */
+const NATIVE_PROVIDERS = [
+  {
+    id: "openai",
+    title: "OpenAI",
+    icon: "open_ai",
+    storage_key: "openai_api_key",
+    credential_id: "openai",
+    placeholder: "sk-...",
+  },
+  {
+    id: "anthropic",
+    title: "Anthropic",
+    icon: "Anthropic",
+    storage_key: "anthropic_api_key",
+    credential_id: "anthropic",
+    placeholder: "sk-ant-...",
+  },
+  {
+    id: "gemini",
+    title: "Gemini",
+    icon: "gemini",
+    storage_key: "gemini_api_key",
+    credential_id: "gemini",
+    placeholder: "AIza...",
+  },
+];
 
 const OllamaLibraryBrowser = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -288,11 +264,25 @@ export const ModelProvidersSettings = () => {
         boxSizing: "border-box",
       }}
     >
-      <OpenAISection />
-      <AnthropicSection />
-      <GeminiSection />
-      {customModelProvidersEnabled && <DeepSeekSection />}
-      {customModelProvidersEnabled && <KimiSection />}
+      {NATIVE_PROVIDERS.map((provider) => (
+        <ProviderKeySection
+          key={provider.id}
+          title={provider.title}
+          icon={provider.icon}
+          storage_key={provider.storage_key}
+          credential_id={provider.credential_id}
+          placeholder={provider.placeholder}
+        />
+      ))}
+      {SHIPPED_PROVIDERS.map((provider) => (
+        <ProviderKeySection
+          key={provider.id}
+          title={provider.title}
+          icon={provider.icon}
+          sites={provider.sites}
+          placeholder={provider.placeholder}
+        />
+      ))}
       <OllamaSection />
       {customModelProvidersEnabled && <CustomProvidersSection />}
     </div>

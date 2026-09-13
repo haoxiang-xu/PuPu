@@ -24,6 +24,7 @@
     "api_key": "Clave API",
     "retry": "Reintentar",
     "clear": "Borrar",
+    "replace": "Reemplazar",
     "save": "Guardar",
     "saved": "Guardado",
     "all": "Todos",
@@ -146,7 +147,10 @@
       "preset_add_title": "Añadir preajuste",
       "preset_official": "Oficial",
       "preset_empty": "No hay preajustes disponibles."
-    }
+    },
+    "platform": "Plataforma",
+    "site_global": "Global",
+    "site_china": "China"
   },
   "memory": {
     "title": "Memoria de chat",

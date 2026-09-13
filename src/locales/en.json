@@ -24,6 +24,7 @@
     "api_key": "API Key",
     "retry": "Retry",
     "clear": "Clear",
+    "replace": "Replace",
     "save": "Save",
     "saved": "Saved",
     "all": "All",
@@ -146,7 +147,10 @@
       "preset_add_title": "Add preset",
       "preset_official": "Official",
       "preset_empty": "No presets available."
-    }
+    },
+    "platform": "Platform",
+    "site_global": "Global",
+    "site_china": "China"
   },
   "memory": {
     "title": "Chat Memory",
