@@ -8,6 +8,7 @@ import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { SOURCE_CONFIG, STORE_CATEGORY_CONFIG } from "../constants";
 import { ToolkitIconFrame } from "../components/toolkit_icon";
+import PluginTrustBadge from "../components/plugin_trust_badge";
 import { SettingsSection, SettingsRow } from "../../settings/appearance";
 import Modal from "../../../BUILTIN_COMPONENTs/modal/modal";
 import { usePluginInstallState } from "../hooks/use_plugin_install_state";
@@ -754,6 +755,9 @@ const PluginDetailPage = ({
       {/* ── Scrollable body — Commands → Status → Setup → Risk → About →
            Permission, each section absent entirely when empty. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px 0" }}>
+        <div style={{ marginBottom: 12 }}>
+          <PluginTrustBadge entry={entry} isDark={isDark} />
+        </div>
         {/* ── Commands ── */}
         {commands.length > 0 && (
           <SettingsSection title={t("toolkit.section_commands")}>

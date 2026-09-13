@@ -326,6 +326,7 @@ const PluginsInstalledPage = ({
     return (
       <PluginListRow
         key={tk.toolkitId}
+        trustEntry={tk}
         icon={tk.toolkitIcon}
         isDark={isDark}
         name={presentation.name}

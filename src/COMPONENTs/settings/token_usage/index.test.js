@@ -323,6 +323,7 @@ describe("TokenUsageSettings — SQL mode (Phase 2)", () => {
 });
 
 describe("TokenUsageSettings — canonical RunBundle mode", () => {
+  let nowSpy;
   const installRunBundleBridge = (bundles) => {
     const records = bundles.map((bundle) => ({
       bundle,
@@ -341,12 +342,18 @@ describe("TokenUsageSettings — canonical RunBundle mode", () => {
   };
 
   beforeEach(() => {
+    // The canonical fixture is dated 2026-08-13. Keep it inside the default
+    // 30-day range without changing its canonical bytes or freezing timers.
+    nowSpy = jest.spyOn(Date, "now").mockReturnValue(
+      Date.parse("2026-08-14T12:00:00Z"),
+    );
     window.localStorage.clear();
     lastBarChartProps = null;
     resetTokenUsageStorageForTests();
   });
 
   afterEach(() => {
+    nowSpy.mockRestore();
     resetTokenUsageStorageForTests();
     delete window.runBundleStorageAPI;
     delete window.settingsStorageAPI;
@@ -456,5 +463,19 @@ describe("TokenUsageSettings — canonical RunBundle mode", () => {
     expect(api.clear).toHaveBeenCalledWith({});
     expect(window.localStorage.getItem("token_usage")).not.toBeNull();
     expectStatCardValue("Requests", "0");
+  });
+
+  test("excludes old canonical usage from 30 days and includes it in all time", async () => {
+    nowSpy.mockReturnValue(Date.parse("2026-09-13T12:00:00Z"));
+    const api = installRunBundleBridge([buildRunBundleV1()]);
+    renderTokenUsageSettings();
+    await waitFor(() => expect(api.query).toHaveBeenCalledTimes(1));
+    expectStatCardValue("Consumed Tokens", "0");
+
+    fireEvent.change(screen.getAllByTestId("mock-select")[3], {
+      target: { value: "all" },
+    });
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "1.2k"));
+    expectStatCardValue("Requests", "1");
   });
 });

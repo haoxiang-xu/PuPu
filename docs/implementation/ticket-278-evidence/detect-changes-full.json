@@ -1,0 +1,1132 @@
+{
+  "summary": {
+    "changed_count": 112,
+    "affected_count": 28,
+    "changed_files": 36,
+    "risk_level": "critical"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L1:#278 — Plugin publisher origin and verification labels",
+      "name": "#278 — Plugin publisher origin and verification labels",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L9:Outcome and selected UI",
+      "name": "Outcome and selected UI",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L15:Research and evidence",
+      "name": "Research and evidence",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L23:Data decisions",
+      "name": "Data decisions",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L33:Boundaries",
+      "name": "Boundaries",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L37:Acceptance and verification",
+      "name": "Acceptance and verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-278.md:L48:Delegation and checkpoints",
+      "name": "Delegation and checkpoints",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-278.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/aurora_feature_card.js:AuroraFeatureCard",
+      "name": "AuroraFeatureCard",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/aurora_feature_card.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/brand_orb_card.js:BrandOrbCard",
+      "name": "BrandOrbCard",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/brand_orb_card.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_list_row.js:PluginListRow",
+      "name": "PluginListRow",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_list_row.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_KEYS",
+      "name": "ORIGIN_KEYS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_KEYS.official",
+      "name": "official",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_KEYS.third_party",
+      "name": "third_party",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_KEYS.unknown",
+      "name": "unknown",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_CONFIG",
+      "name": "STATUS_CONFIG",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_CONFIG.verified",
+      "name": "verified",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_CONFIG.pending",
+      "name": "pending",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_CONFIG.unverified",
+      "name": "unverified",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_CONFIG.unknown",
+      "name": "unknown",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_EXPLANATION_KEYS",
+      "name": "ORIGIN_EXPLANATION_KEYS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_EXPLANATION_KEYS.official",
+      "name": "official",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_EXPLANATION_KEYS.third_party",
+      "name": "third_party",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:ORIGIN_EXPLANATION_KEYS.unknown",
+      "name": "unknown",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_EXPLANATION_KEYS",
+      "name": "STATUS_EXPLANATION_KEYS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_EXPLANATION_KEYS.pending",
+      "name": "pending",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_EXPLANATION_KEYS.unverified",
+      "name": "unverified",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:STATUS_EXPLANATION_KEYS.unknown",
+      "name": "unknown",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:SCOPE_KEYS",
+      "name": "SCOPE_KEYS",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:SCOPE_KEYS.publisher_identity",
+      "name": "publisher_identity",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:SCOPE_KEYS.source_ownership",
+      "name": "source_ownership",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:SCOPE_KEYS.permissions",
+      "name": "permissions",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:SCOPE_KEYS.content",
+      "name": "content",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge",
+      "name": "PluginTrustBadge",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.border@112:4",
+      "name": "border",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.origin@115:4",
+      "name": "origin",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.originOfficial@118:4",
+      "name": "originOfficial",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.verified@119:4",
+      "name": "verified",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.pending@120:4",
+      "name": "pending",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.neutral@121:4",
+      "name": "neutral",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.detailsBackground@124:4",
+      "name": "detailsBackground",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.detailsText@127:4",
+      "name": "detailsText",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.detailsMuted@130:4",
+      "name": "detailsMuted",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.handleToggle@135:2",
+      "name": "handleToggle",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.js:PluginTrustBadge.handleKeyDown@143:2",
+      "name": "handleKeyDown",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:fn@11:51.default@13:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST",
+      "name": "VERIFIED_TRUST",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.origin",
+      "name": "origin",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.status",
+      "name": "status",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.publisher",
+      "name": "publisher",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.scope",
+      "name": "scope",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.reviewedAt",
+      "name": "reviewedAt",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.reviewedBy",
+      "name": "reviewedBy",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:VERIFIED_TRUST.reference",
+      "name": "reference",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:ENTRY",
+      "name": "ENTRY",
+      "type": "Const",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:ENTRY.id",
+      "name": "id",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:ENTRY.source",
+      "name": "source",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:ENTRY.version",
+      "name": "version",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:renderBadge",
+      "name": "renderBadge",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:fn@52:29.fn@194:77.id@208:20",
+      "name": "id",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js:fn@52:29.fn@194:77.id@209:21",
+      "name": "id",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/toolkit/components/plugin_trust_badge.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugin_detail_page.js:PluginDetailPage",
+      "name": "PluginDetailPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugin_detail_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugin_detail_page.test.js:fn@10:51.default@12:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugin_detail_page.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_categories_page.js:PluginsCategoriesPage",
+      "name": "PluginsCategoriesPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_categories_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_categories_page.test.js:fn@4:51.default@6:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_categories_page.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_discover_page.js:PluginsDiscoverPage",
+      "name": "PluginsDiscoverPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_discover_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_discover_page.js:PluginsDiscoverPage.renderCollectionMember@295:2",
+      "name": "renderCollectionMember",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_discover_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_discover_page.js:PluginsDiscoverPage.renderEssentialCard@362:2",
+      "name": "renderEssentialCard",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_discover_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_discover_page.test.js:fn@5:51.default@7:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_discover_page.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_installed_page.js:PluginsInstalledPage",
+      "name": "PluginsInstalledPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_installed_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_installed_page.js:PluginsInstalledPage.renderRow@311:2",
+      "name": "renderRow",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_installed_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/plugins_installed_page.test.js:fn@9:51.default@11:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_installed_page.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js:SkillPackDetailPage",
+      "name": "SkillPackDetailPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js:fn@4:51.default@6:2",
+      "name": "default",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/plugin_trust.js:resolvePluginTrust",
+      "name": "resolvePluginTrust",
+      "type": "Function",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.origin@8:4",
+      "name": "origin",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.status@9:4",
+      "name": "status",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.publisher@10:4",
+      "name": "publisher",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.scope@11:4",
+      "name": "scope",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reviewedAt@12:4",
+      "name": "reviewedAt",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reviewedBy@13:4",
+      "name": "reviewedBy",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reference@14:4",
+      "name": "reference",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.source@66:31",
+      "name": "source",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.sourceRepo@66:48",
+      "name": "sourceRepo",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.toolkitId@66:20",
+      "name": "toolkitId",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.version@66:39",
+      "name": "version",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.status@98:4",
+      "name": "status",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.scope@99:4",
+      "name": "scope",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reviewedAt@100:4",
+      "name": "reviewedAt",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reviewedBy@101:4",
+      "name": "reviewedBy",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.js:resolvePluginTrust.reference@102:4",
+      "name": "reference",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/plugin_trust.test.js:entry",
+      "name": "entry",
+      "type": "Const",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:entry.source",
+      "name": "source",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:entry.sourceRepo",
+      "name": "sourceRepo",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:entry.toolkitId",
+      "name": "toolkitId",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:entry.version",
+      "name": "version",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/plugin_trust.test.js:record",
+      "name": "record",
+      "type": "Const",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.scope",
+      "name": "scope",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.status",
+      "name": "status",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.subject",
+      "name": "subject",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.reference",
+      "name": "reference",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.reviewedAt",
+      "name": "reviewedAt",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust.test.js:record.reviewedBy",
+      "name": "reviewedBy",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/plugin_trust_locales.test.js:locales",
+      "name": "locales",
+      "type": "Const",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.de",
+      "name": "de",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.en",
+      "name": "en",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.es",
+      "name": "es",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.fr",
+      "name": "fr",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.it",
+      "name": "it",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.ja",
+      "name": "ja",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.ko",
+      "name": "ko",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/plugin_trust_locales.test.js:locales.ru",
+      "name": "ru",
+      "type": "Property",
+      "filePath": "src/SERVICEs/plugin_trust_locales.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/plugin_verification_records.js:PLUGIN_VERIFICATION_RECORDS",
+      "name": "PLUGIN_VERIFICATION_RECORDS",
+      "type": "Const",
+      "filePath": "src/SERVICEs/plugin_verification_records.js",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_38_plugindetailpage",
+      "name": "PluginDetailPage → HasOAuthRecipe",
+      "process_type": "intra_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginDetailPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_39_plugindetailpage",
+      "name": "PluginDetailPage → RequiresWorkspace",
+      "process_type": "intra_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginDetailPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_63_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → GetActive",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_153_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Abort",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_154_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Abort",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_155_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → CurrentStoreEntries",
+      "process_type": "intra_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_235_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → GetActive",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_251_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Delete",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_264_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Abort",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_265_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Abort",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_266_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → CurrentStoreEntries",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_281_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadUserAgent",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_282_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadHeight",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_283_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → ReadWidth",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_284_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → Set",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_285_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → EmitLine",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_323_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Delete",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_343_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → RelaySessionGuardDiagnostic",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_528_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_549_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_573_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → GetBar",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_592_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → GetBar",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_679_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_694_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_696_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_711_pluginsdiscoverpage",
+      "name": "PluginsDiscoverPage → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "PluginsDiscoverPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1055_pluginscategoriespag",
+      "name": "PluginsCategoriesPage → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "PluginsCategoriesPage",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1056_pluginsinstalledpage",
+      "name": "PluginsInstalledPage → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "PluginsInstalledPage",
+          "step": 1
+        }
+      ]
+    }
+  ]
+}
