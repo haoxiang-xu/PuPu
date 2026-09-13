@@ -218,6 +218,86 @@
           "descriptionZh": "深思熟虑的配色与字体编排,一次说得出理由的美学冒险"
         }
       ]
+    },
+    {
+      "id": "skillpack.vercel-web-review",
+      "title": "Vercel Web Review",
+      "titleZh": "Vercel 网页审查",
+      "blurb": "Vercel’s web-design-guidelines skill reviews accessibility, performance and interface quality. It reads your selected files and fetches current official guidelines online; the full React skills collection is not included.",
+      "blurbZh": "精选 Vercel 网页审查技能，检查无障碍、性能与界面体验。需要读取所选文件并联网获取官方规则；不包含完整 React 技能合集。",
+      "gradient": [
+        "#343434",
+        "#646464"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "vercel-labs/agent-skills",
+        "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+        "license": "MIT"
+      },
+      "subset": [
+        "skills/web-design-guidelines"
+      ],
+      "commandPreviews": [
+        {
+          "name": "web-design-guidelines",
+          "description": "Review web interfaces using current Vercel guidelines; requires file read and web fetch.",
+          "descriptionZh": "按 Vercel 最新规则审查网页；需要文件读取与网页获取工具。"
+        }
+      ],
+      "manifest": [
+        {
+          "path": "skills/web-design-guidelines/SKILL.md",
+          "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-283-vercel-web-review-content-review",
+        "reviewedAt": "2026-09-12",
+        "reviewers": [
+          "Codex (selected instruction content review)"
+        ]
+      }
+    },
+    {
+      "id": "skillpack.trailofbits-audit-prep",
+      "title": "Trail of Bits Audit Prep",
+      "titleZh": "Trail of Bits 审计准备",
+      "blurb": "Trail of Bits’ audit-prep-assistant helps define review scope, check test coverage and prepare audit documentation. Uses workspace tools; language-specific analyzers are separate dependencies. This is audit preparation, not a security certification.",
+      "blurbZh": "精选 Trail of Bits 审计准备技能，整理审查范围、测试覆盖和审计文档。需要工作区工具，专用分析器需另行配置；使用该技能不代表通过安全认证。",
+      "gradient": [
+        "#315173",
+        "#54769B"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "trailofbits/skills",
+        "sha": "321ccfe628eca0d314b0ee4eaffcdd8a05639aaf",
+        "license": "CC-BY-SA-4.0"
+      },
+      "subset": [
+        "plugins/building-secure-contracts/skills/audit-prep-assistant"
+      ],
+      "commandPreviews": [
+        {
+          "name": "audit-prep-assistant",
+          "description": "Prepare scope, coverage evidence and documentation for a security review.",
+          "descriptionZh": "准备安全审查范围、覆盖率证据和项目文档。"
+        }
+      ],
+      "manifest": [
+        {
+          "path": "plugins/building-secure-contracts/skills/audit-prep-assistant/SKILL.md",
+          "sha256": "d639b411a315ea9420e40afabe75bbf4b1bfed6ea5c8601a3e963343ac9924f2"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-283-trailofbits-audit-prep-content-review",
+        "reviewedAt": "2026-09-12",
+        "reviewers": [
+          "Codex (selected instruction content review)"
+        ]
+      }
     }
   ]
 }

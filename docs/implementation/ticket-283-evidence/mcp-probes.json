@@ -1,0 +1,137 @@
+{
+  "checkedAt": "2026-09-12T22:19:11.331Z",
+  "boundary": "BC-283-003",
+  "check": "AC-283-005",
+  "records": [
+    {
+      "id": "dev.microsoft-learn",
+      "endpoint": "https://learn.microsoft.com/api/mcp",
+      "credentialMode": "no authentication required",
+      "node": "v24.18.0",
+      "packagedPuPuUnchainPair": "NOT_RUN",
+      "initialize": "PASS",
+      "server": {
+        "name": "Microsoft Learn MCP Server",
+        "version": "1.0.0"
+      },
+      "tools": [
+        "microsoft_docs_search",
+        "microsoft_code_sample_search",
+        "microsoft_docs_fetch"
+      ],
+      "toolSchemaSha256": "cd03a6da4ab54961c181fa01baf8b00b574e7796f55ee5d9ab9db40794689f26",
+      "call": {
+        "name": "microsoft_docs_search",
+        "isError": false,
+        "bytes": 41231,
+        "sha256": "92c2a862da9c47ba840b3107fa07342dcd1baa3224a918326657d66fe30ca54f",
+        "excerpt": "{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"results\\\":[{\\\"title\\\":\\\"Microsoft Learn MCP Server overview\\\",\\\"content\\\":\\\"# Microsoft Learn MCP Server overview\\\\nThe Microsoft Learn Model Context Protocol (MCP) Server enables clients like GitHub Copilot and other AI agents to bring trusted and up-to-date information directly from Microsoft\\\\u0027s official documenta"
+      }
+    },
+    {
+      "id": "productivity.brave-search",
+      "package": "@brave/brave-search-mcp-server",
+      "version": "2.1.0",
+      "credentialMode": "intentionally invalid key; authenticated success NOT_RUN",
+      "node": "v24.18.0",
+      "packagedPuPuUnchainPair": "NOT_RUN",
+      "initialize": "PASS",
+      "server": {
+        "name": "brave-search-mcp-server",
+        "title": "Brave Search MCP Server",
+        "version": "2.1.0"
+      },
+      "tools": [
+        "brave_web_search",
+        "brave_video_search",
+        "brave_image_search",
+        "brave_news_search"
+      ],
+      "toolSchemaSha256": "baa238d7154e9698e81a2b47666b0c02dd7e6067fba1dc3e96924e004d617095",
+      "call": {
+        "name": "brave_web_search",
+        "isError": true,
+        "bytes": 317,
+        "sha256": "54c625e1b3f72f9bfe9b2e08ac90a5e4b1c352ea074daa241a9c02f675542143",
+        "excerpt": "{\"content\":[{\"type\":\"text\",\"text\":\"422 \\n{\\n  \\\"error\\\": {\\n    \\\"code\\\": \\\"SUBSCRIPTION_TOKEN_INVALID\\\",\\n    \\\"detail\\\": \\\"The provided subscription token is invalid.\\\",\\n    \\\"meta\\\": {\\n      \\\"component\\\": \\\"authentication\\\"\\n    },\\n    \\\"status\\\": 422\\n  },\\n  \\\"type\\\": \\\"ErrorResponse\\\"\\n}\"}],\"isError\":true}"
+      }
+    },
+    {
+      "id": "productivity.tavily",
+      "package": "tavily-mcp",
+      "version": "0.2.21",
+      "credentialMode": "upstream keyless public mode; catalog-required-key success NOT_RUN",
+      "node": "v24.18.0",
+      "packagedPuPuUnchainPair": "NOT_RUN",
+      "initialize": "PASS",
+      "server": {
+        "name": "tavily-mcp",
+        "version": "0.2.21"
+      },
+      "tools": [
+        "tavily_search",
+        "tavily_extract",
+        "tavily_crawl",
+        "tavily_map",
+        "tavily_research"
+      ],
+      "toolSchemaSha256": "b2bcd45339fe42caa0f55e5ca1196091b2dcda4b868fedd209177b54f2ef51ef",
+      "call": {
+        "name": "tavily_search",
+        "isError": false,
+        "bytes": 597,
+        "sha256": "b2c9471de37675b19d66c0c8e00f4fd045da57c5db060f2bc281cd9a2ab14b5c",
+        "excerpt": "{\"content\":[{\"type\":\"text\",\"text\":\"Detailed Results:\\n\\nTitle: Microsoft Learn MCP Server overview\\nURL: https://learn.microsoft.com/en-us/training/support/mcp\\nContent: # Microsoft Learn MCP Server overview\\n\\nThe Microsoft Learn Model Context Protocol (MCP) Server enables clients like GitHub Copilot and other AI agents to bring trusted and up-to-date infor"
+      }
+    },
+    {
+      "id": "productivity.firecrawl",
+      "package": "firecrawl-mcp",
+      "version": "3.22.4",
+      "credentialMode": "upstream keyless public mode; catalog-required-key success NOT_RUN",
+      "node": "v24.18.0",
+      "packagedPuPuUnchainPair": "NOT_RUN",
+      "initialize": "PASS",
+      "server": {
+        "name": "firecrawl-fastmcp",
+        "version": "3.22.4"
+      },
+      "tools": [
+        "firecrawl_scrape",
+        "firecrawl_map",
+        "firecrawl_search",
+        "firecrawl_search_feedback",
+        "firecrawl_feedback",
+        "firecrawl_crawl",
+        "firecrawl_check_crawl_status",
+        "firecrawl_extract",
+        "firecrawl_agent",
+        "firecrawl_agent_status",
+        "firecrawl_interact",
+        "firecrawl_interact_stop",
+        "firecrawl_parse",
+        "firecrawl_monitor_create",
+        "firecrawl_monitor_list",
+        "firecrawl_monitor_get",
+        "firecrawl_monitor_update",
+        "firecrawl_monitor_delete",
+        "firecrawl_monitor_run",
+        "firecrawl_monitor_checks",
+        "firecrawl_monitor_check",
+        "firecrawl_research_search_papers",
+        "firecrawl_research_inspect_paper",
+        "firecrawl_research_related_papers",
+        "firecrawl_research_read_paper",
+        "firecrawl_research_search_github"
+      ],
+      "toolSchemaSha256": "25b6b2c745e723a583c62794a847554115e58b5fbf8f373e6bc6a3a0e1cd4aaf",
+      "call": {
+        "name": "firecrawl_scrape",
+        "isError": true,
+        "bytes": 372,
+        "sha256": "ba2dc3a0d1fab0ff4b40dfb8bf5e808df27aecedc9e0aee2f0ec8094056b2e04",
+        "excerpt": "{\"content\":[{\"type\":\"text\",\"text\":\"Tool 'firecrawl_scrape' execution failed: Unfortunately, your IP address looks suspicious, so Firecrawl can't be used without an API key from here. Sign up for a free API key at https://firecrawl.dev for 1000 credits and higher rate limits for free. (If you're an agent, you can also use https://firecrawl.dev/auth.md)\"}],\"is"
+      }
+    }
+  ]
+}
