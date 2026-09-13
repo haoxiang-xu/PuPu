@@ -4,21 +4,10 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../input/button";
 import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
+import usePresentationPlatform from "../mini_react/use_presentation_platform";
 
 const TOP_BAR_HEIGHT = 50;
 
-const getRuntimePlatform = () => {
-  if (typeof window === "undefined") {
-    return "web";
-  }
-  if (window.osInfo && typeof window.osInfo.platform === "string") {
-    return window.osInfo.platform;
-  }
-  if (window.runtime && typeof window.runtime.platform === "string") {
-    return window.runtime.platform;
-  }
-  return "web";
-};
 const hasElectronWindowControls = () => {
   if (typeof window === "undefined") {
     return false;
@@ -34,13 +23,25 @@ const WINDOWS_CONTROL_ICONS = {
   minimize: "windows_minimize_button",
   restore: "windows_restore_button",
 };
+/* GNOME's glyphs; the buttons themselves are Adwaita's round headerbar
+   buttons (24px circles on a faint wash, brighter on hover, no red close) */
+const LINUX_CONTROL_ICONS = {
+  close: "linux_close_button",
+  maximize: "linux_maximize_button",
+  minimize: "linux_minimize_button",
+  restore: "linux_restore_button",
+};
 const TitleBar = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } = useContext(ConfigContext);
   const [windowIsMaximized, setWindowIsMaximized] = useState(false);
 
   const isElectron = hasElectronWindowControls();
-  const platform = getRuntimePlatform();
+  /* the PRESENTED platform (#256): a dev override can make a darwin host
+     draw the Windows cluster, or a win32 host leave room for traffic lights */
+  const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
+  const isLinux = platform === "linux";
+  const controlIcons = isLinux ? LINUX_CONTROL_ICONS : WINDOWS_CONTROL_ICONS;
 
   useEffect(() => {
     if (!isElectron) {
@@ -80,7 +81,38 @@ const TitleBar = () => {
   // Create gradient background (solid at top, transparent at bottom)
   const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 32%, transparent 100%)`;
 
+  /* Adwaita: a 24px circle on alpha(currentColor, .1), .15 on hover, .25
+     when pressed; close gets no special colour; 8px between buttons */
+  const linuxControlButtonStyle = () => ({
+    root: {
+      width: 24,
+      height: 24,
+      borderRadius: 999,
+      color: `var(--pupu-text, ${theme?.icon?.color || themeForeground})`,
+      backgroundColor: "rgba(var(--pupu-text-rgb),0.10)",
+      iconSize: 14,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      iconOnlyPaddingVertical: 0,
+      iconOnlyPaddingHorizontal: 0,
+      WebkitAppRegion: "no-drag",
+    },
+    background: {
+      hoverBackgroundColor: "rgba(var(--pupu-text-rgb),0.16)",
+      activeBackgroundColor: "rgba(var(--pupu-text-rgb),0.26)",
+    },
+    content: {
+      root: {
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+      icon: { width: 14, height: 14 },
+    },
+  });
   const controlButtonStyle = (action) => {
+    if (isLinux) return linuxControlButtonStyle();
     const onCloseButton = action === "close";
     const isDark = onThemeMode === "dark_mode";
     const defaultBackgroundColor = isDark
@@ -196,30 +228,30 @@ const TitleBar = () => {
           style={{
             position: "absolute",
             top: "50%",
-            right: 10,
+            right: isLinux ? 12 : 10,
             transform: "translateY(-50%)",
             display: "flex",
-            gap: 1,
+            alignItems: "center",
+            gap: isLinux ? 8 : 1,
             WebkitAppRegion: "no-drag",
           }}
         >
           <Button
-            prefix_icon={WINDOWS_CONTROL_ICONS.minimize}
-            style={{...controlButtonStyle("minimize"), borderRadius: "0px"}}
+            prefix_icon={controlIcons.minimize}
+            ariaLabel="Minimize"
+            style={{ ...controlButtonStyle("minimize"), ...(isLinux ? {} : { borderRadius: "0px" }) }}
             onClick={() => runWindowAction("minimize")}
           />
           <Button
-            prefix_icon={
-              windowIsMaximized
-                ? WINDOWS_CONTROL_ICONS.restore
-                : WINDOWS_CONTROL_ICONS.maximize
-            }
-            style={{...controlButtonStyle("maximize"), borderRadius: "1px"}}
+            prefix_icon={windowIsMaximized ? controlIcons.restore : controlIcons.maximize}
+            ariaLabel={windowIsMaximized ? "Restore" : "Maximize"}
+            style={{ ...controlButtonStyle("maximize"), ...(isLinux ? {} : { borderRadius: "1px" }) }}
             onClick={() => runWindowAction("maximize")}
           />
           <Button
-            prefix_icon={WINDOWS_CONTROL_ICONS.close}
-            style={{...controlButtonStyle("close"), borderRadius: "1px"}}
+            prefix_icon={controlIcons.close}
+            ariaLabel="Close"
+            style={{ ...controlButtonStyle("close"), ...(isLinux ? {} : { borderRadius: "1px" }) }}
             onClick={() => runWindowAction("close")}
           />
         </div>

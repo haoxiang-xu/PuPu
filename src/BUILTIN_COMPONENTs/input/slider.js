@@ -498,10 +498,13 @@ const Slider = ({
             />
             {/* narrower progress fill — at rest it runs from the first notch
                 to the value's notch (so at the maximum it is the channel);
-                on wake it is inset by the cap radius and cap-aligned, so its
-                left cap is concentric with the track's and its right cap
-                with the thumb. An explicit activeColor tints it; otherwise
-                it is the house neutral gradient. */}
+                on wake its left cap is concentric with the track's and its
+                RIGHT EDGE is the thumb's centre. mini_ui runs it one half
+                thickness past the centre, which an opaque thumb hides; this
+                thumb is frosted glass, the fill shows through it, and a fill
+                running past the centre read as the indicator sitting off
+                the thumb's middle. An explicit activeColor tints it;
+                otherwise it is the house neutral gradient. */}
             <div
               data-testid="slider-progress"
               style={{
@@ -509,7 +512,7 @@ const Slider = ({
                 top: "50%",
                 left: thumbVisible ? pad - glassProgress / 2 : pad,
                 width: thumbVisible
-                  ? Math.max(glassProgress, thumbLeftPx - pad + glassProgress)
+                  ? Math.max(glassProgress, thumbLeftPx - pad + glassProgress / 2)
                   : pct <= 0
                     ? 0
                     : thumbLeftPx - pad,

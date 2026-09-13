@@ -27,6 +27,22 @@ export const windowStateBridge = {
     }
   },
 
+  /* #256 dev only: tell main which platform the UI presents as, so the
+     native chrome (darwin traffic lights, maximize semantics) follows.
+     Returns false when preload does not offer the method (older preload, web). */
+  setPlatformPresentation: (platform) => {
+    if (!hasBridgeMethod("windowStateAPI", "setPlatformPresentation")) {
+      return false;
+    }
+    try {
+      const method = assertBridgeMethod("windowStateAPI", "setPlatformPresentation");
+      method(platform);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  },
+
   onWindowStateChange: (callback) => {
     if (typeof callback !== "function") {
       return () => {};

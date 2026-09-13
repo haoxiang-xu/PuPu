@@ -1,0 +1,31 @@
+# PR #282 — authorized CI and Token Usage test repair
+
+The owner approved modifying CI and explicitly included the four failing Token Usage tests. Work resumes in the independent `/Users/red/Desktop/GITRepo/pupu-278` clone on the existing PR branch. The original checkout is untouched. Integrate current dev `65811ee3d7bb62cc86f27c681764d7de0bfeef48` without rewriting published commits; CI tests the merge result, which includes platform-presentation tests missing from the original feature branch.
+
+## Evidence and changes
+
+- Failed Actions run 34718475193 at PR head d556591c: Token Usage had four failures; Electron assertions passed but Jest never exited and the job hit six hours. Final reporting correctly rejected the cancelled deterministic job.
+- Token Usage reproduced locally: four failed, seven passed. The canonical fixture has August 13 timestamps and the page defaults to a rolling 30-day window. Freeze only Date.now in this test group at August 14, leaving async timers real. Keep canonical fixture bytes unchanged. Add a separate September 13 scenario proving 30-day exclusion and all-time inclusion. All 12 tests pass; no product statistics/filtering logic was changed.
+- Electron reproduction uses the actual merged main-window tests with Node 20, matching CI's major version. All nine assertions passed, then the process hung; --detectOpenHandles identified loadDevUrlWhenReady retry timers from the new platform-presentation suite. That suite was outside the existing fetch setup. Move shared fetch/timer setup to file scope, clear timers and restore globals after every test. The .js twin already requires the .cjs implementation, so both harnesses execute the same fix without duplicate bodies. The same command now exits naturally with nine passing tests and no open-handle warning.
+- Shared deterministic CI has a 45-minute job limit; frontend and Python test steps have 10-minute limits and Electron has five. Retain continue-on-error only to collect subsequent results; the existing final gate still rejects any failed/cancelled required check. Capture stdout/stderr with tee and pipefail; always upload a seven-day test-log artifact and show raw step outcomes in the job summary. Add Electron open-handle diagnostics; never use forceExit or ignore a failing command.
+
+## Impact and boundaries
+
+GitNexus is bound to this clone. createMainWindowService has LOW upstream impact (three symbols including Electron startup); its implementation is not manually changed. Test helper walks are UNKNOWN because callback references are unresolved. Source corroboration identifies the canonical Token Usage tests and three platform-presentation tests as the actual callers. YAML workflow invocation is not a callable symbol: the shared deterministic job is referenced by release-qa.yml. The changes affect all its modes, while package/signing/publishing jobs remain unchanged. No branch-protection rule or required report is disabled.
+
+BC-CI-001: test command process -> Bash pipeline -> GitHub step outcome -> existing deterministic/final-report consumer. Producer output consists of exit status and stdout/stderr; canonical report shape remains the existing named checks/outcome JSON. Admission is CLOSED for success/failure/cancelled/skipped in the existing report consumer. pipefail preserves nonzero command status despite tee succeeding; step timeouts kill the bounded process, and reports still reject failures/cancellation. New Markdown summary is diagnostic, never an admission source. Exact candidate identity is the pushed PR merge revision and its Actions run; no runtime protocol/Unchain wheel schema or application artifact construction changes.
+
+SEQ-CI-001: a command emits output then fails, or completes assertions but stays alive. Failure must produce a nonzero step outcome, preserve both streams and remain visible in the summary; timeout must stop the step within its declared limit; the aggregate gate must not pass. A fresh retry starts a new run and cannot reuse a prior PASS. CI logs have seven-day retention. No application durable-state sequence changes.
+
+AC-CI-001: execute the actual workflow shell with a substituted command that writes both streams and exits 23; all three test stages must return 23 and preserve the log. AC-CI-002: summary renders failure/cancelled/not-run accurately; report consumes outcome, not the post-continue-on-error conclusion. AC-CI-003: declared limits and unconditional log/report steps remain present. AC-CI-004: Token Usage tests pass with fixed clocks on both sides of the 30-day boundary. AC-CI-005: merged window tests and full Electron suite exit naturally, including on Node 20. AC-CI-006: full frontend, existing workflow-contract tests and a fresh remote CI run validate the delivered candidate.
+
+No application process/provider/persistence contract is altered by the authored fixes. Exact Unchain wheel and imported runtime-manifest requalification are N/A for these test/CI-control changes; the unchanged release pipeline retains its existing artifact checks. No release deployment or publication is requested.
+
+## Local verification
+
+- Full frontend under Node 20: 387 suites / 4,472 tests passed; 8 suites / 319 tests skipped by the existing suite configuration.
+- Full Electron under Node 20 with open-handle diagnostics: 48 suites / 611 tests passed; 8 suites / 319 tests skipped. Command exited naturally with status 0 after 6.652 seconds, without forceExit.
+- Workflow lifecycle plus existing artifact-continuity, Playwright-workflow and publication-workflow contracts: 19 tests passed.
+- Complete release-QA unit suite under Node 20: 243 passed, one existing skip, no failures.
+- Fresh GitNexus scope=all after staging the new files returned 105 changed symbols across 45 files and 38 affected processes, with neither partial nor truncated flags. Aggregate CRITICAL includes the staged dev integration; the owner was warned before committing. Authored production behavior remains limited to the existing feature commits; this repair changes CI and test lifecycle only.
+- Remote validation will bind to the new pushed revision. The historical feature audit at d556591c does not certify a later CI run or packaged release.

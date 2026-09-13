@@ -1322,6 +1322,35 @@ const Windows = (props) => (
     <path d="M3.00098 5.47902L10.3778 4.4625V11.5902H3.00098V5.47902ZM3.00098 18.521L10.3778 19.5375V12.4982H3.00098V18.521ZM11.1894 19.646L21.001 21V12.4982H11.1894V19.646ZM11.1894 4.35402V11.5902H21.001V3L11.1894 4.35402Z"></path>
   </svg>
 );
+/* Linux (GNOME / libadwaita) window controls: the symbolic glyphs that sit
+   in Adwaita's round headerbar buttons — a heavier ×, a low horizontal bar
+   for minimize, a square for maximize, two offset squares for restore. */
+const LinuxCloseButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M4.25 4.25L11.75 11.75M11.75 4.25L4.25 11.75"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const LinuxMinimizeButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 11.25H12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const LinuxMaximizeButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="8" height="8" rx="0.75" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const LinuxRestoreButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3.5" y="5.5" width="7" height="7" rx="0.75" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M6 3.5H11.75C12.164 3.5 12.5 3.836 12.5 4.25V10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
 const WindowsCloseButton = (props) => (
   <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -1655,6 +1684,10 @@ const UISVGs = {
   upload: Upload,
   verified: Verified,
   warning: Warning,
+  linux_close_button: LinuxCloseButton,
+  linux_maximize_button: LinuxMaximizeButton,
+  linux_minimize_button: LinuxMinimizeButton,
+  linux_restore_button: LinuxRestoreButton,
   windows_close_button: WindowsCloseButton,
   windows_maximize_button: WindowsMaximizeButton,
   windows_minimize_button: WindowsMinimizeButton,

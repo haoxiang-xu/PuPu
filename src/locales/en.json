@@ -393,7 +393,13 @@
     "mcp_registry_risk_critical": "critical risk",
     "mcp_registry_refresh": "Refresh",
     "mcp_registry_delete": "Delete",
-    "mcp_registry_error": "error"
+    "mcp_registry_error": "error",
+    "platform_presentation": "Platform presentation",
+    "platform_presentation_desc": "Present the UI as another operating system's chrome — title bar, window controls, spacing. Development only; production follows the real platform.",
+    "platform_system": "System (this machine)",
+    "platform_macos": "macOS",
+    "platform_windows": "Windows",
+    "platform_linux": "Linux"
   },
   "computer_use": {
     "section": "Computer Use",

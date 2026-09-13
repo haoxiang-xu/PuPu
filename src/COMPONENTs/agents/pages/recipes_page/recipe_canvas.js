@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
-import { getRuntimePlatform } from "../../../side-menu/side_menu_utils";
+import usePresentationPlatform from "../../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import AgentNode from "./nodes/agent_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
@@ -220,7 +220,7 @@ export default function RecipeCanvas({
     return null;
   };
 
-  const isMac = getRuntimePlatform() === "darwin";
+  const isMac = usePresentationPlatform() === "darwin";
   const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
   const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
 

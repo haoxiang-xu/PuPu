@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useContext } from "react";
+import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ShaderBlobBackground from "../../BUILTIN_COMPONENTs/background/shader_blob_background/shader_blob_background";
@@ -175,14 +176,16 @@ const BootOverlay = () => {
     if (ready) rootRef.current?.focus();
   }, [ready, showFailure, dismissed]);
 
+  /* the presented platform (#256): read before the early return below,
+     hooks must run on every render */
+  const isMac = usePresentationPlatform() === "darwin";
+
   if (dismissed) return null;
 
   /* Muted foreground for the status/failure copy. Derived from the resolved
      theme so it reads on whatever ground the boot palette picked. */
   const mutedText = theme?.semantic?.text || (isDark ? "#e8e8e8" : "#1c1c1c");
   const trackColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
-  const isMac =
-    typeof window !== "undefined" && window.osInfo?.platform === "darwin";
 
   const startLabel = t("boot.click_to_start");
 

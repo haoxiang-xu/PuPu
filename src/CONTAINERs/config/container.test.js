@@ -473,3 +473,50 @@ describe("container.js shell paints from --pupu-background alone", () => {
     expect(styleBlock).not.toMatch(/^\s*backgroundColor:/m);
   });
 });
+
+/* ── #256: the presentation reaches main on boot and on every change ────── */
+describe("ConfigContainer platform presentation (#256)", () => {
+  const {
+    writePlatformOverride,
+  } = require("../../SERVICEs/platform_presentation");
+  const {
+    resetSettingsRepositoryForTests,
+  } = require("../../SERVICEs/settings_repository");
+  const originalWindowStateAPI = window.windowStateAPI;
+  let presentSpy;
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetSettingsRepositoryForTests();
+    window.runtime = { isElectron: true, platform: "darwin" };
+    window.osInfo = { platform: "darwin" };
+    presentSpy = jest.fn();
+    window.windowStateAPI = {
+      windowStateEventHandler: jest.fn(),
+      windowStateEventListener: jest.fn(() => () => {}),
+      setPlatformPresentation: presentSpy,
+    };
+  });
+  afterEach(() => {
+    delete window.runtime;
+    delete window.osInfo;
+    window.windowStateAPI = originalWindowStateAPI;
+  });
+
+  test("SEQ-256: a persisted override is re-sent on mount, a change is sent at once, clearing sends null", async () => {
+    writePlatformOverride("win32");
+    render(
+      <ConfigContainer>
+        <div />
+      </ConfigContainer>,
+    );
+    await waitFor(() => expect(presentSpy).toHaveBeenCalledWith("win32"));
+    act(() => {
+      writePlatformOverride("linux");
+    });
+    expect(presentSpy).toHaveBeenLastCalledWith("linux");
+    act(() => {
+      writePlatformOverride(null);
+    });
+    expect(presentSpy).toHaveBeenLastCalledWith(null);
+  });
+});

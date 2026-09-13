@@ -5,6 +5,7 @@ const {
 } = require("../../main/window/main_window");
 
 const originalElectronStartUrl = process.env.ELECTRON_START_URL;
+const originalFetch = global.fetch;
 
 const createMockWindowInstance = () => ({
   loadFile: jest.fn(),
@@ -31,25 +32,26 @@ const createMockWindowInstance = () => ({
   },
 });
 
+// Both suites create development windows. Keep server polling and native
+// re-sync timers inside the test lifecycle, including platform presentation.
+beforeEach(() => {
+  jest.useFakeTimers();
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+});
+
+afterEach(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+  if (originalFetch === undefined) delete global.fetch;
+  else global.fetch = originalFetch;
+  if (originalElectronStartUrl == null) {
+    delete process.env.ELECTRON_START_URL;
+  } else {
+    process.env.ELECTRON_START_URL = originalElectronStartUrl;
+  }
+});
+
 describe("main window service", () => {
-  beforeEach(() => {
-    /* Dev path now calls loadDevUrlWhenReady() eagerly at window creation
-     * (not gated behind a "ready-to-show" event, unlike the mocked `once`
-     * used elsewhere in this file). Default to an immediate resolved dev
-     * server response so tests that don't care about dev polling never
-     * leave a dangling real fetch call or retry timer behind. */
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
-  });
-
-  afterEach(() => {
-    delete global.fetch;
-    if (originalElectronStartUrl == null) {
-      delete process.env.ELECTRON_START_URL;
-    } else {
-      process.env.ELECTRON_START_URL = originalElectronStartUrl;
-    }
-  });
-
   test("createMainWindow is idempotent and focuses existing window", () => {
     const windowInstance = createMockWindowInstance();
     const BrowserWindow = jest.fn(() => windowInstance);
@@ -266,5 +268,81 @@ describe("main window service", () => {
         url: "file://evil.example/app/build/index.html",
       }),
     ).toBe(false);
+  });
+});
+
+/* ── #256: presenting another platform's chrome (dev only) ──────────────── */
+describe("platform presentation (#256)", () => {
+  const build = ({ platform = "darwin", isPackaged = false } = {}) => {
+    const windowInstance = {
+      ...createMockWindowInstance(),
+      setWindowButtonVisibility: jest.fn(),
+      setWindowButtonPosition: jest.fn(),
+    };
+    const service = createMainWindowService({
+      app: { getAppPath: () => "/app", isPackaged },
+      BrowserWindow: jest.fn(() => windowInstance),
+      shell: { openExternal: jest.fn() },
+      fs: { existsSync: jest.fn(() => false) },
+      path,
+      nativeTheme: {},
+      platform,
+    });
+    service.createMainWindow();
+    /* creation already showed and placed the lights once; what matters is
+       what the presentation does from here */
+    windowInstance.setWindowButtonVisibility.mockClear();
+    windowInstance.setWindowButtonPosition.mockClear();
+    /* the darwin re-sync hooks: show/focus/resize re-position the lights */
+    const on = (name) =>
+      windowInstance.on.mock.calls.find(([eventName]) => eventName === name)?.[1];
+    return { service, windowInstance, on };
+  };
+
+  test("AC-256-4: darwin host presenting win32 hides the traffic lights, keeps them hidden through its own re-sync, and maximizes instead of going full-screen", () => {
+    const { service, windowInstance, on } = build();
+    service.handlePlatformPresentation("win32");
+    expect(windowInstance.setWindowButtonVisibility).toHaveBeenLastCalledWith(false);
+    /* a focus re-sync would normally show + position the lights */
+    on("focus")();
+    jest.runOnlyPendingTimers();
+    expect(windowInstance.setWindowButtonVisibility).toHaveBeenLastCalledWith(false);
+    expect(windowInstance.setWindowButtonPosition).not.toHaveBeenCalled();
+    service.handleWindowStateEvent("maximize");
+    expect(windowInstance.maximize).toHaveBeenCalledTimes(1);
+    expect(windowInstance.setFullScreen).not.toHaveBeenCalled();
+    /* back to the host: lights return AT THEIR PLACE at once — showing them
+       puts them at Electron's default spot, so the position is re-applied
+       in the same call, not left to the next focus/resize re-sync */
+    service.handlePlatformPresentation(null);
+    expect(windowInstance.setWindowButtonVisibility).toHaveBeenLastCalledWith(true);
+    expect(windowInstance.setWindowButtonPosition).toHaveBeenCalledWith({ x: 14, y: 18 });
+    windowInstance.setWindowButtonPosition.mockClear();
+    on("focus")();
+    jest.runOnlyPendingTimers();
+    expect(windowInstance.setWindowButtonPosition).toHaveBeenCalled();
+    service.handleWindowStateEvent("maximize");
+    expect(windowInstance.setFullScreen).toHaveBeenCalledTimes(1);
+  });
+
+  test("AC-256-4: an unknown value is a no-op; a packaged app ignores the message", () => {
+    const dev = build();
+    dev.service.handlePlatformPresentation("amiga");
+    dev.service.handlePlatformPresentation({ platform: "win32" });
+    expect(dev.windowInstance.setWindowButtonVisibility).not.toHaveBeenCalled();
+    const packaged = build({ isPackaged: true });
+    packaged.service.handlePlatformPresentation("win32");
+    expect(packaged.windowInstance.setWindowButtonVisibility).not.toHaveBeenCalled();
+    packaged.service.handleWindowStateEvent("maximize");
+    expect(packaged.windowInstance.setFullScreen).toHaveBeenCalledTimes(1);
+  });
+
+  test("a win32 host presenting darwin changes nothing native — the renderer draws that chrome", () => {
+    const { service, windowInstance } = build({ platform: "win32" });
+    service.handlePlatformPresentation("darwin");
+    expect(windowInstance.setWindowButtonVisibility).not.toHaveBeenCalled();
+    service.handleWindowStateEvent("maximize");
+    expect(windowInstance.maximize).toHaveBeenCalledTimes(1);
+    expect(windowInstance.setFullScreen).not.toHaveBeenCalled();
   });
 });

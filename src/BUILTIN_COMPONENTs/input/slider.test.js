@@ -279,6 +279,18 @@ describe("Slider glass material", () => {
     expect(track.style.height).toBe("20px");
   });
 
+  test("awake, the glass progress ends ON the thumb's centre — the frosted ring lets the fill show through, so a fill running past the centre read as an off-centre indicator", () => {
+    renderGlass({ value: 40 });
+    fireEvent.mouseEnter(screen.getByRole("slider"));
+    const progress = screen.getByTestId("slider-progress");
+    const thumb = screen.getByTestId("slider-thumb");
+    // thumb centre = 10 + 0.4 * 180 = 82; the fill's left cap is centred on
+    // the first notch (10 - 4), and its right edge is the thumb's centre
+    expect(thumb.style.left).toBe("82px");
+    expect(progress.style.left).toBe("6px");
+    expect(parseFloat(progress.style.left) + parseFloat(progress.style.width)).toBe(82);
+  });
+
   test("a full glass progress at rest is exactly the channel", () => {
     renderGlass({ value: 100 });
     const track = screen.getByTestId("slider-track");

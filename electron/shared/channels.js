@@ -294,6 +294,8 @@ const CHANNELS = Object.freeze({
   WINDOW_STATE: Object.freeze({
     HANDLE_ACTION: "window-state-event-handler",
     LISTENER_EVENT: "window-state-event-listener",
+    /* #256 dev only: renderer → main, the platform the UI presents as */
+    SET_PRESENTATION: "window-state-set-presentation",
   }),
   SCREENSHOT: Object.freeze({
     CAPTURE: "screenshot:capture",
