@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
 import { ToolkitIconFrame } from "./toolkit_icon";
+import PluginTrustBadge from "./plugin_trust_badge";
 
 /* BrandOrbCard — the Discover page's Essentials grid card. (Name is a
    fossil of the orb era; export/import surface kept stable.)
@@ -23,6 +24,7 @@ const BrandOrbCard = ({
   icon,
   source,
   name,
+  trustEntry,
   description,
   command,
   onClick,
@@ -87,6 +89,10 @@ const BrandOrbCard = ({
             </span>
           </Card.Layer>
         </div>
+
+        <Card.Layer depth={12} style={{ minWidth: 0 }}>
+          <PluginTrustBadge entry={trustEntry} isDark={isDark} />
+        </Card.Layer>
 
         {description && (
           <Card.Layer depth={12}>
