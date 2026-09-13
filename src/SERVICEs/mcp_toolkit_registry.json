@@ -1200,9 +1200,9 @@
       "description": "Official Microsoft Learn MCP service for searching and fetching Microsoft documentation and code samples.",
       "category": "dev",
       "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "needs_review",
-      "installable": false,
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
       "license": "hosted",
       "sourceRepo": "https://github.com/MicrosoftDocs/mcp",
       "docsUrl": "https://learn.microsoft.com/en-us/training/support/mcp",
@@ -1225,7 +1225,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 0
       },
-      "readmeMarkdown": "## Microsoft Learn (official hosted service, pending review)\n\nConnects to Microsoft's official Microsoft Learn MCP service at `https://learn.microsoft.com/api/mcp`, documented in [`MicrosoftDocs/mcp`](https://github.com/MicrosoftDocs/mcp). It searches and fetches Microsoft documentation and code samples; requests and URLs are sent to Microsoft's hosted endpoint and returned content is available to the agent. Microsoft documents this service as free and requiring no API key, subject to its service limits. Packaged PuPu qualification and maintainer review are pending, so this entry remains `needs_review` and cannot be installed."
+      "readmeMarkdown": "## Microsoft Learn (official hosted service)\n\nConnects to Microsoft's official Microsoft Learn MCP service at `https://learn.microsoft.com/api/mcp`, documented in [`MicrosoftDocs/mcp`](https://github.com/MicrosoftDocs/mcp). It searches and fetches Microsoft documentation and code samples; requests and URLs are sent to Microsoft's hosted endpoint and returned content is available to the agent. Microsoft documents this service as free and requiring no API key, subject to its service limits. Available by project-owner decision. Packaged PuPu qualification is not yet complete; this entry has no PuPu Verified attestation."
     },
     {
       "id": "productivity.brave-search",
@@ -1234,9 +1234,9 @@
       "description": "Official Brave Search MCP server for web, news, image and video search.",
       "category": "productivity",
       "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "needs_review",
-      "installable": false,
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
       "license": "MIT",
       "sourceRepo": "https://github.com/brave/brave-search-mcp-server",
       "docsUrl": "https://github.com/brave/brave-search-mcp-server#readme",
@@ -1261,7 +1261,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 0
       },
-      "readmeMarkdown": "## Brave Search (official package, pending review)\n\nRuns Brave Software's official `@brave/brave-search-mcp-server` over stdio, pinned to `@2.1.0`; only the four listed search tools are requested and the server does not listen on a port. Search queries and result requests are sent to Brave Search, and the returned results are available to the agent. A Brave Search API account and `BRAVE_API_KEY` are required; usage and any charges follow Brave's current plan. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      "readmeMarkdown": "## Brave Search (official package)\n\nRuns Brave Software's official `@brave/brave-search-mcp-server` over stdio, pinned to `@2.1.0`; only the four listed search tools are requested and the server does not listen on a port. Search queries and result requests are sent to Brave Search, and the returned results are available to the agent. A Brave Search API account and `BRAVE_API_KEY` are required; usage and any charges follow Brave's current plan. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
     },
     {
       "id": "productivity.tavily",
@@ -1270,9 +1270,9 @@
       "description": "Official Tavily MCP server for web search, extraction, crawling, mapping and research.",
       "category": "productivity",
       "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "needs_review",
-      "installable": false,
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
       "license": "MIT",
       "sourceRepo": "https://github.com/tavily-ai/tavily-mcp",
       "docsUrl": "https://github.com/tavily-ai/tavily-mcp#readme",
@@ -1298,7 +1298,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 5
       },
-      "readmeMarkdown": "## Tavily (official package, pending review)\n\nRuns Tavily's official `tavily-mcp` package over stdio, pinned to `@0.2.21`. PuPu declares `TAVILY_API_KEY` for a predictable complete tool set even though upstream also documents a keyless mode. Search queries and supplied URLs are sent to Tavily for processing; search, extraction, crawling and research may consume provider credits or incur account charges. The catalog requests confirmation for every listed tool because crawl and research can perform broader external retrieval; enforcement must be qualified with the packaged runtime before promotion. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      "readmeMarkdown": "## Tavily (official package)\n\nRuns Tavily's official `tavily-mcp` package over stdio, pinned to `@0.2.21`. PuPu declares `TAVILY_API_KEY` for a predictable complete tool set even though upstream also documents a keyless mode. Search queries and supplied URLs are sent to Tavily for processing; search, extraction, crawling and research may consume provider credits or incur account charges. The catalog requests confirmation for every listed tool because crawl and research can perform broader external retrieval; enforcement must be qualified with the packaged runtime as part of security verification. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
     },
     {
       "id": "productivity.firecrawl",
@@ -1307,9 +1307,9 @@
       "description": "Official Firecrawl MCP server for web scraping, search and site mapping.",
       "category": "productivity",
       "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "needs_review",
-      "installable": false,
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
       "license": "MIT",
       "sourceRepo": "https://github.com/firecrawl/firecrawl-mcp-server",
       "docsUrl": "https://docs.firecrawl.dev/mcp-server",
@@ -1333,7 +1333,7 @@
         "defaultEnabledTools": 0,
         "confirmationRequiredTools": 3
       },
-      "readmeMarkdown": "## Firecrawl (official package, pending review)\n\nRuns Firecrawl's official `firecrawl-mcp` package over stdio, pinned to `@3.22.4`; the bundled package requires Node 22 or newer, supplied by PuPu's packaged runtime. The preview lists `firecrawl_scrape`, `firecrawl_search` and `firecrawl_map`, but the server can advertise broader scraping, crawling, extraction, monitoring and research capabilities; confirmation for the full discovered tool set must be qualified with the packaged runtime before promotion. URLs and requested page data are processed by Firecrawl or its configured service, and operations may consume Firecrawl credits. `firecrawl_scrape` can accept interactive actions, so this catalog requests confirmation for it. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      "readmeMarkdown": "## Firecrawl (official package)\n\nRuns Firecrawl's official `firecrawl-mcp` package over stdio, pinned to `@3.22.4`; the bundled package requires Node 22 or newer, supplied by PuPu's packaged runtime. The preview lists `firecrawl_scrape`, `firecrawl_search` and `firecrawl_map`, but the server can advertise broader scraping, crawling, extraction, monitoring and research capabilities; confirmation for the full discovered tool set must be qualified with the packaged runtime as part of security verification. URLs and requested page data are processed by Firecrawl or its configured service, and operations may consume Firecrawl credits. `firecrawl_scrape` can accept interactive actions, so this catalog requests confirmation for it. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
     }
   ]
 }
