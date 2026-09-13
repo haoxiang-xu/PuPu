@@ -137,7 +137,7 @@ to make the test appear to pass.
    or duplicate effects. Check disabled/historical response rendering. Exercise applicable
    new-form graph/subagent paths or record a concrete reason they are not reachable;
    existing generic graph tests alone are not new-form evidence.
-5. **Feature audit.** Use release-feature-audit if installed; otherwise execute its
+5. **Feature audit.** Use issue-feature-audit if installed; otherwise execute its
    equivalent checks: full i18n scan; new UI primitive/theme consistency; model-builder
    compatibility (N/A here unless scope changes); diff-only static rules; real-app
    end-to-end using real LLM and exact candidate/wheel/manifest evidence. For a portable

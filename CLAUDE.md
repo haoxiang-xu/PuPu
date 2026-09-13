@@ -35,12 +35,12 @@ This project is indexed by GitNexus as **PuPu** (34975 symbols, 121363 relations
 
 | Task | Read this skill file |
 | --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
+| Understand architecture / "How does X work?" | `.agents/skills/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.agents/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.agents/skills/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.agents/skills/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.agents/skills/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.agents/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
 
@@ -54,4 +54,8 @@ This project is indexed by GitNexus as **PuPu** (34975 symbols, 121363 relations
 
 - A direct Release child opens with a `[DRAFT]` description. The agent actively implementing that ticket may refine its GitHub issue body before or during implementation without a separate refiner or per-edit project owner approval. Responsibility follows the current implementation task, not an owner role or GitHub assignee.
 - This standing authorization is body-only: preserve the project owner's intended outcome and release scope. Title, labels, Size, Project Status, Iteration, assignee, parent/child relation, release membership, defer/cancel, and closure remain project-owner decisions.
-- Prefer `release-open-sprint`, `release-draft-ticket`, `release-refine-ticket`, `release-feature-audit`, and `release-close-sprint` for their matching release stages. If one is unavailable, perform the equivalent direct workflow; never return to a retired mechanism.
+- Prefer `release-open-sprint`, `issue-draft-ticket`, `issue-refine-ticket`, `issue-feature-audit`, and `release-close-sprint` for their matching release stages. If one is unavailable, perform the equivalent direct workflow; never return to a retired mechanism.
+
+## Shared project skills
+
+All maintained PuPu skills live in `.agents/skills/<name>/SKILL.md`. Codex discovers this directory directly; `.claude/skills/<name>` is a relative symlink to the same directory for Claude Code. Edit the canonical files only, keep both entrypoints aligned, and resolve scripts/references relative to the loaded skill directory. Do not recreate personal copies or retired skill names. Release skills manage versions and the release pipeline; issue skills manage ticket intake, refinement, implementation and audit; dev-ui skills manage UI conventions; community skills manage growth, repository polling, tags and Store verification. GitNexus skills keep their upstream names.

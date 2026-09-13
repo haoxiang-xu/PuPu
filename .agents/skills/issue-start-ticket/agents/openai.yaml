@@ -1,0 +1,3 @@
+interface:
+  display_name: "Issue：开始动工"
+  short_description: "开工前 formal 方案、UI 选型与模型交接，实施后 close 创建 PR、审计及清理"

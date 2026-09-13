@@ -66,6 +66,6 @@
 - 实施发现未声明边界：在不改变用户目标和 Release scope 的前提下直接补充 Plan 与测试；若会改变目标、范围或外部权限，则停止并请求 project owner 决定。
 - 适用状态单元格为 `NOT_RUN / PENDING`：active rollout 结论只能是 `INCOMPLETE`；可以保持 shadow/off。
 - 已运行但断言失败、schema/protocol 漂移或 artifact identity 不匹配：结论是 `NO-GO`。
-- `release-feature-audit` 只按 Release issue / Plan 已声明的 BC/SEQ/AC 和现场证据验收；映射缺失或证据不足时报告 `INCOMPLETE`，不得自行发明标准。
+- `issue-feature-audit` 只按 Release issue / Plan 已声明的 BC/SEQ/AC 和现场证据验收；映射缺失或证据不足时报告 `INCOMPLETE`，不得自行发明标准。
 
 PuPu 的当前 Context V2 实例见 [`docs/architecture/context-v2-boundary-contracts.md`](../../docs/architecture/context-v2-boundary-contracts.md)。事故事实见 [`docs/architecture/context-v2-p0-contract-postmortem-2026-08-11.md`](../../docs/architecture/context-v2-p0-contract-postmortem-2026-08-11.md)。

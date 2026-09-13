@@ -35,12 +35,12 @@ This project is indexed by GitNexus as **PuPu** (34975 symbols, 121363 relations
 
 | Task | Read this skill file |
 | --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
+| Understand architecture / "How does X work?" | `.agents/skills/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.agents/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.agents/skills/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.agents/skills/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.agents/skills/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.agents/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
 
@@ -73,6 +73,10 @@ These are load-bearing — violating them breaks the build or the architecture. 
 
 **Removed mechanisms:** Quorum/court workflows, code-owner routing, role confirmations, case tooling, and their role definitions and records have been removed. Do not recreate them or use them as a delivery gate. Historical material is available through Git history only.
 
-**Release workflow:** Prefer the smallest matching release skill: `release-open-sprint`, `release-draft-ticket`, `release-refine-ticket`, `release-feature-audit`, or `release-close-sprint`. These skills plus the Release issue, a direct implementation plan when needed, and evidence-backed tests are the project workflow. If a skill is unavailable, proceed with the equivalent direct workflow; never fall back to a retired mechanism.
+**Release workflow:** Prefer the smallest matching release skill: `release-open-sprint`, `issue-draft-ticket`, `issue-refine-ticket`, `issue-feature-audit`, or `release-close-sprint`. These skills plus the Release issue, a direct implementation plan when needed, and evidence-backed tests are the project workflow. If a skill is unavailable, proceed with the equivalent direct workflow; never fall back to a retired mechanism.
 
 **Cross-boundary work:** Any change crossing a repository, process, provider, serialization, persistence, or durable-state boundary must follow `.claude/rules/cross-boundary-contract-gate.md`. Record `BC-###`, applicable `SEQ-###`, and `AC-###` directly in the Release issue or implementation plan, then test the exact deployed artifact pair before active rollout. No owner field, confirmation, proposal, ruling, or court record is permitted or required.
+
+## Shared project skills
+
+All maintained PuPu skills live in `.agents/skills/<name>/SKILL.md`. Codex discovers this directory directly; `.claude/skills/<name>` is a relative symlink to the same directory for Claude Code. Edit the canonical files only, keep both entrypoints aligned, and resolve scripts/references relative to the loaded skill directory. Do not recreate personal copies or retired skill names. Release skills manage versions and the release pipeline; issue skills manage ticket intake, refinement, implementation and audit; dev-ui skills manage UI conventions; community skills manage growth, repository polling, tags and Store verification. GitNexus skills keep their upstream names.

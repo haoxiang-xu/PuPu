@@ -141,7 +141,7 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 ### Release-first
 
-- 版本流程优先使用最小匹配的 skill：`release-open-sprint`、`release-draft-ticket`、`release-refine-ticket`、`release-feature-audit`、`release-close-sprint`。
+- 版本流程优先使用最小匹配的 skill：`release-open-sprint`、`issue-draft-ticket`、`issue-refine-ticket`、`issue-feature-audit`、`release-close-sprint`。
 - direct Release child 当前实施 agent 可在不改变 project owner 已定结果和 release scope 的前提下直接细化 issue body；资格来自当前任务，不来自 owner 角色或 GitHub assignee。
 - title、labels、Size、Status、Iteration、assignee、父子关系、release 归属、延期/取消和关闭仍由 project owner 决定或由对应 release skill 按其明确授权执行。
 - 对应 skill 不可用时，使用等价的直接工作流；禁止回退到已退役机制。
@@ -151,5 +151,5 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 - 明确的用户指令、Release issue 和必要时的直接实施 Plan 构成工作范围；不需要另行裁决或角色确认。
 - 涉及架构或跨边界时保留技术性 `BC-### / SEQ-### / AC-###`、严格 consumer、负向测试、状态矩阵和固定 artifact 证据，但不得加入 owner、proposal、ruling 或案卷字段。
 - 实施 agent 对范围内的代码、测试和报告负责；发现需要改变用户结果、release scope 或外部状态权限时，直接向 project owner 请求决定。
-- 完成功能后使用 `release-feature-audit`；版本收尾使用 `release-close-sprint`。测试或适用状态单元格未通过时不得把 ticket 或 release 报为完成。
+- 完成功能后使用 `issue-feature-audit`；版本收尾使用 `release-close-sprint`。测试或适用状态单元格未通过时不得把 ticket 或 release 报为完成。
 - 不要发明工作。project owner 未给指令时先测量再建议，每条建议引用现场证据。

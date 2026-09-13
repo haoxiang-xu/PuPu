@@ -463,11 +463,14 @@ test("CLI plan is read-only JSON and both agent entrypoints share one canonical 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).schema, RELEASE_OPERATOR_PLAN_SCHEMA);
 
-  const codexSkill = fs.readFileSync(".agents/skills/release-operator/SKILL.md", "utf8");
-  const claudeSkill = fs.readFileSync(".claude/skills/release-operator/SKILL.md", "utf8");
+  const codexSkill = fs.readFileSync(".agents/skills/release-run-pipeline/SKILL.md", "utf8");
+  const claudeSkill = fs.readFileSync(".claude/skills/release-run-pipeline/SKILL.md", "utf8");
   assert.match(codexSkill, /scripts\/release-qa\/release-operator\.mjs/);
-  assert.match(claudeSkill, /\.agents\/skills\/release-operator\/SKILL\.md/);
-  assert.match(claudeSkill, /single canonical workflow/);
+  assert.equal(claudeSkill, codexSkill);
+  assert.equal(
+    fs.realpathSync(".claude/skills/release-run-pipeline/SKILL.md"),
+    fs.realpathSync(".agents/skills/release-run-pipeline/SKILL.md"),
+  );
 });
 
 test("CLI plan projects an RC package version to its stable release base", () => {
