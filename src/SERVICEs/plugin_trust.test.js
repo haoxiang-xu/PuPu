@@ -1,4 +1,4 @@
-import { resolvePluginTrust } from "./plugin_trust";
+import { resolvePluginTrust, resolvePluginListing } from "./plugin_trust";
 import { PLUGIN_VERIFICATION_RECORDS } from "./plugin_verification_records";
 import registry from "./mcp_toolkit_registry.json";
 import curation from "./plugin_store_curation.json";
@@ -18,7 +18,7 @@ test("origin does not come from a presentation default, plugin name, ID or verif
     origin: "unknown", status: "unverified", publisher: "", scope: [], reviewedAt: "", reviewedBy: "", reference: "",
   });
   expect(resolvePluginTrust({ toolkitId: "builtin.computer", source: "builtin" })).toEqual({
-    origin: "official", status: "unverified", publisher: "PuPu", scope: [], reviewedAt: "", reviewedBy: "", reference: "",
+    origin: "official", status: "verified", publisher: "PuPu", scope: [], reviewedAt: "", reviewedBy: "", reference: "",
   });
 });
 
@@ -79,4 +79,42 @@ test("repeat rendering and version changes do not retain prior verification", ()
   expect(resolvePluginTrust(entry, [record]).scope).toEqual(["source_ownership", "permissions"]);
   expect(resolvePluginTrust({ ...entry, version: "2.0.0" }, [record]).status).toBe("unverified");
   expect(resolvePluginTrust(entry).status).toBe("unverified");
+});
+
+test("bundled Agent Reach is third-party, while PuPu Core remains official", () => {
+  expect(resolvePluginTrust({ toolkitId: "agent_reach", source: "builtin" })).toMatchObject({ origin: "third_party", publisher: "", status: "unverified" });
+  expect(resolvePluginTrust({ toolkitId: "core", source: "core" }).origin).toBe("official");
+});
+
+test("listing provenance follows the owner's catalog classification independently of verification", () => {
+  for (const item of registry.entries) {
+    expect(resolvePluginListing(item)).toBe(item.toolkitId === "mcp.dev.bug-bounty-intelligence" ? "community_submitted" : "officially_curated");
+    expect(resolvePluginTrust(item).status).not.toBe("verified");
+  }
+  for (const pack of curation.skillPacks) expect(resolvePluginListing(pack)).toBe("officially_curated");
+  expect(resolvePluginListing({ toolkitId: "agent_reach", source: "builtin" })).toBe("officially_curated");
+  const original = registry.entries[0];
+  expect(resolvePluginListing({ ...original, sourceRepo: "https://github.com/other/project", listing: "officially_curated" })).toBe("");
+  expect(resolvePluginListing({ ...original, source: "local" })).toBe("");
+  expect(resolvePluginListing({ toolkitId: "unknown", source: "plugin", listing: "officially_curated" })).toBe("");
+});
+
+test("installed store skills retain listing classification without inheriting verification", () => {
+  for (const pack of curation.skillPacks) {
+    const installed = { toolkitId: pack.id, source: "skillpack" };
+    expect(resolvePluginListing(installed)).toBe("officially_curated");
+    expect(resolvePluginTrust(installed).status).toBe("unverified");
+    expect(resolvePluginListing({ ...installed, sourceRepo: "https://github.com/other/pack" })).toBe("");
+  }
+});
+
+test.each([
+  { toolkitId: "core", source: "core" },
+  { toolkitId: "plan", source: "builtin" },
+  { toolkitId: "builtin.computer", source: "builtin" },
+])("PuPu official plugins are verified by policy without fabricated audit evidence: %p", (plugin) => {
+  expect(resolvePluginTrust(plugin)).toMatchObject({
+    origin: "official", status: "verified", publisher: "PuPu",
+    scope: [], reviewedAt: "", reviewedBy: "", reference: "",
+  });
 });

@@ -1,0 +1,65 @@
+name: "Submit a Toolkit"
+description: "Propose a native Toolkit or custom tool integration."
+title: "[Toolkit] <name>"
+labels: ["toolkit-submission", "considering"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a community contribution; maintainers will evaluate it before
+        deciding on inclusion or release scope. You can open an issue without
+        writing code. Do not include API keys, tokens, or private user data.
+        Guide: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/community-submissions.md
+        For a PR, branch from upstream dev and select base: dev.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: What does it help users do?
+      description: Describe the use case and how it differs from an existing plugin.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source or proposal
+      description: Repository/homepage and license, or say that this is a proposal without an implementation yet.
+    validations:
+      required: true
+  - type: dropdown
+    id: relationship
+    attributes:
+      label: Your relationship to this contribution
+      options:
+        - I maintain or wrote it
+        - I contribute to it
+        - I am recommending someone else's work
+        - This is a proposal for something new
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Files, integration, and dependencies
+      description: "List the tools, inputs/outputs, dependencies, configuration, and affected components or repositories. For MCP servers, use the MCP submission form instead."
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example and test evidence
+      description: "Give one tool invocation or user task, expected behavior, supported platforms, and any tests or demo results. Say clearly if it is only a proposal."
+    validations:
+      required: true
+  - type: textarea
+    id: effects
+    attributes:
+      label: Permissions, side effects, costs, and limitations
+      description: Mention file writes, commands, network requests, secrets/OAuth, paid services, or other effects. Write none if not applicable.
+    validations:
+      required: true

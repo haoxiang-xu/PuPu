@@ -1,3 +1,4 @@
+import PLUGIN_LISTING_RECORDS from "./plugin_listing_records.json";
 import { PLUGIN_VERIFICATION_RECORDS } from "./plugin_verification_records";
 
 /* Display-only projection. `records` is an application-owned evidence source
@@ -29,13 +30,22 @@ export function resolvePluginTrust(entry, records = PLUGIN_VERIFICATION_RECORDS)
 
   // Only explicit source classification from the catalog counts. In particular,
   // toPluginPresentation's default source=builtin must not be passed here.
-  if (source === "builtin" || source === "core") {
+  // Agent Reach is third-party software bundled with PuPu. Distribution
+  // through the builtin catalog does not make PuPu its publisher.
+  if (toolkitId === "agent_reach" || toolkitId === "agent_reach_toolkit") {
+    result.origin = "third_party";
+  } else if (source === "builtin" || source === "core") {
     result.origin = "official";
     result.publisher = "PuPu";
   } else if (["mcp", "mcp_registry", "local", "plugin", "skillpack"].includes(source)) {
     result.origin = "third_party";
   }
-  if (source || toolkitId) result.status = "unverified";
+  // Product policy: PuPu's own official plugins are verified by default.
+  // Curated third-party plugins (including bundled Agent Reach) still need
+  // version-bound evidence. This does not fabricate review scope or dates.
+  if (source || toolkitId) {
+    result.status = result.origin === "official" ? "verified" : "unverified";
+  }
   if (["needs_review", "external_review"].includes(entry.trustLevel)) {
     result.status = "pending";
   }
@@ -102,4 +112,22 @@ export function resolvePluginTrust(entry, records = PLUGIN_VERIFICATION_RECORDS)
     reviewedBy: record.reviewedBy,
     reference: record.reference,
   };
+}
+
+// Application-owned listing provenance, independent of security verification.
+// Register community submissions here with listing=community_submitted; never
+// trust a plugin's self-declared listing. Missing evidence stays unclassified.
+export function resolvePluginListing(entry, records = PLUGIN_LISTING_RECORDS) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry) || !Array.isArray(records)) return "";
+  const pack = entry.source && typeof entry.source === "object" && entry.source.provider === "github";
+  const source = pack ? "skillpack" : entry.source;
+  const toolkitId = entry.toolkitId || entry.id;
+  const sourceRepo = pack ? `https://github.com/${entry.source.repo}` : entry.sourceRepo;
+  // Installed skill packs retain the store ID but not its repository metadata.
+  // This label describes the catalog item's inclusion route, not the installed
+  // bytes or publisher identity; verification still requires full provenance.
+  const record = records.find((item) => item && item.toolkitId === toolkitId &&
+    item.source === source && (!item.sourceRepo || item.sourceRepo === sourceRepo ||
+      (source === "skillpack" && !sourceRepo)));
+  return ["officially_curated", "community_submitted"].includes(record?.listing) ? record.listing : "";
 }

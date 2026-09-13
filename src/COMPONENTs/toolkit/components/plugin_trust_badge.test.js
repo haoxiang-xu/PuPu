@@ -6,6 +6,7 @@ import { resolvePluginTrust } from "../../../SERVICEs/plugin_trust";
 import PluginTrustBadge from "./plugin_trust_badge";
 
 jest.mock("../../../SERVICEs/plugin_trust", () => ({
+  ...jest.requireActual("../../../SERVICEs/plugin_trust"),
   resolvePluginTrust: jest.fn(),
 }));
 
@@ -274,4 +275,17 @@ describe("PluginTrustBadge", () => {
       overflowWrap: "anywhere",
     });
   });
+});
+
+test.each([
+  ["en", "Third-party · Officially curated", "Third-party · Community submitted"],
+  ["zh-CN", "第三方 · 官方收录", "第三方 · 第三方投稿"],
+])("listing labels are translated in %s without granting verification", (locale, curated, submitted) => {
+  resolvePluginTrust.mockReturnValue({ origin: "third_party", status: "unverified" });
+  const first = renderBadge({ locale, entry: { toolkitId: "agent_reach", source: "builtin" } });
+  expect(screen.getByTestId("plugin-trust-origin")).toHaveTextContent(curated);
+  expect(screen.getByTestId("plugin-trust-badge")).toHaveAttribute("data-status", "unverified");
+  first.unmount();
+  renderBadge({ locale, entry: { toolkitId: "mcp.dev.bug-bounty-intelligence", source: "mcp", sourceRepo: "https://github.com/holistis/bug-bounty-intelligence-mcp" } });
+  expect(screen.getByTestId("plugin-trust-origin")).toHaveTextContent(submitted);
 });

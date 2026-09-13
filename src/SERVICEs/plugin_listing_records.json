@@ -1,0 +1,180 @@
+[
+  {
+    "toolkitId": "mcp.browser.playwright",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/microsoft/playwright-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.browser.browser-use-local",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/browser-use/browser-use",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.browser.chrome-devtools",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.dev.github-remote",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/github/github-mcp-server",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.dev.figma-remote",
+    "source": "mcp",
+    "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.dev.bug-bounty-intelligence",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/holistis/bug-bounty-intelligence-mcp",
+    "listing": "community_submitted"
+  },
+  {
+    "toolkitId": "mcp.devops.sentry-remote",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/getsentry/sentry-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.devops.vercel-remote",
+    "source": "mcp",
+    "sourceRepo": "https://vercel.com/docs/agent-resources/vercel-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.devops.grafana",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/grafana/mcp-grafana",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.devops.netdata-cloud",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/netdata/netdata",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.notion-remote",
+    "source": "mcp",
+    "sourceRepo": "https://developers.notion.com/docs/get-started-with-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.workspace.filesystem",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.workspace.markitdown",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/microsoft/markitdown",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.memory.memory",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.slack-remote",
+    "source": "mcp",
+    "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.workspace.fetch",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.discord",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.telegram",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.workspace.sqlite",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.dev.microsoft-learn",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/MicrosoftDocs/mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.brave-search",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/brave/brave-search-mcp-server",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.tavily",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/tavily-ai/tavily-mcp",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "mcp.productivity.firecrawl",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/firecrawl/firecrawl-mcp-server",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.superpowers-essentials",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/obra/superpowers",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.prompt-master",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/nidhinjs/prompt-master",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.frontend-design",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/anthropics/skills",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.vercel-web-review",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/vercel-labs/agent-skills",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.trailofbits-audit-prep",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/trailofbits/skills",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "agent_reach",
+    "source": "builtin",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "agent_reach_toolkit",
+    "source": "builtin",
+    "listing": "officially_curated"
+  }
+]

@@ -1,7 +1,6 @@
 import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { ToolkitIconFrame } from "./toolkit_icon";
-import PluginTrustBadge from "./plugin_trust_badge";
 
 /* PluginListRow — the settings-isomorphic list row shared by Installed,
    Discover and Store (T3). Ground truth: mockup screen ③ (Installed
@@ -22,7 +21,6 @@ const PluginListRow = ({
   icon,
   isDark = false,
   name,
-  trustEntry,
   command,
   description,
   onOpenDetail,
@@ -94,9 +92,6 @@ const PluginListRow = ({
             {name}
           </span>
           {!commandFirst && commandChip}
-        </div>
-        <div style={{ marginTop: 4 }}>
-          <PluginTrustBadge entry={trustEntry} isDark={isDark} />
         </div>
         {description && (
           <div

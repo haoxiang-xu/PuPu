@@ -85,6 +85,7 @@ describe("SkillPackDetailPage — provenance-strip detail (option B)", () => {
     render(<SkillPackDetailPage pack={PACK} isDark={false} onBack={onBack} />);
 
     const badge = screen.getByTestId("plugin-trust-badge");
+    expect(badge.closest(".scrollable")).toBeNull();
     expect(badge).toHaveAttribute("data-origin", "third_party");
     expect(badge).toHaveAttribute("data-status", "unverified");
     expect(badge).toHaveTextContent(en.toolkit.trust_origin_third_party);

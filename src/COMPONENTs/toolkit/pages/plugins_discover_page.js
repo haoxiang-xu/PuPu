@@ -8,7 +8,6 @@ import { toPluginPresentation, loadStoreCuration } from "../../../SERVICEs/plugi
 import { ToolkitIconFrame } from "../components/toolkit_icon";
 import AuroraFeatureCard from "../components/aurora_feature_card";
 import BrandOrbCard from "../components/brand_orb_card";
-import PluginTrustBadge from "../components/plugin_trust_badge";
 import PluginInstallPill from "../components/plugin_install_pill";
 
 /* Resolves a curated pluginId against the two sources of truth a plugin can
@@ -324,9 +323,6 @@ const PluginsDiscoverPage = ({
             }}
           >
             {presentation.name}
-          </div>
-          <div style={{ marginTop: 4 }}>
-            <PluginTrustBadge entry={resolved.entry} isDark={isDark} />
           </div>
           <div
             style={{

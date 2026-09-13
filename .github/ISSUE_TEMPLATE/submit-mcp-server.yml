@@ -1,14 +1,15 @@
 name: "🧩 Submit an MCP server to the store"
 description: Propose a new MCP server / toolkit for the PuPu store catalog.
 title: "[MCP] <server name>"
-labels: ["mcp-submission", "needs-review"]
+labels: ["mcp-submission", "considering"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for extending PuPu! Fill this in and a maintainer will turn it into a
-        store entry. New entries land as **needs_review** and ship only after a
-        security review. See the full guide:
+        Propose an MCP server for PuPu. Maintainers will evaluate the submission;
+        opening an issue does not commit it to a release. Accepted third-party
+        entries can be installable as community integrations without a guarantee
+        of the provider's paid service. See the guide:
         https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/mcp-store-submission.md
 
         Prefer to submit a PR? Create your branch from upstream `dev` and select
@@ -33,6 +34,24 @@ body:
     attributes:
       label: Source repo or homepage URL
       placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: dropdown
+    id: relationship
+    attributes:
+      label: Your relationship to the provider
+      options:
+        - I maintain this server
+        - I contribute to this server
+        - I am recommending someone else's server
+    validations:
+      required: true
+  - type: textarea
+    id: service_details
+    attributes:
+      label: Costs, data access, and known limitations
+      description: State which tools cost money, where data goes, and what you have actually tested. Do not include credentials.
+      placeholder: Free or paid; local or hosted; public client versus hosted backend; tested version and known failures.
     validations:
       required: true
   - type: dropdown
@@ -103,7 +122,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: The install command / URL pins a specific version (no bare @latest).
+        - label: For stdio, I provided an exact package version; for hosted HTTP, I provided the endpoint and its version policy if available.
           required: true
         - label: I have read the submission guide and the CLA (docs/CLA.md).
           required: true

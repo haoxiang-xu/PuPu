@@ -3,7 +3,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import { resolvePluginTrust } from "../../../SERVICEs/plugin_trust";
+import { resolvePluginTrust, resolvePluginListing } from "../../../SERVICEs/plugin_trust";
 
 const ORIGIN_KEYS = {
   official: "toolkit.trust_origin_official",
@@ -103,7 +103,11 @@ const PluginTrustBadge = ({ entry, isDark = false }) => {
     );
   }, [entry]);
 
-  const originLabel = t(ORIGIN_KEYS[origin]);
+  const listing = origin === "third_party" ? resolvePluginListing(entry) : "";
+  const listingKey = listing === "officially_curated" ? "toolkit.trust_listing_curated"
+    : listing === "community_submitted" ? "toolkit.trust_listing_community" : "";
+  const originLabel = listingKey
+    ? `${t(ORIGIN_KEYS[origin])} · ${t(listingKey)}` : t(ORIGIN_KEYS[origin]);
   const statusLabel = t(statusConfig.labelKey);
   const toggleLabel = t("toolkit.trust_toggle", {
     origin: originLabel,
@@ -154,6 +158,7 @@ const PluginTrustBadge = ({ entry, isDark = false }) => {
     <span
       data-testid="plugin-trust-badge"
       data-origin={origin}
+      data-listing={listing || undefined}
       data-status={status}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={handleKeyDown}

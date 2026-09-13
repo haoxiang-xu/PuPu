@@ -6,8 +6,10 @@ two ways in.
 ## Option A — Issue form (recommended, no code)
 
 Open a **[🧩 Submit an MCP server](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml)**
-issue and fill in the fields. A maintainer (with the store curator) turns it into
-a catalog entry and opens the PR for you.
+issue and fill in the fields. It receives `mcp-submission`, and
+`considering`. Maintainers evaluate the proposal and can help prepare a catalog
+entry; submission does not promise acceptance or a release date. For Skills and
+Toolkits, use the [matching community form](./community-submissions.md).
 
 ## Option B — Pull request (for developers)
 
@@ -34,31 +36,42 @@ contribution PRs targeting `main` fail the source-branch check.
 - **`toolkitId` format:** `mcp.<server>.<slug>` (lowercase, hyphenated).
 - **Confirmation defaults:** any tool with side effects should set
   `requiresConfirmation: true`. Tell us which tools are safe to auto-run.
-- **Secrets / OAuth:** declare them. Entries with auth surface get a deeper
-  review and do not start above `needs_review`.
+- **Secrets / OAuth:** declare them, their scopes, and where data is sent.
+- **Provider and costs:** say who operates the service, whether its hosted
+  backend is public, which tools are paid, and any known limitations.
+- **Evidence:** distinguish your actual tests from the provider's claims.
 
-## Trust levels
+## Submission and installation status
 
-New entries land as **`needs_review`** and ship only after a human security
-review by the maintainers. After review an entry is promoted to:
+Start an unaccepted entry as `trustLevel: needs_review`, `status: needs_review`,
+and `installable: false`. These fields mean a maintainer has not yet made the
+catalog decision; they are not a demand for a guarantee of the entire service.
 
-| Level | Meaning |
-|-------|---------|
-| `needs_review` | Submitted; pending / in security review (default landing state) |
-| `community` | Reviewed; community-sourced |
-| `verified` | Reviewed; well-known / trusted source |
-| `official` | Maintainer-backed (maintainers only) |
+When an entry is accepted as a working third-party integration, maintainers can
+set `trustLevel: community`, `status: available`, and `installable: true`.
+Change all three together: the validator rejects an installable entry that is
+still marked `needs_review`. A specific integration defect may justify keeping
+an entry unavailable, but lack of comprehensive provider verification alone does
+not require a permanent installation block.
 
-Every trust level except `official` carries a visible badge in the store UI
-(`verified`, `community`, and `needs_review` all render a colored badge);
-`official` entries render no badge.
+The current schema also contains `official` and `verified`; contributors should
+not self-award those values. `community` does not promise accuracy or paid-service
+delivery. Provider provenance and specific test records are being separated in
+[#278](https://github.com/haoxiang-xu/PuPu/issues/278).
 
 ## What happens after you submit
 
-1. **Validation** — schema, `toolkitId` format/uniqueness, category, trustLevel
-   (automatic, in CI).
-2. **Security review** — source trust, secrets/OAuth surface, tool permissions,
-   supply-chain (command/args target, pinned version). Always a human gate.
-3. **Triage** — maintainer sets the final trust level and merges.
+1. **Validation** — schema, IDs, category, version pins, and consistent status
+   fields are checked in CI for catalog PRs.
+2. **Review** — maintainers inspect the actual diff, permissions, integration
+   behavior, costs, limitations, and available evidence.
+3. **Decision** — maintainers decide inclusion and installation availability,
+   apply labels, and merge accepted contributions to `dev`.
+
+Related PRs use `mcp-submission`; choose MCP in the PR template
+and maintainers can apply those labels. A catalog merge with installation still
+set to false does not make the integration usable. A release must include the
+accepted, enabled configuration; in local development, restart the backend
+when the registry changes because it is loaded at process startup.
 
 By contributing you agree to the terms in [docs/CLA.md](../CLA.md).

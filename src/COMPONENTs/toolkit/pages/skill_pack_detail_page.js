@@ -168,6 +168,9 @@ const SkillPackDetailPage = ({ pack, isDark = false, onBack }) => {
                 {t("toolkit.source_skillpack")}
               </span>
             </div>
+            <div style={{ marginTop: 5, marginBottom: 5 }}>
+              <PluginTrustBadge entry={pack} isDark={isDark} />
+            </div>
             <div
               style={{
                 fontSize: 11,
@@ -276,9 +279,6 @@ const SkillPackDetailPage = ({ pack, isDark = false, onBack }) => {
 
       {/* ── Scrollable body — Commands → About ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 24px 22px 0" }}>
-        <div style={{ marginBottom: 12 }}>
-          <PluginTrustBadge entry={pack} isDark={isDark} />
-        </div>
         <SettingsSection
           title={`${t("toolkit.section_commands")}${previews.length > 1 ? ` · ${previews.length}` : ""}`}
         >

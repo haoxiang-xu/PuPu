@@ -410,45 +410,17 @@ describe("PluginsDiscoverPage — trust badges", () => {
     loadStoreCuration.mockReturnValue(FULL_CURATION);
   });
 
-  test("uses raw origin/status on the hero, essentials and expanded collection without opening or installing", async () => {
+  test("keeps trust badges out of the hero, essentials and expanded collection", async () => {
     const onOpenDetail = jest.fn();
     const onInstall = jest.fn();
     await renderPage({ onOpenDetail, onInstall });
 
     const hero = screen.getByTestId("discover-featured-aurora");
-    const heroTrust = within(hero).getByTestId("plugin-trust-badge");
-    expect(heroTrust).toHaveAttribute("data-origin", "official");
-    expect(heroTrust).toHaveAttribute("data-status", "unverified");
-    expect(heroTrust).toHaveTextContent("PuPu official");
-    expect(heroTrust).toHaveTextContent("Unverified");
-    fireEvent.click(within(heroTrust).getByRole("button"));
-    expect(within(heroTrust).getByTestId("plugin-trust-details")).toBeVisible();
-
-    const essential = screen.getByTestId(
-      "discover-grid-mcp.productivity.notion-remote",
-    );
-    const essentialTrust = within(essential).getByTestId(
-      "plugin-trust-badge",
-    );
-    expect(essentialTrust).toHaveAttribute("data-origin", "third_party");
-    expect(essentialTrust).toHaveAttribute("data-status", "unverified");
-    expect(essentialTrust).toHaveTextContent("Third-party");
-    fireEvent.click(within(essentialTrust).getByRole("button"));
-    expect(
-      within(essentialTrust).getByTestId("plugin-trust-details"),
-    ).toBeVisible();
-
-    const collection = screen.getByTestId("collection-web-research-kit");
-    fireEvent.click(collection);
-    const collectionBlock = collection.parentElement;
-    const collectionTrust = within(collectionBlock)
-      .getAllByTestId("plugin-trust-badge")
-      .find((badge) => badge.dataset.origin === "third_party");
-    expect(collectionTrust).toHaveAttribute("data-status", "unverified");
-    fireEvent.click(within(collectionTrust).getByRole("button"));
-    expect(
-      within(collectionTrust).getByTestId("plugin-trust-details"),
-    ).toBeVisible();
+    expect(within(hero).queryByTestId("plugin-trust-badge")).toBeNull();
+    const essential = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
+    expect(within(essential).queryByTestId("plugin-trust-badge")).toBeNull();
+    fireEvent.click(screen.getByTestId("collection-web-research-kit"));
+    expect(screen.queryByTestId("plugin-trust-badge")).toBeNull();
 
     expect(onOpenDetail).not.toHaveBeenCalled();
     expect(onInstall).not.toHaveBeenCalled();

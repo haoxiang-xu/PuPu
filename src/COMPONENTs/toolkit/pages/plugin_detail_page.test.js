@@ -199,10 +199,11 @@ describe("PluginDetailPage — trust badge", () => {
     });
 
     const badge = screen.getByTestId("plugin-trust-badge");
+    expect(badge.closest(".scrollable")).toBeNull();
     expect(badge).toHaveAttribute("data-origin", "official");
-    expect(badge).toHaveAttribute("data-status", "unverified");
+    expect(badge).toHaveAttribute("data-status", "verified");
     expect(badge).toHaveTextContent("PuPu official");
-    expect(badge).toHaveTextContent("Unverified");
+    expect(badge).toHaveTextContent("Verified");
     fireEvent.click(within(badge).getByRole("button"));
     expect(within(badge).getByTestId("plugin-trust-details")).toBeVisible();
 

@@ -1,3 +1,4 @@
+import { resolvePluginTrust } from "../../../SERVICEs/plugin_trust";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -493,7 +494,10 @@ const PluginDetailPage = ({
     : presentation.category
       ? presentation.category.charAt(0).toUpperCase() + presentation.category.slice(1)
       : "";
-  const providerName = entry?.source === "builtin" ? "PuPu" : sourceBadge.label;
+  const trust = resolvePluginTrust(entry);
+  const thirdPartyBuiltin = entry?.source === "builtin" && trust.origin === "third_party";
+  const providerName = thirdPartyBuiltin ? trust.publisher
+    : entry?.source === "builtin" ? "PuPu" : sourceBadge.label;
   const versionValue = entry?.version || "";
 
   const pillIsOpen = installMachine.installState === "installed";
@@ -584,7 +588,8 @@ const PluginDetailPage = ({
       (row) => row.k === "Provider",
     )?.v || "";
   const aboutKvRows = [
-    { k: t("toolkit.info_provider"), v: entry?.repoFullName || informationProvider },
+    { k: t("toolkit.info_provider"), v: thirdPartyBuiltin
+      ? trust.publisher || t("toolkit.trust_publisher_unknown") : entry?.repoFullName || informationProvider },
     { k: t("toolkit.info_version"), v: versionValue },
     { k: t("toolkit.info_category"), v: categoryLabel },
     { k: t("toolkit.info_stars"), v: entry?.repoStars != null ? String(entry.repoStars) : "" },
@@ -667,6 +672,9 @@ const PluginDetailPage = ({
                   {sourcePillLabel}
                 </span>
               )}
+            </div>
+            <div style={{ marginTop: 5, marginBottom: 5 }}>
+              <PluginTrustBadge entry={entry} isDark={isDark} />
             </div>
             {subtitle && (
               <div style={{ fontSize: 11, color: mutedColor, marginTop: 2, fontFamily }}>{subtitle}</div>
@@ -755,9 +763,6 @@ const PluginDetailPage = ({
       {/* ── Scrollable body — Commands → Status → Setup → Risk → About →
            Permission, each section absent entirely when empty. ── */}
       <div className="scrollable" style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px 0" }}>
-        <div style={{ marginBottom: 12 }}>
-          <PluginTrustBadge entry={entry} isDark={isDark} />
-        </div>
         {/* ── Commands ── */}
         {commands.length > 0 && (
           <SettingsSection title={t("toolkit.section_commands")}>

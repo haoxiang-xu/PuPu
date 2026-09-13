@@ -1,13 +1,25 @@
 # Contributing to PuPu
 
-Thanks for helping make PuPu better. There are two main ways to contribute.
+Thanks for helping make PuPu better. You can propose community integrations
+or contribute code directly.
 
-## 🧩 Add a tool / MCP server to the store
+## 🧩 Contribute an MCP server, Skill, or Toolkit
 
-The easiest way to extend PuPu for everyone. No code needed — open a
-**[Submit an MCP server](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml)**
-issue. Prefer a PR? Both paths are documented in
-[docs/contributing/mcp-store-submission.md](./docs/contributing/mcp-store-submission.md).
+No code is required to make a proposal. Choose the matching issue form:
+
+| Contribution | Issue form | Labels for the issue and related PR |
+| --- | --- | --- |
+| MCP server | [Submit an MCP](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml) | `mcp-submission` |
+| Skill / Skill Pack | [Submit a Skill](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-skill.yml) | `skill-submission` |
+| Native Toolkit / custom tools | [Submit a Toolkit](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-toolkit.yml) | `toolkit-submission` |
+
+Forms also apply `considering` while the proposal awaits evaluation. Contributors
+do not need permission to manage labels: choose the form, and maintainers label
+the related PR. A proposal does not automatically enter a release.
+
+See the [community submission guide](./docs/contributing/community-submissions.md)
+for examples, required information, and PR instructions. MCP-specific schema
+requirements are in the [MCP guide](./docs/contributing/mcp-store-submission.md).
 
 ## 💻 Contribute code
 
