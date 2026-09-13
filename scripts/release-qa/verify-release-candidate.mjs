@@ -60,7 +60,7 @@ function assertQaReport(report, manifest) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
+  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json");
   const manifestPath = requiredPath(args, "manifest");
   const manifest = readJson(manifestPath);
   const assetDir = requiredPath(args, "asset-dir");

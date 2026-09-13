@@ -10,7 +10,7 @@ import {
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const policy = JSON.parse(fs.readFileSync(
-  path.join(ROOT, "contracts/memory-v2/windows-rollout-stop-policy.v1.json"),
+  path.join(ROOT, "docs/contracts/memory-v2/windows-rollout-stop-policy.v1.json"),
   "utf8",
 ));
 const hash = (digit) => `sha256:${digit.repeat(64)}`;

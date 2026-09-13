@@ -123,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          LEGACY_TAG="$(node -p 'require("./contracts/release/release-bootstrap-policy.v1.json").legacy_release.tag')"
+          LEGACY_TAG="$(node -p 'require("./docs/contracts/release/release-bootstrap-policy.v1.json").legacy_release.tag')"
           git fetch --no-tags origin "refs/tags/$LEGACY_TAG:refs/tags/$LEGACY_TAG"
           LEGACY_TAG_COMMIT="$(git rev-list -n 1 "$LEGACY_TAG")"
           if [ -z "$LEGACY_TAG_COMMIT" ]; then
@@ -132,7 +132,7 @@ jobs:
           fi
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$LEGACY_TAG" \
             | node scripts/release-qa/validate-legacy-release-gap.mjs \
-              --policy contracts/release/release-bootstrap-policy.v1.json \
+              --policy docs/contracts/release/release-bootstrap-policy.v1.json \
               --legacy-tag-commit "$LEGACY_TAG_COMMIT" \
               --out legacy-release-projection.v1.json
 
@@ -226,7 +226,7 @@ jobs:
           node scripts/release-qa/build-release-bootstrap-qualification.mjs \
             --candidate-dir candidate \
             --fresh-reports-dir installed-reports \
-            --policy contracts/release/release-bootstrap-policy.v1.json \
+            --policy docs/contracts/release/release-bootstrap-policy.v1.json \
             --legacy-projection legacy-projection/legacy-release-projection.v1.json \
             --qualification-run-id "$QUALIFICATION_RUN_ID" \
             --confirmation "$CONFIRMATION" \

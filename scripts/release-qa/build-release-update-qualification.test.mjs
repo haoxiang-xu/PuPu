@@ -16,7 +16,7 @@ import {
 
 const digest = (letter) => `sha256:${letter.repeat(64)}`;
 const SHA512 = "cGF5bG9hZA==";
-const CONTRACT = readReleaseArtifactContract("contracts/release/release-artifact-contract.v1.json");
+const CONTRACT = readReleaseArtifactContract("docs/contracts/release/release-artifact-contract.v1.json");
 const SOURCE = { fromTag: "v0.1.9", fromVersion: "0.1.9", fromCommit: "b".repeat(40) };
 
 const fixture = () => {

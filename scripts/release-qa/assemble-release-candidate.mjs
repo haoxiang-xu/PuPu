@@ -186,7 +186,7 @@ function assertQaReport(report, { version, commit, runId }) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
+  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json");
   const packageDir = requiredArg(args, "package-dir");
   const qaReportPath = requiredArg(args, "qa-report");
   const outDir = requiredArg(args, "out-dir");

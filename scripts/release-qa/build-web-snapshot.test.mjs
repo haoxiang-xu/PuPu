@@ -10,11 +10,11 @@ const buildWeb = path.join(repoRoot, "scripts/build-web.cjs");
 const writeSnapshot = path.join(repoRoot, "scripts/write-build-feature-snapshot.cjs");
 const shadowProfile = path.join(
   repoRoot,
-  "contracts/memory-v2/release-profile.shadow.v1.json",
+  "docs/contracts/memory-v2/release-profile.shadow.v1.json",
 );
 const allProfile = path.join(
   repoRoot,
-  "contracts/memory-v2/release-profile.all.v1.json",
+  "docs/contracts/memory-v2/release-profile.all.v1.json",
 );
 
 const run = (script, args, environment) => spawnSync(process.execPath, [script, ...args], {

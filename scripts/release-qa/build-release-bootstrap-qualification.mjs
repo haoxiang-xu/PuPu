@@ -118,7 +118,7 @@ try {
   if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
     const args = parseArgs(process.argv.slice(2));
     const candidateDir = path.resolve(args["candidate-dir"]);
-    const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+    const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
     const policy = readReleaseBootstrapPolicy(path.resolve(args.policy));
     const manifest = readJson(path.join(candidateDir, "release-assets.v1.json"));
     const legacyProjection = readJson(path.resolve(args["legacy-projection"]));

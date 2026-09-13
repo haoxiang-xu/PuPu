@@ -198,7 +198,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     args = parseArgs(process.argv.slice(2));
     const candidateDir = path.resolve(args["candidate-dir"]);
     const manifest = readJson(path.join(candidateDir, "release-assets.v1.json"));
-    const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+    const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
     server = await startQualificationFeedServer({
       feedDir: args["feed-dir"],
       manifest,

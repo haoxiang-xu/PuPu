@@ -24,7 +24,7 @@
 2. `electron/main/services/unchain/memory_v2_rollout.js::constrainMemoryV2ConfigForPlatform` 对 Windows 的 canary/all 无条件降级。
 3. `service.js::configureWindowsVaultCapability` 已有入口与一次性状态锁，但正式启动未调用；`startMiso` 会将未配置状态终结为 unavailable。
 4. `windows_vault_supervisor_probe.js` 已有无明文探测实现；不能据此宣称真实 startup 或安装包已经接通。
-5. `vault_sink_executor.js` 的 Windows 已允许执行类型集合及 `contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json` 的 enabled 集合仍为空。
+5. `vault_sink_executor.js` 的 Windows 已允许执行类型集合及 `docs/contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json` 的 enabled 集合仍为空。
 6. native probe 与 packaged probe 已存在。当前 packaged probe 只证明 READY、畸形请求拒绝和正常退出三个检查，不等于完整 crash/quit/secret-lifetime 验证。
 7. 已运行 capability/startup 两组测试 15/15；这些测试包含“Windows 必须被限制”的旧预期，不能作 Active 放行证据。
 8. unchain 三个 SQLite store 的 Windows 目录 fsync 修复已在此前完成。确认最终 wheel 确实含有修复及其回归测试，避免打包旧依赖。

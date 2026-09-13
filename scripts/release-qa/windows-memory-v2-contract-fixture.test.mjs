@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const fixturePath = path.join(
   repoRoot,
-  "contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json",
+  "docs/contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json",
 );
 const {
   UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS,

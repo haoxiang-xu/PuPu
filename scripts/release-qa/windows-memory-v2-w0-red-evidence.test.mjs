@@ -78,7 +78,7 @@ test("W0-06 GREEN: final release enforcement uses a frozen mode-aware report top
 
 test("W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant", () => {
   const policy = JSON.parse(readRepoFile(
-    "contracts/memory-v2/windows-rollout-stop-policy.v1.json",
+    "docs/contracts/memory-v2/windows-rollout-stop-policy.v1.json",
   ));
 
   assert.equal(policy.schema, "pupu.windows-rollout-stop-policy.v1");

@@ -222,7 +222,7 @@ test("publish workflow has a protected manual transition and cannot rebuild or u
   assert.match(workflow, /--candidate-run-id "\$CANDIDATE_RUN_ID"/);
   assert.match(workflow, /--qualification-run-id "\$QUALIFICATION_RUN_ID"/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
-  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy docs\/contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
   assert.match(workflow, /render-readme:/);
   assert.match(workflow, /needs: publish-draft/);
@@ -246,7 +246,7 @@ test("README workflow is explicitly called after publication and never regex-rew
   assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
-  assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy docs\/contracts\/release\/release-bootstrap-policy\.v1\.json/);
   assert.match(workflow, /update-readme-links\.cjs --manifest/);
   assert.match(workflow, /inputs\.release_tag/);
   assert.ok(workflow.indexOf("verify-release-candidate.mjs") < workflow.indexOf("update-readme-links.cjs"));

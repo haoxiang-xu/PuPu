@@ -371,7 +371,7 @@ export async function runRestartUpdateQualification({
   serverLogPath = "",
 }) {
   validateRestartUpdateRuntimeInputs({ targetId, feedPort });
-  const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+  const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
   const candidateRoot = path.resolve(candidateDir);
   const manifest = readJson(path.join(candidateRoot, "release-assets.v1.json"));
   validateReleaseAssetManifest(manifest, contract);

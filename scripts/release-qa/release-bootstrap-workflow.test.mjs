@@ -31,7 +31,7 @@ test("promotion resolves receipt schema to one workflow and preserves the bootst
   const readme = read(".github/workflows/update-readme-download-links.yml");
   for (const [label, workflow] of [["stage", stage], ["publish", publish], ["README", readme]]) {
     YAML.parse(workflow, { uniqueKeys: true });
-    assert.match(workflow, /--bootstrap-policy contracts\/release\/release-bootstrap-policy\.v1\.json/, `${label} must use the frozen bootstrap policy`);
+    assert.match(workflow, /--bootstrap-policy docs\/contracts\/release\/release-bootstrap-policy\.v1\.json/, `${label} must use the frozen bootstrap policy`);
   }
   assert.match(stage, /qualification-provenance\.mjs/);
   assert.match(publish, /qualification-provenance\.mjs/);

@@ -22,7 +22,7 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const ASSEMBLER = path.join(ROOT, "scripts/release-qa/assemble-release-candidate.mjs");
 const VERIFIER = path.join(ROOT, "scripts/release-qa/verify-release-candidate.mjs");
 const CONTRACT = readReleaseArtifactContract(
-  path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"),
+  path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"),
 );
 const VERSION = "0.1.10";
 const TAG = `v${VERSION}`;

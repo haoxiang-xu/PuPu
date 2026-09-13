@@ -543,7 +543,7 @@ v2 必须新增并严格绑定：
 
 ### 新增文件
 
-- `contracts/release/release-bootstrap-policy.v1.json`
+- `docs/contracts/release/release-bootstrap-policy.v1.json`
 - `.github/workflows/release-bootstrap-qualification.yml`
 - `scripts/release-qa/validate-legacy-release-gap.mjs` 及 tests
 - `scripts/release-qa/build-release-bootstrap-qualification.mjs` 及 tests

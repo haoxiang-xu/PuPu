@@ -15,7 +15,7 @@ import YAML from "yaml";
 
 const digest = (letter) => `sha256:${letter.repeat(64)}`;
 const fingerprint = "f".repeat(64);
-const contract = readReleaseArtifactContract("contracts/release/release-artifact-contract.v1.json");
+const contract = readReleaseArtifactContract("docs/contracts/release/release-artifact-contract.v1.json");
 const createManifest = (version = "0.1.10") => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-qualification-"));
   const assetDir = path.join(root, "assets");

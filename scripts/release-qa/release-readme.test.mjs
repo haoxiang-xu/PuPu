@@ -22,7 +22,7 @@ import {
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const CONTRACT = readReleaseArtifactContract(
-  path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"),
+  path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"),
 );
 
 function manifestFixture() {

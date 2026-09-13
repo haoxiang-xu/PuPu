@@ -105,7 +105,7 @@ const modulePath = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
   try {
     const args = parseArgs(process.argv.slice(2));
-    const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+    const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
     const candidateDir = path.resolve(args["candidate-dir"]);
     const freshReportPaths = listNamedFiles(path.resolve(args["fresh-reports-dir"]), "installed-package-qualification.json");
     const restartReportPaths = listNamedFiles(path.resolve(args["restart-reports-dir"]), "restart-update-qualification.json");

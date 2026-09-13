@@ -8,7 +8,7 @@ import { expectedReportPlatformsForMode } from "./release-qa-mode-manifest.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const topology = JSON.parse(fs.readFileSync(
-  path.join(ROOT, "contracts/memory-v2/release-qa-report-topology.v1.json"),
+  path.join(ROOT, "docs/contracts/memory-v2/release-qa-report-topology.v1.json"),
   "utf8",
 ));
 

@@ -125,7 +125,7 @@ jobs:
           QUALIFICATION_RUN_ID="$(node -e 'const fs = require("fs"); const receipt = JSON.parse(fs.readFileSync("draft-assets/release-qualification.v1.json", "utf8")); process.stdout.write(String(receipt?.qualification_run_id || ""))')"
           QUALIFICATION_WORKFLOW_PATH="$(node scripts/release-qa/qualification-provenance.mjs \
             --receipt draft-assets/release-qualification.v1.json \
-            --bootstrap-policy contracts/release/release-bootstrap-policy.v1.json \
+            --bootstrap-policy docs/contracts/release/release-bootstrap-policy.v1.json \
             --candidate-run-id "$CANDIDATE_RUN_ID" \
             --qualification-run-id "$QUALIFICATION_RUN_ID" \
             --release-tag "$RELEASE_TAG" \
@@ -147,7 +147,7 @@ jobs:
             --asset-dir draft-assets \
             --qa-report draft-assets/release-qa-report.json \
             --qualification draft-assets/release-qualification.v1.json \
-            --bootstrap-policy contracts/release/release-bootstrap-policy.v1.json \
+            --bootstrap-policy docs/contracts/release/release-bootstrap-policy.v1.json \
             --require-qualification true \
             --require-restart-qualification true \
             --allow-extra release-assets.v1.json \

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { buildWindowsCandidateIdentityReport, sealCandidateIdentityRecord, validateCandidateIdentityChain } from "./windows-candidate-identity.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const fixture = JSON.parse(fs.readFileSync(path.join(repoRoot, "contracts/memory-v2/windows-candidate-identity-fixture.v1.json"), "utf8"));
+const fixture = JSON.parse(fs.readFileSync(path.join(repoRoot, "docs/contracts/memory-v2/windows-candidate-identity-fixture.v1.json"), "utf8"));
 const hash = (digit) => `sha256:${digit.repeat(64)}`;
 const chainFor = (snapshot, { signed = false } = {}) => {
   const payloadLineage = sealCandidateIdentityRecord({ schema: "pupu.windows-payload-lineage.v1", ...fixture.payload_lineage });

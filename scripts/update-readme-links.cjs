@@ -13,7 +13,7 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const README_PATH = path.join(ROOT, "README.md");
-const CONTRACT_PATH = path.join(ROOT, "contracts", "release", "release-artifact-contract.v1.json");
+const CONTRACT_PATH = path.join(ROOT, "docs", "contracts", "release", "release-artifact-contract.v1.json");
 
 const parseArgs = (argv) => {
   const args = {};

@@ -497,7 +497,7 @@ export function createMacSigningEvidence({
   const target = TARGETS[targetId];
   if (!target) throw new Error("target must be macos-arm64 or macos-x64");
   const contract = readReleaseArtifactContract(
-    path.join(ROOT, "contracts", "release", "release-artifact-contract.v1.json"),
+    path.join(ROOT, "docs", "contracts", "release", "release-artifact-contract.v1.json"),
   );
   const resolvedDistDir = path.resolve(distDir);
   verifyRawPackageOutputDirectory({ contract, targetId, version, distDir: resolvedDistDir });
