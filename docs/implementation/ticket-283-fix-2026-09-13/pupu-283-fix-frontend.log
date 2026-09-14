@@ -1,0 +1,155 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/SERVICEs/plugin_skill_sync.test.js src/SERVICEs/command_registry.test.js src/PAGEs/chat/hooks/use_chat_stream_skill_expand.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+
+PASS src/PAGEs/chat/hooks/use_chat_stream_skill_expand.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/SERVICEs/command_registry.test.js
+  ● Console
+
+    console.warn
+       19:31:36  COMMANDS  register_conflict  src/SERVICEs/command_registry.js  
+       /plan from plugin:plan rejected — already owned by builtin
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:107:14)
+      at Object.<anonymous> (src/SERVICEs/command_registry.test.js:257:16)
+
+    console.warn
+       19:31:36  COMMANDS  register_conflict  src/SERVICEs/command_registry.js  
+       /sum from plugin:b rejected — already owned by plugin:a
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:107:14)
+      at Object.<anonymous> (src/SERVICEs/command_registry.test.js:271:7)
+
+    console.warn
+       19:31:36  COMMANDS  register_override  src/SERVICEs/command_registry.js  
+       /y from builtin replaces lower-priority plugin:p
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:113:12)
+      at Object.<anonymous> (src/SERVICEs/command_registry.test.js:279:12)
+
+    console.warn
+       19:31:36  COMMANDS  register_conflict  src/SERVICEs/command_registry.js  
+       /TESTCMD from plugin:p rejected — already owned by builtin
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at node_modules/jest-mock/build/index.js:854:25
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:107:14)
+      at Object.<anonymous> (src/SERVICEs/command_registry.test.js:312:20)
+
+    console.warn
+       19:31:36  COMMANDS  register_override  src/SERVICEs/command_registry.js  
+       /CMD from builtin replaces lower-priority plugin:p
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at node_modules/jest-mock/build/index.js:854:25
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:113:12)
+      at Object.<anonymous> (src/SERVICEs/command_registry.test.js:368:20)
+
+PASS src/SERVICEs/plugin_skill_sync.test.js
+  ● Console
+
+    console.debug
+       19:31:36  COMMANDS  skill_phase_deferred  src/SERVICEs/plugin_skill_sync.js  
+       Skipping skill "streamer" with unsupported phase "streaming" (only "composer" registers this iteration)
+
+      at Object.debug (src/SERVICEs/console_logger.js:145:9)
+
+    console.debug
+       19:31:36  COMMANDS  skill_phase_deferred  src/SERVICEs/plugin_skill_sync.js  
+       Skipping skill "anytime" with unsupported phase "always" (only "composer" registers this iteration)
+
+      at Object.debug (src/SERVICEs/console_logger.js:145:9)
+
+    console.warn
+       19:31:36  COMMANDS  register_conflict  src/SERVICEs/command_registry.js  
+       /shared from plugin:plugin-b rejected — already owned by plugin:plugin-a
+
+      143 |       } else if (rest.length === 1) {
+      144 |         // Single payload → print on same groupCollapsed line, expand to see it
+    > 145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+          |         ^
+      146 |       } else {
+      147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+      148 |       }
+
+      at Object.warn (src/SERVICEs/console_logger.js:145:9)
+      at registerCommand (src/SERVICEs/command_registry.js:107:14)
+      at Object.syncPluginSkills (src/SERVICEs/plugin_skill_sync.js:117:22)
+      at Object.<anonymous> (src/SERVICEs/plugin_skill_sync.test.js:190:21)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+    console.warn
+       19:31:36  COMMANDS  catalog_fetch_failed  src/SERVICEs/plugin_skill_sync.js  
+       Failed to fetch toolkit catalog for plugin skill sync Error: network down
+          at Object.<anonymous> (/Users/red/Desktop/GITRepo/PuPu/src/SERVICEs/plugin_skill_sync.test.js:275:52)
+
+      145 |         nativeMethod(fmt, ...cssArgs, "\n", rest[0]);
+      146 |       } else {
+    > 147 |         nativeMethod(fmt, ...cssArgs, "\n", ...rest);
+          |         ^
+      148 |       }
+      149 |     };
+      150 |   };
+
+      at Object.warn (src/SERVICEs/console_logger.js:147:9)
+      at fetchAndSyncPluginSkills (src/SERVICEs/plugin_skill_sync.js:173:12)
+
+    console.debug
+       19:31:36  COMMANDS  catalog_response_stale  src/SERVICEs/plugin_skill_sync.js  
+       Discarding stale toolkit catalog response superseded by a newer fetch
+
+      at Object.debug (src/SERVICEs/console_logger.js:145:9)
+
+
+Test Suites: 4 passed, 4 total
+Tests:       66 passed, 66 total
+Snapshots:   0 total
+Time:        1.234 s, estimated 2 s
+Ran all test suites within paths "src/SERVICEs/plugin_skill_sync.test.js", "src/SERVICEs/command_registry.test.js", "src/PAGEs/chat/hooks/use_chat_stream_skill_expand.test.js", "src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js".

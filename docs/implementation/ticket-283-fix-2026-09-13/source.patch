@@ -1,0 +1,155 @@
+diff --git a/unchain_runtime/server/memory_v2_unchain_runtime_factory.py b/unchain_runtime/server/memory_v2_unchain_runtime_factory.py
+index b3dd468d..83b004cd 100644
+--- a/unchain_runtime/server/memory_v2_unchain_runtime_factory.py
++++ b/unchain_runtime/server/memory_v2_unchain_runtime_factory.py
+@@ -11,6 +11,7 @@ from __future__ import annotations
+ import hashlib
+ import re
+ import threading
++import unicodedata
+ from collections.abc import Callable, Mapping, Sequence
+ from dataclasses import dataclass, field
+ from pathlib import Path
+@@ -861,7 +862,12 @@ class PupuUnchainContextMemoryV2HostFactory:
+             event = candidates[-1]
+             return ResourceRef("context_event", event.event_id, 1)
+ 
+-        objective = current_input.content
++        # Task-state objective is a bounded single-line summary, unlike the
++        # verbatim user message retained in the journal and referenced below.
++        objective = " ".join(re.sub(r"[\x00-\x1f]", " ", current_input.content).split())
++        objective = unicodedata.normalize("NFC", objective)
++        if len(objective) > 32_768:
++            objective = objective[:32_767] + "…"
+         if not objective.strip() and current_input.attachments:
+             objective = "Process the attached user input."
+         return PinnedTaskStateBootstrapBinding(
+diff --git a/unchain_runtime/server/tests/test_memory_v2_unchain_pinned_task_state.py b/unchain_runtime/server/tests/test_memory_v2_unchain_pinned_task_state.py
+index ed9bb29a..81d2941c 100644
+--- a/unchain_runtime/server/tests/test_memory_v2_unchain_pinned_task_state.py
++++ b/unchain_runtime/server/tests/test_memory_v2_unchain_pinned_task_state.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import pytest
+ 
+ from memory_v2_unchain_runtime_factory import (
+     PupuUnchainContextMemoryV2HostFactory,
+@@ -84,3 +85,25 @@ def test_active_host_bootstraps_and_compiles_restart_safe_pinned_task_state(
+     restarted = _host(tmp_path, root_run_id="attempt-after-restart")
+     recovered = restarted.task_state.get()
+     assert recovered == task_state
++
++
++@pytest.mark.parametrize("content, expected", [
++    ("# Skill\n\nReview this code.\r\n\tKeep the original formatting.", "# Skill Review this code. Keep the original formatting."),
++    ("x" * 40_000, "x" * 32_767 + "…"),
++], ids=["multiline", "over-limit"])
++def test_multiline_and_long_input_bootstraps_without_rewriting_journal(tmp_path, content, expected):
++    host = _host(tmp_path, root_run_id="attempt-pinned")
++    context = _context(phase="bootstrap", objective=content)
++    host.context_module.runtime.bind_context(context)
++    PinnedTaskStateBootstrapHarness(
++        binding_resolver=host.resolve_pinned_task_state_bootstrap,
++    ).build_delta(context)
++    task_state = host.task_state.get()
++    assert task_state.objective == expected
++    prepared = host.attempt(execution_id="execution-pinned", attempt_id="attempt-pinned")
++    events = prepared.bundle.journal.capture_snapshot().events
++    event = next(event for event in events if event.event_id == task_state.source_event_refs[0].resource_id)
++    artifact_bytes = (host.object_directory / event.payload["content_sha256"]).read_bytes()
++    assert json.loads(artifact_bytes)["content"] == content
++    restarted = _host(tmp_path, root_run_id="attempt-after-restart")
++    assert restarted.task_state.get() == task_state
+diff --git a/unchain_runtime/server/tests/test_skill_packs.py b/unchain_runtime/server/tests/test_skill_packs.py
+index 9aa4e96d..7c11186b 100644
+--- a/unchain_runtime/server/tests/test_skill_packs.py
++++ b/unchain_runtime/server/tests/test_skill_packs.py
+@@ -1,3 +1,4 @@
++import os
+ import sys
+ import tempfile
+ import unittest
+@@ -128,6 +129,54 @@ class SkillPackStoreTests(unittest.TestCase):
+         self.assertEqual(names, ["good"])
+ 
+ 
++class SkillPackRuntimeTests(unittest.TestCase):
++    def test_installed_skill_commands_need_no_executable_toolkit(self):
++        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
++            ids = ["skillpack.trailofbits-audit-prep", "skillpack.vercel-web-review"]
++            for toolkit_id in ids:
++                install_skill_pack(_pack(toolkit_id=toolkit_id))
++            # Read the real persisted catalog, as a fresh sidecar would.
++            selected = [pack["toolkitId"] for pack in list_installed_skill_packs()]
++            with mock.patch.object(unchain_adapter, "build_mcp_runtime_toolkit") as mcp, \
++                 mock.patch.object(unchain_adapter, "_build_generic_toolkit") as generic:
++                for _ in range(2):
++                    self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": selected}), [])
++                self.assertEqual(unchain_adapter._build_toolkits_by_ids(selected, {"_recipe_subagent_run": True}), [])
++                mcp.assert_not_called()
++                generic.assert_not_called()
++
++    def test_skill_selection_preserves_mcp_and_builtin_tools(self):
++        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
++            install_skill_pack(_pack())
++            mcp_toolkit, builtin_toolkit = object(), object()
++            with mock.patch.object(unchain_adapter, "build_mcp_runtime_toolkit", return_value=mcp_toolkit) as mcp, \
++                 mock.patch.object(unchain_adapter, "_build_builtin_toolkit", return_value=builtin_toolkit) as builtin:
++                result = unchain_adapter._build_selected_toolkits({
++                    "toolkits": ["skillpack.superpowers", "mcp.memory.memory", "builtin.computer"]
++                })
++                self.assertEqual(result, [mcp_toolkit, builtin_toolkit])
++                mcp.assert_called_once_with("mcp.memory.memory")
++                self.assertEqual(builtin.call_count, 1)
++
++    def test_missing_deleted_and_wrong_identity_remain_blocked(self):
++        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
++            install_skill_pack(_pack())
++            for toolkit_id in ["skillpack.missing", "skillpack.Superpowers", "skillpack."]:
++                with self.subTest(toolkit_id=toolkit_id), self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable"):
++                    unchain_adapter._build_selected_toolkits({"toolkits": [toolkit_id]})
++            delete_skill_pack("skillpack.superpowers")
++            with self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable"):
++                unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers"]})
++            install_skill_pack(_pack())
++            self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers"]}), [])
++
++    def test_unknown_generic_toolkit_is_not_hidden_by_valid_skill(self):
++        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
++            install_skill_pack(_pack())
++            with self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable: MissingToolkit283"):
++                unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers", "MissingToolkit283"]})
++
++
+ class SkillPackCatalogTests(unittest.TestCase):
+     def test_catalog_v2_appends_installed_skill_packs(self):
+         with mock.patch.object(unchain_adapter, "_resolve_toolkit_base", return_value=None), \
+diff --git a/unchain_runtime/server/unchain_adapter.py b/unchain_runtime/server/unchain_adapter.py
+index 707d61ce..9ae011c3 100644
+--- a/unchain_runtime/server/unchain_adapter.py
++++ b/unchain_runtime/server/unchain_adapter.py
+@@ -29,7 +29,7 @@ from mcp_toolkits import (
+     get_installed_mcp_toolkit,
+     list_installed_mcp_toolkits,
+ )
+-from skill_packs import list_installed_skill_packs
++from skill_packs import SKILL_PACK_ID_PREFIX, get_installed_skill_pack, list_installed_skill_packs
+ from custom_provider import (
+     CustomProviderConfig,
+     CustomProviderError,
+@@ -6063,6 +6063,13 @@ def _build_selected_toolkits(
+     is_subagent_run = bool(isinstance(options, dict) and options.get("_recipe_subagent_run"))
+ 
+     for toolkit_name in toolkit_names:
++        if toolkit_name.startswith(SKILL_PACK_ID_PREFIX):
++            # Composer commands retain their owning pack's identity for source
++            # attribution. Installed instruction-only packs have no factory or
++            # executable tools; the renderer already expanded their skill body.
++            if get_installed_skill_pack(toolkit_name) is None:
++                raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
++            continue
+         if toolkit_name.startswith(_BUILTIN_TOOLKIT_PREFIX):
+             builtin_instance = _build_builtin_toolkit(
+                 toolkit_name,

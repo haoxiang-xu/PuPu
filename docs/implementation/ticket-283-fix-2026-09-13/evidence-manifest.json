@@ -1,0 +1,122 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 3035,
+    "sha256": "e8f0ae36e3fbf0fccab3f80b60d0142d6cb469b6fe155d547129728aa7e1f032"
+  },
+  {
+    "path": "candidate-tree.json",
+    "bytes": 1711227,
+    "sha256": "b8c9e4de9443b31805b1b40a6678ba0fa1b49a85ff0eaec834b25267de6ea475"
+  },
+  {
+    "path": "cleanup.json",
+    "bytes": 171,
+    "sha256": "561d8854e796a376a42ee2339e017720e6c410c9ae60883f7402fcf5ca0d4d8a"
+  },
+  {
+    "path": "imported-runtime-status.json",
+    "bytes": 1474,
+    "sha256": "521d9aa30fb080527ac7db37388262008a7a5c0a7ad9e1df43b9028f734f6d24"
+  },
+  {
+    "path": "installed-skill-packs.json",
+    "bytes": 12820,
+    "sha256": "d92a2af723472adcb51d8f261dd9f06d49168c71e1164b1ad79289284a8abf6c"
+  },
+  {
+    "path": "package-smoke.json",
+    "bytes": 498,
+    "sha256": "fead6085517b284fabc6f91cc0efccd09b9d3ad73843ff5c5c4be5c59c666263"
+  },
+  {
+    "path": "pupu-283-fix-bootstrap-impact.json",
+    "bytes": 1059,
+    "sha256": "e224e97e0a979064e3cb302e5d05b75d193d1bf4a03b704138ef0ae2155bd228"
+  },
+  {
+    "path": "pupu-283-fix-changes.json",
+    "bytes": 841,
+    "sha256": "76737a8237ea42a2b30e479f83cf5fdd6ba742516702e1d5a2dfe795cd7bd7b2"
+  },
+  {
+    "path": "pupu-283-fix-frontend.log",
+    "bytes": 7129,
+    "sha256": "dac49e63b95f1a741f0f6226d29ac16342ab12046852084bb4decefb13cd95d0"
+  },
+  {
+    "path": "pupu-283-fix-green.log",
+    "bytes": 1275,
+    "sha256": "1bc63512fb4df72b335a200166676404dbd8cfb2a4694da7052aadc767b35e71"
+  },
+  {
+    "path": "pupu-283-fix-impact.json",
+    "bytes": 4378,
+    "sha256": "ae73fb2b726260455aed9baecc894bc56b3ced30483c5da823f52739dd135b3b"
+  },
+  {
+    "path": "pupu-283-fix-objective-green.log",
+    "bytes": 99,
+    "sha256": "a75ebc82fcc5bfa62aa5971969784666751411af87cab67b24ad82a96301bc27"
+  },
+  {
+    "path": "pupu-283-fix-objective-red.log",
+    "bytes": 152871,
+    "sha256": "1b2bae7a67803d450524bfad08c8c0221550d1a742c4452dda66fbc1a59b39f4"
+  },
+  {
+    "path": "pupu-283-fix-red.log",
+    "bytes": 3948,
+    "sha256": "1f0df08ae0a21605d348d9a8615f1253a1f8575c2f7c9f7e65026f4fb1cd9e46"
+  },
+  {
+    "path": "results.json",
+    "bytes": 1340,
+    "sha256": "e0698b4727e7feef418f8f0bca1c327ece4d515341522cff86154c20226bc6ef"
+  },
+  {
+    "path": "second-success.png",
+    "bytes": 197641,
+    "sha256": "d6cb1b38ceec8491143b6cdbf9a5bd1a97385fbd33195cd7f9ab0fb7f8400025"
+  },
+  {
+    "path": "second-success.txt",
+    "bytes": 2769,
+    "sha256": "9d691552671c26970dd5308348d6c51d704e0a061afc98e8badd76cd7d36ee6f"
+  },
+  {
+    "path": "source.patch",
+    "bytes": 8867,
+    "sha256": "4706fb30728b2edebffee3026e1bca7765ee034fc74f3d3ae2b2b815ea949178"
+  },
+  {
+    "path": "synthetic-chat-observations.json",
+    "bytes": 96350,
+    "sha256": "b52ef1154b2b22c3de4fae3f84a87c618568c91705c1ba4d5dd63b3bd246de9e"
+  },
+  {
+    "path": "trail-success.png",
+    "bytes": 210205,
+    "sha256": "c43c8a63ab6d4d4c9ed8d5df6512abf15be8bfdd68cdd377fc04373e09727adc"
+  },
+  {
+    "path": "trail-success.txt",
+    "bytes": 2571,
+    "sha256": "616d7402098987df2b5cf82193517917a8dc7cc87449574848403d2ba3cd3027"
+  },
+  {
+    "path": "unchain-artifact.json",
+    "bytes": 2369,
+    "sha256": "a7e08f86887c3b8a4b87e584ed7a21acd8849d73be05d3e90995602bbd752917"
+  },
+  {
+    "path": "vercel-success.png",
+    "bytes": 171152,
+    "sha256": "358aa0a5ce0571e192c34012988d67c738dd3c2b1da51a0ca7f81ab59a2f32a3"
+  },
+  {
+    "path": "vercel-success.txt",
+    "bytes": 1040,
+    "sha256": "5031eb8703884e90c9c593aea3fbb97ed149e6fd8b04445a695f05197ae60dbf"
+  }
+]

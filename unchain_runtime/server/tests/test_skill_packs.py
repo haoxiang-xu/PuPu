@@ -1,3 +1,4 @@
+import os
 import sys
 import tempfile
 import unittest
@@ -126,6 +127,54 @@ class SkillPackStoreTests(unittest.TestCase):
         result = install_skill_pack(pack, data_dir=self.data_dir)
         names = [s["name"] for s in result["toolkit"]["skills"]]
         self.assertEqual(names, ["good"])
+
+
+class SkillPackRuntimeTests(unittest.TestCase):
+    def test_installed_skill_commands_need_no_executable_toolkit(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
+            ids = ["skillpack.trailofbits-audit-prep", "skillpack.vercel-web-review"]
+            for toolkit_id in ids:
+                install_skill_pack(_pack(toolkit_id=toolkit_id))
+            # Read the real persisted catalog, as a fresh sidecar would.
+            selected = [pack["toolkitId"] for pack in list_installed_skill_packs()]
+            with mock.patch.object(unchain_adapter, "build_mcp_runtime_toolkit") as mcp, \
+                 mock.patch.object(unchain_adapter, "_build_generic_toolkit") as generic:
+                for _ in range(2):
+                    self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": selected}), [])
+                self.assertEqual(unchain_adapter._build_toolkits_by_ids(selected, {"_recipe_subagent_run": True}), [])
+                mcp.assert_not_called()
+                generic.assert_not_called()
+
+    def test_skill_selection_preserves_mcp_and_builtin_tools(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
+            install_skill_pack(_pack())
+            mcp_toolkit, builtin_toolkit = object(), object()
+            with mock.patch.object(unchain_adapter, "build_mcp_runtime_toolkit", return_value=mcp_toolkit) as mcp, \
+                 mock.patch.object(unchain_adapter, "_build_builtin_toolkit", return_value=builtin_toolkit) as builtin:
+                result = unchain_adapter._build_selected_toolkits({
+                    "toolkits": ["skillpack.superpowers", "mcp.memory.memory", "builtin.computer"]
+                })
+                self.assertEqual(result, [mcp_toolkit, builtin_toolkit])
+                mcp.assert_called_once_with("mcp.memory.memory")
+                self.assertEqual(builtin.call_count, 1)
+
+    def test_missing_deleted_and_wrong_identity_remain_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
+            install_skill_pack(_pack())
+            for toolkit_id in ["skillpack.missing", "skillpack.Superpowers", "skillpack."]:
+                with self.subTest(toolkit_id=toolkit_id), self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable"):
+                    unchain_adapter._build_selected_toolkits({"toolkits": [toolkit_id]})
+            delete_skill_pack("skillpack.superpowers")
+            with self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable"):
+                unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers"]})
+            install_skill_pack(_pack())
+            self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers"]}), [])
+
+    def test_unknown_generic_toolkit_is_not_hidden_by_valid_skill(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": tmp}):
+            install_skill_pack(_pack())
+            with self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable: MissingToolkit283"):
+                unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers", "MissingToolkit283"]})
 
 
 class SkillPackCatalogTests(unittest.TestCase):

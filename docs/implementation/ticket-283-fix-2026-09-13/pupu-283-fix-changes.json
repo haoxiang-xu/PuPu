@@ -1,0 +1,13 @@
+Changes: 5 files, 8 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Section Ticket 283 implementation plan → docs/implementation/ticket-283.md
+  Section Goal and decisions → docs/implementation/ticket-283.md
+  Class PupuUnchainContextMemoryV2HostFactory → unchain_runtime/server/memory_v2_unchain_runtime_factory.py
+  Method resolve_pinned_task_state_bootstrap → unchain_runtime/server/memory_v2_unchain_runtime_factory.py
+  Class SkillPackCatalogTests → unchain_runtime/server/tests/test_skill_packs.py
+  Method test_catalog_v2_appends_installed_skill_packs → unchain_runtime/server/tests/test_skill_packs.py
+  Method test_installing_skill_pack_never_opens_an_mcp_connection → unchain_runtime/server/tests/test_skill_packs.py
+  Function _build_selected_toolkits → unchain_runtime/server/unchain_adapter.py

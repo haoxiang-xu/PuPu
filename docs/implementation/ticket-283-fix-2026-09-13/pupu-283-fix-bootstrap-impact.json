@@ -1,0 +1,27 @@
+{
+  "target": {
+    "id": "Method:unchain_runtime/server/memory_v2_unchain_runtime_factory.py:PupuUnchainContextMemoryV2HostFactory.resolve_pinned_task_state_bootstrap#1",
+    "name": "resolve_pinned_task_state_bootstrap",
+    "type": "Method",
+    "filePath": "unchain_runtime/server/memory_v2_unchain_runtime_factory.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 0,
+  "risk": "UNKNOWN",
+  "riskSharedAxes": "UNKNOWN",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "riskNote": "No callers resolved. Absence of edges is not evidence the symbol is unused: a caller reaching it through a reference class this index does not record — plain-object property access, a bare-identifier read of a module-scope const — produces no edge to find. Confirm with a text search before treating the change as safe.",
+  "epistemic": "exact",
+  "summary": {
+    "direct": 0,
+    "processes_affected": 0,
+    "modules_affected": 0
+  },
+  "byDepthCounts": {},
+  "affected_processes": [],
+  "affected_modules": [],
+  "byDepth": {}
+}
