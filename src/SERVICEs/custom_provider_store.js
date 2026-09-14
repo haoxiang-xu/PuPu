@@ -27,6 +27,11 @@ import {
   flushProviderCredentialWrites,
   persistCustomProviderSecret,
 } from "./provider_credential_persistence";
+import {
+  isShippedSlug,
+  listShippedSlugs,
+  readShippedPresetEnvelope,
+} from "./shipped_provider_registry";
 
 const MODEL_PROVIDERS_NAMESPACE = "model_providers";
 const pendingCustomProviderMutations = new Set();
@@ -360,6 +365,15 @@ export const readCustomProviders = () => {
       continue; // first-wins on duplicate slug
     }
     seenSlugs.add(clean.id);
+    if (isShippedSlug(clean.id)) {
+      // A shipped provider's definition comes from the app bundle, never from
+      // storage (#202). A stored entry under a shipped slug is a legacy copy
+      // written by the pre-#202 "import the preset on first key save" path;
+      // it is skipped here so the copy can never win over the app definition,
+      // and shipped_provider_migration removes it. Dropping it from this list
+      // also means the next write of custom_providers[] persists its removal.
+      continue;
+    }
     result.push(clean);
   }
   return result;
@@ -406,6 +420,98 @@ export const findCustomProvider = (slug) => {
     return null;
   }
   return readCustomProviders().find((p) => p.id === cleaned) || null;
+};
+
+/* ------------------------------------------------------------------ */
+/* Shipped providers: definitions resolved from the app, not storage   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Resolve a shipped provider's definition from the app bundle.
+ *
+ * This is the staleness fix: the definition is read from
+ * custom_provider_presets.json on every call, so a preset corrected or extended
+ * by an app update reaches a user who configured that provider long ago. User
+ * storage holds only the API key.
+ *
+ * Returns null when the slug is not shipped or its bundled envelope fails
+ * normalization (fail-closed — the provider simply does not appear).
+ */
+export const resolveShippedDefinition = (slug) => {
+  const cleaned = typeof slug === "string" ? slug.trim() : "";
+  if (!cleaned || !isShippedSlug(cleaned)) {
+    return null;
+  }
+  const envelope = readShippedPresetEnvelope(cleaned);
+  if (!envelope) {
+    return null;
+  }
+  const normalized = normalizeCustomProvider(envelope);
+  if (!normalized.ok || normalized.provider.id !== cleaned) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `custom_provider_store: shipped preset failed to resolve: ${cleaned}`,
+    );
+    return null;
+  }
+  return {
+    ...normalized.provider,
+    // A shipped provider has no stored definition to switch off, so there is
+    // nothing to persist and nothing to disable: the definition is always in
+    // force and whether the provider is USABLE is decided downstream by the
+    // credential-existence gate every consumer already applies. That is also
+    // how the native OpenAI / Anthropic / Gemini sections behave — a key is
+    // present or it is not. "Keep the key but turn it off" is deliberately not
+    // a shipped-provider state; clearing the key is how you turn one off.
+    enabled: true,
+    source: "shipped",
+    origin: "shipped",
+  };
+};
+
+/** Every shipped provider's resolved definition, registry order, nulls dropped. */
+export const readShippedProviderDefinitions = () =>
+  listShippedSlugs()
+    .map((slug) => resolveShippedDefinition(slug))
+    .filter(Boolean);
+
+/**
+ * Resolve one provider definition by slug, shipped first.
+ *
+ * The single read every runtime consumer should use when it holds a slug and
+ * wants "whatever definition is in force" — the app's for a shipped provider,
+ * the user's for an authored one. `origin` keeps the two distinguishable in
+ * code, which the ticket requires: the wire shape is identical, the provenance
+ * is not.
+ */
+export const resolveProviderDefinition = (slug) => {
+  const shipped = resolveShippedDefinition(slug);
+  if (shipped) {
+    return shipped;
+  }
+  const authored = findCustomProvider(slug);
+  return authored ? { ...authored, origin: "user" } : null;
+};
+
+/**
+ * The definitions a runtime surface (model catalog, selector, request payload)
+ * should consider.
+ *
+ * Shipped definitions are always included — enable_custom_model_providers does
+ * not gate them (#202). User-authored definitions are included only when the
+ * caller has checked that flag and passes `includeUserAuthored`.
+ */
+export const readRuntimeProviderDefinitions = ({
+  includeUserAuthored = false,
+} = {}) => {
+  const shipped = readShippedProviderDefinitions();
+  if (!includeUserAuthored) {
+    return shipped;
+  }
+  return [
+    ...shipped,
+    ...readCustomProviders().map((def) => ({ ...def, origin: "user" })),
+  ];
 };
 
 /**
@@ -474,6 +580,53 @@ const persistCustomProviders = (list) => {
 };
 
 /**
+ * One-time cleanup of legacy shipped-preset copies (#202).
+ *
+ * Before #202, saving a key for DeepSeek/Kimi imported the bundled preset into
+ * custom_providers[] and the stored copy won from then on — which is exactly
+ * the staleness defect this ticket fixes. readCustomProviders() already skips
+ * such an entry, so correctness does not depend on this having run; this simply
+ * stops the dead copy from sitting in storage forever.
+ *
+ * Idempotent: with no copy present it writes nothing. The stored SECRET is
+ * never touched — it keeps living in custom_provider_secrets[slug], which is
+ * where a shipped provider's key belongs, so a key saved before the upgrade
+ * keeps working with no secret migration.
+ *
+ * A high-config_version entry under a shipped slug is left alone: preserving a
+ * config only a newer PuPu understands outranks tidying (C10 / §3).
+ *
+ * Known behaviour change: a copy stored as enabled:false while its key was
+ * still present becomes available after the cleanup, because a shipped
+ * provider's availability is derived from the key. That matches how the native
+ * provider sections behave and is documented rather than special-cased.
+ */
+export const migrateShippedProviderCopies = () => {
+  const branch = readModelProvidersBranch();
+  const rawList = Array.isArray(branch.custom_providers)
+    ? branch.custom_providers
+    : [];
+  const slugs = rawList
+    .filter(
+      (raw) =>
+        isObject(raw) &&
+        typeof raw.id === "string" &&
+        isShippedSlug(raw.id.trim()) &&
+        !isHighVersionRawEntry(raw),
+    )
+    .map((raw) => raw.id.trim());
+
+  if (slugs.length === 0) {
+    return { migrated: false, slugs: [] };
+  }
+
+  // readCustomProviders() omits shipped slugs, so persisting it is the removal.
+  const persistence = persistCustomProviders(readCustomProviders());
+  emitModelCatalogRefresh();
+  return attachPersistence({ migrated: true, slugs }, persistence);
+};
+
+/**
  * Add a new custom provider. `def` must already be a normalized provider
  * (the output of normalizeCustomProvider().provider). Throws
  * {code:"provider_id_exists"} on slug collision. Written entries are always
@@ -482,6 +635,15 @@ const persistCustomProviders = (list) => {
 export const addCustomProvider = (def) => {
   if (!isObject(def) || typeof def.id !== "string" || !def.id) {
     throw storeError("invalid_provider_definition", "Definition is missing an id");
+  }
+  if (isShippedSlug(def.id)) {
+    // A shipped provider owns its slug the way a reserved slug is owned: a
+    // user-authored provider claiming it would shadow the app definition and
+    // impersonate a first-class section (#202, AC-07).
+    throw storeError(
+      "provider_id_reserved",
+      `Provider id is reserved by a shipped provider: ${def.id}`,
+    );
   }
   const list = readCustomProviders();
   if (list.some((p) => p.id === def.id)) {
@@ -1435,7 +1597,7 @@ export const resolveCustomModelCapabilities = (modelValue) => {
   if (!parsed || !parsed.slug || !parsed.modelId) {
     return null;
   }
-  const def = findCustomProvider(parsed.slug);
+  const def = resolveProviderDefinition(parsed.slug);
   if (!def) {
     return null;
   }

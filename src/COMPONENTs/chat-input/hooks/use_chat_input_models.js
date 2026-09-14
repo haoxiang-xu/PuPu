@@ -4,7 +4,7 @@ import { build_model_options } from "../utils/build_model_options";
 import { MODEL_GROUPS, resolveModelGroupKey } from "../constants";
 import {
   customProviderKey,
-  readCustomProviders,
+  readRuntimeProviderDefinitions,
 } from "../../../SERVICEs/custom_provider_store";
 import { providerSecretConfigured } from "../../../SERVICEs/provider_secret_status";
 import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
@@ -16,13 +16,13 @@ import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
  * Returns a compact shape build_model_options understands.
  */
 const read_custom_provider_groups = () => {
-  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
-    return [];
-  }
-
   let defs;
   try {
-    defs = readCustomProviders();
+    // Shipped providers (DeepSeek / Kimi) are first class and never gated;
+    // enable_custom_model_providers only admits user-authored ones (#202).
+    defs = readRuntimeProviderDefinitions({
+      includeUserAuthored: isFeatureFlagEnabled("enable_custom_model_providers"),
+    });
   } catch (_error) {
     return [];
   }

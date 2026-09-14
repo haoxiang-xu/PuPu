@@ -24,6 +24,7 @@
     "api_key": "API-Schlüssel",
     "retry": "Wiederholen",
     "clear": "Löschen",
+    "replace": "Ersetzen",
     "save": "Speichern",
     "saved": "Gespeichert",
     "all": "Alle",
@@ -146,7 +147,10 @@
       "preset_add_title": "Vorlage hinzufügen",
       "preset_official": "Offiziell",
       "preset_empty": "Keine Vorlagen verfügbar."
-    }
+    },
+    "platform": "Plattform",
+    "site_global": "Global",
+    "site_china": "China"
   },
   "memory": {
     "title": "Chat-Speicher",

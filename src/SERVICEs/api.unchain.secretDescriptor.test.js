@@ -556,7 +556,17 @@ describe("legacy fallback + mixed authority", () => {
     seedCustomProvider();
     installStorageBridge({
       secretStorageStatus: "available",
-      configuredCredentials: ["custom.sap-hyperspace"],
+      // Every custom-addressed identity the catalog will consider is SQL-known,
+      // including the shipped providers PuPu now resolves from its own bundle
+      // (#202). With no identity left to fall back on, a legacy secret read
+      // here could only be the catalog reaching for a VALUE — which is what
+      // this test forbids.
+      configuredCredentials: [
+        "custom.sap-hyperspace",
+        "custom.deepseek",
+        "custom.kimi",
+        "custom.kimi-cn",
+      ],
     });
     window.unchainAPI.getModelCatalog = jest.fn(async () => ({
       providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },

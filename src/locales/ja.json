@@ -24,6 +24,7 @@
     "api_key": "API キー",
     "retry": "再試行",
     "clear": "クリア",
+    "replace": "変更",
     "save": "保存",
     "saved": "保存済み",
     "all": "すべて",
@@ -146,7 +147,10 @@
       "preset_add_title": "プリセットを追加",
       "preset_official": "公式",
       "preset_empty": "利用できるプリセットはありません。"
-    }
+    },
+    "platform": "プラットフォーム",
+    "site_global": "グローバル",
+    "site_china": "中国"
   },
   "memory": {
     "title": "チャットメモリ",

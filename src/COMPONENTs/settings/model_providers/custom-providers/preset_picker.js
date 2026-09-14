@@ -3,7 +3,10 @@ import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import presetsData from "../../../../SERVICEs/custom_provider_presets.json";
+import {
+  isShippedSlug,
+  readPresetEnvelopes as readAllPresetEnvelopes,
+} from "../../../../SERVICEs/shipped_provider_registry";
 
 const PROTOCOL_LABEL = {
   anthropic: "Anthropic",
@@ -12,19 +15,17 @@ const PROTOCOL_LABEL = {
 };
 
 /**
- * Normalize the presets file into an array of export envelopes. The file today
- * is a single envelope (SAP Hyperspace, §2.4); accept an array too so a future
- * preset library can grow without touching this component.
+ * The presets this picker offers: every bundled envelope EXCEPT the ones PuPu
+ * ships as first-class sections (#202). DeepSeek and Kimi have their own
+ * provider sections now, so offering them here too would invite a user to
+ * import a second, shadow copy of a definition the app already owns — the very
+ * staleness the shipped-provider registry removes.
+ *
+ * Envelope reading itself lives in SERVICEs/shipped_provider_registry.js, which
+ * is the single source for the bundled preset file.
  */
-export const readPresetEnvelopes = () => {
-  if (Array.isArray(presetsData)) {
-    return presetsData.filter((e) => e && e.provider);
-  }
-  if (presetsData && presetsData.provider) {
-    return [presetsData];
-  }
-  return [];
-};
+export const readPresetEnvelopes = () =>
+  readAllPresetEnvelopes().filter((e) => !isShippedSlug(e?.provider?.id));
 
 /**
  * PresetPicker (design §8.4). Shows built-in preset cards; selecting one feeds

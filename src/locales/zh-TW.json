@@ -24,6 +24,7 @@
     "api_key": "API Key",
     "retry": "重試",
     "clear": "清除",
+    "replace": "更換",
     "save": "儲存",
     "saved": "已儲存",
     "all": "全部",
@@ -146,7 +147,10 @@
       "preset_add_title": "新增預設",
       "preset_official": "官方",
       "preset_empty": "暫無可用預設。"
-    }
+    },
+    "platform": "平台",
+    "site_global": "國際",
+    "site_china": "中國"
   },
   "memory": {
     "title": "聊天記憶",

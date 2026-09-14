@@ -109,6 +109,7 @@
         {
           "id": "kimi-k3",
           "display_name": "Kimi K3",
+          "default_payload": { "thinking": { "type": "disabled" } },
           "capabilities": {
             "supports_tools": true,
             "supports_vision": false,
@@ -129,6 +130,7 @@
         {
           "id": "kimi-k2.6",
           "display_name": "Kimi K2.6",
+          "default_payload": { "thinking": { "type": "disabled" } },
           "capabilities": {
             "supports_tools": true,
             "supports_vision": false,
@@ -162,6 +164,7 @@
         {
           "id": "kimi-k3",
           "display_name": "Kimi K3",
+          "default_payload": { "thinking": { "type": "disabled" } },
           "capabilities": {
             "supports_tools": true,
             "supports_vision": false,
@@ -182,6 +185,7 @@
         {
           "id": "kimi-k2.6",
           "display_name": "Kimi K2.6",
+          "default_payload": { "thinking": { "type": "disabled" } },
           "capabilities": {
             "supports_tools": true,
             "supports_vision": false,

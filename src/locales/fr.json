@@ -24,6 +24,7 @@
     "api_key": "Clé API",
     "retry": "Réessayer",
     "clear": "Effacer",
+    "replace": "Remplacer",
     "save": "Enregistrer",
     "saved": "Enregistré",
     "all": "Tout",
@@ -146,7 +147,10 @@
       "preset_add_title": "Ajouter un préréglage",
       "preset_official": "Officiel",
       "preset_empty": "Aucun préréglage disponible."
-    }
+    },
+    "platform": "Plateforme",
+    "site_global": "Mondial",
+    "site_china": "Chine"
   },
   "memory": {
     "title": "Mémoire de chat",
