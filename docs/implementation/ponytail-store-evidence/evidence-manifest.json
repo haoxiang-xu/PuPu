@@ -1,0 +1,117 @@
+[
+  {
+    "path": "LICENSE.ponytail.txt",
+    "bytes": 1071,
+    "sha256": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab"
+  },
+  {
+    "path": "README.md",
+    "bytes": 3913,
+    "sha256": "f5c3d1b77047d8aaec4db78f87e2fbb78d1c1fdbd408a7b0b20b5ce404c28e66"
+  },
+  {
+    "path": "backend.log",
+    "bytes": 116,
+    "sha256": "5300be4d76a19a89ba13180c9823bf33fb05a639d4155d08af8630be905734de"
+  },
+  {
+    "path": "candidate-tree.json",
+    "bytes": 1711113,
+    "sha256": "e83ca760be35c494d91a0cd883b86a831d3e7433db4183db71ac28031cb0764e"
+  },
+  {
+    "path": "changes.txt",
+    "bytes": 2077,
+    "sha256": "a8a644a20a8fd5ff7f5707edfe105824cd31a12b95142d6672f8009198a234a7"
+  },
+  {
+    "path": "cleanup.json",
+    "bytes": 145,
+    "sha256": "0e99e30cf4710f281c97010f0dcec60a4566c6e2e4569b7090b2156b77d8db6a"
+  },
+  {
+    "path": "cold-catalog.json",
+    "bytes": 243,
+    "sha256": "6ef84f86079e965cde5b75e70d20064e869c9fea11a81f77a918be7af28f1aa9"
+  },
+  {
+    "path": "detail.png",
+    "bytes": 198209,
+    "sha256": "61e5593442dccd2809938ca5187e59b9d00ced83c1e5fe57d73e21cc93a9dc40"
+  },
+  {
+    "path": "frontend.log",
+    "bytes": 1051,
+    "sha256": "cb0e596af1189859f11af7ab4b4809e6e9c6e4d78c001e2fe9f1bd1f97c04f94"
+  },
+  {
+    "path": "i18n.json",
+    "bytes": 3153,
+    "sha256": "00a87c6aface6ddfce6de7b50244b98c3ad7441a6f5308f013a8561a6e127b90"
+  },
+  {
+    "path": "imported-runtime-status.json",
+    "bytes": 1474,
+    "sha256": "49c8104b359f4ace7102613a14bc62ff78480e24f8774f26cfb616e08530acfe"
+  },
+  {
+    "path": "installed.png",
+    "bytes": 170471,
+    "sha256": "2a6a8e3cd983a02fb5c4805bf4a5c4b66af6e386fe0c6843316a00fd447dd17f"
+  },
+  {
+    "path": "model-success.png",
+    "bytes": 159546,
+    "sha256": "641a442699f45f0e24f85a98165110ce18f524092d2b7f98231e2f14cb636242"
+  },
+  {
+    "path": "model-success.txt",
+    "bytes": 830,
+    "sha256": "14815d31b9ea7a2051d65b2fe919734b6476dd30346b16a14dd04b235bc39c3d"
+  },
+  {
+    "path": "package-smoke.json",
+    "bytes": 498,
+    "sha256": "fead6085517b284fabc6f91cc0efccd09b9d3ad73843ff5c5c4be5c59c666263"
+  },
+  {
+    "path": "ponytail-icon.png",
+    "bytes": 132499,
+    "sha256": "c6f885b6a1f21d663d732365d4a212ca3e7de242be6c69dcd10c291d5b3896dc"
+  },
+  {
+    "path": "results.json",
+    "bytes": 1409,
+    "sha256": "363d4cb32dfc3ec768d9184b70204e87af41005c116ba66760a760482eb7c3e1"
+  },
+  {
+    "path": "skills-results.json",
+    "bytes": 2154,
+    "sha256": "2fe78770fe417242ee8c74173df7f73b24d4a4612d9d5f2f4c8463775b27e74d"
+  },
+  {
+    "path": "source.patch",
+    "bytes": 192247,
+    "sha256": "a0136d85614a15d0b7e9da65fe21b888a8983478a3720e897eeef5deefa6af9e"
+  },
+  {
+    "path": "store.png",
+    "bytes": 208716,
+    "sha256": "2b4bb90f37e9b7a989fd81bf2c9bd70f3e73423ef71312b441383a1f175e91c6"
+  },
+  {
+    "path": "synthetic-chat-observations.json",
+    "bytes": 28045,
+    "sha256": "51556644e16b9085921933ece58b8bdbb70fe7574a5f058373912ec2374ba40d"
+  },
+  {
+    "path": "unchain-artifact.json",
+    "bytes": 2369,
+    "sha256": "a7e08f86887c3b8a4b87e584ed7a21acd8849d73be05d3e90995602bbd752917"
+  },
+  {
+    "path": "verify_skills.cjs",
+    "bytes": 7412,
+    "sha256": "a6222ecb1f62d6c3a27a97e1a53b7f928c2a5d1e367fc032c3ce3bcdad907490"
+  }
+]

@@ -1,0 +1,31 @@
+Changes: 9 files, 13 symbols
+Affected processes: 24
+Risk level: critical
+
+Changed symbols:
+  Function PluginsCategoriesPage → src/COMPONENTs/toolkit/pages/plugins_categories_page.js
+  Function SkillPackDetailPage → src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js
+  Function installStoreSkillPack → src/COMPONENTs/toolkit/utils/skill_pack_store_install.js
+  Class SkillPackError → unchain_runtime/server/skill_packs.py
+  Method __init__ → unchain_runtime/server/skill_packs.py
+  Function _data_dir → unchain_runtime/server/skill_packs.py
+  Function _store_path → unchain_runtime/server/skill_packs.py
+  Function _empty_store → unchain_runtime/server/skill_packs.py
+  Function _read_store → unchain_runtime/server/skill_packs.py
+  Class SkillPackRuntimeTests → unchain_runtime/server/tests/test_skill_packs.py
+  Method test_installed_skill_commands_need_no_executable_toolkit → unchain_runtime/server/tests/test_skill_packs.py
+  Method test_skill_selection_preserves_mcp_and_builtin_tools → unchain_runtime/server/tests/test_skill_packs.py
+  Method test_missing_deleted_and_wrong_identity_remain_blocked → unchain_runtime/server/tests/test_skill_packs.py
+
+Affected execution flows:
+  • PluginsCategoriesPage → GetActive (5 steps) — changed: PluginsCategoriesPage
+  • PluginsCategoriesPage → Abort (3 steps) — changed: PluginsCategoriesPage
+  • PluginsCategoriesPage → Abort (3 steps) — changed: PluginsCategoriesPage
+  • PluginsCategoriesPage → CurrentStoreEntries (3 steps) — changed: PluginsCategoriesPage
+  • PluginsCategoriesPage → Delete (4 steps) — changed: PluginsCategoriesPage
+  • PluginsCategoriesPage → GetDocument (8 steps) — changed: PluginsCategoriesPage
+  • HandleInstallPack → MakeBlock (9 steps) — changed: installStoreSkillPack
+  • PluginsCategoriesPage → GetBar (7 steps) — changed: PluginsCategoriesPage
+  • HandleInstall → MakeBlock (9 steps) — changed: installStoreSkillPack
+  • HandleInstallPack → Exec (10 steps) — changed: installStoreSkillPack
+... and 14 more

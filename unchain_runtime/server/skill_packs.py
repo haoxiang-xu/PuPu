@@ -16,6 +16,8 @@ each skill into a /command.
 from __future__ import annotations
 
 import copy
+import base64
+import binascii
 import json
 import os
 import time
@@ -41,6 +43,33 @@ DEFAULT_SKILL_PACK_ICON = {
     "color": "#7c8cf8",
     "backgroundColor": "#eef0fe",
 }
+
+
+def _skill_pack_icon(value: Any) -> Dict[str, str]:
+    if value is None:
+        return copy.deepcopy(DEFAULT_SKILL_PACK_ICON)
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"type", "mimeType", "content"}
+        or value.get("type") != "file"
+        or value.get("mimeType") != "image/png"
+        or not isinstance(value.get("content"), str)
+        or len(value["content"]) > 349_528
+    ):
+        raise SkillPackError("invalid_skill_pack", "skill pack icon must be an embedded PNG", 400)
+    try:
+        raw = base64.b64decode(value["content"], validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise SkillPackError("invalid_skill_pack", "skill pack icon has invalid base64", 400) from exc
+    if (
+        len(raw) > 262_144
+        or len(raw) < 33
+        or raw[:16] != b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR"
+        or not 0 < int.from_bytes(raw[16:20], "big") <= 2048
+        or not 0 < int.from_bytes(raw[20:24], "big") <= 2048
+    ):
+        raise SkillPackError("invalid_skill_pack", "skill pack icon exceeds PNG bounds", 400)
+    return copy.deepcopy(value)
 
 
 class SkillPackError(RuntimeError):
@@ -183,7 +212,7 @@ def install_skill_pack(
             or pack.get("toolkit_description")
             or ""
         ).strip(),
-        "toolkit_icon": copy.deepcopy(DEFAULT_SKILL_PACK_ICON),
+        "toolkit_icon": _skill_pack_icon(pack.get("toolkitIcon")),
         "source_label": str(pack.get("sourceLabel") or pack.get("source_label") or "").strip(),
         "skills": skills,
         "installed_at": (now_fn or time.time)(),
