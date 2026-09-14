@@ -1,0 +1,35 @@
+PUPU
+/audit-prep-assistant
+· Trail of Bits Audit Prep
+Expanded template
+· 404 lines
+For this acceptance test, prepare a short audit plan using only the synthetic facts below. Do not read or write files and do not run tools. Project: a calculator library with add(a,b), two unit tests, no network or credentials. Goal: prepare for an external arithmetic-correctness review. Give three concrete preparation priorities, begin with AUDIT283, and explicitly say no security certification is established.
+Requested toolkit is unavailable: skillpack.trailofbits-audit-prep
+/web-design-guidelines
+· Vercel Web Review
+Expanded template
+· 30 lines
+For this acceptance test use only this pasted HTML: <button>Save</button>. Do not access files or websites. State one accessibility improvement, begin with VERCEL283.
+context_v2_failed
+Top
+Prev
+Next
+End
+/
+COMMANDS · ↑↓ · ⏎
+ORGANIZE
+gpt-4.1
+2
+AI can make mistakes, please double-check critical information.
+Plugins
+Workspaces
+CHATS
+Reply with BASELINE283 only. Do not call tools.
+0m
+# Web Interface Guidelines Review files for compliance with Web Interface Guidelines. ## How It Works 1. Fetch the lates
+1m
+# Audit Prep Assistant ## Purpose Helps prepare for a security review using Trail of Bits' checklist. A well-prepared co
+1m
+For this acceptance test, prepare a short audit plan using only the synthetic facts below. Do not read or write files an
+7m
+Settings

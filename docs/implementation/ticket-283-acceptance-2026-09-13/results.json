@@ -1,0 +1,42 @@
+{
+  "checked_at": "2026-09-13T20:42:49.668977+00:00",
+  "issue": 283,
+  "release": 203,
+  "overall": "FAIL",
+  "source": "7b3ad7a8f47ae1ebebc7521e22a59d519de7b385",
+  "candidate_digest": "sha256:1e44164c86132b7eb00b4ded5b8ff2e407a9ee270e2f7bb2065f19e6fcdc517d",
+  "unchain_ref": "4986ad4a42d81d728a3fac250be83a81c20c586d",
+  "wheel_sha256": "sha256:f2e6ddeb85363f1ae54583c7c7ea9d9c6effb1f5c2cba5d7a39c0607d0bec9b7",
+  "runtime_manifest_digest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+  "checks": {
+    "i18n": "PASS",
+    "ui_consistency": "N/A \u2014 catalog-only diff",
+    "model_builder": "N/A \u2014 no model feature changes",
+    "static_rules": "PASS \u2014 catalog/documentation scope; no executable implementation edits",
+    "end_to_end": "FAIL \u2014 both installed instruction-only skill packs are attached as runtime toolkits and rejected"
+  },
+  "observations": {
+    "model": "openai:gpt-4.1",
+    "ordinary_model_control": "PASS: BASELINE283",
+    "trail_skill": "FAIL: Requested toolkit is unavailable: skillpack.trailofbits-audit-prep",
+    "vercel_skill": "FAIL: Requested toolkit is unavailable: skillpack.vercel-web-review",
+    "template_expansion": "PASS for both commands in persisted user messages",
+    "package_smoke": "PASS: 5 checks",
+    "runtime_manifest_correspondence": "PASS",
+    "four_mcp_store_entries": "visible with GET or Set up; remain Unverified",
+    "microsoft_learn_install": "successful in isolated packaged app"
+  },
+  "superseded_setup": {
+    "unchain_ref": "8cd775905758833aa6e7bdcf75d6e4d12c7d9ad1",
+    "reason": "Local dev differed from release workflow pin; artifacts constructor failure is not the final finding. Replaced by separately built selected wheel and repackaged app.",
+    "initial_flags": "Off/default snapshots were rejected by active smoke; final diagnostic snapshot has enable_memory_v2=true with all/all."
+  },
+  "limits": [
+    "No successful skill-driven provider response: both commands fail before provider invocation.",
+    "Paid Brave/Tavily/Firecrawl workflows were not run.",
+    "No Verified security badge is granted.",
+    "No graph/subagent/second-interaction or retry-resume PASS is inferred from catalog checks.",
+    "No signing, notarization or release certification is claimed.",
+    "Original user app and data retained; test profile cleanup is recorded separately."
+  ]
+}
