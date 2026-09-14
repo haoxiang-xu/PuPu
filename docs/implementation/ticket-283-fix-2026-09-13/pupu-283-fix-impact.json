@@ -1,0 +1,147 @@
+{
+  "target": {
+    "id": "Function:unchain_runtime/server/unchain_adapter.py:_build_selected_toolkits",
+    "name": "_build_selected_toolkits",
+    "type": "Function",
+    "filePath": "unchain_runtime/server/unchain_adapter.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 11,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 2,
+    "processes_affected": 0,
+    "modules_affected": 2
+  },
+  "byDepthCounts": {
+    "1": 2,
+    "2": 3,
+    "3": 6
+  },
+  "affected_processes": [],
+  "affected_modules": [
+    {
+      "name": "Tests",
+      "hits": 6,
+      "impact": "direct"
+    },
+    {
+      "name": "Server",
+      "hits": 5,
+      "impact": "direct"
+    }
+  ],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_build_requested_toolkits",
+        "name": "_build_requested_toolkits",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 1,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_build_toolkits_by_ids",
+        "name": "_build_toolkits_by_ids",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_create_agent",
+        "name": "_create_agent",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_resolve_recipe_toolkits",
+        "name": "_resolve_recipe_toolkits",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_stream_recipe_graph_events",
+        "name": "_stream_recipe_graph_events",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_build_developer_agent",
+        "name": "_build_developer_agent",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:_resolve_graph_agent_toolkits",
+        "name": "_resolve_graph_agent_toolkits",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:resume_chat_interaction_events",
+        "name": "resume_chat_interaction_events",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:stream_chat",
+        "name": "stream_chat",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Function:unchain_runtime/server/unchain_adapter.py:stream_chat_events",
+        "name": "stream_chat_events",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Method:unchain_runtime/server/unchain_adapter.py:_WorkflowRecipeSubagentAgent.run",
+        "name": "run",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ]
+  }
+}

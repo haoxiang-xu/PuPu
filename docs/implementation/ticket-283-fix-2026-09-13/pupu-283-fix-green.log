@@ -1,0 +1,21 @@
+...............................................................................................[recipe] cannot build toolkit broken: not available
+.......[recipe] cannot build toolkit ghost: Requested toolkit is unavailable: ghost
+[recipe] toolkit ghost referenced by recipe is not loaded; skipping
+................unchain image redactor failed; applying host fallback
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py", line 4368, in _redact_tool_result_images
+    _redact_result_image_data(result)
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/mock.py", line 1193, in _execute_mock_call
+    raise effect
+RuntimeError: redactor boom
+...........
+----------------------------------------------------------------------
+Ran 129 tests in 0.234s
+
+OK

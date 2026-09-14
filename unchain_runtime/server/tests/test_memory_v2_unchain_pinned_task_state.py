@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 
 from memory_v2_unchain_runtime_factory import (
     PupuUnchainContextMemoryV2HostFactory,
@@ -84,3 +85,25 @@ def test_active_host_bootstraps_and_compiles_restart_safe_pinned_task_state(
     restarted = _host(tmp_path, root_run_id="attempt-after-restart")
     recovered = restarted.task_state.get()
     assert recovered == task_state
+
+
+@pytest.mark.parametrize("content, expected", [
+    ("# Skill\n\nReview this code.\r\n\tKeep the original formatting.", "# Skill Review this code. Keep the original formatting."),
+    ("x" * 40_000, "x" * 32_767 + "…"),
+], ids=["multiline", "over-limit"])
+def test_multiline_and_long_input_bootstraps_without_rewriting_journal(tmp_path, content, expected):
+    host = _host(tmp_path, root_run_id="attempt-pinned")
+    context = _context(phase="bootstrap", objective=content)
+    host.context_module.runtime.bind_context(context)
+    PinnedTaskStateBootstrapHarness(
+        binding_resolver=host.resolve_pinned_task_state_bootstrap,
+    ).build_delta(context)
+    task_state = host.task_state.get()
+    assert task_state.objective == expected
+    prepared = host.attempt(execution_id="execution-pinned", attempt_id="attempt-pinned")
+    events = prepared.bundle.journal.capture_snapshot().events
+    event = next(event for event in events if event.event_id == task_state.source_event_refs[0].resource_id)
+    artifact_bytes = (host.object_directory / event.payload["content_sha256"]).read_bytes()
+    assert json.loads(artifact_bytes)["content"] == content
+    restarted = _host(tmp_path, root_run_id="attempt-after-restart")
+    assert restarted.task_state.get() == task_state

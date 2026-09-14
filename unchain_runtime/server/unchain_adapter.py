@@ -29,7 +29,7 @@ from mcp_toolkits import (
     get_installed_mcp_toolkit,
     list_installed_mcp_toolkits,
 )
-from skill_packs import list_installed_skill_packs
+from skill_packs import SKILL_PACK_ID_PREFIX, get_installed_skill_pack, list_installed_skill_packs
 from custom_provider import (
     CustomProviderConfig,
     CustomProviderError,
@@ -6063,6 +6063,13 @@ def _build_selected_toolkits(
     is_subagent_run = bool(isinstance(options, dict) and options.get("_recipe_subagent_run"))
 
     for toolkit_name in toolkit_names:
+        if toolkit_name.startswith(SKILL_PACK_ID_PREFIX):
+            # Composer commands retain their owning pack's identity for source
+            # attribution. Installed instruction-only packs have no factory or
+            # executable tools; the renderer already expanded their skill body.
+            if get_installed_skill_pack(toolkit_name) is None:
+                raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+            continue
         if toolkit_name.startswith(_BUILTIN_TOOLKIT_PREFIX):
             builtin_instance = _build_builtin_toolkit(
                 toolkit_name,
