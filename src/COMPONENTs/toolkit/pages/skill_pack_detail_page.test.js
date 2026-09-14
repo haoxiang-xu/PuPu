@@ -48,6 +48,12 @@ const PACK = {
   ],
 };
 
+test.each([false, true])("renders a supplied skill icon in theme dark=%s", (isDark) => {
+  const icon = { type: "file", mimeType: "image/png", content: "aWNvbg==" };
+  const { container } = render(<SkillPackDetailPage pack={{ ...PACK, icon }} isDark={isDark} />);
+  expect(container.querySelector('img[src="data:image/png;base64,aWNvbg=="]')).toBeInTheDocument();
+});
+
 describe("SkillPackDetailPage — provenance-strip detail (option B)", () => {
   test("renders header, provenance strip, commands and about", () => {
     render(<SkillPackDetailPage pack={PACK} isDark={false} onBack={() => {}} />);

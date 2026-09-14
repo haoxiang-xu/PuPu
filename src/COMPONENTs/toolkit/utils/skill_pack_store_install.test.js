@@ -3,6 +3,7 @@ import {
   installStoreSkillPack,
 } from "./skill_pack_store_install";
 import api from "../../../SERVICEs/api";
+import curation from "../../../SERVICEs/plugin_store_curation.json";
 
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
@@ -40,6 +41,23 @@ const GOOD_SCAN = {
     },
   ],
 };
+
+test("Ponytail is installable with four pinned commands and its upstream icon", async () => {
+  const entry = listStoreSkillPacks().find((pack) => pack.id === "skillpack.ponytail");
+  expect(entry).toBeDefined();
+  expect(entry.source.repo).toBe("DietrichGebert/ponytail");
+  expect(entry.commandPreviews.map((row) => row.name)).toEqual([
+    "ponytail", "ponytail-review", "ponytail-audit", "ponytail-debt",
+  ]);
+  expect(entry.manifest).toHaveLength(4);
+  api.unchain.downloadSkillRepo.mockResolvedValue({ ok: true, dir: "/tmp/ponytail" });
+  api.unchain.scanSkillDir.mockResolvedValue(GOOD_SCAN);
+  api.unchain.installSkillPack.mockResolvedValue({});
+  const pack = await installStoreSkillPack(entry);
+  const upstreamIcon = curation.skillPacks.find((row) => row.id === entry.id).icon;
+  expect(pack.toolkitIcon).toEqual(upstreamIcon);
+  expect(api.unchain.installSkillPack).toHaveBeenLastCalledWith(pack);
+});
 
 describe("listStoreSkillPacks — fail-closed curation gate", () => {
   test("the shipped curation entry passes its own gate", () => {

@@ -1,0 +1,31 @@
+PUPU
+/ponytail
+· Ponytail
+Expanded template
+· 101 lines
+Use only this synthetic task; do not read files, run commands, or call tools. In JavaScript, return the simplest function that adds a and b, with no dependencies. Include PONYTAIL_OK in a code comment.
+Done · 5.1s
+Memory V2 · Complete
+detail
+Active
+8,467 in · 58 out · 8,525 total
+JAVASCRIPT
+Copy
+function add(a, b) { return a + b; } // PONYTAIL_OK
+
+
+→ skipped: checks, types, docs, error handling, all unnecessary for JS add. Add when inputs may not be numbers or you need stricter guarantees.
+
+/
+COMMANDS · ↑↓ · ⏎
+ORGANIZE
+gpt-4.1
+1
+1
+AI can make mistakes, please double-check critical information.
+Plugins
+Workspaces
+CHATS
+# Ponytail You are a lazy senior developer. Lazy means efficient, not careless. You have seen every over-engineered code
+0m
+Settings

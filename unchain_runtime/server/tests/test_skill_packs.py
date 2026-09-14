@@ -1,4 +1,6 @@
 import os
+import base64
+import json
 import sys
 import tempfile
 import unittest
@@ -127,6 +129,36 @@ class SkillPackStoreTests(unittest.TestCase):
         result = install_skill_pack(pack, data_dir=self.data_dir)
         names = [s["name"] for s in result["toolkit"]["skills"]]
         self.assertEqual(names, ["good"])
+
+
+class SkillPackIconTests(unittest.TestCase):
+    def test_real_curated_icon_survives_cold_read(self):
+        curation = json.loads((SERVER_ROOT.parents[1] / "src/SERVICEs/plugin_store_curation.json").read_text())
+        entry = next(pack for pack in curation["skillPacks"] if pack["id"] == "skillpack.ponytail")
+        with tempfile.TemporaryDirectory() as tmp:
+            pack = {**_pack(toolkit_id=entry["id"]), "toolkitIcon": entry["icon"]}
+            installed = install_skill_pack(pack, data_dir=tmp)["toolkit"]
+            self.assertEqual(installed["toolkitIcon"], entry["icon"])
+            self.assertEqual(get_installed_skill_pack(entry["id"], data_dir=tmp)["toolkitIcon"], entry["icon"])
+
+    def test_invalid_icon_never_writes_a_pack(self):
+        curation = json.loads((SERVER_ROOT.parents[1] / "src/SERVICEs/plugin_store_curation.json").read_text())
+        icon = next(pack for pack in curation["skillPacks"] if pack["id"] == "skillpack.ponytail")["icon"]
+        raw = base64.b64decode(icon["content"])
+        wide = raw[:16] + (2049).to_bytes(4, "big") + raw[20:]
+        invalid = [
+            {}, {**icon, "url": "https://example.invalid/icon.png"},
+            {**icon, "mimeType": "image/svg+xml"}, {**icon, "type": "url"},
+            {**icon, "content": "%%%"}, {**icon, "content": base64.b64encode(b"not a PNG").decode()},
+            {**icon, "content": "A" * 349_532},
+            {**icon, "content": base64.b64encode(wide).decode()},
+        ]
+        for value in invalid:
+            with self.subTest(keys=list(value)), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(SkillPackError) as error:
+                    install_skill_pack({**_pack(), "toolkitIcon": value}, data_dir=tmp)
+                self.assertEqual(error.exception.code, "invalid_skill_pack")
+                self.assertEqual(list_installed_skill_packs(data_dir=tmp), [])
 
 
 class SkillPackRuntimeTests(unittest.TestCase):

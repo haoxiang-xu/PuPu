@@ -6,6 +6,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../../settings/appearance";
 import PluginTrustBadge from "../components/plugin_trust_badge";
+import ToolkitIcon from "../components/toolkit_icon";
 import { toast } from "../../../SERVICEs/toast";
 import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 import { installStoreSkillPack } from "../utils/skill_pack_store_install";
@@ -145,7 +146,11 @@ const SkillPackDetailPage = ({ pack, isDark = false, onBack }) => {
               background: isDark ? "rgba(100,120,246,0.13)" : "rgba(100,120,246,0.10)",
             }}
           >
-            <Icon src="command" color={SKILL_TINT} style={{ width: 23, height: 23 }} />
+            <ToolkitIcon
+              icon={pack?.icon || { type: "builtin", name: "command", color: SKILL_TINT }}
+              size={pack?.icon ? 40 : 23}
+              style={{ objectFit: "contain" }}
+            />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

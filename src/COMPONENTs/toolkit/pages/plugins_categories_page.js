@@ -467,7 +467,7 @@ const PluginsCategoriesPage = ({
             <PluginListRow
               key={pack.id}
               trustEntry={pack}
-              icon={{ type: "builtin", name: "command", color: "#6478f6" }}
+              icon={pack.icon || { type: "builtin", name: "command", color: "#6478f6" }}
               isDark={isDark}
               name={title}
               command={firstCommand ? `/${firstCommand}` : undefined}
