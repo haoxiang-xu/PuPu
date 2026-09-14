@@ -81,6 +81,17 @@ class ShippedProviderWireContractTests(unittest.TestCase):
                 cfg = cp.parse_custom_provider({"custom_provider": provider})
                 self.assertEqual(cfg.default_model, declared)
 
+    def test_kimi_non_thinking_tool_default_survives_strict_consumer(self):
+        for slug in ("kimi", "kimi-cn"):
+            cfg = cp.parse_custom_provider({"custom_provider": self.providers[slug]})
+            for model_id, model in cfg.models.items():
+                if model_id == "kimi-k2.7-code":
+                    continue
+                with self.subTest(slug=slug, model=model_id):
+                    self.assertEqual(
+                        model["default_payload"], {"thinking": {"type": "disabled"}}
+                    )
+
     def test_both_auth_modes_shipped_today_are_admitted(self):
         modes = {p["auth"]["mode"] for p in self.providers.values()}
         # DeepSeek is x-api-key, Kimi is bearer — the two shipped today. If a

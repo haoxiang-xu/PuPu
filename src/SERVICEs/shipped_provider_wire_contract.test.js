@@ -62,6 +62,15 @@ const NEVER_ON_THE_WIRE = [
 ];
 
 describe("BC-002 — shipped provider wire shape (producer)", () => {
+  test("Kimi models that support non-thinking mode receive the compatible tool default", () => {
+    ["kimi", "kimi-cn"].forEach((slug) => {
+      const payload = buildProviderInjectionPayload(resolveShippedDefinition(slug));
+      payload.models.filter((model) => model.id !== "kimi-k2.7-code").forEach((model) => {
+        expect(model.default_payload).toEqual({ thinking: { type: "disabled" } });
+      });
+    });
+  });
+
   test("every shipped provider emits only allowed wire keys", () => {
     listShippedSlugs().forEach((slug) => {
       const payload = buildProviderInjectionPayload(
