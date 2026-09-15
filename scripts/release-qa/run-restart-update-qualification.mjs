@@ -389,13 +389,13 @@ export async function runRestartUpdateQualification({
   let runtime;
   let server;
   try {
-    expectedCandidate = installTargetPackage({
+    expectedCandidate = await installTargetPackage({
       targetId,
       installerPath: candidateInstallerPath,
       tempRoot: path.join(tempRoot, "expected-n"),
     });
     const expected = expectedIdentity({ installed: expectedCandidate, targetId });
-    installedFixture = installTargetPackage({
+    installedFixture = await installTargetPackage({
       targetId,
       installerPath: path.resolve(fixturePath),
       tempRoot: path.join(tempRoot, "installed-n-minus-one"),
