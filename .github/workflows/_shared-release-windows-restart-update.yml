@@ -187,6 +187,7 @@ jobs:
           UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
           UNCHAIN_ARTIFACT_SOURCE_REF: ${{ steps.fixture_unchain.outputs.unchain_revision }}
           UNCHAIN_BUILD_VENV: ${{ runner.temp }}\pupu-fixture-unchain-${{ github.run_id }}
+          PUPU_BUILD_VERSION: ${{ inputs.from_version }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           WIN_CSC_LINK: ""
           CSC_LINK: ""

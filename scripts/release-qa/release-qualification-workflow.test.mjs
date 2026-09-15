@@ -61,6 +61,7 @@ test("installed qualification workflow verifies retained bytes and seals a non-p
   assert.match(windowsRestartWorkflow, /repository: haoxiang-xu\/unchain/);
   assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\\fixture-unchain/);
   assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_REF: \$\{\{ steps\.fixture_unchain\.outputs\.unchain_revision \}\}/);
+  assert.match(windowsRestartWorkflow, /PUPU_BUILD_VERSION: \$\{\{ inputs\.from_version \}\}/);
   assert.doesNotMatch(windowsRestartWorkflow, /\n\s+UNCHAIN_SOURCE_PATH:/);
   assert.match(windowsRestartWorkflow, /\$ErrorActionPreference = "Stop"/);
   assert.match(windowsRestartWorkflow, /\$PSNativeCommandUseErrorActionPreference = \$true/);
