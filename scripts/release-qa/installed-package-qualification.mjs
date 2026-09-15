@@ -380,11 +380,63 @@ export const installMacDmg = ({ installerPath, tempRoot }) => {
   }
 };
 
-export const installWindowsNsis = ({ installerPath, tempRoot }) => {
+const compactProcessDetail = (value) => String(value || "")
+  .replace(/\s+/g, " ")
+  .trim()
+  .slice(-4_000);
+
+const windowsNsisAttemptDiagnostic = (result, attempt, maxAttempts) => {
+  const detail = compactProcessDetail(
+    result.stderr || result.stdout || result.error?.message || "no process output",
+  );
+  return `attempt ${attempt}/${maxAttempts}: status=${result.status ?? "null"} ` +
+    `signal=${result.signal ?? "null"} error_code=${result.error?.code || "none"} detail=${detail}`;
+};
+
+export const runWindowsNsisInstaller = async (
+  installerPath,
+  installRoot,
+  {
+    spawnInstaller = spawnSync,
+    makeDirectory = fs.mkdirSync,
+    remove = fs.rmSync,
+    pause = sleep,
+    maxAttempts = 3,
+    retryDelayMs = 2_000,
+  } = {},
+) => {
+  requirePositiveInteger(maxAttempts, "Windows NSIS installer maxAttempts");
+  const diagnostics = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    makeDirectory(installRoot, { recursive: true });
+    const result = spawnInstaller(installerPath, ["/S", `/D=${installRoot}`], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (!result.error && result.status === 0) return;
+
+    diagnostics.push(windowsNsisAttemptDiagnostic(result, attempt, maxAttempts));
+    if (attempt === maxAttempts) break;
+    try {
+      remove(installRoot, { recursive: true, force: true, maxRetries: 0 });
+    } catch (cleanupError) {
+      throw new Error(
+        `Windows NSIS installer failed: ${diagnostics.join("; ")}; ` +
+        `retry cleanup failed: ${cleanupError.message || String(cleanupError)}`,
+      );
+    }
+    console.warn(
+      `[release-qualification] Windows NSIS install failed; retrying clean install (${attempt + 1}/${maxAttempts})`,
+    );
+    await pause(retryDelayMs);
+  }
+  throw new Error(`Windows NSIS installer failed: ${diagnostics.join("; ")}`);
+};
+
+export const installWindowsNsis = async ({ installerPath, tempRoot }) => {
   if (process.platform !== "win32") throw new Error("NSIS qualification requires Windows");
   const installRoot = path.join(tempRoot, "installed");
-  fs.mkdirSync(installRoot, { recursive: true });
-  runChecked(installerPath, ["/S", `/D=${installRoot}`]);
+  await runWindowsNsisInstaller(installerPath, installRoot);
   const resourceRoot = appRootFromAsar(installRoot);
   const executablePath = path.join(path.dirname(resourceRoot), "PuPu.exe");
   const identity = inspectResources({ resourceRoot, executablePath, sidecarPlatform: "windows" });
@@ -677,7 +729,7 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       fs.mkdirSync(formRoot, { recursive: true });
       let installed;
       if (format === "dmg") installed = installMacDmg({ installerPath, tempRoot: formRoot });
-      else if (format === "exe") installed = installWindowsNsis({ installerPath, tempRoot: formRoot });
+      else if (format === "exe") installed = await installWindowsNsis({ installerPath, tempRoot: formRoot });
       else if (format === "AppImage") installed = installLinuxAppImage({ installerPath, tempRoot: formRoot });
       else if (format === "deb") installed = installLinuxDeb({ installerPath, tempRoot: formRoot });
       else throw new Error(`installed qualification has no installer for ${format}`);
