@@ -174,6 +174,13 @@ jobs:
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
             -r unchain_runtime/server/requirements.txt
 
+      - name: Reproduce immutable N-1 release feature snapshot
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/qualification-fixture-snapshot.mjs prepare \
+            --source ../fixture-source \
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+
       - name: Write sole permitted signed-fixture configuration difference
         working-directory: pupu
         run: |
@@ -191,6 +198,8 @@ jobs:
           UNCHAIN_ARTIFACT_SOURCE_REF: ${{ steps.fixture_unchain.outputs.unchain_revision }}
           UNCHAIN_BUILD_VENV: ${{ runner.temp }}\pupu-fixture-unchain-${{ github.run_id }}
           PUPU_BUILD_VERSION: ${{ inputs.from_version }}
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: .release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+          PUPU_REQUIRE_BUILD_FEATURE_SNAPSHOT: "1"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           WIN_CSC_LINK: ""
           CSC_LINK: ""
@@ -199,6 +208,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/build-web.cjs --print-flags
           npm run version:prepare-build
           npm run build:unchain:win
           npm run build:web
@@ -218,6 +228,9 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/release-qa/qualification-fixture-snapshot.mjs verify `
+            --asar "$env:FIXTURE_PAYLOAD\resources\app.asar" `
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
           $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
           node scripts/release-qa/prepare-qualification-fixture-app-update.mjs `
             --app-update "$appUpdate" `
@@ -268,6 +281,9 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/release-qa/qualification-fixture-snapshot.mjs verify `
+            --asar "$env:FIXTURE_PAYLOAD\resources\app.asar" `
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
           $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
           node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
             --app-update "$appUpdate" `
@@ -319,12 +335,15 @@ jobs:
         with:
           name: restart-update-qualification-windows-x64
           if-no-files-found: warn
+          include-hidden-files: true
           retention-days: 30
           path: |
             pupu/restart-update-qualification.json
             pupu/qualification-feed-server.v1.json
             pupu/windows-restart-fixture.v1.json
             fixture-source/windows-signing-qualification.v1.json
+            fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+            fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256
 
       - name: Enforce real Windows restart-update result
         if: always()
