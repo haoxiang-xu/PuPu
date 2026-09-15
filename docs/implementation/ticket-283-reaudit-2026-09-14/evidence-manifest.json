@@ -1,0 +1,72 @@
+[
+  {
+    "path": "README.md",
+    "sha256": "06115b275bd613bbc5cd6679db4b9b5b578933ff6828c03328887c58896fda5d",
+    "bytes": 6743
+  },
+  {
+    "path": "cleanup.json",
+    "sha256": "168d5a6ee1c4b5bf21754981d5776e6b0db88a9ca18c5774f6c537cb966170d1",
+    "bytes": 132
+  },
+  {
+    "path": "cold-catalog.json",
+    "sha256": "b01c5149f703a9fb509f89ef9bdc7a0f2e91231278fa5aeb659224aade71900e",
+    "bytes": 12909
+  },
+  {
+    "path": "i18n.json",
+    "sha256": "00a87c6aface6ddfce6de7b50244b98c3ad7441a6f5308f013a8561a6e127b90",
+    "bytes": 3153
+  },
+  {
+    "path": "installed-catalog.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  {
+    "path": "package-smoke.json",
+    "sha256": "fead6085517b284fabc6f91cc0efccd09b9d3ad73843ff5c5c4be5c59c666263",
+    "bytes": 498
+  },
+  {
+    "path": "regression.log",
+    "sha256": "90671673faf6046c3e65288b2b919757476a7163d65fef64e79ceb40147ac2ce",
+    "bytes": 108
+  },
+  {
+    "path": "results.json",
+    "sha256": "4da755580e2bfee904a35aeb7193131abbd35b7075798cb5dac7a3ac626a55fe",
+    "bytes": 1648
+  },
+  {
+    "path": "runtime-status.json",
+    "sha256": "21eacf94a24f77bd64f75fcf3f215ae4ff5f9ee574ee493bfa210a849a2ee2c3",
+    "bytes": 1474
+  },
+  {
+    "path": "synthetic-messages.json",
+    "sha256": "82202e5988eea7aa88ec461c0118bb38513ae403f8ba4ddcc69630f222fc719a",
+    "bytes": 85634
+  },
+  {
+    "path": "trail-ui-output.png",
+    "sha256": "a7fd199fc3709257b3c3b575f2a332182fc234541ef0af20735fc6b0066e833c",
+    "bytes": 212759
+  },
+  {
+    "path": "trail-ui-output.txt",
+    "sha256": "b08ca2df321720e68ff0a420262dc974ff305a5d616bf7cee31bdb13195ee27d",
+    "bytes": 3090
+  },
+  {
+    "path": "vercel-ui.png",
+    "sha256": "d435ae571eb1a74b9ed517c44aab1ff531c0b7c19dc2cfaa217f791447ac9110",
+    "bytes": 173353
+  },
+  {
+    "path": "vercel-ui.txt",
+    "sha256": "1a2154cfd9e9f714bbb86b43759f8e081841743726caa0d2e463af06bd163206",
+    "bytes": 974
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-09-14T23:10:05.090281+00:00",
+  "issue": 283,
+  "sourceHead": "95ba8cab262cc63ff9930bb7b9ea6156c05641a2",
+  "candidateDigest": "sha256:fdbd68ed188297c14d6f4450603684b2ffeb458c8c78113b42c46386bacca39d",
+  "wheelSha256": "sha256:f2e6ddeb85363f1ae54583c7c7ea9d9c6effb1f5c2cba5d7a39c0607d0bec9b7",
+  "runtimeManifestDigest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+  "packagedEntriesVerified": 6872,
+  "productSourceMatchesPackagedSource": true,
+  "realModel": "openai:gpt-4.1",
+  "liveResults": {
+    "trailFirst": "done: TRAIL283_REAUDIT",
+    "trailSecond": "done: SECOND283",
+    "vercelFirst": "done: VERCEL283",
+    "coldInstalledPacks": 2
+  },
+  "freshChecks": {
+    "regressions": 26,
+    "subtests": 11,
+    "packagedSmoke": 5,
+    "i18n": "PASS,774 English keys,10 translated locales"
+  },
+  "scope": "Marketplace discovery/admission and instruction-only skill invocation repair; not a security or paid-provider certification",
+  "limits": [
+    "Brave/Tavily/Firecrawl valid-key calls NOT_RUN.",
+    "No actual workspace tool execution, current-guidelines web fetch or quality certification of generated advice.",
+    "Model response contains illustrative completion claims unsupported by this probe; none count as executed tests or an upstream security verdict.",
+    "Live durable interaction replay and signed release qualification NOT_RUN."
+  ],
+  "testEnvironmentNote": "Initial optional regression attempts had missing test/runtime modules; final run used existing .venv dependencies and a separate installation of the same unchanged wheel. No product fix or wheel rebuild."
+}

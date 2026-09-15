@@ -1,0 +1,29 @@
+PUPU
+/web-design-guidelines
+· Vercel Web Review
+Expanded template
+· 30 lines
+For this acceptance test use only this pasted HTML: <button>Save</button>. Do not access files or websites. State one accessibility improvement, begin with VERCEL283.
+Done · 3.8s
+Memory V2 · Complete
+detail
+Active
+6,095 in · 62 out · 6,157 total
+
+VERCEL283: 1: The element should have an accessible name describing its action for screen readers. To improve accessibility, use a descriptive label (e.g.,Save changes) or add an aria-label attribute if the button icon or context is not sufficient.
+
+/
+COMMANDS · ↑↓ · ⏎
+ORGANIZE
+gpt-4.1
+1
+1
+AI can make mistakes, please double-check critical information.
+Plugins
+Workspaces
+CHATS
+# Web Interface Guidelines Review files for compliance with Web Interface Guidelines. ## How It Works 1. Fetch the lates
+0m
+# Audit Prep Assistant ## Purpose Helps prepare for a security review using Trail of Bits' checklist. A well-prepared co
+0m
+Settings
