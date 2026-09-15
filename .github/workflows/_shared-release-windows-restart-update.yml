@@ -184,7 +184,8 @@ jobs:
         shell: pwsh
         working-directory: fixture-source
         env:
-          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: ${{ steps.fixture_unchain.outputs.unchain_revision }}
           UNCHAIN_BUILD_VENV: ${{ runner.temp }}\pupu-fixture-unchain-${{ github.run_id }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           WIN_CSC_LINK: ""
@@ -192,6 +193,8 @@ jobs:
           WIN_CSC_KEY_PASSWORD: ""
           CSC_KEY_PASSWORD: ""
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           npm run version:prepare-build
           npm run build:unchain:win
           npm run build:web

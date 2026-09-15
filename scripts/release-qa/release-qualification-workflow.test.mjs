@@ -59,6 +59,11 @@ test("installed qualification workflow verifies retained bytes and seals a non-p
   assert.match(windowsRestartWorkflow, /FEED_PORT: "38193"/);
   assert.match(windowsRestartWorkflow, /gh release download "\$FROM_TAG"/);
   assert.match(windowsRestartWorkflow, /repository: haoxiang-xu\/unchain/);
+  assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\\fixture-unchain/);
+  assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_REF: \$\{\{ steps\.fixture_unchain\.outputs\.unchain_revision \}\}/);
+  assert.doesNotMatch(windowsRestartWorkflow, /\n\s+UNCHAIN_SOURCE_PATH:/);
+  assert.match(windowsRestartWorkflow, /\$ErrorActionPreference = "Stop"/);
+  assert.match(windowsRestartWorkflow, /\$PSNativeCommandUseErrorActionPreference = \$true/);
   assert.match(windowsRestartWorkflow, /write-qualification-fixture-build-config\.mjs/);
   assert.match(windowsRestartWorkflow, /validate-qualification-fixture-app-update\.mjs/);
   assert.match(windowsRestartWorkflow, /uses: \.\/pupu\/\.github\/actions\/windows-artifact-signing/);
