@@ -169,7 +169,10 @@ jobs:
 
       - name: Install immutable N-1 build dependencies
         working-directory: fixture-source
-        run: npm ci
+        run: |
+          npm ci
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
+            -r unchain_runtime/server/requirements.txt
 
       - name: Write sole permitted signed-fixture configuration difference
         working-directory: pupu

@@ -62,6 +62,20 @@ test("installed qualification workflow verifies retained bytes and seals a non-p
   assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\\fixture-unchain/);
   assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_REF: \$\{\{ steps\.fixture_unchain\.outputs\.unchain_revision \}\}/);
   assert.match(windowsRestartWorkflow, /PUPU_BUILD_VERSION: \$\{\{ inputs\.from_version \}\}/);
+  const windowsRestartDocument = YAML.parse(windowsRestartWorkflow);
+  const windowsRestartSteps = windowsRestartDocument.jobs["windows-restart-update"].steps;
+  const installFixtureDependenciesIndex = windowsRestartSteps.findIndex(
+    (step) => step.name === "Install immutable N-1 build dependencies",
+  );
+  const buildFixtureIndex = windowsRestartSteps.findIndex(
+    (step) => step.name === "Build unsigned unpacked N-1 Windows payload from immutable source",
+  );
+  assert.ok(installFixtureDependenciesIndex >= 0);
+  assert.ok(buildFixtureIndex > installFixtureDependenciesIndex);
+  assert.match(
+    windowsRestartSteps[installFixtureDependenciesIndex].run,
+    /python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \\\s+-r unchain_runtime\/server\/requirements\.txt/,
+  );
   assert.doesNotMatch(windowsRestartWorkflow, /\n\s+UNCHAIN_SOURCE_PATH:/);
   assert.match(windowsRestartWorkflow, /\$ErrorActionPreference = "Stop"/);
   assert.match(windowsRestartWorkflow, /\$PSNativeCommandUseErrorActionPreference = \$true/);
