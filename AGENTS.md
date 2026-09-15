@@ -68,7 +68,6 @@ These are load-bearing — violating them breaks the build or the architecture. 
 **General:**
 - Run GitNexus impact analysis before editing any symbol (see the GitNexus block above). Warn on HIGH / CRITICAL.
 - Match the surrounding code's style and idiom. No unrelated refactoring.
-- Do NOT `git commit` — leave the dirty tree for the project owner to commit.
 - The agent currently implementing a direct Release child may refine that issue's GitHub body before or during implementation. `[DRAFT]` is initial intent, not a delivery gate; this body-only authority does not permit scope, title, label, Project-field, assignee, parent/child, release-membership, defer/cancel, or closure changes. GitHub assignee alone does not establish implementation responsibility.
 
 **Removed mechanisms:** Quorum/court workflows, code-owner routing, role confirmations, case tooling, and their role definitions and records have been removed. Do not recreate them or use them as a delivery gate. Historical material is available through Git history only.

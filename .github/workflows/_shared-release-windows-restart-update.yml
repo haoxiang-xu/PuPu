@@ -210,13 +210,18 @@ jobs:
           }
           "payload=$payload" >> $env:GITHUB_OUTPUT
 
-      - name: Validate unsigned fixture updater binding before signing
+      - name: Prepare and validate unsigned fixture updater binding before signing
         shell: pwsh
         working-directory: pupu
         env:
           FIXTURE_PAYLOAD: ${{ steps.build_fixture.outputs.payload }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/prepare-qualification-fixture-app-update.mjs `
+            --app-update "$appUpdate" `
+            --feed-url "http://127.0.0.1:$env:FEED_PORT/"
           node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
             --app-update "$appUpdate" `
             --feed-url "http://127.0.0.1:$env:FEED_PORT/"
@@ -254,6 +259,19 @@ jobs:
           azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
           azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
           azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+      - name: Validate fixture updater binding after installer packaging
+        shell: pwsh
+        working-directory: pupu
+        env:
+          FIXTURE_PAYLOAD: ${{ steps.fixture_paths.outputs.payload }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
+            --app-update "$appUpdate" `
+            --feed-url "http://127.0.0.1:$env:FEED_PORT/"
 
       - name: Seal signed N-1 fixture identity
         id: fixture_evidence

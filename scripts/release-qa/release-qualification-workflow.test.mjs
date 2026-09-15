@@ -16,6 +16,27 @@ const windowsRestartWorkflow = fs.readFileSync(
   "utf8",
 );
 
+test("fixture updater config is materialized before signing and revalidated after prepackaged installer builds", () => {
+  const steps = YAML.parse(windowsRestartWorkflow).jobs["windows-restart-update"].steps;
+  const build = steps.findIndex((step) => step.id === "build_fixture");
+  const prepare = steps.findIndex((step) => step.run?.includes("prepare-qualification-fixture-app-update.mjs"));
+  const move = steps.findIndex((step) => step.id === "fixture_paths");
+  const sign = steps.findIndex((step) => step.uses === "./pupu/.github/actions/windows-artifact-signing");
+  const validate = steps.findIndex((step) => step.name === "Validate fixture updater binding after installer packaging");
+  const seal = steps.findIndex((step) => step.id === "fixture_evidence");
+  assert.ok(build >= 0 && build < prepare && prepare < move && move < sign && sign < validate && validate < seal);
+  assert.equal(steps[prepare].env.FIXTURE_PAYLOAD, "${{ steps.build_fixture.outputs.payload }}");
+  assert.equal(steps[validate].env.FIXTURE_PAYLOAD, "${{ steps.fixture_paths.outputs.payload }}");
+  for (const index of [prepare, validate]) {
+    assert.equal(steps[index]["working-directory"], "pupu");
+    assert.equal(steps[index]["continue-on-error"], undefined);
+    assert.match(steps[index].run, /\$PSNativeCommandUseErrorActionPreference = \$true/);
+    assert.match(steps[index].run, /validate-qualification-fixture-app-update\.mjs/);
+    assert.match(steps[index].run, /--feed-url "http:\/\/127\.0\.0\.1:\$env:FEED_PORT\/"/);
+  }
+  assert.doesNotMatch(steps[validate].run, /prepare-qualification-fixture-app-update/);
+});
+
 test("installed qualification workflow verifies retained bytes and seals a non-publishing receipt", () => {
   for (const [label, source] of [
     ["installed qualification workflow", workflow],
