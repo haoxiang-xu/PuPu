@@ -56,9 +56,23 @@ export function createQualificationFixtureBuildConfig({ sourcePackage, feedUrl }
   if (!sourcePackage.build || typeof sourcePackage.build !== "object" || Array.isArray(sourcePackage.build)) {
     throw new Error("qualification fixture source package must declare build config");
   }
+  if (typeof sourcePackage.main !== "string" || !sourcePackage.main ||
+      sourcePackage.main !== sourcePackage.main.trim()) {
+    throw new Error("qualification fixture source package must declare a trimmed application entry point");
+  }
+  if (sourcePackage.build.extraMetadata !== undefined &&
+      (!sourcePackage.build.extraMetadata ||
+       typeof sourcePackage.build.extraMetadata !== "object" ||
+       Array.isArray(sourcePackage.build.extraMetadata))) {
+    throw new Error("qualification fixture source build extraMetadata must be an object");
+  }
   const normalizedFeedUrl = validateRunnerLoopbackFeedUrl(feedUrl);
   validateSourcePublishConfig(sourcePackage.build.publish);
   const config = structuredClone(sourcePackage.build);
+  config.extraMetadata = {
+    ...(config.extraMetadata || {}),
+    main: sourcePackage.main,
+  };
   config.publish = {
     provider: "generic",
     url: normalizedFeedUrl,

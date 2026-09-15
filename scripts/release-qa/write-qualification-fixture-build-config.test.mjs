@@ -19,13 +19,37 @@ test("qualification fixture build config changes only the signed package updater
     sourcePackage,
     feedUrl: "http://127.0.0.1:42871/",
   });
-  const { publish: ignoredSourcePublish, ...sourceWithoutPublish } = sourcePackage.build;
-  const { publish: fixturePublish, ...fixtureWithoutPublish } = config;
+  const {
+    publish: ignoredSourcePublish,
+    extraMetadata: sourceExtraMetadata = {},
+    ...sourceWithoutPublish
+  } = sourcePackage.build;
+  const {
+    publish: fixturePublish,
+    extraMetadata: fixtureExtraMetadata,
+    ...fixtureWithoutPublish
+  } = config;
   assert.deepEqual(fixtureWithoutPublish, sourceWithoutPublish);
+  assert.deepEqual(fixtureExtraMetadata, {
+    ...sourceExtraMetadata,
+    main: sourcePackage.main,
+  });
   assert.deepEqual(fixturePublish, {
     provider: "generic",
     url: "http://127.0.0.1:42871/",
   });
+});
+
+test("qualification fixture build config fails closed without a package entry point", () => {
+  const sourcePackage = JSON.parse(fs.readFileSync(PACKAGE_PATH, "utf8"));
+  delete sourcePackage.main;
+  assert.throws(
+    () => createQualificationFixtureBuildConfig({
+      sourcePackage,
+      feedUrl: "http://127.0.0.1:42871/",
+    }),
+    /entry point/,
+  );
 });
 
 test("qualification fixture config rejects every feed other than a runner-loopback root endpoint", () => {
