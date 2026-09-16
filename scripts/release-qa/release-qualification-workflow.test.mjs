@@ -16,6 +16,22 @@ const windowsRestartWorkflow = fs.readFileSync(
   "utf8",
 );
 
+test("restart failure diagnostics survive a failed runtime step without becoming a passing receipt", () => {
+  const steps = YAML.parse(windowsRestartWorkflow).jobs["windows-restart-update"].steps;
+  const runtime = steps.find((step) => step.id === "restart_update");
+  assert.match(runtime.run, /--diagnostics restart-update-diagnostics\.json/);
+  assert.match(runtime.run, /--out restart-update-qualification\.json/);
+  assert.equal(runtime["working-directory"], "pupu");
+  const upload = steps.find((step) => step.name === "Upload Windows restart-update evidence only");
+  assert.equal(upload.if, "always()");
+  assert.ok(upload.with.path.trim().split(/\s+/).includes("pupu/restart-update-diagnostics.json"));
+  const enforce = steps.find((step) => step.name === "Enforce real Windows restart-update result");
+  assert.equal(enforce.if, "always()");
+  assert.equal(enforce.env.RESTART_UPDATE_OUTCOME, "${{ steps.restart_update.outcome }}");
+  assert.match(enforce.run, /\[ "\$RESTART_UPDATE_OUTCOME" != "success" \]/);
+  assert.match(enforce.run, /exit 1/);
+});
+
 test("fixture updater config is materialized before signing and revalidated after prepackaged installer builds", () => {
   const steps = YAML.parse(windowsRestartWorkflow).jobs["windows-restart-update"].steps;
   const build = steps.findIndex((step) => step.id === "build_fixture");

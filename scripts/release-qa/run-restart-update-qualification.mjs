@@ -90,7 +90,7 @@ const parsePosixProcessTable = (source) => String(source || "")
 const readProcessTable = () => {
   if (process.platform === "win32") {
     const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress";
-    const source = runChecked("powershell", ["-NoProfile", "-NonInteractive", "-Command", command]);
+    const source = runChecked("powershell", ["-NoProfile", "-NonInteractive", "-Command", command], { timeout: 30_000 });
     const parsed = JSON.parse(source || "[]");
     return (Array.isArray(parsed) ? parsed : [parsed]).map((row) => ({
       pid: Number(row.ProcessId),
@@ -126,11 +126,23 @@ const processAlive = (pid) => {
 };
 
 const terminateProcesses = async (pids) => {
-  const targets = [...new Set(pids)].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid);
+  const targets = [...new Set(pids)].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid);
   if (process.platform === "win32") {
+    const failures = [];
     for (const pid of targets) {
-      if (processAlive(pid)) spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true });
+      if (!processAlive(pid)) continue;
+      try {
+        const result = spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, timeout: 15_000 });
+        // Another tree termination can legitimately remove the process before
+        // taskkill gets to it. A still-live failed target is not a success.
+        if ((result.error || result.status !== 0) && processAlive(pid)) {
+          throw new Error(`taskkill pid=${pid} status=${result.status} signal=${result.signal || "none"}: ${String(
+            result.stderr || result.stdout || result.error || "unknown failure",
+          ).trim()}`);
+        }
+      } catch (error) { failures.push(error.message || String(error)); }
     }
+    if (failures.length) throw new Error(failures.join("; "));
     return;
   }
   for (const pid of targets) {
@@ -173,7 +185,7 @@ const installTargetPackage = ({ targetId, installerPath, tempRoot }) => {
 
 const sidecarPlatformForTarget = (targetId) => targetId.startsWith("macos-") ? "macos" : "windows";
 
-const connectRenderer = async ({ debugPort, earlyExit, output = [] }) => {
+const connectRenderer = async ({ debugPort, earlyExit, output = [], onBrowser = () => {} }) => {
   const endpoint = `http://127.0.0.1:${debugPort}`;
   const target = await waitFor(async () => {
     if (earlyExit?.()) {
@@ -186,17 +198,16 @@ const connectRenderer = async ({ debugPort, earlyExit, output = [] }) => {
   }, 60_000, "installed renderer CDP readiness");
   const { chromium } = await import("playwright");
   const browser = await chromium.connectOverCDP(endpoint);
+  onBrowser(browser);
   const page = browser.contexts().flatMap((context) => context.pages())
     .find((candidate) => candidate.url() === target.url);
   if (!page) {
-    await browser.close().catch(() => {});
     throw new Error("CDP page disappeared before renderer probe");
   }
   await page.waitForLoadState("domcontentloaded");
   const rendererReady = await page.evaluate(() =>
     Boolean(document.getElementById("root")) && location.protocol === "file:");
   if (!rendererReady) {
-    await browser.close().catch(() => {});
     throw new Error("installed renderer did not load the packaged file UI");
   }
   return { browser, page };
@@ -206,25 +217,21 @@ export const buildRestartRuntimeLaunch = ({
   platform = process.platform,
   tempRoot,
   debugPort,
+  windowsAppData,
 }) => {
   const platformPath = platform === "win32" ? path.win32 : path;
   const isolatedHome = platformPath.join(tempRoot, "home");
   if (platform === "win32") {
-    // NSIS starts the upgraded app itself and does not preserve arbitrary
-    // launch arguments such as --user-data-dir or --remote-debugging-port.
-    // Electron's normal Windows userData location is APPDATA/<productName>;
-    // supplying an isolated APPDATA gives N-1 and the NSIS-relaunched N the
-    // same durable state without depending on either discarded argument.
-    const appData = platformPath.join(tempRoot, "appdata");
-    const localAppData = platformPath.join(tempRoot, "localappdata");
+    // Electron resolves Windows appData via the native Known Folder API, not
+    // process.env.APPDATA. NSIS also drops --user-data-dir on relaunch. Use the
+    // real default profile on a fresh disposable hosted runner for both N-1/N.
+    if (typeof windowsAppData !== "string" || !/^[a-z]:[\\/].+/i.test(windowsAppData) || /[\r\n\0]/.test(windowsAppData)) {
+      throw new Error("Windows restart qualification requires a native absolute ApplicationData path");
+    }
     return {
-      userData: platformPath.join(appData, "PuPu"),
-      directories: [isolatedHome, appData, localAppData],
-      environment: {
-        HOME: isolatedHome,
-        APPDATA: appData,
-        LOCALAPPDATA: localAppData,
-      },
+      userData: platformPath.join(windowsAppData, "PuPu"),
+      directories: [isolatedHome],
+      environment: { HOME: isolatedHome },
       args: [`--remote-debugging-port=${debugPort}`],
     };
   }
@@ -242,9 +249,26 @@ export const buildRestartRuntimeLaunch = ({
   };
 };
 
-const startFixtureRuntime = async ({ installed, tempRoot }) => {
+const preflightRestartWindowsProfile = ({ tempRoot }) => {
+  if (process.env.GITHUB_ACTIONS !== "true" || process.env.RUNNER_ENVIRONMENT !== "github-hosted") {
+    throw new Error("Windows restart qualification requires a disposable GitHub-hosted runner; refusing a local or self-hosted profile");
+  }
+  const windowsAppData = runChecked("powershell", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "[Environment]::GetFolderPath('ApplicationData')",
+  ], { timeout: 30_000 });
+  const launch = buildRestartRuntimeLaunch({ platform: "win32", tempRoot, debugPort: 0, windowsAppData });
+  if (fs.existsSync(launch.userData)) {
+    throw new Error("Windows restart qualification requires a fresh PuPu profile; refusing to use or delete an existing profile");
+  }
+  return windowsAppData;
+};
+
+const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {}, onStage = () => {} }) => {
+  onStage("fixture-profile");
+  const windowsAppData = process.platform === "win32" ? preflightRestartWindowsProfile({ tempRoot }) : undefined;
   const debugPort = await allocateLoopbackPort();
-  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort });
+  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort, windowsAppData });
   for (const directory of launch.directories) {
     fs.mkdirSync(directory, { recursive: true });
   }
@@ -261,14 +285,30 @@ const startFixtureRuntime = async ({ installed, tempRoot }) => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   const output = [];
-  child.stdout?.on("data", (chunk) => output.push(chunk.toString()));
-  child.stderr?.on("data", (chunk) => output.push(chunk.toString()));
+  const observedPids = new Set([child.pid]);
+  const session = { child, output, debugPort, observedPids, userData: launch.userData, browser: null, spawnError: null };
+  // Transfer ownership before any readiness await can reject. A partially
+  // initialized runtime still owns a live process and potentially a CDP socket.
+  onAcquired(session);
+  child.on("error", (error) => { session.spawnError = error; });
+  const capture = (chunk) => {
+    output.push(chunk.toString().slice(-16_384));
+    if (output.length > 8) output.shift();
+  };
+  child.stdout?.on("data", capture);
+  child.stderr?.on("data", capture);
+  onStage("fixture-renderer-readiness");
   const connection = await connectRenderer({
     debugPort,
     output,
-    earlyExit: () => child.exitCode !== null || child.signalCode !== null,
+    onBrowser: (browser) => { session.browser = browser; },
+    earlyExit: () => {
+      if (session.spawnError) throw session.spawnError;
+      return child.exitCode !== null || child.signalCode !== null;
+    },
   });
-  const observedPids = new Set([child.pid]);
+  Object.assign(session, connection);
+  onStage("fixture-sidecar-readiness");
   const sidecarNeedle = normalizePath(installed.sidecarNeedle);
   await waitFor(() => {
     const rows = readProcessTable();
@@ -276,7 +316,7 @@ const startFixtureRuntime = async ({ installed, tempRoot }) => {
     for (const pid of descendants) observedPids.add(pid);
     return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
   }, 60_000, "signed N-1 Sidecar descendant");
-  return { ...connection, child, debugPort, observedPids, userData: launch.userData };
+  return session;
 };
 
 export const validateRestartUpdateStageTrace = (stages) => {
@@ -362,6 +402,49 @@ const assertFeedRequests = (server) => {
   }
 };
 
+const restartDiagnosticText = (value, limit = 16_384) => String(value || "")
+  .replace(/(Bearer\s+)[^\s"']+/gi, "$1[REDACTED]")
+  .replace(/((?:password|secret|token|api[_-]?key)["']?\s*(?:[:=]\s*|\s+))["']?[^\s,"'}]+/gi, "$1[REDACTED]")
+  .slice(-limit);
+
+const restartErrorDetails = (error) => error ? {
+  name: String(error.name || "Error"),
+  message: restartDiagnosticText(error.message || error, 8_192),
+  stack: restartDiagnosticText(error.stack || ""),
+} : null;
+
+// Only this run's observed tree or private installation paths may be cleaned.
+// Do not match a bare product name: the runner may host unrelated applications.
+const selectRestartCleanupPids = ({ rows, runtime, installedFixture, expectedCandidate }) => {
+  const known = new Set([runtime?.child?.pid, ...(runtime?.observedPids || [])]);
+  const roots = [installedFixture?.launchCwd, expectedCandidate?.launchCwd]
+    .filter((value) => typeof value === "string" && value.length > 3)
+    .map((value) => `${normalizePath(value).replace(/\/+$/, "")}/`);
+  for (const row of rows) {
+    if (roots.some((root) => normalizePath(row.command).includes(root))) known.add(row.pid);
+  }
+  // Remove protected ancestors before walking children, otherwise a harness
+  // command containing an installation path could pull in sibling processes.
+  known.delete(process.pid);
+  known.delete(process.ppid);
+  for (const pid of [...known]) {
+    if (Number.isSafeInteger(pid) && pid > 1) {
+      for (const descendant of descendantPids(rows, pid)) known.add(descendant);
+    }
+  }
+  return [...known].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid);
+};
+
+const boundedRestartCleanup = async (action, label) => {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(action),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} cleanup timed out`)), 30_000); }),
+    ]);
+  } finally { clearTimeout(timer); }
+};
+
 export async function runRestartUpdateQualification({
   candidateDir,
   fixturePath,
@@ -369,6 +452,7 @@ export async function runRestartUpdateQualification({
   targetId,
   feedPort,
   serverLogPath = "",
+  diagnosticsPath = "",
 }) {
   validateRestartUpdateRuntimeInputs({ targetId, feedPort });
   const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
@@ -388,23 +472,58 @@ export async function runRestartUpdateQualification({
   let installedFixture;
   let runtime;
   let server;
+  let stage = "install-candidate";
+  let primaryError = null;
+  let processEvidence = [];
+  const cleanupErrors = [];
+  const writeDiagnostics = () => {
+    if (!diagnosticsPath) return;
+    writeJson(path.resolve(diagnosticsPath), {
+      schema: "pupu.restart-update-diagnostics.v1",
+      status: "failed",
+      target_id: targetId,
+      candidate: { tag: manifest.release.tag, commit: manifest.release.commit, manifest_digest: manifest.manifest_digest },
+      fixture: { tag: fixture.from_tag, commit: fixture.from_commit },
+      stage,
+      primary_error: restartErrorDetails(primaryError),
+      cleanup_errors: cleanupErrors,
+      runtime: {
+        pid: runtime?.child?.pid || null,
+        user_data: runtime?.userData || null,
+        observed_pids: [...(runtime?.observedPids || [])].filter(Number.isSafeInteger),
+        output_tail: restartDiagnosticText((runtime?.output || []).join("")),
+      },
+      processes: processEvidence,
+      feed_request_count: server?.requests?.length || 0,
+    });
+  };
   try {
+    if (targetId === "windows-x64") {
+      stage = "fixture-profile";
+      // NSIS can stop/uninstall a registered app even with a custom /D path.
+      // Refuse non-disposable or existing profiles before either installer runs.
+      preflightRestartWindowsProfile({ tempRoot });
+    }
+    stage = "install-candidate";
     expectedCandidate = await installTargetPackage({
       targetId,
       installerPath: candidateInstallerPath,
       tempRoot: path.join(tempRoot, "expected-n"),
     });
     const expected = expectedIdentity({ installed: expectedCandidate, targetId });
+    stage = "install-fixture";
     installedFixture = await installTargetPackage({
       targetId,
       installerPath: path.resolve(fixturePath),
       tempRoot: path.join(tempRoot, "installed-n-minus-one"),
     });
+    stage = "fixture-updater-binding";
     const fixtureUpdateConfigPath = path.join(path.dirname(installedFixture.identity.asarPath), "app-update.yml");
     validateQualificationFixtureAppUpdate({
       contents: fs.readFileSync(fixtureUpdateConfigPath, "utf8"),
       feedUrl,
     });
+    stage = "start-feed";
     const feedDir = path.join(tempRoot, "qualification-feed");
     buildQualificationFeed({ candidateDir: candidateRoot, outDir: feedDir, targetId, contract });
     server = await startQualificationFeedServer({
@@ -418,11 +537,19 @@ export async function runRestartUpdateQualification({
       throw new Error("qualification feed server did not bind the fixture's exact loopback URL");
     }
 
-    runtime = await startFixtureRuntime({ installed: installedFixture, tempRoot: path.join(tempRoot, "installed-n-minus-one") });
+    stage = "start-fixture";
+    runtime = await startFixtureRuntime({
+      installed: installedFixture,
+      tempRoot: path.join(tempRoot, "installed-n-minus-one"),
+      onAcquired: (session) => { runtime = session; },
+      onStage: (next) => { stage = next; },
+    });
+    stage = "fixture-version";
     const initialVersion = await runtime.page.evaluate(() => window.appUpdateAPI.getState().then((state) => state.currentVersion));
     if (initialVersion !== fixture.from_version) {
       throw new Error(`installed fixture version does not match ${fixture.from_version}`);
     }
+    stage = "settings-sentinel";
     const sentinelResult = await runtime.page.evaluate(async () => {
       window.__pupuRestartUpdateStages = [];
       window.__pupuRestartUpdateUnsubscribe = window.appUpdateAPI.onStateChange((state) => {
@@ -435,6 +562,7 @@ export async function runRestartUpdateQualification({
     await waitFor(() => fs.statSync(sentinelPath, { throwIfNoEntry: false })?.isFile(), 15_000, "settings sentinel persistence");
     const beforeSentinelSha256 = hashFile(sentinelPath);
 
+    stage = "check-and-download";
     const download = await runtime.page.evaluate(async () => {
       const first = await window.appUpdateAPI.checkAndDownload();
       const duplicate = await window.appUpdateAPI.checkAndDownload();
@@ -443,10 +571,12 @@ export async function runRestartUpdateQualification({
     if (download?.first?.started !== true || download?.duplicate?.started !== false) {
       throw new Error("the product updater did not block a duplicate check while downloading");
     }
+    stage = "wait-downloaded";
     await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: 120_000 });
     const stageTrace = await runtime.page.evaluate(() => window.__pupuRestartUpdateStages);
     validateRestartUpdateStageTrace(stageTrace);
 
+    stage = "request-install";
     const install = await runtime.page.evaluate(async () => {
       const first = window.appUpdateAPI.installNow();
       const duplicate = window.appUpdateAPI.installNow();
@@ -455,22 +585,31 @@ export async function runRestartUpdateQualification({
     if (install?.[0]?.started !== true || install?.[1]?.started !== false) {
       throw new Error("the product updater did not block a duplicate restart-to-install request");
     }
+    stage = "old-process-exit";
     await waitFor(() => !processAlive(runtime.child.pid), 60_000, "old N-1 process exit after user restart-to-install");
     await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), 60_000, "old N-1 process tree cleanup");
-    await runtime.browser.close().catch(() => {});
+    await boundedRestartCleanup(() => runtime.browser.close(), "old-runtime-browser");
     runtime.browser = null;
 
+    stage = "find-relaunched-candidate";
     const relaunchedRoot = await findRelaunchedRoot({ installed: installedFixture, oldPid: runtime.child.pid });
+    runtime.observedPids.add(relaunchedRoot.pid);
+    stage = "relaunched-sidecar";
     await assertRelaunchedSidecar({ installed: installedFixture, rootPid: relaunchedRoot.pid });
+    stage = "relaunched-identity";
     const finalIdentity = assertUpdatedIdentity({ installed: installedFixture, expected, targetId });
+    stage = "retained-settings";
     const afterSentinelSha256 = hashFile(sentinelPath);
     if (afterSentinelSha256 !== beforeSentinelSha256) {
       throw new Error("restarted N did not retain the exact settings sentinel bytes");
     }
+    stage = "feed-requests";
     assertFeedRequests(server);
 
+    stage = "relaunched-shutdown";
     installedFixture.close(relaunchedRoot.pid);
     await waitFor(() => !processAlive(relaunchedRoot.pid), 30_000, "restarted N controlled shutdown");
+    stage = "validate-report";
     return validateRestartUpdateQualificationReport({
       schema: RESTART_UPDATE_QUALIFICATION_SCHEMA,
       status: "passed",
@@ -512,21 +651,54 @@ export async function runRestartUpdateQualification({
       },
       executed_tests: 15,
     }, { manifest, targetId });
+  } catch (error) {
+    primaryError = error;
+    // Print before cleanup so even a diagnostic-write/cleanup failure cannot
+    // erase the first cause from Actions logs.
+    console.error(`[restart-update:${stage}] ${restartDiagnosticText(error.stack || error.message || error)}`);
+    throw error;
   } finally {
-    await runtime?.browser?.close().catch(() => {});
-    const rows = readProcessTable();
-    await terminateProcesses([
-      runtime?.child?.pid,
-      ...(runtime?.observedPids || []),
-      ...descendantPids(rows, runtime?.child?.pid),
-    ]);
-    if (server && serverLogPath) {
-      writeJson(path.resolve(serverLogPath), buildQualificationFeedServerLog(server));
+    const attemptCleanup = async (step, action) => {
+      try { await action(); }
+      catch (error) {
+        cleanupErrors.push({ step, error: restartErrorDetails(error) });
+        console.error(`[restart-update:cleanup:${step}] ${restartDiagnosticText(error.message || error)}`);
+      }
+    };
+    let rows = [];
+    await attemptCleanup("capture-processes", () => {
+      rows = readProcessTable();
+      const ids = new Set(selectRestartCleanupPids({ rows, runtime, installedFixture, expectedCandidate }));
+      processEvidence = rows.filter((row) => ids.has(row.pid)).slice(0, 256)
+        .map((row) => ({ pid: row.pid, ppid: row.ppid, command: restartDiagnosticText(row.command, 2_048) }));
+    });
+    // Write outside tempRoot before teardown, and update with cleanup failures.
+    if (primaryError) await attemptCleanup("write-diagnostics-before-cleanup", writeDiagnostics);
+    await attemptCleanup("browser-close", () => boundedRestartCleanup(() => runtime?.browser?.close(), "browser-close"));
+    await attemptCleanup("terminate-processes", () => terminateProcesses(
+      selectRestartCleanupPids({ rows, runtime, installedFixture, expectedCandidate }),
+    ));
+    await attemptCleanup("wait-process-exit", () => waitFor(async () => {
+      const current = readProcessTable();
+      const remaining = selectRestartCleanupPids({ rows: current, runtime, installedFixture, expectedCandidate })
+        .filter(processAlive);
+      if (remaining.length === 0) return true;
+      await terminateProcesses(remaining);
+      return false;
+    }, 20_000, "restart qualification process cleanup"));
+    await attemptCleanup("feed-log", () => {
+      if (server && serverLogPath) writeJson(path.resolve(serverLogPath), buildQualificationFeedServerLog(server));
+    });
+    await attemptCleanup("feed-close", () => boundedRestartCleanup(() => server?.close(), "feed-close"));
+    await attemptCleanup("fixture-cleanup", () => installedFixture?.cleanup());
+    await attemptCleanup("candidate-cleanup", () => expectedCandidate?.cleanup());
+    await attemptCleanup("remove-temp-root", () => fs.rmSync(tempRoot, {
+      recursive: true, force: true, maxRetries: 5, retryDelay: 500,
+    }));
+    if (primaryError || cleanupErrors.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
+    if (!primaryError && cleanupErrors.length) {
+      throw new Error(`restart qualification cleanup failed: ${cleanupErrors.map((item) => `${item.step}: ${item.error.message}`).join("; ")}`);
     }
-    await server?.close().catch(() => {});
-    try { installedFixture?.cleanup(); } catch { /* best-effort fixture cleanup */ }
-    try { expectedCandidate?.cleanup(); } catch { /* best-effort candidate cleanup */ }
-    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
@@ -568,11 +740,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
       targetId: args.target,
       feedPort: Number(args["feed-port"]),
       serverLogPath: args["server-log"],
+      diagnosticsPath: args.diagnostics || `${args.out}.diagnostics.json`,
     });
     writeJson(path.resolve(args.out), report);
     console.log(`[restart-update] ${report.target_id} passed ${report.executed_tests} real lifecycle checks`);
   } catch (error) {
-    console.error(`[restart-update] ${error.message || String(error)}`);
+    console.error(`[restart-update] ${restartDiagnosticText(error.message || error)}`);
     process.exitCode = 1;
   }
 }

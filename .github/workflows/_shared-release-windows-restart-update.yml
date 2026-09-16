@@ -327,6 +327,7 @@ jobs:
             --target windows-x64 `
             --feed-port "$env:FEED_PORT" `
             --out restart-update-qualification.json `
+            --diagnostics restart-update-diagnostics.json `
             --server-log qualification-feed-server.v1.json
 
       - name: Upload Windows restart-update evidence only
@@ -339,6 +340,7 @@ jobs:
           retention-days: 30
           path: |
             pupu/restart-update-qualification.json
+            pupu/restart-update-diagnostics.json
             pupu/qualification-feed-server.v1.json
             pupu/windows-restart-fixture.v1.json
             fixture-source/windows-signing-qualification.v1.json

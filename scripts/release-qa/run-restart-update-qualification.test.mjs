@@ -7,17 +7,33 @@ import {
   validateRestartUpdateStageTrace,
 } from "./run-restart-update-qualification.mjs";
 
-test("Windows restart qualification uses inherited isolated AppData rather than relaunch-lost userData arguments", () => {
+test("Windows restart qualification uses the native profile shared with NSIS relaunch, not overridden AppData", () => {
   const launch = buildRestartRuntimeLaunch({
     platform: "win32",
     tempRoot: "C:\\qa\\restart",
     debugPort: 38193,
+    windowsAppData: "C:\\Users\\runneradmin\\AppData\\Roaming",
   });
   assert.deepEqual(launch.args, ["--remote-debugging-port=38193"]);
-  assert.equal(launch.environment.APPDATA, "C:\\qa\\restart\\appdata");
-  assert.equal(launch.environment.LOCALAPPDATA, "C:\\qa\\restart\\localappdata");
-  assert.equal(launch.userData, "C:\\qa\\restart\\appdata\\PuPu");
+  assert.deepEqual(launch.environment, { HOME: "C:\\qa\\restart\\home" });
+  assert.equal(launch.userData, "C:\\Users\\runneradmin\\AppData\\Roaming\\PuPu");
+  assert.deepEqual(launch.directories, ["C:\\qa\\restart\\home"]);
   assert.ok(!launch.args.some((arg) => arg.startsWith("--user-data-dir=")));
+});
+
+test("Windows restart profile rejects missing, relative, root-only and malformed native paths", () => {
+  for (const windowsAppData of [undefined, "", "relative", "C:", "C:\\", "C:\\Users\\runner\nBAD"]) {
+    assert.throws(() => buildRestartRuntimeLaunch({
+      platform: "win32", tempRoot: "C:\\qa", debugPort: 38193, windowsAppData,
+    }), /native absolute ApplicationData/);
+  }
+});
+
+test("macOS runtime launch retains its existing isolated user-data argument", () => {
+  const launch = buildRestartRuntimeLaunch({ platform: "darwin", tempRoot: "/qa", debugPort: 38193 });
+  assert.equal(launch.userData, "/qa/user-data");
+  assert.ok(launch.args.includes("--user-data-dir=/qa/user-data"));
+  assert.ok(launch.args.includes("--use-mock-keychain"));
 });
 
 test("restart-update executor accepts only the three supported runtimes and a fixed loopback port", () => {
