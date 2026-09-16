@@ -39,7 +39,8 @@ function exercise(t) {
   const kind = (location) => location.includes("expected-n") ? "candidate" : "fixture";
   const sandbox = {
     ROOT: "/repo", path: path.posix, os: { tmpdir: () => "/tmp" },
-    process: { platform: "win32" },
+    process: { platform: "win32", pid: 999, ppid: 998 },
+    setTimeout, clearTimeout, console: { error() {} },
     fs: {
       mkdtempSync: () => "/tmp/restart-sequence",
       readFileSync(location) {
@@ -51,6 +52,7 @@ function exercise(t) {
       rmSync: () => events.push("cleanup"),
     },
     validateRestartUpdateRuntimeInputs: () => {},
+    preflightRestartWindowsProfile: () => {},
     readReleaseArtifactContract: () => ({}),
     readJson: () => manifest,
     validateReleaseAssetManifest: () => {},
@@ -84,12 +86,16 @@ function exercise(t) {
     startQualificationFeedServer: async () => ({ url: "http://127.0.0.1:38193", close: async () => {} }),
     startFixtureRuntime: async () => { events.push("runtime"); throw runtimeBoundary; },
     readProcessTable: () => [], descendantPids: () => [], terminateProcesses: async () => {},
+    processAlive: () => false,
+    waitFor: async (predicate) => assert.equal(await predicate(), true),
   };
   vm.createContext(sandbox);
   vm.runInContext([
     declaration(installer, "export const installWindowsNsis =", "const executableFromLinuxRoot ="),
+    declaration(executor, "const normalizePath =", "const hashFile ="),
     declaration(executor, "const targetPackage =", "const connectRenderer ="),
     declaration(executor, "const expectedIdentity =", "const assertUpdatedIdentity ="),
+    declaration(executor, "const restartDiagnosticText =", "export async function runRestartUpdateQualification"),
     declaration(executor, "export async function runRestartUpdateQualification", "export const validateRestartUpdateRuntimeInputs ="),
     "this.run = runRestartUpdateQualification;",
   ].join("\n"), sandbox);
