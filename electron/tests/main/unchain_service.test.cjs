@@ -4530,6 +4530,182 @@ describe("unchain service session guard migration handshake", () => {
   });
 });
 
+describe("unchain service Windows owned process-tree shutdown", () => {
+  const originalFetch = global.fetch;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
+  const originalSystemRoot = process.env.SystemRoot;
+
+  const createWindowsStopHarness = ({ result = { status: 0 }, pid = 64321 } = {}) => {
+    const processes = [];
+    const taskkill = jest.fn(() => result);
+    const spawn = jest.fn(() => {
+      const proc = createFakeSpawnProcess();
+      proc.pid = pid + processes.length;
+      proc.exitCode = null;
+      proc.signalCode = null;
+      processes.push(proc);
+      return proc;
+    });
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: () => "/app",
+        getPath: () => "/tmp/pupu",
+        getVersion: () => "0.1.11",
+      },
+      fs: { existsSync: () => true },
+      path,
+      spawn,
+      spawnSync: (command, args, options) => {
+        if (/taskkill\.exe$/i.test(command)) return taskkill(command, args, options);
+        if (command === "ps" || command === "powershell.exe") {
+          return { status: 0, stdout: command === "ps" ? "" : "[]" };
+        }
+        return { status: 0, stdout: JSON.stringify({ version: "3.12.2", major: 3, minor: 12, missing: [] }) };
+      },
+      crypto: { randomBytes: () => ({ toString: () => "auth-token" }) },
+      net: createAvailableNet(),
+      webContents: { fromId: () => null, getAllWebContents: () => [] },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+      platform: "win32",
+    });
+    return { service, spawn, processes, taskkill };
+  };
+
+  beforeEach(() => {
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+    process.env.SystemRoot = "C:\\Windows";
+    global.fetch = jest.fn().mockResolvedValue(createCompatibleHealthResponse());
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalSystemRoot == null) delete process.env.SystemRoot;
+    else process.env.SystemRoot = originalSystemRoot;
+    if (originalEnvPython == null) delete process.env.UNCHAIN_PYTHON_BIN;
+    else process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
+    jest.useRealTimers();
+    jest.clearAllMocks();
+  });
+
+  test("REGRESSION: synchronously terminates the owned tree before killing its parent", async () => {
+    const { service, processes, taskkill } = createWindowsStopHarness();
+    await service.startMiso();
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+    const stopped = service.stopMiso();
+    expect(processes[0].kill).not.toHaveBeenCalled();
+    expect(stopped).toBe(true);
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    expect(taskkill.mock.calls[0]).toEqual([
+      "C:\\Windows\\System32\\taskkill.exe",
+      ["/PID", "64321", "/T", "/F"],
+      { encoding: "utf8", windowsHide: true, timeout: 10000, maxBuffer: 64 * 1024, shell: false },
+    ]);
+    expect(processes[0].kill).not.toHaveBeenCalled();
+    // Repeated quit hooks must not re-target a possibly recycled PID.
+    expect(service.stopMiso()).toBe(true);
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    processes[0].emit("exit", 1, null);
+  });
+
+  test("waits for the original exit event before a fresh spawn", async () => {
+    const { service, spawn, processes, taskkill } = createWindowsStopHarness();
+    await service.startMiso();
+    const restart = service.restartMiso();
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    processes[0].emit("exit", 1, null);
+    await restart;
+    expect(spawn).toHaveBeenCalledTimes(2);
+    // A queued event from the stopped generation cannot clear the new child.
+    processes[0].emit("error", new Error("late old error"));
+    processes[0].emit("exit", 1, null);
+    expect(service.getMisoStatusPayload().ready).toBe(true);
+    service.stopMiso();
+    expect(taskkill.mock.calls[1][1]).toEqual(["/PID", "64322", "/T", "/F"]);
+    processes[1].emit("exit", 1, null);
+  });
+
+  test.each([
+    ["access denied", { status: 1, stderr: "Access is denied" }],
+    ["root disappeared", { status: 128, stderr: "not found" }],
+    ["timeout", { status: null, error: Object.assign(new Error("timed out"), { code: "ETIMEDOUT" }) }],
+    ["no result", null],
+    ["error despite success status", { status: 0, error: Object.assign(new Error("failed"), { code: "EIO" }) }],
+  ])("fails closed on %s even if the root later emits exit", async (_label, result) => {
+    const { service, spawn, processes, taskkill } = createWindowsStopHarness({ result });
+    await service.startMiso();
+    await service.restartMiso();
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    expect(processes[0].kill).not.toHaveBeenCalled();
+    expect(service.getMisoStatusPayload().status).toBe("error");
+    processes[0].emit("exit", 1, null);
+    await service.startMiso();
+    await service.restartMiso();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    expect(service.getMisoStatusPayload().ready).toBe(false);
+  });
+
+  test.each([undefined, 0, 1, -7, 12.5, "64321", process.pid, process.ppid])(
+    "refuses unsafe or unowned PID %s", async (pid) => {
+      const { service, processes, taskkill } = createWindowsStopHarness();
+      await service.startMiso();
+      processes[0].pid = pid;
+      expect(service.stopMiso()).toBe(false);
+      expect(taskkill).not.toHaveBeenCalled();
+      expect(processes[0].kill).not.toHaveBeenCalled();
+      expect(service.getMisoStatusPayload().status).toBe("error");
+      processes[0].emit("exit", 1, null);
+    },
+  );
+
+  test("does not reuse a PID once ChildProcess already reports an exit", async () => {
+    const { service, processes, taskkill } = createWindowsStopHarness();
+    await service.startMiso();
+    processes[0].exitCode = 1;
+    expect(service.stopMiso()).toBe(false);
+    expect(taskkill).not.toHaveBeenCalled();
+    processes[0].emit("exit", 1, null);
+  });
+
+  test("a synchronous taskkill exception is contained and keeps restart blocked", async () => {
+    const { service, processes, spawn, taskkill } = createWindowsStopHarness();
+    await service.startMiso();
+    taskkill.mockImplementationOnce(() => { throw new Error("could not spawn"); });
+    expect(service.stopMiso()).toBe(false);
+    expect(processes[0].kill).not.toHaveBeenCalled();
+    processes[0].emit("error", Object.assign(new Error("late spawn error"), { code: "ENOENT" }));
+    await service.startMiso();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(service.getMisoStatusPayload().status).toBe("error");
+    expect(service.getMisoStatusPayload().reason).toContain("Windows process tree shutdown failed");
+  });
+
+  test("successful taskkill without a proven root exit never launches a duplicate", async () => {
+    const { service, spawn, processes, taskkill } = createWindowsStopHarness();
+    await service.startMiso();
+    jest.useFakeTimers();
+    const restarting = service.restartMiso();
+    for (let elapsed = 0; elapsed <= 5100; elapsed += 50) {
+      jest.advanceTimersByTime(50);
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.resolve();
+    }
+    await restarting;
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(taskkill).toHaveBeenCalledTimes(1);
+    expect(processes[0].kill).not.toHaveBeenCalled();
+    expect(service.getMisoStatusPayload().status).toBe("error");
+    expect(service.stopMiso()).toBe(false);
+    processes[0].emit("exit", 1, null);
+    expect(service.getMisoStatusPayload().status).toBe("error");
+    await service.restartMiso();
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("unchain service restartMiso", () => {
   const originalFetch = global.fetch;
   const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;

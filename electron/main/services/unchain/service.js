@@ -32,6 +32,7 @@ const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_RESTART_STOP_TIMEOUT_MS = 5000;
 const UNCHAIN_RESTART_STOP_POLL_MS = 50;
 const UNCHAIN_STOP_TERM_TIMEOUT_MS = 1200;
+const UNCHAIN_WINDOWS_TREE_STOP_TIMEOUT_MS = 10000;
 const UNCHAIN_RUNTIME_CONTRACT_SCHEMA = "pupu.runtime-capabilities";
 const UNCHAIN_RUNTIME_CONTRACT_VERSION = 1;
 const UNCHAIN_DURABLE_JOBS_VERSION = "D4.1";
@@ -1155,6 +1156,8 @@ const createUnchainService = ({
   let unchainRestartTimer = null;
   let unchainIsStopping = false;
   let unchainPreserveStatusOnStop = false;
+  let unchainWindowsStoppedProcess = null;
+  let unchainWindowsStopFailure = "";
   let unchainStartPromise = null;
   let memoryV2Readiness = initialMemoryV2Readiness();
   // Packaged receipts additionally pin the imported runtime manifest to the
@@ -5060,6 +5063,67 @@ const createUnchainService = ({
       const processToStop = unchainProcess;
       unchainIsStopping = true;
       unchainPreserveStatusOnStop = Boolean(preserveStatus);
+      if (platform === "win32") {
+        // The PyInstaller parent owns a second server process. Signalling the
+        // parent first destroys taskkill's tree anchor and can orphan that
+        // server. will-quit does not await promises, so finish this bounded
+        // tree operation synchronously while the owned parent is still alive.
+        if (unchainWindowsStoppedProcess === processToStop) {
+          if (unchainWindowsStopFailure) unchainPreserveStatusOnStop = true;
+          return !unchainWindowsStopFailure;
+        }
+        const pid = processToStop.pid;
+        let failure = "";
+        if (
+          !Number.isSafeInteger(pid) ||
+          pid <= 1 ||
+          pid === process.pid ||
+          pid === process.ppid ||
+          processToStop.exitCode != null ||
+          processToStop.signalCode != null ||
+          processToStop.killed
+        ) {
+          failure = "managed process identity is no longer live";
+        } else {
+          try {
+            const result = spawnSync(
+              path.win32.join(
+                process.env.SystemRoot || "C:\\Windows",
+                "System32",
+                "taskkill.exe",
+              ),
+              ["/PID", String(pid), "/T", "/F"],
+              {
+                encoding: "utf8",
+                windowsHide: true,
+                timeout: UNCHAIN_WINDOWS_TREE_STOP_TIMEOUT_MS,
+                maxBuffer: 64 * 1024,
+                shell: false,
+              },
+            );
+            if (result?.error || result?.status !== 0) {
+              failure = result?.error?.code ||
+                `taskkill exit ${result?.status ?? "unknown"}`;
+            }
+          } catch (error) {
+            failure = error?.code || "taskkill could not start";
+          }
+        }
+        if (failure) {
+          // A disappeared root is NOT proof that its descendants exited. Keep
+          // this failure across the root's later exit event and block restarts
+          // rather than start another server alongside unproven survivors.
+          unchainWindowsStopFailure = `Miso Windows process tree shutdown failed: ${failure}`;
+          unchainPreserveStatusOnStop = true;
+          unchainStatus = "error";
+          unchainStatusReason = unchainWindowsStopFailure;
+          console.error("[unchain]", unchainWindowsStopFailure);
+          return false;
+        }
+        unchainWindowsStoppedProcess = processToStop;
+        unchainWindowsStopFailure = "";
+        return true;
+      }
       if (!processToStop.killed) {
         processToStop.kill("SIGTERM");
       }
@@ -5072,6 +5136,7 @@ const createUnchainService = ({
       }, UNCHAIN_STOP_TERM_TIMEOUT_MS);
       if (typeof forceKillTimer.unref === "function") forceKillTimer.unref();
     } else {
+      if (platform === "win32" && unchainWindowsStopFailure) return false;
       if (!preserveStatus) {
         unchainStatus = "stopped";
       }
@@ -5079,15 +5144,30 @@ const createUnchainService = ({
         unchainStatusReason = "";
       }
     }
+    return true;
   };
 
   const waitForManagedMisoExit = async ({ preserveStatus = false } = {}) => {
     const processToStop = unchainProcess;
     if (!processToStop) {
-      return true;
+      return !unchainWindowsStopFailure;
     }
 
-    stopMiso({ preserveStatus });
+    if (!stopMiso({ preserveStatus })) return false;
+    if (platform === "win32") {
+      const exitDeadline = Date.now() + UNCHAIN_RESTART_STOP_TIMEOUT_MS;
+      while (unchainProcess === processToStop && Date.now() < exitDeadline) {
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(UNCHAIN_RESTART_STOP_POLL_MS);
+      }
+      if (unchainProcess === processToStop) {
+        unchainWindowsStopFailure =
+          "Miso Windows process tree shutdown did not produce a managed exit";
+        unchainPreserveStatusOnStop = true;
+        return false;
+      }
+      return !unchainWindowsStopFailure;
+    }
     const termDeadline = Date.now() + UNCHAIN_STOP_TERM_TIMEOUT_MS;
     while (unchainProcess === processToStop && Date.now() < termDeadline) {
       // eslint-disable-next-line no-await-in-loop
@@ -5112,6 +5192,11 @@ const createUnchainService = ({
   };
 
   const startMiso = async () => {
+    if (unchainWindowsStopFailure) {
+      unchainStatus = "error";
+      unchainStatusReason = unchainWindowsStopFailure;
+      return;
+    }
     if (unchainProcess || unchainStatus === "starting") {
       return;
     }
@@ -5281,6 +5366,7 @@ const createUnchainService = ({
         },
         stdio: ["ignore", "pipe", "pipe", "pipe"],
       });
+      const startedProcess = unchainProcess;
 
       let vaultBootstrapFailed = false;
       if (vaultBrokerBootstrap) {
@@ -5336,9 +5422,13 @@ const createUnchainService = ({
 
       unchainProcess.on("error", (error) => {
         flushUnchainRuntimeLogs();
+        if (unchainProcess !== startedProcess) return;
         activeVaultBrokerKey = "";
-        unchainStatus = error.code === "ENOENT" ? "not_found" : "error";
-        unchainStatusReason = error.message || "Failed to start Miso process";
+        unchainStatus = !unchainWindowsStopFailure && error.code === "ENOENT"
+          ? "not_found"
+          : "error";
+        unchainStatusReason = unchainWindowsStopFailure || error.message ||
+          "Failed to start Miso process";
         unchainProcess = null;
 
         terminateAllMisoStreams("error", {
@@ -5346,13 +5436,14 @@ const createUnchainService = ({
           message: error.message || "Miso process failed to start",
         });
 
-        if (error.code !== "ENOENT") {
+        if (error.code !== "ENOENT" && !unchainWindowsStopFailure) {
           scheduleMisoRestart();
         }
       });
 
       unchainProcess.on("exit", (code, signal) => {
         flushUnchainRuntimeLogs();
+        if (unchainProcess !== startedProcess) return;
         activeVaultBrokerKey = "";
         const stoppedIntentionally = unchainIsStopping || getAppIsQuitting();
         unchainProcess = null;
@@ -5507,7 +5598,8 @@ const createUnchainService = ({
     const stopped = await waitForManagedMisoExit();
     if (!stopped) {
       unchainStatus = "error";
-      unchainStatusReason = "Miso process did not exit after forced shutdown";
+      unchainStatusReason = unchainWindowsStopFailure ||
+        "Miso process did not exit after forced shutdown";
       return;
     }
     return startMiso();
