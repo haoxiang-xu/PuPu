@@ -183,6 +183,7 @@
       "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
     },
     "nsis": {
+      "include": "installer/windows/installer.nsh",
       "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
