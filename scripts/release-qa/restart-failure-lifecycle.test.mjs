@@ -5,9 +5,16 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import test from "node:test";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 import { validateRestartUpdateQualificationReport } from "./restart-update-qualification.mjs";
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
+import { expectedTargetAssets, readReleaseArtifactContract } from "./release-artifact-manifest.mjs";
+
+const artifactContract = readReleaseArtifactContract(fileURLToPath(new URL("../../docs/contracts/release/release-artifact-contract.v1.json", import.meta.url)));
+const updateServiceUrl = new URL("../../electron/main/services/update/service.js", import.meta.url);
+const updateServiceSource = fs.readFileSync(updateServiceUrl, "utf8");
 
 const runnerSource = fs.readFileSync(new URL("./run-restart-update-qualification.mjs", import.meta.url), "utf8");
 const moduleBodyFor = (source) => source
@@ -29,6 +36,7 @@ function lifecycleHarness(options = {}) {
   const createdPaths = [];
   const launches = [];
   const installations = [];
+  const preferences = new Map();
   const nativeAppData = "C:\\Users\\runneradmin\\AppData\\Roaming";
   const nativeProfile = path.win32.join(nativeAppData, "PuPu");
   const nativeSentinel = path.win32.join(nativeProfile, "auto_update_pref.json");
@@ -47,6 +55,8 @@ function lifecycleHarness(options = {}) {
   let failureOccurred = false;
   let browserClosed = 0;
   let stageListener;
+  let startupTimer;
+  let networkChecks = 0;
   const timers = new Map();
   let nextTimer = 1;
   let timerPumpPending = false;
@@ -95,6 +105,7 @@ function lifecycleHarness(options = {}) {
     url: () => "file:///installed/index.html",
     async waitForLoadState() {
       events.push("renderer:load");
+      if (options.slowStartup && startupTimer) { events.push("startup:timer"); startupTimer(); }
       if (options.rendererFailure) { failureOccurred = true; throw options.rendererFailure; }
     },
     async evaluate(callback) { return callback(); },
@@ -141,7 +152,10 @@ function lifecycleHarness(options = {}) {
       kill(pid) { if (!alive.has(pid)) throw new Error("no such process"); },
     },
     fs: {
-      mkdirSync(location) { createdPaths.push(location); }, mkdtempSync: () => "/qa/temp",
+      mkdirSync(location) {
+        createdPaths.push(location);
+        if (options.profileAppearsBeforeSeed && path.win32.normalize(location) === nativeProfile) throw new Error("EEXIST raced profile");
+      }, mkdtempSync: () => "/qa/temp",
       existsSync(location) {
         assert.equal(path.win32.normalize(location), nativeProfile);
         return Boolean(options.existingProfile);
@@ -151,11 +165,18 @@ function lifecycleHarness(options = {}) {
         if (String(location).endsWith("app-update.yml")) return "provider: generic\nurl: http://127.0.0.1:38193/\nupdaterCacheDirName: pupu-updater\n";
         if (String(location).endsWith("auto_update_pref.json")) {
           if (options.requireNativeSentinel) assert.equal(path.win32.normalize(location), nativeSentinel);
-          return Buffer.from("sentinel");
+          return Buffer.from(preferences.get(path.win32.normalize(location)) || "sentinel");
         }
         throw new Error(`unexpected read: ${location}`);
       },
       statSync: () => ({ isFile: () => true }),
+      writeFileSync(location, contents, writeOptions) {
+        assert.equal(path.win32.normalize(location), nativeSentinel);
+        events.push("preference:write");
+        if (options.preferenceWriteFailure) throw options.preferenceWriteFailure;
+        if (writeOptions?.flag === "wx" && preferences.has(nativeSentinel)) throw new Error("EEXIST preference");
+        preferences.set(nativeSentinel, contents);
+      },
       rmSync(location) { removedPaths.push(location); events.push("temp:remove"); if (options.removeFailure) throw options.removeFailure; },
     },
     spawn(command, args, launchOptions) {
@@ -204,15 +225,17 @@ function lifecycleHarness(options = {}) {
     document: { getElementById: () => ({}) }, location: { protocol: "file:" },
     window: {
       appUpdateAPI: {
-        getState: async () => ({ currentVersion: "0.1.10" }),
+        getState: async () => ({ currentVersion: "0.1.10", stage: options.initialStage || "idle", message: options.stateMessage }),
         onStateChange(listener) { stageListener = listener; return () => {}; },
-        setAutoUpdate: async () => ({ ok: true }),
+        setAutoUpdate: async () => { preferences.set(nativeSentinel, JSON.stringify({ enabled: false })); return { ok: true }; },
         checkAndDownload: async () => {
           downloadCount += 1;
           if (downloadCount === 1) {
             for (const stage of ["checking", "downloading", "downloaded"]) stageListener({ stage });
-            server.requests.push({ pathname: "/latest.yml", status: 200 }, { pathname: "/candidate.exe", status: 200 });
+            server.requests.push({ method: "GET", pathname: "/latest.yml", status: 200 }, ...(options.extraFeedRequests || []), { method: "GET", pathname: "/candidate.exe", status: 200 });
           }
+          if (options.downloadError) throw options.downloadError;
+          if (options.downloadResults) return options.downloadResults[downloadCount - 1];
           return { started: downloadCount === 1 };
         },
         installNow: async () => {
@@ -232,7 +255,7 @@ function lifecycleHarness(options = {}) {
     },
     installMacDmg() { throw new Error("unexpected macOS installer"); },
     inspectResources() { if (relaunched && options.identityFailure) throw options.identityFailure; return identity; },
-    readReleaseArtifactContract: () => ({}), readJson: () => manifest,
+    readReleaseArtifactContract: () => artifactContract, expectedTargetAssets, readJson: () => manifest,
     validateReleaseAssetManifest() {}, verifyReleaseAssetDirectory() {},
     validateRestartUpdateFixtureEvidence: () => fixture,
     validateQualificationFixtureAppUpdate,
@@ -247,6 +270,42 @@ function lifecycleHarness(options = {}) {
       writes.set(location, JSON.parse(JSON.stringify(value)));
     },
   };
+  if (options.realUpdater) {
+    // Exercise the real product service and its startup callback, not a fake
+    // admission guard. Only Electron, OS storage, timer and network are faked.
+    const updater = new EventEmitter();
+    updater.checkForUpdates = async () => {
+      networkChecks += 1;
+      updater.emit("checking-for-update");
+      updater.emit("update-available", { version: "0.1.11" });
+      updater.emit("update-downloaded", { version: "0.1.11" });
+      server.requests.push({ method: "GET", pathname: "/latest.yml", status: 200 }, { method: "GET", pathname: "/candidate.exe", status: 200 });
+      return {};
+    };
+    updater.quitAndInstall = sandbox.window.appUpdateAPI.installNow;
+    const productModule = { exports: {} };
+    vm.runInNewContext(updateServiceSource, {
+      module: productModule, require: createRequire(updateServiceUrl), process: { platform: "win32" },
+      console: sandbox.console,
+      setTimeout(callback, delay) { assert.equal(delay, 8000); startupTimer = callback; },
+    });
+    const product = productModule.exports.createUpdateService({
+      app: { isPackaged: true, getVersion: () => "0.1.10", getPath: () => nativeProfile },
+      fs: sandbox.fs, path: path.win32, autoUpdater: updater,
+      webContents: { getAllWebContents: () => [{ isDestroyed: () => false, send: (_channel, state) => stageListener?.(state) }] },
+    });
+    product.scheduleStartupAutoUpdateCheck();
+    Object.assign(sandbox.window.appUpdateAPI, {
+      getState: async () => product.getAppUpdateStatePayload(),
+      setAutoUpdate: async (enabled) => {
+        const result = product.setAutoUpdateEnabled(enabled);
+        if (!options.slowStartup) { events.push("startup:timer"); startupTimer(); }
+        return result;
+      },
+      checkAndDownload: () => product.checkAndDownloadAppUpdate(),
+      installNow: () => product.installDownloadedAppUpdate(),
+    });
+  }
   vm.createContext(sandbox);
   vm.runInContext(`${moduleBodyFor(options.runnerSource || runnerSource)}\nthis.run = runRestartUpdateQualification; this.start = startFixtureRuntime; this.selectPids = typeof selectRestartCleanupPids === "function" ? selectRestartCleanupPids : undefined;`, sandbox);
   const run = () => sandbox.run({
@@ -258,6 +317,7 @@ function lifecycleHarness(options = {}) {
   return {
     run, start, events, writes, alive, killed, child, browser, stages, sandbox,
     readPaths, removedPaths, createdPaths, launches, installations, nativeAppData, nativeProfile, nativeSentinel,
+    preferences, get networkChecks() { return networkChecks; },
     get browserClosed() { return browserClosed; },
   };
 }
@@ -481,4 +541,67 @@ test("complete runner cannot pass the real closed report consumer when feed payl
   await assert.rejects(f.run(), /feed payload does not match the sealed candidate/);
   assert.equal(f.writes.get("/evidence/failure.json").stage, "validate-report");
   assert.equal(f.alive.size, 0);
+});
+
+for (const slowStartup of [false, true]) {
+  test(`real updater startup timer cannot preempt manual qualification (slow readiness=${slowStartup})`, async () => {
+    const f = lifecycleHarness({ realUpdater: true, slowStartup });
+    const result = await f.run();
+    assert.equal(result.status, "passed");
+    assert.equal(f.networkChecks, 1);
+    assert.equal(f.events.filter((event) => event === "startup:timer").length, 1);
+    assert.ok(f.events.indexOf("preference:write") >= 0);
+    assert.ok(f.events.indexOf("preference:write") < f.events.indexOf("app:spawn"));
+    assert.deepEqual(JSON.parse(f.preferences.get(f.nativeSentinel)), { enabled: false });
+  });
+}
+
+for (const options of [{ preferenceWriteFailure: new Error("preference disk denied") }, { profileAppearsBeforeSeed: true }]) {
+  test(`pre-launch preference failure prevents app spawn: ${Object.keys(options)[0]}`, async () => {
+    const f = lifecycleHarness(options);
+    await assert.rejects(f.run(), /preference disk denied|EEXIST raced profile/);
+    assert.equal(f.launches.length, 0);
+    assert.ok(f.removedPaths.every((location) => location === "/qa/temp"));
+  });
+}
+
+test("qualification records both IPC results and labels first rejection separately from duplicate acceptance", async () => {
+  for (const [results, message] of [
+    [[{ started: false }, { started: false }], /first manual update check did not start/],
+    [[{ started: true }, { started: true }], /duplicate update check was not blocked/],
+  ]) {
+    const f = lifecycleHarness({ downloadResults: results, stateMessage: "token=private-value" });
+    await assert.rejects(f.run(), message);
+    const diagnostic = f.writes.get("/evidence/failure.json");
+    assert.deepEqual(diagnostic.update_probe.first, results[0]);
+    assert.deepEqual(diagnostic.update_probe.duplicate, results[1]);
+    assert.equal(diagnostic.update_probe.before.stage, "idle");
+    assert.doesNotMatch(JSON.stringify(diagnostic), /private-value/);
+  }
+});
+
+test("non-idle admission and IPC exceptions retain their actual causes", async () => {
+  for (const [options, message] of [
+    [{ initialStage: "downloading" }, /expected idle updater before manual check/],
+    [{ downloadError: new Error("IPC unavailable token=private-value") }, /IPC unavailable/],
+  ]) {
+    const f = lifecycleHarness(options);
+    await assert.rejects(f.run(), message);
+    assert.doesNotMatch(JSON.stringify(f.writes.get("/evidence/failure.json")), /private-value/);
+  }
+});
+
+test("manual update admission rejects missing, mistyped and extended IPC result shapes", async () => {
+  for (const invalid of [null, {}, { started: "true" }, { started: true, unexpected: "secret=hidden-value" }]) {
+    const first = lifecycleHarness({ downloadResults: [invalid, { started: false }] });
+    await assert.rejects(first.run(), /first manual update check did not start/);
+    const duplicate = lifecycleHarness({ downloadResults: [{ started: true }, invalid] });
+    await assert.rejects(duplicate.run(), /duplicate update check was not blocked/);
+    assert.doesNotMatch(JSON.stringify(first.writes.get("/evidence/failure.json")), /hidden-value/);
+  }
+});
+
+test("real lifecycle accepts only exact previous Windows blockmap fallback followed by full payload", async () => {
+  const f = lifecycleHarness({ extraFeedRequests: [{ method: "GET", pathname: "/PuPu-0.1.10-windows-x64-setup.exe.blockmap", status: 404 }] });
+  assert.equal((await f.run()).status, "passed");
 });

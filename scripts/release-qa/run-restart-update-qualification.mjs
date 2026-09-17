@@ -18,6 +18,7 @@ import {
   buildQualificationFeed,
 } from "./build-qualification-feed.mjs";
 import {
+  expectedTargetAssets,
   readJson,
   readReleaseArtifactContract,
   validateReleaseAssetManifest,
@@ -272,6 +273,15 @@ const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {},
   for (const directory of launch.directories) {
     fs.mkdirSync(directory, { recursive: true });
   }
+  onStage("fixture-preference");
+  // The stock N-1 updater schedules an automatic check eight seconds after
+  // startup. CDP/process readiness may take longer; disabling it afterwards
+  // cannot cancel a download already in flight. Seed ordinary user settings
+  // before spawning, without patching the signed fixture or its updater.
+  if (process.platform === "win32") fs.mkdirSync(launch.userData);
+  fs.writeFileSync(path.join(launch.userData, "auto_update_pref.json"), JSON.stringify({ enabled: false }), {
+    encoding: "utf8", flag: "wx",
+  });
   const environment = { ...process.env, ...(installed.launchEnvironment || {}) };
   for (const key of RELEASE_ENVIRONMENT_KEYS) delete environment[key];
   Object.assign(environment, {
@@ -388,16 +398,31 @@ const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
   }, 60_000, "restarted N Sidecar descendant");
 };
 
-const assertFeedRequests = (server) => {
+export const assertFeedRequests = (server, { targetId, fromVersion, contract } = {}) => {
   const successful = new Set(server.requests
-    .filter((request) => request.status === 200 || request.status === 206)
+    .filter((request) => request.method === "GET" && (request.status === 200 || request.status === 206))
     .map((request) => request.pathname.slice(1)));
   for (const name of [server.feed.metadata.name, server.feed.payload.name]) {
     if (!successful.has(name)) {
       throw new Error(`updater did not request the sealed qualification feed file: ${name}`);
     }
   }
-  if (server.requests.some((request) => request.status >= 400)) {
+  const rejected = server.requests.filter((request) => request.status >= 400);
+  if (rejected.length === 0) return;
+  // An N-only feed deliberately has no historical differential blockmap.
+  // Admit exactly that optional GET miss, only when a subsequent full GET of
+  // the sealed payload succeeded. Downloaded state and installed byte identity
+  // are independently enforced by the caller; no arbitrary 404 is tolerated.
+  const oldBlockmap = targetId === "windows-x64" && contract && /^\d+\.\d+\.\d+$/.test(fromVersion || "")
+    ? expectedTargetAssets(contract, fromVersion).find((asset) => asset.target_id === targetId && asset.role === "updater-blockmap")?.name
+    : null;
+  const [miss] = rejected;
+  const expectedFallback = rejected.length === 1 && oldBlockmap &&
+    oldBlockmap !== server.feed.blockmap.name && miss.method === "GET" && miss.status === 404 &&
+    miss.pathname === `/${oldBlockmap}` &&
+    server.requests.slice(server.requests.indexOf(miss) + 1).some((request) =>
+      request.method === "GET" && request.pathname === `/${server.feed.payload.name}` && request.status === 200);
+  if (!expectedFallback) {
     throw new Error("updater made a rejected request against the qualification feed");
   }
 };
@@ -412,6 +437,21 @@ const restartErrorDetails = (error) => error ? {
   message: restartDiagnosticText(error.message || error, 8_192),
   stack: restartDiagnosticText(error.stack || ""),
 } : null;
+
+const restartUpdateProbeDetails = (probe) => {
+  if (!probe) return null;
+  const state = (value) => value ? Object.fromEntries(
+    ["stage", "currentVersion", "latestVersion", "message"].filter((key) => typeof value[key] === "string")
+      .map((key) => [key, restartDiagnosticText(value[key], 1024)]),
+  ) : null;
+  const result = (value) => value ? { started: typeof value.started === "boolean" ? value.started : null } : null;
+  return {
+    before: state(probe.before), first: result(probe.first), after_first: state(probe.after_first),
+    duplicate: result(probe.duplicate), after_duplicate: state(probe.after_duplicate),
+    error: typeof probe.error === "string" ? restartDiagnosticText(probe.error, 2048) : null,
+    stages: (probe.stages || []).slice(-64).map((value) => restartDiagnosticText(String(value), 128)),
+  };
+};
 
 // Only this run's observed tree or private installation paths may be cleaned.
 // Do not match a bare product name: the runner may host unrelated applications.
@@ -474,6 +514,7 @@ export async function runRestartUpdateQualification({
   let server;
   let stage = "install-candidate";
   let primaryError = null;
+  let updateProbe = null;
   let processEvidence = [];
   const cleanupErrors = [];
   const writeDiagnostics = () => {
@@ -486,6 +527,7 @@ export async function runRestartUpdateQualification({
       fixture: { tag: fixture.from_tag, commit: fixture.from_commit },
       stage,
       primary_error: restartErrorDetails(primaryError),
+      update_probe: restartUpdateProbeDetails(updateProbe),
       cleanup_errors: cleanupErrors,
       runtime: {
         pid: runtime?.child?.pid || null,
@@ -563,13 +605,32 @@ export async function runRestartUpdateQualification({
     const beforeSentinelSha256 = hashFile(sentinelPath);
 
     stage = "check-and-download";
-    const download = await runtime.page.evaluate(async () => {
-      const first = await window.appUpdateAPI.checkAndDownload();
-      const duplicate = await window.appUpdateAPI.checkAndDownload();
-      return { first, duplicate };
+    updateProbe = await runtime.page.evaluate(async () => {
+      const probe = { before: null, first: null, after_first: null, duplicate: null, after_duplicate: null };
+      try {
+        probe.before = await window.appUpdateAPI.getState();
+        if (probe.before?.stage === "idle") {
+          probe.first = await window.appUpdateAPI.checkAndDownload();
+          probe.after_first = await window.appUpdateAPI.getState();
+          probe.duplicate = await window.appUpdateAPI.checkAndDownload();
+          probe.after_duplicate = await window.appUpdateAPI.getState();
+        }
+      } catch (error) {
+        probe.error = String(error?.message || error);
+      }
+      probe.stages = window.__pupuRestartUpdateStages.slice(-64);
+      return probe;
     });
-    if (download?.first?.started !== true || download?.duplicate?.started !== false) {
-      throw new Error("the product updater did not block a duplicate check while downloading");
+    if (updateProbe.error) throw new Error(`manual update probe IPC failed: ${updateProbe.error}`);
+    if (updateProbe.before?.stage !== "idle") {
+      throw new Error(`expected idle updater before manual check; got ${updateProbe.before?.stage || "missing state"}`);
+    }
+    const exactStartedResult = (value, expected) => value && Object.keys(value).length === 1 && value.started === expected;
+    if (!exactStartedResult(updateProbe.first, true)) {
+      throw new Error("first manual update check did not start; see update_probe diagnostics");
+    }
+    if (!exactStartedResult(updateProbe.duplicate, false)) {
+      throw new Error("duplicate update check was not blocked; see update_probe diagnostics");
     }
     stage = "wait-downloaded";
     await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: 120_000 });
@@ -604,7 +665,7 @@ export async function runRestartUpdateQualification({
       throw new Error("restarted N did not retain the exact settings sentinel bytes");
     }
     stage = "feed-requests";
-    assertFeedRequests(server);
+    assertFeedRequests(server, { targetId, fromVersion: fixture.from_version, contract });
 
     stage = "relaunched-shutdown";
     installedFixture.close(relaunchedRoot.pid);
