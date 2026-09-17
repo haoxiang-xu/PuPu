@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +9,7 @@ import YAML from "yaml";
 
 import { buildQualificationFeed } from "./build-qualification-feed.mjs";
 import { buildQualificationFeedServerLog, startQualificationFeedServer } from "./serve-qualification-feed.mjs";
+import { assertFeedRequests } from "./run-restart-update-qualification.mjs";
 import {
   buildReleaseAssetManifest,
   expectedTargetAssets,
@@ -20,13 +22,14 @@ const CONTRACT = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/rel
 const VERSION = "0.1.10";
 const digest = (character) => `sha256:${character.repeat(64)}`;
 
-const fixture = () => {
+const fixture = ({ payloadBytes = 0 } = {}) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-loopback-feed-"));
   const candidateDir = path.join(root, "candidate");
   const assetDir = path.join(candidateDir, "assets");
   fs.mkdirSync(assetDir, { recursive: true });
   for (const asset of expectedTargetAssets(CONTRACT, VERSION)) {
-    fs.writeFileSync(path.join(assetDir, asset.name), `${asset.name}\n`, "utf8");
+    fs.writeFileSync(path.join(assetDir, asset.name), payloadBytes && asset.name.endsWith(".exe")
+      ? Buffer.alloc(payloadBytes, 42) : `${asset.name}\n`);
   }
   const writeMetadata = (name, payloadNames, primaryName) => {
     const files = payloadNames.map((payloadName) => ({
@@ -130,3 +133,88 @@ test("qualification feed accepts a predeclared loopback port for a signed N-1 fi
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("real sealed HTTP feed admits only the old blockmap miss followed by full payload", async () => {
+  const { root, candidateDir, manifest } = fixture();
+  let server;
+  try {
+    const feedDir = path.join(root, "feed");
+    buildQualificationFeed({ candidateDir, outDir: feedDir, targetId: "windows-x64", contract: CONTRACT });
+    server = await startQualificationFeedServer({ feedDir, manifest, contract: CONTRACT, targetId: "windows-x64" });
+    const get = async (name) => {
+      const response = await fetch(`${server.url}/${name}`);
+      await response.arrayBuffer();
+      return response.status;
+    };
+    assert.equal(await get(server.feed.metadata.name), 200);
+    assert.equal(await get(server.feed.blockmap.name), 200);
+    assert.equal(await get("PuPu-0.1.9-windows-x64-setup.exe.blockmap"), 404);
+    assert.equal(await get(server.feed.payload.name), 200);
+    const admission = { targetId: "windows-x64", fromVersion: "0.1.9", contract: CONTRACT };
+    assert.doesNotThrow(() => assertFeedRequests(server, admission));
+    assert.equal(await get("unknown-file"), 404);
+    assert.throws(() => assertFeedRequests(server, admission), /rejected request/);
+  } finally {
+    await server?.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const disconnect of [true, false]) {
+  test(`feed releases actual file handles after ${disconnect ? "client abort" : "server shutdown with a paused client"}`, async (t) => {
+    const { root, candidateDir, manifest } = fixture({ payloadBytes: 8 * 1024 * 1024 });
+    let server;
+    let request;
+    let response;
+    const streams = [];
+    const original = fs.createReadStream;
+    t.mock.method(fs, "createReadStream", (...args) => {
+      const stream = original(...args);
+      streams.push(stream);
+      return stream;
+    });
+    const deadline = async (operation) => {
+      let timer;
+      try {
+        return await Promise.race([operation, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("file handle teardown timed out")), 1500);
+        })]);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    try {
+      const feedDir = path.join(root, "feed");
+      buildQualificationFeed({ candidateDir, outDir: feedDir, targetId: "windows-x64", contract: CONTRACT });
+      server = await startQualificationFeedServer({ feedDir, manifest, contract: CONTRACT, targetId: "windows-x64" });
+      await deadline(new Promise((resolve, reject) => {
+        request = http.get(`${server.url}/${server.feed.payload.name}`, (incoming) => {
+          response = incoming;
+          incoming.on("error", () => {});
+          incoming.once("data", () => { incoming.pause(); resolve(); });
+        });
+        request.on("error", reject);
+      }));
+      assert.equal(streams.length, 1);
+      assert.equal(streams[0].closed, false);
+      const closed = new Promise((resolve) => streams[0].once("close", resolve));
+      if (disconnect) response.destroy();
+      else await deadline(server.close());
+      await deadline(closed);
+      assert.equal(streams[0].closed, true);
+      await deadline(server.close());
+      // A completed close is safe to invoke again during layered cleanup.
+      await deadline(server.close());
+    } finally {
+      response?.destroy();
+      request?.destroy();
+      await Promise.all(streams.map((stream) => new Promise((resolve) => {
+        if (stream.closed) return resolve();
+        stream.once("close", resolve);
+        stream.destroy();
+      })));
+      await server?.close().catch(() => {});
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
