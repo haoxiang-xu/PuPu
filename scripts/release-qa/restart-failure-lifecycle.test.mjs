@@ -12,6 +12,7 @@ import { validateRestartUpdateQualificationReport } from "./restart-update-quali
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
 import { expectedTargetAssets, readReleaseArtifactContract } from "./release-artifact-manifest.mjs";
 import { createRestartObservationRecorder } from "./restart-observations.mjs";
+import { closeWindowsApplication } from "./installed-package-qualification.mjs";
 
 const artifactContract = readReleaseArtifactContract(fileURLToPath(new URL("../../docs/contracts/release/release-artifact-contract.v1.json", import.meta.url)));
 const updateServiceUrl = new URL("../../electron/main/services/update/service.js", import.meta.url);
@@ -136,7 +137,11 @@ function lifecycleHarness(options = {}) {
   const installed = {
     identity, executablePath: executable, launchCwd: fixtureRoot,
     sidecarNeedle: sidecar, candidateNeedle: fixtureRoot,
-    close(pid) { events.push(`app:close:${pid}`); alive.delete(pid); alive.delete(202); },
+    close(pid) {
+      events.push(`app:close:${pid}`);
+      if (options.closeApplication) return options.closeApplication(pid, { alive, events });
+      alive.delete(pid); alive.delete(202);
+    },
     cleanup() { events.push("installed:cleanup"); },
   };
   const rows = () => [
@@ -752,4 +757,51 @@ test("cleanup finds detached long-path relaunch even when failure precedes root 
   assert.ok(f.killed.has(201));
   assert.ok(!f.alive.has(201) && !f.alive.has(202), "tree termination also removes Sidecar");
   assert.ok(!f.killed.has(777));
+});
+
+const delayedWindowsClose = ({ neverReady = false, neverExit = false } = {}) => async (pid, { alive, events }) => {
+  let elapsed = 0, attempts = 0;
+  await closeWindowsApplication(pid, {
+    timeoutMs: 3_000, retryDelayMs: 1_000, now: () => elapsed,
+    pause: async (ms) => { elapsed += ms; },
+    onObservation: (row) => events.push(`window:close:${row.close_requested}`),
+    spawnProbe: () => {
+      attempts += 1;
+      const ready = !neverReady && attempts === 3;
+      return { status: 0, stdout: JSON.stringify({
+        schema: "pupu.windows-close-observation.v1", pid,
+        started_at: "639253488742760000", window_handle: ready ? "42" : "0",
+        responding: true, close_requested: ready,
+      }) };
+    },
+  });
+  events.push("window:close:accepted");
+  if (!neverExit) { alive.delete(pid); alive.delete(202); }
+};
+
+test("full restart lifecycle awaits real close retry logic before declaring controlled shutdown", async () => {
+  const f = lifecycleHarness({ windowsPathAliases: true, closeApplication: delayedWindowsClose() });
+  assert.equal((await f.run()).status, "passed");
+  assert.deepEqual(f.events.filter((event) => event.startsWith("window:close:")), [
+    "window:close:false", "window:close:false", "window:close:true", "window:close:accepted",
+  ]);
+  assert.ok(!f.killed.has(201), "normal exit must precede forced cleanup");
+});
+
+test("never-ready window stays failed even if failure cleanup kills the app", async () => {
+  const f = lifecycleHarness({ closeApplication: delayedWindowsClose({ neverReady: true }) });
+  await assert.rejects(f.run(), /Windows close request timed out/);
+  assert.equal(f.writes.get("/evidence/failure.json").stage, "relaunched-shutdown");
+  assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
+  assert.ok(f.killed.has(201));
+  assert.ok(!f.killed.has(777));
+});
+
+test("accepted WM_CLOSE without actual exit still fails and cannot produce a passing report", async () => {
+  const f = lifecycleHarness({ closeApplication: delayedWindowsClose({ neverExit: true }) });
+  await assert.rejects(f.run(), /restarted N controlled shutdown timed out/);
+  assert.equal(f.writes.get("/evidence/failure.json").stage, "relaunched-shutdown");
+  assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
+  assert.ok(f.elapsedMs >= 60_000);
+  assert.ok(f.killed.has(201));
 });

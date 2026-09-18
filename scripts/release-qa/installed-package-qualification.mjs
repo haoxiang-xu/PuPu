@@ -433,6 +433,76 @@ export const runWindowsNsisInstaller = async (
   throw new Error(`Windows NSIS installer failed: ${diagnostics.join("; ")}`);
 };
 
+// Sending WM_CLOSE is separate from proving exit. Callers must await this
+// bounded readiness phase, then independently observe normal process exit.
+export const closeWindowsApplication = async (pid, {
+  timeoutMs = 60_000,
+  retryDelayMs = 1_000,
+  spawnProbe = spawnSync,
+  pause = sleep,
+  now = Date.now,
+  onObservation = (row) => console.log(`[windows-close] ${JSON.stringify(row)}`),
+} = {}) => {
+  requirePositiveInteger(pid, "Windows close pid");
+  if (pid > 2_147_483_647 || pid === process.pid || pid === process.ppid) {
+    throw new Error("Windows close requires an owned application pid");
+  }
+  requirePositiveInteger(timeoutMs, "Windows close timeoutMs");
+  requirePositiveInteger(retryDelayMs, "Windows close retryDelayMs");
+  const deadline = now() + timeoutMs;
+  let startedAt = "";
+  let last = null;
+  let attempt = 0;
+  while (now() < deadline) {
+    // Pin creation time after the first observation. Never send a close to a
+    // replacement process that happens to reuse the same PID during retries.
+    const script = `
+$ErrorActionPreference = 'Stop'
+$appProcess = Get-Process -Id ${pid} -ErrorAction Stop
+$startedAt = $appProcess.StartTime.ToUniversalTime().Ticks.ToString()
+if ('${startedAt}' -ne '' -and $startedAt -ne '${startedAt}') { throw 'Windows close process identity changed' }
+$appProcess.Refresh()
+if ($appProcess.HasExited) { throw 'Windows close process exited before close request' }
+$handle = $appProcess.MainWindowHandle.ToInt64().ToString()
+$responding = [bool]$appProcess.Responding
+$requested = $false
+if ($handle -ne '0' -and $responding) { $requested = [bool]$appProcess.CloseMainWindow() }
+[ordered]@{
+  schema = 'pupu.windows-close-observation.v1'; pid = [int]$appProcess.Id
+  started_at = $startedAt; window_handle = $handle
+  responding = $responding; close_requested = $requested
+} | ConvertTo-Json -Compress
+`;
+    const result = spawnProbe("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      encoding: "utf8", windowsHide: true,
+      timeout: Math.max(1, Math.min(10_000, deadline - now())),
+    });
+    attempt += 1;
+    if (result.error || result.status !== 0) {
+      throw new Error(`Windows close probe failed (pid=${pid}, attempt=${attempt}): ${String(
+        result.stderr || result.error?.message || result.stdout || "unknown failure",
+      ).trim()}; last=${JSON.stringify(last)}`);
+    }
+    const row = JSON.parse(String(result.stdout || "").replace(/^\uFEFF/, "").trim());
+    exactKeys(row, ["schema", "pid", "started_at", "window_handle", "responding", "close_requested"], "Windows close observation");
+    if (row.schema !== "pupu.windows-close-observation.v1" || row.pid !== pid ||
+        typeof row.started_at !== "string" || !/^[1-9][0-9]{0,18}$/.test(row.started_at) ||
+        typeof row.window_handle !== "string" || !/^(0|[1-9][0-9]*)$/.test(row.window_handle) ||
+        typeof row.responding !== "boolean" || typeof row.close_requested !== "boolean" ||
+        (row.close_requested && (row.window_handle === "0" || !row.responding))) {
+      throw new Error("invalid Windows close observation");
+    }
+    if (startedAt && row.started_at !== startedAt) throw new Error("Windows close process identity changed");
+    startedAt = row.started_at;
+    last = { ...row, attempt };
+    onObservation(last);
+    if (now() >= deadline) break;
+    if (row.close_requested) return last;
+    await pause(Math.min(retryDelayMs, deadline - now()));
+  }
+  throw new Error(`Windows close request timed out (pid=${pid}, budget=${timeoutMs}ms); last=${JSON.stringify(last)}`);
+};
+
 export const installWindowsNsis = async ({ installerPath, tempRoot }) => {
   if (process.platform !== "win32") throw new Error("NSIS qualification requires Windows");
   const installRoot = path.join(tempRoot, "installed");
@@ -446,10 +516,7 @@ export const installWindowsNsis = async ({ installerPath, tempRoot }) => {
     launchCwd: path.dirname(executablePath),
     sidecarNeedle: identity.sidecarPath,
     candidateNeedle: installRoot,
-    close: (pid) => runChecked("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      `$process = Get-Process -Id ${pid} -ErrorAction Stop; if (-not $process.CloseMainWindow()) { throw 'CloseMainWindow returned false' }`,
-    ]),
+    close: closeWindowsApplication,
     cleanup: () => {},
   };
 };
@@ -570,8 +637,8 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
       return sidecar || null;
     }, 60_000, "bundled Sidecar descendant");
 
-    installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
-    await waitFor(() => !processAlive(child.pid), 15_000, "controlled installed-app shutdown");
+    await installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
+    await waitFor(() => !processAlive(child.pid), process.platform === "win32" ? 60_000 : 15_000, "controlled installed-app shutdown");
     const cleanupRows = readProcessTable();
     const cleanupPids = selectInstalledCleanupPids({
       rows: cleanupRows,
