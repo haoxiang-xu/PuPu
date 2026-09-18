@@ -90,6 +90,35 @@ const runChecked = (command, args, options = {}) => {
 
 const normalizePath = (value) => String(value || "").replaceAll("\\", "/").toLowerCase();
 
+// Windows reports the same image using either an 8.3 path or a long path.
+// Resolve through the filesystem; never guess aliases or trust a path merely
+// mentioned in CommandLine. Missing/inaccessible images are not new ownership.
+const canonicalWindowsPath = (value) => {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const resolved = fs.realpathSync.native(value)
+      .replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+    if (!path.win32.isAbsolute(resolved)) return null;
+    return normalizePath(path.win32.normalize(resolved)).replace(/\/+$/, "");
+  } catch { return null; }
+};
+
+const matchesInstalledImage = (row, expectedPath) => {
+  if (process.platform !== "win32") return normalizePath(row.command).includes(normalizePath(expectedPath));
+  const expected = canonicalWindowsPath(expectedPath);
+  return expected !== null && canonicalWindowsPath(row.executablePath) === expected;
+};
+
+const windowsImageInRoots = (row, roots) => {
+  const image = canonicalWindowsPath(row.executablePath);
+  if (!image) return false;
+  return roots.some((root) => {
+    const canonicalRoot = canonicalWindowsPath(root);
+    if (!canonicalRoot || canonicalRoot === normalizePath(path.win32.parse(canonicalRoot).root).replace(/\/+$/, "")) return false;
+    return image.startsWith(`${canonicalRoot}/`);
+  });
+};
+
 const hashFile = (filePath) => `sha256:${crypto.createHash("sha256")
   .update(fs.readFileSync(filePath))
   .digest("hex")}`;
@@ -335,12 +364,11 @@ const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {},
   });
   Object.assign(session, connection);
   onStage("fixture-sidecar-readiness");
-  const sidecarNeedle = normalizePath(installed.sidecarNeedle);
   await waitFor(() => {
     const rows = readProcessTable();
     const descendants = descendantPids(rows, child.pid);
     for (const pid of descendants) observedPids.add(pid);
-    return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
+    return rows.find((row) => descendants.has(row.pid) && matchesInstalledImage(row, installed.sidecarNeedle)) || null;
   }, RESTART_UPDATE_TIMEOUTS.sidecar, "signed N-1 Sidecar descendant");
   return session;
 };
@@ -398,20 +426,20 @@ const findRelaunchedRoot = ({ installed, oldPid, onObservation = () => {} }) => 
   return waitFor(() => {
     const rows = readProcessTable();
     onObservation(rows);
-    const matching = rows.filter((row) => row.pid !== oldPid && (
+    const matching = rows.filter((row) => row.pid !== oldPid && (process.platform === "win32"
+      ? matchesInstalledImage(row, installed.executablePath) : (
       normalizePath(row.command).includes(executableNeedle) || normalizePath(row.command).includes(candidateNeedle)
-    ));
+    )));
     const root = matching.find((row) => !matching.some((candidate) => candidate.pid === row.ppid));
     return root || null;
   }, RESTART_UPDATE_TIMEOUTS.relaunch, "automatic N relaunch process");
 };
 
 const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
-  const sidecarNeedle = normalizePath(installed.sidecarNeedle);
   await waitFor(() => {
     const rows = readProcessTable();
     const descendants = descendantPids(rows, rootPid);
-    return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
+    return rows.find((row) => descendants.has(row.pid) && matchesInstalledImage(row, installed.sidecarNeedle)) || null;
   }, RESTART_UPDATE_TIMEOUTS.sidecar, "restarted N Sidecar descendant");
 };
 
@@ -475,10 +503,11 @@ const restartUpdateProbeDetails = (probe) => {
 const selectRestartCleanupPids = ({ rows, runtime, installedFixture, expectedCandidate }) => {
   const known = new Set([runtime?.child?.pid, ...(runtime?.observedPids || [])]);
   const roots = [installedFixture?.launchCwd, expectedCandidate?.launchCwd]
-    .filter((value) => typeof value === "string" && value.length > 3)
-    .map((value) => `${normalizePath(value).replace(/\/+$/, "")}/`);
+    .filter((value) => typeof value === "string" && value.length > 3);
   for (const row of rows) {
-    if (roots.some((root) => normalizePath(row.command).includes(root))) known.add(row.pid);
+    const owned = process.platform === "win32" ? windowsImageInRoots(row, roots)
+      : roots.some((root) => normalizePath(row.command).includes(`${normalizePath(root).replace(/\/+$/, "")}/`));
+    if (owned) known.add(row.pid);
   }
   // Remove protected ancestors before walking children, otherwise a harness
   // command containing an installation path could pull in sibling processes.
