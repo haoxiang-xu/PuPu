@@ -46,9 +46,12 @@ function lifecycleHarness(options = {}) {
   const killed = new Set();
   const child = new EventEmitter();
   Object.assign(child, { pid: 101, exitCode: null, signalCode: null, stdout: new EventEmitter(), stderr: new EventEmitter() });
-  const fixtureRoot = "/qa/temp/installed-n-minus-one/installed";
+  const fixtureRoot = options.windowsPathAliases
+    ? "C:/Users/RUNNER~1/AppData/Local/Temp/qa/installed-n-minus-one/installed"
+    : "/qa/temp/installed-n-minus-one/installed";
   const executable = `${fixtureRoot}/PuPu.exe`;
   const sidecar = `${fixtureRoot}/resources/sidecar.exe`;
+  const relaunchedPath = (value) => options.windowsPathAliases ? value.replace("RUNNER~1", "runneradmin") : value;
   let clock = 0;
   let downloadCount = 0;
   let installCount = 0;
@@ -138,11 +141,11 @@ function lifecycleHarness(options = {}) {
   };
   const rows = () => [
     ...(options.extraProcessRows || []),
-    ...(alive.has(101) ? [{ ProcessId: 101, ParentProcessId: 999, CommandLine: executable }] : []),
-    ...(alive.has(102) && !options.sidecarMissing ? [{ ProcessId: 102, ParentProcessId: 101, CommandLine: sidecar }] : []),
-    ...(alive.has(201) ? [{ ProcessId: 201, ParentProcessId: 999, CommandLine: executable }] : []),
-    ...(alive.has(202) ? [{ ProcessId: 202, ParentProcessId: 201, CommandLine: sidecar }] : []),
-    { ProcessId: 777, ParentProcessId: 999, CommandLine: "C:/unrelated/PuPu.exe" },
+    ...(alive.has(101) ? [{ ProcessId: 101, ParentProcessId: 999, CommandLine: executable, ExecutablePath: executable }] : []),
+    ...(alive.has(102) && !options.sidecarMissing ? [{ ProcessId: 102, ParentProcessId: 101, CommandLine: sidecar, ExecutablePath: sidecar }] : []),
+    ...(alive.has(201) ? [{ ProcessId: 201, ParentProcessId: 999, CommandLine: relaunchedPath(executable), ExecutablePath: relaunchedPath(executable) }] : []),
+    ...(alive.has(202) ? [{ ProcessId: 202, ParentProcessId: 201, CommandLine: relaunchedPath(sidecar), ExecutablePath: relaunchedPath(sidecar) }] : []),
+    { ProcessId: 777, ParentProcessId: 999, CommandLine: "C:/unrelated/PuPu.exe", ExecutablePath: "C:/unrelated/PuPu.exe" },
   ];
   const sandbox = {
     createRestartObservationRecorder,
@@ -171,6 +174,10 @@ function lifecycleHarness(options = {}) {
       kill(pid) { if (!alive.has(pid)) throw new Error("no such process"); },
     },
     fs: {
+      realpathSync: { native(location) {
+        // Mock only the native filesystem boundary, not the matching logic.
+        return path.win32.normalize(relaunchedPath(location).replace(/^\//, "C:/"));
+      } },
       mkdirSync(location) {
         createdPaths.push(location);
         if (options.profileAppearsBeforeSeed && path.win32.normalize(location) === nativeProfile) throw new Error("EEXIST raced profile");
@@ -511,7 +518,7 @@ test("cleanup selection excludes current and parent PIDs, unrelated PuPu and ins
     { pid: 999, ppid: 998, command: `${root}/runner.exe` },
     { pid: 998, ppid: 1, command: `${root}/runner-parent.exe` },
   ];
-  const actual = f.sandbox.selectPids({ rows, runtime: { child: { pid: 101 }, observedPids: new Set([101]) }, installedFixture: { launchCwd: root } });
+  const actual = f.sandbox.selectPids({ rows: rows.map((row) => ({ ...row, executablePath: row.command })), runtime: { child: { pid: 101 }, observedPids: new Set([101]) }, installedFixture: { launchCwd: root } });
   assert.deepEqual([...actual].sort(), [101, 102, 201]);
 });
 
@@ -719,4 +726,30 @@ test("OS diagnostic failures cannot replace the original upgrade failure or stop
   assert.ok(diagnostic.observation_errors.length > 0);
   assert.doesNotMatch(JSON.stringify(diagnostic), /token=hidden/);
   assert.ok(f.events.includes("temp:remove"));
+});
+
+test("complete Windows lifecycle accepts native long-path relaunch and Sidecar after short-path launch", async () => {
+  const f = lifecycleHarness({ windowsPathAliases: true });
+  assert.equal((await f.run()).status, "passed");
+  assert.ok(f.events.includes("app:close:201"));
+  assert.equal(f.launches.length, 1, "the harness must not manually relaunch the candidate");
+});
+
+test("long-path relaunch still cannot bypass exact candidate identity checks", async () => {
+  const failure = new Error("candidate identity mismatch");
+  const f = lifecycleHarness({ windowsPathAliases: true, identityFailure: failure });
+  await assert.rejects(f.run(), (error) => error === failure);
+  assert.equal(f.writes.get("/evidence/failure.json").stage, "relaunched-identity");
+  assert.ok(f.killed.has(201));
+  assert.ok(!f.alive.has(201) && !f.alive.has(202), "tree termination also removes Sidecar");
+  assert.ok(!f.killed.has(777));
+});
+
+test("cleanup finds detached long-path relaunch even when failure precedes root discovery", async () => {
+  const failure = new Error("browser transport failed");
+  const f = lifecycleHarness({ windowsPathAliases: true, browserCloseError: failure });
+  await assert.rejects(f.run(), (error) => error === failure);
+  assert.ok(f.killed.has(201));
+  assert.ok(!f.alive.has(201) && !f.alive.has(202), "tree termination also removes Sidecar");
+  assert.ok(!f.killed.has(777));
 });
