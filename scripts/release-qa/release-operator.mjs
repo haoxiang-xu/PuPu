@@ -31,6 +31,12 @@ const RUN_CONCLUSIONS = new Set([
 ]);
 
 const PHASES = Object.freeze({
+  "windows-diagnostic": Object.freeze({
+    workflow: ".github/workflows/windows-signing-qualification.yml",
+    confirmation: "START_WINDOWS_DIAGNOSTIC",
+    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "fromTag"]),
+    requiredArtifacts: Object.freeze(["windows-upgrade-diagnostic"]),
+  }),
   candidate: Object.freeze({
     workflow: ".github/workflows/release-qa.yml",
     confirmation: "START_CANDIDATE",
@@ -176,13 +182,14 @@ const workflowInputsForPlan = (phase, options) => {
       unchain_ref: unchainRef,
     };
   }
-  if (phase === "qualification") {
+  if (phase === "qualification" || phase === "windows-diagnostic") {
     const targetTuple = stableVersionTuple(`v${options.packageVersion}`, "package version tag");
     const fromTuple = stableVersionTuple(options.fromTag, "qualification source tag");
     if (compareVersionTuple(fromTuple, targetTuple) >= 0) {
       throw new Error("qualification source tag must be lower than the target package version");
     }
     return {
+      ...(phase === "windows-diagnostic" ? { confirmation: "DIAGNOSE_WINDOWS_UPGRADE" } : {}),
       candidate_run_id: requiredRunId(options.candidateRunId, "candidate run ID"),
       release_tag: options.tag,
       from_tag: options.fromTag,
@@ -234,7 +241,7 @@ export function buildReleaseOperatorPlan(options = {}) {
     mutates: false,
     phase,
     repository,
-    ref: releaseRef.tag,
+    ref: phase === "windows-diagnostic" ? "dev" : releaseRef.tag,
     workflow: config.workflow,
     workflow_inputs: Object.freeze(workflowInputs),
     confirmation_required: config.confirmation,
@@ -247,18 +254,20 @@ const rebuildReleaseOperatorPlan = (plan) => {
   }
   const phase = requirePhase(plan.phase);
   const ref = requiredExactString(plan.ref, "release operator plan ref");
-  if (!ref.startsWith("v")) throw new Error("release operator plan ref must start with v");
+  if (phase === "windows-diagnostic" ? ref !== "dev" : !ref.startsWith("v")) {
+    throw new Error("release operator plan ref must be dev for diagnostics, or start with v for releases");
+  }
   if (!plan.workflow_inputs || typeof plan.workflow_inputs !== "object" || Array.isArray(plan.workflow_inputs)) {
     throw new Error("release operator plan workflow_inputs must be an object");
   }
   const options = {
     phase,
     repo: plan.repository,
-    tag: ref,
-    packageVersion: packageVersionForReleaseRef(ref),
+    tag: phase === "windows-diagnostic" ? plan.workflow_inputs.release_tag : ref,
+    packageVersion: packageVersionForReleaseRef(phase === "windows-diagnostic" ? plan.workflow_inputs.release_tag : ref),
   };
   if (phase === "candidate") options.unchainRef = plan.workflow_inputs.unchain_ref;
-  if (phase === "qualification") {
+  if (phase === "qualification" || phase === "windows-diagnostic") {
     options.candidateRunId = plan.workflow_inputs.candidate_run_id;
     options.fromTag = plan.workflow_inputs.from_tag;
   }
@@ -433,7 +442,7 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
   if (!run || typeof run !== "object" || Array.isArray(run)) throw new Error("Actions run response must be an object");
   if (String(run.id) !== expectedRunId) throw new Error("Actions run ID does not match the requested run");
   if (run.event !== "workflow_dispatch") throw new Error("release operation run event must be workflow_dispatch");
-  if (run.head_branch !== expectedTag) throw new Error("Actions run tag does not match the requested tag");
+  if (run.head_branch !== (selectedPhase === "windows-diagnostic" ? "dev" : expectedTag)) throw new Error("Actions run tag/ref does not match the requested tag/ref");
   if (run.head_sha !== expectedCommit) throw new Error("Actions run commit does not match the requested commit");
   if (normalizeWorkflowPath(run.path) !== config.workflow) {
     throw new Error(`Actions workflow path must equal ${config.workflow}`);
@@ -444,7 +453,8 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
   const normalizedArtifacts = normalizeArtifacts(artifacts);
   const artifactNames = new Set(normalizedArtifacts.map((artifact) => artifact.name));
   const missingArtifacts = config.requiredArtifacts.filter((name) => !artifactNames.has(name));
-  const failedJobs = normalizedJobs.filter((job) => job.status === "completed" && job.conclusion !== "success");
+  const failedJobs = normalizedJobs.filter((job) => job.status === "completed" && job.conclusion !== "success"
+    && !(selectedPhase === "windows-diagnostic" && job.name === "Build and verify Windows Artifact Signing" && job.conclusion === "skipped"));
   const blockingReasons = [];
   if (run.status === "waiting") blockingReasons.push("environment-approval-required");
   for (const job of failedJobs) blockingReasons.push(`job-failed:${job.name}`);
@@ -468,7 +478,9 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
     phase: selectedPhase,
     repository,
     workflow: config.workflow,
-    release: Object.freeze({ tag: expectedTag, commit: expectedCommit }),
+    ...(selectedPhase === "windows-diagnostic"
+      ? { diagnostic_only: true, tools: Object.freeze({ ref: "dev", commit: expectedCommit }), requested_candidate_tag: expectedTag }
+      : { release: Object.freeze({ tag: expectedTag, commit: expectedCommit }) }),
     run: Object.freeze({
       id: expectedRunId,
       url: requiredExactString(run.html_url, "Actions run URL"),

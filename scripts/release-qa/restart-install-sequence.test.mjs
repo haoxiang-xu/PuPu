@@ -5,6 +5,7 @@ import vm from "node:vm";
 import test from "node:test";
 
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
+import { createRestartObservationRecorder } from "./restart-observations.mjs";
 
 const executor = fs.readFileSync(new URL("./run-restart-update-qualification.mjs", import.meta.url), "utf8");
 const installer = fs.readFileSync(new URL("./installed-package-qualification.mjs", import.meta.url), "utf8");
@@ -38,6 +39,7 @@ function exercise(t) {
   const manifest = { assets: [{ target_id: "windows-x64", role: "installer", format: "exe", name: "candidate.exe" }] };
   const kind = (location) => location.includes("expected-n") ? "candidate" : "fixture";
   const sandbox = {
+    createRestartObservationRecorder, collectWindowsUpgradeObservations: () => ({ available: false, reason: "test-boundary" }),
     ROOT: "/repo", path: path.posix, os: { tmpdir: () => "/tmp" },
     process: { platform: "win32", pid: 999, ppid: 998 },
     setTimeout, clearTimeout, console: { error() {} },
