@@ -780,7 +780,7 @@ export async function runRestartUpdateQualification({
     assertFeedRequests(server, { targetId, fromVersion: fixture.from_version, contract });
 
     stage = "relaunched-shutdown";
-    installedFixture.close(relaunchedRoot.pid);
+    await installedFixture.close(relaunchedRoot.pid);
     await waitFor(() => !processAlive(relaunchedRoot.pid), RESTART_UPDATE_TIMEOUTS.shutdown, "restarted N controlled shutdown");
     stage = "validate-report";
     return validateRestartUpdateQualificationReport({

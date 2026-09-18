@@ -42,6 +42,7 @@ function exercise(t) {
     createRestartObservationRecorder, collectWindowsUpgradeObservations: () => ({ available: false, reason: "test-boundary" }),
     ROOT: "/repo", path: path.posix, os: { tmpdir: () => "/tmp" },
     process: { platform: "win32", pid: 999, ppid: 998 },
+    closeWindowsApplication: () => { throw new Error("unexpected shutdown before test runtime boundary"); },
     setTimeout, clearTimeout, console: { error() {} },
     fs: {
       mkdtempSync: () => "/tmp/restart-sequence",
