@@ -13,6 +13,8 @@ import {
   validateMacSigningEvidence,
 } from "./macos-signing-evidence.mjs";
 import { hashFileSha512 } from "./release-artifact-manifest.mjs";
+import { hashFileSha256 } from "./release-artifact-manifest.mjs";
+import { bindMacFixtureSigningEvidence } from "./seal-macos-restart-fixture.mjs";
 
 const QUALIFICATION_SCHEMA = "pupu.macos-signing-qualification.v1";
 const RELEASE_SCHEMA = "pupu.macos-release-candidate-signing.v1";
@@ -93,6 +95,34 @@ function validEvidence({ schema = QUALIFICATION_SCHEMA, release } = {}) {
   }
   return evidence;
 }
+
+test("macOS fixture signing has a distinct schema and seals exact N-1 DMG bytes", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-mac-fixture-seal-"));
+  try {
+    const fixturePath = path.join(root, DMG_NAME);
+    fs.writeFileSync(fixturePath, "fixture bytes");
+    const evidence = validEvidence({ schema: "pupu.macos-restart-fixture-signing.v1" });
+    evidence.source.ref = `refs/tags/v${VERSION}`;
+    const dmg = evidence.artifacts.find((item) => item.format === "dmg");
+    dmg.sha256 = hashFileSha256(fixturePath);
+    dmg.size_bytes = fs.statSync(fixturePath).size;
+    const input = { evidence, fixturePath, targetId: TARGET_ID, fromTag: `v${VERSION}`, fromVersion: VERSION, fromCommit: SOURCE_COMMIT };
+    const receipt = bindMacFixtureSigningEvidence(input);
+    assert.equal(receipt.schema, "pupu.restart-update-fixture.v1");
+    assert.equal(receipt.installer.sha256, dmg.sha256);
+    assert.equal(receipt.signer.thumbprint, evidence.certificate.leaf_sha256);
+    assert.deepEqual(receipt.allowed_differences, ["app-update.yml"]);
+    for (const change of [{ targetId: "macos-x64" }, { fromCommit: "d".repeat(40) }, { fromVersion: "0.1.11" }]) {
+      assert.throws(() => bindMacFixtureSigningEvidence({ ...input, ...change }), /identity/);
+    }
+    const wrongSource = structuredClone(evidence);
+    wrongSource.source.ref = "refs/heads/dev";
+    assert.throws(() => validateMacSigningEvidence(wrongSource), /stable N-1/);
+    assert.throws(() => bindMacFixtureSigningEvidence({ ...input, evidence: validEvidence() }), /identity/);
+    fs.appendFileSync(fixturePath, "modified");
+    assert.throws(() => bindMacFixtureSigningEvidence(input), /bytes/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
 
 test("macOS qualification and formal signing evidence use closed, non-interchangeable schemas", () => {
   assert.deepEqual(validateMacSigningEvidence(validEvidence()), validEvidence());

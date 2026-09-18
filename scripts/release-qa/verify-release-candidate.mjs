@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import { TOOLS_QUALIFICATION_SCHEMA } from "./release-toolchain.mjs";
 
 import {
   readJson,
@@ -84,7 +85,7 @@ function main() {
       : null;
     validateQualificationReceipt(qualification, manifest, contract, { bootstrapPolicy });
     if (args["require-restart-qualification"] === "true" &&
-        !["pupu.release-update-qualification.v1", RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA].includes(qualification.schema)) {
+        !["pupu.release-update-qualification.v1", TOOLS_QUALIFICATION_SCHEMA, RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA].includes(qualification.schema)) {
       throw new Error("qualification receipt must include complete restart-update evidence or the frozen one-time bootstrap admission");
     }
     if (args["qualification-run-id"] &&

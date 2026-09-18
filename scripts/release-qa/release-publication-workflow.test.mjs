@@ -246,7 +246,16 @@ test("README workflow is explicitly called after publication and never regex-rew
   assert.ok(workflow.indexOf("--policy promotion") < workflow.indexOf("gh release download"));
   assert.match(workflow, /verify-release-candidate\.mjs/);
   assert.match(workflow, /--allow-extra windows-signing-evidence\.v1\.json/);
-  assert.match(workflow, /--bootstrap-policy docs\/contracts\/release\/release-bootstrap-policy\.v1\.json/);
+  assert.match(workflow, /--bootstrap-policy release-tools\/docs\/contracts\/release\/release-bootstrap-policy\.v1\.json/);
+  const steps = YAML.parse(workflow).jobs["update-readme"].steps;
+  assert.equal(steps.find((step) => step.name === "Checkout main branch").with.ref, "main");
+  const toolsCheckout = steps.find((step) => step.name === "Checkout frozen release verifier and renderer");
+  assert.equal(toolsCheckout.with.ref, "${{ github.sha }}");
+  assert.equal(toolsCheckout.with.path, "release-tools");
+  assert.equal(steps.find((step) => step.name === "Install manifest verifier dependencies")["working-directory"], "release-tools");
+  assert.match(workflow, /node release-tools\/scripts\/release-qa\/verify-release-candidate\.mjs/);
+  assert.match(workflow, /--readme README\.md/);
+  assert.equal(steps.at(-1).with["add-paths"], "README.md");
   assert.match(workflow, /update-readme-links\.cjs --manifest/);
   assert.match(workflow, /inputs\.release_tag/);
   assert.ok(workflow.indexOf("verify-release-candidate.mjs") < workflow.indexOf("update-readme-links.cjs"));

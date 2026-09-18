@@ -36,6 +36,7 @@ jobs:
   windows-restart-update:
     name: Qualify Windows signed N-1 to exact N restart update
     runs-on: windows-latest
+    timeout-minutes: 180
     environment: release-signing
     permissions:
       contents: read
@@ -51,13 +52,19 @@ jobs:
       FEED_PORT: "38193"
 
     steps:
+      - name: Checkout exact candidate qualification tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: pupu
+          persist-credentials: false
+
       - name: Validate closed Windows restart-update inputs
         shell: bash
+        working-directory: pupu
         run: |
-          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
-            echo "::error title=Source identity mismatch::Windows restart-update qualification must run from the exact candidate tag commit"
-            exit 1
-          fi
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
           if ! [[ "$FROM_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$FROM_VERSION" != "${FROM_TAG#v}" ] || ! [[ "$FROM_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Invalid N-1 fixture identity::from_tag, from_version, and from_commit must be the candidate-preflight values"
             exit 1
@@ -66,13 +73,6 @@ jobs:
             echo "::error title=Missing candidate run::Windows restart-update qualification requires an exact Release 1 candidate"
             exit 1
           fi
-
-      - name: Checkout exact candidate qualification tools
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
-          path: pupu
-          persist-credentials: false
 
       - name: Checkout immutable N-1 fixture source
         uses: actions/checkout@v4

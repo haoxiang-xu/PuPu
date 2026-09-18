@@ -46,6 +46,17 @@ node scripts/release-qa/release-operator.mjs plan --phase candidate --repo haoxi
 
 For ordinary releases, use `qualification` with the exact successful candidate run ID and lower stable `from-tag`. For the frozen v0.1.10 baseline only, use `bootstrap`. Confirm with `START_QUALIFICATION` or `START_BOOTSTRAP_QUALIFICATION` respectively.
 
+When only qualification/promotion tools changed after a Candidate was sealed,
+`qualification`, `stage`, and `publish` may use `--tools-tag vX.Y.Z-tools.N`.
+The owner must explicitly authorize creation of that tag; this skill never
+creates it implicitly. All three phases must execute the same tools tag/SHA.
+Keep `--tag` equal to the original product tag and reuse the exact Candidate run.
+The tools tag is internal, not a public version or a new Candidate; it is excluded
+from automatic tag-push Release QA. Never use mutable `dev` as formal tools.
+Formal qualification still requires four fresh-install targets and all three
+restart-update targets (macOS arm64/x64 and Windows). Windows diagnostics cannot
+substitute for any formal receipt. Changing tools again requires requalification.
+
 ### Stage
 
 Use only after release work is complete and the exact candidate/qualification pair is accepted for staging. It requires candidate and qualification run IDs plus confirmation `STAGE_DRAFT`. Stop at the GitHub Environment approval and leave that decision to the project owner.
@@ -62,6 +73,10 @@ Always observe by exact phase, run ID, tag, and full tag commit:
 node scripts/release-qa/release-operator.mjs status --phase candidate --repo haoxiang-xu/PuPu --tag vX.Y.Z --commit <40-char-sha> --run-id <id>
 ```
 
+For a separate-tools run, status/wait additionally require `--tools-tag` and
+`--tools-commit`. `--tag` / `--commit` remain the product identity, not the tools
+identity. State both identities in the fresh confirmation before dispatch.
+
 Report:
 
 - workflow/run URL and exact identity;
@@ -75,4 +90,3 @@ Do not turn missing evidence into prose. Artifact checksums, candidate digest, U
 ## Relationship to release administration
 
 This skill does not replace `release-close-sprint`. That workflow owns direct-child roll-call, feature-audit/waiver evidence, real-app smoke, growth baseline, certification handoff, and Release issue closure. A green Actions chain is evidence, not a GO decision.
-

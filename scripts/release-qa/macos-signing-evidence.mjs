@@ -17,6 +17,7 @@ import {
 } from "./release-artifact-manifest.mjs";
 
 export const MACOS_SIGNING_QUALIFICATION_SCHEMA = "pupu.macos-signing-qualification.v1";
+export const MACOS_RESTART_FIXTURE_SIGNING_SCHEMA = "pupu.macos-restart-fixture-signing.v1";
 export const MACOS_RELEASE_CANDIDATE_SIGNING_SCHEMA = "pupu.macos-release-candidate-signing.v1";
 
 const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -200,7 +201,7 @@ function validateChecks(checks) {
 export function validateMacSigningEvidence(evidence) {
   if (!isPlainObject(evidence)) throw new Error("evidence must be an object");
   const schema = evidence.schema;
-  if (![MACOS_SIGNING_QUALIFICATION_SCHEMA, MACOS_RELEASE_CANDIDATE_SIGNING_SCHEMA].includes(schema)) {
+  if (![MACOS_SIGNING_QUALIFICATION_SCHEMA, MACOS_RELEASE_CANDIDATE_SIGNING_SCHEMA, MACOS_RESTART_FIXTURE_SIGNING_SCHEMA].includes(schema)) {
     throw new Error("evidence.schema must be a supported macOS signing evidence schema");
   }
   const rootKeys = [
@@ -221,6 +222,11 @@ export function validateMacSigningEvidence(evidence) {
   exactString(evidence.status, "passed", "status");
   validateWorkflow(evidence.workflow);
   validateSource(evidence.source, schema);
+  if (schema === MACOS_RESTART_FIXTURE_SIGNING_SCHEMA &&
+      (!/^\d+\.\d+\.\d+$/.test(evidence.package?.version || "") ||
+       evidence.source.ref !== `refs/tags/v${evidence.package.version}`)) {
+    throw new Error("fixture signing source must equal its stable N-1 version tag");
+  }
 
   exactKeys(evidence.target, ["id", "architecture"], "target");
   const targetId = requiredString(evidence.target.id, "target.id");

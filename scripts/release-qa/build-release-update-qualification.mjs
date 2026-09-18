@@ -6,6 +6,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { buildReleaseQualificationReceipt } from "./build-release-qualification.mjs";
+import { TOOLS_QUALIFICATION_SCHEMA } from "./release-toolchain.mjs";
 import {
   readJson,
   readReleaseArtifactContract,
@@ -41,6 +42,7 @@ export function buildReleaseUpdateQualificationReceipt({
   restartReports,
   qualificationRunId,
   fixtureSource,
+  tools,
 }) {
   const fresh = buildReleaseQualificationReceipt({
     manifest,
@@ -69,7 +71,8 @@ export function buildReleaseUpdateQualificationReceipt({
     throw new Error(`restart-update reports must match required targets: ${expectedTargets.join(", ")}`);
   }
   return validateReleaseUpdateQualificationReceipt({
-    schema: RELEASE_UPDATE_QUALIFICATION_SCHEMA,
+    schema: tools === undefined ? RELEASE_UPDATE_QUALIFICATION_SCHEMA : TOOLS_QUALIFICATION_SCHEMA,
+    ...(tools === undefined ? {} : { tools }),
     status: "passed",
     candidate_run_id: fresh.candidate_run_id,
     qualification_run_id: fresh.qualification_run_id,
@@ -123,6 +126,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
         fromVersion: args["from-version"],
         fromCommit: args["from-commit"],
       },
+      ...((args["tools-tag"] || args["tools-commit"]) ? {
+        tools: { tag: args["tools-tag"], commit: args["tools-commit"] },
+      } : {}),
     });
     writeJson(path.resolve(args.out), receipt);
     console.log(`[release-update-qualification] receipt passed for ${receipt.restart_targets.length} restart targets`);
