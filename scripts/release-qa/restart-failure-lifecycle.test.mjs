@@ -36,6 +36,7 @@ function lifecycleHarness(options = {}) {
   const createdPaths = [];
   const launches = [];
   const installations = [];
+  const timeoutOptions = {};
   const preferences = new Map();
   const nativeAppData = "C:\\Users\\runneradmin\\AppData\\Roaming";
   const nativeProfile = path.win32.join(nativeAppData, "PuPu");
@@ -54,6 +55,7 @@ function lifecycleHarness(options = {}) {
   let closing = false;
   let failureOccurred = false;
   let browserClosed = 0;
+  let browserConnected = true;
   let stageListener;
   let startupTimer;
   let networkChecks = 0;
@@ -103,19 +105,28 @@ function lifecycleHarness(options = {}) {
   };
   const page = {
     url: () => "file:///installed/index.html",
-    async waitForLoadState() {
+    async waitForLoadState(_state, settings) {
+      timeoutOptions.rendererLoad = settings.timeout;
       events.push("renderer:load");
       if (options.slowStartup && startupTimer) { events.push("startup:timer"); startupTimer(); }
       if (options.rendererFailure) { failureOccurred = true; throw options.rendererFailure; }
     },
     async evaluate(callback) { return callback(); },
-    async waitForFunction(callback) { assert.equal(callback(), true, "updater should have produced downloaded state"); },
+    async waitForFunction(callback, _argument, settings) {
+      timeoutOptions.download = settings.timeout;
+      if (options.downloadTimeout) throw new Error("download deadline exceeded");
+      assert.equal(callback(), true, "updater should have produced downloaded state");
+    },
   };
   const browser = {
+    isConnected: () => options.invalidConnectionState ? "false" : browserConnected,
     contexts: () => [{ pages: () => [page] }],
     async close() {
       browserClosed += 1; closing = true; events.push("browser:close");
+      if (options.browserCloseError) throw options.browserCloseError;
+      if (options.browserCloseFirstHang && browserClosed === 1) await new Promise(() => {});
       if (options.browserCloseHang) await new Promise(() => {});
+      if (!options.browserCloseStillConnected) browserConnected = false;
     },
   };
   const installed = {
@@ -221,7 +232,10 @@ function lifecycleHarness(options = {}) {
       if (options.spawnFailure) throw new Error("CDP server unavailable");
       return { ok: true, json: async () => [{ type: "page", url: page.url() }] };
     },
-    loadPlaywright: async () => ({ chromium: { connectOverCDP: async () => { events.push("browser:connect"); return browser; } } }),
+    loadPlaywright: async () => ({ chromium: { connectOverCDP: async (_endpoint, settings) => {
+      timeoutOptions.cdp = settings.timeout;
+      events.push("browser:connect"); return browser;
+    } } }),
     document: { getElementById: () => ({}) }, location: { protocol: "file:" },
     window: {
       appUpdateAPI: {
@@ -242,7 +256,10 @@ function lifecycleHarness(options = {}) {
           installCount += 1;
           if (installCount === 1) {
             alive.delete(101); alive.delete(102); alive.add(201); alive.add(202); relaunched = true;
+            if (options.oldProcessStuck) alive.add(101);
+            if (options.relaunchMissing) { alive.delete(201); alive.delete(202); }
             child.exitCode = 0;
+            if (options.browserDisconnectsOnExit) browserConnected = false;
           }
           return { started: installCount === 1 };
         },
@@ -318,6 +335,7 @@ function lifecycleHarness(options = {}) {
     run, start, events, writes, alive, killed, child, browser, stages, sandbox,
     readPaths, removedPaths, createdPaths, launches, installations, nativeAppData, nativeProfile, nativeSentinel,
     preferences, get networkChecks() { return networkChecks; },
+    timeoutOptions, get elapsedMs() { return clock; },
     get browserClosed() { return browserClosed; },
   };
 }
@@ -604,4 +622,68 @@ test("manual update admission rejects missing, mistyped and extended IPC result 
 test("real lifecycle accepts only exact previous Windows blockmap fallback followed by full payload", async () => {
   const f = lifecycleHarness({ extraFeedRequests: [{ method: "GET", pathname: "/PuPu-0.1.10-windows-x64-setup.exe.blockmap", status: 404 }] });
   assert.equal((await f.run()).status, "passed");
+});
+
+test("already-disconnected old runtime does not wait on a redundant close command", async () => {
+  const f = lifecycleHarness({ browserDisconnectsOnExit: true, browserCloseHang: true });
+  assert.equal((await f.run()).status, "passed");
+  assert.equal(f.browserClosed, 0);
+});
+
+test("one close timeout is retried without replaying installation and recovery is recorded", async () => {
+  const f = lifecycleHarness({ browserCloseFirstHang: true });
+  assert.equal((await f.run()).status, "passed");
+  assert.equal(f.browserClosed, 2);
+  assert.equal(f.launches.length, 1);
+  assert.equal(f.installations.length, 2, "only candidate reference and fixture initial installation");
+  const diagnostic = f.writes.get("/evidence/failure.json");
+  assert.equal(diagnostic.status, "passed");
+  assert.equal(diagnostic.recovery_events.filter((event) => event.outcome === "timeout").length, 1);
+  assert.deepEqual(diagnostic.recovery_events.filter((event) => event.outcome === "attempt").map((event) => event.attempt), [1, 2]);
+});
+
+test("persistent close timeout exhausts one shared retry budget and remains a failure", async () => {
+  const f = lifecycleHarness({ browserCloseHang: true });
+  await assert.rejects(f.run(), /old-runtime-browser cleanup timed out/);
+  assert.equal(f.browserClosed, 2);
+  assert.equal(f.writes.get("/evidence/failure.json").stage, "old-browser-disconnect");
+  assert.ok(f.events.includes("temp:remove"));
+});
+
+test("connection errors and malformed observations cannot be retried into success", async () => {
+  for (const [options, expected, calls] of [
+    [{ browserCloseError: new Error("bad channel token=hidden") }, /bad channel/, 1],
+    [{ invalidConnectionState: true }, /boolean/, 0],
+    [{ browserCloseStillConnected: true }, /remained connected/, 1],
+  ]) {
+    const f = lifecycleHarness(options);
+    await assert.rejects(f.run(), expected);
+    assert.equal(f.browserClosed, calls);
+    assert.doesNotMatch(JSON.stringify(f.writes.get("/evidence/failure.json")), /token=hidden/);
+  }
+});
+
+test("successful connection recovery cannot hide a later candidate identity failure", async () => {
+  const f = lifecycleHarness({ browserCloseFirstHang: true, identityFailure: new Error("candidate identity mismatch") });
+  await assert.rejects(f.run(), /candidate identity mismatch/);
+  assert.equal(f.browserClosed, 2);
+  assert.ok(f.killed.has(201));
+  assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
+});
+
+test("expanded budgets reach real renderer/download calls and exhausted waits still block", async () => {
+  const good = lifecycleHarness();
+  await good.run();
+  assert.deepEqual(good.timeoutOptions, { cdp: 120_000, rendererLoad: 120_000, download: 300_000 });
+  for (const [options, expected, elapsed] of [
+    [{ downloadTimeout: true }, /download deadline exceeded/, 0],
+    [{ oldProcessStuck: true }, /old N-1 process exit.*timed out/, 120_000],
+    [{ relaunchMissing: true }, /automatic N relaunch process timed out/, 180_000],
+  ]) {
+    const f = lifecycleHarness(options);
+    await assert.rejects(f.run(), expected);
+    assert.ok(f.elapsedMs >= elapsed);
+    assert.equal(f.launches.length, 1);
+    assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
+  }
 });

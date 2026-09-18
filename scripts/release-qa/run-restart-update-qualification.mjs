@@ -38,6 +38,17 @@ import {
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
+export const RESTART_UPDATE_TIMEOUTS = Object.freeze({
+  renderer: 120_000,
+  sidecar: 120_000,
+  download: 300_000,
+  oldProcessExit: 120_000,
+  relaunch: 180_000,
+  shutdown: 60_000,
+  cleanup: 60_000,
+  browserCloseAttempts: 2,
+  retryDelay: 1_000,
+});
 const RELEASE_ENVIRONMENT_KEYS = Object.freeze([
   "PYTHONPATH",
   "UNCHAIN_PYTHON_BIN",
@@ -196,16 +207,16 @@ const connectRenderer = async ({ debugPort, earlyExit, output = [], onBrowser = 
     if (!response.ok) return null;
     const targets = await response.json();
     return targets.find((candidate) => candidate?.type === "page" && String(candidate.url || "").startsWith("file:")) || null;
-  }, 60_000, "installed renderer CDP readiness");
+  }, RESTART_UPDATE_TIMEOUTS.renderer, "installed renderer CDP readiness");
   const { chromium } = await import("playwright");
-  const browser = await chromium.connectOverCDP(endpoint);
+  const browser = await chromium.connectOverCDP(endpoint, { timeout: RESTART_UPDATE_TIMEOUTS.renderer });
   onBrowser(browser);
   const page = browser.contexts().flatMap((context) => context.pages())
     .find((candidate) => candidate.url() === target.url);
   if (!page) {
     throw new Error("CDP page disappeared before renderer probe");
   }
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("domcontentloaded", { timeout: RESTART_UPDATE_TIMEOUTS.renderer });
   const rendererReady = await page.evaluate(() =>
     Boolean(document.getElementById("root")) && location.protocol === "file:");
   if (!rendererReady) {
@@ -325,7 +336,7 @@ const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {},
     const descendants = descendantPids(rows, child.pid);
     for (const pid of descendants) observedPids.add(pid);
     return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
-  }, 60_000, "signed N-1 Sidecar descendant");
+  }, RESTART_UPDATE_TIMEOUTS.sidecar, "signed N-1 Sidecar descendant");
   return session;
 };
 
@@ -386,7 +397,7 @@ const findRelaunchedRoot = ({ installed, oldPid }) => {
     ));
     const root = matching.find((row) => !matching.some((candidate) => candidate.pid === row.ppid));
     return root || null;
-  }, 60_000, "automatic N relaunch process");
+  }, RESTART_UPDATE_TIMEOUTS.relaunch, "automatic N relaunch process");
 };
 
 const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
@@ -395,7 +406,7 @@ const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
     const rows = readProcessTable();
     const descendants = descendantPids(rows, rootPid);
     return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
-  }, 60_000, "restarted N Sidecar descendant");
+  }, RESTART_UPDATE_TIMEOUTS.sidecar, "restarted N Sidecar descendant");
 };
 
 export const assertFeedRequests = (server, { targetId, fromVersion, contract } = {}) => {
@@ -475,14 +486,53 @@ const selectRestartCleanupPids = ({ rows, runtime, installedFixture, expectedCan
   return [...known].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid);
 };
 
-const boundedRestartCleanup = async (action, label) => {
+class RestartCleanupTimeoutError extends Error {}
+
+const boundedRestartCleanup = async (action, label, timeoutMs = RESTART_UPDATE_TIMEOUTS.cleanup) => {
   let timer;
   try {
     return await Promise.race([
       Promise.resolve().then(action),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} cleanup timed out`)), 30_000); }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new RestartCleanupTimeoutError(`${label} cleanup timed out`)), timeoutMs); }),
     ]);
   } finally { clearTimeout(timer); }
+};
+
+export const closeRestartBrowser = async (browser, label, {
+  timeoutMs = RESTART_UPDATE_TIMEOUTS.cleanup,
+  retryDelayMs = RESTART_UPDATE_TIMEOUTS.retryDelay,
+  onEvent = () => {},
+} = {}) => {
+  const connected = () => {
+    const value = browser.isConnected();
+    if (typeof value !== "boolean") throw new Error(`${label} connection state must be boolean`);
+    return value;
+  };
+  for (let attempt = 1; attempt <= RESTART_UPDATE_TIMEOUTS.browserCloseAttempts; attempt += 1) {
+    if (!connected()) {
+      onEvent({ label, attempt, outcome: "disconnected" });
+      return;
+    }
+    onEvent({ label, attempt, outcome: "attempt" });
+    try {
+      // A deadline does not cancel the original promise. Playwright close is
+      // idempotent; only this connection teardown may be repeated, never install.
+      await boundedRestartCleanup(() => browser.close(), label, timeoutMs);
+    } catch (error) {
+      if (!(error instanceof RestartCleanupTimeoutError)) throw error;
+      onEvent({ label, attempt, outcome: "timeout" });
+      if (!connected()) {
+        onEvent({ label, attempt, outcome: "disconnected" });
+        return;
+      }
+      if (attempt === RESTART_UPDATE_TIMEOUTS.browserCloseAttempts) throw error;
+      await sleep(retryDelayMs);
+      continue;
+    }
+    if (connected()) throw new Error(`${label} remained connected after close`);
+    onEvent({ label, attempt, outcome: "closed" });
+    return;
+  }
 };
 
 export async function runRestartUpdateQualification({
@@ -517,11 +567,21 @@ export async function runRestartUpdateQualification({
   let updateProbe = null;
   let processEvidence = [];
   const cleanupErrors = [];
+  const recoveryEvents = [];
+  const browserClosures = new WeakMap();
+  const closeBrowser = (browser, label) => {
+    if (!browser) return;
+    // Main path and finally share one logical close, including its failure.
+    if (!browserClosures.has(browser)) browserClosures.set(browser, closeRestartBrowser(browser, label, {
+      onEvent: (event) => { recoveryEvents.push(event); },
+    }));
+    return browserClosures.get(browser);
+  };
   const writeDiagnostics = () => {
     if (!diagnosticsPath) return;
     writeJson(path.resolve(diagnosticsPath), {
       schema: "pupu.restart-update-diagnostics.v1",
-      status: "failed",
+      status: primaryError || cleanupErrors.length ? "failed" : "passed",
       target_id: targetId,
       candidate: { tag: manifest.release.tag, commit: manifest.release.commit, manifest_digest: manifest.manifest_digest },
       fixture: { tag: fixture.from_tag, commit: fixture.from_commit },
@@ -529,6 +589,8 @@ export async function runRestartUpdateQualification({
       primary_error: restartErrorDetails(primaryError),
       update_probe: restartUpdateProbeDetails(updateProbe),
       cleanup_errors: cleanupErrors,
+      recovery_events: recoveryEvents,
+      timeout_policy_ms: RESTART_UPDATE_TIMEOUTS,
       runtime: {
         pid: runtime?.child?.pid || null,
         user_data: runtime?.userData || null,
@@ -633,7 +695,7 @@ export async function runRestartUpdateQualification({
       throw new Error("duplicate update check was not blocked; see update_probe diagnostics");
     }
     stage = "wait-downloaded";
-    await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: 120_000 });
+    await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: RESTART_UPDATE_TIMEOUTS.download });
     const stageTrace = await runtime.page.evaluate(() => window.__pupuRestartUpdateStages);
     validateRestartUpdateStageTrace(stageTrace);
 
@@ -647,9 +709,10 @@ export async function runRestartUpdateQualification({
       throw new Error("the product updater did not block a duplicate restart-to-install request");
     }
     stage = "old-process-exit";
-    await waitFor(() => !processAlive(runtime.child.pid), 60_000, "old N-1 process exit after user restart-to-install");
-    await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), 60_000, "old N-1 process tree cleanup");
-    await boundedRestartCleanup(() => runtime.browser.close(), "old-runtime-browser");
+    await waitFor(() => !processAlive(runtime.child.pid), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process exit after user restart-to-install");
+    await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process tree cleanup");
+    stage = "old-browser-disconnect";
+    await closeBrowser(runtime.browser, "old-runtime-browser");
     runtime.browser = null;
 
     stage = "find-relaunched-candidate";
@@ -669,7 +732,7 @@ export async function runRestartUpdateQualification({
 
     stage = "relaunched-shutdown";
     installedFixture.close(relaunchedRoot.pid);
-    await waitFor(() => !processAlive(relaunchedRoot.pid), 30_000, "restarted N controlled shutdown");
+    await waitFor(() => !processAlive(relaunchedRoot.pid), RESTART_UPDATE_TIMEOUTS.shutdown, "restarted N controlled shutdown");
     stage = "validate-report";
     return validateRestartUpdateQualificationReport({
       schema: RESTART_UPDATE_QUALIFICATION_SCHEMA,
@@ -735,7 +798,7 @@ export async function runRestartUpdateQualification({
     });
     // Write outside tempRoot before teardown, and update with cleanup failures.
     if (primaryError) await attemptCleanup("write-diagnostics-before-cleanup", writeDiagnostics);
-    await attemptCleanup("browser-close", () => boundedRestartCleanup(() => runtime?.browser?.close(), "browser-close"));
+    await attemptCleanup("browser-close", () => closeBrowser(runtime?.browser, "browser-close"));
     await attemptCleanup("terminate-processes", () => terminateProcesses(
       selectRestartCleanupPids({ rows, runtime, installedFixture, expectedCandidate }),
     ));
@@ -756,7 +819,7 @@ export async function runRestartUpdateQualification({
     await attemptCleanup("remove-temp-root", () => fs.rmSync(tempRoot, {
       recursive: true, force: true, maxRetries: 5, retryDelay: 500,
     }));
-    if (primaryError || cleanupErrors.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
+    if (primaryError || cleanupErrors.length || recoveryEvents.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
     if (!primaryError && cleanupErrors.length) {
       throw new Error(`restart qualification cleanup failed: ${cleanupErrors.map((item) => `${item.step}: ${item.error.message}`).join("; ")}`);
     }

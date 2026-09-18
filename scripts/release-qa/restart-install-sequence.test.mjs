@@ -16,7 +16,7 @@ function declaration(source, start, end) {
   const first = source.indexOf(start);
   const last = source.indexOf(end, first);
   assert.ok(first >= 0 && last > first, `production declaration missing: ${start}`);
-  return source.slice(first, last).replace(/^export /, "");
+  return source.slice(first, last).replace(/^export /gm, "");
 }
 
 function deferred() {
@@ -91,6 +91,7 @@ function exercise(t) {
   };
   vm.createContext(sandbox);
   vm.runInContext([
+    declaration(executor, "export const RESTART_UPDATE_TIMEOUTS =", "const RELEASE_ENVIRONMENT_KEYS ="),
     declaration(installer, "export const installWindowsNsis =", "const executableFromLinuxRoot ="),
     declaration(executor, "const normalizePath =", "const hashFile ="),
     declaration(executor, "const targetPackage =", "const connectRenderer ="),
