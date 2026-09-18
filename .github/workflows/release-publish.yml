@@ -33,12 +33,14 @@ jobs:
       - name: Checkout release environment verifier
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Reject prerelease tags before publish approval
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           node scripts/release-qa/release-candidate-ref.mjs \
             --tag "$RELEASE_TAG" \
@@ -73,7 +75,8 @@ jobs:
       - name: Checkout the exact release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -99,10 +102,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
-          if [ -z "$TAG_COMMIT" ] || [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
-            echo "::error title=Tag dispatch required::Publish must execute the exact workflow revision at the immutable release tag"
-            exit 1
-          fi
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
 
       - name: Require an existing Draft Release
         env:
@@ -129,7 +129,9 @@ jobs:
             --candidate-run-id "$CANDIDATE_RUN_ID" \
             --qualification-run-id "$QUALIFICATION_RUN_ID" \
             --release-tag "$RELEASE_TAG" \
-            --release-commit "$TAG_COMMIT")"
+            --release-commit "$TAG_COMMIT" \
+            --tools-tag "$GITHUB_REF_NAME" \
+            --tools-commit "$GITHUB_SHA")"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
@@ -139,8 +141,8 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$QUALIFICATION_RUN_ID" \
-              --tag "$RELEASE_TAG" \
-              --commit "$TAG_COMMIT" \
+              --tag "$GITHUB_REF_NAME" \
+              --commit "$GITHUB_SHA" \
               --workflow-path "$QUALIFICATION_WORKFLOW_PATH"
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest draft-assets/release-assets.v1.json \

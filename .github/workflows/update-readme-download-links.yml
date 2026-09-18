@@ -27,13 +27,22 @@ jobs:
         with:
           ref: main
 
+      - name: Checkout frozen release verifier and renderer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          persist-credentials: false
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: release-tools/package-lock.json
 
       - name: Install manifest verifier dependencies
+        working-directory: release-tools
         run: npm ci
 
       - name: Reject prerelease tags before public Release access
@@ -41,7 +50,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           STABLE_VERSION="${RELEASE_TAG#v}"
-          node scripts/release-qa/release-candidate-ref.mjs \
+          node release-tools/scripts/release-qa/release-candidate-ref.mjs \
             --tag "$RELEASE_TAG" \
             --package-version "$STABLE_VERSION" \
             --policy promotion >/dev/null
@@ -63,12 +72,12 @@ jobs:
             echo "::error title=Release tag missing::Could not resolve $RELEASE_TAG"
             exit 1
           fi
-          node scripts/release-qa/verify-release-candidate.mjs \
+          node release-tools/scripts/release-qa/verify-release-candidate.mjs \
             --manifest release-assets/release-assets.v1.json \
             --asset-dir release-assets \
             --qa-report release-assets/release-qa-report.json \
             --qualification release-assets/release-qualification.v1.json \
-            --bootstrap-policy docs/contracts/release/release-bootstrap-policy.v1.json \
+            --bootstrap-policy release-tools/docs/contracts/release/release-bootstrap-policy.v1.json \
             --require-qualification true \
             --require-restart-qualification true \
             --allow-extra release-assets.v1.json \
@@ -79,7 +88,7 @@ jobs:
             --commit "$TAG_COMMIT"
 
       - name: Render README download links from the verified manifest
-        run: node scripts/update-readme-links.cjs --manifest release-assets/release-assets.v1.json
+        run: node release-tools/scripts/update-readme-links.cjs --manifest release-assets/release-assets.v1.json --readme README.md
 
       - name: Create documentation pull request
         uses: peter-evans/create-pull-request@v7
@@ -87,6 +96,7 @@ jobs:
           token: ${{ github.token }}
           branch: auto/update-readme-downloads-${{ inputs.release_tag }}
           base: main
+          add-paths: README.md
           commit-message: "docs: render verified download links for ${{ inputs.release_tag }}"
           title: "docs: render verified download links for ${{ inputs.release_tag }}"
           body: |

@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import { TOOLS_QUALIFICATION_SCHEMA, validateReleaseTools } from "./release-toolchain.mjs";
 
 import {
   RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA,
@@ -27,6 +28,8 @@ export function qualificationWorkflowPath({
   qualificationRunId,
   releaseTag,
   releaseCommit,
+  toolsTag = releaseTag,
+  toolsCommit = releaseCommit,
 }) {
   requireRunId(candidateRunId, "candidate run ID");
   requireRunId(qualificationRunId, "qualification run ID");
@@ -36,6 +39,17 @@ export function qualificationWorkflowPath({
   }
   if (receipt?.release?.tag !== releaseTag || receipt?.release?.commit !== releaseCommit) {
     throw new Error("qualification receipt release identity does not match the requested tag commit");
+  }
+  const expectedTools = validateReleaseTools({ tag: toolsTag, commit: toolsCommit }, { tag: releaseTag, commit: releaseCommit });
+  if (receipt.schema === TOOLS_QUALIFICATION_SCHEMA) {
+    validateReleaseTools(receipt.tools, receipt.release);
+    if (receipt.tools.tag !== expectedTools.tag || receipt.tools.commit !== expectedTools.commit) {
+      throw new Error("qualification receipt tools identity does not match independently selected promotion tools");
+    }
+    return RELEASE_UPDATE_WORKFLOW_PATH;
+  }
+  if (receipt.schema === RELEASE_UPDATE_QUALIFICATION_SCHEMA || receipt.schema === RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA) {
+    if (toolsTag !== releaseTag || toolsCommit !== releaseCommit) throw new Error("legacy receipt requires exact product tools identity");
   }
   if (receipt.schema === RELEASE_UPDATE_QUALIFICATION_SCHEMA) return RELEASE_UPDATE_WORKFLOW_PATH;
   if (receipt.schema === RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA) {
@@ -74,6 +88,8 @@ try {
       qualificationRunId: args["qualification-run-id"],
       releaseTag: args["release-tag"],
       releaseCommit: args["release-commit"],
+      toolsTag: args["tools-tag"],
+      toolsCommit: args["tools-commit"],
     });
     process.stdout.write(`${workflowPath}\n`);
   }
