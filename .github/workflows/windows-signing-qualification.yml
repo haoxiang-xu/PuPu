@@ -4,15 +4,41 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: "Type SIGN_WINDOWS_QUALIFICATION to build and sign a non-publishing Windows qualification package"
+        description: "SIGN_WINDOWS_QUALIFICATION for a signing check; DIAGNOSE_WINDOWS_UPGRADE to test an existing candidate only"
         required: true
         type: string
+      candidate_run_id:
+        description: "Diagnostic mode only: exact successful retained Candidate run"
+        type: string
+        default: ""
+      release_tag:
+        description: "Diagnostic mode only: immutable candidate tag, e.g. v0.1.11"
+        type: string
+        default: ""
+      from_tag:
+        description: "Diagnostic mode only: lower stable fixture tag, e.g. v0.1.10"
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  windows-upgrade-diagnostic:
+    if: ${{ inputs.confirmation == 'DIAGNOSE_WINDOWS_UPGRADE' }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/_shared-windows-upgrade-diagnostic.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      from_tag: ${{ inputs.from_tag }}
+    secrets: inherit
+
   windows-signing-qualification:
+    if: ${{ inputs.confirmation != 'DIAGNOSE_WINDOWS_UPGRADE' }}
     name: Build and verify Windows Artifact Signing
     runs-on: windows-latest
     environment: windows-signing-qualification

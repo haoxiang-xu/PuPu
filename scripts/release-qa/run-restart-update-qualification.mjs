@@ -36,6 +36,7 @@ import {
   startQualificationFeedServer,
 } from "./serve-qualification-feed.mjs";
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
+import { createRestartObservationRecorder, collectWindowsUpgradeObservations } from "./restart-observations.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 export const RESTART_UPDATE_TIMEOUTS = Object.freeze({
@@ -101,13 +102,17 @@ const parsePosixProcessTable = (source) => String(source || "")
 
 const readProcessTable = () => {
   if (process.platform === "win32") {
-    const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress";
+    const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate,SessionId,CommandLine | ConvertTo-Json -Compress";
     const source = runChecked("powershell", ["-NoProfile", "-NonInteractive", "-Command", command], { timeout: 30_000 });
     const parsed = JSON.parse(source || "[]");
     return (Array.isArray(parsed) ? parsed : [parsed]).map((row) => ({
       pid: Number(row.ProcessId),
       ppid: Number(row.ParentProcessId),
       command: String(row.CommandLine || ""),
+      name: String(row.Name || ""),
+      executablePath: String(row.ExecutablePath || ""),
+      createdAt: String(row.CreationDate || ""),
+      sessionId: Number.isSafeInteger(row.SessionId) ? row.SessionId : null,
     }));
   }
   return parsePosixProcessTable(runChecked("/bin/ps", ["-axo", "pid=,ppid=,command="]));
@@ -387,11 +392,12 @@ const assertUpdatedIdentity = ({ installed, expected, targetId }) => {
   };
 };
 
-const findRelaunchedRoot = ({ installed, oldPid }) => {
+const findRelaunchedRoot = ({ installed, oldPid, onObservation = () => {} }) => {
   const executableNeedle = normalizePath(installed.executablePath);
   const candidateNeedle = normalizePath(installed.candidateNeedle);
   return waitFor(() => {
     const rows = readProcessTable();
+    onObservation(rows);
     const matching = rows.filter((row) => row.pid !== oldPid && (
       normalizePath(row.command).includes(executableNeedle) || normalizePath(row.command).includes(candidateNeedle)
     ));
@@ -567,6 +573,13 @@ export async function runRestartUpdateQualification({
   let updateProbe = null;
   let processEvidence = [];
   const cleanupErrors = [];
+  const observations = createRestartObservationRecorder({ now: () => Date.now() });
+  const observationErrors = [];
+  let windowsObservations = null;
+  const observe = (label, rows, force = false) => {
+    try { observations.capture(label, rows || readProcessTable(), [...(runtime?.observedPids || [])], force); }
+    catch (error) { if (observationErrors.length < 16) observationErrors.push({ stage: label, error: restartErrorDetails(error) }); }
+  };
   const recoveryEvents = [];
   const browserClosures = new WeakMap();
   const closeBrowser = (browser, label) => {
@@ -598,6 +611,9 @@ export async function runRestartUpdateQualification({
         output_tail: restartDiagnosticText((runtime?.output || []).join("")),
       },
       processes: processEvidence,
+      process_timeline: observations.snapshots,
+      observation_errors: observationErrors,
+      windows_observations: windowsObservations,
       feed_request_count: server?.requests?.length || 0,
     });
   };
@@ -700,6 +716,7 @@ export async function runRestartUpdateQualification({
     validateRestartUpdateStageTrace(stageTrace);
 
     stage = "request-install";
+    observe(stage, null, true);
     const install = await runtime.page.evaluate(async () => {
       const first = window.appUpdateAPI.installNow();
       const duplicate = window.appUpdateAPI.installNow();
@@ -712,11 +729,14 @@ export async function runRestartUpdateQualification({
     await waitFor(() => !processAlive(runtime.child.pid), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process exit after user restart-to-install");
     await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process tree cleanup");
     stage = "old-browser-disconnect";
+    observe(stage, null, true);
     await closeBrowser(runtime.browser, "old-runtime-browser");
     runtime.browser = null;
 
     stage = "find-relaunched-candidate";
-    const relaunchedRoot = await findRelaunchedRoot({ installed: installedFixture, oldPid: runtime.child.pid });
+    const relaunchedRoot = await findRelaunchedRoot({ installed: installedFixture, oldPid: runtime.child.pid,
+      onObservation: (rows) => observe(stage, rows),
+    });
     runtime.observedPids.add(relaunchedRoot.pid);
     stage = "relaunched-sidecar";
     await assertRelaunchedSidecar({ installed: installedFixture, rootPid: relaunchedRoot.pid });
@@ -780,6 +800,11 @@ export async function runRestartUpdateQualification({
     // Print before cleanup so even a diagnostic-write/cleanup failure cannot
     // erase the first cause from Actions logs.
     console.error(`[restart-update:${stage}] ${restartDiagnosticText(error.stack || error.message || error)}`);
+    observe(stage, null, true);
+    if (targetId === "windows-x64") {
+      try { windowsObservations = collectWindowsUpgradeObservations({ roots: [installedFixture?.launchCwd, expectedCandidate?.launchCwd] }); }
+      catch (observationError) { observationErrors.push({ stage: "windows-observation", error: restartErrorDetails(observationError) }); }
+    }
     throw error;
   } finally {
     const attemptCleanup = async (step, action) => {

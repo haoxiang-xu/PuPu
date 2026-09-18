@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { validateRestartUpdateQualificationReport } from "./restart-update-qualification.mjs";
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
 import { expectedTargetAssets, readReleaseArtifactContract } from "./release-artifact-manifest.mjs";
+import { createRestartObservationRecorder } from "./restart-observations.mjs";
 
 const artifactContract = readReleaseArtifactContract(fileURLToPath(new URL("../../docs/contracts/release/release-artifact-contract.v1.json", import.meta.url)));
 const updateServiceUrl = new URL("../../electron/main/services/update/service.js", import.meta.url);
@@ -136,6 +137,7 @@ function lifecycleHarness(options = {}) {
     cleanup() { events.push("installed:cleanup"); },
   };
   const rows = () => [
+    ...(options.extraProcessRows || []),
     ...(alive.has(101) ? [{ ProcessId: 101, ParentProcessId: 999, CommandLine: executable }] : []),
     ...(alive.has(102) && !options.sidecarMissing ? [{ ProcessId: 102, ParentProcessId: 101, CommandLine: sidecar }] : []),
     ...(alive.has(201) ? [{ ProcessId: 201, ParentProcessId: 999, CommandLine: executable }] : []),
@@ -143,6 +145,12 @@ function lifecycleHarness(options = {}) {
     { ProcessId: 777, ParentProcessId: 999, CommandLine: "C:/unrelated/PuPu.exe" },
   ];
   const sandbox = {
+    createRestartObservationRecorder,
+    collectWindowsUpgradeObservations: () => {
+      events.push("windows:observe");
+      if (options.observationFailure) throw options.observationFailure;
+      return { available: true, windows: [{ title: "PuPu installer diagnostic fixture" }] };
+    },
     assert, crypto, path, Buffer, URL, Set, Error, AggregateError,
     os: { tmpdir: () => "/qa" },
     Date: class extends Date { static now() { return clock; } },
@@ -686,4 +694,29 @@ test("expanded budgets reach real renderer/download calls and exhausted waits st
     assert.equal(f.launches.length, 1);
     assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
   }
+});
+
+test("detached installer and path-alias relaunch are retained as observations without widening cleanup", async () => {
+  const f = lifecycleHarness({ relaunchMissing: true, extraProcessRows: [
+    { ProcessId: 888, ParentProcessId: 12345, Name: "PuPu-0.1.11-windows-x64-setup.exe", ExecutablePath: "C:/Users/runner/AppData/Local/pupu-updater/pending/setup.exe", CreationDate: "2026-09-18T03:00:00Z", SessionId: 1, CommandLine: "C:/pupu-updater/setup.exe --token=hidden" },
+    { ProcessId: 889, ParentProcessId: 888, Name: "PuPu.exe", CommandLine: "C:/Users/runneradmin/AppData/Local/Temp/long-alias/PuPu.exe" },
+  ] });
+  await assert.rejects(f.run(), /automatic N relaunch process timed out/);
+  const diagnostic = f.writes.get("/evidence/failure.json");
+  assert.ok(diagnostic.process_timeline.some((snapshot) => snapshot.processes.some((row) => row.pid === 888 && row.created_at === "2026-09-18T03:00:00Z")));
+  assert.ok(diagnostic.process_timeline.some((snapshot) => snapshot.processes.some((row) => row.pid === 889)));
+  assert.ok(diagnostic.process_timeline.length <= 48);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /token=hidden/);
+  assert.equal(diagnostic.windows_observations.available, true);
+  assert.ok(f.events.indexOf("windows:observe") < f.events.indexOf("temp:remove"));
+  assert.ok(!f.killed.has(888) && !f.killed.has(889));
+});
+
+test("OS diagnostic failures cannot replace the original upgrade failure or stop cleanup", async () => {
+  const f = lifecycleHarness({ relaunchMissing: true, observationFailure: new Error("OS observation failed token=hidden") });
+  await assert.rejects(f.run(), /automatic N relaunch process timed out/);
+  const diagnostic = f.writes.get("/evidence/failure.json");
+  assert.ok(diagnostic.observation_errors.length > 0);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /token=hidden/);
+  assert.ok(f.events.includes("temp:remove"));
 });
