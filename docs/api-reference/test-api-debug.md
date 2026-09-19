@@ -4,6 +4,11 @@ All under `/v1/debug/*`.
 
 ## GET `/debug/state`
 
+`is_streaming` reads the inspected chat's current generation state for both
+active and background chats. It is false for an unknown or absent chat.
+`window_state.isDark` and `window_state.locale` track the window's current
+theme and language, independent of which chat is inspected.
+
 Returns a structured snapshot of renderer state. Optional `?chat_id=` scopes
 the model, toolkit, character, message summary, and streaming fields to that
 chat without activating it. `active_chat_id` and `active_chat` continue to

@@ -1,0 +1,215 @@
+{
+  "summary": {
+    "changed_count": 17,
+    "affected_count": 7,
+    "changed_files": 8,
+    "risk_level": "high"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/api-reference/test-api-debug.md:L1:Test API — Debug Endpoints",
+      "name": "Test API — Debug Endpoints",
+      "type": "Section",
+      "filePath": "docs/api-reference/test-api-debug.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/api-reference/test-api-debug.md:L5:GET `/debug/state`",
+      "name": "GET `/debug/state`",
+      "type": "Section",
+      "filePath": "docs/api-reference/test-api-debug.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/CONTAINERs/config/container.js:ConfigContainer",
+      "name": "ConfigContainer",
+      "type": "Function",
+      "filePath": "src/CONTAINERs/config/container.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/handlers/debug.js:registerDebugHandlers",
+      "name": "registerDebugHandlers",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/handlers/debug.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/test_bridge/index.js:catalogCounts",
+      "name": "catalogCounts",
+      "type": "Const",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/index.js:catalogCounts.characters",
+      "name": "characters",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/index.js:catalogCounts.models",
+      "name": "models",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/index.js:catalogCounts.toolkits",
+      "name": "toolkits",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Const:src/SERVICEs/test_bridge/index.js:configContextRef",
+      "name": "configContextRef",
+      "type": "Const",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/index.js:configContextRef.isDark",
+      "name": "isDark",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/index.js:configContextRef.locale",
+      "name": "locale",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/index.js:installTestBridge",
+      "name": "installTestBridge",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/index.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/state_selector.js:collectStateSnapshot",
+      "name": "collectStateSnapshot",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/state_selector.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Property:src/SERVICEs/test_bridge/state_selector.js:collectStateSnapshot.modal_open@44:4",
+      "name": "modal_open",
+      "type": "Property",
+      "filePath": "src/SERVICEs/test_bridge/state_selector.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/state_selector.test.js:fn@2:27.fn@68:55.getActiveChatId@71:8",
+      "name": "getActiveChatId",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/state_selector.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/state_selector.test.js:fn@2:27.fn@68:55.listChatsSummary@72:8",
+      "name": "listChatsSummary",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/state_selector.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/SERVICEs/test_bridge/state_selector.test.js:fn@2:27.fn@68:55.getChatConfig@73:8",
+      "name": "getChatConfig",
+      "type": "Function",
+      "filePath": "src/SERVICEs/test_bridge/state_selector.test.js",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_394_configcontainer",
+      "name": "ConfigContainer → FrontendApiError",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_395_configcontainer",
+      "name": "ConfigContainer → GetWindowBridge",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_935_configcontainer",
+      "name": "ConfigContainer → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_953_configcontainer",
+      "name": "ConfigContainer → GetBar",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1058_configcontainer",
+      "name": "ConfigContainer → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1119_configcontainer",
+      "name": "ConfigContainer → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1120_configcontainer",
+      "name": "ConfigContainer → Error",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ConfigContainer",
+          "step": 1
+        }
+      ]
+    }
+  ]
+}

@@ -36,7 +36,6 @@ describe("state_selector", () => {
       },
       configContext: { isDark: true, locale: "en" },
       catalogCounts: { models: 5, toolkits: 3, characters: 2 },
-      isStreaming: false,
     });
     expect(snap.active_chat_id).toBe("chat-1");
     expect(snap.inspected_chat_id).toBe("chat-1");
@@ -64,6 +63,20 @@ describe("state_selector", () => {
       toolkits: 3,
       characters: 2,
     });
+    expect(Object.keys(snap)).toEqual([
+      "active_chat_id",
+      "active_chat",
+      "inspected_chat_id",
+      "inspected_chat",
+      "current_model",
+      "toolkits_active",
+      "character_id",
+      "modal_open",
+      "is_streaming",
+      "route",
+      "window_state",
+      "catalog_loaded",
+    ]);
   });
 
   test("returns null active_chat when no active chat", () => {
@@ -80,11 +93,11 @@ describe("state_selector", () => {
       },
       configContext: { isDark: false, locale: "en" },
       catalogCounts: { models: 0, toolkits: 0, characters: 0 },
-      isStreaming: false,
     });
     expect(snap.active_chat_id).toBeNull();
     expect(snap.active_chat).toBeNull();
     expect(snap.current_model).toBeNull();
+    expect(snap.is_streaming).toBe(false);
   });
 
   test("inspects a requested background chat without changing active_chat_id", () => {
@@ -131,7 +144,6 @@ describe("state_selector", () => {
       },
       configContext: { isDark: false, locale: "en" },
       catalogCounts: { models: 2, toolkits: 1, characters: 1 },
-      isStreaming: false,
     });
 
     expect(snap.active_chat_id).toBe("chat-a");
@@ -146,5 +158,72 @@ describe("state_selector", () => {
     expect(snap.toolkits_active).toEqual(["mcp.workspace.filesystem"]);
     expect(snap.character_id).toBe("worker-b");
     expect(snap.is_streaming).toBe(true);
+  });
+
+  test("uses the inspected chat adapter state for active default and explicit queries", () => {
+    const configs = {
+      "chat-a": { is_streaming: false },
+      "chat-b": { is_streaming: false },
+    };
+    const chatStorage = {
+      getActiveChatId: () => "chat-a",
+      listChatsSummary: () => [
+        { id: "chat-a", title: "A", model: "gpt-5", message_count: 0 },
+        { id: "chat-b", title: "B", model: "gpt-5", message_count: 0 },
+      ],
+      getChatConfig: (id) => configs[id] || null,
+    };
+    const sources = {
+      chatStorage,
+      window: {},
+      configContext: {},
+      catalogCounts: {},
+    };
+
+    configs["chat-a"].is_streaming = true;
+    expect(collectStateSnapshot(sources).is_streaming).toBe(true);
+    expect(
+      collectStateSnapshot({ ...sources, chatId: "chat-a" }).is_streaming,
+    ).toBe(true);
+
+    configs["chat-a"].is_streaming = false;
+    expect(collectStateSnapshot(sources).is_streaming).toBe(false);
+    configs["chat-a"].is_streaming = true;
+    expect(collectStateSnapshot(sources).is_streaming).toBe(true);
+    configs["chat-a"].is_streaming = false;
+    expect(collectStateSnapshot(sources).is_streaming).toBe(false);
+  });
+
+  test("keeps background chat streaming independent and unknown chats false", () => {
+    const configs = {
+      "chat-a": { is_streaming: true },
+      "chat-b": { is_streaming: false },
+    };
+    const sources = {
+      chatStorage: {
+        getActiveChatId: () => "chat-a",
+        listChatsSummary: () => [
+          { id: "chat-a", title: "A", model: "gpt-5", message_count: 0 },
+          { id: "chat-b", title: "B", model: "gpt-5", message_count: 0 },
+        ],
+        getChatConfig: (id) => configs[id] || null,
+      },
+      window: {},
+      configContext: {},
+      catalogCounts: {},
+    };
+
+    expect(
+      collectStateSnapshot({ ...sources, chatId: "chat-b" }).is_streaming,
+    ).toBe(false);
+    configs["chat-b"].is_streaming = true;
+    expect(
+      collectStateSnapshot({ ...sources, chatId: "chat-b" }).is_streaming,
+    ).toBe(true);
+
+    const unknown = collectStateSnapshot({ ...sources, chatId: "missing" });
+    expect(unknown.inspected_chat_id).toBe("missing");
+    expect(unknown.inspected_chat).toBeNull();
+    expect(unknown.is_streaming).toBe(false);
   });
 });

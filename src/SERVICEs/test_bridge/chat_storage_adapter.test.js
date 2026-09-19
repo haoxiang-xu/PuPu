@@ -131,6 +131,57 @@ describe("test_bridge chat_storage_adapter (v3 lazy messages)", () => {
     expect(bridge.readMessages).toHaveBeenCalledWith(CHAT_B);
   });
 
+  test("debug snapshots read real per-chat streaming state through the adapter", async () => {
+    const adapter = makeAdapter();
+    const { setChatMessages } = require("../chat_storage");
+    const { registerDebugHandlers } = require("./handlers/debug");
+    const handlers = {};
+    registerDebugHandlers({
+      bridge: {
+        register: (name, handler) => {
+          handlers[name] = handler;
+        },
+      },
+      chatStorage: adapter,
+    });
+
+    const snapshot = (request) => handlers.getStateSnapshot(request);
+    const streamingA = (status) =>
+      setChatMessages(
+        CHAT_A,
+        [
+          ...ACTIVE_MESSAGES,
+          {
+            id: "msg-a2",
+            role: "assistant",
+            status,
+            content: status === "done" ? "finished" : "",
+            createdAt: 1001,
+          },
+        ],
+        { source: "test" },
+      );
+
+    streamingA("streaming");
+    expect((await snapshot()).is_streaming).toBe(true);
+    expect((await snapshot({ chat_id: CHAT_A })).is_streaming).toBe(true);
+
+    streamingA("done");
+    expect((await snapshot()).is_streaming).toBe(false);
+
+    streamingA("streaming");
+    adapter.selectTreeNode(CHAT_B);
+    expect((await snapshot()).is_streaming).toBe(false);
+    expect((await snapshot({ chat_id: CHAT_A })).is_streaming).toBe(true);
+
+    const unknown = await snapshot({ chat_id: "missing-chat" });
+    expect(unknown.inspected_chat).toBeNull();
+    expect(unknown.is_streaming).toBe(false);
+
+    streamingA("done");
+    expect((await snapshot({ chat_id: CHAT_A })).is_streaming).toBe(false);
+  });
+
   test("selectTreeNode returns the exact committed chat and tree-node identity", () => {
     const adapter = makeAdapter();
 
