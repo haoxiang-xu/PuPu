@@ -1,0 +1,20 @@
+
+  GitNexus Detect Changes (1.6.12)
+Changes: 16 files, 13 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Section Ticket #226: web_fetch signal, in-band truncation and continuation guidance → docs/implementation/ticket-226.md
+  Section Reproduction and causal path → docs/implementation/ticket-226.md
+  Section Decisions already made (worker must not revisit) → docs/implementation/ticket-226.md
+  Section Files and reference patterns → docs/implementation/ticket-226.md
+  Section Boundary contract → docs/implementation/ticket-226.md
+  Section Acceptance (see issue body for full text) → docs/implementation/ticket-226.md
+  Section Ordered slices, tests and checkpoints → docs/implementation/ticket-226.md
+  Section Delegation assessment → docs/implementation/ticket-226.md
+  Section Evidence → docs/implementation/ticket-226.md
+  Section Delegated slices (worker: Claude Sonnet via Agent tool; reviewer: strong agent) → docs/implementation/ticket-226.md
+  Section Fixed-wheel identity (one build, reused) → docs/implementation/ticket-226.md
+  Section Live probes → docs/implementation/ticket-226.md
+  Section Finding during AC-226-8: a second, deeper silent truncation (decision required) → docs/implementation/ticket-226.md
