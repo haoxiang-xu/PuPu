@@ -37,6 +37,7 @@ import {
 } from "./serve-qualification-feed.mjs";
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
 import { createRestartObservationRecorder, collectWindowsUpgradeObservations } from "./restart-observations.mjs";
+import { matchesMacRestartImage, buildMacRestartLaunch, preflightMacRestartProfile, inspectMacRestartProfile } from "./macos-restart-identity.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 export const RESTART_UPDATE_TIMEOUTS = Object.freeze({
@@ -104,6 +105,7 @@ const canonicalWindowsPath = (value) => {
 };
 
 const matchesInstalledImage = (row, expectedPath) => {
+  if (process.platform === "darwin") return matchesMacRestartImage(row, expectedPath);
   if (process.platform !== "win32") return normalizePath(row.command).includes(normalizePath(expectedPath));
   const expected = canonicalWindowsPath(expectedPath);
   return expected !== null && canonicalWindowsPath(row.executablePath) === expected;
@@ -264,7 +266,9 @@ export const buildRestartRuntimeLaunch = ({
   tempRoot,
   debugPort,
   windowsAppData,
+  macosHome,
 }) => {
+  if (platform === "darwin") return buildMacRestartLaunch({ home: macosHome, debugPort });
   const platformPath = platform === "win32" ? path.win32 : path;
   const isolatedHome = platformPath.join(tempRoot, "home");
   if (platform === "win32") {
@@ -290,7 +294,6 @@ export const buildRestartRuntimeLaunch = ({
     args: [
       `--remote-debugging-port=${debugPort}`,
       `--user-data-dir=${userData}`,
-      ...(platform === "darwin" ? ["--use-mock-keychain"] : []),
     ],
   };
 };
@@ -313,8 +316,9 @@ const preflightRestartWindowsProfile = ({ tempRoot }) => {
 const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {}, onStage = () => {} }) => {
   onStage("fixture-profile");
   const windowsAppData = process.platform === "win32" ? preflightRestartWindowsProfile({ tempRoot }) : undefined;
+  const macosHome = process.platform === "darwin" ? preflightMacRestartProfile() : undefined;
   const debugPort = await allocateLoopbackPort();
-  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort, windowsAppData });
+  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort, windowsAppData, macosHome });
   for (const directory of launch.directories) {
     fs.mkdirSync(directory, { recursive: true });
   }
@@ -324,6 +328,12 @@ const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {},
   // cannot cancel a download already in flight. Seed ordinary user settings
   // before spawning, without patching the signed fixture or its updater.
   if (process.platform === "win32") fs.mkdirSync(launch.userData);
+  if (process.platform === "darwin") {
+    fs.mkdirSync(path.dirname(launch.userData), { recursive: true });
+    // Exclusive creation closes the preflight/create race; never overwrite an
+    // existing profile (including a dangling symlink).
+    fs.mkdirSync(launch.userData);
+  }
   fs.writeFileSync(path.join(launch.userData, "auto_update_pref.json"), JSON.stringify({ enabled: false }), {
     encoding: "utf8", flag: "wx",
   });
@@ -426,7 +436,7 @@ const findRelaunchedRoot = ({ installed, oldPid, onObservation = () => {} }) => 
   return waitFor(() => {
     const rows = readProcessTable();
     onObservation(rows);
-    const matching = rows.filter((row) => row.pid !== oldPid && (process.platform === "win32"
+    const matching = rows.filter((row) => row.pid !== oldPid && (["win32", "darwin"].includes(process.platform)
       ? matchesInstalledImage(row, installed.executablePath) : (
       normalizePath(row.command).includes(executableNeedle) || normalizePath(row.command).includes(candidateNeedle)
     )));
@@ -441,6 +451,11 @@ const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
     const descendants = descendantPids(rows, rootPid);
     return rows.find((row) => descendants.has(row.pid) && matchesInstalledImage(row, installed.sidecarNeedle)) || null;
   }, RESTART_UPDATE_TIMEOUTS.sidecar, "restarted N Sidecar descendant");
+};
+
+const assertMacRuntimeProfile = async ({ installed, rootPid, userData }) => {
+  return waitFor(() => inspectMacRestartProfile({ rows: readProcessTable(), rootPid,
+    executablePath: installed.executablePath, userData }), RESTART_UPDATE_TIMEOUTS.renderer, "macOS renderer uses the retained profile");
 };
 
 export const assertFeedRequests = (server, { targetId, fromVersion, contract } = {}) => {
@@ -605,6 +620,7 @@ export async function runRestartUpdateQualification({
   const observations = createRestartObservationRecorder({ now: () => Date.now() });
   const observationErrors = [];
   let windowsObservations = null;
+  const profileEvidence = { before: null, after: null };
   const observe = (label, rows, force = false) => {
     try { observations.capture(label, rows || readProcessTable(), [...(runtime?.observedPids || [])], force); }
     catch (error) { if (observationErrors.length < 16) observationErrors.push({ stage: label, error: restartErrorDetails(error) }); }
@@ -643,10 +659,15 @@ export async function runRestartUpdateQualification({
       process_timeline: observations.snapshots,
       observation_errors: observationErrors,
       windows_observations: windowsObservations,
+      ...(process.platform === "darwin" ? { macos_profiles: profileEvidence } : {}),
       feed_request_count: server?.requests?.length || 0,
     });
   };
   try {
+    if (targetId.startsWith("macos-")) {
+      stage = "fixture-profile";
+      preflightMacRestartProfile();
+    }
     if (targetId === "windows-x64") {
       stage = "fixture-profile";
       // NSIS can stop/uninstall a registered app even with a custom /D path.
@@ -697,6 +718,10 @@ export async function runRestartUpdateQualification({
     const initialVersion = await runtime.page.evaluate(() => window.appUpdateAPI.getState().then((state) => state.currentVersion));
     if (initialVersion !== fixture.from_version) {
       throw new Error(`installed fixture version does not match ${fixture.from_version}`);
+    }
+    if (process.platform === "darwin") {
+      stage = "fixture-profile-proof";
+      profileEvidence.before = await assertMacRuntimeProfile({ installed: installedFixture, rootPid: runtime.child.pid, userData: runtime.userData });
     }
     stage = "settings-sentinel";
     const sentinelResult = await runtime.page.evaluate(async () => {
@@ -771,6 +796,11 @@ export async function runRestartUpdateQualification({
     await assertRelaunchedSidecar({ installed: installedFixture, rootPid: relaunchedRoot.pid });
     stage = "relaunched-identity";
     const finalIdentity = assertUpdatedIdentity({ installed: installedFixture, expected, targetId });
+    if (process.platform === "darwin") {
+      stage = "relaunched-profile-proof";
+      profileEvidence.after = await assertMacRuntimeProfile({ installed: installedFixture, rootPid: relaunchedRoot.pid, userData: runtime.userData });
+      if (profileEvidence.after.user_data !== profileEvidence.before.user_data) throw new Error("macOS profile identity changed across restart");
+    }
     stage = "retained-settings";
     const afterSentinelSha256 = hashFile(sentinelPath);
     if (afterSentinelSha256 !== beforeSentinelSha256) {
