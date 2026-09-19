@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import asar from "@electron/asar";
 import { verifyWindowsSidecarIdentity } from "./seal-windows-sidecar-identity.mjs";
+import { closeMacApplication } from "./macos-graceful-close.mjs";
 
 import {
   readJson,
@@ -366,9 +367,7 @@ export const installMacDmg = ({ installerPath, tempRoot }) => {
       launchCwd: path.dirname(identity.executablePath),
       sidecarNeedle: identity.sidecarPath,
       candidateNeedle: appPath,
-      close: () => runChecked("/usr/bin/osascript", [
-        "-l", "JavaScript", "-e", "function run(argv) { Application(argv[0]).quit(); }", appPath,
-      ]),
+      close: (pid, options) => closeMacApplication(pid, appPath, identity.executablePath, options),
       cleanup: detach,
     };
   } catch (error) {

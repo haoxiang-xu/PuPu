@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
+import { finished } from "node:stream/promises";
 import asar from "@electron/asar";
 import { inspectResources } from "./installed-package-qualification.mjs";
 
@@ -36,7 +37,10 @@ async function makeArchives(t, next = {}) {
     if (!omitSnapshot) fs.writeFileSync(path.join(input, "build/build_feature_flags.json"), bytes);
     const archive = path.join(resourceRoot, "app.asar");
     archives.push(archive);
-    await asar.createPackage(input, archive);
+    // This pinned ASAR implementation resolves with out.end(), before the
+    // writable has necessarily flushed. Do not inspect/copy a partial fixture.
+    const output = await asar.createPackage(input, archive);
+    await finished(output);
     return { archive, resourceRoot, executablePath, sidecarPlatform: "macos", sidecarPath, bytes };
   }
   const old = await build("installed", { bytes: snapshotBytes(), padding: 10 });
