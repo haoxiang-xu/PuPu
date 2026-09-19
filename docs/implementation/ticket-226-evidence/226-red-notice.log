@@ -1,0 +1,140 @@
+..............F.FFF...........F.............                             [100%]
+=================================== FAILURES ===================================
+________________ test_raw_page_truncated_result_carries_notice _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108327650>
+
+    def test_raw_page_truncated_result_carries_notice(monkeypatch):
+        toolkit, _ = _toolkit_with_fake_page(monkeypatch, _PAGE_100)
+        result = toolkit.execute(
+            "web_fetch",
+            {"url": "https://example.com/page", "mode": "raw", "offset": 0, "max_chars": 40},
+        )
+>       assert result["result"] == _PAGE_100[:40] + truncation_notice(0, 40, 100, 40)
+E       AssertionError: assert '012345678901...7890123456789' == '012345678901...om it alone.]'
+E         
+E         - 0123456789012345678901234567890123456789
+E         ?                                         -
+E         + 0123456789012345678901234567890123456789
+E         - 
+E         - [web_fetch notice: this page has 100 characters; you received characters 0-40. Call web_fetch again with offset=40 to read the rest. Do not treat this partial page as the whole page or answer from it alone.]
+
+tests/test_web_fetch_content.py:210: AssertionError
+__________________ test_raw_page_past_end_returns_notice[100] __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108329220>
+offset = 100
+
+    @pytest.mark.parametrize("offset", [100, 250])
+    def test_raw_page_past_end_returns_notice(monkeypatch, offset):
+        toolkit, _ = _toolkit_with_fake_page(monkeypatch, _PAGE_100)
+        result = toolkit.execute(
+            "web_fetch",
+            {"url": "https://example.com/page", "mode": "raw", "offset": offset, "max_chars": 40},
+        )
+        assert result["ok"] is True
+>       assert result["result"] == past_end_notice(offset, 100)
+E       AssertionError: assert '' == '[web_fetch n...ore to read.]'
+E         
+E         - [web_fetch notice: offset 100 is beyond the end of this page (100 characters); nothing more to read.]
+
+tests/test_web_fetch_content.py:237: AssertionError
+__________________ test_raw_page_past_end_returns_notice[250] __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10832b2f0>
+offset = 250
+
+    @pytest.mark.parametrize("offset", [100, 250])
+    def test_raw_page_past_end_returns_notice(monkeypatch, offset):
+        toolkit, _ = _toolkit_with_fake_page(monkeypatch, _PAGE_100)
+        result = toolkit.execute(
+            "web_fetch",
+            {"url": "https://example.com/page", "mode": "raw", "offset": offset, "max_chars": 40},
+        )
+        assert result["ok"] is True
+>       assert result["result"] == past_end_notice(offset, 100)
+E       AssertionError: assert '' == '[web_fetch n...ore to read.]'
+E         
+E         - [web_fetch notice: offset 250 is beyond the end of this page (100 characters); nothing more to read.]
+
+tests/test_web_fetch_content.py:237: AssertionError
+___________ test_raw_page_cached_second_call_carries_its_own_notice ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10832f980>
+
+    def test_raw_page_cached_second_call_carries_its_own_notice(monkeypatch):
+        toolkit, calls = _toolkit_with_fake_page(monkeypatch, _PAGE_100)
+        first = toolkit.execute(
+            "web_fetch",
+            {"url": "https://example.com/page", "mode": "raw", "offset": 0, "max_chars": 40},
+        )
+        assert first["cached"] is False
+>       assert first["result"] == _PAGE_100[:40] + truncation_notice(0, 40, 100, 40)
+E       AssertionError: assert '012345678901...7890123456789' == '012345678901...om it alone.]'
+E         
+E         - 0123456789012345678901234567890123456789
+E         ?                                         -
+E         + 0123456789012345678901234567890123456789
+E         - 
+E         - [web_fetch notice: this page has 100 characters; you received characters 0-40. Call web_fetch again with offset=40 to read the rest. Do not treat this partial page as the whole page or answer from it alone.]
+
+tests/test_web_fetch_content.py:250: AssertionError
+___________ test_code_toolkit_web_fetch_raw_uses_cache_and_paginates ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1087ef320>
+
+    def test_code_toolkit_web_fetch_raw_uses_cache_and_paginates(monkeypatch):
+        with tempfile.TemporaryDirectory() as tmp:
+            toolkit = CoreToolkit(workspace_root=tmp)
+            monkeypatch.setattr(web_fetch_module, "validate_public_url", lambda url: (url, None))
+    
+            calls = {"count": 0}
+    
+            def fake_request(url: str):
+                calls["count"] += 1
+                return (
+                    {
+                        "ok": True,
+                        "url": url,
+                        "final_url": url,
+                        "host": "example.com",
+                        "status_code": 200,
+                        "content_type": "text/plain",
+                        "file_kind": "text",
+                        "result": "",
+                        "content_length": len("alpha beta gamma delta"),
+                        "returned_chars": 0,
+                        "truncated": False,
+                        "next_offset": None,
+                        "cached": False,
+                        "redirect": None,
+                        "skipped": False,
+                        "error": "",
+                    },
+                    "alpha beta gamma delta",
+                )
+    
+            monkeypatch.setattr(toolkit._web_backend.web_fetch_service, "_request", fake_request)
+    
+            first = toolkit.execute(
+                "web_fetch",
+                {"url": "https://example.com/docs", "mode": "raw", "offset": 6, "max_chars": 4},
+            )
+            assert first["ok"] is True
+>           assert first["result"] == "beta" + truncation_notice(6, 10, 22, 10)
+E           AssertionError: assert 'beta' == 'beta\n\n[web...om it alone.]'
+E             
+E             - beta
+E             ?     -
+E             + beta
+E             - 
+E             - [web_fetch notice: this page has 22 characters; you received characters 6-10. Call web_fetch again with offset=10 to read the rest. Do not treat this partial page as the whole page or answer from it alone.]
+
+tests/test_core_toolkit.py:764: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_web_fetch_content.py::test_raw_page_truncated_result_carries_notice
+FAILED tests/test_web_fetch_content.py::test_raw_page_past_end_returns_notice[100]
+FAILED tests/test_web_fetch_content.py::test_raw_page_past_end_returns_notice[250]
+FAILED tests/test_web_fetch_content.py::test_raw_page_cached_second_call_carries_its_own_notice
+FAILED tests/test_core_toolkit.py::test_code_toolkit_web_fetch_raw_uses_cache_and_paginates
+5 failed, 39 passed in 3.88s

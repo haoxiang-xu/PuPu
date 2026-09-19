@@ -1,0 +1,73 @@
+
+FIXED_RUNTIME_IMPORT_AUDIT_OK /Users/red/Desktop/GITRepo/pupu-226/.release-qa/ticket-226/venv/lib/python3.12/site-packages/unchain/__init__.py
+.................................................................. [  2%]
+........................................................................ [  5%]
+..........................ss............................................................................................... [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 16%]
+..................................................................... [ 19%]
+.................................................................. [ 22%]
+...................................................................... [ 25%]
+........................................................................ [ 28%]
+................................................................ [ 31%]
+................................................................s.. [ 33%]
+......................................sssss................................................................................... [ 39%]
+.................................................................................................................................................................. [ 45%]
+.............................................................................................................................. [ 51%]
+........................................................................ [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 66%]
+..................................................................................................................................... [ 71%]
+........................................................ [ 74%]
+............................................................ [ 76%]
+..................................................................... [ 79%]
+............................................... [ 81%]
+...................................................... [ 83%]
+........................................................................ [ 86%]
+...................................................................... [ 89%]
+..................................................................................................... [ 93%]
+........................................................................ [ 96%]
+..........................s............................................ [ 99%]
+......                                                                   [100%]
+FIXED_RUNTIME_MODULE_AUDIT_OK
+
+=============================== warnings summary ===============================
+tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_legacy_graph_membership_fields_fail_closed_without_type_error
+  /Users/red/Desktop/GITRepo/pupu-226/.release-qa/ticket-226/venv/lib/python3.12/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread unchain-workflow-runner-events
+  
+  Traceback (most recent call last):
+    File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+      self.run()
+    File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1010, in run
+      self._target(*self._args, **self._kwargs)
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/unchain_adapter.py", line 11006, in run_workflow
+      _execution_control_call(
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/unchain_adapter.py", line 1295, in _execution_control_call
+      return operation(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/execution_control.py", line 895, in mark_completed
+      release_run_guard(session_id, attempt_id)
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/session_execution_guard.py", line 1348, in release_run_guard
+      return _DEFAULT_REGISTRY.release_run(session_id, attempt_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/session_execution_guard.py", line 395, in release_run
+      return self._release(
+             ^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/session_execution_guard.py", line 717, in _release
+      path = self._record_path(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/session_execution_guard.py", line 941, in _record_path
+      return self._root(create=True) / f"{_digest(session_id)}.json"
+             ^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-226/unchain_runtime/server/session_execution_guard.py", line 912, in _root
+      raise SessionExecutionGuardError(
+  session_execution_guard.SessionExecutionGuardError: UNCHAIN_DATA_DIR is not configured
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2390 passed, 9 skipped, 1 warning, 3583 subtests passed in 120.84s (0:02:00)
