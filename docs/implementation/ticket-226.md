@@ -184,26 +184,30 @@ to fail on the unfixed parser. No commit or push during start.
 
 ### Fixed-wheel identity (one build, reused)
 
-- Wheel: `.release-qa/ticket-226/wheel/unchain-0.2.0-py3-none-any.whl`, built with
-  `pip wheel --no-deps` from the runtime clone (uncommitted during start; the four
-  changed files match the installed wheel byte-for-byte by SHA-256).
-- Wheel SHA-256: `9b73cab92785e07c06b09132ab136019f7dcde297a4ef88dc46fc682a040fb97`.
-- Imported runtime manifest digest (release-qa `inspectRuntimeManifestFromWheel`):
+- Final wheel built by `scripts/release-qa/build-unchain-artifact.mjs` from the
+  committed, clean runtime clone at `f6fa0c4a22018086f5b7544787c88808bc0f8e69`
+  (`codex/ticket-226-web-fetch-signal`, haoxiang-xu/unchain#32); evidence JSON
+  copied to `ticket-226-evidence/226-unchain-artifact.json`.
+- Wheel SHA-256: `c0e1c75302893cf6b5df5436747ea8d93fc55845f237efb16ecb48803c617af5`.
+- Imported runtime manifest digest:
   `sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc` — equal
   to dev, as BC-226 requires (no protocol feature added).
 - Test processes preload the wheel with `UNCHAIN_SOURCE_PATH` unset and a session
   plugin that fails if any `unchain.*` module is imported from outside site-packages
   (`FIXED_RUNTIME_IMPORT_AUDIT_OK` / `FIXED_RUNTIME_MODULE_AUDIT_OK` in the logs).
-- Unchain full suite on the wheel: **3435 passed, 1 failed, 16 skipped, 5 xfailed**
-  (`226-wheel-unchain-full.log`). The one failure is a known non-regression: `tests/test_unchain_imports.py::test_unchain_common_subpackages_are_available`
+- Unchain full suite on that wheel: **3435 passed, 1 failed, 16 skipped, 5 xfailed**
+  (`226-wheel-unchain-full.log`). The one failure is a known non-regression:
+  `tests/test_unchain_imports.py::test_unchain_common_subpackages_are_available`
   asserts a `/src/unchain/` path and cannot pass on an installed wheel (same
   expected failure as the #267 evidence).
 - PuPu `unchain_runtime/server` suite on the same wheel: **2390 passed, 9 skipped,
   3583 subtests passed** (`226-wheel-pupu-server.log`).
+- An earlier development wheel (`9b73cab9…`, built from the then-uncommitted but
+  byte-identical tree) produced the same results; superseded by the bound build.
 
 ### Live probes
 
-- AC-226-7 (`226-live-fetch-ac7.log`, wheel venv, no model): GitHub repo page
+- AC-226-7 (`226-live-fetch-ac7.log`, bound-wheel venv, no model): GitHub repo page
   `content_length 16405`, `returned_chars 16405`, `truncated false`, description at
   char 27, no `featureFlags`; MDN reference page `content_length 49901`,
   `returned_chars 20000`, `truncated true`, `result` ends with the notice. PASS.
@@ -238,3 +242,14 @@ still necessary (it is what the projection previews and what non-managed paths
 inline) but cannot make AC "usable signal reachable" true on that path by itself.
 Options for the project owner are listed in the ticket comment; no product change
 was made to the projection layer.
+
+### Feature audit end-to-end probe (2026-09-19)
+
+Dev app restarted with `UNCHAIN_SOURCE_PATH` = runtime clone at f6fa0c4 (sidecar
+verified through the toolkit catalog), `openai:gpt-4.1`, toolkit `core`, one
+`web_fetch` with one confirmation. Persisted journal `tool_result`
+(`226-audit-e2e-tool-result.jsonl`): `result_bytes 17325`, preview begins with the
+repo description, `content_length 16405`, no `featureFlags`. Model answer
+(`226-audit-e2e-gpt41.json`): correct description; language and release
+explicitly reported as not stated on the page; no fabrication, no unfetched URL.
+Probe chat deleted; app restored to its default runtime source.
