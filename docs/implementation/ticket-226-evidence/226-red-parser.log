@@ -1,0 +1,336 @@
+FFFFFFFFFFF..F                                                           [100%]
+=================================== FAILURES ===================================
+___________ test_html_to_markdown_skips_non_content_elements[script] ___________
+
+tag = 'script'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+        assert "SECRET" not in md
+>       assert "featureFlags" not in md
+E       assert 'featureFlags' not in 'Title\n\nbe..."]}\n\nafter'
+E         
+E         'featureFlags' is contained here:
+E           Title
+E           
+E           before
+E           
+E           {"featureFlags":["a","b"]}
+E           
+E           after
+
+tests/test_web_fetch_content.py:41: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[style] ____________
+
+tag = 'style'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+        assert "SECRET" not in md
+        assert "featureFlags" not in md
+>       assert "color: red" not in md
+E       AssertionError: assert 'color: red' not in 'Title\n\nbe...d }\n\nafter'
+E         
+E         'color: red' is contained here:
+E           Title
+E           
+E           before
+E           
+E           p { color: red }
+E           
+E           after
+
+tests/test_web_fetch_content.py:42: AssertionError
+__________ test_html_to_markdown_skips_non_content_elements[noscript] __________
+
+tag = 'noscript'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...ipt\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-noscript...
+E         
+E         ...Full output truncated (3 lines hidden), use '-vv' to show
+
+tests/test_web_fetch_content.py:40: AssertionError
+__________ test_html_to_markdown_skips_non_content_elements[template] __________
+
+tag = 'template'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...ate\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-template...
+E         
+E         ...Full output truncated (3 lines hidden), use '-vv' to show
+
+tests/test_web_fetch_content.py:40: AssertionError
+____________ test_html_to_markdown_skips_non_content_elements[svg] _____________
+
+tag = 'svg'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...svg\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-svg
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[iframe] ___________
+
+tag = 'iframe'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...ame\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-iframe
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[object] ___________
+
+tag = 'object'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...ect\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-object
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[canvas] ___________
+
+tag = 'canvas'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...vas\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-canvas
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[audio] ____________
+
+tag = 'audio'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...dio\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-audio
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+___________ test_html_to_markdown_skips_non_content_elements[video] ____________
+
+tag = 'video'
+
+    @pytest.mark.parametrize("tag", _SKIP_TAGS)
+    def test_html_to_markdown_skips_non_content_elements(tag):
+        body = _body_for(tag)
+        html_doc = (
+            "<html><head><title>Title</title></head><body>"
+            "<p>before</p>"
+            f'<{tag} attr="x">{body}</{tag}>'
+            "<p>after</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "SECRET" not in md
+E       AssertionError: assert 'SECRET' not in 'Title\n\nbe...deo\n\nafter'
+E         
+E         'SECRET' is contained here:
+E           Title
+E           
+E           before
+E           
+E           SECRET-video
+E           
+E           after
+
+tests/test_web_fetch_content.py:40: AssertionError
+______________ test_html_to_markdown_skips_nested_and_unbalanced _______________
+
+    def test_html_to_markdown_skips_nested_and_unbalanced():
+        html_doc = (
+            "<html><body>"
+            "<svg><svg><text>X</text></svg></svg>"
+            "<p>visible</p>"
+            "</body></html>"
+        )
+        md = web.html_to_markdown(html_doc)
+>       assert "X" not in md
+E       AssertionError: assert 'X' not in 'X\n\nvisible'
+E         
+E         'X' is contained here:
+E           X
+E           
+E           visible
+
+tests/test_web_fetch_content.py:56: AssertionError
+________________ test_github_shaped_page_puts_description_first ________________
+
+    def test_github_shaped_page_puts_description_first():
+        html_doc, description = _build_github_shaped_fixture()
+    
+        # measured on unfixed converter at e583e9a: 11861 chars
+        baseline = 11861
+    
+        md = web.html_to_markdown(html_doc)
+>       assert "featureFlags" not in md
+E       assert 'featureFlags' not in '{"imports":...GitHub, Inc.'
+E         
+E         'featureFlags' is contained here:
+E           le":"en","featureFlags":["feature_flag_0_xxxxxxxxxxxxxxxxxxxx","feature_flag_1_xxxxxxxxxxxxxxxxxxxx","feature_flag_2_xxxxxxxxxxxxxxxxxxxx","feature_flag_3_xxxxxxxxxxxxxxxxxxxx","feature_flag_4_xxxxxxxxxxxxxxxxxxxx","feature_flag_5_xxxxxxxxxxxxxxxxxxxx","feature_flag_6_xxxxxxxxxxxxxxxxxxxx","feature_flag_7_xxxxxxxxxxxxxxxxxxxx","feature_flag_8_xxxxxxxxxxxxxxxxxxxx","feature_flag_9_xxxxxxxxxxxxxxxxxxxx","feature_flag_10_xxxxxxxxxxxxxxxxxxxx","feature_flag_11_xxxxxxxxxxxxxxxxxxxx","feature_flag_12_xxxxxxxxxxxxxxxxxxxx","feature_flag_13_xxxxxxxxxxxxxxxx...
+E         
+E         ...Full output truncated (51 lines hidden), use '-vv' to show
+
+tests/test_web_fetch_content.py:159: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[script]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[style]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[noscript]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[template]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[svg]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[iframe]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[object]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[canvas]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[audio]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_non_content_elements[video]
+FAILED tests/test_web_fetch_content.py::test_html_to_markdown_skips_nested_and_unbalanced
+FAILED tests/test_web_fetch_content.py::test_github_shaped_page_puts_description_first
+12 failed, 2 passed in 0.25s

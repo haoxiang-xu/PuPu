@@ -1,0 +1,1117 @@
+{
+  "model": "openai:gpt-4.1",
+  "chat_id": "chat-1789796488616-433f20a76d14b",
+  "prompt": "Read https://github.com/haoxiang-xu/PuPu and tell me: (1) what the project does, (2) its primary programming language, (3) its latest release version. Only state what you actually read from the fetched page; if the page does not say, say so explicitly. Do not cite any URL you did not fetch.",
+  "clicks": [
+    {
+      "t": 6042,
+      "clicked": "clicked:Allow once"
+    }
+  ],
+  "polls": [
+    {
+      "t": 2010,
+      "status": "running"
+    },
+    {
+      "t": 4023,
+      "status": "running"
+    },
+    {
+      "t": 6046,
+      "status": "running"
+    },
+    {
+      "t": 8057,
+      "status": "running"
+    },
+    {
+      "t": 10064,
+      "status": "running"
+    },
+    {
+      "t": 12070,
+      "status": "completed"
+    }
+  ],
+  "run": {
+    "chat_id": "chat-1789796488616-433f20a76d14b",
+    "execution_id": "chat-1789796488616-433f20a76d14b",
+    "attempt_id": "unchain-1789796490348-6831911581fdb8",
+    "status": "running",
+    "message_id": "assistant-1789796490338-15a65f2d8e6178",
+    "content": "",
+    "tool_calls": null,
+    "finish_reason": null,
+    "started_at": 1789796490338,
+    "updated_at": 1789796490338,
+    "error": null,
+    "confirmation_debug": {
+      "pending_requests_ref": {},
+      "pending_requests_rendered": {},
+      "ui_state_ref": {},
+      "ui_state_rendered": {},
+      "runtime": null,
+      "trace_frames": []
+    }
+  },
+  "final": {
+    "chat_id": "chat-1789796488616-433f20a76d14b",
+    "execution_id": "chat-1789796488616-433f20a76d14b",
+    "attempt_id": "unchain-1789796490348-6831911581fdb8",
+    "status": "completed",
+    "message_id": "assistant-1789796490338-15a65f2d8e6178",
+    "content": "Here is what I found based on the actual content from the fetched GitHub page for the project \"PuPu\":\n\n1. **What the project does:**  \n   - PuPu is described as a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. It allows users to run models on their own machine or connect to providers like OpenAI and Anthropic, offering a unified, elegant interface. The tagline is \"your AI, your rules.\"\n\n2. **Primary programming language:**  \n   - The fetched page does not explicitly state the primary programming language of the project.\n\n3. **Latest release version:**  \n   - The fetched page does not mention any release versions or provide information about the latest release.\n\nIf you need more details, such as the main programming language or release information, you may need to explore the repository's files or its \"Releases\" section directly.",
+    "tool_calls": null,
+    "finish_reason": null,
+    "started_at": 1789796490338,
+    "updated_at": 1789796501941,
+    "error": null,
+    "confirmation_debug": {
+      "pending_requests_ref": {},
+      "pending_requests_rendered": {},
+      "ui_state_ref": {},
+      "ui_state_rendered": {},
+      "runtime": null,
+      "trace_frames": [
+        {
+          "type": "tool_call",
+          "seq": 8,
+          "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+          "confirmation_id": "interaction_fddab968919b33c66517c996eb770791",
+          "requires_confirmation": true,
+          "tool_name": "web_fetch"
+        },
+        {
+          "type": "tool_call",
+          "seq": 9,
+          "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+          "confirmation_id": "",
+          "requires_confirmation": false,
+          "tool_name": "web_fetch"
+        }
+      ]
+    }
+  },
+  "messages": [
+    {
+      "id": "user-1789796490338",
+      "role": "user",
+      "content": "Read https://github.com/haoxiang-xu/PuPu and tell me: (1) what the project does, (2) its primary programming language, (3) its latest release version. Only state what you actually read from the fetched page; if the page does not say, say so explicitly. Do not cite any URL you did not fetch.",
+      "createdAt": 1789796490338,
+      "updatedAt": 1789796490338
+    },
+    {
+      "id": "assistant-1789796490338-15a65f2d8e6178",
+      "role": "assistant",
+      "content": "Here is what I found based on the actual content from the fetched GitHub page for the project \"PuPu\":\n\n1. **What the project does:**  \n   - PuPu is described as a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. It allows users to run models on their own machine or connect to providers like OpenAI and Anthropic, offering a unified, elegant interface. The tagline is \"your AI, your rules.\"\n\n2. **Primary programming language:**  \n   - The fetched page does not explicitly state the primary programming language of the project.\n\n3. **Latest release version:**  \n   - The fetched page does not mention any release versions or provide information about the latest release.\n\nIf you need more details, such as the main programming language or release information, you may need to explore the repository's files or its \"Releases\" section directly.",
+      "createdAt": 1789796490338,
+      "updatedAt": 1789796501941,
+      "status": "done",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1789796490355,
+          "run_id": "unchain-1789796490348-6831911581fdb8",
+          "type": "stream_started",
+          "payload": {
+            "thread_id": "chat-1789796488616-433f20a76d14b",
+            "model": "openai:gpt-4.1",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_3c9dfd9cdf3247f9a1442deca79a0bef"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1789796491318,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "run_started",
+          "iteration": 0,
+          "payload": {
+            "status": "running",
+            "provider": "openai",
+            "model": "gpt-4.1",
+            "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+            "runtime_event_id": "evt_f8656d3f9fcc4a9884c3f6fa3412010d"
+          }
+        },
+        {
+          "seq": 3,
+          "ts": 1789796491320,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "iteration_started",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "runtime_event_id": "evt_ca18986a2b0b467c9abc937831b930e5"
+          }
+        },
+        {
+          "seq": 8,
+          "ts": 1789796495426,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "tool_call",
+          "payload": {
+            "step_id": "tool:call_YGlltZliREfhBaQ7Itnunrzh",
+            "step_type": "tool",
+            "tool_name": "web_fetch",
+            "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+            "tool_display_name": "",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "description": "Fetch a public web page over HTTP(S). Raw mode returns the page text converted to Markdown with scripts, styles and embedded data removed, paginated by offset/max_chars; a truncated result ends with a notice and next_offset — continue with offset=next_offset before answering. Extract mode runs a runtime-configured extraction model.",
+            "confirmation_id": "interaction_fddab968919b33c66517c996eb770791",
+            "requires_confirmation": true,
+            "interact_type": "confirmation",
+            "interact_config": {},
+            "arguments": {
+              "max_chars": 30000,
+              "mode": "raw",
+              "offset": 0,
+              "prompt": "",
+              "url": "https://github.com/haoxiang-xu/PuPu"
+            },
+            "runtime_event_id": "evt_263f6e2d3177407785a2d8e30a517685"
+          }
+        },
+        {
+          "seq": 6,
+          "ts": 1789796495422,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "response_received",
+          "iteration": 0,
+          "payload": {
+            "step_id": "model:graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4:turn-0:response",
+            "step_type": "model_response",
+            "status": "awaiting_interaction",
+            "response_id": "resp_0457fa353c28e3c3006aae208d872c87d0903d1027e2bd92fa",
+            "has_tool_calls": true,
+            "usage": {
+              "model": "gpt-4.1",
+              "consumed_tokens": 6095,
+              "input_tokens": 6052,
+              "output_tokens": 43,
+              "last_turn_tokens": 6095,
+              "last_turn_input_tokens": 6052,
+              "last_turn_output_tokens": 43,
+              "max_context_window_tokens": 1047576,
+              "context_window_used_pct": 0.58,
+              "status": "running",
+              "human_input_request": null,
+              "continuation": {
+                "consumed_tokens": 6095,
+                "context_version_id": "kv_74e23e2643d34bc0801eae5b13edf158",
+                "input_tokens": 6052,
+                "interaction_id": "interaction_fddab968919b33c66517c996eb770791",
+                "iteration": 1,
+                "kind": "tool_approval",
+                "last_turn_input_tokens": 6052,
+                "last_turn_output_tokens": 43,
+                "last_turn_tokens": 6095,
+                "max_context_window_tokens": 1047576,
+                "max_iterations": 128,
+                "memory_namespace": null,
+                "model": "gpt-4.1",
+                "output_tokens": 43,
+                "paused_call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+                "payload": {},
+                "previous_response_id": "resp_0457fa353c28e3c3006aae208d872c87d0903d1027e2bd92fa",
+                "provider": "openai",
+                "provider_replay_handle": {
+                  "id": "provider_replay_7477115dc37a47b98191d816084fe903",
+                  "scope": "process"
+                },
+                "response_format": null,
+                "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "session_id": "chat-1789796488616-433f20a76d14b",
+                "tool_batch_state": {
+                  "executed_call_ids": [],
+                  "result_messages": [],
+                  "should_observe": false
+                },
+                "tool_calls": [
+                  {
+                    "arguments": "{\"max_chars\":30000,\"mode\":\"raw\",\"offset\":0,\"prompt\":\"\",\"url\":\"https://github.com/haoxiang-xu/PuPu\"}",
+                    "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+                    "name": "web_fetch"
+                  }
+                ],
+                "tool_iteration": 0,
+                "type": "tool_approval_continuation",
+                "use_openai_previous_response_chain": true,
+                "workspace_change_state": {}
+              },
+              "previous_response_id": "resp_0457fa353c28e3c3006aae208d872c87d0903d1027e2bd92fa",
+              "iteration": 1,
+              "interaction_request": {
+                "schema_version": 1,
+                "interaction_id": "interaction_fddab968919b33c66517c996eb770791",
+                "session_id": "chat-1789796488616-433f20a76d14b",
+                "kind": "tool_approval",
+                "source_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "occurrence": "tool:call_YGlltZliREfhBaQ7Itnunrzh:0",
+                "payload": {
+                  "type": "tool_confirmation_request",
+                  "tool_name": "web_fetch",
+                  "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+                  "arguments": {
+                    "max_chars": 30000,
+                    "mode": "raw",
+                    "offset": 0,
+                    "prompt": "",
+                    "url": "https://github.com/haoxiang-xu/PuPu"
+                  },
+                  "description": "Fetch a public web page over HTTP(S). Raw mode returns the page text converted to Markdown with scripts, styles and embedded data removed, paginated by offset/max_chars; a truncated result ends with a notice and next_offset — continue with offset=next_offset before answering. Extract mode runs a runtime-configured extraction model.",
+                  "render_component": {
+                    "version": 1,
+                    "type": "confirmation",
+                    "config": {}
+                  }
+                },
+                "response_contract": {
+                  "type": "object",
+                  "properties": {
+                    "approved": {
+                      "type": "boolean"
+                    },
+                    "modified_arguments": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "approved",
+                    "modified_arguments",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                },
+                "schema_digest": "49eefff5e9f1efed1f690f7931c8bb0e2045399644ce6587a4b6216403ec1ec4",
+                "request_digest": "fddab968919b33c66517c996eb770791da7163de78d28376b5b62b3738b9cdea",
+                "created_revision": 0,
+                "subject": {
+                  "binding_version": 1,
+                  "provider": "openai",
+                  "model": "gpt-4.1",
+                  "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+                  "tool_name": "web_fetch",
+                  "tool_schema_digest": "e6782cea66163a1f2173bec0244c1418bb5821ba0d8e7c0d0fdb9e8e3ab400ba",
+                  "extra": {
+                    "context_v2_tool_authority": {
+                      "schema": "unchain.context_tool_approval.v1",
+                      "intent_cursor": {
+                        "schema": "unchain.event_cursor.v1",
+                        "store_seq": 13,
+                        "event_id": "event-0935ae2d9d68ef168382e780e133a9f1aaa76c598632bfe29cb0f4194d336859"
+                      },
+                      "original_arguments_sha256": "01947324f8d5cc80fa4ecb4f575ab620e289a1415dddced875a779e1fe8006d5",
+                      "route_kind": "normal",
+                      "route_manifest_sha256": "688526c76444062e3dffbc4bbdf2c7948fb953b6b5bbdd3aa20fe4034b923bda",
+                      "terminal_handler_manifest_sha256": "4692e2ee5d7e1135f629471ea6bb087d8976b85f19c821ea58cb9f3d2590b757"
+                    }
+                  }
+                }
+              }
+            },
+            "runtime_event_id": "evt_c5ef436a0f50437caf31b81a8481b22a"
+          }
+        },
+        {
+          "seq": 8.1,
+          "ts": 1789796496631,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "tool_confirmed",
+          "payload": {
+            "tool_name": "web_fetch",
+            "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+            "confirmation_id": "interaction_fddab968919b33c66517c996eb770791",
+            "synthetic": true
+          }
+        },
+        {
+          "seq": 9,
+          "ts": 1789796496639,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "tool_call",
+          "iteration": 0,
+          "payload": {
+            "step_id": "tool:call_YGlltZliREfhBaQ7Itnunrzh",
+            "step_type": "tool",
+            "tool_name": "web_fetch",
+            "call_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": "{\"max_chars\":30000,\"mode\":\"raw\",\"offset\":0,\"prompt\":\"\",\"url\":\"https://github.com/haoxiang-xu/PuPu\"}",
+            "runtime_event_id": "evt_0843d88304a0436fb952c3a8baab1ea8"
+          }
+        },
+        {
+          "seq": 10,
+          "ts": 1789796497549,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "iteration_completed",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "has_tool_calls": true,
+            "runtime_event_id": "evt_6439fa55d160483b8092d3fe673ef0f4"
+          }
+        },
+        {
+          "seq": 11,
+          "ts": 1789796497554,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "iteration_started",
+          "iteration": 1,
+          "payload": {
+            "iteration": 1,
+            "runtime_event_id": "evt_efdb564791b14a55bb2c5efaf5258895"
+          }
+        },
+        {
+          "seq": 195,
+          "ts": 1789796501556,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "response_received",
+          "iteration": 1,
+          "payload": {
+            "step_id": "model:graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4:turn-1:response",
+            "step_type": "model_response",
+            "status": "running",
+            "response_id": "resp_0ffea8621928bec3006aae2092a4bc87d0b45109e5e3466725",
+            "has_tool_calls": false,
+            "usage": {
+              "model": "gpt-4.1",
+              "consumed_tokens": 13484,
+              "input_tokens": 13257,
+              "output_tokens": 227,
+              "last_turn_tokens": 7389,
+              "last_turn_input_tokens": 7205,
+              "last_turn_output_tokens": 184,
+              "max_context_window_tokens": 1047576,
+              "context_window_used_pct": 0.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": "resp_0ffea8621928bec3006aae2092a4bc87d0b45109e5e3466725",
+              "iteration": 2
+            },
+            "runtime_event_id": "evt_28229b62b5a6488aa85fa5b72b529dc6"
+          }
+        },
+        {
+          "seq": 196,
+          "ts": 1789796501572,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "final_message",
+          "iteration": 1,
+          "payload": {
+            "content": "Here is what I found based on the actual content from the fetched GitHub page for the project \"PuPu\":\n\n1. **What the project does:**  \n   - PuPu is described as a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. It allows users to run models on their own machine or connect to providers like OpenAI and Anthropic, offering a unified, elegant interface. The tagline is \"your AI, your rules.\"\n\n2. **Primary programming language:**  \n   - The fetched page does not explicitly state the primary programming language of the project.\n\n3. **Latest release version:**  \n   - The fetched page does not mention any release versions or provide information about the latest release.\n\nIf you need more details, such as the main programming language or release information, you may need to explore the repository's files or its \"Releases\" section directly.",
+            "runtime_event_id": "evt_842849ba12924648852930d3bc9f3bbc",
+            "finality": "terminal"
+          }
+        },
+        {
+          "seq": 197,
+          "ts": 1789796501579,
+          "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+          "type": "done",
+          "iteration": 1,
+          "payload": {
+            "status": "completed",
+            "usage": {
+              "model": "gpt-4.1",
+              "consumed_tokens": 13484,
+              "input_tokens": 13257,
+              "output_tokens": 227,
+              "last_turn_tokens": 7389,
+              "last_turn_input_tokens": 7205,
+              "last_turn_output_tokens": 184,
+              "max_context_window_tokens": 1047576,
+              "context_window_used_pct": 0.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": "resp_0ffea8621928bec3006aae2092a4bc87d0b45109e5e3466725",
+              "iteration": 2
+            },
+            "bundle": {
+              "model": "gpt-4.1",
+              "consumed_tokens": 13484,
+              "input_tokens": 13257,
+              "output_tokens": 227,
+              "last_turn_tokens": 7389,
+              "last_turn_input_tokens": 7205,
+              "last_turn_output_tokens": 184,
+              "max_context_window_tokens": 1047576,
+              "context_window_used_pct": 0.71,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": "resp_0ffea8621928bec3006aae2092a4bc87d0b45109e5e3466725",
+              "iteration": 2
+            },
+            "runtime_event_id": "evt_b1a4c6c935cb41f5ac62147267b25b06"
+          }
+        }
+      ],
+      "meta": {
+        "model": "openai:gpt-4.1",
+        "requestId": "unchain-1789796490348-6831911581fdb8",
+        "attemptId": "unchain-1789796490348-6831911581fdb8",
+        "executionSessionId": "chat-1789796488616-433f20a76d14b",
+        "bundle": {
+          "schema": "unchain.run_bundle.v1",
+          "bundle_id": "rb_a5929669b41edb25ee13587075679af7cc04d935b7b96cb1711287a596dec966",
+          "revision": 3,
+          "bundle_digest": "b4c1ae8e0363b716db30be0d3645fde9e7f91504de7cf01249e081c2b5668a70",
+          "identity": {
+            "execution_id": "chat-1789796488616-433f20a76d14b",
+            "attempt_id": "unchain-1789796490348-6831911581fdb8",
+            "root_run_id": "unchain-1789796490348-6831911581fdb8",
+            "run_id": "unchain-1789796490348-6831911581fdb8",
+            "parent_run_id": null,
+            "relation": "root"
+          },
+          "lifecycle": {
+            "status": "completed",
+            "started_at": "2026-09-19T05:41:31.005519000Z",
+            "completed_at": "2026-09-19T05:41:41.690941000Z",
+            "continued_from_run_id": null
+          },
+          "descriptor": {
+            "model": "gpt-4.1",
+            "display_model": "openai:gpt-4.1",
+            "active_agent": "developer",
+            "agent_orchestration": "default",
+            "iteration": 1
+          },
+          "metrics": {
+            "algorithm": "unique_metric_event_set_union.v1",
+            "events": [
+              {
+                "metric_event_id": "me_279d1a7a3a8754773ee2496b55c3b69efe6d7c304fb621afa306aa12e434d635",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "interaction",
+                "subject_id": "interaction_fddab968919b33c66517c996eb770791",
+                "outcome": "requested",
+                "error": null,
+                "evidence_refs": [
+                  {
+                    "kind": "interaction",
+                    "ref_id": "interaction_1c43c045efcccb6eb977f66603471b8165f837cf1e3448fa989221a05b7dbdfd"
+                  }
+                ]
+              },
+              {
+                "metric_event_id": "me_595d3f5927692fcb82a034248181a04738e2265b501d4335bc739659c8a60897",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "tool_call",
+                "subject_id": "call_YGlltZliREfhBaQ7Itnunrzh",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_6557c47a49fd8752356825e2e2c65cc3ca4675824510d13b998ff300c44424c1",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "context_build",
+                "subject_id": "context-build-d73986452fb237decd3e2fbf4933aacdccafa1c023ef61d9715d6bedd70090f2",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": [
+                  {
+                    "kind": "context_event",
+                    "ref_id": "context_event_f0b65352ca9f16ebd70606be87f069e065ed401eba651f7e95abdf2cb387d46e"
+                  }
+                ]
+              },
+              {
+                "metric_event_id": "me_6fa55b4df5aa092cf46ed9c5e6a3792abbd49c77cfda29bec2f0af74b49ab781",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "context_build",
+                "subject_id": "context-build-f531eb2718d2eb10976d12d6dcfd4b4cfe1aa768a75cefe0a388987e4fab5eaf",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": [
+                  {
+                    "kind": "context_event",
+                    "ref_id": "context_event_7e7dd0b45e23c91c194f79543741b0eb18be45b6cb4cbc9fdcea702661786ca3"
+                  }
+                ]
+              },
+              {
+                "metric_event_id": "me_77af67fb6a59ced0a9df2a0a1bb6daff35e9c23e8a5cf20bb42165ba8581526c",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "model_attempt",
+                "subject_id": "pc_d7d1f8baa1f9a7c413a3ca654cd402947f6b7216d8abf11576b250a5cf747863",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_7deca9457ed00371b9febdcc0d3ea661f77782f6e6261b83697575b1c256727b",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "iteration",
+                "subject_id": "iteration:1",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_cadbcbacf166849942d9b4bb93ef3064d61c3bb7e86bb53cf2026cb7d710d79a",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "model_attempt",
+                "subject_id": "pc_3b1806659d95a28bd1c19569ae837e7990d7be03b785a342863ae38666d67352",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_fde365f451f5fd9ad1cb6030b905fc8617a348fabf4bb2aa76224927754404d9",
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "kind": "iteration",
+                "subject_id": "iteration:0",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              }
+            ],
+            "direct": {
+              "artifacts": 0,
+              "model_attempts": 0,
+              "iterations": 0,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 0,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "descendant": {
+              "artifacts": 0,
+              "model_attempts": 2,
+              "iterations": 2,
+              "tool_calls": 1,
+              "tool_results": 0,
+              "interactions": 1,
+              "context_builds": 2,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "all": {
+              "artifacts": 0,
+              "model_attempts": 2,
+              "iterations": 2,
+              "tool_calls": 1,
+              "tool_results": 0,
+              "interactions": 1,
+              "context_builds": 2,
+              "context_compactions": 0,
+              "errors": 0
+            }
+          },
+          "provider_calls": [
+            {
+              "schema": "unchain.provider_call_usage.v1",
+              "provider_call_id": "pc_3b1806659d95a28bd1c19569ae837e7990d7be03b785a342863ae38666d67352",
+              "identity": {
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "iteration": 0,
+                "retry_ordinal": 0,
+                "purpose": "agent_turn",
+                "request_sha256": "43b99724eba609a7233db5440a288a4af96d738c239c2a4e461c5f17373350ec",
+                "route": "openai.responses.create"
+              },
+              "provider": {
+                "name": "openai",
+                "model": "gpt-4.1",
+                "service_tier": null
+              },
+              "status": "completed",
+              "timing": {
+                "started_at": "2026-09-19T05:41:32.140583Z",
+                "completed_at": "2026-09-19T05:41:35.352055Z"
+              },
+              "provider_ids": {
+                "request_id_sha256": null,
+                "response_id_sha256": "e4cfe491dd03f0beed4b14c11d51348ee17e557e57784b6a74e45568598b7a3c"
+              },
+              "billing_dimensions": {
+                "billing_surface": null,
+                "batch": null,
+                "inference_geo": null
+              },
+              "usage": {
+                "input": {
+                  "uncached_tokens": 6052,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": null,
+                  "cache_write_1h_tokens": null,
+                  "total_tokens": 6052
+                },
+                "output": {
+                  "visible_tokens": 43,
+                  "reasoning_tokens": 0,
+                  "total_tokens": 43
+                },
+                "total_tokens": 6095,
+                "source": "provider_observed_partial"
+              },
+              "raw_usage_sha256": "05274e0c900526b546460d2ec84503d48912706c661f2242dc94d8a9188451db",
+              "pricing": {
+                "status": "unavailable",
+                "basis": null,
+                "snapshot": null,
+                "amount_nano_usd": null,
+                "reason": "pricing_service_tier_unknown",
+                "input_multiplier_ppm": null,
+                "output_multiplier_ppm": null
+              },
+              "extensions": {
+                "unchain.context/context_composition_v1": {
+                  "attributed_tokens": 6052,
+                  "categories": [
+                    {
+                      "id": "instructions",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "core_system",
+                          "source_count": 2,
+                          "tokens": 2404
+                        }
+                      ],
+                      "tokens": 2404
+                    },
+                    {
+                      "id": "tool_definitions",
+                      "source_count": 26,
+                      "subtypes": [
+                        {
+                          "id": "provider_schema",
+                          "source_count": 26,
+                          "tokens": 3364
+                        }
+                      ],
+                      "tokens": 3364
+                    },
+                    {
+                      "id": "conversation",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "current_input",
+                          "source_count": 1,
+                          "tokens": 55
+                        },
+                        {
+                          "id": "assistant_history",
+                          "source_count": 1,
+                          "tokens": 229
+                        }
+                      ],
+                      "tokens": 284
+                    }
+                  ],
+                  "context_window_tokens": 1047576,
+                  "coverage": {
+                    "manifest_items": 30,
+                    "matched_items": 30,
+                    "matched_surfaces": 2,
+                    "status": "complete",
+                    "wire_surfaces": 2
+                  },
+                  "method": "utf8_heuristic_v2",
+                  "quality": "reconciled_estimate",
+                  "residual_tokens": 0,
+                  "schema": "unchain.context/context_composition_v1",
+                  "wire": {
+                    "context_mode": "semantic",
+                    "envelope_sha256": "sha256:89284c5fdd8b8db39714cbdd4906f239321c39ddf2498d82d82142a883b208a7",
+                    "route_name": "primary",
+                    "route_sha256": "sha256:ba5fcdb43b6574d2707f2e48ca3eae7c73fc2af150243614d3c277dd46b690b8"
+                  }
+                },
+                "unchain.runtime/provider_attempt_classification": "success",
+                "unchain.runtime/usage_capture": "provider_adapter"
+              }
+            },
+            {
+              "schema": "unchain.provider_call_usage.v1",
+              "provider_call_id": "pc_d7d1f8baa1f9a7c413a3ca654cd402947f6b7216d8abf11576b250a5cf747863",
+              "identity": {
+                "execution_id": "chat-1789796488616-433f20a76d14b",
+                "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "root_run_id": "unchain-1789796490348-6831911581fdb8",
+                "owner_run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+                "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+                "iteration": 1,
+                "retry_ordinal": 0,
+                "purpose": "agent_turn",
+                "request_sha256": "5e260d1e35e058b743453e592e657831c29491bf0e779ed37445853cdd1da728",
+                "route": "openai.responses.create"
+              },
+              "provider": {
+                "name": "openai",
+                "model": "gpt-4.1",
+                "service_tier": null
+              },
+              "status": "completed",
+              "timing": {
+                "started_at": "2026-09-19T05:41:38.410503Z",
+                "completed_at": "2026-09-19T05:41:41.485917Z"
+              },
+              "provider_ids": {
+                "request_id_sha256": null,
+                "response_id_sha256": "34aeb1e190733c3dfe8011f26030fe058f56cd497c7e223329ce4006b3e1eef0"
+              },
+              "billing_dimensions": {
+                "billing_surface": null,
+                "batch": null,
+                "inference_geo": null
+              },
+              "usage": {
+                "input": {
+                  "uncached_tokens": 7205,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": null,
+                  "cache_write_1h_tokens": null,
+                  "total_tokens": 7205
+                },
+                "output": {
+                  "visible_tokens": 184,
+                  "reasoning_tokens": 0,
+                  "total_tokens": 184
+                },
+                "total_tokens": 7389,
+                "source": "provider_observed_partial"
+              },
+              "raw_usage_sha256": "ce64d402f90b53bbf866fb875214bf1a86509acc6bc642904298678a5dac5668",
+              "pricing": {
+                "status": "unavailable",
+                "basis": null,
+                "snapshot": null,
+                "amount_nano_usd": null,
+                "reason": "pricing_service_tier_unknown",
+                "input_multiplier_ppm": null,
+                "output_multiplier_ppm": null
+              },
+              "extensions": {
+                "unchain.context/context_composition_v1": {
+                  "attributed_tokens": 7205,
+                  "categories": [
+                    {
+                      "id": "instructions",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "core_system",
+                          "source_count": 2,
+                          "tokens": 2574
+                        }
+                      ],
+                      "tokens": 2574
+                    },
+                    {
+                      "id": "tool_definitions",
+                      "source_count": 26,
+                      "subtypes": [
+                        {
+                          "id": "provider_schema",
+                          "source_count": 26,
+                          "tokens": 3601
+                        }
+                      ],
+                      "tokens": 3601
+                    },
+                    {
+                      "id": "conversation",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "current_input",
+                          "source_count": 1,
+                          "tokens": 59
+                        },
+                        {
+                          "id": "assistant_history",
+                          "source_count": 1,
+                          "tokens": 335
+                        }
+                      ],
+                      "tokens": 394
+                    },
+                    {
+                      "id": "tool_activity",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "arguments",
+                          "source_count": 1,
+                          "tokens": 40
+                        },
+                        {
+                          "id": "results",
+                          "source_count": 1,
+                          "tokens": 596
+                        }
+                      ],
+                      "tokens": 636
+                    }
+                  ],
+                  "context_window_tokens": 1047576,
+                  "coverage": {
+                    "manifest_items": 32,
+                    "matched_items": 32,
+                    "matched_surfaces": 2,
+                    "status": "complete",
+                    "wire_surfaces": 2
+                  },
+                  "method": "utf8_heuristic_v2",
+                  "quality": "reconciled_estimate",
+                  "residual_tokens": 0,
+                  "schema": "unchain.context/context_composition_v1",
+                  "wire": {
+                    "context_mode": "local_replay",
+                    "envelope_sha256": "sha256:e37e8d81f2667b9875b9baf5cef3298a1accd96b903ec565a71b8ed8bebfb28d",
+                    "route_name": "primary",
+                    "route_sha256": "sha256:19050ec69bfa842e3335b920e201581a44afd3de5d9adf2ce062f3a2318852df"
+                  }
+                },
+                "unchain.runtime/provider_attempt_classification": "success",
+                "unchain.runtime/usage_capture": "provider_adapter"
+              }
+            }
+          ],
+          "children": [
+            {
+              "run_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+              "attempt_id": "graph-step-515b88dab5d7fb0971e86c89eed4faaa4d5914010ab8b9b69c0ceae4d5a019c4",
+              "parent_run_id": "unchain-1789796490348-6831911581fdb8",
+              "relation": "graph_node",
+              "bundle_id": "rb_baff4aba6dc8aec553a0fcdc0124aceeecd20b94719950adf6f007b4164fd994",
+              "status": "completed"
+            }
+          ],
+          "aggregation": {
+            "algorithm": "provider_call_set_union.v1",
+            "direct_call_ids": [],
+            "descendant_call_ids": [
+              "pc_3b1806659d95a28bd1c19569ae837e7990d7be03b785a342863ae38666d67352",
+              "pc_d7d1f8baa1f9a7c413a3ca654cd402947f6b7216d8abf11576b250a5cf747863"
+            ],
+            "all_call_ids": [
+              "pc_3b1806659d95a28bd1c19569ae837e7990d7be03b785a342863ae38666d67352",
+              "pc_d7d1f8baa1f9a7c413a3ca654cd402947f6b7216d8abf11576b250a5cf747863"
+            ],
+            "direct_usage": {
+              "input": {
+                "uncached_tokens": null,
+                "cache_read_tokens": null,
+                "cache_write_tokens": null,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": null
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": null
+              },
+              "total_tokens": null,
+              "source": "unavailable"
+            },
+            "descendant_usage": {
+              "input": {
+                "uncached_tokens": 13257,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": 13257
+              },
+              "output": {
+                "visible_tokens": 227,
+                "reasoning_tokens": 0,
+                "total_tokens": 227
+              },
+              "total_tokens": 13484,
+              "source": "provider_observed_partial"
+            },
+            "all_usage": {
+              "input": {
+                "uncached_tokens": 13257,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": 13257
+              },
+              "output": {
+                "visible_tokens": 227,
+                "reasoning_tokens": 0,
+                "total_tokens": 227
+              },
+              "total_tokens": 13484,
+              "source": "provider_observed_partial"
+            }
+          },
+          "usage_slices": [
+            {
+              "provider": "openai",
+              "model": "gpt-4.1",
+              "service_tier": null,
+              "call_ids": [
+                "pc_3b1806659d95a28bd1c19569ae837e7990d7be03b785a342863ae38666d67352",
+                "pc_d7d1f8baa1f9a7c413a3ca654cd402947f6b7216d8abf11576b250a5cf747863"
+              ],
+              "usage": {
+                "input": {
+                  "uncached_tokens": 13257,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": null,
+                  "cache_write_1h_tokens": null,
+                  "total_tokens": 13257
+                },
+                "output": {
+                  "visible_tokens": 227,
+                  "reasoning_tokens": 0,
+                  "total_tokens": 227
+                },
+                "total_tokens": 13484,
+                "source": "provider_observed_partial"
+              },
+              "coverage": {
+                "status": "complete",
+                "receipt_count": 2,
+                "observed_usage_count": 2,
+                "missing_usage_count": 0,
+                "uncertain_call_count": 0,
+                "missing_usage_call_ids": []
+              },
+              "cost": {
+                "status": "unavailable",
+                "basis": null,
+                "amount_nano_usd": null,
+                "currency": null,
+                "pricing_snapshot_ids": []
+              }
+            }
+          ],
+          "coverage": {
+            "status": "complete",
+            "receipt_count": 2,
+            "observed_usage_count": 2,
+            "missing_usage_count": 0,
+            "uncertain_call_count": 0,
+            "missing_usage_call_ids": []
+          },
+          "cost": {
+            "status": "unavailable",
+            "basis": null,
+            "amount_nano_usd": null,
+            "currency": null,
+            "pricing_snapshot_ids": []
+          },
+          "legacy": {
+            "status": "canonical",
+            "source": null,
+            "reason": null
+          },
+          "evidence": {
+            "receipt_sha256s": [
+              "3551849b0912355dcd76b5bb911a5a8ac46db55d277ccf79d39909a1e8232f2f",
+              "6a6b6fa20ded103ecb244c55fba0768202cb6a6bc1d6c7e372a875dc885c360c"
+            ],
+            "raw_usage_sha256s": [
+              "05274e0c900526b546460d2ec84503d48912706c661f2242dc94d8a9188451db",
+              "ce64d402f90b53bbf866fb875214bf1a86509acc6bc642904298678a5dac5668"
+            ],
+            "pricing_snapshot_ids": []
+          },
+          "extensions": {
+            "pupu.run/completion_diagnostics_ref_v1": {
+              "diagnostics_schema": "pupu.completion_diagnostics.v1",
+              "diagnostics_sha256": "0eed429052a782fe639c171fa4e8363870d6767aede3d8710693310d599111d9",
+              "schema": "pupu.completion_diagnostics_ref.v1"
+            }
+          }
+        },
+        "completion_diagnostics": {
+          "schema": "pupu.completion_diagnostics.v1",
+          "diagnostics_digest": "0eed429052a782fe639c171fa4e8363870d6767aede3d8710693310d599111d9",
+          "memory_v2": {
+            "available_input_tokens": 1035288,
+            "canary_hash_strategy": "sha256_owner_v1",
+            "canary_percent": 5,
+            "canary_selected": true,
+            "compression_threshold_tokens": 931759,
+            "effective_rollout_mode": "all",
+            "mode": "active",
+            "output_reserve_tokens": 8192,
+            "real_context_window_tokens": 1047576,
+            "reason": "",
+            "requested_mode": "all",
+            "requested_rollout_mode": "all",
+            "schema_version": "memory_v2.context.v1",
+            "transport_margin_tokens": 4096
+          }
+        }
+      }
+    }
+  ],
+  "summary": {
+    "web_fetch_calls": 1,
+    "offsets": [
+      "0",
+      "0"
+    ],
+    "notice_seen": false,
+    "assistant_final": "Here is what I found based on the actual content from the fetched GitHub page for the project \"PuPu\":\n\n1. **What the project does:**  \n   - PuPu is described as a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. It allows users to run models on their own machine or connect to providers like OpenAI and Anthropic, offering a unified, elegant interface. The tagline is \"your AI, your rules.\"\n\n2. **Primary programming language:**  \n   - The fetched page does not explicitly state the primary programming language of the project.\n\n3. **Latest release version:**  \n   - The fetched page does not mention any release versions or provide information about the latest release.\n\nIf you need more details, such as the main programming language or release information, you may need to explore the repository's files or its \"Releases\" section directly."
+  }
+}

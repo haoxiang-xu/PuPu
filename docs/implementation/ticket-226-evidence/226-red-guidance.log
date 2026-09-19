@@ -1,0 +1,26 @@
+FF....                                                                   [100%]
+=================================== FAILURES ===================================
+____ test_web_fetch_provider_json_description_carries_continuation_guidance ____
+
+    def test_web_fetch_provider_json_description_carries_continuation_guidance():
+        with tempfile.TemporaryDirectory() as tmp:
+            toolkit = CoreToolkit(workspace_root=tmp)
+            description = toolkit.tools["web_fetch"].to_provider_json("openai")["description"]
+>           assert "offset=next_offset" in description
+E           AssertionError: assert 'offset=next_offset' in 'Fetch a public web page over HTTP(S), return raw page content or run a runtime-configured extraction model.'
+
+tests/test_web_fetch_content.py:285: AssertionError
+_____ test_web_fetch_prompt_block_carries_notice_and_continuation_guidance _____
+
+    def test_web_fetch_prompt_block_carries_notice_and_continuation_guidance():
+        with tempfile.TemporaryDirectory() as tmp:
+            toolkit = CoreToolkit(workspace_root=tmp)
+            rendered = render_tool_prompt_block(toolkit)
+>           assert "[web_fetch notice" in rendered
+E           AssertionError: assert '[web_fetch notice' in '<tools>\n# unchain generated tools guidance\nUse provider-native tool schemas as the source of truth for callable arg...lsp: Query a language server for definitions, references, hover text, and symbols for Python or TS/JS files.\n</tools>'
+
+tests/test_web_fetch_content.py:292: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_web_fetch_content.py::test_web_fetch_provider_json_description_carries_continuation_guidance
+FAILED tests/test_web_fetch_content.py::test_web_fetch_prompt_block_carries_notice_and_continuation_guidance
+2 failed, 4 passed, 20 deselected in 0.34s
