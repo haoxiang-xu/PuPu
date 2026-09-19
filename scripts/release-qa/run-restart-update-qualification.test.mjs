@@ -69,11 +69,12 @@ test("Windows restart profile rejects missing, relative, root-only and malformed
   }
 });
 
-test("macOS runtime launch retains its existing isolated user-data argument", () => {
-  const launch = buildRestartRuntimeLaunch({ platform: "darwin", tempRoot: "/qa", debugPort: 38193 });
-  assert.equal(launch.userData, "/qa/user-data");
-  assert.ok(launch.args.includes("--user-data-dir=/qa/user-data"));
-  assert.ok(launch.args.includes("--use-mock-keychain"));
+test("macOS runtime launch rejects missing or unsafe native homes", () => {
+  for (const macosHome of [undefined, "", "relative", "/", "/Users/runner/../other", "/Users/runner\nBAD"]) {
+    assert.throws(() => buildRestartRuntimeLaunch({
+      platform: "darwin", tempRoot: "/qa", debugPort: 38193, macosHome,
+    }), /native absolute user home/);
+  }
 });
 
 test("restart-update executor accepts only the three supported runtimes and a fixed loopback port", () => {
