@@ -275,6 +275,9 @@ export const selectInstalledCleanupPids = ({
 };
 
 const assertSnapshot = (asarPath) => {
+  // Native updates replace app.asar at the same path. Discard its cached header
+  // before extraction, or old offsets can read unrelated bytes from the new file.
+  asar.uncache(asarPath);
   const bytes = Buffer.from(asar.extractFile(asarPath, "build/build_feature_flags.json"));
   const snapshot = JSON.parse(bytes.toString("utf8"));
   const fingerprint = snapshot?._pupu_memory_v2_release?.snapshot_fingerprint;
