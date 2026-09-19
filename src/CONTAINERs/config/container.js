@@ -493,6 +493,19 @@ const ConfigContainer = ({ children }) => {
     [themeValue, localeValue, legacyEnvironmentSnapshot, navigationValue],
   );
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || !window.__pupuTestBridge) return;
+    let current = true;
+    import("../../SERVICEs/test_bridge").then(({ setConfigContextRef }) => {
+      if (current) {
+        setConfigContextRef({ isDark: onThemeMode === "dark_mode", locale });
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [onThemeMode, locale]);
+
   return (
     <ThemeContext.Provider value={themeValue}>
     <LocaleContext.Provider value={localeValue}>

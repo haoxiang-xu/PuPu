@@ -1,0 +1,82 @@
+
+> PuPu@0.1.11 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/CONTAINERs/config/container.test.js
+
+FAIL src/CONTAINERs/config/container.test.js
+  ConfigContainer side menu persistence
+    ✕ publishes persisted and changing theme/locale to the real debug handler (331 ms)
+    ✓ isolates resize renders and keeps the legacy startup snapshot stable (11 ms)
+    ✓ hydrates side menu state from settings.ui.side_menu_open (3 ms)
+    ✓ does not rewrite unchanged settings during initial effects (3 ms)
+    ✓ persists side menu state into settings.ui.side_menu_open (22 ms)
+    ✓ provides the semantic highlight color by default (4 ms)
+  ConfigContainer semantic palette
+    ✓ injects theme.semantic with the full default palette (4 ms)
+    ✓ applies user custom accent from settings (4 ms)
+    ✓ writes --pupu-accent CSS variable to documentElement (4 ms)
+    ✓ maps user custom semantic colors onto legacy theme fields (4 ms)
+  ConfigContainer boot-loading-gate integration
+    ✓ persists the resolved palette to pupu_boot_palette on boot (5 ms)
+    ✓ re-persists the boot palette cache when a custom accent is committed (4 ms)
+    ✓ advances the real #boot-progress-bar to 55% once theme boot completes (S2 milestone) (5 ms)
+  container.js shell paints from --pupu-background alone
+    ✓ the shell background is one var() declaration carrying its own fallback
+    ✓ no literal backgroundColor competes with it on the shell element
+  ConfigContainer platform presentation (#256)
+    ✓ SEQ-256: a persisted override is re-sent on mount, a change is sent at once, clearing sends null (4 ms)
+
+  ● ConfigContainer side menu persistence › publishes persisted and changing theme/locale to the real debug handler
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+        "height": 768,
+    -   "isDark": true,
+    -   "locale": "zh-CN",
+    +   "isDark": false,
+    +   "locale": "en",
+        "width": 1024,
+      }
+
+    Ignored nodes: comments, script, style
+    <html
+      style="--pupu-accent: #65c466; --pupu-accent-rgb: 101,196,102; --pupu-background: #121212; --pupu-background-rgb: 18,18,18; --pupu-sidebar: #151515; --pupu-sidebar-rgb: 21,21,21; --pupu-surface: #1e1e1e; --pupu-surface-rgb: 30,30,30; --pupu-text: #ffffff; --pupu-text-rgb: 255,255,255; --pupu-text-muted: #8a8a8a; --pupu-text-muted-rgb: 138,138,138; --pupu-border: #2e2e2e; --pupu-border-rgb: 46,46,46; --pupu-success: #4ade80; --pupu-success-rgb: 74,222,128; --pupu-warning: #fbbf24; --pupu-warning-rgb: 251,191,36; --pupu-danger: #f87171; --pupu-danger-rgb: 248,113,113; --pupu-info: #60a5fa; --pupu-info-rgb: 96,165,250; --pupu-text-strong: rgba(255,255,255, 0.92); --pupu-text-secondary: rgba(255,255,255, 0.72); --pupu-text-faint: rgba(255,255,255, 0.38); --pupu-text-disabled: rgba(255,255,255, 0.22); --pupu-markdown-body: rgba(255,255,255, 0.88); --pupu-markdown-quote: rgba(255,255,255, 0.69); --pupu-overlay-hover: rgba(255,255,255, 0.08); --pupu-overlay-active: rgba(255,255,255, 0.12); --pupu-overlay-selected: rgba(255,255,255, 0.1); --pupu-overlay-ghost: rgba(255,255,255, 0.05); --pupu-border-strong: rgba(46,46,46, 0.9); --pupu-border-mid: rgba(46,46,46, 0.55); --pupu-border-subtle: rgba(46,46,46, 0.3); --pupu-accent-tint: rgba(101,196,102, 0.14); --pupu-accent-tint-hover: rgba(101,196,102, 0.18); --pupu-accent-tint-active: rgba(101,196,102, 0.22); --pupu-accent-tint-border: rgba(101,196,102, 0.25); --pupu-success-tint: rgba(74,222,128, 0.14); --pupu-success-tint-hover: rgba(74,222,128, 0.18); --pupu-success-tint-active: rgba(74,222,128, 0.22); --pupu-success-tint-border: rgba(74,222,128, 0.25); --pupu-warning-tint: rgba(251,191,36, 0.14); --pupu-warning-tint-hover: rgba(251,191,36, 0.18); --pupu-warning-tint-active: rgba(251,191,36, 0.22); --pupu-warning-tint-border: rgba(251,191,36, 0.25); --pupu-danger-tint: rgba(248,113,113, 0.14); --pupu-danger-tint-hover: rgba(248,113,113, 0.18); --pupu-danger-tint-active: rgba(248,113,113, 0.22); --pupu-danger-tint-border: rgba(248,113,113, 0.25); --pupu-info-tint: rgba(96,165,250, 0.14); --pupu-info-tint-hover: rgba(96,165,250, 0.18); --pupu-info-tint-active: rgba(96,165,250, 0.22); --pupu-info-tint-border: rgba(96,165,250, 0.25); --pupu-chip-border: transparent; --pupu-menu-border: transparent; --pupu-card-border: transparent; --pupu-font-family: \"LXGWWenKai\", sans-serif; --pupu-title-font-family: \"LXGWWenKai\", sans-serif; --pupu-paragraph-font-family: \"LXGWWenKai\", sans-serif;"
+    >
+      <head />
+      <body>
+        <div>
+          <div
+            style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px;"
+          >
+            <div
+              style="position: absolute; top: 18px; left: 4px; right: 4px; bottom: 0px;"
+            >
+              <div
+                data-testid="legacy-window-width"
+              >
+                1024
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+
+      116 |       const snapshot = () => handlers.get("getStateSnapshot")();
+      117 |       await waitFor(async () => {
+    > 118 |         expect((await snapshot()).window_state).toEqual({
+          |                                                 ^
+      119 |           width: window.innerWidth,
+      120 |           height: window.innerHeight,
+      121 |           isDark: true,
+
+      at src/CONTAINERs/config/container.test.js:118:49
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 15 passed, 16 total
+Snapshots:   0 total
+Time:        1.44 s
+Ran all test suites within paths "src/CONTAINERs/config/container.test.js".

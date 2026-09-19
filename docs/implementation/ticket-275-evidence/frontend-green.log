@@ -1,0 +1,17 @@
+
+> PuPu@0.1.11 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/CONTAINERs/config/container.test.js src/SERVICEs/test_bridge/state_selector.test.js src/SERVICEs/test_bridge/index.test.js src/SERVICEs/test_bridge/chat_storage_adapter.test.js src/SERVICEs/test_bridge/handlers/chat.test.js src/SERVICEs/test_bridge/handlers/catalog.test.js src/SERVICEs/chat_storage/chat_storage_store.lazy_messages.test.js
+
+PASS src/CONTAINERs/config/container.test.js
+PASS src/SERVICEs/test_bridge/chat_storage_adapter.test.js
+PASS src/SERVICEs/test_bridge/state_selector.test.js
+PASS src/SERVICEs/test_bridge/index.test.js
+PASS src/SERVICEs/chat_storage/chat_storage_store.lazy_messages.test.js
+PASS src/SERVICEs/test_bridge/handlers/chat.test.js
+PASS src/SERVICEs/test_bridge/handlers/catalog.test.js
+
+Test Suites: 7 passed, 7 total
+Tests:       65 passed, 65 total
+Snapshots:   0 total
+Time:        1.151 s, estimated 2 s
+Ran all test suites within paths "src/CONTAINERs/config/container.test.js", "src/SERVICEs/test_bridge/state_selector.test.js", "src/SERVICEs/test_bridge/index.test.js", "src/SERVICEs/test_bridge/chat_storage_adapter.test.js", "src/SERVICEs/test_bridge/handlers/chat.test.js", "src/SERVICEs/test_bridge/handlers/catalog.test.js", "src/SERVICEs/chat_storage/chat_storage_store.lazy_messages.test.js".

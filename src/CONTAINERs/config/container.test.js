@@ -94,6 +94,70 @@ describe("ConfigContainer side menu persistence", () => {
     latestLegacyConfig = null;
   });
 
+  test("publishes persisted and changing theme/locale to the real debug handler", async () => {
+    const handlers = new Map();
+    const originalConsole = Object.fromEntries(
+      ["log", "info", "warn", "error"].map((key) => [key, console[key]]),
+    );
+    jest.useFakeTimers();
+    window.__pupuTestBridge = {
+      register: (name, handler) => handlers.set(name, handler),
+      markReady: jest.fn(),
+      pushLog: jest.fn(),
+    };
+    window.localStorage.setItem("settings", JSON.stringify({
+      appearance: { theme_mode: "dark_mode", locale: "zh-CN" },
+    }));
+    let view;
+    try {
+      // Load the real installer without substituting the configuration producer.
+      await import("../../SERVICEs/test_bridge");
+      view = render(<ConfigContainer><LegacyEnvironmentProbe /></ConfigContainer>);
+      const snapshot = () => handlers.get("getStateSnapshot")();
+      await waitFor(async () => {
+        expect((await snapshot()).window_state).toEqual({
+          width: window.innerWidth,
+          height: window.innerHeight,
+          isDark: true,
+          locale: "zh-CN",
+        });
+      });
+      await act(async () => {
+        latestLegacyConfig.setOnThemeMode("light_mode");
+        latestLegacyConfig.setLocale("en");
+      });
+      await waitFor(async () => {
+        expect((await snapshot()).window_state.isDark).toBe(false);
+        expect((await snapshot()).window_state.locale).toBe("en");
+      });
+      await act(async () => {
+        latestLegacyConfig.setOnThemeMode("dark_mode");
+        latestLegacyConfig.setLocale("ja");
+      });
+      await waitFor(async () => {
+        expect((await snapshot()).window_state.isDark).toBe(true);
+        expect((await snapshot()).window_state.locale).toBe("ja");
+      });
+      // A mount whose import has not resolved must not publish after unmount.
+      view.unmount();
+      window.localStorage.setItem("settings", JSON.stringify({
+        appearance: { theme_mode: "light_mode", locale: "en" },
+      }));
+      view = render(<ConfigContainer><LegacyEnvironmentProbe /></ConfigContainer>);
+      expect(latestLegacyConfig.locale).toBe("en");
+      view.unmount();
+      await act(async () => { await Promise.resolve(); });
+      expect((await snapshot()).window_state.isDark).toBe(true);
+      expect((await snapshot()).window_state.locale).toBe("ja");
+    } finally {
+      view?.unmount();
+      delete window.__pupuTestBridge;
+      Object.assign(console, originalConsole);
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    }
+  });
+
   test("isolates resize renders and keeps the legacy startup snapshot stable", async () => {
     render(
       <ConfigContainer>

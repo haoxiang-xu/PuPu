@@ -3,7 +3,6 @@ export const collectStateSnapshot = ({
   window: win,
   configContext,
   catalogCounts,
-  isStreaming,
   chatId,
 }) => {
   const activeChatId = chatStorage.getActiveChatId() || null;
@@ -43,10 +42,7 @@ export const collectStateSnapshot = ({
     toolkits_active: config?.toolkits ?? [],
     character_id: config?.character_id ?? null,
     modal_open: modalRegistry ? modalRegistry.openIds() : [],
-    is_streaming:
-      inspectedChatId === activeChatId
-        ? !!isStreaming
-        : config?.is_streaming === true,
+    is_streaming: config?.is_streaming === true,
     route: win?.location?.hash || "",
     window_state: {
       width: win?.innerWidth ?? 0,

@@ -1,0 +1,13 @@
+
+> PuPu@0.1.11 test:electron
+> node node_modules/.bin/jest --env=node --runInBand --silent --moduleFileExtensions js --moduleFileExtensions cjs --moduleFileExtensions json --testMatch="**/electron/tests/**/*.test.cjs" --runTestsByPath electron/tests/test-api/builtin_commands.test.cjs electron/tests/test-api/integration.test.cjs electron/tests/test-api/bridge.test.cjs
+
+PASS electron/tests/test-api/builtin_commands.test.cjs
+PASS electron/tests/test-api/integration.test.cjs
+PASS electron/tests/test-api/bridge.test.cjs
+
+Test Suites: 3 passed, 3 total
+Tests:       22 passed, 22 total
+Snapshots:   0 total
+Time:        0.261 s
+[test-api] listening on http://127.0.0.1:51122
