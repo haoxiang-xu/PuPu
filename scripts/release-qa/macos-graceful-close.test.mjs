@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import vm from "node:vm";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
@@ -18,7 +20,7 @@ const expected = { pid: PID, bundlePath: BUNDLE, executablePath: IMAGE, startedA
 const native = (overrides = {}) => {
   let quitCalls = 0;
   let kernelReads = 0;
-  const url = (value) => ({ isNil: () => false, path: { stringByResolvingSymlinksInPath: value } });
+  const url = (value) => ({ isNil: () => false, path: value });
   const app = { isNil: () => false, terminated: false, processIdentifier: PID,
     bundleURL: url(BUNDLE), executableURL: url(IMAGE),
     launchDate: { isNil: () => false, timeIntervalSince1970: 1789791000.123 },
@@ -32,8 +34,14 @@ const native = (overrides = {}) => {
     kernelReads++;
   } });
   const run = vm.runInNewContext(`${MACOS_CLOSE_SCRIPT}\nrun`, {
-    ObjC: { import: (name) => assert.equal(name, "AppKit"), unwrap: (value) => value },
+    ObjC: { import: (name) => assert.equal(name, "AppKit"), unwrap: (value) => value,
+      bindFunction: (name, signature) => {
+        assert.equal(name, "realpath");
+        assert.equal(JSON.stringify(signature), JSON.stringify(["char *", ["char *", "void *"]]));
+      },
+    },
     $: { NSRunningApplication: { runningApplicationWithProcessIdentifier: (pid) => { assert.equal(pid, PID); return app; } },
+      realpath: (value, buffer) => { assert.equal(buffer, null); return value; },
       NSTask: { alloc: { init: task } },
       NSPipe: { pipe: { fileHandleForReading: { readDataToEndOfFile: "kernel-bytes" } } },
       NSUTF8StringEncoding: 4,
@@ -76,8 +84,8 @@ test("native identity mismatches and PID reuse are rejected BEFORE any quit", ()
   for (const overrides of [
     { processIdentifier: 7245 }, { terminated: true }, { isNil: () => true },
     { bundleURL: { isNil: () => true } },
-    { executableURL: { isNil: () => false, path: { stringByResolvingSymlinksInPath: `${IMAGE}-other` } } },
-    { bundleURL: { isNil: () => false, path: { stringByResolvingSymlinksInPath: `${BUNDLE}-other` } } },
+    { executableURL: { isNil: () => false, path: `${IMAGE}-other` } },
+    { bundleURL: { isNil: () => false, path: `${BUNDLE}-other` } },
   ]) {
     const f = native(overrides);
     assert.throws(() => f.invoke("quit"));
@@ -197,6 +205,61 @@ test("real JXA bridge rejects a nonexistent PID without launching or terminating
     "2147483647", BUNDLE, IMAGE, "", "inspect"], { encoding: "utf8", timeout: 10_000 });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /target is no longer running/);
+});
+
+test("real JXA filesystem identities match Node across private aliases and reject other targets", { skip: process.platform !== "darwin" }, (t) => {
+  // Replace ONLY process lookup with an inert instance. All URL construction,
+  // path resolution, native producer and strict Node consumer remain real.
+  // No running application is looked up, launched or asked to terminate.
+  const lookup = "var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(pid);";
+  assert.equal(MACOS_CLOSE_SCRIPT.split(lookup).length, 2);
+  const script = MACOS_CLOSE_SCRIPT.replace(lookup, `var app = {
+    isNil: function () { return false; }, terminated: false, processIdentifier: pid,
+    bundleURL: $.NSURL.fileURLWithPath(argv[5]), executableURL: $.NSURL.fileURLWithPath(argv[6]),
+    launchDate: { isNil: function () { return false; }, timeIntervalSince1970: 1789791000.123 },
+    finishedLaunching: true,
+    get terminate() { throw Error("TEST FORBIDS TERMINATION"); }
+  };`);
+  for (const base of ["/tmp", os.tmpdir()]) {
+    const root = fs.mkdtempSync(path.join(base, "pupu-native-path-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const bundle = path.join(root, "PuPu's 中文 app.app");
+    const image = path.join(bundle, "Contents/MacOS/PuPu");
+    fs.mkdirSync(path.dirname(image), { recursive: true });
+    fs.writeFileSync(image, "inert identity fixture, not an executable");
+    const bundlePath = fs.realpathSync.native(bundle), executablePath = fs.realpathSync.native(image);
+    // TMPDIR can be overridden by CI; /tmp still exercises the system alias.
+    if (base === "/tmp") assert.match(bundlePath, /^\/private\//);
+    const alias = path.join(root, "bundle-alias");
+    fs.symlinkSync(bundle, alias);
+    const invoke = (actualBundle, actualImage, action = "inspect") => spawnSync("/usr/bin/osascript", [
+      "-l", "JavaScript", "-e", script, String(PID), bundlePath, executablePath, "", action,
+      actualBundle, actualImage,
+    ], { encoding: "utf8", timeout: 10_000 });
+    const bundleAliases = [bundlePath, alias];
+    if (bundlePath.startsWith("/private/")) bundleAliases.push(bundlePath.slice("/private".length));
+    for (const actualBundle of bundleAliases) {
+      const result = invoke(actualBundle, `${actualBundle}/Contents/MacOS/PuPu`);
+      assert.equal(result.status, 0, result.stderr);
+      const row = validateMacCloseObservation(JSON.parse(result.stdout), { ...expected, bundlePath, executablePath });
+      assert.equal(row.request_sent, false);
+    }
+    const otherBundle = path.join(root, "Other.app");
+    const otherImage = path.join(otherBundle, "Contents/MacOS/PuPu");
+    fs.mkdirSync(path.dirname(otherImage), { recursive: true });
+    fs.writeFileSync(otherImage, "different inert target");
+    fs.unlinkSync(alias);
+    fs.symlinkSync(otherBundle, alias);
+    for (const [actualBundle, actualImage] of [
+      [otherBundle, otherImage], [bundle, otherImage],
+      [alias, `${alias}/Contents/MacOS/PuPu`], [bundle, `${image}-missing`],
+    ]) {
+      const result = invoke(actualBundle, actualImage, "quit");
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /identity mismatch|cannot resolve/);
+      assert.doesNotMatch(result.stderr, /TEST FORBIDS TERMINATION/);
+    }
+  }
 });
 
 test("DMG adapter forwards the verified root PID and exact bundle identity", async () => {

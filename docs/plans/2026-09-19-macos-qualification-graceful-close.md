@@ -126,3 +126,50 @@ Apple API reference: https://developer.apple.com/documentation/appkit/nsrunninga
   SwipeCardContent → Error); actual production diff is the release adapter,
   new native-control helper and restart diagnostics. Pre-edit exact function
   upstream walks were LOW. Native release acceptance AC-005 is still PENDING.
+
+## tools.4 regression amendment: physical path representation
+
+Run 35425219249 failed both macOS fresh-install lanes on the first `inspect`:
+`macOS close target identity mismatch`. Windows/Linux fresh installs passed;
+the restart lanes had not run at diagnosis. This is a tools.4 regression, not
+evidence of a Candidate signing fault or an application shutdown timeout.
+
+BC-001 canonical representation is now explicitly POSIX `realpath` on BOTH
+sides: Node `fs.realpathSync.native` and the native libc `realpath` exposed to
+JXA. Foundation `stringByResolvingSymlinksInPath` is not equivalent: it can
+return `/var/folders/...` while Node returns `/private/var/folders/...` for the
+same file. Native path-resolution failure fails closed; no prefix stripping,
+basename comparison, schema widening or consumer-side acceptance relaxation.
+The exact eight-key response, PID/start pinning and independent exit proof
+remain unchanged. Two native path results are allocated per short-lived probe
+and reclaimed when osascript exits; no long-lived process uses this binding.
+
+AC-006 (BC-001 / SEQ-001): actual macOS filesystem fixtures in `/tmp` AND
+`os.tmpdir()`, including `/private` aliases, symbolic links, spaces, apostrophes
+and Unicode filenames. Run the real JXA producer with only process lookup
+replaced by an inert instance; file URLs and native resolution stay real.
+Feed its result to the unchanged strict Node validator. Negative cases cover
+another bundle, another executable, a repointed symbolic link and a missing
+file; all must fail before the fixture's forbidden-termination getter.
+Red-before-green: the new native test failed with the exact identity mismatch
+before the production edit, and passed after it. No running application is
+looked up, started or terminated by this fixture test.
+
+Bound repository/worktree: /Users/red/Desktop/GITRepo/PuPu, pre-edit index
+9975d90 matching HEAD. Upstream closeMacApplication: LOW, one dependent.
+Script constant and nested JXA resolver: UNKNOWN/unindexed; source confirms
+the fixed script is used only by closeMacApplication and its tests, with the
+DMG adapter forwarding to both fresh-install and restart qualification.
+
+AC-005 remains PENDING: the full exact Candidate/native app pair, including
+arm64/x64 restart and real graceful exit, must pass with a new immutable tools
+tag after review/merge and explicit dispatch authorization. This local fix
+does not establish that the earlier tools.3 shutdown failure is solved.
+
+Local amendment verification: three consecutive scoped regression rounds,
+167 tests each: 164 passed, zero failed, three Windows-native-only skips on
+macOS. Syntax and whitespace checks pass. Full graph diff: three files,
+15 changed symbols, reported risk LOW, no partial/truncated flags. Its zero
+affected flows is NOT proof of no native effects: the JXA string boundary is
+not indexed; the source trace and AC-006 cover that gap. No product files,
+feature flags, Candidate bytes or release workflow definitions were changed.
