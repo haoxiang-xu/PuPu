@@ -621,6 +621,7 @@ export async function runRestartUpdateQualification({
   const observationErrors = [];
   let windowsObservations = null;
   const profileEvidence = { before: null, after: null };
+  const macosCloseObservations = [];
   const observe = (label, rows, force = false) => {
     try { observations.capture(label, rows || readProcessTable(), [...(runtime?.observedPids || [])], force); }
     catch (error) { if (observationErrors.length < 16) observationErrors.push({ stage: label, error: restartErrorDetails(error) }); }
@@ -659,7 +660,7 @@ export async function runRestartUpdateQualification({
       process_timeline: observations.snapshots,
       observation_errors: observationErrors,
       windows_observations: windowsObservations,
-      ...(process.platform === "darwin" ? { macos_profiles: profileEvidence } : {}),
+      ...(process.platform === "darwin" ? { macos_profiles: profileEvidence, macos_close: macosCloseObservations } : {}),
       feed_request_count: server?.requests?.length || 0,
     });
   };
@@ -810,7 +811,17 @@ export async function runRestartUpdateQualification({
     assertFeedRequests(server, { targetId, fromVersion: fixture.from_version, contract });
 
     stage = "relaunched-shutdown";
-    await installedFixture.close(relaunchedRoot.pid);
+    if (process.platform === "darwin") {
+      await installedFixture.close(relaunchedRoot.pid, {
+        onObservation: (row) => {
+          if (macosCloseObservations.length >= 128) macosCloseObservations.shift();
+          macosCloseObservations.push(row);
+          console.log(`[macos-close] ${JSON.stringify(row)}`);
+        },
+      });
+    } else {
+      await installedFixture.close(relaunchedRoot.pid);
+    }
     await waitFor(() => !processAlive(relaunchedRoot.pid), RESTART_UPDATE_TIMEOUTS.shutdown, "restarted N controlled shutdown");
     stage = "validate-report";
     return validateRestartUpdateQualificationReport({
@@ -903,7 +914,7 @@ export async function runRestartUpdateQualification({
     await attemptCleanup("remove-temp-root", () => fs.rmSync(tempRoot, {
       recursive: true, force: true, maxRetries: 5, retryDelay: 500,
     }));
-    if (primaryError || cleanupErrors.length || recoveryEvents.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
+    if (primaryError || cleanupErrors.length || recoveryEvents.length || macosCloseObservations.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
     if (!primaryError && cleanupErrors.length) {
       throw new Error(`restart qualification cleanup failed: ${cleanupErrors.map((item) => `${item.step}: ${item.error.message}`).join("; ")}`);
     }

@@ -144,7 +144,8 @@ test("macOS unrelated, missing or helper-spoofed renderers cannot prove a profil
 
 // Execute the real orchestrator and process/profile gates, replacing only the
 // artifact, UI, filesystem and OS boundaries. No PuPu or local model is started.
-async function exerciseMacSequence({ targetId = "macos-arm64", beforeProfile = profile, afterProfile = profile } = {}) {
+async function exerciseMacSequence({ targetId = "macos-arm64", beforeProfile = profile, afterProfile = profile,
+  closeFailure = null, neverExit = false, observationCount = 1 } = {}) {
   let updated = false;
   let stopped = false;
   let evaluation = 0;
@@ -167,12 +168,21 @@ async function exerciseMacSequence({ targetId = "macos-arm64", beforeProfile = p
     ? [shipit, root, server, renderer(afterProfile)]
     : [{ ...root, pid: oldPid }, renderer(beforeProfile, { ppid: oldPid })];
   const artifact = { ...installed, identity: { asarPath: `${app}/Contents/Resources/app.asar` },
-    close: async () => { stopped = true; events.push("shutdown"); }, cleanup() {},
+    close: async (pid, options) => {
+      assert.equal(pid, root.pid);
+      for (let attempt = 1; attempt <= observationCount; attempt++) options.onObservation({
+        schema: "pupu.macos-close-observation.v1", pid, started_at: "1789791000.123",
+        bundle_path: canonical(app), executable_path: canonical(executable),
+        finished_launching: true, request_sent: true, accepted: true, attempt,
+      });
+      if (closeFailure) throw closeFailure;
+      stopped = !neverExit; events.push("shutdown");
+    }, cleanup() {},
   };
   const manifest = { manifest_digest: "retained-candidate", release: { tag: "v0.1.11", version: "0.1.11" } };
   const fixture = { from_tag: "v0.1.10", from_version: "0.1.10", installer: {}, signer: {} };
   const sandbox = replay([[]], {
-    ROOT: "/repo", os: { tmpdir: () => "/qa" }, console: { error() {} },
+    ROOT: "/repo", os: { tmpdir: () => "/qa" }, console: { error() {}, log() {} },
     fs: { mkdtempSync: () => "/qa/temp", readFileSync: () => "fixture-config",
       statSync: () => ({ isFile: () => true }), rmSync() {}, realpathSync: { native: canonical } },
     readProcessTable: rows,
@@ -188,7 +198,7 @@ async function exerciseMacSequence({ targetId = "macos-arm64", beforeProfile = p
     startQualificationFeedServer: async () => ({ url: "http://127.0.0.1:38193", feed: {}, requests: [], close() {} }),
     startFixtureRuntime: async () => session,
     hashFile: () => { sentinelReads++; return "unchanged-old-sentinel-bytes"; },
-    validateRestartUpdateStageTrace() {}, processAlive: () => false, closeRestartBrowser: async () => {},
+    validateRestartUpdateStageTrace() {}, processAlive: (pid) => pid === root.pid && updated && !stopped, closeRestartBrowser: async () => {},
     assertUpdatedIdentity: () => { events.push("candidate-hashes"); return {}; },
     RESTART_UPDATE_QUALIFICATION_SCHEMA: "test-boundary", validateRestartUpdateQualificationReport: (report) => report,
     restartDiagnosticText: (value) => value, restartErrorDetails: (error) => error && ({ message: error.message }),
@@ -214,8 +224,30 @@ for (const targetId of ["macos-arm64", "macos-x64"]) {
     assert.equal(result.report.status, "passed");
     assert.equal(result.sentinelReads, 2);
     assert.deepEqual(result.events, ["native-restart", "candidate-hashes", "feed-verified", "shutdown"]);
+    assert.equal(result.diagnostics.status, "passed");
+    assert.equal(result.diagnostics.macos_close[0].pid, root.pid);
+    assert.equal(result.diagnostics.macos_close[0].request_sent, true);
   });
 }
+
+test("macOS close rejection retains the native receipt and primary failure after cleanup", async () => {
+  const result = await exerciseMacSequence({ closeFailure: new Error("native quit request rejected") });
+  assert.match(result.error.message, /native quit request rejected/);
+  assert.equal(result.report, undefined);
+  assert.equal(result.diagnostics.stage, "relaunched-shutdown");
+  assert.equal(result.diagnostics.status, "failed");
+  assert.equal(result.diagnostics.macos_close[0].pid, root.pid);
+});
+
+test("accepted macOS quit without actual exit cannot pass, and diagnostics stay bounded", async () => {
+  const result = await exerciseMacSequence({ neverExit: true, observationCount: 140 });
+  assert.match(result.error.message, /test gate remains pending/);
+  assert.equal(result.report, undefined);
+  assert.equal(result.diagnostics.stage, "relaunched-shutdown");
+  assert.equal(result.diagnostics.macos_close.length, 128);
+  assert.equal(result.diagnostics.macos_close.at(-1).attempt, 140);
+  assert.equal(result.diagnostics.status, "failed");
+});
 
 test("production sequence rejects a wrong initial profile before sentinel creation or download", async () => {
   const result = await exerciseMacSequence({ beforeProfile: "/qa/old-temporary-profile" });
