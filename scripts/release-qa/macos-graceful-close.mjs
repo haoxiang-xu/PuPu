@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 // a different instance after Squirrel replaces the bundle in place.
 export const MACOS_CLOSE_SCRIPT = `
 ObjC.import("AppKit");
+ObjC.bindFunction("realpath", ["char *", ["char *", "void *"]]);
 function run(argv) {
   var pid = Number(argv[0]), bundle = argv[1], executable = argv[2];
   var pinnedStart = argv[3], action = argv[4];
@@ -16,7 +17,15 @@ function run(argv) {
   if (app.isNil() || app.terminated) throw Error("macOS close target is no longer running");
   function canonical(url) {
     if (url.isNil()) throw Error("macOS close target has no file URL");
-    return ObjC.unwrap(url.path.stringByResolvingSymlinksInPath);
+    // Foundation removes /private from some system paths even after resolving
+    // symlinks. Use POSIX realpath, exactly like Node fs.realpathSync.native.
+    // Each short-lived probe resolves only two URLs; never guess path aliases.
+    var resolved;
+    try { resolved = $.realpath(ObjC.unwrap(url.path), null); }
+    catch (_) { throw Error("macOS close cannot resolve target file URL"); }
+    if (typeof resolved !== "string" || resolved.charAt(0) !== "/")
+      throw Error("macOS close cannot resolve target file URL");
+    return resolved;
   }
   var actualBundle = canonical(app.bundleURL), actualExecutable = canonical(app.executableURL);
   if (Number(app.processIdentifier) !== pid || actualBundle !== bundle || actualExecutable !== executable)
