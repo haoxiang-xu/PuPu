@@ -1,0 +1,8 @@
+{
+  "runtimeReference": "https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md",
+  "observedCommit": "e3d624baaf29dc1fc645aff3e38f03e564d2d6b1",
+  "acquired": "https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/e3d624baaf29dc1fc645aff3e38f03e564d2d6b1/command.md",
+  "sha256": "5a775e6411f790f518dbc9c1fa7c50a89e6873502d9a3530a6eb223a590bcfe8",
+  "checkedAt": "2026-09-13T18:48:52.066051+00:00",
+  "limitation": "The installed skill still fetches main; observing a commit now does not pin future executions."
+}

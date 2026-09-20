@@ -1,0 +1,5 @@
+(version 1)
+(allow default)
+(deny network*)
+(deny file-read-data (require-all (subpath "/Users") (require-not (require-any (subpath "/Users/red/Desktop/GITRepo/unchain/.venv") (subpath "/Users/red/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none")))))
+(deny file-write* (require-not (require-any (subpath "/private/tmp/pupu-official-verify-mj1zxup1/sandbox") (subpath "/dev"))))

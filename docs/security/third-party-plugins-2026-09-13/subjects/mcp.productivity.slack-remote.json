@@ -1,0 +1,105 @@
+{
+  "toolkitId": "mcp.productivity.slack-remote",
+  "catalog": {
+    "id": "productivity.slack-remote",
+    "toolkitId": "mcp.productivity.slack-remote",
+    "name": "Slack Remote",
+    "description": "Official Slack remote MCP server; PuPu requires a registered Slack app before connection can ship.",
+    "category": "communication",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "coming_soon",
+    "installable": false,
+    "license": "hosted",
+    "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
+    "docsUrl": "https://docs.slack.dev/ai/slack-mcp-server/",
+    "icon": {
+      "type": "builtin",
+      "name": "slack",
+      "color": "#ffffff",
+      "backgroundColor": "#4A154B"
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://mcp.slack.com/mcp",
+      "headers": []
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "slack",
+        "providerLabel": "Slack",
+        "clientRegistration": "user_credentials",
+        "releaseStatus": "app_required",
+        "mcpUrl": "https://mcp.slack.com/mcp",
+        "transport": "streamable_http",
+        "protectedResourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
+        "authorizationServerMetadataUrl": "https://mcp.slack.com/.well-known/oauth-authorization-server",
+        "authorizationEndpoint": "https://slack.com/oauth/v2_user/authorize",
+        "tokenEndpoint": "https://slack.com/api/oauth.v2.user.access",
+        "scopes": [
+          "search:read.public",
+          "search:read.private",
+          "search:read.mpim",
+          "search:read.im",
+          "search:read.files",
+          "files:read",
+          "emoji:read",
+          "search:read.users",
+          "chat:write",
+          "channels:history",
+          "groups:history",
+          "mpim:history",
+          "im:history",
+          "channels:write",
+          "groups:write",
+          "im:write",
+          "mpim:write",
+          "reactions:write",
+          "canvases:read",
+          "canvases:write",
+          "users:read",
+          "users:read.email",
+          "channels:read",
+          "groups:read",
+          "mpim:read"
+        ],
+        "authUrlParams": {},
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "protected_resource"
+      }
+    },
+    "setupPreview": "https://mcp.slack.com/mcp",
+    "prerequisites": [
+      "Slack account",
+      "Internal or directory Slack app"
+    ],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "search",
+        "title": "Search Slack",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "send_message",
+        "title": "Send message",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Slack Remote\n\nSlack does not support dynamic client registration. PuPu must ship or configure a registered Slack app before this hosted MCP can connect reliably, so the entry remains unavailable instead of sending users into a guaranteed OAuth configuration error."
+  },
+  "checkedAt": "2026-09-13T18:36:59.265443+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://mcp.slack.com/mcp"
+}

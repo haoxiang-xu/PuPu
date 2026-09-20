@@ -1,0 +1,58 @@
+{
+  "target": {
+    "id": "Function:src/unchain/input/human_input.py:build_ask_user_question_tool",
+    "name": "build_ask_user_question_tool",
+    "type": "Function",
+    "filePath": "src/unchain/input/human_input.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 2,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 0,
+    "modules_affected": 1
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 1
+  },
+  "affected_processes": [],
+  "affected_modules": [
+    {
+      "name": "Tools",
+      "hits": 2,
+      "impact": "direct"
+    }
+  ],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "Method:src/unchain/toolkits/builtin/core/core.py:CoreToolkit._register_tools#0",
+        "name": "_register_tools",
+        "filePath": "src/unchain/toolkits/builtin/core/core.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "Method:src/unchain/toolkits/builtin/core/core.py:CoreToolkit.__init__#2",
+        "name": "__init__",
+        "filePath": "src/unchain/toolkits/builtin/core/core.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ]
+  }
+}

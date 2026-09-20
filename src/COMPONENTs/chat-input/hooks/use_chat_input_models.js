@@ -4,7 +4,7 @@ import { build_model_options } from "../utils/build_model_options";
 import { MODEL_GROUPS, resolveModelGroupKey } from "../constants";
 import {
   customProviderKey,
-  readCustomProviders,
+  readRuntimeProviderDefinitions,
 } from "../../../SERVICEs/custom_provider_store";
 import { providerSecretConfigured } from "../../../SERVICEs/provider_secret_status";
 import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
@@ -16,13 +16,13 @@ import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
  * Returns a compact shape build_model_options understands.
  */
 const read_custom_provider_groups = () => {
-  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
-    return [];
-  }
-
   let defs;
   try {
-    defs = readCustomProviders();
+    // Shipped providers (DeepSeek / Kimi) are first class and never gated;
+    // enable_custom_model_providers only admits user-authored ones (#202).
+    defs = readRuntimeProviderDefinitions({
+      includeUserAuthored: isFeatureFlagEnabled("enable_custom_model_providers"),
+    });
   } catch (_error) {
     return [];
   }
@@ -72,6 +72,7 @@ const read_configured_providers = () => {
   return {
     hasOpenAI: providerSecretConfigured("openai"),
     hasAnthropic: providerSecretConfigured("anthropic"),
+    hasGemini: providerSecretConfigured("gemini"),
     customGroups: read_custom_provider_groups(),
   };
 };
@@ -91,6 +92,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
   const ollamaProviderModels = model_catalog?.providers?.ollama;
   const openaiProviderModels = model_catalog?.providers?.openai;
   const anthropicProviderModels = model_catalog?.providers?.anthropic;
+  const geminiProviderModels = model_catalog?.providers?.gemini;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +134,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
       build_model_options({
         live_ollama_models: liveOllamaModels,
         providers: {
+          gemini: configuredProviders.hasGemini ? geminiProviderModels : [],
           ollama: ollamaProviderModels,
           openai: configuredProviders.hasOpenAI ? openaiProviderModels : [],
           anthropic: configuredProviders.hasAnthropic
@@ -146,6 +149,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
       ollamaProviderModels,
       openaiProviderModels,
       anthropicProviderModels,
+      geminiProviderModels,
       collapsedGroups,
       configuredProviders,
     ],

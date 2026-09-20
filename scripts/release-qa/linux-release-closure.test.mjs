@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url);
 const { createUpdateService, UPDATE_STAGES } = require("../../electron/main/services/update/service");
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
 const qualificationWorkflow = fs.readFileSync(
   path.join(ROOT, ".github/workflows/release-qualification.yml"),
   "utf8",

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
+import TextInputInteract from "./text_input_interact";
 
 /**
  * MultiSelectInteract – renders a list of checkbox-style options.
@@ -70,6 +71,7 @@ const Checkbox = ({ checked, isDark, accent }) => (
 const normalizeSelectorConfig = (config) => {
   if (Array.isArray(config)) {
     return {
+      requestId: "",
       title: "",
       question: "",
       options: config,
@@ -83,6 +85,8 @@ const normalizeSelectorConfig = (config) => {
 
   const options = Array.isArray(config?.options) ? config.options : [];
   return {
+    requestId:
+      typeof config?.request_id === "string" ? config.request_id : "",
     title: typeof config?.title === "string" ? config.title : "",
     question: typeof config?.question === "string" ? config.question : "",
     options,
@@ -112,6 +116,7 @@ const MultiSelectInteract = ({
   const { theme } = useContext(ConfigContext);
   const accent = themeHighlightColor(theme);
   const {
+    requestId,
     title,
     question,
     options,
@@ -142,7 +147,7 @@ const MultiSelectInteract = ({
     }
   }, [submittedResponse]);
 
-  if (options.length === 0 && !allowOther) return null;
+  const isFreeText = options.length === 0 && allowOther;
 
   const toggle = (value) => {
     if (disabled) return;
@@ -185,6 +190,65 @@ const MultiSelectInteract = ({
     selected.length < Math.max(0, minSelected) ||
     (needsOtherText && !otherText.trim());
   const fontFamily = "Jost, sans-serif";
+
+  if (!isFreeText && options.length === 0 && !allowOther) return null;
+
+  if (isFreeText) {
+    const freeText =
+      typeof submittedResponse?.other_text === "string"
+        ? submittedResponse.other_text
+        : "";
+    const freeTextUiState =
+      typeof submittedResponse?.other_text === "string"
+        ? { userResponse: { text: freeText } }
+        : {};
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {(title || question) && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              marginBottom: 4,
+            }}
+          >
+            {title && (
+              <span
+                style={{
+                  color: textColor,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily,
+                }}
+              >
+                {title}
+              </span>
+            )}
+            {question && (
+              <span style={{ color: promptColor, fontSize: 11, fontFamily }}>
+                {question}
+              </span>
+            )}
+          </div>
+        )}
+        <span style={{ color: textColor, fontSize: 11, fontFamily }}>
+          {otherLabel}
+        </span>
+        <TextInputInteract
+          key={requestId || "free-text"}
+          config={{ placeholder: otherPlaceholder }}
+          onSubmit={({ text }) =>
+            onSubmit({ values: [OTHER_VALUE], other_text: text })
+          }
+          uiState={freeTextUiState}
+          isDark={isDark}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>

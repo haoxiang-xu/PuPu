@@ -16,6 +16,43 @@ const windowsRestartWorkflow = fs.readFileSync(
   "utf8",
 );
 
+test("restart failure diagnostics survive a failed runtime step without becoming a passing receipt", () => {
+  const steps = YAML.parse(windowsRestartWorkflow).jobs["windows-restart-update"].steps;
+  const runtime = steps.find((step) => step.id === "restart_update");
+  assert.match(runtime.run, /--diagnostics restart-update-diagnostics\.json/);
+  assert.match(runtime.run, /--out restart-update-qualification\.json/);
+  assert.equal(runtime["working-directory"], "pupu");
+  const upload = steps.find((step) => step.name === "Upload Windows restart-update evidence only");
+  assert.equal(upload.if, "always()");
+  assert.ok(upload.with.path.trim().split(/\s+/).includes("pupu/restart-update-diagnostics.json"));
+  const enforce = steps.find((step) => step.name === "Enforce real Windows restart-update result");
+  assert.equal(enforce.if, "always()");
+  assert.equal(enforce.env.RESTART_UPDATE_OUTCOME, "${{ steps.restart_update.outcome }}");
+  assert.match(enforce.run, /\[ "\$RESTART_UPDATE_OUTCOME" != "success" \]/);
+  assert.match(enforce.run, /exit 1/);
+});
+
+test("fixture updater config is materialized before signing and revalidated after prepackaged installer builds", () => {
+  const steps = YAML.parse(windowsRestartWorkflow).jobs["windows-restart-update"].steps;
+  const build = steps.findIndex((step) => step.id === "build_fixture");
+  const prepare = steps.findIndex((step) => step.run?.includes("prepare-qualification-fixture-app-update.mjs"));
+  const move = steps.findIndex((step) => step.id === "fixture_paths");
+  const sign = steps.findIndex((step) => step.uses === "./pupu/.github/actions/windows-artifact-signing");
+  const validate = steps.findIndex((step) => step.name === "Validate fixture updater binding after installer packaging");
+  const seal = steps.findIndex((step) => step.id === "fixture_evidence");
+  assert.ok(build >= 0 && build < prepare && prepare < move && move < sign && sign < validate && validate < seal);
+  assert.equal(steps[prepare].env.FIXTURE_PAYLOAD, "${{ steps.build_fixture.outputs.payload }}");
+  assert.equal(steps[validate].env.FIXTURE_PAYLOAD, "${{ steps.fixture_paths.outputs.payload }}");
+  for (const index of [prepare, validate]) {
+    assert.equal(steps[index]["working-directory"], "pupu");
+    assert.equal(steps[index]["continue-on-error"], undefined);
+    assert.match(steps[index].run, /\$PSNativeCommandUseErrorActionPreference = \$true/);
+    assert.match(steps[index].run, /validate-qualification-fixture-app-update\.mjs/);
+    assert.match(steps[index].run, /--feed-url "http:\/\/127\.0\.0\.1:\$env:FEED_PORT\/"/);
+  }
+  assert.doesNotMatch(steps[validate].run, /prepare-qualification-fixture-app-update/);
+});
+
 test("installed qualification workflow verifies retained bytes and seals a non-publishing receipt", () => {
   for (const [label, source] of [
     ["installed qualification workflow", workflow],
@@ -59,6 +96,26 @@ test("installed qualification workflow verifies retained bytes and seals a non-p
   assert.match(windowsRestartWorkflow, /FEED_PORT: "38193"/);
   assert.match(windowsRestartWorkflow, /gh release download "\$FROM_TAG"/);
   assert.match(windowsRestartWorkflow, /repository: haoxiang-xu\/unchain/);
+  assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\\fixture-unchain/);
+  assert.match(windowsRestartWorkflow, /UNCHAIN_ARTIFACT_SOURCE_REF: \$\{\{ steps\.fixture_unchain\.outputs\.unchain_revision \}\}/);
+  assert.match(windowsRestartWorkflow, /PUPU_BUILD_VERSION: \$\{\{ inputs\.from_version \}\}/);
+  const windowsRestartDocument = YAML.parse(windowsRestartWorkflow);
+  const windowsRestartSteps = windowsRestartDocument.jobs["windows-restart-update"].steps;
+  const installFixtureDependenciesIndex = windowsRestartSteps.findIndex(
+    (step) => step.name === "Install immutable N-1 build dependencies",
+  );
+  const buildFixtureIndex = windowsRestartSteps.findIndex(
+    (step) => step.name === "Build unsigned unpacked N-1 Windows payload from immutable source",
+  );
+  assert.ok(installFixtureDependenciesIndex >= 0);
+  assert.ok(buildFixtureIndex > installFixtureDependenciesIndex);
+  assert.match(
+    windowsRestartSteps[installFixtureDependenciesIndex].run,
+    /python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \\\s+-r unchain_runtime\/server\/requirements\.txt/,
+  );
+  assert.doesNotMatch(windowsRestartWorkflow, /\n\s+UNCHAIN_SOURCE_PATH:/);
+  assert.match(windowsRestartWorkflow, /\$ErrorActionPreference = "Stop"/);
+  assert.match(windowsRestartWorkflow, /\$PSNativeCommandUseErrorActionPreference = \$true/);
   assert.match(windowsRestartWorkflow, /write-qualification-fixture-build-config\.mjs/);
   assert.match(windowsRestartWorkflow, /validate-qualification-fixture-app-update\.mjs/);
   assert.match(windowsRestartWorkflow, /uses: \.\/pupu\/\.github\/actions\/windows-artifact-signing/);

@@ -73,11 +73,7 @@ PuPu 的锁文件 `unchain_runtime/unchain-core.lock.json` 当前精确锁定上
 
 这些 patch 是审计备份，不是待合并功能。
 
-创建本交接文档期间，另一个并发进程修改了以下三个 growth-ops note；它们不属于 Memory V2，也不是本次交接编辑，后续 staging/commit 时不要顺手带入：
-
-- `.claude/agent-memory/pupu-growth-ops/exposure-ceiling-channels.md`
-- `.claude/agent-memory/pupu-growth-ops/install-signal-2026-06.md`
-- `.claude/agent-memory/pupu-growth-ops/silent-downloader-gap.md`
+创建本交接文档期间，另一个并发进程修改了三个 growth-ops note；它们不属于 Memory V2，也不是本次交接编辑。相关旧角色记忆现已删除，需要追溯时查阅本文件当时的 Git 历史。
 
 ## 3. 已锁定的架构共识
 

@@ -8,12 +8,14 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 const PROVIDER_LABEL = {
   openai: "OpenAI",
   anthropic: "Anthropic",
+  gemini: "Gemini",
   ollama: "Ollama",
 };
 
 const PROVIDER_ICON = {
   openai: "open_ai",
   anthropic: "Anthropic",
+  gemini: "Gemini",
   ollama: "ollama",
 };
 

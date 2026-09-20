@@ -1,6 +1,9 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import CommandMenu from "./command_menu";
+import CommandMenu, {
+  commandListCapHeight,
+  commandListHeight,
+} from "./command_menu";
 
 const makeItems = () => [
   { name: "/btw", description: "立即回答,不打断当前任务", insertText: "/btw " },
@@ -56,10 +59,19 @@ describe("CommandMenu", () => {
     );
     expect(src).toContain('rgba(var(--pupu-surface-rgb),0.72)');
     expect(menu.style.backdropFilter).toBe("blur(18px) saturate(1.4)");
-    expect(menu.style.maxHeight).toBe("192px");
+    /* Height follows the rows actually rendered and caps at ten — not the
+       pre-#232 fixed six. The surface is a tree now: folder rows spend height
+       that carries no command, so six commands inside three categories is
+       nine rows before anything scrolls. Three contiguous 32px rows plus
+       the 7px top inset is 103. */
+    expect(menu.style.maxHeight).toBe("103px");
     expect(menu.style.padding).toBe("3px");
     expect(options[0].style.height).toBe("32px");
-    expect(options[0].style.padding).toBe("0px 8px");
+    /* Asserted per-side rather than as a shorthand: a row now carries a
+       depth-derived left padding, so the shorthand has four parts even at
+       depth 0. */
+    expect(options[0].style.paddingLeft).toBe("8px");
+    expect(options[0].style.paddingRight).toBe("8px");
   });
 
   test("onPick fires with the picked item when a row is clicked", () => {
@@ -101,5 +113,307 @@ describe("CommandMenu", () => {
     rows.forEach((row) => {
       expect(row.children.length).toBe(2);
     });
+  });
+});
+
+describe("CommandMenu tree", () => {
+  const FOLDER = "f1";
+  const treeState = {
+    folders: {
+      [FOLDER]: {
+        id: FOLDER,
+        name: "Daily writing",
+        parentId: null,
+        childFolderIds: [],
+        expanded: true,
+      },
+    },
+    commandFolder: { "/polish": FOLDER },
+    folderOrder: [FOLDER],
+    itemOrder: { __root__: [`folder:${FOLDER}`, "/review"], [FOLDER]: ["/polish"] },
+  };
+  const items = [
+    { name: "/polish", description: "polish text" },
+    { name: "/review", description: "review code" },
+  ];
+
+  test("renders the user's categories with their commands inside", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    expect(screen.getByText("Daily writing")).toBeInTheDocument();
+    expect(screen.getByText("/polish")).toBeInTheDocument();
+    expect(screen.getByText("/review")).toBeInTheDocument();
+  });
+
+  test("a command inside a category is indented; one at root is not", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    const rowFor = (name) =>
+      screen.getByText(name).closest("[data-command-row]");
+    expect(rowFor("/polish").style.paddingLeft).toBe("24px"); // 8 + 1 * 16
+    expect(rowFor("/review").style.paddingLeft).toBe("8px");
+  });
+
+  /* The composer's blur is what closes the palette (chat_input clears the
+     slash trigger on blur). A row that lets the browser move focus on
+     mousedown therefore closes the palette before its own click can land —
+     which is exactly what a category row did: click it and the palette
+     vanished instead of the category collapsing. */
+  test("in the palette a mousedown on a category row is default-prevented, so the composer keeps focus", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        bare
+      />,
+    );
+
+    // fireEvent returns false when a handler called preventDefault
+    expect(fireEvent.mouseDown(screen.getByText("Daily writing"))).toBe(false);
+  });
+
+  test("clicking a category row collapses it, and the rest of the list stays", () => {
+    const onVisibleChange = jest.fn();
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        onVisibleChange={onVisibleChange}
+        bare
+      />,
+    );
+    const lastVisible = () => onVisibleChange.mock.calls.at(-1)[0];
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/polish", "/review"]);
+
+    fireEvent.click(screen.getByText("Daily writing"));
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/review"]);
+
+    fireEvent.click(screen.getByText("Daily writing"));
+    expect(lastVisible()).toEqual([`folder:${FOLDER}`, "/polish", "/review"]);
+  });
+
+  test("hovering a category row reports it through onHover, so the highlight follows the pointer onto folders too", () => {
+    const onHover = jest.fn();
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        onHover={onHover}
+        folderState={treeState}
+        bare
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByText("Daily writing"));
+    expect(onHover).toHaveBeenLastCalledWith(`folder:${FOLDER}`);
+    // command rows keep reporting the same way
+    fireEvent.mouseEnter(screen.getByText("/review"));
+    expect(onHover).toHaveBeenLastCalledWith("/review");
+  });
+
+  test("the tree never shrinks to the list's cap — the list is what scrolls", () => {
+    /* Locks the regression behind "the command menu cannot scroll": the
+       list is a flex column with maxHeight; a shrinkable tree collapsed to
+       it and clipped the rows past the cap inside its own overflow:hidden. */
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={0}
+        onPick={() => {}}
+        folderState={treeState}
+        bare
+      />,
+    );
+    const tree = screen.getByRole("listbox").firstElementChild;
+    expect(tree.style.flexShrink).toBe("0");
+  });
+
+  test("moving the highlight with the keyboard keeps the row in view", () => {
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = jest.fn();
+    try {
+      const { rerender } = render(
+        <CommandMenu
+          items={items}
+          activeIndex={0}
+          onPick={() => {}}
+          folderState={treeState}
+          bare
+        />,
+      );
+      Element.prototype.scrollIntoView.mockClear();
+      rerender(
+        <CommandMenu
+          items={items}
+          activeIndex={2}
+          onPick={() => {}}
+          folderState={treeState}
+          bare
+        />,
+      );
+      const rowFor = (name) =>
+        screen.getByText(name).closest("[data-command-row]").parentElement
+          .parentElement;
+      const calls = Element.prototype.scrollIntoView.mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      expect(Element.prototype.scrollIntoView.mock.instances.at(-1)).toBe(
+        rowFor("/review"),
+      );
+      expect(calls.at(-1)[0]).toEqual({ block: "nearest" });
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  test("outside the palette a category mousedown is left alone (a rename field must be able to take focus)", () => {
+    render(
+      <CommandMenu
+        items={items}
+        activeIndex={-1}
+        onPick={() => {}}
+        folderState={treeState}
+      />,
+    );
+
+    expect(fireEvent.mouseDown(screen.getByText("Daily writing"))).toBe(true);
+  });
+});
+
+describe("CommandMenu list height", () => {
+  const rows = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      name: `/c${i}`,
+      description: `d${i}`,
+    }));
+
+  const heightOf = (props) => {
+    const { unmount } = render(
+      <CommandMenu activeIndex={0} onPick={() => {}} {...props} />,
+    );
+    const h = parseInt(
+      screen.getByRole("listbox", { name: "斜杠命令" }).style.maxHeight,
+      10,
+    );
+    unmount();
+    return h;
+  };
+
+  test("caps at ten rows however many commands there are", () => {
+    // 10 * 32 + 7 — rows inside the tree are contiguous, no per-row gap
+    expect(heightOf({ items: rows(10) })).toBe(327);
+    expect(heightOf({ items: rows(40) })).toBe(327);
+  });
+
+  test("the cap is exported on its own, for a host that sizes to content below it", () => {
+    expect(commandListCapHeight()).toBe(327);
+    expect(commandListCapHeight({ bare: true })).toBe(
+      commandListHeight({ rowCount: 10, bare: true }),
+    );
+    expect(commandListCapHeight({ bare: true })).toBe(
+      commandListHeight({ rowCount: 99, bare: true }),
+    );
+  });
+
+
+  test("bare rows are shorter than carded ones", () => {
+    expect(commandListHeight({ rowCount: 4, bare: true })).toBeLessThan(
+      commandListHeight({ rowCount: 4 }),
+    );
+  });
+
+  test("bare mode leaves scrolling to its host: no cap, no overflow, no scrollbar of its own", () => {
+    render(
+      <CommandMenu items={rows(40)} activeIndex={0} onPick={() => {}} bare />,
+    );
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    expect(menu.style.maxHeight).toBe("");
+    expect(menu.style.overflowY).toBe("");
+    expect(menu.classList.contains("scrollable")).toBe(false);
+  });
+
+  test("the reported visible row count wins over the command count", () => {
+    // a collapsed category hides children: fewer ROWS than commands
+    expect(heightOf({ items: rows(9), visibleRowCount: 3 })).toBe(
+      heightOf({ items: rows(3) }),
+    );
+  });
+});
+
+describe("CommandMenu corners stay concentric with the palette", () => {
+  /* The palette panel is radius 22 with a 1px border outside its width; the
+     row pill is radius 14. Concentric arcs need the pill exactly 22 − 14 = 8
+     from the visible corner on every side — 7 of inset here plus the border.
+     What broke this once: Explorer's own container carries padding:4px 0, so
+     swapping the flat list for the tree quietly pushed the top row to 13 while
+     the sides stayed at 9. */
+  const items = [
+    { name: "/a", description: "a" },
+    { name: "/b", description: "b" },
+  ];
+
+  test("the bare list insets 7 on top and sides, none below", () => {
+    render(<CommandMenu items={items} activeIndex={0} onPick={() => {}} bare />);
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    expect(menu.style.padding).toBe("7px 7px 0px");
+  });
+
+  test("the tree adds no inset of its own", () => {
+    render(<CommandMenu items={items} activeIndex={0} onPick={() => {}} bare />);
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    const explorerHost = menu.firstElementChild;
+    /* numeric: React writes a zero as "0" (no unit) while jsdom re-serialises
+       the padding shorthand as "0px" — the value is what matters */
+    expect(parseFloat(explorerHost.style.padding) || 0).toBe(0);
+    expect(parseFloat(explorerHost.style.minHeight) || 0).toBe(0);
+  });
+});
+
+describe("CommandMenu source tags", () => {
+  const packed = (name) => ({
+    name,
+    description: `${name} desc`,
+    sourceToolkitId: "acme",
+    sourceLabel: "Acme Tools",
+  });
+
+  test("a command inside its own plugin's folder drops the per-row source tag", () => {
+    render(<CommandMenu items={[packed("/a"), packed("/b")]} activeIndex={0} onPick={() => {}} />);
+    // the folder carries the name once; no row repeats it
+    expect(screen.getAllByText("Acme Tools")).toHaveLength(1);
+  });
+
+  test("a command moved into the user's own category keeps its source tag", () => {
+    const state = {
+      folders: {
+        f1: { id: "f1", name: "Mine", parentId: null, childFolderIds: [], expanded: true },
+      },
+      commandFolder: { "/a": "f1" },
+      folderOrder: ["f1"],
+      itemOrder: {},
+    };
+    render(
+      <CommandMenu items={[packed("/a"), packed("/b")]} activeIndex={0} onPick={() => {}} folderState={state} />,
+    );
+    // folder "Acme Tools" (holding /b, tag dropped) + the tag on /a under "Mine"
+    expect(screen.getAllByText("Acme Tools")).toHaveLength(2);
   });
 });

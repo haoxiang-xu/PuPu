@@ -31,7 +31,7 @@ function main() {
   const distDir = args["dist-dir"] ? path.resolve(args["dist-dir"]) : "";
   const contractPath = args.contract
     ? path.resolve(args.contract)
-    : path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
+    : path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json");
   if (!targetId || !version || !distDir) {
     throw new Error("--target, --version, and --dist-dir are required");
   }

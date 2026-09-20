@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-09-14T05:54:32.178753+00:00",
+  "result": "PASS",
+  "sourceBase": "a372365df79d47dd98d5569942626ecece1a5e91",
+  "upstream": {
+    "provider": "github",
+    "repo": "DietrichGebert/ponytail",
+    "sha": "356918eba965ee1eac64bd3a7f0dd02108350de5",
+    "license": "MIT"
+  },
+  "iconSha256": "c6f885b6a1f21d663d732365d4a212ca3e7de242be6c69dcd10c291d5b3896dc",
+  "candidateDigest": "sha256:fdbd68ed188297c14d6f4450603684b2ffeb458c8c78113b42c46386bacca39d",
+  "wheelSha256": "sha256:f2e6ddeb85363f1ae54583c7c7ea9d9c6effb1f5c2cba5d7a39c0607d0bec9b7",
+  "runtimeManifestDigest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+  "regressions": {
+    "frontend": 99,
+    "backend": 17,
+    "packageSmoke": 5
+  },
+  "actualApp": {
+    "storeIcon": "PASS, embedded upstream PNG decoded at 1085x1241",
+    "installedIcon": "PASS",
+    "coldRestart": "PASS, original bytes and four commands retained",
+    "model": "openai:gpt-4.1",
+    "skillInvocation": "PASS, /ponytail expanded to 101 lines; assistant done with PONYTAIL_OK"
+  },
+  "scope": "Four instruction-only skills, optional PNG icon persistence; no MCP or lifecycle hooks",
+  "limits": [
+    "Not a full upstream security certification; remains Unverified.",
+    "No repository mutation/tool-execution probe or signed release qualification.",
+    "No commit/push requested or performed for this addition."
+  ]
+}

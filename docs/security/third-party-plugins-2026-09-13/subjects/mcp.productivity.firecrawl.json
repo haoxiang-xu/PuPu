@@ -1,0 +1,102 @@
+{
+  "toolkitId": "mcp.productivity.firecrawl",
+  "catalog": {
+    "id": "productivity.firecrawl",
+    "toolkitId": "mcp.productivity.firecrawl",
+    "name": "Firecrawl",
+    "description": "Official Firecrawl MCP server for web scraping, search and site mapping.",
+    "category": "productivity",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/firecrawl/firecrawl-mcp-server",
+    "docsUrl": "https://docs.firecrawl.dev/mcp-server",
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "firecrawl-mcp@3.22.4"
+      ]
+    },
+    "setupPreview": "npx -y firecrawl-mcp@3.22.4",
+    "prerequisites": [
+      "Firecrawl API account"
+    ],
+    "secrets": [
+      {
+        "key": "FIRECRAWL_API_KEY",
+        "label": "Firecrawl API key"
+      }
+    ],
+    "tools": [
+      {
+        "name": "firecrawl_scrape",
+        "title": "Scrape a webpage",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "firecrawl_search",
+        "title": "Search the web",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "firecrawl_map",
+        "title": "Map a website",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": false,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 3
+    },
+    "readmeMarkdown": "## Firecrawl (official package, pending review)\n\nRuns Firecrawl's official `firecrawl-mcp` package over stdio, pinned to `@3.22.4`; the bundled package requires Node 22 or newer, supplied by PuPu's packaged runtime. The preview lists `firecrawl_scrape`, `firecrawl_search` and `firecrawl_map`, but the server can advertise broader scraping, crawling, extraction, monitoring and research capabilities; confirmation for the full discovered tool set must be qualified with the packaged runtime before promotion. URLs and requested page data are processed by Firecrawl or its configured service, and operations may consume Firecrawl credits. `firecrawl_scrape` can accept interactive actions, so this catalog requests confirmation for it. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+  },
+  "checkedAt": "2026-09-13T18:36:59.919672+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "firecrawl-mcp",
+  "version": "3.22.4",
+  "download": "https://registry.npmjs.org/firecrawl-mcp/-/firecrawl-mcp-3.22.4.tgz",
+  "artifactSha256": "0f0f5d4531fa0670aefa0ff8903daa64855ebe17886151e4963471039b466cbe",
+  "registryIntegrity": "sha512-2bEVN3tpFCTztBmAKqJDsIMoQRLar6NV/0yxeq8pc3D6WtIbEzbXNHOVYx6uUj7EWlGqODn49mTC+2wDTJb3pA==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/LICENSE",
+      "sha256": "9c12811442b47e27f690be7cf0252f6bf93ddee18476f13e0fc6b4badb09c22c",
+      "size": 1065
+    },
+    {
+      "path": "package/dist/index.js",
+      "sha256": "90e19aee7aa5264bbea1c1716dbf3871d01707f679a6cefc489525856cbb2cc2",
+      "size": 117252
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "60a6375091d2ad8e02b3beedbd9aad8842b57db40790843217111535f3d7b21f",
+      "size": 1876
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "c8e61dbedf2d5fbe74a19eadbd4c5a5aeab4a80e073d13f01daa55e91d6c33e0",
+      "size": 33103
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/firecrawl/firecrawl-mcp-server.git",
+    "type": "git"
+  },
+  "gitHead": null,
+  "resolvedLockSha256": "10604f451196b71b18b6ca8e1bfbcd25bc5b01b502e62d13aa558fa04fd01841",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

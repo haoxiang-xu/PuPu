@@ -1,0 +1,272 @@
+[
+  {
+    "id": "mcp.dev.bug-bounty-intelligence",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:11.325498+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.dev.bug-bounty-intelligence-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.dev.bug-bounty-intelligence-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.browser.chrome-devtools",
+    "exitCode": 0,
+    "checkedAt": "2026-09-13T18:42:11.086007+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.chrome-devtools-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.chrome-devtools-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.productivity.firecrawl",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:11.539981+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.firecrawl-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.firecrawl-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.workspace.filesystem",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:11.638911+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.filesystem-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.filesystem-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.productivity.telegram",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:11.995520+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.telegram-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.telegram-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.memory.memory",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:12.035796+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.memory.memory-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.memory.memory-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.productivity.tavily",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:12.252693+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.tavily-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.tavily-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.productivity.brave-search",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:12.679533+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.brave-search-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.brave-search-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.productivity.discord",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:12.594229+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.discord-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.productivity.discord-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.browser.playwright",
+    "exitCode": 0,
+    "checkedAt": "2026-09-13T18:42:12.536246+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "package-lock.json:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.playwright-package-lock.json",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.playwright-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.workspace.sqlite",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:13.033540+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "requirements.txt:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.sqlite-requirements.txt",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.sqlite-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.workspace.markitdown",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:13.094069+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "requirements.txt:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.markitdown-requirements.txt",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.markitdown-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.workspace.fetch",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:13.151960+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "requirements.txt:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.fetch-requirements.txt",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.workspace.fetch-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.devops.grafana",
+    "exitCode": 0,
+    "checkedAt": "2026-09-13T18:42:13.282535+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "requirements.txt:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.devops.grafana-requirements.txt",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.devops.grafana-osv.json"
+    ]
+  },
+  {
+    "id": "mcp.browser.browser-use-local",
+    "exitCode": 1,
+    "checkedAt": "2026-09-13T18:42:13.959582+00:00",
+    "command": [
+      "/private/tmp/pupu-official-verify-mj1zxup1/osv-scanner",
+      "scan",
+      "source",
+      "--lockfile",
+      "requirements.txt:/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.browser-use-local-requirements.txt",
+      "--no-resolve",
+      "--format",
+      "json",
+      "--all-packages",
+      "--output-file",
+      "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.browser-use-local-osv.json"
+    ]
+  }
+]

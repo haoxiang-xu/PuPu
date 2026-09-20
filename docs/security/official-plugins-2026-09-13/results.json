@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "pupu.verification-batch.v1",
+  "checkedAt": "2026-09-13T18:20:48.061246+00:00",
+  "scope": "PuPu Store origin=official, excluding bundled third-party Agent Reach; include disabled builtin.computer",
+  "results": [
+    {
+      "toolkitId": "core",
+      "status": "FAIL",
+      "report": "core-report.json"
+    },
+    {
+      "toolkitId": "plan",
+      "status": "FAIL",
+      "report": "plan-report.json"
+    },
+    {
+      "toolkitId": "builtin.computer",
+      "status": "INCOMPLETE",
+      "report": "computer-report.json"
+    }
+  ],
+  "counts": {
+    "PASS": 0,
+    "FAIL": 2,
+    "INCOMPLETE": 1
+  },
+  "productPolicyNote": "Current dirty frontend automatically maps official to verified. This policy is not evidence and was not changed by this audit."
+}

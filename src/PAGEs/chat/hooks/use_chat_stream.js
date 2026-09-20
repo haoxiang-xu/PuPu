@@ -59,6 +59,7 @@ import {
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 import {
@@ -827,6 +828,10 @@ const disconnectStreamTransport = (handle) => {
   }
 };
 
+const cancellationRequiresInteraction = (error) =>
+  [error?.code, error?.cause?.code].includes("interaction_cancel_target_required") ||
+  String(error?.message || "").includes("interaction_cancel_target_required");
+
 const requestExecutionCancellationAndDisconnect = ({
   identity,
   handle,
@@ -855,16 +860,16 @@ const requestExecutionCancellationAndDisconnect = ({
     disconnectOnce,
     EXECUTION_CANCEL_DISCONNECT_GRACE_MS,
   );
-  return Promise.resolve(
-    api.unchain.cancelExecution({
+  return Promise.resolve().then(async () => {
+    const cancel = (target) => api.unchain.cancelExecution({
       owner_chat_id: normalizedIdentity.ownerChatId,
       session_id: normalizedIdentity.sessionId,
       attempt_id: normalizedIdentity.attemptId,
       ...(normalizedIdentity.sourceAttemptId
         ? { source_attempt_id: normalizedIdentity.sourceAttemptId }
         : {}),
-      ...(normalizedIdentity.interactionId
-        ? { interaction_id: normalizedIdentity.interactionId }
+      ...(target.interactionId
+        ? { interaction_id: target.interactionId }
         : {}),
       ...(normalizedIdentity.requestId
         ? { request_id: normalizedIdentity.requestId }
@@ -874,16 +879,50 @@ const requestExecutionCancellationAndDisconnect = ({
         typeof idempotencyKey === "string" && idempotencyKey.trim()
           ? idempotencyKey.trim()
           : `stop:${normalizedIdentity.attemptId}`,
-    }),
-  ).then((response) => {
+    });
+    try {
+      return await cancel(normalizedIdentity);
+    } catch (error) {
+      if (!cancellationRequiresInteraction(error) || normalizedIdentity.interactionId) {
+        throw error;
+      }
+      // A Stop can race the first presentation, or replay an older outbox
+      // entry. Recover only an exact pending target for this attempt.
+      const pending = normalizePendingInteraction(
+        await api.unchain.getPendingInteraction({ session_id: normalizedIdentity.sessionId }),
+        normalizedIdentity.sessionId,
+      );
+      if (!pending || pending.status === "none" || ![
+        pending.activeAttemptId, pending.sourceRunId,
+      ].includes(normalizedIdentity.attemptId)) {
+        throw Object.assign(new Error("The pending interaction changed. Try Stop again."), {
+          code: "interaction_cancel_target_mismatch", retryable: false,
+        });
+      }
+      try {
+        return await cancel({ ...normalizedIdentity, interactionId: pending.interactionId });
+      } catch (retryError) {
+        if (cancellationRequiresInteraction(retryError)) {
+          retryError.retryable = false;
+        }
+        throw retryError;
+      }
+    }
+  }).then((response) => {
     const confirmation = inspectExecutionCancellation(
       response,
       normalizedIdentity,
+    );
+    const failure = !confirmation.terminal && recordExecutionCancelFailure(
+      normalizedIdentity,
+      { message: "The run has not confirmed cancellation. Try Stop again." },
     );
     return {
       ok: confirmation.accepted,
       terminal: confirmation.terminal,
       response,
+      retryBlocked: failure?.retryBlocked === true,
+      error: failure?.lastError || "",
     };
   })
     .catch((error) => {
@@ -893,7 +932,15 @@ const requestExecutionCancellationAndDisconnect = ({
         code: error?.code || "execution_cancel_failed",
         message: error?.message || "Failed to cancel execution",
       });
-      return { ok: false, response: null };
+      const failure = recordExecutionCancelFailure(normalizedIdentity, {
+        message: error?.message,
+        retryable: error?.retryable ?? error?.cause?.retryable,
+      });
+      return {
+        ok: false, response: null,
+        retryBlocked: failure?.retryBlocked === true,
+        error: failure?.lastError || error?.message || "Failed to stop the run",
+      };
     })
     .finally(() => {
       clearTimeout(disconnectTimer);
@@ -920,6 +967,7 @@ export const useChatStream = ({
   setDraftAttachments,
   selectedModelId,
   selectedReasoningEffort,
+  selectedContextWindow,
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
@@ -999,6 +1047,8 @@ export const useChatStream = ({
   selectedModelIdRef.current = selectedModelId;
   const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
   selectedReasoningEffortRef.current = selectedReasoningEffort;
+  const selectedContextWindowRef = useRef(selectedContextWindow);
+  selectedContextWindowRef.current = selectedContextWindow;
   const selectedToolkitsRef = useRef(selectedToolkits);
   selectedToolkitsRef.current = selectedToolkits;
   /* Live translator ref so send-time toasts localize without perturbing the
@@ -1105,8 +1155,10 @@ export const useChatStream = ({
   const sessionAutoApproveRef = useRef(new Map()); // chatId -> Set<"toolkitId:toolName">, cleared on unmount
   const confirmationRuntimeByChatIdRef = useRef(new Map());
   const durableInteractionLookupByChatIdRef = useRef(new Map());
+  const runTurnRequestRef = useRef(null);
   const reattachingChatIdsRef = useRef(new Set());
   const runContextByChatIdRef = useRef(new Map());
+  const humanInputSubmissionByChatIdRef = useRef(new Map());
   const durableResumeStartedKeysRef = useRef(new Set());
   const durableResumeStartedKeysByChatIdRef = useRef(new Map());
   const durableResumeRetryTimersRef = useRef(new Map());
@@ -3047,6 +3099,12 @@ export const useChatStream = ({
       null;
     const durableInteraction =
       durableInteractionByChatIdRef.current[currentChatId] || null;
+    const liveConfirmationId = Object.entries(
+      pendingToolConfirmationRequestsByChatIdRef.current[currentChatId] || {},
+    ).find(([id, request]) =>
+      request?.sessionId === executionIdentity?.sessionId &&
+      toolConfirmationUiStateByChatIdRef.current[currentChatId]?.[id]?.resolved !== true,
+    )?.[0] || "";
 
     // Invalidate first. Any lookup, retry, receipt, or queue callback that was
     // already in flight must observe the tombstone before transport teardown.
@@ -3074,9 +3132,9 @@ export const useChatStream = ({
       ...(executionIdentity || {}),
       ownerChatId: currentChatId,
       interactionId:
-        typeof durableInteraction?.interactionId === "string"
+        liveConfirmationId || (typeof durableInteraction?.interactionId === "string"
           ? durableInteraction.interactionId.trim()
-          : executionIdentity?.interactionId || "",
+          : executionIdentity?.interactionId || ""),
       reason: "user_stop",
       createdAt: Date.now(),
     });
@@ -3085,6 +3143,9 @@ export const useChatStream = ({
       handle,
       reason: "user_stop",
     }).then((result) => {
+      if (result?.retryBlocked) {
+        setStreamErrorForChat(currentChatId, result.error);
+      }
       if (result?.terminal && queuedCancellation) {
         removeExecutionCancel(
           queuedCancellation.sessionId,
@@ -3138,6 +3199,7 @@ export const useChatStream = ({
     materializeStreamingMessages,
     messagesRef,
     setMessages,
+    setStreamErrorForChat,
     storageApi,
     updateDurableInteractionForChat,
     updatePendingContinuationRequestForChat,
@@ -3150,12 +3212,24 @@ export const useChatStream = ({
   useEffect(() => {
     let disposed = false;
     let retryTimer = null;
+    const reported = new Set();
 
     const drainCancellationOutbox = async () => {
       const entries = readExecutionCancelOutbox();
       for (const entry of entries) {
         if (disposed) {
           return;
+        }
+        const key = JSON.stringify([entry.sessionId, entry.attemptId, entry.interactionId]);
+        if (reported.has(key)) {
+          continue;
+        }
+        if (entry.retryBlocked) {
+          if (!reported.has(key)) {
+            setStreamErrorForChat(entry.ownerChatId, entry.lastError);
+            reported.add(key);
+          }
+          continue;
         }
         const result = await requestExecutionCancellationAndDisconnect({
           identity: entry,
@@ -3168,6 +3242,9 @@ export const useChatStream = ({
             entry.attemptId,
             entry.interactionId,
           );
+        } else if (result?.retryBlocked && !reported.has(key)) {
+          setStreamErrorForChat(entry.ownerChatId, result.error);
+          reported.add(key);
         }
       }
       if (!disposed) {
@@ -3185,7 +3262,7 @@ export const useChatStream = ({
         clearTimeout(retryTimer);
       }
     };
-  }, []);
+  }, [setStreamErrorForChat]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
     ({ targetChatId, confirmationId, approved, userResponse }) => {
@@ -3619,7 +3696,7 @@ export const useChatStream = ({
   );
 
   const continueFromRecordedReceipt = useCallback(
-    (targetChatId, sessionId, response, runGeneration) => {
+    (targetChatId, sessionId, response, runGeneration, submittedHumanInputId = "") => {
       if (
         response?.disposition !== "receipt_recorded" ||
         !isRunGenerationCurrent(targetChatId, runGeneration)
@@ -3632,6 +3709,7 @@ export const useChatStream = ({
         void lookup(targetChatId, sessionId, {
           runGeneration,
           authoritativeReceipt: response,
+          submittedHumanInputId,
         });
       }
     },
@@ -3753,6 +3831,13 @@ export const useChatStream = ({
         },
       }));
 
+      const humanInputSubmission = toolName === HUMAN_INPUT_TOOL_NAME && approved
+        ? { interactionId: normalizedConfirmationId, sessionId, runGeneration }
+        : null;
+      if (humanInputSubmission) {
+        humanInputSubmissionByChatIdRef.current.set(targetChatId, humanInputSubmission);
+      }
+
       try {
         const payload = {
           confirmation_id: normalizedConfirmationId,
@@ -3769,6 +3854,9 @@ export const useChatStream = ({
         });
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
+        }
+        if (response?.disposition !== "receipt_recorded" && humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
+          humanInputSubmissionByChatIdRef.current.delete(targetChatId);
         }
         if (shouldCacheSessionDecision) {
           let allowedTools = sessionAutoApproveRef.current.get(targetChatId);
@@ -3806,8 +3894,14 @@ export const useChatStream = ({
           sessionId,
           response,
           runGeneration,
+          toolName === HUMAN_INPUT_TOOL_NAME && approved
+            ? normalizedConfirmationId
+            : "",
         );
       } catch (error) {
+        if (humanInputSubmissionByChatIdRef.current.get(targetChatId) === humanInputSubmission) {
+          humanInputSubmissionByChatIdRef.current.delete(targetChatId);
+        }
         if (!isRunGenerationCurrent(targetChatId, runGeneration)) {
           return;
         }
@@ -6964,6 +7058,14 @@ export const useChatStream = ({
                 selectedReasoningEffortRef.current
                   ? { reasoningEffort: selectedReasoningEffortRef.current }
                   : {}),
+                /* The user's context window for a built-in Ollama model
+                   (#227). Sent only when picked; the sidecar budgets the
+                   compiler and sets num_ctx from this one number. */
+                ...(!runIsCharacterChat &&
+                Number.isInteger(selectedContextWindowRef.current) &&
+                selectedContextWindowRef.current > 0
+                  ? { contextWindow: selectedContextWindowRef.current }
+                  : {}),
                 memory_enabled: memoryEnabled,
                 ...(durableInteractionsRequired
                   ? { durable_interactions_required: true }
@@ -7308,6 +7410,15 @@ export const useChatStream = ({
                   }
 
                   if (callId && confirmationId && requiresConfirmation) {
+                    // A later question owns the next suspension, not the old receipt.
+                    if (isDurableResume && confirmationId !== durableInteraction.interactionId) {
+                      updateDurableInteractionForChat(targetChatId, {
+                        status: "awaiting_response",
+                        sessionId: effectiveThreadId,
+                        interactionId: confirmationId,
+                        ownerMessageId: assistantMessageId,
+                      });
+                    }
                     const confirmationRuntime =
                       getConfirmationRuntimeForChat(targetChatId);
                     confirmationRuntime.confirmationIdByCallId.set(
@@ -7627,6 +7738,15 @@ export const useChatStream = ({
                   });
                 }
                 if (callId && confirmationId && requiresConfirmation) {
+                  // A later question owns the next suspension, not the old receipt.
+                  if (isDurableResume && confirmationId !== durableInteraction.interactionId) {
+                    updateDurableInteractionForChat(targetChatId, {
+                      status: "awaiting_response",
+                      sessionId: effectiveThreadId,
+                      interactionId: confirmationId,
+                      ownerMessageId: assistantMessageId,
+                    });
+                  }
                   const confirmationRuntime =
                     getConfirmationRuntimeForChat(targetChatId);
                   confirmationRuntime.confirmationIdByCallId.set(
@@ -9263,6 +9383,9 @@ export const useChatStream = ({
   );
   relayQueuedTurnsAfterRunRef.current = relayQueuedTurnsAfterRun;
 
+  // Keep passive recovery stable when composer/run inputs recreate the sender.
+  runTurnRequestRef.current = runTurnRequest;
+
   const lookupDurableInteraction = useCallback(
     async (
       targetChatId,
@@ -9272,6 +9395,8 @@ export const useChatStream = ({
         runGeneration: requestedRunGeneration = null,
         authoritativePending = null,
         authoritativeReceipt = null,
+        submittedHumanInputId = "",
+        speculative = false,
       } = {},
     ) => {
       const normalizedChatId =
@@ -9299,12 +9424,14 @@ export const useChatStream = ({
         return null;
       }
 
+      let receivedPendingRecord = false;
       try {
         const rawPending = isObject(authoritativePending)
           ? authoritativePending
           : await api.unchain.getPendingInteraction({
               session_id: normalizedSessionId,
             });
+        receivedPendingRecord = true;
         const pending = normalizePendingInteraction(
           rawPending,
           normalizedSessionId,
@@ -9353,6 +9480,14 @@ export const useChatStream = ({
         }
 
         if (pending.status === "none") {
+          // A lookup begun before the tool frame may return stale "none".
+          // Live presentation/continuation signals own this card until the
+          // callback is acknowledged; the lookup must not erase a retry.
+          if (streamingChatIdsRef.current.has(normalizedChatId) && Object.keys(
+            pendingToolConfirmationRequestsByChatIdRef.current[normalizedChatId] || {},
+          ).length > 0) {
+            return pending;
+          }
           const retryTimer = durableResumeRetryTimersRef.current.get(
             normalizedChatId,
           );
@@ -9382,6 +9517,27 @@ export const useChatStream = ({
           );
           error.code = "durable_interaction_receipt_identity_mismatch";
           throw error;
+        }
+
+        // A passive lookup may race the POST that is recording this answer.
+        // Leave the current submission in charge until its receipt starts resume.
+        const activeSubmission = humanInputSubmissionByChatIdRef.current.get(normalizedChatId);
+        if (!authoritativeReceipt && activeSubmission &&
+            activeSubmission.runGeneration === activeRunGeneration &&
+            activeSubmission.sessionId === pending.sessionId &&
+            activeSubmission.interactionId === pending.interactionId) {
+          return pending;
+        }
+
+        const liveRequest = pendingToolConfirmationRequestsByChatIdRef.current[
+          normalizedChatId
+        ]?.[pending.interactionId];
+        if (!hasAuthoritativeRecordedReceipt && liveRequest &&
+            streamingChatIdsRef.current.has(normalizedChatId)) {
+          updateDurableInteractionForChat(normalizedChatId, {
+            ...pending, ownerMessageId: liveRequest.ownerMessageId,
+          });
+          return pending;
         }
 
         const pendingAttemptId =
@@ -9536,8 +9692,8 @@ export const useChatStream = ({
         /* A live stream may still consume the receipt in-process.  Do not
            disturb that path: live_continues, provider retries, and transport
            recovery keep their existing ownership.  Once the run is no longer
-           live, however, a durable interaction is a suspension boundary, not
-           an invitation to replay mode=resume_interaction. */
+           live, observing a durable receipt alone must not resume it. Only
+           an identity-matched explicit human-input submission may do so. */
         if (
           (!hasAuthoritativeRecordedReceipt &&
             streamingChatIdsRef.current.has(normalizedChatId)) ||
@@ -9577,6 +9733,59 @@ export const useChatStream = ({
           );
           error.code = "durable_interaction_cancel_identity_missing";
           throw error;
+        }
+
+        if (submittedHumanInputId) {
+          if (
+            !hasAuthoritativeRecordedReceipt ||
+            submittedHumanInputId !== pending.interactionId ||
+            pending.kind !== "human_input" ||
+            pending.resolution?.outcome !== "submitted"
+          ) {
+            const error = new Error("The submitted answer does not match the suspended interaction.");
+            error.code = "durable_interaction_receipt_identity_mismatch";
+            throw error;
+          }
+          if (!pending.resumeAvailable) {
+            const error = new Error(pending.resumeUnavailableReason || "The submitted interaction cannot be resumed.");
+            error.code = "durable_interaction_resume_unavailable";
+            throw error;
+          }
+          const resumeKey = JSON.stringify([
+            normalizedChatId, pending.sessionId, pending.interactionId,
+            pending.receiptId, activeRunGeneration,
+          ]);
+          if (durableResumeStartedKeysRef.current.has(resumeKey)) {
+            return pendingWithOwner;
+          }
+          durableResumeStartedKeysRef.current.add(resumeKey);
+          let chatKeys = durableResumeStartedKeysByChatIdRef.current.get(normalizedChatId);
+          if (!chatKeys) {
+            chatKeys = new Set();
+            durableResumeStartedKeysByChatIdRef.current.set(normalizedChatId, chatKeys);
+          }
+          chatKeys.add(resumeKey);
+          let started = false;
+          try {
+            started = await runTurnRequestRef.current({
+              mode: "resume_interaction",
+              chatId: normalizedChatId,
+              text: "",
+              attachments: [],
+              baseMessages: ensured.messages,
+              clearComposer: false,
+              durableInteraction: pendingWithOwner,
+              durableOwnerMessageId: ensured.ownerMessageId,
+              runGeneration: activeRunGeneration,
+            });
+          } finally {
+            if (!started) {
+              durableResumeStartedKeysRef.current.delete(resumeKey);
+              chatKeys.delete(resumeKey);
+            }
+          }
+          if (!started) return null;
+          return pendingWithOwner;
         }
 
         const cancellationReason = "interaction_suspended";
@@ -9689,6 +9898,12 @@ export const useChatStream = ({
         if (!isCurrentLookup()) {
           return null;
         }
+        // A transport failure while probing an empty chat is not evidence of
+        // an interrupted run. Malformed records and actual recovery failures
+        // still use the blocking, fail-closed path below.
+        if (speculative && !receivedPendingRecord) {
+          return null;
+        }
         const errorMessage =
           error?.message || "Failed to seal this chat's suspended run.";
         if (lookupAttempt < DURABLE_RESUME_MAX_RETRIES) {
@@ -9720,6 +9935,7 @@ export const useChatStream = ({
               lookupAttempt: nextAttempt,
               runGeneration: activeRunGeneration,
               authoritativeReceipt,
+              submittedHumanInputId,
             });
           }, durableInteractionRetryDelayMs(lookupAttempt));
           durableResumeRetryTimersRef.current.set(normalizedChatId, timerId);
@@ -11134,12 +11350,24 @@ export const useChatStream = ({
       return undefined;
     }
 
+    const hasRecoveryEvidence = Boolean(
+      existingState ||
+      isCharacterChat ||
+      storageApi.getChatMessages(targetChatId)?.length ||
+      executionIdentityByChatIdRef.current.has(targetChatId) ||
+      readExecutionCancelOutbox().some((entry) => entry.ownerChatId === targetChatId) ||
+      readTurnMutationOutboxState().entries.some((entry) => entry.chatId === targetChatId)
+    );
     let cancelled = false;
-    updateDurableInteractionForChat(targetChatId, {
-      ...(existingState || {}),
-      status: "checking",
-      lastError: "",
-    });
+    // Keep the authoritative lookup, including recovery with a missing local
+    // projection, but do not block a new chat on speculative network latency.
+    if (hasRecoveryEvidence) {
+      updateDurableInteractionForChat(targetChatId, {
+        ...(existingState || {}),
+        status: "checking",
+        lastError: "",
+      });
+    }
     void (async () => {
       let sessionId = targetChatId;
       if (isCharacterChat) {
@@ -11181,6 +11409,7 @@ export const useChatStream = ({
       ) {
         await lookupDurableInteraction(targetChatId, sessionId, {
           runGeneration,
+          speculative: !hasRecoveryEvidence,
         });
       }
     })();
@@ -11198,6 +11427,7 @@ export const useChatStream = ({
     lookupDurableInteraction,
     setStreamError,
     setStreamErrorForChat,
+    storageApi,
     threadIdRef,
     turnMutationVersion,
     updateDurableInteractionForChat,

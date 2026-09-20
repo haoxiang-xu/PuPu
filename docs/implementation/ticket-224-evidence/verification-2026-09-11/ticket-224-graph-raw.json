@@ -1,0 +1,265 @@
+{
+  "summary": {
+    "changed_count": 7,
+    "affected_count": 17,
+    "changed_files": 7,
+    "risk_level": "critical"
+  },
+  "changed_symbols": [
+    {
+      "id": "Property:src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js:fn@34:2.fn@102:52.request_id@111:8",
+      "name": "request_id",
+      "type": "Property",
+      "filePath": "src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/interact/text_input_interact.js:TextInputInteract",
+      "name": "TextInputInteract",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-bubble/interact/text_input_interact.js:TextInputInteract.handleKeyDown@52:2",
+      "name": "handleKeyDown",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput",
+      "name": "ChatInput",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput.handleCommandPick@310:2",
+      "name": "handleCommandPick",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/COMPONENTs/chat-input/chat_input.js:ChatInput.handleKeyDown@335:2",
+      "name": "handleKeyDown",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/chat_input.js",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/PAGEs/chat/chat.js:ChatInterface",
+      "name": "ChatInterface",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/chat.js",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_65_chatinterface",
+      "name": "ChatInterface → AllGatesSatisfied",
+      "process_type": "cross_community",
+      "step_count": 5,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_88_chatinput",
+      "name": "ChatInput → ResolveModelGroupKey",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_89_chatinput",
+      "name": "ChatInput → CustomProviderKey",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_90_chatinput",
+      "name": "ChatInput → Delete",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_95_chatinterface",
+      "name": "ChatInterface → Now",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_480_chatinterface",
+      "name": "ChatInterface → Unavailable",
+      "process_type": "cross_community",
+      "step_count": 9,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_501_chatinput",
+      "name": "ChatInput → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_551_chatinput",
+      "name": "ChatInput → GetBar",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_567_chatinterface",
+      "name": "ChatInterface → ResolveApi",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_659_chatinput",
+      "name": "ChatInput → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 7,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_676_chatinput",
+      "name": "ChatInput → Map",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_766_chatinterface",
+      "name": "ChatInterface → Error",
+      "process_type": "cross_community",
+      "step_count": 10,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_885_chatinterface",
+      "name": "ChatInterface → GetDocument",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_908_chatinterface",
+      "name": "ChatInterface → GetBar",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_963_chatinterface",
+      "name": "ChatInterface → ClampPct",
+      "process_type": "cross_community",
+      "step_count": 3,
+      "changed_steps": [
+        {
+          "symbol": "ChatInterface",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1019_chatinput",
+      "name": "ChatInput → Add",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_1045_chatinput",
+      "name": "ChatInput → Error",
+      "process_type": "cross_community",
+      "step_count": 8,
+      "changed_steps": [
+        {
+          "symbol": "ChatInput",
+          "step": 1
+        }
+      ]
+    }
+  ]
+}

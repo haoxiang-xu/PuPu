@@ -1,0 +1,4 @@
+interface:
+  display_name: "PuPu Close Release"
+  short_description: "Prepare or close a GitHub Project release parent"
+  default_prompt: "Use $release-close-sprint to wrap or close the current PuPu release with me."

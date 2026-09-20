@@ -868,6 +868,10 @@ const Select = ({
   search_placeholder = "Search...",
   icon,
   custom_trigger,
+  /* style for the Tooltip wrapper around the trigger — a custom trigger
+     inside a full-width host (a menu row) needs width: 100% here or the
+     inline-flex wrapper shrinks the row to its content */
+  trigger_wrapper_style,
   style,
   dropdown_style,
   dropdown_position = "bottom",
@@ -1007,8 +1011,17 @@ const Select = ({
   const placeholderColor = isDark
     ? "rgba(255,255,255,0.4)"
     : "rgba(0,0,0,0.38)";
-  const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const activeBg = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)";
+  /* Overridable so a caller can align this trigger with the controls beside
+     it. A Select that carries its own fill lands BRIGHTER on hover than a bare
+     icon button next to it, because the hover wash stacks on that fill — the
+     caller is the only one who knows what the row should converge on. Absent
+     an override these are the values every existing Select already used. */
+  const hoverBg =
+    style?.hoverBackgroundColor ??
+    (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)");
+  const activeBg =
+    style?.activeBackgroundColor ??
+    (isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)");
   const paddingV = style?.paddingVertical ?? 6;
   const paddingH = style?.paddingHorizontal ?? 12;
   const iconSize = style?.iconSize || Math.round(fontSize * 1.05);
@@ -1689,6 +1702,7 @@ const Select = ({
       }}
       open={mergedOpen}
       on_open_change={emit_open_change}
+      wrapper_style={trigger_wrapper_style}
     >
       {custom_trigger || triggerContent}
     </Tooltip>

@@ -1,0 +1,48 @@
+
+> PuPu@0.1.11 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/SERVICEs/test_bridge/state_selector.test.js src/SERVICEs/test_bridge/index.test.js
+
+FAIL src/SERVICEs/test_bridge/state_selector.test.js
+  ● state_selector › uses the inspected chat adapter state for active default and explicit queries
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      181 |
+      182 |     configs["chat-a"].is_streaming = true;
+    > 183 |     expect(collectStateSnapshot(sources).is_streaming).toBe(true);
+          |                                                        ^
+      184 |     expect(
+      185 |       collectStateSnapshot({ ...sources, chatId: "chat-a" }).is_streaming,
+      186 |     ).toBe(true);
+
+      at Object.<anonymous> (src/SERVICEs/test_bridge/state_selector.test.js:183:56)
+
+FAIL src/SERVICEs/test_bridge/index.test.js
+  ● test bridge installer › does not export the obsolete global streaming setter
+
+    expect(received).toBeUndefined()
+
+    Received: [Function setIsStreaming]
+
+      50 |     const bridge = require("./index");
+      51 |
+    > 52 |     expect(bridge.setIsStreaming).toBeUndefined();
+         |                                   ^
+      53 |     expect(bridge.setConfigContextRef).toEqual(expect.any(Function));
+      54 |   });
+      55 | });
+
+      at Object.<anonymous> (src/SERVICEs/test_bridge/index.test.js:52:35)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 5 passed, 7 total
+Snapshots:   0 total
+Time:        0.312 s, estimated 1 s
+Ran all test suites within paths "src/SERVICEs/test_bridge/state_selector.test.js", "src/SERVICEs/test_bridge/index.test.js".

@@ -38,10 +38,6 @@ const RELEASE_PROFILE_FEATURE_KEYS = Object.freeze({
   "pupu.memory-v2-release-profile.v1": Object.freeze([
     "enable_memory_v2",
   ]),
-  "pupu.memory-v2-release-profile.v2": Object.freeze([
-    "enable_memory_v2",
-    "enable_theme_color_customization",
-  ]),
 });
 
 let profile = null;

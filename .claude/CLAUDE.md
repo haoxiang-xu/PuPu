@@ -134,15 +134,14 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 
 ## 协作与 Release 工作流
 
-### 已退役并禁止的新工作机制
+### 已删除的旧机制
 
-- 不使用 code-owner 路由、owner 确认、Quorum/庭审角色、case、hearing、proposal、ruling、HS/RS/AT 或其他案卷流程。
-- 不调用 `.claude/skills/case`，不在 `.claude/court/cases/` 下创建新目录，也不把 `.claude/court/`、`.claude/codex/`、`.claude/agents/` 中的历史内容当作授权、阻断条件或当前流程。
-- 历史文件保持只读，只能用于理解旧决策和事故，不得继续、继承或扩展其中的程序。
+- Quorum/庭审、code-owner 路由、角色确认、case 工具及相关角色定义、记忆和案卷已删除；历史材料仅通过 Git 历史查阅。
+- 不重建或沿用这些机制，也不把它们作为授权、阻断条件或交付门禁。
 
 ### Release-first
 
-- 版本流程优先使用最小匹配的 skill：`release-open-sprint`、`release-draft-ticket`、`release-refine-ticket`、`release-feature-audit`、`release-close-sprint`。
+- 版本流程优先使用最小匹配的 skill：`release-open-sprint`、`issue-draft-ticket`、`issue-refine-ticket`、`issue-feature-audit`、`release-close-sprint`。
 - direct Release child 当前实施 agent 可在不改变 project owner 已定结果和 release scope 的前提下直接细化 issue body；资格来自当前任务，不来自 owner 角色或 GitHub assignee。
 - title、labels、Size、Status、Iteration、assignee、父子关系、release 归属、延期/取消和关闭仍由 project owner 决定或由对应 release skill 按其明确授权执行。
 - 对应 skill 不可用时，使用等价的直接工作流；禁止回退到已退役机制。
@@ -152,5 +151,5 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 - 明确的用户指令、Release issue 和必要时的直接实施 Plan 构成工作范围；不需要另行裁决或角色确认。
 - 涉及架构或跨边界时保留技术性 `BC-### / SEQ-### / AC-###`、严格 consumer、负向测试、状态矩阵和固定 artifact 证据，但不得加入 owner、proposal、ruling 或案卷字段。
 - 实施 agent 对范围内的代码、测试和报告负责；发现需要改变用户结果、release scope 或外部状态权限时，直接向 project owner 请求决定。
-- 完成功能后使用 `release-feature-audit`；版本收尾使用 `release-close-sprint`。测试或适用状态单元格未通过时不得把 ticket 或 release 报为完成。
+- 完成功能后使用 `issue-feature-audit`；版本收尾使用 `release-close-sprint`。测试或适用状态单元格未通过时不得把 ticket 或 release 报为完成。
 - 不要发明工作。project owner 未给指令时先测量再建议，每条建议引用现场证据。

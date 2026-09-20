@@ -1,0 +1,347 @@
+{
+  "toolkitId": "mcp.productivity.telegram",
+  "catalog": {
+    "id": "productivity.telegram",
+    "toolkitId": "mcp.productivity.telegram",
+    "name": "Telegram",
+    "description": "Third-party Telegram MCP server (IQAI, Bot API / Telegraf) for sending, forwarding and pinning messages and reading channel info/members via a Telegram bot token.",
+    "category": "communication",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
+    "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/IQAIcom/mcp-telegram",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "@iqai/mcp-telegram@0.1.4"
+      ]
+    },
+    "setupPreview": "npx -y @iqai/mcp-telegram@0.1.4",
+    "prerequisites": [
+      "Telegram bot token from @BotFather"
+    ],
+    "secrets": [
+      {
+        "key": "TELEGRAM_BOT_TOKEN",
+        "label": "Telegram bot token"
+      }
+    ],
+    "tools": [
+      {
+        "name": "GET_CHANNEL_INFO",
+        "title": "Get channel info",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "GET_CHANNEL_MEMBERS",
+        "title": "Get channel members",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "SEND_MESSAGE",
+        "title": "Send message",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "FORWARD_MESSAGE",
+        "title": "Forward message",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "PIN_MESSAGE",
+        "title": "Pin message",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 3
+    },
+    "readmeMarkdown": "## Telegram (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-telegram` server (IQAI) over stdio, pinned to `@0.1.4`. This is built on the Telegram **Bot API** (Telegraf) and is **not** an official Telegram MCP server; it is **pending PuPu review** (`needs_review`). The version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `TELEGRAM_BOT_TOKEN` environment variable, injected by the PuPu backend secret store \u2014 it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Telegram bot** for the agent and constrain its reach:\n\n- Create the bot via [@BotFather](https://t.me/BotFather) and treat the token as a secret; rotate it if it leaks.\n- Add the bot **only to the specific groups/channels** the agent needs. The bot's group/channel membership **is its blast radius** and is not enforceable in code \u2014 a bot can message, forward from, and pin in every chat it has joined.\n- Enable **mention-only mode** (the package's `SAMPLING_MENTION_ONLY` is on by default) so the bot only reacts when explicitly mentioned in groups, rather than to all traffic.\n- Remove the bot from any chat you no longer want the agent to reach.\n\n### Forwarding is an exfiltration primitive\n\n`FORWARD_MESSAGE` copies content from one chat into another and is gated behind explicit confirmation, alongside `SEND_MESSAGE` and `PIN_MESSAGE`. Only the read-only tools (get channel info, get channel members) run without a prompt."
+  },
+  "checkedAt": "2026-09-13T18:36:59.506169+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "@iqai/mcp-telegram",
+  "version": "0.1.4",
+  "download": "https://registry.npmjs.org/@iqai/mcp-telegram/-/mcp-telegram-0.1.4.tgz",
+  "artifactSha256": "f8ece32b2cbee865b2905362c80642a2984d5f1c7decd974ee0e005c89995c32",
+  "registryIntegrity": "sha512-t+ANGkVqGwkLMWJZHSHGUWC08LB4Xg+SDEKW/nGIQWORuli5b481fMHvZ4geTA31QybyMpp9J1EpLr5m+uleEA==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/dist/config.js",
+      "sha256": "c9a45983328c0e101ba381a86cd08da8e0c86d3fbea17584c56fc4240844dde5",
+      "size": 7850
+    },
+    {
+      "path": "package/dist/constants.js",
+      "sha256": "03ede3ce187652533cc25af74ea2fa3ee453ba925b8941afafad73ded879a22b",
+      "size": 179
+    },
+    {
+      "path": "package/dist/tools/forward-message.js",
+      "sha256": "da3ca5f134525a923e4f73dcd84e55b7d3fdce8c56999961df9b13c014d456ce",
+      "size": 1696
+    },
+    {
+      "path": "package/dist/tools/get-channel-info.js",
+      "sha256": "3ffa4443d10d6e15d2cfe7f53bcc412c72119d1af1d23bcb05b969de3116c0c9",
+      "size": 1491
+    },
+    {
+      "path": "package/dist/tools/get-channel-members.js",
+      "sha256": "aad6b4613333bfd16e323f9a0d8c3ae28168177831ef83259f615299fe9904e3",
+      "size": 2059
+    },
+    {
+      "path": "package/dist/sampling/handler.js",
+      "sha256": "937e09e422aa5ba3b544ee12f385c91bb4615f260b42cee766f6b5343cb316f0",
+      "size": 8898
+    },
+    {
+      "path": "package/dist/index.js",
+      "sha256": "136e506f78521aaac8fb8a9a7eff2542cb67dce70a2b646b193abea7bdeb0f93",
+      "size": 5453
+    },
+    {
+      "path": "package/dist/sampling/message-handlers.js",
+      "sha256": "a879ee0454b0d7fdc1efa77afa8b99509b090c472bdcecee46d7725e427314f4",
+      "size": 6116
+    },
+    {
+      "path": "package/dist/tools/pin-message.js",
+      "sha256": "b79c8aad11a507c947fd8e5c8f75e88d37dfe82c896a2c1c51ea510f105012ef",
+      "size": 1550
+    },
+    {
+      "path": "package/dist/tools/send-message.js",
+      "sha256": "fe9fc169f2757db1444eebbb57f65b4fa7bfdfa1f1934ac6a5a159dbd62f5832",
+      "size": 1609
+    },
+    {
+      "path": "package/dist/services/telegram-service.js",
+      "sha256": "61a65eff659eda310246abdeffe5786f4a02e8736cd40302c98489b9a4b8d6d0",
+      "size": 3482
+    },
+    {
+      "path": "package/dist/sampling/types.js",
+      "sha256": "4f3e4e3fe19d1fe6b3ef19db523b07112bc5eac52fb795058934618db7a0f171",
+      "size": 1040
+    },
+    {
+      "path": "package/dist/types.js",
+      "sha256": "41cb9f7b8a8725ed36f8c38101d8d56ac0ab06ec34ea3c79685e6d033905f231",
+      "size": 125
+    },
+    {
+      "path": "package/dist/sampling/utils.js",
+      "sha256": "a493b233bfae0120d1cef51f4630fc4db2a75d0b455ea758a212300408fb4c22",
+      "size": 3059
+    },
+    {
+      "path": "package/dist/sampling/validators.js",
+      "sha256": "9683a235795155a5949d785d8f391e8bad922e356108a6d9617029ac7805b5b8",
+      "size": 4233
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "7769b2ec3471ff93d26bf846cec94f3f9618cb1c2dd850cd1c845031c49eaaab",
+      "size": 1092
+    },
+    {
+      "path": "package/dist/config.js.map",
+      "sha256": "ab754720f9d3ae204a5ecd7b5bb96efb4fbb394c52d320bfb4a1a67fe0b21f84",
+      "size": 5793
+    },
+    {
+      "path": "package/dist/constants.js.map",
+      "sha256": "887a70ea55e981c7a574eee5c435024b5fe65f00822a2c6a14d694382aa98545",
+      "size": 218
+    },
+    {
+      "path": "package/dist/tools/forward-message.js.map",
+      "sha256": "95bfdf9de376e4af5553a9f7b0b4f5e69572741f748bd7369fb5ef43ca386ca7",
+      "size": 1427
+    },
+    {
+      "path": "package/dist/tools/get-channel-info.js.map",
+      "sha256": "a20804171c19cd195c1bff784a41682149dcd4a19e1e2bd9273818b6d0558cd4",
+      "size": 1166
+    },
+    {
+      "path": "package/dist/tools/get-channel-members.js.map",
+      "sha256": "087577d8c4b2d75d99c1fb5e9c9452fde618db3d660304795834de7309f146b6",
+      "size": 1726
+    },
+    {
+      "path": "package/dist/sampling/handler.js.map",
+      "sha256": "dbb0cf403082ea61492522e6326fb345ed0c34aee35a27183ba8dd348514ee9e",
+      "size": 7686
+    },
+    {
+      "path": "package/dist/index.js.map",
+      "sha256": "a2f5d4abcf056933b7693b05aaaca93de0001adfa41123868b4687d6cdd8b762",
+      "size": 4117
+    },
+    {
+      "path": "package/dist/sampling/message-handlers.js.map",
+      "sha256": "2a5b69f8c7d1767ce9f140dc12d62e48ad228df62e1232d2602e1ae75a33aaf8",
+      "size": 6897
+    },
+    {
+      "path": "package/dist/tools/pin-message.js.map",
+      "sha256": "cd3839b7beed0cd3bf6612a1983edca57e7aa9fc4b57db03bb83227d0bc8a953",
+      "size": 1323
+    },
+    {
+      "path": "package/dist/tools/send-message.js.map",
+      "sha256": "a71d2103129cabd3d7329664184eff958cc970fb03eb1b3b118989a03ca0b138",
+      "size": 1342
+    },
+    {
+      "path": "package/dist/services/telegram-service.js.map",
+      "sha256": "b1118062196217997337f5485147219a0531c0a7955500eec4b2e6e591eb0ab3",
+      "size": 3349
+    },
+    {
+      "path": "package/dist/sampling/types.js.map",
+      "sha256": "317b29ea785e4bd69db07dd296121a6b011b54b7eb7e39b6d439a44858967b91",
+      "size": 625
+    },
+    {
+      "path": "package/dist/types.js.map",
+      "sha256": "75f5b7e8c4ccbaf926557ebb56fd1e97c5642a6b97ff13e6eb49d58fad5be303",
+      "size": 124
+    },
+    {
+      "path": "package/dist/sampling/utils.js.map",
+      "sha256": "3b80db3121aff2840d60d5ce4a087193fb4ee3292c2f415530feb16437abf3a4",
+      "size": 3005
+    },
+    {
+      "path": "package/dist/sampling/validators.js.map",
+      "sha256": "69f9128e51db6faefe1bbf755eec94056c315013b3994dc8a736d09e88075f69",
+      "size": 3750
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "670d35118589d6927ed741a200350b1b45f77868bcfa7afefa857335c8b8a6bf",
+      "size": 13517
+    },
+    {
+      "path": "package/dist/config.d.ts",
+      "sha256": "5b738421b77b37b6707941ad849f234816a457032bc81720b448df2cce79bcdf",
+      "size": 4701
+    },
+    {
+      "path": "package/dist/constants.d.ts",
+      "sha256": "f24434d94f33342eedd5355d8e3f15f28b871865eb29c049fbb346d2a040794e",
+      "size": 92
+    },
+    {
+      "path": "package/dist/tools/forward-message.d.ts",
+      "sha256": "4c093303695a87e4b26c0f82bc0660e6847f6488d504717f75b5b13e48a96813",
+      "size": 1474
+    },
+    {
+      "path": "package/dist/tools/get-channel-info.d.ts",
+      "sha256": "3e896d4794a7f4ab0cf115c7a82440dcf493ea0afe29aed3bb25c368b3d7ca40",
+      "size": 763
+    },
+    {
+      "path": "package/dist/tools/get-channel-members.d.ts",
+      "sha256": "df52efc30743188671723dac024be4de5670b29cb60b4a656868bf147af0e682",
+      "size": 971
+    },
+    {
+      "path": "package/dist/sampling/handler.d.ts",
+      "sha256": "66fa9680125c26a16559251e5d136782ac4f1d28207b5b0dfd66a0023507b667",
+      "size": 791
+    },
+    {
+      "path": "package/dist/index.d.ts",
+      "sha256": "43e818adf60173644896298637f47b01d5819b17eda46eaa32d0c7d64724d012",
+      "size": 31
+    },
+    {
+      "path": "package/dist/sampling/message-handlers.d.ts",
+      "sha256": "ad7803e208028eaeb25928714297b4237a0d698d65b1a252642de6b6dffabd47",
+      "size": 968
+    },
+    {
+      "path": "package/dist/tools/pin-message.d.ts",
+      "sha256": "a558e78dda79ac33978338d2353dff1e3108be21219421370147dce87db0b44a",
+      "size": 1183
+    },
+    {
+      "path": "package/dist/tools/send-message.d.ts",
+      "sha256": "ed917b5539097e69af054fba5ccc113e717a56ccd8f3c3c1cccd1f5bf8d14eea",
+      "size": 1082
+    },
+    {
+      "path": "package/dist/services/telegram-service.d.ts",
+      "sha256": "9ffb9f22c6653419bb9472c5bd972e77267845203c756848424e7c3665a6f7da",
+      "size": 961
+    },
+    {
+      "path": "package/dist/sampling/types.d.ts",
+      "sha256": "578b7af24a70da654aad79b7f402f459e07a47f7d7c019f9968e11723f85496b",
+      "size": 1815
+    },
+    {
+      "path": "package/dist/types.d.ts",
+      "sha256": "1fb7ad553bd0c14a4cbf652db852b2874184e91217eea49d6d9c6b14c6cc3584",
+      "size": 78
+    },
+    {
+      "path": "package/dist/sampling/utils.d.ts",
+      "sha256": "d701bd5780f2b2b0125020917a1796e23ecff1ab63fc23d279d3c250a0a7a799",
+      "size": 614
+    },
+    {
+      "path": "package/dist/sampling/validators.d.ts",
+      "sha256": "66fed411ce90c1fe249d394556b9b331e6f3d72104609c4776618b8a78b07271",
+      "size": 582
+    }
+  ],
+  "repository": null,
+  "gitHead": null,
+  "resolvedLockSha256": "40fd8a89a75667edc056885043f0fde89a2bafff3c20cc5bd9d35d078837b32f",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

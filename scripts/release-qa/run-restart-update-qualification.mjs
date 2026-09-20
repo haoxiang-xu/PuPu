@@ -18,6 +18,7 @@ import {
   buildQualificationFeed,
 } from "./build-qualification-feed.mjs";
 import {
+  expectedTargetAssets,
   readJson,
   readReleaseArtifactContract,
   validateReleaseAssetManifest,
@@ -35,8 +36,21 @@ import {
   startQualificationFeedServer,
 } from "./serve-qualification-feed.mjs";
 import { validateQualificationFixtureAppUpdate } from "./validate-qualification-fixture-app-update.mjs";
+import { createRestartObservationRecorder, collectWindowsUpgradeObservations } from "./restart-observations.mjs";
+import { matchesMacRestartImage, buildMacRestartLaunch, preflightMacRestartProfile, inspectMacRestartProfile } from "./macos-restart-identity.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
+export const RESTART_UPDATE_TIMEOUTS = Object.freeze({
+  renderer: 120_000,
+  sidecar: 120_000,
+  download: 300_000,
+  oldProcessExit: 120_000,
+  relaunch: 180_000,
+  shutdown: 60_000,
+  cleanup: 60_000,
+  browserCloseAttempts: 2,
+  retryDelay: 1_000,
+});
 const RELEASE_ENVIRONMENT_KEYS = Object.freeze([
   "PYTHONPATH",
   "UNCHAIN_PYTHON_BIN",
@@ -77,6 +91,36 @@ const runChecked = (command, args, options = {}) => {
 
 const normalizePath = (value) => String(value || "").replaceAll("\\", "/").toLowerCase();
 
+// Windows reports the same image using either an 8.3 path or a long path.
+// Resolve through the filesystem; never guess aliases or trust a path merely
+// mentioned in CommandLine. Missing/inaccessible images are not new ownership.
+const canonicalWindowsPath = (value) => {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const resolved = fs.realpathSync.native(value)
+      .replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+    if (!path.win32.isAbsolute(resolved)) return null;
+    return normalizePath(path.win32.normalize(resolved)).replace(/\/+$/, "");
+  } catch { return null; }
+};
+
+const matchesInstalledImage = (row, expectedPath) => {
+  if (process.platform === "darwin") return matchesMacRestartImage(row, expectedPath);
+  if (process.platform !== "win32") return normalizePath(row.command).includes(normalizePath(expectedPath));
+  const expected = canonicalWindowsPath(expectedPath);
+  return expected !== null && canonicalWindowsPath(row.executablePath) === expected;
+};
+
+const windowsImageInRoots = (row, roots) => {
+  const image = canonicalWindowsPath(row.executablePath);
+  if (!image) return false;
+  return roots.some((root) => {
+    const canonicalRoot = canonicalWindowsPath(root);
+    if (!canonicalRoot || canonicalRoot === normalizePath(path.win32.parse(canonicalRoot).root).replace(/\/+$/, "")) return false;
+    return image.startsWith(`${canonicalRoot}/`);
+  });
+};
+
 const hashFile = (filePath) => `sha256:${crypto.createHash("sha256")
   .update(fs.readFileSync(filePath))
   .digest("hex")}`;
@@ -89,13 +133,17 @@ const parsePosixProcessTable = (source) => String(source || "")
 
 const readProcessTable = () => {
   if (process.platform === "win32") {
-    const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress";
-    const source = runChecked("powershell", ["-NoProfile", "-NonInteractive", "-Command", command]);
+    const command = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate,SessionId,CommandLine | ConvertTo-Json -Compress";
+    const source = runChecked("powershell", ["-NoProfile", "-NonInteractive", "-Command", command], { timeout: 30_000 });
     const parsed = JSON.parse(source || "[]");
     return (Array.isArray(parsed) ? parsed : [parsed]).map((row) => ({
       pid: Number(row.ProcessId),
       ppid: Number(row.ParentProcessId),
       command: String(row.CommandLine || ""),
+      name: String(row.Name || ""),
+      executablePath: String(row.ExecutablePath || ""),
+      createdAt: String(row.CreationDate || ""),
+      sessionId: Number.isSafeInteger(row.SessionId) ? row.SessionId : null,
     }));
   }
   return parsePosixProcessTable(runChecked("/bin/ps", ["-axo", "pid=,ppid=,command="]));
@@ -126,11 +174,23 @@ const processAlive = (pid) => {
 };
 
 const terminateProcesses = async (pids) => {
-  const targets = [...new Set(pids)].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid);
+  const targets = [...new Set(pids)].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid);
   if (process.platform === "win32") {
+    const failures = [];
     for (const pid of targets) {
-      if (processAlive(pid)) spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true });
+      if (!processAlive(pid)) continue;
+      try {
+        const result = spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, timeout: 15_000 });
+        // Another tree termination can legitimately remove the process before
+        // taskkill gets to it. A still-live failed target is not a success.
+        if ((result.error || result.status !== 0) && processAlive(pid)) {
+          throw new Error(`taskkill pid=${pid} status=${result.status} signal=${result.signal || "none"}: ${String(
+            result.stderr || result.stdout || result.error || "unknown failure",
+          ).trim()}`);
+        }
+      } catch (error) { failures.push(error.message || String(error)); }
     }
+    if (failures.length) throw new Error(failures.join("; "));
     return;
   }
   for (const pid of targets) {
@@ -173,7 +233,7 @@ const installTargetPackage = ({ targetId, installerPath, tempRoot }) => {
 
 const sidecarPlatformForTarget = (targetId) => targetId.startsWith("macos-") ? "macos" : "windows";
 
-const connectRenderer = async ({ debugPort, earlyExit, output = [] }) => {
+const connectRenderer = async ({ debugPort, earlyExit, output = [], onBrowser = () => {} }) => {
   const endpoint = `http://127.0.0.1:${debugPort}`;
   const target = await waitFor(async () => {
     if (earlyExit?.()) {
@@ -183,20 +243,19 @@ const connectRenderer = async ({ debugPort, earlyExit, output = [] }) => {
     if (!response.ok) return null;
     const targets = await response.json();
     return targets.find((candidate) => candidate?.type === "page" && String(candidate.url || "").startsWith("file:")) || null;
-  }, 60_000, "installed renderer CDP readiness");
+  }, RESTART_UPDATE_TIMEOUTS.renderer, "installed renderer CDP readiness");
   const { chromium } = await import("playwright");
-  const browser = await chromium.connectOverCDP(endpoint);
+  const browser = await chromium.connectOverCDP(endpoint, { timeout: RESTART_UPDATE_TIMEOUTS.renderer });
+  onBrowser(browser);
   const page = browser.contexts().flatMap((context) => context.pages())
     .find((candidate) => candidate.url() === target.url);
   if (!page) {
-    await browser.close().catch(() => {});
     throw new Error("CDP page disappeared before renderer probe");
   }
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("domcontentloaded", { timeout: RESTART_UPDATE_TIMEOUTS.renderer });
   const rendererReady = await page.evaluate(() =>
     Boolean(document.getElementById("root")) && location.protocol === "file:");
   if (!rendererReady) {
-    await browser.close().catch(() => {});
     throw new Error("installed renderer did not load the packaged file UI");
   }
   return { browser, page };
@@ -206,25 +265,23 @@ export const buildRestartRuntimeLaunch = ({
   platform = process.platform,
   tempRoot,
   debugPort,
+  windowsAppData,
+  macosHome,
 }) => {
+  if (platform === "darwin") return buildMacRestartLaunch({ home: macosHome, debugPort });
   const platformPath = platform === "win32" ? path.win32 : path;
   const isolatedHome = platformPath.join(tempRoot, "home");
   if (platform === "win32") {
-    // NSIS starts the upgraded app itself and does not preserve arbitrary
-    // launch arguments such as --user-data-dir or --remote-debugging-port.
-    // Electron's normal Windows userData location is APPDATA/<productName>;
-    // supplying an isolated APPDATA gives N-1 and the NSIS-relaunched N the
-    // same durable state without depending on either discarded argument.
-    const appData = platformPath.join(tempRoot, "appdata");
-    const localAppData = platformPath.join(tempRoot, "localappdata");
+    // Electron resolves Windows appData via the native Known Folder API, not
+    // process.env.APPDATA. NSIS also drops --user-data-dir on relaunch. Use the
+    // real default profile on a fresh disposable hosted runner for both N-1/N.
+    if (typeof windowsAppData !== "string" || !/^[a-z]:[\\/].+/i.test(windowsAppData) || /[\r\n\0]/.test(windowsAppData)) {
+      throw new Error("Windows restart qualification requires a native absolute ApplicationData path");
+    }
     return {
-      userData: platformPath.join(appData, "PuPu"),
-      directories: [isolatedHome, appData, localAppData],
-      environment: {
-        HOME: isolatedHome,
-        APPDATA: appData,
-        LOCALAPPDATA: localAppData,
-      },
+      userData: platformPath.join(windowsAppData, "PuPu"),
+      directories: [isolatedHome],
+      environment: { HOME: isolatedHome },
       args: [`--remote-debugging-port=${debugPort}`],
     };
   }
@@ -237,17 +294,49 @@ export const buildRestartRuntimeLaunch = ({
     args: [
       `--remote-debugging-port=${debugPort}`,
       `--user-data-dir=${userData}`,
-      ...(platform === "darwin" ? ["--use-mock-keychain"] : []),
     ],
   };
 };
 
-const startFixtureRuntime = async ({ installed, tempRoot }) => {
+const preflightRestartWindowsProfile = ({ tempRoot }) => {
+  if (process.env.GITHUB_ACTIONS !== "true" || process.env.RUNNER_ENVIRONMENT !== "github-hosted") {
+    throw new Error("Windows restart qualification requires a disposable GitHub-hosted runner; refusing a local or self-hosted profile");
+  }
+  const windowsAppData = runChecked("powershell", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "[Environment]::GetFolderPath('ApplicationData')",
+  ], { timeout: 30_000 });
+  const launch = buildRestartRuntimeLaunch({ platform: "win32", tempRoot, debugPort: 0, windowsAppData });
+  if (fs.existsSync(launch.userData)) {
+    throw new Error("Windows restart qualification requires a fresh PuPu profile; refusing to use or delete an existing profile");
+  }
+  return windowsAppData;
+};
+
+const startFixtureRuntime = async ({ installed, tempRoot, onAcquired = () => {}, onStage = () => {} }) => {
+  onStage("fixture-profile");
+  const windowsAppData = process.platform === "win32" ? preflightRestartWindowsProfile({ tempRoot }) : undefined;
+  const macosHome = process.platform === "darwin" ? preflightMacRestartProfile() : undefined;
   const debugPort = await allocateLoopbackPort();
-  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort });
+  const launch = buildRestartRuntimeLaunch({ tempRoot, debugPort, windowsAppData, macosHome });
   for (const directory of launch.directories) {
     fs.mkdirSync(directory, { recursive: true });
   }
+  onStage("fixture-preference");
+  // The stock N-1 updater schedules an automatic check eight seconds after
+  // startup. CDP/process readiness may take longer; disabling it afterwards
+  // cannot cancel a download already in flight. Seed ordinary user settings
+  // before spawning, without patching the signed fixture or its updater.
+  if (process.platform === "win32") fs.mkdirSync(launch.userData);
+  if (process.platform === "darwin") {
+    fs.mkdirSync(path.dirname(launch.userData), { recursive: true });
+    // Exclusive creation closes the preflight/create race; never overwrite an
+    // existing profile (including a dangling symlink).
+    fs.mkdirSync(launch.userData);
+  }
+  fs.writeFileSync(path.join(launch.userData, "auto_update_pref.json"), JSON.stringify({ enabled: false }), {
+    encoding: "utf8", flag: "wx",
+  });
   const environment = { ...process.env, ...(installed.launchEnvironment || {}) };
   for (const key of RELEASE_ENVIRONMENT_KEYS) delete environment[key];
   Object.assign(environment, {
@@ -261,22 +350,37 @@ const startFixtureRuntime = async ({ installed, tempRoot }) => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   const output = [];
-  child.stdout?.on("data", (chunk) => output.push(chunk.toString()));
-  child.stderr?.on("data", (chunk) => output.push(chunk.toString()));
+  const observedPids = new Set([child.pid]);
+  const session = { child, output, debugPort, observedPids, userData: launch.userData, browser: null, spawnError: null };
+  // Transfer ownership before any readiness await can reject. A partially
+  // initialized runtime still owns a live process and potentially a CDP socket.
+  onAcquired(session);
+  child.on("error", (error) => { session.spawnError = error; });
+  const capture = (chunk) => {
+    output.push(chunk.toString().slice(-16_384));
+    if (output.length > 8) output.shift();
+  };
+  child.stdout?.on("data", capture);
+  child.stderr?.on("data", capture);
+  onStage("fixture-renderer-readiness");
   const connection = await connectRenderer({
     debugPort,
     output,
-    earlyExit: () => child.exitCode !== null || child.signalCode !== null,
+    onBrowser: (browser) => { session.browser = browser; },
+    earlyExit: () => {
+      if (session.spawnError) throw session.spawnError;
+      return child.exitCode !== null || child.signalCode !== null;
+    },
   });
-  const observedPids = new Set([child.pid]);
-  const sidecarNeedle = normalizePath(installed.sidecarNeedle);
+  Object.assign(session, connection);
+  onStage("fixture-sidecar-readiness");
   await waitFor(() => {
     const rows = readProcessTable();
     const descendants = descendantPids(rows, child.pid);
     for (const pid of descendants) observedPids.add(pid);
-    return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
-  }, 60_000, "signed N-1 Sidecar descendant");
-  return { ...connection, child, debugPort, observedPids, userData: launch.userData };
+    return rows.find((row) => descendants.has(row.pid) && matchesInstalledImage(row, installed.sidecarNeedle)) || null;
+  }, RESTART_UPDATE_TIMEOUTS.sidecar, "signed N-1 Sidecar descendant");
+  return session;
 };
 
 export const validateRestartUpdateStageTrace = (stages) => {
@@ -326,39 +430,158 @@ const assertUpdatedIdentity = ({ installed, expected, targetId }) => {
   };
 };
 
-const findRelaunchedRoot = ({ installed, oldPid }) => {
+const findRelaunchedRoot = ({ installed, oldPid, onObservation = () => {} }) => {
   const executableNeedle = normalizePath(installed.executablePath);
   const candidateNeedle = normalizePath(installed.candidateNeedle);
   return waitFor(() => {
     const rows = readProcessTable();
-    const matching = rows.filter((row) => row.pid !== oldPid && (
+    onObservation(rows);
+    const matching = rows.filter((row) => row.pid !== oldPid && (["win32", "darwin"].includes(process.platform)
+      ? matchesInstalledImage(row, installed.executablePath) : (
       normalizePath(row.command).includes(executableNeedle) || normalizePath(row.command).includes(candidateNeedle)
-    ));
+    )));
     const root = matching.find((row) => !matching.some((candidate) => candidate.pid === row.ppid));
     return root || null;
-  }, 60_000, "automatic N relaunch process");
+  }, RESTART_UPDATE_TIMEOUTS.relaunch, "automatic N relaunch process");
 };
 
 const assertRelaunchedSidecar = async ({ installed, rootPid }) => {
-  const sidecarNeedle = normalizePath(installed.sidecarNeedle);
   await waitFor(() => {
     const rows = readProcessTable();
     const descendants = descendantPids(rows, rootPid);
-    return rows.find((row) => descendants.has(row.pid) && normalizePath(row.command).includes(sidecarNeedle)) || null;
-  }, 60_000, "restarted N Sidecar descendant");
+    return rows.find((row) => descendants.has(row.pid) && matchesInstalledImage(row, installed.sidecarNeedle)) || null;
+  }, RESTART_UPDATE_TIMEOUTS.sidecar, "restarted N Sidecar descendant");
 };
 
-const assertFeedRequests = (server) => {
+const assertMacRuntimeProfile = async ({ installed, rootPid, userData }) => {
+  return waitFor(() => inspectMacRestartProfile({ rows: readProcessTable(), rootPid,
+    executablePath: installed.executablePath, userData }), RESTART_UPDATE_TIMEOUTS.renderer, "macOS renderer uses the retained profile");
+};
+
+export const assertFeedRequests = (server, { targetId, fromVersion, contract } = {}) => {
   const successful = new Set(server.requests
-    .filter((request) => request.status === 200 || request.status === 206)
+    .filter((request) => request.method === "GET" && (request.status === 200 || request.status === 206))
     .map((request) => request.pathname.slice(1)));
   for (const name of [server.feed.metadata.name, server.feed.payload.name]) {
     if (!successful.has(name)) {
       throw new Error(`updater did not request the sealed qualification feed file: ${name}`);
     }
   }
-  if (server.requests.some((request) => request.status >= 400)) {
+  const rejected = server.requests.filter((request) => request.status >= 400);
+  if (rejected.length === 0) return;
+  // An N-only feed deliberately has no historical differential blockmap.
+  // Admit exactly that optional GET miss, only when a subsequent full GET of
+  // the sealed payload succeeded. Downloaded state and installed byte identity
+  // are independently enforced by the caller; no arbitrary 404 is tolerated.
+  const oldBlockmap = targetId === "windows-x64" && contract && /^\d+\.\d+\.\d+$/.test(fromVersion || "")
+    ? expectedTargetAssets(contract, fromVersion).find((asset) => asset.target_id === targetId && asset.role === "updater-blockmap")?.name
+    : null;
+  const [miss] = rejected;
+  const expectedFallback = rejected.length === 1 && oldBlockmap &&
+    oldBlockmap !== server.feed.blockmap.name && miss.method === "GET" && miss.status === 404 &&
+    miss.pathname === `/${oldBlockmap}` &&
+    server.requests.slice(server.requests.indexOf(miss) + 1).some((request) =>
+      request.method === "GET" && request.pathname === `/${server.feed.payload.name}` && request.status === 200);
+  if (!expectedFallback) {
     throw new Error("updater made a rejected request against the qualification feed");
+  }
+};
+
+const restartDiagnosticText = (value, limit = 16_384) => String(value || "")
+  .replace(/(Bearer\s+)[^\s"']+/gi, "$1[REDACTED]")
+  .replace(/((?:password|secret|token|api[_-]?key)["']?\s*(?:[:=]\s*|\s+))["']?[^\s,"'}]+/gi, "$1[REDACTED]")
+  .slice(-limit);
+
+const restartErrorDetails = (error) => error ? {
+  name: String(error.name || "Error"),
+  message: restartDiagnosticText(error.message || error, 8_192),
+  stack: restartDiagnosticText(error.stack || ""),
+} : null;
+
+const restartUpdateProbeDetails = (probe) => {
+  if (!probe) return null;
+  const state = (value) => value ? Object.fromEntries(
+    ["stage", "currentVersion", "latestVersion", "message"].filter((key) => typeof value[key] === "string")
+      .map((key) => [key, restartDiagnosticText(value[key], 1024)]),
+  ) : null;
+  const result = (value) => value ? { started: typeof value.started === "boolean" ? value.started : null } : null;
+  return {
+    before: state(probe.before), first: result(probe.first), after_first: state(probe.after_first),
+    duplicate: result(probe.duplicate), after_duplicate: state(probe.after_duplicate),
+    error: typeof probe.error === "string" ? restartDiagnosticText(probe.error, 2048) : null,
+    stages: (probe.stages || []).slice(-64).map((value) => restartDiagnosticText(String(value), 128)),
+  };
+};
+
+// Only this run's observed tree or private installation paths may be cleaned.
+// Do not match a bare product name: the runner may host unrelated applications.
+const selectRestartCleanupPids = ({ rows, runtime, installedFixture, expectedCandidate }) => {
+  const known = new Set([runtime?.child?.pid, ...(runtime?.observedPids || [])]);
+  const roots = [installedFixture?.launchCwd, expectedCandidate?.launchCwd]
+    .filter((value) => typeof value === "string" && value.length > 3);
+  for (const row of rows) {
+    const owned = process.platform === "win32" ? windowsImageInRoots(row, roots)
+      : roots.some((root) => normalizePath(row.command).includes(`${normalizePath(root).replace(/\/+$/, "")}/`));
+    if (owned) known.add(row.pid);
+  }
+  // Remove protected ancestors before walking children, otherwise a harness
+  // command containing an installation path could pull in sibling processes.
+  known.delete(process.pid);
+  known.delete(process.ppid);
+  for (const pid of [...known]) {
+    if (Number.isSafeInteger(pid) && pid > 1) {
+      for (const descendant of descendantPids(rows, pid)) known.add(descendant);
+    }
+  }
+  return [...known].filter((pid) => Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid && pid !== process.ppid);
+};
+
+class RestartCleanupTimeoutError extends Error {}
+
+const boundedRestartCleanup = async (action, label, timeoutMs = RESTART_UPDATE_TIMEOUTS.cleanup) => {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(action),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new RestartCleanupTimeoutError(`${label} cleanup timed out`)), timeoutMs); }),
+    ]);
+  } finally { clearTimeout(timer); }
+};
+
+export const closeRestartBrowser = async (browser, label, {
+  timeoutMs = RESTART_UPDATE_TIMEOUTS.cleanup,
+  retryDelayMs = RESTART_UPDATE_TIMEOUTS.retryDelay,
+  onEvent = () => {},
+} = {}) => {
+  const connected = () => {
+    const value = browser.isConnected();
+    if (typeof value !== "boolean") throw new Error(`${label} connection state must be boolean`);
+    return value;
+  };
+  for (let attempt = 1; attempt <= RESTART_UPDATE_TIMEOUTS.browserCloseAttempts; attempt += 1) {
+    if (!connected()) {
+      onEvent({ label, attempt, outcome: "disconnected" });
+      return;
+    }
+    onEvent({ label, attempt, outcome: "attempt" });
+    try {
+      // A deadline does not cancel the original promise. Playwright close is
+      // idempotent; only this connection teardown may be repeated, never install.
+      await boundedRestartCleanup(() => browser.close(), label, timeoutMs);
+    } catch (error) {
+      if (!(error instanceof RestartCleanupTimeoutError)) throw error;
+      onEvent({ label, attempt, outcome: "timeout" });
+      if (!connected()) {
+        onEvent({ label, attempt, outcome: "disconnected" });
+        return;
+      }
+      if (attempt === RESTART_UPDATE_TIMEOUTS.browserCloseAttempts) throw error;
+      await sleep(retryDelayMs);
+      continue;
+    }
+    if (connected()) throw new Error(`${label} remained connected after close`);
+    onEvent({ label, attempt, outcome: "closed" });
+    return;
   }
 };
 
@@ -369,9 +592,10 @@ export async function runRestartUpdateQualification({
   targetId,
   feedPort,
   serverLogPath = "",
+  diagnosticsPath = "",
 }) {
   validateRestartUpdateRuntimeInputs({ targetId, feedPort });
-  const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+  const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
   const candidateRoot = path.resolve(candidateDir);
   const manifest = readJson(path.join(candidateRoot, "release-assets.v1.json"));
   validateReleaseAssetManifest(manifest, contract);
@@ -388,23 +612,89 @@ export async function runRestartUpdateQualification({
   let installedFixture;
   let runtime;
   let server;
+  let stage = "install-candidate";
+  let primaryError = null;
+  let updateProbe = null;
+  let processEvidence = [];
+  const cleanupErrors = [];
+  const observations = createRestartObservationRecorder({ now: () => Date.now() });
+  const observationErrors = [];
+  let windowsObservations = null;
+  const profileEvidence = { before: null, after: null };
+  const macosCloseObservations = [];
+  const observe = (label, rows, force = false) => {
+    try { observations.capture(label, rows || readProcessTable(), [...(runtime?.observedPids || [])], force); }
+    catch (error) { if (observationErrors.length < 16) observationErrors.push({ stage: label, error: restartErrorDetails(error) }); }
+  };
+  const recoveryEvents = [];
+  const browserClosures = new WeakMap();
+  const closeBrowser = (browser, label) => {
+    if (!browser) return;
+    // Main path and finally share one logical close, including its failure.
+    if (!browserClosures.has(browser)) browserClosures.set(browser, closeRestartBrowser(browser, label, {
+      onEvent: (event) => { recoveryEvents.push(event); },
+    }));
+    return browserClosures.get(browser);
+  };
+  const writeDiagnostics = () => {
+    if (!diagnosticsPath) return;
+    writeJson(path.resolve(diagnosticsPath), {
+      schema: "pupu.restart-update-diagnostics.v1",
+      status: primaryError || cleanupErrors.length ? "failed" : "passed",
+      target_id: targetId,
+      candidate: { tag: manifest.release.tag, commit: manifest.release.commit, manifest_digest: manifest.manifest_digest },
+      fixture: { tag: fixture.from_tag, commit: fixture.from_commit },
+      stage,
+      primary_error: restartErrorDetails(primaryError),
+      update_probe: restartUpdateProbeDetails(updateProbe),
+      cleanup_errors: cleanupErrors,
+      recovery_events: recoveryEvents,
+      timeout_policy_ms: RESTART_UPDATE_TIMEOUTS,
+      runtime: {
+        pid: runtime?.child?.pid || null,
+        user_data: runtime?.userData || null,
+        observed_pids: [...(runtime?.observedPids || [])].filter(Number.isSafeInteger),
+        output_tail: restartDiagnosticText((runtime?.output || []).join("")),
+      },
+      processes: processEvidence,
+      process_timeline: observations.snapshots,
+      observation_errors: observationErrors,
+      windows_observations: windowsObservations,
+      ...(process.platform === "darwin" ? { macos_profiles: profileEvidence, macos_close: macosCloseObservations } : {}),
+      feed_request_count: server?.requests?.length || 0,
+    });
+  };
   try {
-    expectedCandidate = installTargetPackage({
+    if (targetId.startsWith("macos-")) {
+      stage = "fixture-profile";
+      preflightMacRestartProfile();
+    }
+    if (targetId === "windows-x64") {
+      stage = "fixture-profile";
+      // NSIS can stop/uninstall a registered app even with a custom /D path.
+      // Refuse non-disposable or existing profiles before either installer runs.
+      preflightRestartWindowsProfile({ tempRoot });
+    }
+    stage = "install-candidate";
+    expectedCandidate = await installTargetPackage({
       targetId,
       installerPath: candidateInstallerPath,
       tempRoot: path.join(tempRoot, "expected-n"),
     });
     const expected = expectedIdentity({ installed: expectedCandidate, targetId });
-    installedFixture = installTargetPackage({
+    stage = "install-fixture";
+    installedFixture = await installTargetPackage({
       targetId,
       installerPath: path.resolve(fixturePath),
       tempRoot: path.join(tempRoot, "installed-n-minus-one"),
     });
+    stage = "fixture-updater-binding";
     const fixtureUpdateConfigPath = path.join(path.dirname(installedFixture.identity.asarPath), "app-update.yml");
     validateQualificationFixtureAppUpdate({
       contents: fs.readFileSync(fixtureUpdateConfigPath, "utf8"),
       feedUrl,
     });
+    stage = "start-feed";
     const feedDir = path.join(tempRoot, "qualification-feed");
     buildQualificationFeed({ candidateDir: candidateRoot, outDir: feedDir, targetId, contract });
     server = await startQualificationFeedServer({
@@ -418,11 +708,23 @@ export async function runRestartUpdateQualification({
       throw new Error("qualification feed server did not bind the fixture's exact loopback URL");
     }
 
-    runtime = await startFixtureRuntime({ installed: installedFixture, tempRoot: path.join(tempRoot, "installed-n-minus-one") });
+    stage = "start-fixture";
+    runtime = await startFixtureRuntime({
+      installed: installedFixture,
+      tempRoot: path.join(tempRoot, "installed-n-minus-one"),
+      onAcquired: (session) => { runtime = session; },
+      onStage: (next) => { stage = next; },
+    });
+    stage = "fixture-version";
     const initialVersion = await runtime.page.evaluate(() => window.appUpdateAPI.getState().then((state) => state.currentVersion));
     if (initialVersion !== fixture.from_version) {
       throw new Error(`installed fixture version does not match ${fixture.from_version}`);
     }
+    if (process.platform === "darwin") {
+      stage = "fixture-profile-proof";
+      profileEvidence.before = await assertMacRuntimeProfile({ installed: installedFixture, rootPid: runtime.child.pid, userData: runtime.userData });
+    }
+    stage = "settings-sentinel";
     const sentinelResult = await runtime.page.evaluate(async () => {
       window.__pupuRestartUpdateStages = [];
       window.__pupuRestartUpdateUnsubscribe = window.appUpdateAPI.onStateChange((state) => {
@@ -435,18 +737,41 @@ export async function runRestartUpdateQualification({
     await waitFor(() => fs.statSync(sentinelPath, { throwIfNoEntry: false })?.isFile(), 15_000, "settings sentinel persistence");
     const beforeSentinelSha256 = hashFile(sentinelPath);
 
-    const download = await runtime.page.evaluate(async () => {
-      const first = await window.appUpdateAPI.checkAndDownload();
-      const duplicate = await window.appUpdateAPI.checkAndDownload();
-      return { first, duplicate };
+    stage = "check-and-download";
+    updateProbe = await runtime.page.evaluate(async () => {
+      const probe = { before: null, first: null, after_first: null, duplicate: null, after_duplicate: null };
+      try {
+        probe.before = await window.appUpdateAPI.getState();
+        if (probe.before?.stage === "idle") {
+          probe.first = await window.appUpdateAPI.checkAndDownload();
+          probe.after_first = await window.appUpdateAPI.getState();
+          probe.duplicate = await window.appUpdateAPI.checkAndDownload();
+          probe.after_duplicate = await window.appUpdateAPI.getState();
+        }
+      } catch (error) {
+        probe.error = String(error?.message || error);
+      }
+      probe.stages = window.__pupuRestartUpdateStages.slice(-64);
+      return probe;
     });
-    if (download?.first?.started !== true || download?.duplicate?.started !== false) {
-      throw new Error("the product updater did not block a duplicate check while downloading");
+    if (updateProbe.error) throw new Error(`manual update probe IPC failed: ${updateProbe.error}`);
+    if (updateProbe.before?.stage !== "idle") {
+      throw new Error(`expected idle updater before manual check; got ${updateProbe.before?.stage || "missing state"}`);
     }
-    await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: 120_000 });
+    const exactStartedResult = (value, expected) => value && Object.keys(value).length === 1 && value.started === expected;
+    if (!exactStartedResult(updateProbe.first, true)) {
+      throw new Error("first manual update check did not start; see update_probe diagnostics");
+    }
+    if (!exactStartedResult(updateProbe.duplicate, false)) {
+      throw new Error("duplicate update check was not blocked; see update_probe diagnostics");
+    }
+    stage = "wait-downloaded";
+    await runtime.page.waitForFunction(() => window.__pupuRestartUpdateStages.includes("downloaded"), null, { timeout: RESTART_UPDATE_TIMEOUTS.download });
     const stageTrace = await runtime.page.evaluate(() => window.__pupuRestartUpdateStages);
     validateRestartUpdateStageTrace(stageTrace);
 
+    stage = "request-install";
+    observe(stage, null, true);
     const install = await runtime.page.evaluate(async () => {
       const first = window.appUpdateAPI.installNow();
       const duplicate = window.appUpdateAPI.installNow();
@@ -455,22 +780,50 @@ export async function runRestartUpdateQualification({
     if (install?.[0]?.started !== true || install?.[1]?.started !== false) {
       throw new Error("the product updater did not block a duplicate restart-to-install request");
     }
-    await waitFor(() => !processAlive(runtime.child.pid), 60_000, "old N-1 process exit after user restart-to-install");
-    await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), 60_000, "old N-1 process tree cleanup");
-    await runtime.browser.close().catch(() => {});
+    stage = "old-process-exit";
+    await waitFor(() => !processAlive(runtime.child.pid), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process exit after user restart-to-install");
+    await waitFor(() => [...runtime.observedPids].every((pid) => !processAlive(pid)), RESTART_UPDATE_TIMEOUTS.oldProcessExit, "old N-1 process tree cleanup");
+    stage = "old-browser-disconnect";
+    observe(stage, null, true);
+    await closeBrowser(runtime.browser, "old-runtime-browser");
     runtime.browser = null;
 
-    const relaunchedRoot = await findRelaunchedRoot({ installed: installedFixture, oldPid: runtime.child.pid });
+    stage = "find-relaunched-candidate";
+    const relaunchedRoot = await findRelaunchedRoot({ installed: installedFixture, oldPid: runtime.child.pid,
+      onObservation: (rows) => observe(stage, rows),
+    });
+    runtime.observedPids.add(relaunchedRoot.pid);
+    stage = "relaunched-sidecar";
     await assertRelaunchedSidecar({ installed: installedFixture, rootPid: relaunchedRoot.pid });
+    stage = "relaunched-identity";
     const finalIdentity = assertUpdatedIdentity({ installed: installedFixture, expected, targetId });
+    if (process.platform === "darwin") {
+      stage = "relaunched-profile-proof";
+      profileEvidence.after = await assertMacRuntimeProfile({ installed: installedFixture, rootPid: relaunchedRoot.pid, userData: runtime.userData });
+      if (profileEvidence.after.user_data !== profileEvidence.before.user_data) throw new Error("macOS profile identity changed across restart");
+    }
+    stage = "retained-settings";
     const afterSentinelSha256 = hashFile(sentinelPath);
     if (afterSentinelSha256 !== beforeSentinelSha256) {
       throw new Error("restarted N did not retain the exact settings sentinel bytes");
     }
-    assertFeedRequests(server);
+    stage = "feed-requests";
+    assertFeedRequests(server, { targetId, fromVersion: fixture.from_version, contract });
 
-    installedFixture.close(relaunchedRoot.pid);
-    await waitFor(() => !processAlive(relaunchedRoot.pid), 30_000, "restarted N controlled shutdown");
+    stage = "relaunched-shutdown";
+    if (process.platform === "darwin") {
+      await installedFixture.close(relaunchedRoot.pid, {
+        onObservation: (row) => {
+          if (macosCloseObservations.length >= 128) macosCloseObservations.shift();
+          macosCloseObservations.push(row);
+          console.log(`[macos-close] ${JSON.stringify(row)}`);
+        },
+      });
+    } else {
+      await installedFixture.close(relaunchedRoot.pid);
+    }
+    await waitFor(() => !processAlive(relaunchedRoot.pid), RESTART_UPDATE_TIMEOUTS.shutdown, "restarted N controlled shutdown");
+    stage = "validate-report";
     return validateRestartUpdateQualificationReport({
       schema: RESTART_UPDATE_QUALIFICATION_SCHEMA,
       status: "passed",
@@ -512,21 +865,59 @@ export async function runRestartUpdateQualification({
       },
       executed_tests: 15,
     }, { manifest, targetId });
-  } finally {
-    await runtime?.browser?.close().catch(() => {});
-    const rows = readProcessTable();
-    await terminateProcesses([
-      runtime?.child?.pid,
-      ...(runtime?.observedPids || []),
-      ...descendantPids(rows, runtime?.child?.pid),
-    ]);
-    if (server && serverLogPath) {
-      writeJson(path.resolve(serverLogPath), buildQualificationFeedServerLog(server));
+  } catch (error) {
+    primaryError = error;
+    // Print before cleanup so even a diagnostic-write/cleanup failure cannot
+    // erase the first cause from Actions logs.
+    console.error(`[restart-update:${stage}] ${restartDiagnosticText(error.stack || error.message || error)}`);
+    observe(stage, null, true);
+    if (targetId === "windows-x64") {
+      try { windowsObservations = collectWindowsUpgradeObservations({ roots: [installedFixture?.launchCwd, expectedCandidate?.launchCwd] }); }
+      catch (observationError) { observationErrors.push({ stage: "windows-observation", error: restartErrorDetails(observationError) }); }
     }
-    await server?.close().catch(() => {});
-    try { installedFixture?.cleanup(); } catch { /* best-effort fixture cleanup */ }
-    try { expectedCandidate?.cleanup(); } catch { /* best-effort candidate cleanup */ }
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    throw error;
+  } finally {
+    const attemptCleanup = async (step, action) => {
+      try { await action(); }
+      catch (error) {
+        cleanupErrors.push({ step, error: restartErrorDetails(error) });
+        console.error(`[restart-update:cleanup:${step}] ${restartDiagnosticText(error.message || error)}`);
+      }
+    };
+    let rows = [];
+    await attemptCleanup("capture-processes", () => {
+      rows = readProcessTable();
+      const ids = new Set(selectRestartCleanupPids({ rows, runtime, installedFixture, expectedCandidate }));
+      processEvidence = rows.filter((row) => ids.has(row.pid)).slice(0, 256)
+        .map((row) => ({ pid: row.pid, ppid: row.ppid, command: restartDiagnosticText(row.command, 2_048) }));
+    });
+    // Write outside tempRoot before teardown, and update with cleanup failures.
+    if (primaryError) await attemptCleanup("write-diagnostics-before-cleanup", writeDiagnostics);
+    await attemptCleanup("browser-close", () => closeBrowser(runtime?.browser, "browser-close"));
+    await attemptCleanup("terminate-processes", () => terminateProcesses(
+      selectRestartCleanupPids({ rows, runtime, installedFixture, expectedCandidate }),
+    ));
+    await attemptCleanup("wait-process-exit", () => waitFor(async () => {
+      const current = readProcessTable();
+      const remaining = selectRestartCleanupPids({ rows: current, runtime, installedFixture, expectedCandidate })
+        .filter(processAlive);
+      if (remaining.length === 0) return true;
+      await terminateProcesses(remaining);
+      return false;
+    }, 20_000, "restart qualification process cleanup"));
+    await attemptCleanup("feed-log", () => {
+      if (server && serverLogPath) writeJson(path.resolve(serverLogPath), buildQualificationFeedServerLog(server));
+    });
+    await attemptCleanup("feed-close", () => boundedRestartCleanup(() => server?.close(), "feed-close"));
+    await attemptCleanup("fixture-cleanup", () => installedFixture?.cleanup());
+    await attemptCleanup("candidate-cleanup", () => expectedCandidate?.cleanup());
+    await attemptCleanup("remove-temp-root", () => fs.rmSync(tempRoot, {
+      recursive: true, force: true, maxRetries: 5, retryDelay: 500,
+    }));
+    if (primaryError || cleanupErrors.length || recoveryEvents.length || macosCloseObservations.length) await attemptCleanup("write-diagnostics", writeDiagnostics);
+    if (!primaryError && cleanupErrors.length) {
+      throw new Error(`restart qualification cleanup failed: ${cleanupErrors.map((item) => `${item.step}: ${item.error.message}`).join("; ")}`);
+    }
   }
 }
 
@@ -568,11 +959,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
       targetId: args.target,
       feedPort: Number(args["feed-port"]),
       serverLogPath: args["server-log"],
+      diagnosticsPath: args.diagnostics || `${args.out}.diagnostics.json`,
     });
     writeJson(path.resolve(args.out), report);
     console.log(`[restart-update] ${report.target_id} passed ${report.executed_tests} real lifecycle checks`);
   } catch (error) {
-    console.error(`[restart-update] ${error.message || String(error)}`);
+    console.error(`[restart-update] ${restartDiagnosticText(error.message || error)}`);
     process.exitCode = 1;
   }
 }

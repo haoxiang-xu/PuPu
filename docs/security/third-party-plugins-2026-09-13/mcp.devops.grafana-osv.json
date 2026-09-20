@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.devops.grafana-requirements.txt",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "mcp-grafana",
+            "version": "0.17.2",
+            "ecosystem": "PyPI"
+          }
+        }
+      ]
+    }
+  ],
+  "experimental_config": {
+    "licenses": {
+      "summary": false,
+      "allowlist": null
+    }
+  }
+}

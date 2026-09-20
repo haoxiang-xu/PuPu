@@ -40,7 +40,7 @@ Rebuild after adding a snapshot.
 
 ## Running a patrol
 
-Use the `growth-analyst` skill — it encodes the collection commands, traffic-quality rules,
+Use the `community-growth-analyst` skill — it encodes the collection commands, traffic-quality rules,
 release normalization, and report format. Do not re-derive that methodology.
 
 Three reading disciplines that this library keeps re-proving:

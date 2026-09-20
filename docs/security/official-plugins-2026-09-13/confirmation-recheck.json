@@ -1,0 +1,836 @@
+{
+  "shellPositiveControl": {
+    "result": {
+      "ok": true,
+      "action": "run",
+      "status": "completed",
+      "shell_family": "posix",
+      "platform": "darwin",
+      "cwd": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/recheck/workspace",
+      "task_id": "",
+      "error": "",
+      "background": false,
+      "returncode": 0,
+      "stdout": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/recheck/workspace\n",
+      "stderr": "",
+      "timed_out": false,
+      "truncated": false
+    },
+    "denied": false,
+    "confirmationRequests": 0
+  },
+  "shellDenialControl": {
+    "result": {
+      "denied": true,
+      "tool": "shell",
+      "reason": "User denied execution."
+    },
+    "denied": true,
+    "confirmationRequests": 1
+  },
+  "shellBypass": {
+    "result": {
+      "ok": true,
+      "action": "run",
+      "status": "completed",
+      "shell_family": "posix",
+      "platform": "darwin",
+      "cwd": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/recheck/workspace",
+      "task_id": "",
+      "error": "",
+      "background": false,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "timed_out": false,
+      "truncated": false
+    },
+    "denied": false,
+    "confirmationRequests": 0,
+    "markerWritten": true
+  },
+  "grepBoundary": {
+    "result": {
+      "pattern": "CANARY_BOUNDARY_RECHECK",
+      "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/recheck/workspace",
+      "output_mode": "content",
+      "matches": [
+        {
+          "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/recheck/workspace/linked.txt",
+          "relative_path": "linked.txt",
+          "line": 1,
+          "match": "CANARY_BOUNDARY_RECHECK",
+          "line_text": "CANARY_BOUNDARY_RECHECK",
+          "context_before": [],
+          "context_after": []
+        }
+      ],
+      "match_count": 1,
+      "files_with_matches": 1,
+      "scanned_files": 3,
+      "applied_offset": 0,
+      "applied_limit": 50,
+      "truncated": false
+    },
+    "denied": false,
+    "confirmationRequests": 0,
+    "outsideDataReturned": true
+  },
+  "planBoundary": {
+    "result": {
+      "ok": true,
+      "plans": [
+        {
+          "plan_id": "plan_1",
+          "title": "normal",
+          "status": "draft",
+          "revision": 1
+        },
+        {
+          "plan_id": "plan_88",
+          "title": "CANARY_BOUNDARY_RECHECK",
+          "status": "draft",
+          "revision": 1
+        }
+      ]
+    },
+    "denied": false,
+    "confirmationRequests": 0,
+    "outsideTitleReturned": true
+  },
+  "schemas": {
+    "core": [
+      {
+        "type": "function",
+        "name": "ask_user_question",
+        "description": "Ask the user a structured selector question and suspend the run until they respond. Use this when you need a concrete decision, clarification, or preference that would materially change the implementation or final result. Ask for the smallest concrete answer that unblocks the work. Do not ask meta-questions such as what to discuss first. The question must let the user directly choose an answer, and the options must be concrete candidate answers, not categories, dimensions, or discussion topics. For an unbounded answer such as a folder path or name, ask for that blocking value directly before making downstream feature-scope decisions; use options=[] with allow_other=true, selection_mode=\"single\", and a meaningful other_label such as \"Folder path\". Never guess a local or OS-specific path, and never invent custom_path or enter_text options. When several reasonable paths exist, ask the user instead of silently guessing.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Short title naming the concrete decision being made."
+            },
+            "question": {
+              "type": "string",
+              "description": "Concrete user-facing question for the decision you need now. Ask for a direct answer, not which dimensions, topics, or categories to explore. For an unbounded value such as a folder path or name, ask directly for that value."
+            },
+            "selection_mode": {
+              "type": "string",
+              "description": "Selection mode. Must be 'single' or 'multiple'."
+            },
+            "options": {
+              "type": "array",
+              "description": "Concrete candidate answers shown to the user. Do not use categories, placeholders, or meta options such as 'platform', 'tech', or 'scope'. For free text, use an empty array only with allow_other=true and set a meaningful other_label.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "User-facing label for a concrete answer the user can directly choose."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Stable option value returned to the assistant."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional helper text clarifying what selecting this concrete answer means."
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "allow_other": {
+              "type": "boolean",
+              "description": "Whether to allow a freeform concrete answer when the listed options are insufficient. For an unbounded answer, set this true with options=[] and selection_mode=\"single\"."
+            },
+            "other_label": {
+              "type": "string",
+              "description": "Meaningful input label for the freeform answer when allow_other is true, such as 'Folder path'."
+            },
+            "other_placeholder": {
+              "type": "string",
+              "description": "Placeholder for the freeform input shown when Other is selected."
+            },
+            "min_selected": {
+              "type": "integer",
+              "description": "Minimum number of selections required."
+            },
+            "max_selected": {
+              "type": "integer",
+              "description": "Maximum number of selections allowed."
+            }
+          },
+          "required": [
+            "title",
+            "question",
+            "selection_mode",
+            "options"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "read",
+        "description": "Read a UTF-8 text file by absolute path with line-numbered output and optional line slicing.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path to the file inside the workspace roots."
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Zero-based line offset to start reading from."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of lines to return. Omit for the full file."
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "write",
+        "description": "Create or fully overwrite a UTF-8 text file by absolute path. Existing files must be fully read first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path to the file inside the workspace roots."
+            },
+            "content": {
+              "type": "string",
+              "description": "Full replacement content for the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "edit",
+        "description": "Replace one unique string match, or all matches when requested, in an existing UTF-8 text file by absolute path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path to the file inside the workspace roots."
+            },
+            "old_string": {
+              "type": "string",
+              "description": "Existing string to replace."
+            },
+            "new_string": {
+              "type": "string",
+              "description": "Replacement string."
+            },
+            "replace_all": {
+              "type": "boolean",
+              "description": "Replace every occurrence instead of requiring a unique match."
+            }
+          },
+          "required": [
+            "path",
+            "old_string",
+            "new_string"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "glob",
+        "description": "List files matching a glob pattern inside the workspace, sorted by most recently modified first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern relative to the base path, for example `**/*.py`."
+            },
+            "path": {
+              "type": "string",
+              "description": "Optional absolute base directory or file path. Defaults to the first workspace root."
+            }
+          },
+          "required": [
+            "pattern"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "grep",
+        "description": "Search UTF-8 text files inside the workspace with regex, optional glob filters, and paginated result modes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "Optional absolute base directory or file path. Defaults to the first workspace root."
+            },
+            "glob": {
+              "type": "string",
+              "description": "Optional glob filter applied to relative file paths."
+            },
+            "output_mode": {
+              "type": "string",
+              "description": "One of `content`, `files_with_matches`, or `count`."
+            },
+            "context": {
+              "type": "integer",
+              "description": "Number of surrounding lines to include for `content` mode."
+            },
+            "head_limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return."
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Pagination offset for `content` and `files_with_matches` modes."
+            },
+            "case_sensitive": {
+              "type": "boolean",
+              "description": "When false, search using case-insensitive regex."
+            },
+            "multiline": {
+              "type": "boolean",
+              "description": "When true, allow regex matches to span newlines."
+            }
+          },
+          "required": [
+            "pattern"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "web_fetch",
+        "description": "Fetch a public web page over HTTP(S), return raw page content or run a runtime-configured extraction model.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Public HTTP(S) URL to fetch."
+            },
+            "mode": {
+              "type": "string",
+              "description": "Either `raw` or `extract`."
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Extraction prompt used only when `mode=\"extract\"`."
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Zero-based character offset for `raw` mode pagination."
+            },
+            "max_chars": {
+              "type": "integer",
+              "description": "Maximum characters to return in `raw` mode. Capped at 50,000."
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "shell",
+        "description": "Run a shell command, poll or wait for a background task, or kill it within the workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "One of `run`, `poll`, `wait`, or `kill`."
+            },
+            "command": {
+              "type": "string",
+              "description": "Shell command used when `action=\"run\"`."
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Optional working directory. Relative paths resolve from the session cwd."
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "description": "Maximum runtime for `run`, or maximum blocking time for `wait`. Clamped to 1s..600s."
+            },
+            "run_in_background": {
+              "type": "boolean",
+              "description": "When true, start a background task and return a `task_id`."
+            },
+            "max_output_chars": {
+              "type": "integer",
+              "description": "Maximum characters returned per stream, capped at 100,000."
+            },
+            "yield_time_ms": {
+              "type": "integer",
+              "description": "Small delay before returning a background task so early output can accumulate."
+            },
+            "task_id": {
+              "type": "string",
+              "description": "Background task id used by `poll`, `wait`, and `kill`."
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "lsp",
+        "description": "Query a language server for definitions, references, hover text, and symbols for Python or TS/JS files.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "description": "One of `goToDefinition`, `findReferences`, `hover`, `documentSymbol`, or `workspaceSymbol`."
+            },
+            "file_path": {
+              "type": "string",
+              "description": "Absolute path to the file inside the workspace roots."
+            },
+            "line": {
+              "type": "integer",
+              "description": "One-based line number for cursor-based operations."
+            },
+            "character": {
+              "type": "integer",
+              "description": "One-based character offset for cursor-based operations."
+            },
+            "query": {
+              "type": "string",
+              "description": "Optional workspace symbol query used only when `operation=\"workspaceSymbol\"`."
+            }
+          },
+          "required": [
+            "operation",
+            "file_path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ],
+    "plan": [
+      {
+        "type": "function",
+        "name": "plan_start",
+        "description": "Create a new draft plan in the workspace and return its plan_id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Short plan title."
+            },
+            "goal": {
+              "type": "string",
+              "description": "Concrete goal the plan should satisfy."
+            },
+            "constraints": {
+              "type": "string",
+              "description": "Optional constraints as a string or list of strings."
+            }
+          },
+          "required": [
+            "title",
+            "goal"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "plan_update",
+        "description": "Replace structured sections of a draft plan such as summary, steps, tests, assumptions, and references.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "plan_id": {
+              "type": "string",
+              "description": "Existing plan id returned by plan_start."
+            },
+            "summary": {
+              "type": "string",
+              "description": "Optional summary text. Omit to keep the current value."
+            },
+            "steps": {
+              "type": "array",
+              "description": "Optional list of step strings or objects with step/status.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "key_changes": {
+              "type": "string",
+              "description": "Optional list of implementation changes."
+            },
+            "public_interfaces": {
+              "type": "string",
+              "description": "Optional list of public API or behavior changes."
+            },
+            "test_cases": {
+              "type": "string",
+              "description": "Optional list of tests to add or run."
+            },
+            "assumptions": {
+              "type": "string",
+              "description": "Optional list of explicit assumptions."
+            },
+            "references": {
+              "type": "string",
+              "description": "Optional list of reference material."
+            },
+            "open_questions": {
+              "type": "string",
+              "description": "Optional list of unresolved questions."
+            },
+            "constraints": {
+              "type": "string",
+              "description": "Optional replacement list of constraints."
+            }
+          },
+          "required": [
+            "plan_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "plan_read",
+        "description": "Return a plan's status and workspace Markdown file location.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "plan_id": {
+              "type": "string",
+              "description": "Existing plan id returned by plan_start."
+            }
+          },
+          "required": [
+            "plan_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "plan_finalize",
+        "description": "Finalize a workspace-backed plan.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "plan_id": {
+              "type": "string",
+              "description": "Existing plan id returned by plan_start."
+            }
+          },
+          "required": [
+            "plan_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "type": "function",
+        "name": "plan_list",
+        "description": "List draft and finalized plans stored in the workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
+  "runtimePackages": [
+    {
+      "name": "qdrant-client",
+      "version": "1.17.1"
+    },
+    {
+      "name": "docstring_parser",
+      "version": "0.17.0"
+    },
+    {
+      "name": "tree-sitter-languages",
+      "version": "1.10.2"
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.9.4"
+    },
+    {
+      "name": "click",
+      "version": "8.3.1"
+    },
+    {
+      "name": "google-genai",
+      "version": "1.68.0"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.2.25"
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0"
+    },
+    {
+      "name": "protobuf",
+      "version": "7.34.1"
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1"
+    },
+    {
+      "name": "starlette",
+      "version": "1.0.0"
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.22"
+    },
+    {
+      "name": "websockets",
+      "version": "16.0"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.12.5"
+    },
+    {
+      "name": "grpcio",
+      "version": "1.78.0"
+    },
+    {
+      "name": "cryptography",
+      "version": "46.0.6"
+    },
+    {
+      "name": "google-auth",
+      "version": "2.49.1"
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.26.0"
+    },
+    {
+      "name": "requests",
+      "version": "2.33.0"
+    },
+    {
+      "name": "idna",
+      "version": "3.11"
+    },
+    {
+      "name": "tree-sitter",
+      "version": "0.21.3"
+    },
+    {
+      "name": "cffi",
+      "version": "2.0.0"
+    },
+    {
+      "name": "sse-starlette",
+      "version": "3.3.3"
+    },
+    {
+      "name": "portalocker",
+      "version": "3.2.0"
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.42.0"
+    },
+    {
+      "name": "anthropic",
+      "version": "0.86.0"
+    },
+    {
+      "name": "tenacity",
+      "version": "9.1.4"
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9"
+    },
+    {
+      "name": "mcp",
+      "version": "1.26.0"
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.13.1"
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.2"
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0"
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0"
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.41.5"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.6.3"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.15.0"
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0"
+    },
+    {
+      "name": "numpy",
+      "version": "2.4.3"
+    },
+    {
+      "name": "jiter",
+      "version": "0.13.0"
+    },
+    {
+      "name": "unchain",
+      "version": "0.2.0"
+    },
+    {
+      "name": "PyJWT",
+      "version": "2.12.1"
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0"
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0"
+    },
+    {
+      "name": "Pygments",
+      "version": "2.19.2"
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0"
+    },
+    {
+      "name": "packaging",
+      "version": "26.0"
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1"
+    },
+    {
+      "name": "h2",
+      "version": "4.3.0"
+    },
+    {
+      "name": "tqdm",
+      "version": "4.67.3"
+    },
+    {
+      "name": "pyasn1_modules",
+      "version": "0.4.2"
+    },
+    {
+      "name": "hpack",
+      "version": "4.1.0"
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.2"
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.7.0"
+    },
+    {
+      "name": "regex",
+      "version": "2026.7.19"
+    },
+    {
+      "name": "httpx-sse",
+      "version": "0.4.3"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.6"
+    },
+    {
+      "name": "rpds-py",
+      "version": "0.30.0"
+    },
+    {
+      "name": "hyperframe",
+      "version": "6.1.0"
+    },
+    {
+      "name": "openai",
+      "version": "2.30.0"
+    },
+    {
+      "name": "pytest",
+      "version": "9.0.2"
+    },
+    {
+      "name": "anyio",
+      "version": "4.13.0"
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.3"
+    }
+  ],
+  "classification": "same-reviewer skeptical recheck; real confirmation dispatcher, no real model"
+}

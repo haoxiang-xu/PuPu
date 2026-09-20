@@ -1,6 +1,7 @@
 import {
   enqueueExecutionCancel,
   readExecutionCancelOutbox,
+  recordExecutionCancelFailure,
   removeExecutionCancel,
 } from "./execution_cancel_outbox";
 
@@ -121,5 +122,20 @@ describe("execution cancellation outbox", () => {
         attemptId: "attempt-1",
       }),
     );
+  });
+
+  test("a failed retry-counter write stops retries in the current renderer", () => {
+    const identity = { sessionId: "chat-1", attemptId: "attempt-1" };
+    const storage = {
+      getItem: () => JSON.stringify([identity]),
+      setItem: () => { throw new DOMException("quota", "QuotaExceededError"); },
+    };
+
+    expect(recordExecutionCancelFailure(identity, new Error("offline"), storage))
+      .toEqual(expect.objectContaining({
+        retryCount: 1,
+        retryBlocked: true,
+        lastError: "offline",
+      }));
   });
 });

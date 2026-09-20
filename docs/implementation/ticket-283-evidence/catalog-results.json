@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-09-12T22:26:12.896Z",
+  "boundary": "BC-283-001",
+  "checks": [
+    "AC-283-001",
+    "AC-283-002"
+  ],
+  "result": "PASS",
+  "preexistingEntriesAndCutoff": "UNCHANGED",
+  "noProcessOrPersistenceOnRejection": "PASS",
+  "records": [
+    {
+      "id": "dev.microsoft-learn",
+      "normalization": "PASS",
+      "frontendAdmission": "BLOCKED",
+      "backendAdmission": "BLOCKED_403"
+    },
+    {
+      "id": "productivity.brave-search",
+      "normalization": "PASS",
+      "frontendAdmission": "BLOCKED",
+      "backendAdmission": "BLOCKED_403"
+    },
+    {
+      "id": "productivity.tavily",
+      "normalization": "PASS",
+      "frontendAdmission": "BLOCKED",
+      "backendAdmission": "BLOCKED_403"
+    },
+    {
+      "id": "productivity.firecrawl",
+      "normalization": "PASS",
+      "frontendAdmission": "BLOCKED",
+      "backendAdmission": "BLOCKED_403"
+    }
+  ]
+}

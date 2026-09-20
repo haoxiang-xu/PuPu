@@ -1,0 +1,23 @@
+
+  GitNexus Detect Changes (1.6.12)
+Changes: 5 files, 16 symbols
+Affected processes: 0
+Risk level: low
+
+Changed symbols:
+  Class CoreToolkit → src/unchain/toolkits/builtin/core/core.py
+  Method _register_tools → src/unchain/toolkits/builtin/core/core.py
+  Method read → src/unchain/toolkits/builtin/core/core.py
+  Method write → src/unchain/toolkits/builtin/core/core.py
+  Method lsp → src/unchain/toolkits/builtin/core/core.py
+  Class CoreWebBackend → src/unchain/toolkits/builtin/core/web_backend.py
+  Method __init__ → src/unchain/toolkits/builtin/core/web_backend.py
+  Method _tool_runtime_config_for → src/unchain/toolkits/builtin/core/web_backend.py
+  Method compact_args → src/unchain/toolkits/builtin/core/web_backend.py
+  Class _MarkdownHTMLParser → src/unchain/toolkits/builtin/core/web_fetch.py
+  Method __init__ → src/unchain/toolkits/builtin/core/web_fetch.py
+  Method handle_starttag → src/unchain/toolkits/builtin/core/web_fetch.py
+  Method handle_endtag → src/unchain/toolkits/builtin/core/web_fetch.py
+  Function html_to_markdown → src/unchain/toolkits/builtin/core/web_fetch.py
+  Function decode_response_body → src/unchain/toolkits/builtin/core/web_fetch.py
+... and 1 more

@@ -36,6 +36,7 @@ jobs:
   windows-restart-update:
     name: Qualify Windows signed N-1 to exact N restart update
     runs-on: windows-latest
+    timeout-minutes: 180
     environment: release-signing
     permissions:
       contents: read
@@ -51,13 +52,19 @@ jobs:
       FEED_PORT: "38193"
 
     steps:
+      - name: Checkout exact candidate qualification tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: pupu
+          persist-credentials: false
+
       - name: Validate closed Windows restart-update inputs
         shell: bash
+        working-directory: pupu
         run: |
-          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
-            echo "::error title=Source identity mismatch::Windows restart-update qualification must run from the exact candidate tag commit"
-            exit 1
-          fi
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
           if ! [[ "$FROM_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$FROM_VERSION" != "${FROM_TAG#v}" ] || ! [[ "$FROM_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Invalid N-1 fixture identity::from_tag, from_version, and from_commit must be the candidate-preflight values"
             exit 1
@@ -66,13 +73,6 @@ jobs:
             echo "::error title=Missing candidate run::Windows restart-update qualification requires an exact Release 1 candidate"
             exit 1
           fi
-
-      - name: Checkout exact candidate qualification tools
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
-          path: pupu
-          persist-credentials: false
 
       - name: Checkout immutable N-1 fixture source
         uses: actions/checkout@v4
@@ -169,7 +169,17 @@ jobs:
 
       - name: Install immutable N-1 build dependencies
         working-directory: fixture-source
-        run: npm ci
+        run: |
+          npm ci
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
+            -r unchain_runtime/server/requirements.txt
+
+      - name: Reproduce immutable N-1 release feature snapshot
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/qualification-fixture-snapshot.mjs prepare \
+            --source ../fixture-source \
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
 
       - name: Write sole permitted signed-fixture configuration difference
         working-directory: pupu
@@ -184,14 +194,21 @@ jobs:
         shell: pwsh
         working-directory: fixture-source
         env:
-          UNCHAIN_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}\fixture-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: ${{ steps.fixture_unchain.outputs.unchain_revision }}
           UNCHAIN_BUILD_VENV: ${{ runner.temp }}\pupu-fixture-unchain-${{ github.run_id }}
+          PUPU_BUILD_VERSION: ${{ inputs.from_version }}
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: .release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+          PUPU_REQUIRE_BUILD_FEATURE_SNAPSHOT: "1"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           WIN_CSC_LINK: ""
           CSC_LINK: ""
           WIN_CSC_KEY_PASSWORD: ""
           CSC_KEY_PASSWORD: ""
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/build-web.cjs --print-flags
           npm run version:prepare-build
           npm run build:unchain:win
           npm run build:web
@@ -203,13 +220,21 @@ jobs:
           }
           "payload=$payload" >> $env:GITHUB_OUTPUT
 
-      - name: Validate unsigned fixture updater binding before signing
+      - name: Prepare and validate unsigned fixture updater binding before signing
         shell: pwsh
         working-directory: pupu
         env:
           FIXTURE_PAYLOAD: ${{ steps.build_fixture.outputs.payload }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/release-qa/qualification-fixture-snapshot.mjs verify `
+            --asar "$env:FIXTURE_PAYLOAD\resources\app.asar" `
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
           $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/prepare-qualification-fixture-app-update.mjs `
+            --app-update "$appUpdate" `
+            --feed-url "http://127.0.0.1:$env:FEED_PORT/"
           node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
             --app-update "$appUpdate" `
             --feed-url "http://127.0.0.1:$env:FEED_PORT/"
@@ -247,6 +272,22 @@ jobs:
           azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
           azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
           azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+
+      - name: Validate fixture updater binding after installer packaging
+        shell: pwsh
+        working-directory: pupu
+        env:
+          FIXTURE_PAYLOAD: ${{ steps.fixture_paths.outputs.payload }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/release-qa/qualification-fixture-snapshot.mjs verify `
+            --asar "$env:FIXTURE_PAYLOAD\resources\app.asar" `
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+          $appUpdate = Join-Path $env:FIXTURE_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/validate-qualification-fixture-app-update.mjs `
+            --app-update "$appUpdate" `
+            --feed-url "http://127.0.0.1:$env:FEED_PORT/"
 
       - name: Seal signed N-1 fixture identity
         id: fixture_evidence
@@ -286,6 +327,7 @@ jobs:
             --target windows-x64 `
             --feed-port "$env:FEED_PORT" `
             --out restart-update-qualification.json `
+            --diagnostics restart-update-diagnostics.json `
             --server-log qualification-feed-server.v1.json
 
       - name: Upload Windows restart-update evidence only
@@ -294,12 +336,16 @@ jobs:
         with:
           name: restart-update-qualification-windows-x64
           if-no-files-found: warn
+          include-hidden-files: true
           retention-days: 30
           path: |
             pupu/restart-update-qualification.json
+            pupu/restart-update-diagnostics.json
             pupu/qualification-feed-server.v1.json
             pupu/windows-restart-fixture.v1.json
             fixture-source/windows-signing-qualification.v1.json
+            fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+            fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256
 
       - name: Enforce real Windows restart-update result
         if: always()

@@ -1,0 +1,266 @@
+{
+  "toolkitId": "mcp.dev.microsoft-learn",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "endpoint": "https://learn.microsoft.com/api/mcp",
+  "initialize": "PASS",
+  "server": {
+    "name": "Microsoft Learn MCP Server",
+    "version": "1.0.0"
+  },
+  "tools": [
+    {
+      "name": "microsoft_docs_search",
+      "title": "Microsoft Docs Search",
+      "description": "Search official Microsoft/Azure documentation to find the most relevant and trustworthy content for a user's query. This tool returns up to 10 high-quality content chunks (each max 500 tokens), extracted from Microsoft Learn and other official sources. Each result includes the article title, URL, and a self-contained content excerpt optimized for fast retrieval and reasoning. Always use this tool to quickly ground your answers in accurate, first-party Microsoft/Azure knowledge.\n\n## Follow-up Pattern\nTo ensure completeness, use microsoft_docs_fetch when high-value pages are identified by search. The fetch tool complements search by providing the full detail. This is a required step for comprehensive results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "description": "a query or topic about Microsoft/Azure products, services, platforms, developer tools, frameworks, or APIs",
+            "type": "string",
+            "default": null
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "contentUrl": {
+                  "type": "string"
+                },
+                "content_omitted": {
+                  "type": "boolean"
+                },
+                "extensionData": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "annotations": {
+        "title": "Microsoft Docs Search",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "microsoft_code_sample_search",
+      "title": "Microsoft Code Sample Search",
+      "description": "Search for code snippets and examples in official Microsoft Learn documentation. This tool retrieves relevant code samples from Microsoft documentation pages providing developers with practical implementation examples and best practices for Microsoft/Azure products and services related coding tasks. This tool will help you use the **LATEST OFFICIAL** code snippets to empower coding capabilities.\n\n## When to Use This Tool\n- When you are going to provide sample Microsoft/Azure related code snippets in your answers.\n- When you are **generating any Microsoft/Azure related code**.\n\n## Usage Pattern\nInput a descriptive query, or SDK/class/method name to retrieve related code samples. The optional parameter `language` can help to filter results.\n\nEligible values for `language` parameter include: csharp javascript typescript python powershell azurecli al sql java kusto cpp go rust ruby php",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "description": "a descriptive query, SDK name, method name or code snippet related to Microsoft/Azure products, services, platforms, developer tools, frameworks, APIs or SDKs",
+            "type": "string"
+          },
+          "language": {
+            "description": "Optional parameter specifying the programming language of code snippets to retrieve. Can significantly improve search quality if provided. Eligible values: csharp javascript typescript python powershell azurecli al sql java kusto cpp go rust ruby php",
+            "type": "string",
+            "default": null
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "codeSnippet": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "link": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "content_omitted": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "annotations": {
+        "title": "Microsoft Code Sample Search",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "microsoft_docs_fetch",
+      "title": "Microsoft Docs Fetch",
+      "description": "Fetch and convert a Microsoft Learn documentation webpage to markdown format. This tool retrieves the latest complete content of Microsoft documentation webpages including Azure, .NET, Microsoft 365, and other Microsoft technologies.\n\n## When to Use This Tool\n- When search results provide incomplete information or truncated content\n- When you need complete step-by-step procedures or tutorials\n- When you need troubleshooting sections, prerequisites, or detailed explanations\n- When search results reference a specific page that seems highly relevant\n- For comprehensive guides that require full context\n\n## Usage Pattern\nUse this tool AFTER microsoft_docs_search when you identify specific high-value pages that need complete content. The search tool gives you an overview; this tool gives you the complete picture.\n\n## URL Requirements\n- The URL must be a valid HTML documentation webpage from the microsoft.com domain\n- Binary files (PDF, DOCX, images, etc.) are not supported\n\n## Output Format\nmarkdown with headings, code blocks, tables, and links preserved.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "description": "URL of the Microsoft documentation page to read",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "annotations": {
+        "title": "Microsoft Docs Fetch",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    }
+  ],
+  "toolsSha256": "cd03a6da4ab54961c181fa01baf8b00b574e7796f55ee5d9ab9db40794689f26",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "resources": []
+  },
+  "prompts": {
+    "prompts": []
+  },
+  "calls": [
+    {
+      "call": {
+        "name": "microsoft_docs_search",
+        "arguments": {
+          "query": "Microsoft Learn MCP server"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"results\":[{\"title\":\"Microsoft Learn MCP Server overview\",\"content\":\"# Microsoft Learn MCP Server overview\\nThe Microsoft Learn Model Context Protocol (MCP) Server enables clients like GitHub Copilot and other AI agents to bring trusted and up-to-date information directly from Microsoft\\u0027s official documentation. It\\u0027s a remote MCP server that uses streamable http. It allows agents to search through documentation, fetch a complete article, and search through code samples.\\n## Use cases\\n1. Enhance agentic development environments like Visual Studio (VS) Code, Visual Studio, and others with Learn content\\n2. Use Learn content in Copilot Studio agents, Foundry agents, and custom solutions\\n3. Enable learners, engineers, and support to use Learn content in their flow of work\\n## How the Learn MCP Server works\\nLearn MCP Server is a remote [MCP](https://modelcontextprotocol.io/) server that uses streamable http. Compatible client apps like GitHub Copilot can connect with the endpoint.\\n\\u0060\\u0060\\u0060html\\nhttps://learn.microsoft.com/api/mcp\\n\\u0060\\u0060\\u0060\\n\\n**Note:** This endpoint is designed for programmatic access by MCP clients via Streamable HTTP. It does not support direct access from a web browser and may return a \\u0060405 Method Not Allowed\\u0060 error if accessed manually.\\n\\nThe MCP server provides an interface to the Learn [knowledge service](https://devblogs.microsoft.com/engineering-at-microsoft/how-we-built-ask-learn-the-rag-based-knowledge-service/) that powers Ask Learn and Copilot for Azure. Developer options are listed in the [Microsoft Learn MCP Server developer documentation](https://learn.microsoft.com/training/support/mcp-developer-reference). We also have [release notes](https://learn.microsoft.com/training/support/mcp-release-notes) to see what the latest updates are, and [best practices](https://learn.microsoft.com/training/support/mcp-best-practices) information. If you\\u0027re interested in using it, check out the [Get Started in VS Code article](https://learn.microsoft.com/training/support/mcp-get-started) and the [Get Started in Foundry article](https://learn.microsoft.com/training/support/mcp-get-started-foundry).\\n## Requirements\\nWhen you use the Learn MCP Server, you agree with [Microsoft Learn Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse).\\nThere\\u0027s no authentication required to access the Microsoft Learn MCP Server. Users can use their preferred MCP client or agentic development environment, such as VS Code, Visual Studio, MCP inspector, etc.\\n## Availability and pricing\\nThe Microsoft Learn MCP Server is publicly available. There\\u0027s no charge to use the MCP server.\\n## Limitations\\n1. The MCP server contains publicly available documentation, not training or user profile information.\\n2. The underlying knowledge service refreshes incrementally after content updates and performs a full refresh once a day.\\n3. Updates to the MCP server are communicated via updates to the [Learn MCP Server Release Notes](https://learn.microsoft.com/training/support/mcp-release-notes).\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp\"},{\"title\":\"Get started with the Microsoft Learn MCP Server\",\"content\":\"# Get started with the Microsoft Learn MCP Server\\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server with GitHub Copilot in Visual Studio (VS) Code. If you are new to the MCP server, we recommend that you review the [Learn MCP Server overview article](https://learn.microsoft.com/training/support/mcp) first. Note that although VS Code is a common client for Learn MCP Server, MCP is an open protocol and as such is supported by many clients including agents in Copilot Studio, in Foundry, and many other agentic IDEs.\\nThe high-level process we walk through is:\\n1. Configure your editor\\n2. Use the MCP server\\n3. Set instructions\\nWhen you use another agentic development environment, the details may vary but the process should be comparable. See configuration options for other client apps in the [GitHub repository](https://aka.ms/learnmcpdocs/repo).\\n## Prerequisites\\nIn order to follow the steps in this article, you need [Visual Studio Code](https://code.visualstudio.com/docs/setup/setup-overview) and [GitHub Copilot](https://code.visualstudio.com/docs/copilot/setup).\\n## Configure your editor\\nThe easiest way to configure Learn MCP Server is using these buttons.\\nMCP Servers can be configured at the user level and the workspace level. User settings are applied to every VS Code session, which is convenient when you mostly work with Microsoft technologies. You can also configure MCP settings for workspaces that use Microsoft technologies, and configure other MCP Servers for workspaces that don\\u0027t.\\nFor more details, see [Learn MCP - Installation and getting started](https://aka.ms/learnmcpdocs/repo)\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-get-started\"},{\"title\":\"Get started with the Microsoft Learn MCP Server\",\"content\":\"# Get started with the Microsoft Learn MCP Server\\n## Install via plugin (Claude Code and Copilot CLI)\\nIf you use Claude Code or GitHub Copilot CLI, you can install the \\u0060microsoft-docs\\u0060 plugin which includes the Learn MCP server and three agent skills that help your AI agent use the MCP tools more effectively:\\n1. **microsoft-docs**\\u2014for concepts, tutorials, and factual lookups\\n2. **microsoft-code-reference**\\u2014for API lookups, code samples, and troubleshooting\\n3. **microsoft-skill-creator**\\u2014a meta-skill for generating custom skills about Microsoft technologies\\n### Claude Code\\nRun the following commands in Claude Code and restart:\\n\\u0060\\u0060\\u0060shell\\n/plugin marketplace add microsoftdocs/mcp\\n/plugin install microsoft-docs@microsoft-docs-marketplace\\n\\u0060\\u0060\\u0060\\n### Copilot CLI\\nRun the following command in Copilot CLI:\\n\\u0060\\u0060\\u0060shell\\n/plugin install microsoftdocs/mcp\\n\\u0060\\u0060\\u0060\\nFor more information about the agent skills included in the plugin, see the [Learn MCP Server repository](https://aka.ms/learnmcpdocs/repo).\\n## Use MCP Server\\n1. Open chat\\n2. Select agent mode\\n3. Ask a question relevant to Microsoft Learn content, for instance: \\u0060How to create a Microsoft Foundry instance using az cli?\\u0060\\n4. Allow the agent to use the MCP server\\n5. Get the response\\n## Set instructions (recommended)\\nWhen the AI agent doesn\\u0027t use the MCP tool when expected, it may be useful to configure specific instructions for the tool:\\n1. Open a chat window in VS Code with GitHub Copilot\\n2. Select agent mode\\n3. At the top of the window, click the settings wheel and select Instructions\\n4. Select a location to create the instructions file\\n5. Provide instructions like:\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-get-started#install-via-plugin-claude-code-and-copilot-cli\"},{\"title\":\"Microsoft Learn MCP Server developer reference documentation\",\"content\":\"# Microsoft Learn MCP Server developer reference documentation\\nThis article provides information for developers implementing the [Microsoft Learn Docs Model Context Protocol (MCP) Server](https://learn.microsoft.com/training/support/mcp). We also recommend checking out the Learn MCP Server [best practices](https://learn.microsoft.com/training/support/mcp-best-practices), [release notes](https://learn.microsoft.com/training/support/mcp-release-notes), and [frequently asked questions](https://learn.microsoft.com/training/support/mcp-faq) articles to support your development journey.\\n## MCP Endpoint\\nLearn MCP Server is a remote [MCP](https://modelcontextprotocol.io/) server that uses streamable http. Compatible client apps like GitHub Copilot can connect with the endpoint. You can use this url in a tool like [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).\\n\\u0060\\u0060\\u0060html\\nhttps://learn.microsoft.com/api/mcp\\n\\u0060\\u0060\\u0060\\nCommon format to configure MCP servers in integrated development environments.\\n\\u0060\\u0060\\u0060json\\n{\\n  \\u0022microsoft.docs.mcp\\u0022: {\\n    \\u0022type\\u0022: \\u0022http\\u0022,\\n    \\u0022url\\u0022: \\u0022https://learn.microsoft.com/api/mcp\\u0022\\n  }\\n}\\n\\u0060\\u0060\\u0060\\nNote\\nAlthough the Learn MCP Server provides a public endpoint, it is not an Application Programming Interface (API) in the traditional sense. Developers should use an agent framework to communicate with the MCP Server, not access the endpoint directly. For instance, the interface may change dynamically including tools, and their request and response formats.\\n## Tools\\nWe encourage developers to integrate with the MCP server through an agent framework like Semantic Kernel or LangChain. Every time the client initializes the server, it should call list tool to get a tool list. Over time the list and the tools may change, so we are deliberately not describing request and response details here.\\nThe MCP Server provides the following tools:\\n1. \\u0060microsoft_docs_search\\u0060\\n2. \\u0060microsoft_docs_fetch\\u0060\\n3. \\u0060microsoft_code_sample_search\\u0060 For details, see the [repository](https://aka.ms/learnmcpdocs/repo)\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-developer-reference\"},{\"title\":\"Microsoft Learn MCP Server frequently asked questions\",\"content\":\"# Microsoft Learn MCP Server frequently asked questions\\nThis article lists frequently asked questions about the Microsoft Learn Docs Model Context Protocol (MCP) Server, with their answers and links to more information as needed.\\n**Q: What is Model Context Protocol (MCP)?**\\nMCP is an open-source standard for connecting AI agents to data sources, tools and workflows to access key information and perform tasks.\\n**Q: Why Model Context Protocol (MCP)?**\\nAgents use language models which are pre-trained on generic web content. They answer questions by predicting text based on patterns it learned during training or fill gaps by guessing. They can use the extra context from MCP, incorporate that into its reasoning, and produce answers that are more grounded and complete.\\n**Q: Why Learn MCP Server?**\\nWithout Learn MCP Server, agents and language models rely on statistics or web search with inconsistent experiences. With Learn MCP Server, agents and language models can link the user question to a potential answer in Microsoft Learn content, search Learn MCP Server, and provided a grounded answer.\\n**Q: Where else does this knowledge show up?**\\nThe knowledge service that powers Learn MCP Server is also used in: in-product experiences like Azure portal and Ask Learn, and platforms to create agents like Foundry and Copilot Studio.\\n**Q: How do I start to use it?**\\nAdding MCP to development environments requires a few lines of user configuration. VS Code users can find Learn MCP Server in documentation and various marketplaces and registries. You can also use Learn MCP Server as tools in agents created in Copilot Studio or Foundry.\\n**Q: What is next?**\\nMCP is governed under the Agentic AI Foundation. The Microsoft Learn team follows developments closely. Feel free to reach out to either if you have feedback and suggestions.\\n**Q: Will the MCP server let our users consume Learn content inside our platform?**\\nYes. The Learn MCP Server provides answers to questions using content, and direct links to the content. You can use the MCP server to power your own agents, build agents for others, or build reusable components that allows others to build agents according to the [Microsoft Learn Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse).\\n**Q: Does the data returned from the Learn MCP Server remain static or change?**\\nThe data changes whenever new content is added, modified, or deleted, which is usually on a daily basis.\\n**Q: Am I going to run into throttling limits?**\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-faq\"},{\"title\":\"Microsoft Learn MCP Server release notes\",\"content\":\"# Microsoft Learn MCP Server release notes\\nThe following information lists the updates made to the [Microsoft Learn Docs Model Context Protocol (MCP) Server](https://learn.microsoft.com/training/support/mcp) and the dates they were made.\\n## 2025\\n1. **2025-06-12:** MCP Server released.\\n1.1. [Repository](https://aka.ms/learnmcpdocs/repo)\\n1.2. Connect with us in the GitHub repository through discussions, issues, or pull requests.\\n1.3. The Docs Search tool performs semantic search against Microsoft Learn documentation\\n2. **2025-08-06:** Docs fetch tool released.\\n2.1. This release adds the Fetch tool that fetches and converts a page into markdown. Search and Fetch allow advanced models to do deep research through multiple turns and provide more thorough answers.\\n3. **2025-09-24:** Code sample search tool released.\\n3.1. This release includes the code sample search tool, which enhances retrieval of relevant code samples.\\n4. **2025-11-07:** Microsoft Learn MCP server is now generally available.\\n4.1. We are removing the preview disclaimers and announcing general availability for Learn MCP Server. We are standing on the shoulders of the knowledge service that powers [Azure Copilot](https://techcommunity.microsoft.com/blog/azureinfrastructureblog/microsoft-copilot-in-azure-is-now-generally-available/4402033). Learn MCP Server added an endpoint for AI agents to search through documentation, fetch a complete article, and search through code samples over the past five months, and saw usage grow without issues.\\n5. **2025-12-10:** OpenAI compatible endpoint released.\\n5.1. This release includes the OpenAI compatible endpoint, which supports the deep research pattern using search and fetch MCP tools.\\n6. **2026-03-10:** Microsoft Learn CLI released.\\n6.1. The [\\u0060@microsoft/learn-cli\\u0060](https://www.npmjs.com/package/@microsoft/learn-cli) package provides terminal access to the same tools - search docs, fetch pages, and find code samples - without an MCP client.\\n7. **2026-03-23:** Plugin released for compatible clients.\\n7.1. Install Microsoft Learn MCP Server as a plugin in supported clients. The plugin bundles the MCP server connection and can be extended with other capabilities.\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-release-notes\"},{\"title\":\"Get started with Microsoft Learn MCP Server in Microsoft Foundry\",\"content\":\"# Get started with Microsoft Learn MCP Server in Microsoft Foundry\\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server in Microsoft Foundry. Learn MCP Server can be used in many ways. A common scenario is to add Learn MCP Server to an agentic development environment such VS Code, Visual Studio, GitHub.com and others, which is described in [Get started](https://learn.microsoft.com/training/support/mcp-get-started). This article describes how to use Learn MCP Server in a custom solution leveraging Microsoft Foundry with an agent, a language model, the MCP Server, and instructions. And similar concepts exist in Copilot Studio.\\nThe high-level process we walk through is:\\n1. Create resources\\n2. Create an agent\\n## Prerequisites\\n1. An Azure subscription. [Create one for free](https://azure.microsoft.com/pricing/purchase-options/azure-account?cid=msft_learn).\\n2. A Foundry project. If you need to create a project, see [Create a Microsoft Foundry project](https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/create-projects).\\n## Create resources\\nThe easiest way to configure Foundry is using the [Foundry portal](https://aka.ms/learnmcpdocs/foundry). When you see the option to use the new Foundry portal experience, you want to use that.\\n1. Click Discover in the top navigation\\n2. Select Models in the left navigation\\n3. Select a model, for instance gpt-4.1-mini\\n4. Click Deploy, default settings\\nFor more details, see [Microsoft Foundry Quickstart](https://learn.microsoft.com/en-us/azure/ai-foundry/quickstarts/get-started-code)\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-get-started-foundry\"},{\"title\":\"Get started with Microsoft Learn MCP Server in Microsoft Copilot Studio\",\"content\":\"# Get started with Microsoft Learn MCP Server in Microsoft Copilot Studio\\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server in Microsoft Copilot Studio. Learn MCP Server can be used in many ways. A common scenario is to add Learn MCP Server to an agentic development environment such VS Code, Visual Studio, GitHub.com and others, which is described in [Get started](https://learn.microsoft.com/training/support/mcp-get-started). This article describes how to use Learn MCP Server in a custom solution leveraging Microsoft Copilot Studio with an agent, a language model, the MCP Server, and instructions. And similar concepts exist in Foundry.\\nThe high-level process we walk through is:\\n1. Create an agent\\n2. Configure the agent\\n## Prerequisites\\nIn order to follow the steps in this article, you need to have [access to Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions).\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-get-started-copilot-studio\"},{\"title\":\"Best practices for using the Microsoft Learn MCP Server\",\"content\":\"# Best practices for using the Microsoft Learn MCP Server\\nThis article describes the best practices for using the Learn Docs Model Context Protocol (MCP) Server.\\n## Understand the Learn MCP Server\\nSee the [Learn MCP Server overview](https://learn.microsoft.com/training/support/mcp) article.\\n## Dynamic discovery and tool selection\\nMCP clients call tools/list on connection to get the current set of tools and their descriptions. Agents use those descriptions to decide which tool to call and with what parameters without manual mapping required by design: the protocol treats tool availability as dynamic, not fixed.\\nIf you are building a custom integration, follow the same pattern. Don\\u0027t hardcode tool names, parameter schemas, or expected behavior. Fetch the tool list at runtime, pass descriptions to your model, and let it route. If a call fails with 400 or 404, assume your cache is stale - refresh via tools/list and retry to keep your integration resilient as tools are added, renamed, or updated, unlike traditional API contracts where breaking changes require client updates.\\n## Token budget control\\nAppend maxTokenBudget to the endpoint URL to cap the token count in search responses:\\n\\u0060\\u0060\\u0060html\\nhttps://learn.microsoft.com/api/mcp?maxTokenBudget=2000\\n\\u0060\\u0060\\u0060\\nThis truncates content in results to stay within your budget. Useful when running in agentic loops where each tool call eats into your context window or billing. Set it low if your agent does many calls per turn, higher if you want richer single responses. The parameter only affects search results - fetch always returns the full page.\\n## Experiment and share feedback\\nUsing an MCP server is a new way to interact with Microsoft Learn content. We tested the components of this solution, which are also being used in other applications. Still, you may run into unexpected behavior, where the MCP server isn\\u0027t used, it doesn\\u0027t respond appropriately,\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-best-practices\"},{\"title\":\"Get started with Microsoft Learn MCP Server in Microsoft Foundry\",\"content\":\"# Get started with Microsoft Learn MCP Server in Microsoft Foundry\\n## Create an agent\\nIf you just deployed a model, you may land directly in the agent details view and skip some steps\\n1. Click Build in the top navigation\\n2. Select Agents in the left navigation\\n3. Click Create agent button\\n4. Enter an Agent name and click Create\\n5. Select a deployed model\\n6. Enter instructions:\\n1. In Tools, select Add, Add a new tool\\n2. Select Custom, select MCP, click Create\\n3. Enter a name, the endpoint: \\u0060https://learn.microsoft.com/api/mcp\\u0060, and select Authentication Unauthenticated. Click Connect\\n4. Ask a question relevant to Microsoft Learn content, for instance: \\u0060How to create a Microsoft Foundry instance using az cli?\\u0060\\n5. Allow the agent to use the MCP server\\n6. Before you leave, click Save.\\nNote that you can experiment with the model, instructions, and prompt to discover the optimal configuration for your solution.\",\"contentUrl\":\"https://learn.microsoft.com/training/support/mcp-get-started-foundry#create-an-agent\"}]}"
+          }
+        ],
+        "structuredContent": {
+          "results": [
+            {
+              "title": "Microsoft Learn MCP Server overview",
+              "content": "# Microsoft Learn MCP Server overview\nThe Microsoft Learn Model Context Protocol (MCP) Server enables clients like GitHub Copilot and other AI agents to bring trusted and up-to-date information directly from Microsoft's official documentation. It's a remote MCP server that uses streamable http. It allows agents to search through documentation, fetch a complete article, and search through code samples.\n## Use cases\n1. Enhance agentic development environments like Visual Studio (VS) Code, Visual Studio, and others with Learn content\n2. Use Learn content in Copilot Studio agents, Foundry agents, and custom solutions\n3. Enable learners, engineers, and support to use Learn content in their flow of work\n## How the Learn MCP Server works\nLearn MCP Server is a remote [MCP](https://modelcontextprotocol.io/) server that uses streamable http. Compatible client apps like GitHub Copilot can connect with the endpoint.\n```html\nhttps://learn.microsoft.com/api/mcp\n```\n\n**Note:** This endpoint is designed for programmatic access by MCP clients via Streamable HTTP. It does not support direct access from a web browser and may return a `405 Method Not Allowed` error if accessed manually.\n\nThe MCP server provides an interface to the Learn [knowledge service](https://devblogs.microsoft.com/engineering-at-microsoft/how-we-built-ask-learn-the-rag-based-knowledge-service/) that powers Ask Learn and Copilot for Azure. Developer options are listed in the [Microsoft Learn MCP Server developer documentation](https://learn.microsoft.com/training/support/mcp-developer-reference). We also have [release notes](https://learn.microsoft.com/training/support/mcp-release-notes) to see what the latest updates are, and [best practices](https://learn.microsoft.com/training/support/mcp-best-practices) information. If you're interested in using it, check out the [Get Started in VS Code article](https://learn.microsoft.com/training/support/mcp-get-started) and the [Get Started in Foundry article](https://learn.microsoft.com/training/support/mcp-get-started-foundry).\n## Requirements\nWhen you use the Learn MCP Server, you agree with [Microsoft Learn Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse).\nThere's no authentication required to access the Microsoft Learn MCP Server. Users can use their preferred MCP client or agentic development environment, such as VS Code, Visual Studio, MCP inspector, etc.\n## Availability and pricing\nThe Microsoft Learn MCP Server is publicly available. There's no charge to use the MCP server.\n## Limitations\n1. The MCP server contains publicly available documentation, not training or user profile information.\n2. The underlying knowledge service refreshes incrementally after content updates and performs a full refresh once a day.\n3. Updates to the MCP server are communicated via updates to the [Learn MCP Server Release Notes](https://learn.microsoft.com/training/support/mcp-release-notes).",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp"
+            },
+            {
+              "title": "Get started with the Microsoft Learn MCP Server",
+              "content": "# Get started with the Microsoft Learn MCP Server\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server with GitHub Copilot in Visual Studio (VS) Code. If you are new to the MCP server, we recommend that you review the [Learn MCP Server overview article](https://learn.microsoft.com/training/support/mcp) first. Note that although VS Code is a common client for Learn MCP Server, MCP is an open protocol and as such is supported by many clients including agents in Copilot Studio, in Foundry, and many other agentic IDEs.\nThe high-level process we walk through is:\n1. Configure your editor\n2. Use the MCP server\n3. Set instructions\nWhen you use another agentic development environment, the details may vary but the process should be comparable. See configuration options for other client apps in the [GitHub repository](https://aka.ms/learnmcpdocs/repo).\n## Prerequisites\nIn order to follow the steps in this article, you need [Visual Studio Code](https://code.visualstudio.com/docs/setup/setup-overview) and [GitHub Copilot](https://code.visualstudio.com/docs/copilot/setup).\n## Configure your editor\nThe easiest way to configure Learn MCP Server is using these buttons.\nMCP Servers can be configured at the user level and the workspace level. User settings are applied to every VS Code session, which is convenient when you mostly work with Microsoft technologies. You can also configure MCP settings for workspaces that use Microsoft technologies, and configure other MCP Servers for workspaces that don't.\nFor more details, see [Learn MCP - Installation and getting started](https://aka.ms/learnmcpdocs/repo)",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-get-started"
+            },
+            {
+              "title": "Get started with the Microsoft Learn MCP Server",
+              "content": "# Get started with the Microsoft Learn MCP Server\n## Install via plugin (Claude Code and Copilot CLI)\nIf you use Claude Code or GitHub Copilot CLI, you can install the `microsoft-docs` plugin which includes the Learn MCP server and three agent skills that help your AI agent use the MCP tools more effectively:\n1. **microsoft-docs**—for concepts, tutorials, and factual lookups\n2. **microsoft-code-reference**—for API lookups, code samples, and troubleshooting\n3. **microsoft-skill-creator**—a meta-skill for generating custom skills about Microsoft technologies\n### Claude Code\nRun the following commands in Claude Code and restart:\n```shell\n/plugin marketplace add microsoftdocs/mcp\n/plugin install microsoft-docs@microsoft-docs-marketplace\n```\n### Copilot CLI\nRun the following command in Copilot CLI:\n```shell\n/plugin install microsoftdocs/mcp\n```\nFor more information about the agent skills included in the plugin, see the [Learn MCP Server repository](https://aka.ms/learnmcpdocs/repo).\n## Use MCP Server\n1. Open chat\n2. Select agent mode\n3. Ask a question relevant to Microsoft Learn content, for instance: `How to create a Microsoft Foundry instance using az cli?`\n4. Allow the agent to use the MCP server\n5. Get the response\n## Set instructions (recommended)\nWhen the AI agent doesn't use the MCP tool when expected, it may be useful to configure specific instructions for the tool:\n1. Open a chat window in VS Code with GitHub Copilot\n2. Select agent mode\n3. At the top of the window, click the settings wheel and select Instructions\n4. Select a location to create the instructions file\n5. Provide instructions like:",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-get-started#install-via-plugin-claude-code-and-copilot-cli"
+            },
+            {
+              "title": "Microsoft Learn MCP Server developer reference documentation",
+              "content": "# Microsoft Learn MCP Server developer reference documentation\nThis article provides information for developers implementing the [Microsoft Learn Docs Model Context Protocol (MCP) Server](https://learn.microsoft.com/training/support/mcp). We also recommend checking out the Learn MCP Server [best practices](https://learn.microsoft.com/training/support/mcp-best-practices), [release notes](https://learn.microsoft.com/training/support/mcp-release-notes), and [frequently asked questions](https://learn.microsoft.com/training/support/mcp-faq) articles to support your development journey.\n## MCP Endpoint\nLearn MCP Server is a remote [MCP](https://modelcontextprotocol.io/) server that uses streamable http. Compatible client apps like GitHub Copilot can connect with the endpoint. You can use this url in a tool like [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).\n```html\nhttps://learn.microsoft.com/api/mcp\n```\nCommon format to configure MCP servers in integrated development environments.\n```json\n{\n  \"microsoft.docs.mcp\": {\n    \"type\": \"http\",\n    \"url\": \"https://learn.microsoft.com/api/mcp\"\n  }\n}\n```\nNote\nAlthough the Learn MCP Server provides a public endpoint, it is not an Application Programming Interface (API) in the traditional sense. Developers should use an agent framework to communicate with the MCP Server, not access the endpoint directly. For instance, the interface may change dynamically including tools, and their request and response formats.\n## Tools\nWe encourage developers to integrate with the MCP server through an agent framework like Semantic Kernel or LangChain. Every time the client initializes the server, it should call list tool to get a tool list. Over time the list and the tools may change, so we are deliberately not describing request and response details here.\nThe MCP Server provides the following tools:\n1. `microsoft_docs_search`\n2. `microsoft_docs_fetch`\n3. `microsoft_code_sample_search` For details, see the [repository](https://aka.ms/learnmcpdocs/repo)",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-developer-reference"
+            },
+            {
+              "title": "Microsoft Learn MCP Server frequently asked questions",
+              "content": "# Microsoft Learn MCP Server frequently asked questions\nThis article lists frequently asked questions about the Microsoft Learn Docs Model Context Protocol (MCP) Server, with their answers and links to more information as needed.\n**Q: What is Model Context Protocol (MCP)?**\nMCP is an open-source standard for connecting AI agents to data sources, tools and workflows to access key information and perform tasks.\n**Q: Why Model Context Protocol (MCP)?**\nAgents use language models which are pre-trained on generic web content. They answer questions by predicting text based on patterns it learned during training or fill gaps by guessing. They can use the extra context from MCP, incorporate that into its reasoning, and produce answers that are more grounded and complete.\n**Q: Why Learn MCP Server?**\nWithout Learn MCP Server, agents and language models rely on statistics or web search with inconsistent experiences. With Learn MCP Server, agents and language models can link the user question to a potential answer in Microsoft Learn content, search Learn MCP Server, and provided a grounded answer.\n**Q: Where else does this knowledge show up?**\nThe knowledge service that powers Learn MCP Server is also used in: in-product experiences like Azure portal and Ask Learn, and platforms to create agents like Foundry and Copilot Studio.\n**Q: How do I start to use it?**\nAdding MCP to development environments requires a few lines of user configuration. VS Code users can find Learn MCP Server in documentation and various marketplaces and registries. You can also use Learn MCP Server as tools in agents created in Copilot Studio or Foundry.\n**Q: What is next?**\nMCP is governed under the Agentic AI Foundation. The Microsoft Learn team follows developments closely. Feel free to reach out to either if you have feedback and suggestions.\n**Q: Will the MCP server let our users consume Learn content inside our platform?**\nYes. The Learn MCP Server provides answers to questions using content, and direct links to the content. You can use the MCP server to power your own agents, build agents for others, or build reusable components that allows others to build agents according to the [Microsoft Learn Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse).\n**Q: Does the data returned from the Learn MCP Server remain static or change?**\nThe data changes whenever new content is added, modified, or deleted, which is usually on a daily basis.\n**Q: Am I going to run into throttling limits?**",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-faq"
+            },
+            {
+              "title": "Microsoft Learn MCP Server release notes",
+              "content": "# Microsoft Learn MCP Server release notes\nThe following information lists the updates made to the [Microsoft Learn Docs Model Context Protocol (MCP) Server](https://learn.microsoft.com/training/support/mcp) and the dates they were made.\n## 2025\n1. **2025-06-12:** MCP Server released.\n1.1. [Repository](https://aka.ms/learnmcpdocs/repo)\n1.2. Connect with us in the GitHub repository through discussions, issues, or pull requests.\n1.3. The Docs Search tool performs semantic search against Microsoft Learn documentation\n2. **2025-08-06:** Docs fetch tool released.\n2.1. This release adds the Fetch tool that fetches and converts a page into markdown. Search and Fetch allow advanced models to do deep research through multiple turns and provide more thorough answers.\n3. **2025-09-24:** Code sample search tool released.\n3.1. This release includes the code sample search tool, which enhances retrieval of relevant code samples.\n4. **2025-11-07:** Microsoft Learn MCP server is now generally available.\n4.1. We are removing the preview disclaimers and announcing general availability for Learn MCP Server. We are standing on the shoulders of the knowledge service that powers [Azure Copilot](https://techcommunity.microsoft.com/blog/azureinfrastructureblog/microsoft-copilot-in-azure-is-now-generally-available/4402033). Learn MCP Server added an endpoint for AI agents to search through documentation, fetch a complete article, and search through code samples over the past five months, and saw usage grow without issues.\n5. **2025-12-10:** OpenAI compatible endpoint released.\n5.1. This release includes the OpenAI compatible endpoint, which supports the deep research pattern using search and fetch MCP tools.\n6. **2026-03-10:** Microsoft Learn CLI released.\n6.1. The [`@microsoft/learn-cli`](https://www.npmjs.com/package/@microsoft/learn-cli) package provides terminal access to the same tools - search docs, fetch pages, and find code samples - without an MCP client.\n7. **2026-03-23:** Plugin released for compatible clients.\n7.1. Install Microsoft Learn MCP Server as a plugin in supported clients. The plugin bundles the MCP server connection and can be extended with other capabilities.",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-release-notes"
+            },
+            {
+              "title": "Get started with Microsoft Learn MCP Server in Microsoft Foundry",
+              "content": "# Get started with Microsoft Learn MCP Server in Microsoft Foundry\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server in Microsoft Foundry. Learn MCP Server can be used in many ways. A common scenario is to add Learn MCP Server to an agentic development environment such VS Code, Visual Studio, GitHub.com and others, which is described in [Get started](https://learn.microsoft.com/training/support/mcp-get-started). This article describes how to use Learn MCP Server in a custom solution leveraging Microsoft Foundry with an agent, a language model, the MCP Server, and instructions. And similar concepts exist in Copilot Studio.\nThe high-level process we walk through is:\n1. Create resources\n2. Create an agent\n## Prerequisites\n1. An Azure subscription. [Create one for free](https://azure.microsoft.com/pricing/purchase-options/azure-account?cid=msft_learn).\n2. A Foundry project. If you need to create a project, see [Create a Microsoft Foundry project](https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/create-projects).\n## Create resources\nThe easiest way to configure Foundry is using the [Foundry portal](https://aka.ms/learnmcpdocs/foundry). When you see the option to use the new Foundry portal experience, you want to use that.\n1. Click Discover in the top navigation\n2. Select Models in the left navigation\n3. Select a model, for instance gpt-4.1-mini\n4. Click Deploy, default settings\nFor more details, see [Microsoft Foundry Quickstart](https://learn.microsoft.com/en-us/azure/ai-foundry/quickstarts/get-started-code)",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-get-started-foundry"
+            },
+            {
+              "title": "Get started with Microsoft Learn MCP Server in Microsoft Copilot Studio",
+              "content": "# Get started with Microsoft Learn MCP Server in Microsoft Copilot Studio\nThis article assists you in getting started using the Microsoft Learn Model Context Protocol (MCP) Server in Microsoft Copilot Studio. Learn MCP Server can be used in many ways. A common scenario is to add Learn MCP Server to an agentic development environment such VS Code, Visual Studio, GitHub.com and others, which is described in [Get started](https://learn.microsoft.com/training/support/mcp-get-started). This article describes how to use Learn MCP Server in a custom solution leveraging Microsoft Copilot Studio with an agent, a language model, the MCP Server, and instructions. And similar concepts exist in Foundry.\nThe high-level process we walk through is:\n1. Create an agent\n2. Configure the agent\n## Prerequisites\nIn order to follow the steps in this article, you need to have [access to Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions).",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-get-started-copilot-studio"
+            },
+            {
+              "title": "Best practices for using the Microsoft Learn MCP Server",
+              "content": "# Best practices for using the Microsoft Learn MCP Server\nThis article describes the best practices for using the Learn Docs Model Context Protocol (MCP) Server.\n## Understand the Learn MCP Server\nSee the [Learn MCP Server overview](https://learn.microsoft.com/training/support/mcp) article.\n## Dynamic discovery and tool selection\nMCP clients call tools/list on connection to get the current set of tools and their descriptions. Agents use those descriptions to decide which tool to call and with what parameters without manual mapping required by design: the protocol treats tool availability as dynamic, not fixed.\nIf you are building a custom integration, follow the same pattern. Don't hardcode tool names, parameter schemas, or expected behavior. Fetch the tool list at runtime, pass descriptions to your model, and let it route. If a call fails with 400 or 404, assume your cache is stale - refresh via tools/list and retry to keep your integration resilient as tools are added, renamed, or updated, unlike traditional API contracts where breaking changes require client updates.\n## Token budget control\nAppend maxTokenBudget to the endpoint URL to cap the token count in search responses:\n```html\nhttps://learn.microsoft.com/api/mcp?maxTokenBudget=2000\n```\nThis truncates content in results to stay within your budget. Useful when running in agentic loops where each tool call eats into your context window or billing. Set it low if your agent does many calls per turn, higher if you want richer single responses. The parameter only affects search results - fetch always returns the full page.\n## Experiment and share feedback\nUsing an MCP server is a new way to interact with Microsoft Learn content. We tested the components of this solution, which are also being used in other applications. Still, you may run into unexpected behavior, where the MCP server isn't used, it doesn't respond appropriately,",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-best-practices"
+            },
+            {
+              "title": "Get started with Microsoft Learn MCP Server in Microsoft Foundry",
+              "content": "# Get started with Microsoft Learn MCP Server in Microsoft Foundry\n## Create an agent\nIf you just deployed a model, you may land directly in the agent details view and skip some steps\n1. Click Build in the top navigation\n2. Select Agents in the left navigation\n3. Click Create agent button\n4. Enter an Agent name and click Create\n5. Select a deployed model\n6. Enter instructions:\n1. In Tools, select Add, Add a new tool\n2. Select Custom, select MCP, click Create\n3. Enter a name, the endpoint: `https://learn.microsoft.com/api/mcp`, and select Authentication Unauthenticated. Click Connect\n4. Ask a question relevant to Microsoft Learn content, for instance: `How to create a Microsoft Foundry instance using az cli?`\n5. Allow the agent to use the MCP server\n6. Before you leave, click Save.\nNote that you can experiment with the model, instructions, and prompt to discover the optimal configuration for your solution.",
+              "contentUrl": "https://learn.microsoft.com/training/support/mcp-get-started-foundry#create-an-agent"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "call": {
+        "name": "microsoft_docs_fetch",
+        "arguments": {
+          "url": "file:///pupu-synthetic-not-present"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "The provided URL is not a valid Microsoft documentation webpage link."
+          }
+        ]
+      }
+    }
+  ],
+  "stderr": "",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

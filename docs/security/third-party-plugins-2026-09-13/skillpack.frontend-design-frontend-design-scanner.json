@@ -1,0 +1,50 @@
+{
+  "skill_name": "frontend-design",
+  "skill_path": "/private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/scan-skills/skillpack.frontend-design/skills/frontend-design",
+  "is_safe": true,
+  "max_severity": "SAFE",
+  "findings_count": 0,
+  "findings": [],
+  "scan_duration_seconds": 0.2971639633178711,
+  "duration_ms": 297,
+  "analyzers_used": [
+    "static_analyzer",
+    "bytecode",
+    "pipeline",
+    "correlation",
+    "behavioral_analyzer"
+  ],
+  "timestamp": "2026-09-13T18:39:43.879836+00:00",
+  "scan_metadata": {
+    "policy_name": "default",
+    "policy_version": "1.0",
+    "policy_preset_base": "balanced",
+    "policy_fingerprint_sha256": "26ada30a1f502eecdbe7b7e35a3fe7a324be2298494208e1019b75e72b0bc516",
+    "cel": {
+      "mode": "shadow",
+      "runtime": "cel-go",
+      "runtime_version": "v0.32.0;helper=2.1.0",
+      "fact_schema": "v1",
+      "expression_set_hash": "f26459b8f4a46a974d7ab0aaae34127b5b6a40d693e266e12fca03a69a6d26aa",
+      "evaluated": 0,
+      "retained": 0,
+      "would_suppress": 0,
+      "suppressed": 0,
+      "fallbacks": 0,
+      "projection_incomplete": 0,
+      "elapsed_ms": 0.0,
+      "projection_ms": 0.0,
+      "evaluation_ms": 0.0,
+      "errors": [],
+      "per_rule": {},
+      "suppressed_candidates": []
+    },
+    "rule_contract": {
+      "status": "passed",
+      "schema_version": 2,
+      "checked": 0,
+      "invalid_findings": 0,
+      "errors": []
+    }
+  }
+}

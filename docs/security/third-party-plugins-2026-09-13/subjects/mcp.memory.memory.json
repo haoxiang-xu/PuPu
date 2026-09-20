@@ -1,0 +1,116 @@
+{
+  "toolkitId": "mcp.memory.memory",
+  "catalog": {
+    "id": "memory.memory",
+    "toolkitId": "mcp.memory.memory",
+    "name": "Memory",
+    "description": "Persistent knowledge-graph memory via the reference MCP server.",
+    "category": "memory",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "Apache-2.0 / MIT",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "@modelcontextprotocol/server-memory@2026.7.4"
+      ]
+    },
+    "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "search_nodes",
+        "title": "Search nodes",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "read_graph",
+        "title": "Read graph",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "create_entities",
+        "title": "Create entities",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "smoke": {
+      "installCleanup": true
+    },
+    "readmeMarkdown": "## Memory\n\nReference knowledge-graph memory server. Stores entities and relations the agent can recall across sessions."
+  },
+  "checkedAt": "2026-09-13T18:36:59.263186+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "@modelcontextprotocol/server-memory",
+  "version": "2026.7.4",
+  "download": "https://registry.npmjs.org/@modelcontextprotocol/server-memory/-/server-memory-2026.7.4.tgz",
+  "artifactSha256": "d9e3040478264a18feb27068b9e1855b4f98dd941c381c68d2ba093af1fc696d",
+  "registryIntegrity": "sha512-D+NNzChsOHN72y58ngDmO+TzjJijGi/sSY/gBydhB3TJCcm1XQEozVWwEpruHeXt/HSkMV3Z/BpHDhdt1MLD5w==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/dist/index.js",
+      "sha256": "8575d6cfa016cafafb177b3a7591c97c3c55c6c7d7504a244736b7ce8f475e84",
+      "size": 19055
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "16ef268f3948454cc0bb3e1c76c53c9ec9002408ac1ff059d79be33ad24bc3c1",
+      "size": 1055
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "f8ee063ccd9c196606ef332e6d3dc2b4be84a554a7d1e82b8dc6462e34f65fc0",
+      "size": 10667
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/modelcontextprotocol/servers.git",
+    "type": "git"
+  },
+  "gitHead": "6dd0a683e198783e30feabf7abaf42f925bd18b1",
+  "resolvedLockSha256": "c576fc215f1cd80a7d558a21085cfc7703e48540b0eb6fe09430da7417645711",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

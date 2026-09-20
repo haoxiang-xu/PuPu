@@ -1,0 +1,14 @@
+{
+  "sourceCommit": "8cd775905758833aa6e7bdcf75d6e4d12c7d9ad1",
+  "scope": "Real Unchain conversion and dispatcher; real filesystem MCP; no packaged PuPu or model",
+  "conversion": [],
+  "effect": {
+    "tool": "create_directory",
+    "confirmationRequests": 0,
+    "denied": false,
+    "directoryCreated": true,
+    "result": {
+      "content": "Successfully created directory /private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/sandbox/real-runtime-fs/new-directory"
+    }
+  }
+}

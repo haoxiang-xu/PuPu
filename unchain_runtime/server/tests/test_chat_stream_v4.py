@@ -367,7 +367,7 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             "interaction_id": "interaction-1",
             "receipt_id": "receipt-1",
         }
-        with mock.patch.object(
+        with self.assertLogs("route_chat", level="ERROR") as logged, mock.patch.object(
             miso_routes,
             "record_interaction_receipt",
             side_effect=lambda **_kwargs: call_order.append("durable") or receipt,
@@ -393,6 +393,9 @@ class ChatStreamV4RouteTests(unittest.TestCase):
             "interaction_resolution_persistence_failed",
         )
         self.assertNotIn("raw storage failure", str(response.get_json()))
+        self.assertIn("interaction_resolution_persistence_failed", logged.output[0])
+        self.assertIn("Traceback", logged.output[0])
+        self.assertIn("raw storage failure", logged.output[0])
 
     def test_confirmation_requires_a_json_boolean_decision(self) -> None:
         with mock.patch.object(

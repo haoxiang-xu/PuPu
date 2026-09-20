@@ -72,6 +72,7 @@ const PluginListRow = ({
         iconSize={18}
         borderRadius={10}
         fallbackColor={fallbackColor}
+        style={{ alignSelf: "flex-start", marginTop: 4 }}
       />
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -112,7 +113,7 @@ const PluginListRow = ({
       {children && (
         <div
           onClick={(event) => event.stopPropagation()}
-          style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8 }}
+          style={{ flexShrink: 0, display: "flex", alignItems: "center", alignSelf: "flex-start", marginTop: 6, gap: 8 }}
         >
           {children}
         </div>

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "unchain-lock",
+    "returncode": 1,
+    "log": "Starting filesystem walk for root: /\nScanned /private/tmp/pupu-official-verify-mj1zxup1/unchain/uv.lock file and found 67 packages\nEnd status: 0 dirs visited, 1 inodes visited, 1 Extract calls, 5.636ms elapsed, 5.636ms wall time\n",
+    "checkedAt": "2026-09-13T18:14:42.994684+00:00"
+  },
+  {
+    "name": "pupu-direct",
+    "returncode": 1,
+    "log": "Starting filesystem walk for root: /\nScanned /private/tmp/pupu-official-verify-mj1zxup1/pupu/unchain_runtime/server/requirements.txt file and found 13 packages\nEnd status: 0 dirs visited, 1 inodes visited, 1 Extract calls, 450.417\u00b5s elapsed, 451\u00b5s wall time\n",
+    "checkedAt": "2026-09-13T18:14:43.743786+00:00"
+  }
+]

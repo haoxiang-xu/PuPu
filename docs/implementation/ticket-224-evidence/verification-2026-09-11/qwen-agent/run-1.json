@@ -1,0 +1,669 @@
+{
+  "prompt": "帮我做一个简单的 todo app",
+  "model": "qwen3:32b",
+  "runtime": "/private/tmp/ticket-224-venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "instructions": "",
+  "workspace": "/private/tmp/ticket-224-live-qwen/workspace",
+  "payload": {
+    "temperature": 0,
+    "num_ctx": 16384,
+    "num_predict": 4096
+  },
+  "confirmation_policy": "deny external effects",
+  "events": [
+    {
+      "type": "run_started",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0,
+      "provider": "ollama",
+      "model": "qwen3:32b"
+    },
+    {
+      "type": "iteration_started",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0
+    },
+    {
+      "type": "request_messages",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0,
+      "provider": "ollama",
+      "messages": [
+        {
+          "role": "system",
+          "content": "<tools>\n# unchain generated tools guidance\nUse provider-native tool schemas as the source of truth for callable arguments.\nToolkit-level policy sections are mandatory operating instructions.\nPer-tool entries describe when and how to use callable tools.\n\n- ask_user_question: Ask the user for a concrete decision, clarification, or preference before continuing work that depends on that choice.\n  Use when:\n  - Multiple plausible approaches or interpretations would materially change the result.\n  - You need the user's preference on product direction, UX behavior, technical approach, scope, or tradeoffs.\n  - A specific decision blocks implementation and should come from the user rather than a guess.\n  Avoid when:\n  - You can discover the answer from the repo, runtime state, or earlier user messages.\n  - You only want permission to continue, plan approval, or a meta-discussion about what to talk about next.\n  - Your options are categories, dimensions, or brainstorming topics instead of direct candidate answers.\n  Examples:\n  - ask_user_question(title=\"Auth strategy\", question=\"Which auth approach should I implement?\", selection_mode=\"single\", options=[{\"label\": \"Session cookies\", \"value\": \"session\", \"description\": \"Server-managed sessions with cookies.\"}, {\"label\": \"JWT\", \"value\": \"jwt\", \"description\": \"Stateless tokens for API clients.\"}])\n  - ask_user_question(title=\"Platform support\", question=\"Which platforms should this first version support?\", selection_mode=\"multiple\", options=[{\"label\": \"Desktop web\", \"value\": \"desktop_web\"}, {\"label\": \"Mobile web\", \"value\": \"mobile_web\"}, {\"label\": \"Native mobile\", \"value\": \"native_mobile\"}], max_selected=2)\n  - ask_user_question(title=\"Project folder\", question=\"What folder path should I use?\", selection_mode=\"single\", options=[], allow_other=true, other_label=\"Folder path\", other_placeholder=\"/path/to/folder\")\n  Advanced tips:\n  - Prefer 2-4 strong options and make each option a concrete answer the user can directly pick.\n  - If one option is the best default, put it first and say so in the option label or description.\n  - For free text such as a folder path or name, use options=[] with allow_other=true, selection_mode=\"single\", and a meaningful other_label such as \"Folder path\".\n  - Ask for the blocking path or name directly before deciding downstream feature scope; never guess a local or OS-specific path or invent custom_path/enter_text options.\n  - Use this tool whenever a direct user answer is needed, including an unbounded folder path or name; use assistant text for discussion that does not require an answer.\n\n- read: Read a UTF-8 text file by absolute path with line-numbered output and optional line slicing.\n\n- write: Create or fully overwrite a UTF-8 text file by absolute path. Existing files must be fully read first.\n\n- edit: Replace one unique string match, or all matches when requested, in an existing UTF-8 text file by absolute path.\n\n- glob: List files matching a glob pattern inside the workspace, sorted by most recently modified first.\n\n- grep: Search UTF-8 text files inside the workspace with regex, optional glob filters, and paginated result modes.\n\n- web_fetch: Fetch a public web page over HTTP(S), return raw page content or run a runtime-configured extraction model.\n\n- shell: Run a shell command, poll or wait for a background task, or kill it within the workspace.\n\n- lsp: Query a language server for definitions, references, hover text, and symbols for Python or TS/JS files.\n</tools>"
+        },
+        {
+          "role": "user",
+          "content": "帮我做一个简单的 todo app"
+        }
+      ],
+      "tool_names": [
+        "ask_user_question",
+        "read",
+        "write",
+        "edit",
+        "glob",
+        "grep",
+        "web_fetch",
+        "shell",
+        "lsp"
+      ]
+    },
+    {
+      "type": "tool_call",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0,
+      "tool_name": "ask_user_question",
+      "call_id": "call_1ejnzbfn",
+      "arguments": {
+        "title": "项目结构",
+        "question": "您希望如何组织Todo App的文件结构？",
+        "selection_mode": "single",
+        "options": [
+          {
+            "label": "单个HTML文件（含内联CSS/JS）",
+            "value": "single_file"
+          },
+          {
+            "label": "分离的HTML/CSS/JS文件",
+            "value": "multi_file"
+          }
+        ],
+        "allow_other": false
+      }
+    },
+    {
+      "type": "response_received",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0,
+      "response_id": null,
+      "has_tool_calls": true,
+      "status": "awaiting_human_input",
+      "bundle": {
+        "model": "qwen3:32b",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "running",
+        "human_input_request": {
+          "request_id": "call_1ejnzbfn",
+          "kind": "selector",
+          "title": "项目结构",
+          "question": "您希望如何组织Todo App的文件结构？",
+          "selection_mode": "single",
+          "options": [
+            {
+              "label": "单个HTML文件（含内联CSS/JS）",
+              "value": "single_file",
+              "description": ""
+            },
+            {
+              "label": "分离的HTML/CSS/JS文件",
+              "value": "multi_file",
+              "description": ""
+            }
+          ],
+          "allow_other": false,
+          "other_label": "Other",
+          "other_placeholder": "",
+          "min_selected": 1,
+          "max_selected": 1
+        },
+        "continuation": {
+          "type": "human_input_continuation",
+          "kind": "selector",
+          "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+          "provider": "ollama",
+          "model": "qwen3:32b",
+          "request_id": "call_1ejnzbfn",
+          "interaction_id": null,
+          "call_id": "call_1ejnzbfn",
+          "request": {
+            "request_id": "call_1ejnzbfn",
+            "kind": "selector",
+            "title": "项目结构",
+            "question": "您希望如何组织Todo App的文件结构？",
+            "selection_mode": "single",
+            "options": [
+              {
+                "label": "单个HTML文件（含内联CSS/JS）",
+                "value": "single_file",
+                "description": ""
+              },
+              {
+                "label": "分离的HTML/CSS/JS文件",
+                "value": "multi_file",
+                "description": ""
+              }
+            ],
+            "allow_other": false,
+            "other_label": "Other",
+            "other_placeholder": "",
+            "min_selected": 1,
+            "max_selected": 1
+          },
+          "payload": {
+            "temperature": 0,
+            "num_ctx": 16384,
+            "num_predict": 4096
+          },
+          "response_format": null,
+          "context_version_id": "kv_6c3779a14bc04ab1948e8a15d8d03eba",
+          "iteration": 1,
+          "max_iterations": 3,
+          "previous_response_id": null,
+          "use_openai_previous_response_chain": false,
+          "provider_replay_handle": {
+            "id": "provider_replay_b1349e770cc2451f9d976df95632eb2d",
+            "scope": "process"
+          },
+          "session_id": "ticket-224-qwen-1",
+          "memory_namespace": null,
+          "max_context_window_tokens": 0,
+          "consumed_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "last_turn_tokens": 0,
+          "last_turn_input_tokens": 0,
+          "last_turn_output_tokens": 0,
+          "workspace_change_state": {}
+        },
+        "previous_response_id": null,
+        "iteration": 1
+      }
+    },
+    {
+      "type": "human_input_requested",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "iteration": 0,
+      "request_id": "call_1ejnzbfn",
+      "kind": "selector",
+      "title": "项目结构",
+      "question": "您希望如何组织Todo App的文件结构？",
+      "selection_mode": "single",
+      "options": [
+        {
+          "label": "单个HTML文件（含内联CSS/JS）",
+          "value": "single_file",
+          "description": ""
+        },
+        {
+          "label": "分离的HTML/CSS/JS文件",
+          "value": "multi_file",
+          "description": ""
+        }
+      ],
+      "allow_other": false,
+      "other_label": "Other",
+      "other_placeholder": "",
+      "min_selected": 1,
+      "max_selected": 1
+    }
+  ],
+  "result": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "帮我做一个简单的 todo app"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_1ejnzbfn",
+            "function": {
+              "index": 0,
+              "name": "ask_user_question",
+              "arguments": {
+                "title": "项目结构",
+                "question": "您希望如何组织Todo App的文件结构？",
+                "selection_mode": "single",
+                "options": [
+                  {
+                    "label": "单个HTML文件（含内联CSS/JS）",
+                    "value": "single_file"
+                  },
+                  {
+                    "label": "分离的HTML/CSS/JS文件",
+                    "value": "multi_file"
+                  }
+                ],
+                "allow_other": false
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "status": "awaiting_human_input",
+    "continuation": {
+      "type": "human_input_continuation",
+      "kind": "selector",
+      "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+      "provider": "ollama",
+      "model": "qwen3:32b",
+      "request_id": "call_1ejnzbfn",
+      "interaction_id": null,
+      "call_id": "call_1ejnzbfn",
+      "request": {
+        "request_id": "call_1ejnzbfn",
+        "kind": "selector",
+        "title": "项目结构",
+        "question": "您希望如何组织Todo App的文件结构？",
+        "selection_mode": "single",
+        "options": [
+          {
+            "label": "单个HTML文件（含内联CSS/JS）",
+            "value": "single_file",
+            "description": ""
+          },
+          {
+            "label": "分离的HTML/CSS/JS文件",
+            "value": "multi_file",
+            "description": ""
+          }
+        ],
+        "allow_other": false,
+        "other_label": "Other",
+        "other_placeholder": "",
+        "min_selected": 1,
+        "max_selected": 1
+      },
+      "payload": {
+        "temperature": 0,
+        "num_ctx": 16384,
+        "num_predict": 4096
+      },
+      "response_format": null,
+      "context_version_id": "kv_6c3779a14bc04ab1948e8a15d8d03eba",
+      "iteration": 1,
+      "max_iterations": 3,
+      "previous_response_id": null,
+      "use_openai_previous_response_chain": false,
+      "provider_replay_handle": {
+        "id": "provider_replay_b1349e770cc2451f9d976df95632eb2d",
+        "scope": "process"
+      },
+      "session_id": "ticket-224-qwen-1",
+      "memory_namespace": null,
+      "max_context_window_tokens": 0,
+      "consumed_tokens": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "last_turn_tokens": 0,
+      "last_turn_input_tokens": 0,
+      "last_turn_output_tokens": 0,
+      "workspace_change_state": {}
+    },
+    "human_input_request": {
+      "request_id": "call_1ejnzbfn",
+      "kind": "selector",
+      "title": "项目结构",
+      "question": "您希望如何组织Todo App的文件结构？",
+      "selection_mode": "single",
+      "options": [
+        {
+          "label": "单个HTML文件（含内联CSS/JS）",
+          "value": "single_file",
+          "description": ""
+        },
+        {
+          "label": "分离的HTML/CSS/JS文件",
+          "value": "multi_file",
+          "description": ""
+        }
+      ],
+      "allow_other": false,
+      "other_label": "Other",
+      "other_placeholder": "",
+      "min_selected": 1,
+      "max_selected": 1
+    },
+    "consumed_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "last_turn_tokens": 0,
+    "last_turn_input_tokens": 0,
+    "last_turn_output_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "previous_response_id": null,
+    "iteration": 1,
+    "provider_replay_handle": {
+      "id": "provider_replay_ddbb5f5f6d05434db7ea61d5eec0b1cf",
+      "scope": "process"
+    },
+    "interaction_request": null,
+    "run_bundle": {
+      "schema": "unchain.run_bundle.v1",
+      "bundle_id": "rb_0dba20d76cc8fc4659c5ada8b94e9be582101a6adab41b1f60bcc663b23c9688",
+      "revision": 1,
+      "bundle_digest": "75d96e7feeaa236f92b8fb95f43a2b4082d52012968bc329f13ff9b082f9e7e1",
+      "identity": {
+        "execution_id": "ticket-224-qwen-1",
+        "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+        "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+        "run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+        "parent_run_id": null,
+        "relation": "root"
+      },
+      "lifecycle": {
+        "status": "suspended",
+        "started_at": "2026-09-11T23:54:37.208850Z",
+        "completed_at": "2026-09-11T23:56:57.741281Z",
+        "continued_from_run_id": null
+      },
+      "descriptor": {
+        "model": "qwen3:32b",
+        "display_model": "ollama:qwen3:32b",
+        "active_agent": "ticket-224-qwen",
+        "agent_orchestration": "default",
+        "iteration": 1
+      },
+      "metrics": {
+        "algorithm": "unique_metric_event_set_union.v1",
+        "events": [
+          {
+            "metric_event_id": "me_1cc70d038acbe30125b58eefc911076ffc3d0828b24e7adc791b85e1e41860ba",
+            "execution_id": "ticket-224-qwen-1",
+            "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "owner_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "parent_run_id": null,
+            "kind": "interaction",
+            "subject_id": "human-input:call_1ejnzbfn",
+            "outcome": "requested",
+            "error": null,
+            "evidence_refs": []
+          },
+          {
+            "metric_event_id": "me_9671142559ac3b0a1cf7167de732c9518564cd05fb06374ddda25e50682980fc",
+            "execution_id": "ticket-224-qwen-1",
+            "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "owner_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "parent_run_id": null,
+            "kind": "iteration",
+            "subject_id": "iteration:0",
+            "outcome": "uncertain",
+            "error": null,
+            "evidence_refs": []
+          },
+          {
+            "metric_event_id": "me_f21c435a861e20dcc039de39d4ee51324eba46b49926d68d17a9158f6b53aa66",
+            "execution_id": "ticket-224-qwen-1",
+            "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "owner_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "parent_run_id": null,
+            "kind": "model_attempt",
+            "subject_id": "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa",
+            "outcome": "completed",
+            "error": null,
+            "evidence_refs": []
+          },
+          {
+            "metric_event_id": "me_f4276941f847c21df66533f44196f7d74e63e4e27c5910774fdbc30a148fe833",
+            "execution_id": "ticket-224-qwen-1",
+            "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "owner_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "parent_run_id": null,
+            "kind": "tool_call",
+            "subject_id": "call_1ejnzbfn",
+            "outcome": "completed",
+            "error": null,
+            "evidence_refs": []
+          }
+        ],
+        "direct": {
+          "artifacts": 0,
+          "model_attempts": 1,
+          "iterations": 1,
+          "tool_calls": 1,
+          "tool_results": 0,
+          "interactions": 1,
+          "context_builds": 0,
+          "context_compactions": 0,
+          "errors": 0
+        },
+        "descendant": {
+          "artifacts": 0,
+          "model_attempts": 0,
+          "iterations": 0,
+          "tool_calls": 0,
+          "tool_results": 0,
+          "interactions": 0,
+          "context_builds": 0,
+          "context_compactions": 0,
+          "errors": 0
+        },
+        "all": {
+          "artifacts": 0,
+          "model_attempts": 1,
+          "iterations": 1,
+          "tool_calls": 1,
+          "tool_results": 0,
+          "interactions": 1,
+          "context_builds": 0,
+          "context_compactions": 0,
+          "errors": 0
+        }
+      },
+      "provider_calls": [
+        {
+          "schema": "unchain.provider_call_usage.v1",
+          "provider_call_id": "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa",
+          "identity": {
+            "execution_id": "ticket-224-qwen-1",
+            "attempt_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "root_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "owner_run_id": "d8f7c0d8-2fec-43bb-baf3-6f0844f41025",
+            "parent_run_id": null,
+            "iteration": 0,
+            "retry_ordinal": 0,
+            "purpose": "agent_turn",
+            "request_sha256": "ac697e438b90b617df684a5687c0932c5a74bb28bacb1436c7310da0e4be3cd9",
+            "route": "ollama.chat"
+          },
+          "provider": {
+            "name": "ollama",
+            "model": "qwen3:32b",
+            "service_tier": null
+          },
+          "status": "completed",
+          "timing": {
+            "started_at": "2026-09-11T23:54:37.215000Z",
+            "completed_at": "2026-09-11T23:56:57.721946Z"
+          },
+          "provider_ids": {
+            "request_id_sha256": null,
+            "response_id_sha256": null
+          },
+          "billing_dimensions": {
+            "billing_surface": null,
+            "batch": null,
+            "inference_geo": null
+          },
+          "usage": {
+            "input": {
+              "uncached_tokens": null,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_write_5m_tokens": 0,
+              "cache_write_1h_tokens": 0,
+              "total_tokens": null
+            },
+            "output": {
+              "visible_tokens": null,
+              "reasoning_tokens": null,
+              "total_tokens": null
+            },
+            "total_tokens": null,
+            "source": "provider_observed_partial"
+          },
+          "raw_usage_sha256": null,
+          "pricing": {
+            "status": "unavailable",
+            "basis": null,
+            "snapshot": null,
+            "amount_nano_usd": null,
+            "reason": "pricing_service_tier_unknown",
+            "input_multiplier_ppm": null,
+            "output_multiplier_ppm": null
+          },
+          "extensions": {
+            "unchain.runtime/usage_capture": "provider_adapter"
+          }
+        }
+      ],
+      "children": [],
+      "aggregation": {
+        "algorithm": "provider_call_set_union.v1",
+        "direct_call_ids": [
+          "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa"
+        ],
+        "descendant_call_ids": [],
+        "all_call_ids": [
+          "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa"
+        ],
+        "direct_usage": {
+          "input": {
+            "uncached_tokens": null,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cache_write_5m_tokens": 0,
+            "cache_write_1h_tokens": 0,
+            "total_tokens": null
+          },
+          "output": {
+            "visible_tokens": null,
+            "reasoning_tokens": null,
+            "total_tokens": null
+          },
+          "total_tokens": null,
+          "source": "provider_observed_partial"
+        },
+        "descendant_usage": {
+          "input": {
+            "uncached_tokens": null,
+            "cache_read_tokens": null,
+            "cache_write_tokens": null,
+            "cache_write_5m_tokens": null,
+            "cache_write_1h_tokens": null,
+            "total_tokens": null
+          },
+          "output": {
+            "visible_tokens": null,
+            "reasoning_tokens": null,
+            "total_tokens": null
+          },
+          "total_tokens": null,
+          "source": "unavailable"
+        },
+        "all_usage": {
+          "input": {
+            "uncached_tokens": null,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cache_write_5m_tokens": 0,
+            "cache_write_1h_tokens": 0,
+            "total_tokens": null
+          },
+          "output": {
+            "visible_tokens": null,
+            "reasoning_tokens": null,
+            "total_tokens": null
+          },
+          "total_tokens": null,
+          "source": "provider_observed_partial"
+        }
+      },
+      "usage_slices": [
+        {
+          "provider": "ollama",
+          "model": "qwen3:32b",
+          "service_tier": null,
+          "call_ids": [
+            "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa"
+          ],
+          "usage": {
+            "input": {
+              "uncached_tokens": null,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_write_5m_tokens": 0,
+              "cache_write_1h_tokens": 0,
+              "total_tokens": null
+            },
+            "output": {
+              "visible_tokens": null,
+              "reasoning_tokens": null,
+              "total_tokens": null
+            },
+            "total_tokens": null,
+            "source": "provider_observed_partial"
+          },
+          "coverage": {
+            "status": "unavailable",
+            "receipt_count": 1,
+            "observed_usage_count": 0,
+            "missing_usage_count": 1,
+            "uncertain_call_count": 0,
+            "missing_usage_call_ids": [
+              "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa"
+            ]
+          },
+          "cost": {
+            "status": "unavailable",
+            "basis": null,
+            "amount_nano_usd": null,
+            "currency": null,
+            "pricing_snapshot_ids": []
+          }
+        }
+      ],
+      "coverage": {
+        "status": "unavailable",
+        "receipt_count": 1,
+        "observed_usage_count": 0,
+        "missing_usage_count": 1,
+        "uncertain_call_count": 0,
+        "missing_usage_call_ids": [
+          "pc_46b4aa334a32cf4880e913bdda4c731e3cd7e6ae4a7fcf082104d3598563e8fa"
+        ]
+      },
+      "cost": {
+        "status": "unavailable",
+        "basis": null,
+        "amount_nano_usd": null,
+        "currency": null,
+        "pricing_snapshot_ids": []
+      },
+      "legacy": {
+        "status": "canonical",
+        "source": null,
+        "reason": null
+      },
+      "evidence": {
+        "receipt_sha256s": [
+          "3314a68a6fbd18a6319efbaea3c5ea2f8b3540e8584075c8e63e3fc7fc9e67b3"
+        ],
+        "raw_usage_sha256s": [],
+        "pricing_snapshot_ids": []
+      },
+      "extensions": {
+        "unchain.runtime/identity_source": "explicit",
+        "unchain.runtime/kernel_status": "awaiting_human_input"
+      }
+    }
+  },
+  "elapsed_seconds": 140.5588788986206
+}

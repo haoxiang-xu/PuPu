@@ -1,0 +1,4 @@
+interface:
+  display_name: "PuPu Open Release"
+  short_description: "Open and scope a GitHub Project release parent"
+  default_prompt: "Use $release-open-sprint to open and scope the next PuPu release with me."

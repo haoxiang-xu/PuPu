@@ -309,6 +309,60 @@
       "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
     },
     {
+      "id": "dev.bug-bounty-intelligence",
+      "toolkitId": "mcp.dev.bug-bounty-intelligence",
+      "name": "Bug Bounty Intelligence",
+      "description": "Third-party smart contract security tools using Sherlock/Code4rena audit data. Two tools are free; the provider advertises paid scans at 5 USDC. See payment limitations before use.",
+      "category": "dev",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/holistis/bug-bounty-intelligence-mcp",
+      "docsUrl": "https://github.com/holistis/bug-bounty-intelligence-mcp#readme",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/holistis/bug-bounty-intelligence-mcp",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "bug-bounty-intelligence-mcp@1.0.3"]
+      },
+      "setupPreview": "npx -y bug-bounty-intelligence-mcp@1.0.3",
+      "prerequisites": [],
+      "secrets": [],
+      "tools": [
+        { "name": "list_vulnerability_patterns", "title": "List vulnerability patterns", "requiresConfirmation": false },
+        { "name": "get_scan_report", "title": "Get scan report", "requiresConfirmation": false },
+        { "name": "scan_contract", "title": "Scan contract (paid, 5 USDC via x402)", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Bug Bounty Intelligence (third-party)\n\nRuns the **third-party** `bug-bounty-intelligence-mcp` server, published and operated by its author, not by PuPu. It is available to install as a community integration, pinned to `@1.0.3`. Catalog inclusion does not imply PuPu endorsement or verification of audit accuracy or paid-service delivery.\n\n`list_vulnerability_patterns` and `get_scan_report` are free. The provider advertises `scan_contract` at 5 USDC on Base; payment is handled by the provider, not billed through PuPu. Calling the paid tool requires confirmation.\n\n### Known payment limitations in version 1.0.3\n\nThe published client contains a stale fallback payment address and does not forward the payment signature required by the live x402 endpoint. Paid scanning may therefore fail to proceed. A manual transfer alone is not proof that the service will accept payment or deliver a report. Upstream source fixes do not change this pinned npm release. Confirm the current payment procedure with the provider before paying; PuPu has not verified a completed paid scan.\n\nNo secrets or OAuth setup is required by this entry. The public MCP client is open source; the hosted scanning backend is not included in that client repository. Acceptance-rate figures for the free patterns tool are based on 1,032 findings reconciled against Sherlock results, not all 27,681 submitted findings in the broader corpus; see the provider's METHODOLOGY.md."
+    },
+    {
       "id": "devops.sentry-remote",
       "toolkitId": "mcp.devops.sentry-remote",
       "name": "Sentry",
@@ -1138,6 +1192,148 @@
         "confirmationRequiredTools": 3
       },
       "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server opens **`${WORKSPACE}/pupu-mcp.sqlite`**, a local SQLite database file inside the selected agent workspace.\n\n### Use a disposable, non-production workspace\n\nThe agent can read **every table and row** in this database file — reading the database **is** data exfiltration. Use a **disposable / non-production** workspace whose `pupu-mcp.sqlite` file you are comfortable exposing in full; never copy production or sensitive data into it.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
+    },
+    {
+      "id": "dev.microsoft-learn",
+      "toolkitId": "mcp.dev.microsoft-learn",
+      "name": "Microsoft Learn",
+      "description": "Official Microsoft Learn MCP service for searching and fetching Microsoft documentation and code samples.",
+      "category": "dev",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "hosted",
+      "sourceRepo": "https://github.com/MicrosoftDocs/mcp",
+      "docsUrl": "https://learn.microsoft.com/en-us/training/support/mcp",
+      "mcp": {
+        "transport": "http",
+        "runtimeTransport": "streamable_http",
+        "url": "https://learn.microsoft.com/api/mcp",
+        "headers": []
+      },
+      "setupPreview": "https://learn.microsoft.com/api/mcp",
+      "prerequisites": [],
+      "secrets": [],
+      "tools": [
+        { "name": "microsoft_docs_search", "title": "Search Microsoft Learn docs", "requiresConfirmation": false },
+        { "name": "microsoft_code_sample_search", "title": "Search Microsoft code samples", "requiresConfirmation": false },
+        { "name": "microsoft_docs_fetch", "title": "Fetch Microsoft docs page", "requiresConfirmation": false }
+      ],
+      "policySummary": {
+        "reviewed": false,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 0
+      },
+      "readmeMarkdown": "## Microsoft Learn (official hosted service)\n\nConnects to Microsoft's official Microsoft Learn MCP service at `https://learn.microsoft.com/api/mcp`, documented in [`MicrosoftDocs/mcp`](https://github.com/MicrosoftDocs/mcp). It searches and fetches Microsoft documentation and code samples; requests and URLs are sent to Microsoft's hosted endpoint and returned content is available to the agent. Microsoft documents this service as free and requiring no API key, subject to its service limits. Available by project-owner decision. Packaged PuPu qualification is not yet complete; this entry has no PuPu Verified attestation."
+    },
+    {
+      "id": "productivity.brave-search",
+      "toolkitId": "mcp.productivity.brave-search",
+      "name": "Brave Search",
+      "description": "Official Brave Search MCP server for web, news, image and video search.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/brave/brave-search-mcp-server",
+      "docsUrl": "https://github.com/brave/brave-search-mcp-server#readme",
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "@brave/brave-search-mcp-server@2.1.0", "--transport", "stdio", "--enabled-tools", "brave_web_search", "brave_news_search", "brave_image_search", "brave_video_search"]
+      },
+      "setupPreview": "npx -y @brave/brave-search-mcp-server@2.1.0 --transport stdio",
+      "prerequisites": ["Brave Search API account"],
+      "secrets": [
+        { "key": "BRAVE_API_KEY", "label": "Brave Search API key" }
+      ],
+      "tools": [
+        { "name": "brave_web_search", "title": "Search the web", "requiresConfirmation": false },
+        { "name": "brave_news_search", "title": "Search news", "requiresConfirmation": false },
+        { "name": "brave_image_search", "title": "Search images", "requiresConfirmation": false },
+        { "name": "brave_video_search", "title": "Search videos", "requiresConfirmation": false }
+      ],
+      "policySummary": {
+        "reviewed": false,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 0
+      },
+      "readmeMarkdown": "## Brave Search (official package)\n\nRuns Brave Software's official `@brave/brave-search-mcp-server` over stdio, pinned to `@2.1.0`; only the four listed search tools are requested and the server does not listen on a port. Search queries and result requests are sent to Brave Search, and the returned results are available to the agent. A Brave Search API account and `BRAVE_API_KEY` are required; usage and any charges follow Brave's current plan. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
+    },
+    {
+      "id": "productivity.tavily",
+      "toolkitId": "mcp.productivity.tavily",
+      "name": "Tavily",
+      "description": "Official Tavily MCP server for web search, extraction, crawling, mapping and research.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/tavily-ai/tavily-mcp",
+      "docsUrl": "https://github.com/tavily-ai/tavily-mcp#readme",
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "tavily-mcp@0.2.21"]
+      },
+      "setupPreview": "npx -y tavily-mcp@0.2.21",
+      "prerequisites": ["Tavily API account"],
+      "secrets": [
+        { "key": "TAVILY_API_KEY", "label": "Tavily API key" }
+      ],
+      "tools": [
+        { "name": "tavily_search", "title": "Search with Tavily", "requiresConfirmation": true },
+        { "name": "tavily_extract", "title": "Extract web content", "requiresConfirmation": true },
+        { "name": "tavily_crawl", "title": "Crawl a website", "requiresConfirmation": true },
+        { "name": "tavily_map", "title": "Map a website", "requiresConfirmation": true },
+        { "name": "tavily_research", "title": "Research with Tavily", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": false,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 5
+      },
+      "readmeMarkdown": "## Tavily (official package)\n\nRuns Tavily's official `tavily-mcp` package over stdio, pinned to `@0.2.21`. PuPu declares `TAVILY_API_KEY` for a predictable complete tool set even though upstream also documents a keyless mode. Search queries and supplied URLs are sent to Tavily for processing; search, extraction, crawling and research may consume provider credits or incur account charges. The catalog requests confirmation for every listed tool because crawl and research can perform broader external retrieval; enforcement must be qualified with the packaged runtime as part of security verification. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
+    },
+    {
+      "id": "productivity.firecrawl",
+      "toolkitId": "mcp.productivity.firecrawl",
+      "name": "Firecrawl",
+      "description": "Official Firecrawl MCP server for web scraping, search and site mapping.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/firecrawl/firecrawl-mcp-server",
+      "docsUrl": "https://docs.firecrawl.dev/mcp-server",
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "--before=2026-07-28T00:00:00Z", "firecrawl-mcp@3.22.4"]
+      },
+      "setupPreview": "npx -y firecrawl-mcp@3.22.4",
+      "prerequisites": ["Firecrawl API account"],
+      "secrets": [
+        { "key": "FIRECRAWL_API_KEY", "label": "Firecrawl API key" }
+      ],
+      "tools": [
+        { "name": "firecrawl_scrape", "title": "Scrape a webpage", "requiresConfirmation": true },
+        { "name": "firecrawl_search", "title": "Search the web", "requiresConfirmation": true },
+        { "name": "firecrawl_map", "title": "Map a website", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": false,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 3
+      },
+      "readmeMarkdown": "## Firecrawl (official package)\n\nRuns Firecrawl's official `firecrawl-mcp` package over stdio, pinned to `@3.22.4`; the bundled package requires Node 22 or newer, supplied by PuPu's packaged runtime. The preview lists `firecrawl_scrape`, `firecrawl_search` and `firecrawl_map`, but the server can advertise broader scraping, crawling, extraction, monitoring and research capabilities; confirmation for the full discovered tool set must be qualified with the packaged runtime as part of security verification. URLs and requested page data are processed by Firecrawl or its configured service, and operations may consume Firecrawl credits. `firecrawl_scrape` can accept interactive actions, so this catalog requests confirmation for it. Available by project-owner decision. Live authenticated qualification is not yet complete; this entry has no PuPu Verified attestation. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; the advisory applicability and remediation work remains unresolved."
     }
   ]
 }

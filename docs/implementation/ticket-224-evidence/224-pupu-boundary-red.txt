@@ -1,0 +1,55 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/SERVICEs/api.humanInputFreeText.test.js
+
+FAIL src/SERVICEs/api.humanInputFreeText.test.js
+  free-text pending interaction boundary
+    ✕ single real producer projection passes API and recovery (1 ms)
+    ✕ multiple real producer projection passes API and recovery
+    ✓ rejects no free-text affordance at both consumers (2 ms)
+    ✓ rejects coerced affordance at both consumers
+    ✓ rejects unknown field at both consumers
+    ✓ rejects unsupported kind at both consumers
+    ✓ rejects wrong request identity at both consumers (1 ms)
+    ✓ rejects invalid options type at both consumers
+    ✓ rejects too many answers at both consumers
+    ✓ rejects unreachable minimum at both consumers
+    ✓ rejects divergence between the two producer copies (1 ms)
+
+  ● free-text pending interaction boundary › single real producer projection passes API and recovery
+
+    FrontendApiError: Unchain returned a pending interaction for an invalid status or identity
+
+      1136 |     ])
+      1137 |   ) {
+    > 1138 |     throw new FrontendApiError(
+           |           ^
+      1139 |       "invalid_pending_interaction_response",
+      1140 |       "Unchain returned a pending interaction for an invalid status or identity",
+      1141 |     );
+
+      at normalizePendingInteractionResponse (src/SERVICEs/api.unchain.js:1138:11)
+      at Object.getPendingInteraction (src/SERVICEs/api.unchain.js:1981:16)
+      at src/SERVICEs/api.humanInputFreeText.test.js:24:22
+
+  ● free-text pending interaction boundary › multiple real producer projection passes API and recovery
+
+    FrontendApiError: Unchain returned a pending interaction for an invalid status or identity
+
+      1136 |     ])
+      1137 |   ) {
+    > 1138 |     throw new FrontendApiError(
+           |           ^
+      1139 |       "invalid_pending_interaction_response",
+      1140 |       "Unchain returned a pending interaction for an invalid status or identity",
+      1141 |     );
+
+      at normalizePendingInteractionResponse (src/SERVICEs/api.unchain.js:1138:11)
+      at Object.getPendingInteraction (src/SERVICEs/api.unchain.js:1981:16)
+      at src/SERVICEs/api.humanInputFreeText.test.js:24:22
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 9 passed, 11 total
+Snapshots:   0 total
+Time:        1.194 s
+Ran all test suites within paths "src/SERVICEs/api.humanInputFreeText.test.js".

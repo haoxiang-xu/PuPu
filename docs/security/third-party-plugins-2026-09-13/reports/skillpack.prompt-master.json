@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "pupu.plugin-verification-report.v1",
+  "policyVersion": "pupu-proposed-v0.1",
+  "status": "INCOMPLETE",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "reviewer": {
+    "type": "agent",
+    "name": "Codex",
+    "model": "GPT-6 family; exact backend snapshot unavailable",
+    "independentReview": false,
+    "methods": [
+      "bounded source/instruction review",
+      "Cisco Skill Scanner 2.1.0 local static/dataflow analyzers",
+      "OSV-Scanner 2.5.1",
+      "real MCP initialize/list/call probes",
+      "synthetic filesystem/SQLite effects through real Unchain confirmation dispatcher"
+    ]
+  },
+  "subject": {
+    "toolkitId": "skillpack.prompt-master",
+    "kind": "skill-pack",
+    "sourceRepo": "https://github.com/nidhinjs/prompt-master",
+    "commit": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+    "package": null,
+    "version": null,
+    "artifactSha256": "bde682e56eb53dc2442121983746b2e5eba58c6b34c1e6d6593f307ae817088e",
+    "dependencyLockSha256": null,
+    "permissionConfigDigest": "aaa45365f116c2af6135eef77669d18dd8c867ed27dfcc9db6d8c69a582786f2",
+    "selectedFileManifest": {
+      "reference": "subjects/skillpack.prompt-master.json",
+      "sha256": "9590cf32d58f21c48f8a7a629e7ccea450144a1251c33560aa73c566bb7f261d"
+    },
+    "toolDefinitionDigest": null,
+    "referencedInstructionManifest": [
+      {
+        "path": "README.md",
+        "sha256": "0990269b91ccbcd50e6574bd89edbf176043e097cf1584a5746240bc473afefc"
+      },
+      {
+        "path": "SKILL.md",
+        "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b"
+      },
+      {
+        "path": "references/templates.md",
+        "sha256": "0850a3871058077bfc6a16372fa3beb28d81f02baab8d42d3607ddc3a681ae67"
+      },
+      {
+        "path": "references/patterns.md",
+        "sha256": "2d2eb623396ce5edade402cfcafbd457af093cf85fa5966c34c210e58ce1f9d1"
+      }
+    ],
+    "sourceCommitObservation": null,
+    "endpoint": null
+  },
+  "coverage": {
+    "included": [
+      "Pinned manifest checks",
+      "Selected SKILL.md bodies and markdown references listed in skill-content-review.json"
+    ],
+    "excluded": [
+      "Real PuPu invocation, referenced executable-tool dependencies and hostile-input model cycle remain untested."
+    ],
+    "scopeNote": "Selected skill instructions or authenticated hosted service; see raw evidence and limitations."
+  },
+  "checks": [
+    {
+      "id": "PV-01.subject",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Acquired fixed package/source bytes and registry hashes, or bounded documented HTTPS endpoint identity; see identity limitations.",
+      "evidence": [
+        {
+          "reference": "subjects/skillpack.prompt-master.json",
+          "sha256": "9590cf32d58f21c48f8a7a629e7ccea450144a1251c33560aa73c566bb7f261d"
+        },
+        {
+          "reference": "runtime-artifact-correspondence.json",
+          "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+        },
+        {
+          "reference": "source-commit-correspondence.json",
+          "sha256": "da464e566bfa3ca9f995abe7694b0d06dcda05a331ac855a5bacc939af969bfb"
+        }
+      ]
+    },
+    {
+      "id": "PV-01.deployed-pair",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "Exact packaged PuPu/Unchain artifact correspondence was not established.",
+      "evidence": []
+    },
+    {
+      "id": "PV-03.instruction-scan",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Full selected markdown view scanned locally; informational license-frontmatter findings are contextually assessed. No cloud or LLM scanner uploads.",
+      "evidence": [
+        {
+          "reference": "skill-content-review.json",
+          "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+        },
+        {
+          "reference": "skillpack.prompt-master-root-scanner.json",
+          "sha256": "0b437d47a63b7b26a3300a387e1cccb72fab76ce77be90a9aa4e80df2a30ebeb"
+        }
+      ]
+    },
+    {
+      "id": "PV-02.instruction-only",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "This scan view contains markdown instructions and references. Suggested tools, optional code resources and unbundled companion skills are not verified executable dependencies.",
+      "evidence": [
+        {
+          "reference": "skill-content-review.json",
+          "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+        }
+      ]
+    },
+    {
+      "id": "PV-03.hostile-model-path",
+      "applicable": true,
+      "status": "NOT_RUN",
+      "reason": "No isolated PuPu model invocation with hostile tool/document instructions.",
+      "evidence": []
+    },
+    {
+      "id": "PV-05.evidence",
+      "applicable": true,
+      "status": "PASS",
+      "reason": "Versioned local reports, raw records and digest manifest retained. No signed record or badge publication claimed.",
+      "evidence": [
+        {
+          "reference": "sandbox-controls.json",
+          "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+        },
+        {
+          "reference": "skill-scanner-identity.json",
+          "sha256": "6455273168e35beb34e2e9955b4a1a2974275b0bcb20fee731ada9b848c0b1eb"
+        },
+        {
+          "reference": "osv-scanner-identity.json",
+          "sha256": "8be1606c0f5c3c4f7d8a1a942cc8f29c90127eefff16aa4c974d88cb0a86f181"
+        }
+      ]
+    }
+  ],
+  "findings": [],
+  "tools": [
+    {
+      "name": "Cisco Skill Scanner",
+      "version": "2.1.0",
+      "scope": "Local deterministic and Python dataflow analyzers only"
+    },
+    {
+      "name": "OSV-Scanner",
+      "version": "2.5.1",
+      "scope": "Resolved dependencies, plus extracted Grafana Go module versions"
+    }
+  ],
+  "environment": {
+    "mechanism": "macOS Seatbelt sandbox-exec",
+    "node": "24.18.0",
+    "python": "3.12.11",
+    "profile": {
+      "reference": "sandbox-profile.sb",
+      "sha256": "006f937656dfa638a016282420573b22d10a4538ee6288018dec8e8ef6713690"
+    },
+    "controls": {
+      "reference": "sandbox-controls.json",
+      "sha256": "dd50934039cf24f8271a63931301801c8f9e7c6b2992fb0a91246ba278b8fa28"
+    },
+    "credentials": "None; synthetic invalid placeholders only",
+    "model": null,
+    "packagedPair": null
+  },
+  "evidence": [
+    {
+      "reference": "subjects/skillpack.prompt-master.json",
+      "sha256": "9590cf32d58f21c48f8a7a629e7ccea450144a1251c33560aa73c566bb7f261d"
+    },
+    {
+      "reference": "runtime-artifact-correspondence.json",
+      "sha256": "94669107a98874b8713cd4abca6cd5abbe60ad332c1ec39f696839e46d21a747"
+    },
+    {
+      "reference": "dependency-assessment.json",
+      "sha256": "1211345b73434b85a5eaefdcdd6e7cc8bf7c7b3dd98f44bf8767922cbbdab98b"
+    },
+    {
+      "reference": "skill-content-review.json",
+      "sha256": "b42a7507146d45fc57c9d4d996e845a285ce34e2c6dccb445e2426c4e127986e"
+    }
+  ],
+  "limitations": [
+    "No live isolated PuPu model run with hostile tool/document output was performed.",
+    "No packaged PuPu and fixed Unchain-wheel pair was qualified.",
+    "Source/code review was targeted, not exhaustive review of every acquired file or bundled dependency.",
+    "No real service credentials, private workspace, production database or host browser session were used.",
+    "The sandbox denies network and user-home reads except explicit trusted Python/Node runtime paths; writes are restricted to synthetic fixtures. It is not a VM or a complete Mach-service/syscall monitor.",
+    "API acquisition and hosted MCP probes use the trusted verifier outside candidate sandbox; hosted backend code is not observable.",
+    "Package integrity hashes and reachable Git commits do not establish signed provenance or a complete publisher/build chain.",
+    "No Verified badge or catalog availability changed; this proposed v0.1 policy is not third-party certification."
+  ],
+  "recheckTriggers": [
+    "Package/code/dependency bytes change",
+    "Tool schema/instruction/reference/configuration changes",
+    "Relevant advisory appears",
+    "Host confirmation gap fixed",
+    "Valid scoped test credentials or isolated PuPu model environment becomes available"
+  ]
+}

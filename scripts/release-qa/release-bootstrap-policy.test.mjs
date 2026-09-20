@@ -14,7 +14,7 @@ import {
 } from "./release-bootstrap-policy.mjs";
 import { qualificationWorkflowPath } from "./qualification-provenance.mjs";
 
-const policy = readReleaseBootstrapPolicy("contracts/release/release-bootstrap-policy.v1.json");
+const policy = readReleaseBootstrapPolicy("docs/contracts/release/release-bootstrap-policy.v1.json");
 const apiRelease = () => ({
   id: policy.legacy_release.release_id,
   tag_name: policy.legacy_release.tag,

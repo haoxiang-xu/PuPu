@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Management"
+  short_description: "巡检 GitHub 新动态，逐项评判 issue、PR 与评论并编排后续处理"
+  default_prompt: "使用 $community-repo-issue-polling 检查 PuPu 的社区新动态，排出处理顺序，逐项给出判断和建议动作。"

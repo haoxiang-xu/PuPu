@@ -1,0 +1,125 @@
+{
+  "toolkitId": "mcp.workspace.fetch",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "6991b9a8133726b9f0b76d8c5e9607c8207e19e7c3a47c9e174a8b2e0742fc70",
+  "initialize": "PASS",
+  "server": {
+    "name": "mcp-fetch",
+    "version": "1.28.0"
+  },
+  "tools": [
+    {
+      "name": "fetch",
+      "description": "Fetches a URL from the internet and optionally extracts its contents as markdown.\n\nAlthough originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "description": "URL to fetch",
+            "format": "uri",
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "max_length": {
+            "default": 5000,
+            "description": "Maximum number of characters to return.",
+            "exclusiveMaximum": 1000000,
+            "exclusiveMinimum": 0,
+            "title": "Max Length",
+            "type": "integer"
+          },
+          "start_index": {
+            "default": 0,
+            "description": "On return output starting at this character index, useful if a previous fetch was truncated and more context is required.",
+            "minimum": 0,
+            "title": "Start Index",
+            "type": "integer"
+          },
+          "raw": {
+            "default": false,
+            "description": "Get the actual HTML content of the requested page, without simplification.",
+            "title": "Raw",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "description": "Parameters for fetching a URL.",
+        "title": "Fetch"
+      }
+    }
+  ],
+  "toolsSha256": "6d091a27a3f6b55f124f7d549248160ba433e5c17c5e2dbe012682a86f97b209",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "error": "MCP error -32601: Method not found"
+  },
+  "prompts": {
+    "prompts": [
+      {
+        "name": "fetch",
+        "description": "Fetch a URL and extract its contents as markdown",
+        "arguments": [
+          {
+            "name": "url",
+            "description": "URL to fetch",
+            "required": true
+          }
+        ]
+      }
+    ]
+  },
+  "calls": [
+    {
+      "call": {
+        "name": "fetch",
+        "arguments": {
+          "url": "file:///pupu-synthetic-not-present"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Failed to fetch robots.txt file:///robots.txt due to a connection issue"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "call": {
+        "name": "fetch",
+        "arguments": {
+          "url": "http://127.0.0.1:9/synthetic"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Failed to fetch robots.txt http://127.0.0.1:9/robots.txt due to a connection issue"
+          }
+        ],
+        "isError": true
+      }
+    }
+  ],
+  "stderr": "",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

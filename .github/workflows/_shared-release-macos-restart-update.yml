@@ -1,0 +1,228 @@
+name: Shared macOS Restart Update Qualification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_run_id:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+      tag_commit:
+        required: true
+        type: string
+      from_tag:
+        required: true
+        type: string
+      from_version:
+        required: true
+        type: string
+      from_commit:
+        required: true
+        type: string
+      target_id:
+        required: true
+        type: string
+      runner_selector:
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  macos-restart-update:
+    name: Qualify macOS signed N-1 to exact N restart update
+    runs-on: ${{ inputs.target_id == 'macos-arm64' && 'macos-latest' || 'macos-15-intel' }}
+    timeout-minutes: 180
+    environment: release-signing
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TAG_COMMIT: ${{ inputs.tag_commit }}
+      FROM_TAG: ${{ inputs.from_tag }}
+      FROM_VERSION: ${{ inputs.from_version }}
+      FROM_COMMIT: ${{ inputs.from_commit }}
+      TARGET_ID: ${{ inputs.target_id }}
+      RUNNER_SELECTOR: ${{ inputs.runner_selector }}
+      FEED_PORT: "38193"
+    steps:
+      - name: Checkout frozen qualification tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: pupu
+          persist-credentials: false
+
+      - name: Set up native Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: pupu/package-lock.json
+
+      - name: Validate closed macOS restart-update inputs
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
+          case "$TARGET_ID:$RUNNER_SELECTOR:$(uname -m)" in
+            macos-arm64:macos-latest:arm64|macos-x64:macos-15-intel:x86_64) ;;
+            *) echo "Unsupported native macOS fixture runner tuple" >&2; exit 1 ;;
+          esac
+          if ! [[ "$FROM_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$FROM_VERSION" != "${FROM_TAG#v}" ] || ! [[ "$FROM_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid immutable N-1 source identity" >&2; exit 1
+          fi
+          if [ "$(git rev-parse "refs/tags/$FROM_TAG^{commit}")" != "$FROM_COMMIT" ]; then
+            echo "N-1 tag moved after preflight" >&2; exit 1
+          fi
+
+      - name: Install qualification dependencies
+        working-directory: pupu
+        run: npm ci
+
+      - name: Download and verify exact retained N candidate
+        working-directory: pupu
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name pupu-release-candidate --dir ../candidate
+          node scripts/release-qa/verify-release-candidate.mjs \
+            --manifest ../candidate/release-assets.v1.json --asset-dir ../candidate/assets \
+            --qa-report ../candidate/release-qa-report.json --tag "$RELEASE_TAG" \
+            --commit "$TAG_COMMIT" --candidate-run-id "$CANDIDATE_RUN_ID"
+          node scripts/release-qa/validate-update-fixture-source.mjs --candidate-dir ../candidate \
+            --from-tag "$FROM_TAG" --from-version "$FROM_VERSION" --from-commit "$FROM_COMMIT"
+
+      - name: Resolve N-1 Unchain revision from published manifest
+        id: fixture_unchain
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" --pattern release-assets.v1.json --dir previous-release
+          FROM_UNCHAIN_REVISION="$(node -e '
+            const m = require("./previous-release/release-assets.v1.json");
+            if (m.schema !== "pupu.release-assets.v1" || m.release?.tag !== process.env.FROM_TAG ||
+                m.release?.version !== process.env.FROM_VERSION || m.release?.commit !== process.env.FROM_COMMIT ||
+                !/^[0-9a-f]{40}$/.test(m.unchain?.source_revision || "")) throw new Error("N-1 manifest identity mismatch");
+            process.stdout.write(m.unchain.source_revision);
+          ')"
+          echo "unchain_revision=$FROM_UNCHAIN_REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout immutable N-1 fixture source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.from_commit }}
+          path: fixture-source
+          persist-credentials: false
+
+      - name: Checkout immutable N-1 Unchain source
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: ${{ steps.fixture_unchain.outputs.unchain_revision }}
+          path: fixture-unchain
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install and verify N-1 fixture sources
+        working-directory: fixture-source
+        env:
+          FROM_UNCHAIN_REVISION: ${{ steps.fixture_unchain.outputs.unchain_revision }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$FROM_COMMIT"
+          test "$(git -C ../fixture-unchain rev-parse HEAD)" = "$FROM_UNCHAIN_REVISION"
+          test "$(node -p 'require("./package.json").version')" = "$FROM_VERSION"
+          npm ci
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
+
+      - name: Reproduce snapshot and prepare sole permitted fixture configuration difference
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/qualification-fixture-snapshot.mjs prepare --source ../fixture-source \
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+          node scripts/release-qa/write-qualification-fixture-build-config.mjs --package-json ../fixture-source/package.json \
+            --feed-url "http://127.0.0.1:${FEED_PORT}/" --out ../fixture-build-config.json
+
+      - name: Build signed and notarized immutable N-1 fixture
+        working-directory: fixture-source
+        env:
+          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/fixture-unchain
+          UNCHAIN_ARTIFACT_SOURCE_REF: ${{ steps.fixture_unchain.outputs.unchain_revision }}
+          UNCHAIN_BUILD_VENV: ${{ runner.temp }}/pupu-macos-fixture-unchain-${{ github.run_id }}
+          PUPU_BUILD_VERSION: ${{ inputs.from_version }}
+          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: .release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+          PUPU_REQUIRE_BUILD_FEATURE_SNAPSHOT: "1"
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          node ../pupu/scripts/release-qa/release-signing.mjs --platform macos
+          case "$TARGET_ID" in
+            macos-arm64) npm run build:electron:mac:release -- --config "$GITHUB_WORKSPACE/fixture-build-config.json" ;;
+            macos-x64) npm run build:electron:mac:intel:release -- --config "$GITHUB_WORKSPACE/fixture-build-config.json" ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Verify fixture signature notarization architecture and exact package bytes
+        working-directory: pupu
+        env:
+          FROM_UNCHAIN_REVISION: ${{ steps.fixture_unchain.outputs.unchain_revision }}
+        run: |
+          node scripts/release-qa/macos-signing-evidence.mjs \
+            --schema pupu.macos-restart-fixture-signing.v1 --target "$TARGET_ID" --version "$FROM_VERSION" \
+            --source-ref "refs/tags/$FROM_TAG" --source-sha "$FROM_COMMIT" --expected-commit "$FROM_COMMIT" \
+            --unchain-ref "$FROM_UNCHAIN_REVISION" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --dist-dir ../fixture-source/dist --out macos-fixture-signing.v1.json
+          node scripts/release-qa/seal-macos-restart-fixture.mjs \
+            --signing-evidence macos-fixture-signing.v1.json --dist-dir ../fixture-source/dist \
+            --target "$TARGET_ID" --from-tag "$FROM_TAG" --from-version "$FROM_VERSION" --from-commit "$FROM_COMMIT" \
+            --feed-url "http://127.0.0.1:${FEED_PORT}/" \
+            --snapshot ../fixture-source/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json \
+            --out macos-restart-fixture.v1.json
+
+      - name: Run real signed N-1 to exact N macOS restart update
+        id: restart_update
+        continue-on-error: true
+        working-directory: pupu
+        run: |
+          node scripts/release-qa/run-restart-update-qualification.mjs \
+            --candidate-dir ../candidate --fixture "../fixture-source/dist/PuPu-${FROM_VERSION}-${TARGET_ID}.dmg" \
+            --fixture-evidence macos-restart-fixture.v1.json --target "$TARGET_ID" --feed-port "$FEED_PORT" \
+            --out restart-update-qualification.json --diagnostics restart-update-diagnostics.json \
+            --server-log qualification-feed-server.v1.json
+
+      - name: Upload macOS restart-update evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restart-update-qualification-${{ inputs.target_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            pupu/restart-update-qualification.json
+            pupu/restart-update-diagnostics.json
+            pupu/qualification-feed-server.v1.json
+            pupu/macos-restart-fixture.v1.json
+            pupu/macos-fixture-signing.v1.json
+
+      - name: Enforce real macOS restart-update result
+        if: always()
+        env:
+          RESTART_UPDATE_OUTCOME: ${{ steps.restart_update.outcome }}
+        run: |
+          if [ "$RESTART_UPDATE_OUTCOME" != "success" ]; then
+            echo "::error title=macOS restart update failed::signed N-1 must complete the exact N restart lifecycle"
+            exit 1
+          fi

@@ -42,12 +42,15 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Checkout frozen qualification tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
       - name: Validate closed shared installed-qualification inputs
         run: |
-          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ] || [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
-            echo "::error title=Source identity mismatch::shared installed qualification must run from the exact release tag commit"
-            exit 1
-          fi
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
           case "$TARGET_ID:$RUNNER_SELECTOR" in
             macos-arm64:macos-latest|macos-x64:macos-15-intel|windows-x64:windows-latest|linux-x64:ubuntu-latest) ;;
             *) echo "::error title=Unsupported shared installed-qualification input tuple::$TARGET_ID:$RUNNER_SELECTOR"; exit 1 ;;
@@ -56,11 +59,6 @@ jobs:
             echo "::error title=Missing candidate run ID::shared installed qualification requires an exact candidate"
             exit 1
           fi
-
-      - name: Checkout the exact release tag
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
 
       - name: Set up Node
         uses: actions/setup-node@v4

@@ -1,0 +1,2745 @@
+
+> PuPu@0.1.10 test:release-qa
+> npm run test:release-qa:unit && npm run test:long-run-harness
+
+
+> PuPu@0.1.10 test:release-qa:unit
+> node --test scripts/release-qa/*.test.mjs
+
+TAP version 13
+# Subtest: a failed reviewer cannot reuse a stale GO file
+ok 1 - a failed reviewer cannot reuse a stale GO file
+  ---
+  duration_ms: 2.068708
+  type: 'test'
+  ...
+# Subtest: nonzero reviewer output is rejected even when it contains valid JSON
+ok 2 - nonzero reviewer output is rejected even when it contains valid JSON
+  ---
+  duration_ms: 0.09575
+  type: 'test'
+  ...
+# Subtest: schema-invalid reviewer output is rejected after a successful exit
+ok 3 - schema-invalid reviewer output is rejected after a successful exit
+  ---
+  duration_ms: 0.181333
+  type: 'test'
+  ...
+# Subtest: successful schema-valid reviewer output is accepted
+ok 4 - successful schema-valid reviewer output is accepted
+  ---
+  duration_ms: 0.373083
+  type: 'test'
+  ...
+# Subtest: reviewer environment strips credential-like and unrelated values
+ok 5 - reviewer environment strips credential-like and unrelated values
+  ---
+  duration_ms: 0.159459
+  type: 'test'
+  ...
+# Subtest: release builds Unchain once and every test/package consumes the same bytes
+not ok 6 - release builds Unchain once and every test/package consumes the same bytes
+  ---
+  duration_ms: 2.489542
+  type: 'test'
+  location: '/private/tmp/pupu-224/scripts/release-qa/artifact-continuity-workflow.test.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/. Input:
+    
+    'name: Shared Release Deterministic QA\n' +
+      '\n' +
+      'on:\n' +
+      '  workflow_call:\n' +
+      '    inputs:\n' +
+      '      qa_mode:\n' +
+      '        description: "Closed QA mode: lite, release, or release-candidate."\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      unchain_ref:\n' +
+      '        description: Explicit Unchain source identity selected by the caller.\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      source_ref:\n' +
+      '        description: Exact caller Git ref.\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      source_sha:\n' +
+      '        description: Exact caller commit SHA.\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      release_tag:\n' +
+      '        description: Exact caller ref name.\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '\n' +
+      'jobs:\n' +
+      '  deterministic:\n' +
+      '    name: Deterministic QA\n' +
+      '    runs-on: ubuntu-latest\n' +
+      '    env:\n' +
+      '      QA_MODE: ${{ inputs.qa_mode }}\n' +
+      '      UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref }}\n' +
+      '      SOURCE_REF: ${{ inputs.source_ref }}\n' +
+      '      SOURCE_SHA: ${{ inputs.source_sha }}\n' +
+      '      RELEASE_TAG: ${{ inputs.release_tag }}\n' +
+      '    permissions:\n' +
+      '      contents: read\n' +
+      '      actions: read\n' +
+      '    steps:\n' +
+      '      - name: Validate closed shared deterministic inputs\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      '          if [ "$SOURCE_REF" != "$GITHUB_REF" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ] || [ "$RELEASE_TAG" != "$GITHUB_REF_NAME" ]; then\n' +
+      '            echo "::error title=Source identity mismatch::shared deterministic inputs must match the caller ref, SHA, and ref name"\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          case "$QA_MODE" in\n' +
+      '            lite|release|release-candidate) ;;\n' +
+      '            *) echo "::error title=Unsupported shared deterministic mode::$QA_MODE"; exit 1 ;;\n' +
+      '          esac\n' +
+      '          if [ -z "$UNCHAIN_SOURCE_REF" ]; then\n' +
+      '            echo "::error title=Missing Unchain source ref::shared deterministic QA requires an explicit Unchain identity"\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '\n' +
+      '      - name: Checkout PuPu\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          path: pupu\n' +
+      '\n' +
+      '      - name: Checkout selected Unchain source once\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          repository: haoxiang-xu/unchain\n' +
+      '          ref: ${{ inputs.unchain_ref }}\n' +
+      '          path: unchain\n' +
+      '\n' +
+      '      - name: Set up Node\n' +
+      '        uses: actions/setup-node@v4\n' +
+      '        with:\n' +
+      '          node-version: 20\n' +
+      '          cache: npm\n' +
+      '          cache-dependency-path: pupu/package-lock.json\n' +
+      '\n' +
+      '      - name: Set up Python\n' +
+      '        uses: actions/setup-python@v5\n' +
+      '        with:\n' +
+      '          python-version: "3.12"\n' +
+      '\n' +
+      '      - name: Install Node dependencies\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm ci\n' +
+      '\n' +
+      '      - name: Install Python dependencies\n' +
+      '        working-directory: pupu\n' +
+      '        run: |\n' +
+      '          python -m pip install --upgrade pip\n' +
+      '          python -m pip install -r unchain_runtime/server/requirements.txt pytest\n' +
+      '\n' +
+      '      - name: Build one immutable Unchain wheel\n' +
+      '        id: unchain_artifact\n' +
+      '        working-directory: pupu\n' +
+      '        run: |\n' +
+      '          node scripts/release-qa/build-unchain-artifact.mjs \\\n' +
+      '            --source ../unchain \\\n' +
+      '            --source-ref "$UNCHAIN_SOURCE_REF" \\\n' +
+      '            --out-dir .release-qa/unchain-artifact \\\n' +
+      '            --evidence .release-qa/unchain-artifact/unchain-artifact.json \\\n' +
+      '            --python python\n' +
+      '\n' +
+      '      - name: Install and verify the exact Unchain artifact\n' +
+      '        id: artifact_verify\n' +
+      '        working-directory: pupu\n' +
+      '        run: |\n' +
+      '          python -m pip install --force-reinstall --no-deps \\\n' +
+      '            "${{ steps.unchain_artifact.outputs.artifact_path }}"\n' +
+      '          node scripts/release-qa/verify-unchain-artifact.mjs \\\n' +
+      '            --artifact "${{ steps.unchain_artifact.outputs.artifact_path }}" \\\n' +
+      '            --evidence "${{ steps.unchain_artifact.outputs.evidence_path }}" \\\n' +
+      '            --python python \\\n' +
+      '            --installed true\n' +
+      '\n' +
+      '      - name: Upload immutable Unchain artifact\n' +
+      '        uses: actions/upload-artifact@v4\n' +
+      '        with:\n' +
+      '          name: unchain-release-artifact\n' +
+      '          path: |\n' +
+      '            pupu/.release-qa/unchain-artifact/*.whl\n' +
+      '            pupu/.release-qa/unchain-artifact/unchain-artifact.json\n' +
+      '          if-no-files-found: error\n' +
+      '\n' +
+      '      - name: Create the single controlled Memory V2 build snapshot\n' +
+      '        id: build_feature_snapshot\n' +
+      '        working-directory: pupu\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      '          SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"\n' +
+      '          node scripts/write-build-feature-snapshot.cjs \\\n' +
+      '            --out "$SNAPSHOT_PATH" \\\n' +
+      '            --profile contracts/memory-v2/release-profile.all.v1.json\n' +
+      `          SNAPSHOT_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"\n` +
+      '          printf \'%s\\n\' "$SNAPSHOT_SHA256" > "${SNAPSHOT_PATH}.sha256"\n' +
+      '          {\n' +
+      '            echo "snapshot_path=$SNAPSHOT_PATH"\n' +
+      '            echo "snapshot_sha256=$SNAPSHOT_SHA256"\n' +
+      '          } >> "$GITHUB_OUTPUT"\n' +
+      '\n' +
+      '      - name: Upload the immutable Memory V2 build snapshot\n' +
+      '        uses: actions/upload-artifact@v4\n' +
+      '        with:\n' +
+      '          name: memory-v2-build-feature-snapshot\n' +
+      '          path: |\n' +
+      '            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json\n' +
+      '            pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256\n' +
+      '          if-no-files-found: error\n' +
+      '\n' +
+      '      - name: Resolve QA version\n' +
+      '        working-directory: pupu\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      `          PACKAGE_VERSION="$(node -p "require('./package.json').version")"\n` +
+      '          BUILD_VERSION="$PACKAGE_VERSION"\n' +
+      '          EXPECTED_VERSION=""\n' +
+      '          RELEASE_LANE="branch"\n' +
+      '          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then\n' +
+      '            RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \\\n' +
+      '              --tag "$GITHUB_REF_NAME" \\\n' +
+      '              --package-version "$PACKAGE_VERSION" \\\n' +
+      '              --policy candidate)"\n' +
+      `            BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"\n` +
+      '            EXPECTED_VERSION="$BUILD_VERSION"\n' +
+      `            RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"\n` +
+      '          fi\n' +
+      '          {\n' +
+      '            echo "QA_VERSION=$BUILD_VERSION"\n' +
+      '            echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"\n' +
+      '            echo "QA_BASE_VERSION=$PACKAGE_VERSION"\n' +
+      '            echo "QA_RELEASE_LANE=$RELEASE_LANE"\n' +
+      '            echo "PUPU_BUILD_VERSION=$BUILD_VERSION"\n' +
+      '          } >> "$GITHUB_ENV"\n' +
+      '\n' +
+      '      - name: Frontend tests\n' +
+      '        id: frontend\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        env:\n' +
+      '          CI: true\n' +
+      '        run: npm run test:frontend -- --passWithNoTests\n' +
+      '\n' +
+      '      - name: Electron tests\n' +
+      '        id: electron\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm run test:electron\n' +
+      '\n' +
+      '      - name: Python backend tests\n' +
+      '        id: python\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu/unchain_runtime/server\n' +
+      '        env:\n' +
+      '          PYTHONPATH: ${{ steps.unchain_artifact.outputs.artifact_path }}\n' +
+      '        run: python -m pytest tests/ -q --tb=short\n' +
+      '\n' +
+      '      - name: Context V2 boundary contract gate\n' +
+      '        id: context_v2_contract\n' +
+      '        working-directory: pupu\n' +
+      '        env:\n' +
+      '          PYTHON: python\n' +
+      '          UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}\n' +
+      '          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}\n' +
+      '          UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain\n' +
+      '        run: npm run test:context-v2-contract\n' +
+      '\n' +
+      '      - name: RunBundle v1 boundary contract gate\n' +
+      '        id: run_bundle_contract\n' +
+      '        working-directory: pupu\n' +
+      '        env:\n' +
+      '          PYTHON: python\n' +
+      '          UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}\n' +
+      '          UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}\n' +
+      '          UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain\n' +
+      '        run: npm run test:run-bundle-contract\n' +
+      '\n' +
+      '      - name: Web build and version check\n' +
+      '        id: web_build\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        env:\n' +
+      '          CI: true\n' +
+      '          PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ steps.build_feature_snapshot.outputs.snapshot_path }}\n' +
+      '        run: npm run build\n' +
+      '\n' +
+      '      - name: Validate MCP registry\n' +
+      '        id: mcp_registry\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm run validate:mcp\n' +
+      '\n' +
+      '      - name: MCP bundled runtime build tests\n' +
+      '        id: mcp_runtime\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm run test:mcp-runtime\n' +
+      '\n' +
+      '      - name: Release QA script tests\n' +
+      '        id: release_qa_scripts\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm run test:release-qa\n' +
+      '\n' +
+      '      - name: Third-party notice script tests\n' +
+      '        id: notice_scripts\n' +
+      '        continue-on-error: true\n' +
+      '        working-directory: pupu\n' +
+      '        run: npm run test:notices\n' +
+      '\n' +
+      '      - name: Write deterministic QA report\n' +
+      '        if: always()\n' +
+      '        working-directory: pupu\n' +
+      '        env:\n' +
+      '          QA_PLATFORM_NAME: deterministic\n' +
+      '          QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}\n' +
+      `          QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Unchain runtime protocol manifest","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'\n` +
+      '          QA_CHECKS_JSON: |\n' +
+      '            [\n' +
+      '              {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},\n' +
+      '              {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},\n' +
+      '              {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},\n' +
+      '              {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifac'... 2079 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    name: Shared Release Deterministic QA
+    
+    on:
+      workflow_call:
+        inputs:
+          qa_mode:
+            description: "Closed QA mode: lite, release, or release-candidate."
+            required: true
+            type: string
+          unchain_ref:
+            description: Explicit Unchain source identity selected by the caller.
+            required: true
+            type: string
+          source_ref:
+            description: Exact caller Git ref.
+            required: true
+            type: string
+          source_sha:
+            description: Exact caller commit SHA.
+            required: true
+            type: string
+          release_tag:
+            description: Exact caller ref name.
+            required: true
+            type: string
+    
+    jobs:
+      deterministic:
+        name: Deterministic QA
+        runs-on: ubuntu-latest
+        env:
+          QA_MODE: ${{ inputs.qa_mode }}
+          UNCHAIN_SOURCE_REF: ${{ inputs.unchain_ref }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        permissions:
+          contents: read
+          actions: read
+        steps:
+          - name: Validate closed shared deterministic inputs
+            shell: bash
+            run: |
+              if [ "$SOURCE_REF" != "$GITHUB_REF" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ] || [ "$RELEASE_TAG" != "$GITHUB_REF_NAME" ]; then
+                echo "::error title=Source identity mismatch::shared deterministic inputs must match the caller ref, SHA, and ref name"
+                exit 1
+              fi
+              case "$QA_MODE" in
+                lite|release|release-candidate) ;;
+                *) echo "::error title=Unsupported shared deterministic mode::$QA_MODE"; exit 1 ;;
+              esac
+              if [ -z "$UNCHAIN_SOURCE_REF" ]; then
+                echo "::error title=Missing Unchain source ref::shared deterministic QA requires an explicit Unchain identity"
+                exit 1
+              fi
+    
+          - name: Checkout PuPu
+            uses: actions/checkout@v4
+            with:
+              path: pupu
+    
+          - name: Checkout selected Unchain source once
+            uses: actions/checkout@v4
+            with:
+              repository: haoxiang-xu/unchain
+              ref: ${{ inputs.unchain_ref }}
+              path: unchain
+    
+          - name: Set up Node
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20
+              cache: npm
+              cache-dependency-path: pupu/package-lock.json
+    
+          - name: Set up Python
+            uses: actions/setup-python@v5
+            with:
+              python-version: "3.12"
+    
+          - name: Install Node dependencies
+            working-directory: pupu
+            run: npm ci
+    
+          - name: Install Python dependencies
+            working-directory: pupu
+            run: |
+              python -m pip install --upgrade pip
+              python -m pip install -r unchain_runtime/server/requirements.txt pytest
+    
+          - name: Build one immutable Unchain wheel
+            id: unchain_artifact
+            working-directory: pupu
+            run: |
+              node scripts/release-qa/build-unchain-artifact.mjs \
+                --source ../unchain \
+                --source-ref "$UNCHAIN_SOURCE_REF" \
+                --out-dir .release-qa/unchain-artifact \
+                --evidence .release-qa/unchain-artifact/unchain-artifact.json \
+                --python python
+    
+          - name: Install and verify the exact Unchain artifact
+            id: artifact_verify
+            working-directory: pupu
+            run: |
+              python -m pip install --force-reinstall --no-deps \
+                "${{ steps.unchain_artifact.outputs.artifact_path }}"
+              node scripts/release-qa/verify-unchain-artifact.mjs \
+                --artifact "${{ steps.unchain_artifact.outputs.artifact_path }}" \
+                --evidence "${{ steps.unchain_artifact.outputs.evidence_path }}" \
+                --python python \
+                --installed true
+    
+          - name: Upload immutable Unchain artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: unchain-release-artifact
+              path: |
+                pupu/.release-qa/unchain-artifact/*.whl
+                pupu/.release-qa/unchain-artifact/unchain-artifact.json
+              if-no-files-found: error
+    
+          - name: Create the single controlled Memory V2 build snapshot
+            id: build_feature_snapshot
+            working-directory: pupu
+            shell: bash
+            run: |
+              SNAPSHOT_PATH=".release-qa/build-feature-snapshot/build_feature_flags.snapshot.json"
+              node scripts/write-build-feature-snapshot.cjs \
+                --out "$SNAPSHOT_PATH" \
+                --profile contracts/memory-v2/release-profile.all.v1.json
+              SNAPSHOT_SHA256="$(node -e "const fs=require('fs'); const crypto=require('crypto'); process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$SNAPSHOT_PATH")"
+              printf '%s\n' "$SNAPSHOT_SHA256" > "${SNAPSHOT_PATH}.sha256"
+              {
+                echo "snapshot_path=$SNAPSHOT_PATH"
+                echo "snapshot_sha256=$SNAPSHOT_SHA256"
+              } >> "$GITHUB_OUTPUT"
+    
+          - name: Upload the immutable Memory V2 build snapshot
+            uses: actions/upload-artifact@v4
+            with:
+              name: memory-v2-build-feature-snapshot
+              path: |
+                pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json
+                pupu/.release-qa/build-feature-snapshot/build_feature_flags.snapshot.json.sha256
+              if-no-files-found: error
+    
+          - name: Resolve QA version
+            working-directory: pupu
+            shell: bash
+            run: |
+              PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+              BUILD_VERSION="$PACKAGE_VERSION"
+              EXPECTED_VERSION=""
+              RELEASE_LANE="branch"
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+                RELEASE_IDENTITY="$(node scripts/release-qa/release-candidate-ref.mjs \
+                  --tag "$GITHUB_REF_NAME" \
+                  --package-version "$PACKAGE_VERSION" \
+                  --policy candidate)"
+                BUILD_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).effectiveVersion)' "$RELEASE_IDENTITY")"
+                EXPECTED_VERSION="$BUILD_VERSION"
+                RELEASE_LANE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).lane)' "$RELEASE_IDENTITY")"
+              fi
+              {
+                echo "QA_VERSION=$BUILD_VERSION"
+                echo "QA_EXPECTED_VERSION=$EXPECTED_VERSION"
+                echo "QA_BASE_VERSION=$PACKAGE_VERSION"
+                echo "QA_RELEASE_LANE=$RELEASE_LANE"
+                echo "PUPU_BUILD_VERSION=$BUILD_VERSION"
+              } >> "$GITHUB_ENV"
+    
+          - name: Frontend tests
+            id: frontend
+            continue-on-error: true
+            working-directory: pupu
+            env:
+              CI: true
+            run: npm run test:frontend -- --passWithNoTests
+    
+          - name: Electron tests
+            id: electron
+            continue-on-error: true
+            working-directory: pupu
+            run: npm run test:electron
+    
+          - name: Python backend tests
+            id: python
+            continue-on-error: true
+            working-directory: pupu/unchain_runtime/server
+            env:
+              PYTHONPATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
+            run: python -m pytest tests/ -q --tb=short
+    
+          - name: Context V2 boundary contract gate
+            id: context_v2_contract
+            working-directory: pupu
+            env:
+              PYTHON: python
+              UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
+              UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+              UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain
+            run: npm run test:context-v2-contract
+    
+          - name: RunBundle v1 boundary contract gate
+            id: run_bundle_contract
+            working-directory: pupu
+            env:
+              PYTHON: python
+              UNCHAIN_ARTIFACT_PATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
+              UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+              UNCHAIN_TEST_SOURCE_PATH: ${{ github.workspace }}/unchain
+            run: npm run test:run-bundle-contract
+    
+          - name: Web build and version check
+            id: web_build
+            continue-on-error: true
+            working-directory: pupu
+            env:
+              CI: true
+              PUPU_BUILD_FEATURE_SNAPSHOT_PATH: ${{ steps.build_feature_snapshot.outputs.snapshot_path }}
+            run: npm run build
+    
+          - name: Validate MCP registry
+            id: mcp_registry
+            continue-on-error: true
+            working-directory: pupu
+            run: npm run validate:mcp
+    
+          - name: MCP bundled runtime build tests
+            id: mcp_runtime
+            continue-on-error: true
+            working-directory: pupu
+            run: npm run test:mcp-runtime
+    
+          - name: Release QA script tests
+            id: release_qa_scripts
+            continue-on-error: true
+            working-directory: pupu
+            run: npm run test:release-qa
+    
+          - name: Third-party notice script tests
+            id: notice_scripts
+            continue-on-error: true
+            working-directory: pupu
+            run: npm run test:notices
+    
+          - name: Write deterministic QA report
+            if: always()
+            working-directory: pupu
+            env:
+              QA_PLATFORM_NAME: deterministic
+              QA_UNCHAIN_ARTIFACT_EVIDENCE_PATH: ${{ steps.unchain_artifact.outputs.evidence_path }}
+              QA_REQUIRED_CHECKS_JSON: '["Unchain artifact continuity","Unchain runtime protocol manifest","Context V2 boundary contracts","RunBundle v1 boundary contracts"]'
+              QA_CHECKS_JSON: |
+                [
+                  {"name":"frontend tests","command":"npm run test:frontend -- --passWithNoTests","outcome":"${{ steps.frontend.outcome }}"},
+                  {"name":"electron tests","command":"npm run test:electron","outcome":"${{ steps.electron.outcome }}"},
+                  {"name":"python backend tests","command":"python -m pytest tests/ -q --tb=short","outcome":"${{ steps.python.outcome }}"},
+                  {"name":"Unchain artifact continuity","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+                  {"name":"Unchain runtime protocol manifest","command":"node scripts/release-qa/verify-unchain-artifact.mjs --installed true","outcome":"${{ steps.artifact_verify.outcome }}","executed_tests":${{ steps.artifact_verify.outputs.executed_tests || 0 }}},
+                  {"name":"Context V2 boundary contracts","command":"npm run test:context-v2-contract","outcome":"${{ steps.context_v2_contract.outcome }}","executed_tests":${{ steps.context_v2_contract.outputs.executed_tests || 0 }}},
+                  {"name":"RunBundle v1 boundary contracts","command":"npm run test:run-bundle-contract","outcome":"${{ steps.run_bundle_contract.outcome }}","executed_tests":${{ steps.run_bundle_contract.outputs.executed_tests || 0 }}},
+                  {"name":"web build and version check","command":"npm run build","outcome":"${{ steps.web_build.outcome }}"},
+                  {"name":"MCP registry validation","command":"npm run validate:mcp","outcome":"${{ steps.mcp_registry.outcome }}"},
+                  {"name":"MCP bundled runtime build tests","command":"npm run test:mcp-runtime","outcome":"${{ steps.mcp_runtime.outcome }}"},
+                  {"name":"release QA script tests","command":"npm run test:release-qa","outcome":"${{ steps.release_qa_scripts.outcome }}"},
+                  {"name":"third-party notice script tests","command":"npm run test:notices","outcome":"${{ steps.notice_scripts.outcome }}"}
+                ]
+            run: node scripts/release-qa/write-job-report.mjs --out release-qa-job-report.json
+    
+          - name: Upload deterministic QA report
+            if: always()
+            uses: actions/upload-artifact@v4
+            with:
+              name: release-qa-job-report-deterministic
+              path: pupu/release-qa-job-report.json
+    
+          - name: Deterministic release gate
+            if: always()
+            working-directory: pupu
+            run: |
+              node -e "const r=require('./release-qa-job-report.json'); if (r.deterministic_result.status !== 'passed') { console.error('Deterministic Release QA incomplete or failed'); process.exit(1); }"
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/pupu-224/scripts/release-qa/artifact-continuity-workflow.test.mjs:36:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: active build and local QA paths contain no compatibility lock or dirty bypass
+ok 7 - active build and local QA paths contain no compatibility lock or dirty bypass
+  ---
+  duration_ms: 34.906958
+  type: 'test'
+  ...
+# Subtest: every local package chain prepares or reuses one immutable artifact
+ok 8 - every local package chain prepares or reuses one immutable artifact
+  ---
+  duration_ms: 8.39825
+  type: 'test'
+  ...
+# Subtest: active AI release review requires artifact and protocol continuity, never a SHA lock
+ok 9 - active AI release review requires artifact and protocol continuity, never a SHA lock
+  ---
+  duration_ms: 4.672041
+  type: 'test'
+  ...
+# Subtest: all sidecar builders pin PyInstaller and freeze the private vault entries
+ok 10 - all sidecar builders pin PyInstaller and freeze the private vault entries
+  ---
+  duration_ms: 0.515375
+  type: 'test'
+  ...
+# Subtest: candidate assembler merges architecture-specific updater metadata and seals exact bytes
+ok 11 - candidate assembler merges architecture-specific updater metadata and seals exact bytes
+  ---
+  duration_ms: 235.61425
+  type: 'test'
+  ...
+# Subtest: candidate assembler seals a full RC identity without stable-version filenames
+ok 12 - candidate assembler seals a full RC identity without stable-version filenames
+  ---
+  duration_ms: 267.171041
+  type: 'test'
+  ...
+# Subtest: candidate assembler and verifier bind Windows signing evidence to the sealed installer
+ok 13 - candidate assembler and verifier bind Windows signing evidence to the sealed installer
+  ---
+  duration_ms: 205.757166
+  type: 'test'
+  ...
+# Subtest: candidate verifier rejects a retained Windows signing proof with a missing helper
+ok 14 - candidate verifier rejects a retained Windows signing proof with a missing helper
+  ---
+  duration_ms: 163.743417
+  type: 'test'
+  ...
+# Subtest: candidate verifier binds QA report and qualification receipt to the requested Actions runs
+ok 15 - candidate verifier binds QA report and qualification receipt to the requested Actions runs
+  ---
+  duration_ms: 239.3335
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects missing updater metadata instead of guessing it
+ok 16 - candidate assembler rejects missing updater metadata instead of guessing it
+  ---
+  duration_ms: 61.960041
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects updater metadata with a fake payload SHA-512
+ok 17 - candidate assembler rejects updater metadata with a fake payload SHA-512
+  ---
+  duration_ms: 185.798917
+  type: 'test'
+  ...
+# Subtest: candidate assembly accepts a Windows installer only after post-sign metadata refresh
+ok 18 - candidate assembly accepts a Windows installer only after post-sign metadata refresh
+  ---
+  duration_ms: 224.985916
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects a QA report from another Actions run
+ok 19 - candidate assembler rejects a QA report from another Actions run
+  ---
+  duration_ms: 167.281083
+  type: 'test'
+  ...
+# Subtest: candidate assembler rejects an unallowlisted raw package output
+ok 20 - candidate assembler rejects an unallowlisted raw package output
+  ---
+  duration_ms: 295.649167
+  type: 'test'
+  ...
+# Subtest: qualification feed contains only the exact Windows updater bytes from the sealed candidate
+ok 21 - qualification feed contains only the exact Windows updater bytes from the sealed candidate
+  ---
+  duration_ms: 96.4295
+  type: 'test'
+  ...
+# Subtest: qualification feed fails closed for unsupported targets, altered bytes, and extra files
+ok 22 - qualification feed fails closed for unsupported targets, altered bytes, and extra files
+  ---
+  duration_ms: 51.907042
+  type: 'test'
+  ...
+# Subtest: bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and explicit restart NOT_RUN
+ok 23 - bootstrap receipt binds exact v0.1.10, four fresh targets, policy, and explicit restart NOT_RUN
+  ---
+  duration_ms: 52.111041
+  type: 'test'
+  ...
+# Subtest: bootstrap receipt rejects wrong confirmation, same run, and legacy or target drift
+ok 24 - bootstrap receipt rejects wrong confirmation, same run, and legacy or target drift
+  ---
+  duration_ms: 25.664542
+  type: 'test'
+  ...
+# Subtest: builds a strict qualification receipt from all required targets
+ok 25 - builds a strict qualification receipt from all required targets
+  ---
+  duration_ms: 190.075875
+  type: 'test'
+  ...
+# Subtest: builds the same non-promotable fresh-install receipt for an exact RC identity
+ok 26 - builds the same non-promotable fresh-install receipt for an exact RC identity
+  ---
+  duration_ms: 26.327583
+  type: 'test'
+  ...
+# Subtest: rejects a missing or duplicate installed target report
+ok 27 - rejects a missing or duplicate installed target report
+  ---
+  duration_ms: 161.629125
+  type: 'test'
+  ...
+# Subtest: rejects installer name and hash drift from the sealed candidate
+ok 28 - rejects installer name and hash drift from the sealed candidate
+  ---
+  duration_ms: 130.061875
+  type: 'test'
+  ...
+# Subtest: complete update receipt requires every fresh and restart target with one explicit N-1 source
+ok 29 - complete update receipt requires every fresh and restart target with one explicit N-1 source
+  ---
+  duration_ms: 51.90725
+  type: 'test'
+  ...
+# Subtest: complete update receipt rejects a missing restart report or a fixture source mismatch
+ok 30 - complete update receipt rejects a missing restart report or a fixture source mismatch
+  ---
+  duration_ms: 28.695583
+  type: 'test'
+  ...
+# Subtest: W0-03 release build refuses a missing or malformed feature snapshot
+ok 31 - W0-03 release build refuses a missing or malformed feature snapshot
+  ---
+  duration_ms: 87.62775
+  type: 'test'
+  ...
+# Subtest: W0-03 release build consumes the exact producer snapshot without environment override
+ok 32 - W0-03 release build consumes the exact producer snapshot without environment override
+  ---
+  duration_ms: 83.50275
+  type: 'test'
+  ...
+# Subtest: W0-03 controlled Shadow profile ignores producer process overrides
+ok 33 - W0-03 controlled Shadow profile ignores producer process overrides
+  ---
+  duration_ms: 40.470375
+  type: 'test'
+  ...
+# Subtest: controlled All profile enables active Memory V2 without a theme gate
+ok 34 - controlled All profile enables active Memory V2 without a theme gate
+  ---
+  duration_ms: 66.961708
+  type: 'test'
+  ...
+# Subtest: controlled release profile rejects a missing or extra feature flag
+ok 35 - controlled release profile rejects a missing or extra feature flag
+  ---
+  duration_ms: 88.536375
+  type: 'test'
+  ...
+# Subtest: Windows build embeds only a closed staged Unchain artifact identity
+ok 36 - Windows build embeds only a closed staged Unchain artifact identity # SKIP
+  ---
+  duration_ms: 0.056542
+  type: 'test'
+  ...
+# Subtest: non-Windows builds ignore Windows staged artifact identity
+ok 37 - non-Windows builds ignore Windows staged artifact identity
+  ---
+  duration_ms: 32.431834
+  type: 'test'
+  ...
+# Subtest: canonicalizer reproduces and repairs the RC2 PowerShell ordering inversions
+ok 38 - canonicalizer reproduces and repairs the RC2 PowerShell ordering inversions
+  ---
+  duration_ms: 0.87875
+  type: 'test'
+  ...
+# Subtest: canonicalizer rejects duplicate signed paths before artifact admission
+ok 39 - canonicalizer rejects duplicate signed paths before artifact admission
+  ---
+  duration_ms: 0.215125
+  type: 'test'
+  ...
+# Subtest: canonicalizer supports the shared Windows signing qualification schema
+ok 40 - canonicalizer supports the shared Windows signing qualification schema
+  ---
+  duration_ms: 0.108375
+  type: 'test'
+  ...
+# Subtest: canonicalizer rejects an unsupported evidence schema
+ok 41 - canonicalizer rejects an unsupported evidence schema
+  ---
+  duration_ms: 0.057541
+  type: 'test'
+  ...
+# Subtest: CLI rewrites the producer JSON before the composite action publishes it
+ok 42 - CLI rewrites the producer JSON before the composite action publishes it
+  ---
+  duration_ms: 49.957166
+  type: 'test'
+  ...
+# Subtest: Context V2 release contract keeps all three blocking evidence layers
+ok 43 - Context V2 release contract keeps all three blocking evidence layers
+  ---
+  duration_ms: 30.156125
+  type: 'test'
+  ...
+# Subtest: fake MCP server declares one x-pupu-secret tool and records only a digest
+ok 44 - fake MCP server declares one x-pupu-secret tool and records only a digest
+  ---
+  duration_ms: 53.109584
+  type: 'test'
+  ...
+# Subtest: installed qualification disables the Electron sandbox only for Linux CI launches
+ok 45 - installed qualification disables the Electron sandbox only for Linux CI launches
+  ---
+  duration_ms: 0.820542
+  type: 'test'
+  ...
+# Subtest: installed qualification shuts down the main process before cleaning residuals
+ok 46 - installed qualification shuts down the main process before cleaning residuals
+  ---
+  duration_ms: 0.20575
+  type: 'test'
+  ...
+# Subtest: installed qualification retries transient Windows locks without hiding permanent errors
+ok 47 - installed qualification retries transient Windows locks without hiding permanent errors
+  ---
+  duration_ms: 0.491167
+  type: 'test'
+  ...
+# Subtest: installed qualification cleans observed and candidate-owned residual processes
+ok 48 - installed qualification cleans observed and candidate-owned residual processes
+  ---
+  duration_ms: 0.112083
+  type: 'test'
+  ...
+# Subtest: installed qualification accepts the exact package forms for each target
+ok 49 - installed qualification accepts the exact package forms for each target
+  ---
+  duration_ms: 0.488333
+  type: 'test'
+  ...
+# Subtest: installed qualification fails closed on wrong package forms and zero evidence
+ok 50 - installed qualification fails closed on wrong package forms and zero evidence
+  ---
+  duration_ms: 0.12025
+  type: 'test'
+  ...
+# Subtest: installed qualification rejects identity drift and incomplete lifecycle evidence
+ok 51 - installed qualification rejects identity drift and incomplete lifecycle evidence
+  ---
+  duration_ms: 0.132083
+  type: 'test'
+  ...
+# Subtest: installed qualification rejects installer identity outside the candidate manifest
+ok 52 - installed qualification rejects installer identity outside the candidate manifest
+  ---
+  duration_ms: 0.43375
+  type: 'test'
+  ...
+# Subtest: Linux release contract is AppImage plus deb with no in-app updater channel
+ok 53 - Linux release contract is AppImage plus deb with no in-app updater channel
+  ---
+  duration_ms: 1.485417
+  type: 'test'
+  ...
+# Subtest: Linux installed qualification runs both retained package forms on the closed Ubuntu tuple
+ok 54 - Linux installed qualification runs both retained package forms on the closed Ubuntu tuple
+  ---
+  duration_ms: 5.358042
+  type: 'test'
+  ...
+# Subtest: packaged Linux fails closed before any updater provider or startup timer is used
+ok 55 - packaged Linux fails closed before any updater provider or startup timer is used
+  ---
+  duration_ms: 0.395792
+  type: 'test'
+  ...
+# Subtest: release QA paths both include the fixed long-run harness suite
+ok 56 - release QA paths both include the fixed long-run harness suite
+  ---
+  duration_ms: 1.226583
+  type: 'test'
+  ...
+# (node:42268) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: process table parser and descendant closure preserve the candidate tree
+ok 57 - process table parser and descendant closure preserve the candidate tree
+  ---
+  duration_ms: 0.860958
+  type: 'test'
+  ...
+# Subtest: installed report accepts a nonzero, complete identity chain
+ok 58 - installed report accepts a nonzero, complete identity chain
+  ---
+  duration_ms: 0.196584
+  type: 'test'
+  ...
+# Subtest: installed report rejects zero-test and malformed identity evidence
+ok 59 - installed report rejects zero-test and malformed identity evidence
+  ---
+  duration_ms: 0.211333
+  type: 'test'
+  ...
+# Subtest: macOS certificate extraction passes the output prefix as one codesign option
+ok 60 - macOS certificate extraction passes the output prefix as one codesign option
+  ---
+  duration_ms: 0.592625
+  type: 'test'
+  ...
+# Subtest: macOS qualification and formal signing evidence use closed, non-interchangeable schemas
+ok 61 - macOS qualification and formal signing evidence use closed, non-interchangeable schemas
+  ---
+  duration_ms: 2.344917
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence rejects unknown keys and invalid provenance
+ok 62 - macOS signing evidence rejects unknown keys and invalid provenance
+  ---
+  duration_ms: 0.143625
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence exact-binds application identity and trust checks
+ok 63 - macOS signing evidence exact-binds application identity and trust checks
+  ---
+  duration_ms: 0.42275
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence exact-binds final package files and updater metadata
+ok 64 - macOS signing evidence exact-binds final package files and updater metadata
+  ---
+  duration_ms: 0.235167
+  type: 'test'
+  ...
+# Subtest: macOS signing evidence resolves the checked-in contract before inspecting a package
+ok 65 - macOS signing evidence resolves the checked-in contract before inspecting a package
+  ---
+  duration_ms: 3.146792
+  type: 'test'
+  ...
+# Subtest: macOS updater metadata exactly binds the final ZIP and DMG package payloads
+ok 66 - macOS updater metadata exactly binds the final ZIP and DMG package payloads
+  ---
+  duration_ms: 63.672542
+  type: 'test'
+  ...
+# Subtest: macOS signing qualification is explicit, dual-architecture, protected, and non-publishing
+not ok 67 - macOS signing qualification is explicit, dual-architecture, protected, and non-publishing
+  ---
+  duration_ms: 6.584541
+  type: 'test'
+  location: '/private/tmp/pupu-224/scripts/release-qa/macos-signing-qualification-workflow.test.mjs:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/. Input:
+    
+    'name: macOS Signing Qualification\n' +
+      '\n' +
+      'on:\n' +
+      '  workflow_dispatch:\n' +
+      '    inputs:\n' +
+      '      confirmation:\n' +
+      '        description: "Type SIGN_MACOS_QUALIFICATION to build, notarize, and verify a non-publishing macOS qualification package"\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      expected_commit:\n' +
+      '        description: "Full immutable dev commit SHA that this qualification must build"\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '      unchain_ref:\n' +
+      '        description: "Full immutable Unchain commit SHA used to build the bundled runtime"\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '\n' +
+      'permissions:\n' +
+      '  contents: read\n' +
+      '\n' +
+      'jobs:\n' +
+      '  macos-signing-qualification:\n' +
+      '    name: Build, notarize, and verify macOS (${{ matrix.target_id }})\n' +
+      '    runs-on: ${{ matrix.runner }}\n' +
+      '    environment: macos-signing-qualification\n' +
+      '    strategy:\n' +
+      '      fail-fast: false\n' +
+      '      matrix:\n' +
+      '        include:\n' +
+      '          - target_id: macos-arm64\n' +
+      '            runner: macos-latest\n' +
+      '          - target_id: macos-x64\n' +
+      '            runner: macos-15-intel\n' +
+      '    permissions:\n' +
+      '      contents: read\n' +
+      '      actions: read\n' +
+      '\n' +
+      '    steps:\n' +
+      '      - name: Require explicit immutable non-publishing signing inputs\n' +
+      '        shell: bash\n' +
+      '        env:\n' +
+      '          CONFIRMATION: ${{ inputs.confirmation }}\n' +
+      '          QUALIFICATION_REF: ${{ github.ref }}\n' +
+      '          QUALIFICATION_SHA: ${{ github.sha }}\n' +
+      '          EXPECTED_COMMIT: ${{ inputs.expected_commit }}\n' +
+      '          UNCHAIN_REF: ${{ inputs.unchain_ref }}\n' +
+      '        run: |\n' +
+      '          if [[ "$CONFIRMATION" != "SIGN_MACOS_QUALIFICATION" ]]; then\n' +
+      '            echo "confirmation must equal SIGN_MACOS_QUALIFICATION" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          if [[ "$QUALIFICATION_REF" != "refs/heads/dev" ]]; then\n' +
+      '            echo "qualification must run from refs/heads/dev" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then\n' +
+      '            echo "expected_commit must be a full immutable commit SHA" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          if [[ "$EXPECTED_COMMIT" != "$QUALIFICATION_SHA" ]]; then\n' +
+      '            echo "expected_commit must equal the dispatched commit" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          if [[ ! "$UNCHAIN_REF" =~ ^[0-9a-f]{40}$ ]]; then\n' +
+      '            echo "unchain_ref must be a full immutable commit SHA" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '\n' +
+      '      - name: Checkout the selected source revision\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          ref: ${{ inputs.expected_commit }}\n' +
+      '          persist-credentials: false\n' +
+      '\n' +
+      '      - name: Require protected isolated signing environment\n' +
+      '        shell: bash\n' +
+      '        env:\n' +
+      '          GH_TOKEN: ${{ github.token }}\n' +
+      '        run: |\n' +
+      '          environment_payload="$RUNNER_TEMP/pupu-macos-signing-environment-${GITHUB_RUN_ID}.json"\n' +
+      '          gh api "repos/$GITHUB_REPOSITORY/environments/macos-signing-qualification" > "$environment_payload"\n' +
+      '          node scripts/release-qa/verify-github-environment.mjs \\\n' +
+      '            --environment macos-signing-qualification < "$environment_payload"\n' +
+      '\n' +
+      '      - name: Checkout immutable Unchain source for the qualification build\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          repository: haoxiang-xu/unchain\n' +
+      '          ref: ${{ inputs.unchain_ref }}\n' +
+      '          path: .qualification-unchain\n' +
+      '          persist-credentials: false\n' +
+      '\n' +
+      '      - name: Set up Node\n' +
+      '        uses: actions/setup-node@v4\n' +
+      '        with:\n' +
+      '          node-version: 20\n' +
+      '          cache: npm\n' +
+      '\n' +
+      '      - name: Set up Python\n' +
+      '        uses: actions/setup-python@v5\n' +
+      '        with:\n' +
+      '          python-version: "3.12"\n' +
+      '\n' +
+      '      - name: Install Python runtime dependencies for wheel manifest inspection\n' +
+      '        run: python -m pip install -r unchain_runtime/server/requirements.txt\n' +
+      '\n' +
+      '      - name: Install build dependencies\n' +
+      '        run: npm ci\n' +
+      '\n' +
+      '      - name: Create controlled Memory V2 build snapshot\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      '          snapshot_root="$(mktemp -d "$RUNNER_TEMP/pupu-memory-snapshot-${GITHUB_RUN_ID}-XXXXXX")"\n' +
+      '          snapshot_path="$snapshot_root/build_feature_flags.snapshot.json"\n' +
+      '          node scripts/write-build-feature-snapshot.cjs \\\n' +
+      '            --out "$snapshot_path" \\\n' +
+      '            --profile contracts/memory-v2/release-profile.all.v1.json\n' +
+      '          echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshot_path" >> "$GITHUB_ENV"\n' +
+      '\n' +
+      '      - name: Resolve non-interactive build version\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      `          build_version="$(node -p "require('./package.json').version")"\n` +
+      '          if [[ -z "$build_version" ]]; then\n' +
+      '            echo "package.json did not provide a build version" >&2\n' +
+      '            exit 1\n' +
+      '          fi\n' +
+      '          echo "PUPU_BUILD_VERSION=$build_version" >> "$GITHUB_ENV"\n' +
+      '\n' +
+      '      - name: Require macOS signing and notarization credentials\n' +
+      '        env:\n' +
+      '          CSC_LINK: ${{ secrets.CSC_LINK }}\n' +
+      '          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}\n' +
+      '          APPLE_ID: ${{ secrets.APPLE_ID }}\n' +
+      '          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}\n' +
+      '          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}\n' +
+      '        run: node scripts/release-qa/release-signing.mjs --platform macos\n' +
+      '\n' +
+      '      - name: Build signed and notarized macOS package\n' +
+      '        shell: bash\n' +
+      '        env:\n' +
+      '          TARGET_ID: ${{ matrix.target_id }}\n' +
+      '          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain\n' +
+      '          UNCHAIN_ARTIFACT_SOURCE_REF: ${{ inputs.unchain_ref }}\n' +
+      '          CSC_LINK: ${{ secrets.CSC_LINK }}\n' +
+      '          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}\n' +
+      '          APPLE_ID: ${{ secrets.APPLE_ID }}\n' +
+      '          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}\n' +
+      '          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}\n' +
+      '        run: |\n' +
+      '          case "$TARGET_ID" in\n' +
+      '            macos-arm64) npm run build:electron:mac:release ;;\n' +
+      '            macos-x64) npm run build:electron:mac:intel:release ;;\n' +
+      '            *) echo "unsupported macOS qualification target: $TARGET_ID" >&2; exit 1 ;;\n' +
+      '          esac\n' +
+      '\n' +
+      '      - name: Write exact sanitized macOS signing evidence\n' +
+      '        shell: bash\n' +
+      '        env:\n' +
+      '          TARGET_ID: ${{ matrix.target_id }}\n' +
+      '          EXPECTED_COMMIT: ${{ inputs.expected_commit }}\n' +
+      '          UNCHAIN_REF: ${{ inputs.unchain_ref }}\n' +
+      '        run: |\n' +
+      '          evidence_file="macos-signing-qualification-${TARGET_ID}.v1.json"\n' +
+      '          node scripts/release-qa/macos-signing-evidence.mjs \\\n' +
+      '            --schema pupu.macos-signing-qualification.v1 \\\n' +
+      '            --target "$TARGET_ID" \\\n' +
+      '            --version "$PUPU_BUILD_VERSION" \\\n' +
+      '            --source-ref "$GITHUB_REF" \\\n' +
+      '            --source-sha "$GITHUB_SHA" \\\n' +
+      '            --expected-commit "$EXPECTED_COMMIT" \\\n' +
+      '            --unchain-ref "$UNCHAIN_REF" \\\n' +
+      '            --run-id "$GITHUB_RUN_ID" \\\n' +
+      '            --run-attempt "$GITHUB_RUN_ATTEMPT" \\\n' +
+      '            --dist-dir dist \\\n' +
+      '            --out "$evidence_file"\n' +
+      '          echo "MACOS_SIGNING_EVIDENCE_FILE=$evidence_file" >> "$GITHUB_ENV"\n' +
+      '\n' +
+      '      - name: Reject sensitive signing material before evidence upload\n' +
+      '        if: ${{ success() }}\n' +
+      '        shell: bash\n' +
+      '        run: |\n' +
+      '          node scripts/release-qa/secret-material-denylist.mjs \\\n' +
+      '            --root "$GITHUB_WORKSPACE" \\\n' +
+      '            --path "$MACOS_SIGNING_EVIDENCE_FILE"\n' +
+      '\n' +
+      '      - name: Upload sanitized macOS signing evidence only\n' +
+      '        if: ${{ success() }}\n' +
+      '        uses: actions/upload-artifact@v4\n' +
+      '        with:\n' +
+      '          name: macos-signing-qualification-${{ matrix.target_id }}\n' +
+      '          path: ${{ env.MACOS_SIGNING_EVIDENCE_FILE }}\n' +
+      '          if-no-files-found: error\n' +
+      '          retention-days: 30\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    name: macOS Signing Qualification
+    
+    on:
+      workflow_dispatch:
+        inputs:
+          confirmation:
+            description: "Type SIGN_MACOS_QUALIFICATION to build, notarize, and verify a non-publishing macOS qualification package"
+            required: true
+            type: string
+          expected_commit:
+            description: "Full immutable dev commit SHA that this qualification must build"
+            required: true
+            type: string
+          unchain_ref:
+            description: "Full immutable Unchain commit SHA used to build the bundled runtime"
+            required: true
+            type: string
+    
+    permissions:
+      contents: read
+    
+    jobs:
+      macos-signing-qualification:
+        name: Build, notarize, and verify macOS (${{ matrix.target_id }})
+        runs-on: ${{ matrix.runner }}
+        environment: macos-signing-qualification
+        strategy:
+          fail-fast: false
+          matrix:
+            include:
+              - target_id: macos-arm64
+                runner: macos-latest
+              - target_id: macos-x64
+                runner: macos-15-intel
+        permissions:
+          contents: read
+          actions: read
+    
+        steps:
+          - name: Require explicit immutable non-publishing signing inputs
+            shell: bash
+            env:
+              CONFIRMATION: ${{ inputs.confirmation }}
+              QUALIFICATION_REF: ${{ github.ref }}
+              QUALIFICATION_SHA: ${{ github.sha }}
+              EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+              UNCHAIN_REF: ${{ inputs.unchain_ref }}
+            run: |
+              if [[ "$CONFIRMATION" != "SIGN_MACOS_QUALIFICATION" ]]; then
+                echo "confirmation must equal SIGN_MACOS_QUALIFICATION" >&2
+                exit 1
+              fi
+              if [[ "$QUALIFICATION_REF" != "refs/heads/dev" ]]; then
+                echo "qualification must run from refs/heads/dev" >&2
+                exit 1
+              fi
+              if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "expected_commit must be a full immutable commit SHA" >&2
+                exit 1
+              fi
+              if [[ "$EXPECTED_COMMIT" != "$QUALIFICATION_SHA" ]]; then
+                echo "expected_commit must equal the dispatched commit" >&2
+                exit 1
+              fi
+              if [[ ! "$UNCHAIN_REF" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "unchain_ref must be a full immutable commit SHA" >&2
+                exit 1
+              fi
+    
+          - name: Checkout the selected source revision
+            uses: actions/checkout@v4
+            with:
+              ref: ${{ inputs.expected_commit }}
+              persist-credentials: false
+    
+          - name: Require protected isolated signing environment
+            shell: bash
+            env:
+              GH_TOKEN: ${{ github.token }}
+            run: |
+              environment_payload="$RUNNER_TEMP/pupu-macos-signing-environment-${GITHUB_RUN_ID}.json"
+              gh api "repos/$GITHUB_REPOSITORY/environments/macos-signing-qualification" > "$environment_payload"
+              node scripts/release-qa/verify-github-environment.mjs \
+                --environment macos-signing-qualification < "$environment_payload"
+    
+          - name: Checkout immutable Unchain source for the qualification build
+            uses: actions/checkout@v4
+            with:
+              repository: haoxiang-xu/unchain
+              ref: ${{ inputs.unchain_ref }}
+              path: .qualification-unchain
+              persist-credentials: false
+    
+          - name: Set up Node
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20
+              cache: npm
+    
+          - name: Set up Python
+            uses: actions/setup-python@v5
+            with:
+              python-version: "3.12"
+    
+          - name: Install Python runtime dependencies for wheel manifest inspection
+            run: python -m pip install -r unchain_runtime/server/requirements.txt
+    
+          - name: Install build dependencies
+            run: npm ci
+    
+          - name: Create controlled Memory V2 build snapshot
+            shell: bash
+            run: |
+              snapshot_root="$(mktemp -d "$RUNNER_TEMP/pupu-memory-snapshot-${GITHUB_RUN_ID}-XXXXXX")"
+              snapshot_path="$snapshot_root/build_feature_flags.snapshot.json"
+              node scripts/write-build-feature-snapshot.cjs \
+                --out "$snapshot_path" \
+                --profile contracts/memory-v2/release-profile.all.v1.json
+              echo "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshot_path" >> "$GITHUB_ENV"
+    
+          - name: Resolve non-interactive build version
+            shell: bash
+            run: |
+              build_version="$(node -p "require('./package.json').version")"
+              if [[ -z "$build_version" ]]; then
+                echo "package.json did not provide a build version" >&2
+                exit 1
+              fi
+              echo "PUPU_BUILD_VERSION=$build_version" >> "$GITHUB_ENV"
+    
+          - name: Require macOS signing and notarization credentials
+            env:
+              CSC_LINK: ${{ secrets.CSC_LINK }}
+              CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+              APPLE_ID: ${{ secrets.APPLE_ID }}
+              APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+              APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+            run: node scripts/release-qa/release-signing.mjs --platform macos
+    
+          - name: Build signed and notarized macOS package
+            shell: bash
+            env:
+              TARGET_ID: ${{ matrix.target_id }}
+              UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain
+              UNCHAIN_ARTIFACT_SOURCE_REF: ${{ inputs.unchain_ref }}
+              CSC_LINK: ${{ secrets.CSC_LINK }}
+              CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+              APPLE_ID: ${{ secrets.APPLE_ID }}
+              APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+              APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+            run: |
+              case "$TARGET_ID" in
+                macos-arm64) npm run build:electron:mac:release ;;
+                macos-x64) npm run build:electron:mac:intel:release ;;
+                *) echo "unsupported macOS qualification target: $TARGET_ID" >&2; exit 1 ;;
+              esac
+    
+          - name: Write exact sanitized macOS signing evidence
+            shell: bash
+            env:
+              TARGET_ID: ${{ matrix.target_id }}
+              EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+              UNCHAIN_REF: ${{ inputs.unchain_ref }}
+            run: |
+              evidence_file="macos-signing-qualification-${TARGET_ID}.v1.json"
+              node scripts/release-qa/macos-signing-evidence.mjs \
+                --schema pupu.macos-signing-qualification.v1 \
+                --target "$TARGET_ID" \
+                --version "$PUPU_BUILD_VERSION" \
+                --source-ref "$GITHUB_REF" \
+                --source-sha "$GITHUB_SHA" \
+                --expected-commit "$EXPECTED_COMMIT" \
+                --unchain-ref "$UNCHAIN_REF" \
+                --run-id "$GITHUB_RUN_ID" \
+                --run-attempt "$GITHUB_RUN_ATTEMPT" \
+                --dist-dir dist \
+                --out "$evidence_file"
+              echo "MACOS_SIGNING_EVIDENCE_FILE=$evidence_file" >> "$GITHUB_ENV"
+    
+          - name: Reject sensitive signing material before evidence upload
+            if: ${{ success() }}
+            shell: bash
+            run: |
+              node scripts/release-qa/secret-material-denylist.mjs \
+                --root "$GITHUB_WORKSPACE" \
+                --path "$MACOS_SIGNING_EVIDENCE_FILE"
+    
+          - name: Upload sanitized macOS signing evidence only
+            if: ${{ success() }}
+            uses: actions/upload-artifact@v4
+            with:
+              name: macos-signing-qualification-${{ matrix.target_id }}
+              path: ${{ env.MACOS_SIGNING_EVIDENCE_FILE }}
+              if-no-files-found: error
+              retention-days: 30
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/pupu-224/scripts/release-qa/macos-signing-qualification-workflow.test.mjs:37:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: packaged smoke refuses a missing build feature snapshot before spawning
+ok 68 - packaged smoke refuses a missing build feature snapshot before spawning
+  ---
+  duration_ms: 3.1365
+  type: 'test'
+  ...
+# Subtest: package projection requires the compatible tuple and exact artifact manifest
+ok 69 - package projection requires the compatible tuple and exact artifact manifest
+  ---
+  duration_ms: 1.782291
+  type: 'test'
+  ...
+# Subtest: packaged smoke waits for forced sidecar termination before cleanup
+ok 70 - packaged smoke waits for forced sidecar termination before cleanup
+  ---
+  duration_ms: 8.091542
+  type: 'test'
+  ...
+# Subtest: packaged smoke terminates the complete Windows sidecar process tree
+ok 71 - packaged smoke terminates the complete Windows sidecar process tree
+  ---
+  duration_ms: 0.164875
+  type: 'test'
+  ...
+# Subtest: packaged smoke fails closed when Windows process-tree termination fails
+ok 72 - packaged smoke fails closed when Windows process-tree termination fails
+  ---
+  duration_ms: 0.152125
+  type: 'test'
+  ...
+# Subtest: real child process smoke proves auth, health, status, and nonzero execution
+ok 73 - real child process smoke proves auth, health, status, and nonzero execution
+  ---
+  duration_ms: 173.562542
+  type: 'test'
+  ...
+# Subtest: unpatched dependency reproduces keychain password failure
+ok 74 - unpatched dependency reproduces keychain password failure
+  ---
+  duration_ms: 2.273625
+  type: 'test'
+  ...
+# Subtest: patched real dependency uses separate passwords for both certificates
+ok 75 - patched real dependency uses separate passwords for both certificates
+  ---
+  duration_ms: 1.594833
+  type: 'test'
+  ...
+# Subtest: certificate import failures still fail closed
+ok 76 - certificate import failures still fail closed
+  ---
+  duration_ms: 0.468875
+  type: 'test'
+  ...
+# Subtest: patch is idempotent and rejects changed or partially patched bytes
+ok 77 - patch is idempotent and rejects changed or partially patched bytes
+  ---
+  duration_ms: 0.267833
+  type: 'test'
+  ...
+# Subtest: normal dependency installation applies the patch
+ok 78 - normal dependency installation applies the patch
+  ---
+  duration_ms: 1.107834
+  type: 'test'
+  ...
+# Subtest: signed Windows installer refreshes the exact updater SHA-512 and size
+ok 79 - signed Windows installer refreshes the exact updater SHA-512 and size
+  ---
+  duration_ms: 23.952
+  type: 'test'
+  ...
+# Subtest: updater metadata refuses to refresh an ambiguous primary payload
+ok 80 - updater metadata refuses to refresh an ambiguous primary payload
+  ---
+  duration_ms: 6.5685
+  type: 'test'
+  ...
+# Subtest: release artifact contract seals the four v0.1.10 targets and reserves future ARM slots
+ok 81 - release artifact contract seals the four v0.1.10 targets and reserves future ARM slots
+  ---
+  duration_ms: 1.105667
+  type: 'test'
+  ...
+# Subtest: valid release asset manifest and exact directory pass with merged Mac and Windows updater metadata
+ok 82 - valid release asset manifest and exact directory pass with merged Mac and Windows updater metadata
+  ---
+  duration_ms: 47.36075
+  type: 'test'
+  ...
+# Subtest: RC manifest keeps the full prerelease identity in tag, metadata, and filenames
+ok 83 - RC manifest keeps the full prerelease identity in tag, metadata, and filenames
+  ---
+  duration_ms: 60.922541
+  type: 'test'
+  ...
+# Subtest: missing, extra, renamed, and byte-changed assets fail closed
+ok 84 - missing, extra, renamed, and byte-changed assets fail closed
+  ---
+  duration_ms: 257.794708
+  type: 'test'
+  ...
+# Subtest: manifest rejects stale identity, altered target state, and stale updater payload metadata
+ok 85 - manifest rejects stale identity, altered target state, and stale updater payload metadata
+  ---
+  duration_ms: 222.703416
+  type: 'test'
+  ...
+# Subtest: updater metadata must carry the real SHA-512 of every payload
+ok 86 - updater metadata must carry the real SHA-512 of every payload
+  ---
+  duration_ms: 19.850375
+  type: 'test'
+  ...
+# Subtest: qualification receipt must bind every required target to the candidate manifest
+ok 87 - qualification receipt must bind every required target to the candidate manifest
+  ---
+  duration_ms: 18.288959
+  type: 'test'
+  ...
+# Subtest: bootstrap policy freezes v0.1.10 and the exact public v0.1.9 legacy projection
+ok 88 - bootstrap policy freezes v0.1.10 and the exact public v0.1.9 legacy projection
+  ---
+  duration_ms: 2.129542
+  type: 'test'
+  ...
+# Subtest: bootstrap policy and legacy projection fail closed on scope or asset drift
+ok 89 - bootstrap policy and legacy projection fail closed on scope or asset drift
+  ---
+  duration_ms: 0.905625
+  type: 'test'
+  ...
+# Subtest: receipt schema selects one closed qualification workflow and rejects old fresh-only promotion
+ok 90 - receipt schema selects one closed qualification workflow and rejects old fresh-only promotion
+  ---
+  duration_ms: 0.488666
+  type: 'test'
+  ...
+# Subtest: bootstrap qualification is exact-tag, approval-gated, fresh-only, and non-publishing
+ok 91 - bootstrap qualification is exact-tag, approval-gated, fresh-only, and non-publishing
+  ---
+  duration_ms: 7.520167
+  type: 'test'
+  ...
+# Subtest: promotion resolves receipt schema to one workflow and preserves the bootstrap warning
+ok 92 - promotion resolves receipt schema to one workflow and preserves the bootstrap warning
+  ---
+  duration_ms: 5.868375
+  type: 'test'
+  ...
+# Subtest: candidate policy resolves stable and numbered RC refs against one stable package version
+ok 93 - candidate policy resolves stable and numbered RC refs against one stable package version
+  ---
+  duration_ms: 0.952458
+  type: 'test'
+  ...
+# Subtest: promotion policy admits only the exact stable tag
+ok 94 - promotion policy admits only the exact stable tag
+  ---
+  duration_ms: 0.3685
+  type: 'test'
+  ...
+# Subtest: release ref parsing rejects non-RC prereleases, metadata, case drift, and invalid counters
+ok 95 - release ref parsing rejects non-RC prereleases, metadata, case drift, and invalid counters
+  ---
+  duration_ms: 0.199209
+  type: 'test'
+  ...
+# Subtest: release ref parsing rejects unstable package versions, identity mismatch, and unknown policy
+ok 96 - release ref parsing rejects unstable package versions, identity mismatch, and unknown policy
+  ---
+  duration_ms: 0.117042
+  type: 'test'
+  ...
+# Subtest: CLI emits the closed ref projection and fails closed on invalid invocation
+ok 97 - CLI emits the closed ref projection and fails closed on invalid invocation
+  ---
+  duration_ms: 94.520791
+  type: 'test'
+  ...
+# Subtest: closed plans map every phase to its exact workflow and inputs without mutation
+ok 98 - closed plans map every phase to its exact workflow and inputs without mutation
+  ---
+  duration_ms: 1.778625
+  type: 'test'
+  ...
+# Subtest: plans fail closed on extra input, wrong repository/ref, weak identity, or invalid sequence
+ok 99 - plans fail closed on extra input, wrong repository/ref, weak identity, or invalid sequence
+  ---
+  duration_ms: 0.497459
+  type: 'test'
+  ...
+# Subtest: dispatch uses only the validated tuple and returns the exact URL produced by gh
+ok 100 - dispatch uses only the validated tuple and returns the exact URL produced by gh
+  ---
+  duration_ms: 0.39075
+  type: 'test'
+  ...
+# Subtest: dispatch preserves an RC tag while rebuilding the stable package version
+ok 101 - dispatch preserves an RC tag while rebuilding the stable package version
+  ---
+  duration_ms: 0.190667
+  type: 'test'
+  ...
+# Subtest: dispatch cannot proceed on stale approval or fuzzy run discovery
+ok 102 - dispatch cannot proceed on stale approval or fuzzy run discovery
+  ---
+  duration_ms: 0.175416
+  type: 'test'
+  ...
+# Subtest: dispatch rejects fabricated plans before invoking GitHub
+ok 103 - dispatch rejects fabricated plans before invoking GitHub
+  ---
+  duration_ms: 0.149834
+  type: 'test'
+  ...
+# Subtest: state projection binds exact run identity, jobs, and required candidate artifacts
+ok 104 - state projection binds exact run identity, jobs, and required candidate artifacts
+  ---
+  duration_ms: 0.408125
+  type: 'test'
+  ...
+# Subtest: state projection reports approval, failure, and incomplete evidence without guessing readiness
+ok 105 - state projection reports approval, failure, and incomplete evidence without guessing readiness
+  ---
+  duration_ms: 0.129917
+  type: 'test'
+  ...
+# Subtest: state projection rejects wrong identity, incomplete pagination, malformed jobs, and duplicate artifacts
+ok 106 - state projection rejects wrong identity, incomplete pagination, malformed jobs, and duplicate artifacts
+  ---
+  duration_ms: 0.370208
+  type: 'test'
+  ...
+# Subtest: stage and publish success require the corresponding exact GitHub Release state
+ok 107 - stage and publish success require the corresponding exact GitHub Release state
+  ---
+  duration_ms: 0.354417
+  type: 'test'
+  ...
+# Subtest: live observer performs only exact read calls and consumes a complete single-page response
+ok 108 - live observer performs only exact read calls and consumes a complete single-page response
+  ---
+  duration_ms: 0.220375
+  type: 'test'
+  ...
+# Subtest: wait resumes the same run without dispatch and returns a bounded timeout
+ok 109 - wait resumes the same run without dispatch and returns a bounded timeout
+  ---
+  duration_ms: 0.138333
+  type: 'test'
+  ...
+# Subtest: a retry requires another explicit dispatch and preserves distinct run identities
+ok 110 - a retry requires another explicit dispatch and preserves distinct run identities
+  ---
+  duration_ms: 0.153584
+  type: 'test'
+  ...
+# Subtest: CLI parsing rejects positional, duplicate, and unknown arguments
+ok 111 - CLI parsing rejects positional, duplicate, and unknown arguments
+  ---
+  duration_ms: 0.155458
+  type: 'test'
+  ...
+# Subtest: CLI plan is read-only JSON and both agent entrypoints share one canonical workflow
+ok 112 - CLI plan is read-only JSON and both agent entrypoints share one canonical workflow
+  ---
+  duration_ms: 40.023292
+  type: 'test'
+  ...
+# Subtest: CLI plan projects an RC package version to its stable release base
+ok 113 - CLI plan projects an RC package version to its stable release base
+  ---
+  duration_ms: 72.882625
+  type: 'test'
+  ...
+# Subtest: Playwright release QA consumes Deterministic QA's exact sidecar artifact
+ok 114 - Playwright release QA consumes Deterministic QA's exact sidecar artifact
+  ---
+  duration_ms: 8.957791
+  type: 'test'
+  ...
+# Subtest: Playwright QA report checks are valid JSON after Actions expressions resolve
+ok 115 - Playwright QA report checks are valid JSON after Actions expressions resolve
+  ---
+  duration_ms: 1.702541
+  type: 'test'
+  ...
+# Subtest: manual Windows Playwright scope reuses deterministic QA and skips packaging
+ok 116 - manual Windows Playwright scope reuses deterministic QA and skips packaging
+  ---
+  duration_ms: 4.19025
+  type: 'test'
+  ...
+# Subtest: electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish
+ok 117 - electron-builder uses canonical architecture-bearing names and every package command blocks implicit publish
+  ---
+  duration_ms: 0.826666
+  type: 'test'
+  ...
+# Subtest: release QA keeps its public candidate contract while delegating package execution
+ok 118 - release QA keeps its public candidate contract while delegating package execution
+  ---
+  duration_ms: 14.2865
+  type: 'test'
+  ...
+# Subtest: shared package workflow delegates the closed Windows signing chain to the shared action
+ok 119 - shared package workflow delegates the closed Windows signing chain to the shared action
+  ---
+  duration_ms: 0.371375
+  type: 'test'
+  ...
+# Subtest: stage workflow only promotes verified retained candidate bytes into a Draft Release
+ok 120 - stage workflow only promotes verified retained candidate bytes into a Draft Release
+  ---
+  duration_ms: 2.081167
+  type: 'test'
+  ...
+# Subtest: publish workflow has a protected manual transition and cannot rebuild or upload
+ok 121 - publish workflow has a protected manual transition and cannot rebuild or upload
+  ---
+  duration_ms: 1.240834
+  type: 'test'
+  ...
+# Subtest: README workflow is explicitly called after publication and never regex-rewrites a guessed version
+ok 122 - README workflow is explicitly called after publication and never regex-rewrites a guessed version
+  ---
+  duration_ms: 0.774709
+  type: 'test'
+  ...
+# Subtest: W0-06 freezes the remaining supported report sets after Windows Active retirement
+ok 123 - W0-06 freezes the remaining supported report sets after Windows Active retirement
+  ---
+  duration_ms: 0.970042
+  type: 'test'
+  ...
+# Subtest: W0-06 rejects unknown modes and tampered closed topology entries
+ok 124 - W0-06 rejects unknown modes and tampered closed topology entries
+  ---
+  duration_ms: 0.164208
+  type: 'test'
+  ...
+# Subtest: W0-06 makes missing, duplicate, and zero-evidence required reports fail closed
+ok 125 - W0-06 makes missing, duplicate, and zero-evidence required reports fail closed
+  ---
+  duration_ms: 0.968084
+  type: 'test'
+  ...
+# Subtest: installed qualification workflow verifies retained bytes and seals a non-publishing receipt
+ok 126 - installed qualification workflow verifies retained bytes and seals a non-publishing receipt
+  ---
+  duration_ms: 9.337125
+  type: 'test'
+  ...
+# Subtest: RC qualification is exact-tag, four-target, fresh-only, and non-publishing
+ok 127 - RC qualification is exact-tag, four-target, fresh-only, and non-publishing
+  ---
+  duration_ms: 6.652167
+  type: 'test'
+  ...
+# Subtest: README download block is manifest-derived, explicit, and excludes reserved ARM targets
+ok 128 - README download block is manifest-derived, explicit, and excludes reserved ARM targets
+  ---
+  duration_ms: 65.858666
+  type: 'test'
+  ...
+# Subtest: README CLI requires and consumes a verified manifest rather than package.json
+ok 129 - README CLI requires and consumes a verified manifest rather than package.json
+  ---
+  duration_ms: 73.839584
+  type: 'test'
+  ...
+# Subtest: README renderer fails closed when the marker pair is missing or duplicated
+ok 130 - README renderer fails closed when the marker pair is missing or duplicated
+  ---
+  duration_ms: 0.217834
+  type: 'test'
+  ...
+# Subtest: build version preparation no longer mutates README links
+ok 131 - build version preparation no longer mutates README links
+  ---
+  duration_ms: 7.296209
+  type: 'test'
+  ...
+# Subtest: download buttons map exactly to the five manifest installers
+ok 132 - download buttons map exactly to the five manifest installers
+  ---
+  duration_ms: 13.566667
+  type: 'test'
+  ...
+# Subtest: download button destinations honor the supplied repository
+ok 133 - download button destinations honor the supplied repository
+  ---
+  duration_ms: 178.260584
+  type: 'test'
+  ...
+# Subtest: release signing credentials require macOS code signing plus notarization and Windows Artifact Signing
+ok 134 - release signing credentials require macOS code signing plus notarization and Windows Artifact Signing
+  ---
+  duration_ms: 0.728833
+  type: 'test'
+  ...
+# Subtest: release signing executes its fail-closed CLI entrypoint with a portable URL guard
+ok 135 - release signing executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 37.978291
+  type: 'test'
+  ...
+# Subtest: buildJobReport records failures, version mismatch, and artifact evidence
+ok 136 - buildJobReport records failures, version mismatch, and artifact evidence
+  ---
+  duration_ms: 0.852666
+  type: 'test'
+  ...
+# Subtest: artifact, manifest, provenance, and nonzero evidence are all blocking
+ok 137 - artifact, manifest, provenance, and nonzero evidence are all blocking
+  ---
+  duration_ms: 2.384125
+  type: 'test'
+  ...
+# Subtest: Windows Vault supervisor native probe requires nonzero evidence
+ok 138 - Windows Vault supervisor native probe requires nonzero evidence
+  ---
+  duration_ms: 0.228416
+  type: 'test'
+  ...
+# Subtest: lite merge passes with one deterministic artifact and required matrices
+ok 139 - lite merge passes with one deterministic artifact and required matrices
+  ---
+  duration_ms: 0.584916
+  type: 'test'
+  ...
+# Subtest: local deterministic gates retain their Unchain evidence when the platform has an architecture-bearing name
+ok 140 - local deterministic gates retain their Unchain evidence when the platform has an architecture-bearing name
+  ---
+  duration_ms: 0.608125
+  type: 'test'
+  ...
+# Subtest: release merge requires all package platforms, identical bytes, and real smoke
+ok 141 - release merge requires all package platforms, identical bytes, and real smoke
+  ---
+  duration_ms: 1.326166
+  type: 'test'
+  ...
+# Subtest: release-candidate merge keeps the complete package continuity gate
+ok 142 - release-candidate merge keeps the complete package continuity gate
+  ---
+  duration_ms: 1.069958
+  type: 'test'
+  ...
+# Subtest: a merge with only non-deterministic reports is INCOMPLETE
+ok 143 - a merge with only non-deterministic reports is INCOMPLETE
+  ---
+  duration_ms: 0.142833
+  type: 'test'
+  ...
+# Subtest: renderMarkdown reports artifact continuity, not a compatibility SHA lock
+ok 144 - renderMarkdown reports artifact continuity, not a compatibility SHA lock
+  ---
+  duration_ms: 0.561959
+  type: 'test'
+  ...
+# Subtest: unchain analyst exits zero and writes unavailable analysis without credentials
+ok 145 - unchain analyst exits zero and writes unavailable analysis without credentials
+  ---
+  duration_ms: 443.82
+  type: 'test'
+  ...
+# Subtest: restart-update fixture evidence binds the exact installer, signer, source, target, and sole allowed difference
+ok 146 - restart-update fixture evidence binds the exact installer, signer, source, target, and sole allowed difference
+  ---
+  duration_ms: 7.709833
+  type: 'test'
+  ...
+# Subtest: restart-update fixture evidence fails closed on an unrecorded build difference or byte drift
+ok 147 - restart-update fixture evidence fails closed on an unrecorded build difference or byte drift
+  ---
+  duration_ms: 28.871666
+  type: 'test'
+  ...
+# Subtest: restart-update qualification strictly binds the candidate feed, fixture, lifecycle, and retained state
+ok 148 - restart-update qualification strictly binds the candidate feed, fixture, lifecycle, and retained state
+  ---
+  duration_ms: 0.855334
+  type: 'test'
+  ...
+# Subtest: restart-update qualification rejects fixture, feed, sequence, and unknown-field drift
+ok 149 - restart-update qualification rejects fixture, feed, sequence, and unknown-field drift
+  ---
+  duration_ms: 0.953917
+  type: 'test'
+  ...
+# Subtest: N-1 fixture source is an explicit stable tag and immutable lower-version commit
+ok 150 - N-1 fixture source is an explicit stable tag and immutable lower-version commit
+  ---
+  duration_ms: 0.388083
+  type: 'test'
+  ...
+# Subtest: RunBundle release gate freezes exact cross-boundary P0 selectors
+ok 151 - RunBundle release gate freezes exact cross-boundary P0 selectors
+  ---
+  duration_ms: 130.113584
+  type: 'test'
+  ...
+# Subtest: Jest execution report rejects skipped-only output and proves a file ran
+ok 152 - Jest execution report rejects skipped-only output and proves a file ran
+  ---
+  duration_ms: 7965.971667
+  type: 'test'
+  ...
+# Subtest: Windows restart qualification uses inherited isolated AppData rather than relaunch-lost userData arguments
+ok 153 - Windows restart qualification uses inherited isolated AppData rather than relaunch-lost userData arguments
+  ---
+  duration_ms: 1.271875
+  type: 'test'
+  ...
+# Subtest: restart-update executor accepts only the three supported runtimes and a fixed loopback port
+ok 154 - restart-update executor accepts only the three supported runtimes and a fixed loopback port
+  ---
+  duration_ms: 0.272
+  type: 'test'
+  ...
+# Subtest: restart-update executor requires observed checking, downloading, and downloaded state without an error terminal
+ok 155 - restart-update executor requires observed checking, downloading, and downloaded state without an error terminal
+  ---
+  duration_ms: 0.128292
+  type: 'test'
+  ...
+# Subtest: signing transition repairs the actual production identity and all Electron integrity layers
+ok 156 - signing transition repairs the actual production identity and all Electron integrity layers
+  ---
+  duration_ms: 2567.140042
+  type: 'test'
+  ...
+# Subtest: prepare refuses reused receipt or receipt inside the payload
+ok 157 - prepare refuses reused receipt or receipt inside the payload
+  ---
+  duration_ms: 26.355875
+  type: 'test'
+  ...
+# Subtest: prepare never mutates a launcher that already has a PE certificate table
+ok 158 - prepare never mutates a launcher that already has a PE certificate table
+  ---
+  duration_ms: 16.281833
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion schema drift
+ok 159 - prepare rejects pre-existing companion schema drift
+  ---
+  duration_ms: 16.941708
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion extra drift
+ok 160 - prepare rejects pre-existing companion extra drift
+  ---
+  duration_ms: 18.235958
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion manifest drift
+ok 161 - prepare rejects pre-existing companion manifest drift
+  ---
+  duration_ms: 21.89025
+  type: 'test'
+  ...
+# Subtest: prepare rejects pre-existing companion wheel drift
+ok 162 - prepare rejects pre-existing companion wheel drift
+  ---
+  duration_ms: 24.176167
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on receipt-extra
+ok 163 - reseal fails closed on receipt-extra
+  ---
+  duration_ms: 155.74025
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on receipt-schema
+ok 164 - reseal fails closed on receipt-schema
+  ---
+  duration_ms: 31.697083
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on companion-wheel
+ok 165 - reseal fails closed on companion-wheel
+  ---
+  duration_ms: 197.800417
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on companion-extra
+ok 166 - reseal fails closed on companion-extra
+  ---
+  duration_ms: 19.78675
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on archive
+ok 167 - reseal fails closed on archive
+  ---
+  duration_ms: 19.720208
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on launcher
+ok 168 - reseal fails closed on launcher
+  ---
+  duration_ms: 1138.209041
+  type: 'test'
+  ...
+# Subtest: reseal fails closed on unsigned-sidecar
+ok 169 - reseal fails closed on unsigned-sidecar
+  ---
+  duration_ms: 183.338
+  type: 'test'
+  ...
+# Subtest: prepare rejects broken ASAR identity bytes and launcher header integrity
+ok 170 - prepare rejects broken ASAR identity bytes and launcher header integrity
+  ---
+  duration_ms: 5570.376833
+  type: 'test'
+  ...
+# Subtest: Windows shared action enforces dependency → reseal → launcher → installer signing order
+ok 171 - Windows shared action enforces dependency → reseal → launcher → installer signing order
+  ---
+  duration_ms: 4.739917
+  type: 'test'
+  ...
+# Subtest: artifact denylist accepts ordinary evidence without exposing its contents
+ok 172 - artifact denylist accepts ordinary evidence without exposing its contents
+  ---
+  duration_ms: 16.03025
+  type: 'test'
+  ...
+# Subtest: artifact denylist rejects signing material by safe path/category diagnostics only
+ok 173 - artifact denylist rejects signing material by safe path/category diagnostics only
+  ---
+  duration_ms: 41.277
+  type: 'test'
+  ...
+# Subtest: artifact denylist rejects paths that resolve outside the declared upload root
+ok 174 - artifact denylist rejects paths that resolve outside the declared upload root
+  ---
+  duration_ms: 0.856083
+  type: 'test'
+  ...
+# Subtest: artifact denylist executes its fail-closed CLI entrypoint with a portable URL guard
+ok 175 - artifact denylist executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 28.960792
+  type: 'test'
+  ...
+# Subtest: qualification feed listens only on loopback and serves exactly sealed updater files
+ok 176 - qualification feed listens only on loopback and serves exactly sealed updater files
+  ---
+  duration_ms: 74.10925
+  type: 'test'
+  ...
+# Subtest: qualification feed accepts a predeclared loopback port for a signed N-1 fixture
+ok 177 - qualification feed accepts a predeclared loopback port for a signed N-1 fixture
+  ---
+  duration_ms: 40.515333
+  type: 'test'
+  ...
+# Subtest: signing workflows isolate standalone credentials and OIDC to Windows jobs
+ok 178 - signing workflows isolate standalone credentials and OIDC to Windows jobs
+  ---
+  duration_ms: 13.376666
+  type: 'test'
+  ...
+# Subtest: one immutable wheel records artifact, protocol, and source provenance
+ok 179 - one immutable wheel records artifact, protocol, and source provenance
+  ---
+  duration_ms: 20.570084
+  type: 'test'
+  ...
+# Subtest: download verification proves bytes in a bare environment without importing Unchain
+ok 180 - download verification proves bytes in a bare environment without importing Unchain
+  ---
+  duration_ms: 55.179042
+  type: 'test'
+  ...
+# Subtest: installed distribution must be the wheel bytes, never an existing editable
+ok 181 - installed distribution must be the wheel bytes, never an existing editable
+  ---
+  duration_ms: 0.7945
+  type: 'test'
+  ...
+# Subtest: contract tests must come from the clean revision that built the wheel
+ok 182 - contract tests must come from the clean revision that built the wheel
+  ---
+  duration_ms: 255.123167
+  type: 'test'
+  ...
+# Subtest: artifact bytes, protocol digest, and clean source provenance fail closed
+ok 183 - artifact bytes, protocol digest, and clean source provenance fail closed
+  ---
+  duration_ms: 45.956833
+  type: 'test'
+  ...
+# Subtest: release evidence requires the cold-reconcile and exact-cancel protocol features
+ok 184 - release evidence requires the cold-reconcile and exact-cancel protocol features
+  ---
+  duration_ms: 1.13675
+  type: 'test'
+  ...
+# Subtest: release evidence rejects missing provider-turn and RunBundle features
+ok 185 - release evidence rejects missing provider-turn and RunBundle features
+  ---
+  duration_ms: 0.356041
+  type: 'test'
+  ...
+# Subtest: manifest validation matches producer NFC/nonempty rules including whitespace
+ok 186 - manifest validation matches producer NFC/nonempty rules including whitespace
+  ---
+  duration_ms: 0.311208
+  type: 'test'
+  ...
+# Subtest: manifest verification rejects bad digest, empty strings, Unicode drift, and byte-order drift
+ok 187 - manifest verification rejects bad digest, empty strings, Unicode drift, and byte-order drift
+  ---
+  duration_ms: 0.969334
+  type: 'test'
+  ...
+# Subtest: legacy release gap CLI reads a piped GitHub response under Node 24
+ok 188 - legacy release gap CLI reads a piped GitHub response under Node 24
+  ---
+  duration_ms: 57.329959
+  type: 'test'
+  ...
+# Subtest: qualification fixture app-update.yml is exactly the signed loopback provider contract
+ok 189 - qualification fixture app-update.yml is exactly the signed loopback provider contract
+  ---
+  duration_ms: 2.626459
+  type: 'test'
+  ...
+# Subtest: qualification fixture app-update.yml rejects production providers, feed drift, and unreviewed keys
+ok 190 - qualification fixture app-update.yml rejects production providers, feed drift, and unreviewed keys
+  ---
+  duration_ms: 1.406833
+  type: 'test'
+  ...
+# Subtest: Actions run provenance binds the exact successful dispatched workflow to the tag commit
+ok 191 - Actions run provenance binds the exact successful dispatched workflow to the tag commit
+  ---
+  duration_ms: 0.467667
+  type: 'test'
+  ...
+# Subtest: Actions run provenance CLI reads a piped run response under Node 24
+ok 192 - Actions run provenance CLI reads a piped run response under Node 24
+  ---
+  duration_ms: 29.441542
+  type: 'test'
+  ...
+# Subtest: Actions run provenance rejects a mismatched identity, result, event, tag, commit, or workflow
+ok 193 - Actions run provenance rejects a mismatched identity, result, event, tag, commit, or workflow
+  ---
+  duration_ms: 0.328
+  type: 'test'
+  ...
+# Subtest: release environments fail closed without reviewer protection
+ok 194 - release environments fail closed without reviewer protection
+  ---
+  duration_ms: 0.469334
+  type: 'test'
+  ...
+# Subtest: environment verifier executes its fail-closed CLI entrypoint with a portable URL guard
+ok 195 - environment verifier executes its fail-closed CLI entrypoint with a portable URL guard
+  ---
+  duration_ms: 28.056916
+  type: 'test'
+  ...
+# Subtest: environment verifier accepts reviewer-protected JSON through streamed standard input
+ok 196 - environment verifier accepts reviewer-protected JSON through streamed standard input
+  ---
+  duration_ms: 28.855708
+  type: 'test'
+  ...
+# Subtest: Playwright execution evidence counts completed tests but not skipped-only output
+ok 197 - Playwright execution evidence counts completed tests but not skipped-only output
+  ---
+  duration_ms: 0.847375
+  type: 'test'
+  ...
+# Subtest: package output verifier requires the exact artifact set for each supported v0.1.10 target
+ok 198 - package output verifier requires the exact artifact set for each supported v0.1.10 target
+  ---
+  duration_ms: 205.250375
+  type: 'test'
+  ...
+# Subtest: package output verifier requires full RC filenames on every supported target
+ok 199 - package output verifier requires full RC filenames on every supported target
+  ---
+  duration_ms: 153.538542
+  type: 'test'
+  ...
+# Subtest: package output verifier rejects a missing canonical artifact and future reserved targets
+ok 200 - package output verifier rejects a missing canonical artifact and future reserved targets
+  ---
+  duration_ms: 68.537792
+  type: 'test'
+  ...
+# Subtest: package output verifier permits only documented builder support files
+ok 201 - package output verifier permits only documented builder support files
+  ---
+  duration_ms: 77.598792
+  type: 'test'
+  ...
+# Subtest: package output verifier rejects an extra release-looking filename
+ok 202 - package output verifier rejects an extra release-looking filename
+  ---
+  duration_ms: 38.93625
+  type: 'test'
+  ...
+# Subtest: a complete passing evidence file verifies with no failures
+ok 203 - a complete passing evidence file verifies with no failures
+  ---
+  duration_ms: 2.451084
+  type: 'test'
+  ...
+# Subtest: every drift is rejected at the consumer, independently of the producer
+ok 204 - every drift is rejected at the consumer, independently of the producer
+  ---
+  duration_ms: 6.872292
+  type: 'test'
+  ...
+# Subtest: NOT_RUN cells make the verdict incomplete rather than passing
+ok 205 - NOT_RUN cells make the verdict incomplete rather than passing
+  ---
+  duration_ms: 0.4065
+  type: 'test'
+  ...
+# Subtest: an N/A cell needs a reason and is neither a pass nor a failure by itself
+ok 206 - an N/A cell needs a reason and is neither a pass nor a failure by itself
+  ---
+  duration_ms: 0.174
+  type: 'test'
+  ...
+# Subtest: CLI verifies files and returns 0 / 1 / 2 for pass, fail and incomplete
+ok 207 - CLI verifies files and returns 0 / 1 / 2 for pass, fail and incomplete
+  ---
+  duration_ms: 149.927041
+  type: 'test'
+  ...
+# Subtest: W0-05 accepts a non-self-referential five-layer candidate chain
+ok 208 - W0-05 accepts a non-self-referential five-layer candidate chain
+  ---
+  duration_ms: 1.280541
+  type: 'test'
+  ...
+# Subtest: W0-05 gives each immutable snapshot a new build identity while retaining payload lineage
+ok 209 - W0-05 gives each immutable snapshot a new build identity while retaining payload lineage
+  ---
+  duration_ms: 0.276208
+  type: 'test'
+  ...
+# Subtest: W0-05 rejects self-reference, future install digests, and unsigned payload deltas
+ok 210 - W0-05 rejects self-reference, future install digests, and unsigned payload deltas
+  ---
+  duration_ms: 0.668625
+  type: 'test'
+  ...
+# Subtest: W0-05 candidate report exposes only a complete verified chain with nonzero evidence
+ok 211 - W0-05 candidate report exposes only a complete verified chain with nonzero evidence
+  ---
+  duration_ms: 0.6645
+  type: 'test'
+  ...
+# Subtest: catalog covers the three declared sink kinds with success and fault cells
+ok 212 - catalog covers the three declared sink kinds with success and fault cells
+  ---
+  duration_ms: 1.056458
+  type: 'test'
+  ...
+# Subtest: cycle schedule is deterministic, bounded to the pool and well mixed
+ok 213 - cycle schedule is deterministic, bounded to the pool and well mixed
+  ---
+  duration_ms: 1.045542
+  type: 'test'
+  ...
+# Subtest: Responses SSE builders produce a completed function_call and a completed text turn
+ok 214 - Responses SSE builders produce a completed function_call and a completed text turn
+  ---
+  duration_ms: 0.284667
+  type: 'test'
+  ...
+# Subtest: secret scan reports encoded variants by digest only and never the plaintext
+ok 215 - secret scan reports encoded variants by digest only and never the plaintext
+  ---
+  duration_ms: 0.639708
+  type: 'test'
+  ...
+# Subtest: evaluateCell accepts exact success observations and rejects each drift
+ok 216 - evaluateCell accepts exact success observations and rejects each drift
+  ---
+  duration_ms: 0.715459
+  type: 'test'
+  ...
+# Subtest: evaluateCell encodes the fault semantics of each catalog cell
+ok 217 - evaluateCell encodes the fault semantics of each catalog cell
+  ---
+  duration_ms: 0.487084
+  type: 'test'
+  ...
+# Subtest: handle growth is judged on first versus last sample with a bounded delta
+ok 218 - handle growth is judged on first versus last sample with a bounded delta
+  ---
+  duration_ms: 0.224334
+  type: 'test'
+  ...
+# Subtest: buildEvidence emits the exact top-level key set and observed key set
+ok 219 - buildEvidence emits the exact top-level key set and observed key set
+  ---
+  duration_ms: 2.23075
+  type: 'test'
+  ...
+# Subtest: W0-04 Node parser consumes the versioned protocol and Windows sink fixture
+ok 220 - W0-04 Node parser consumes the versioned protocol and Windows sink fixture
+  ---
+  duration_ms: 9.912792
+  type: 'test'
+  ...
+# Subtest: W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks
+ok 221 - W0-04 fixture negative cases reject missing features, unknown sinks, and unsupported Windows sinks
+  ---
+  duration_ms: 2.660833
+  type: 'test'
+  ...
+# Subtest: W1-06 Windows registry exposes exactly the attested sink set
+ok 222 - W1-06 Windows registry exposes exactly the attested sink set
+  ---
+  duration_ms: 0.310709
+  type: 'test'
+  ...
+# Subtest: W2-02 Electron strictly consumes Python supervisor control frames
+ok 223 - W2-02 Electron strictly consumes Python supervisor control frames
+  ---
+  duration_ms: 199.235458
+  type: 'test'
+  ...
+# Subtest: W0-03 GREEN: release build requires an explicit feature snapshot
+ok 224 - W0-03 GREEN: release build requires an explicit feature snapshot
+  ---
+  duration_ms: 1.52525
+  type: 'test'
+  ...
+# Subtest: W0-03 GREEN: packaged sidecar smoke reuses the immutable build snapshot
+ok 225 - W0-03 GREEN: packaged sidecar smoke reuses the immutable build snapshot
+  ---
+  duration_ms: 2.584583
+  type: 'test'
+  ...
+# Subtest: W1-03 GREEN: Vault prepares before CAS and decrypts only before lease execute
+ok 226 - W1-03 GREEN: Vault prepares before CAS and decrypts only before lease execute
+  ---
+  duration_ms: 17.710875
+  type: 'test'
+  ...
+# Subtest: W0 RED: release Playwright launches source Electron, not an installed candidate
+ok 227 - W0 RED: release Playwright launches source Electron, not an installed candidate
+  ---
+  duration_ms: 10.865208
+  type: 'test'
+  ...
+# Subtest: W0-06 GREEN: final release enforcement uses a frozen mode-aware report topology
+ok 228 - W0-06 GREEN: final release enforcement uses a frozen mode-aware report topology
+  ---
+  duration_ms: 4.092916
+  type: 'test'
+  ...
+# Subtest: W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant
+ok 229 - W0-08 GREEN: unavailable rollback authority blocks promotion and requires a Shadow descendant
+  ---
+  duration_ms: 7.925
+  type: 'test'
+  ...
+# Subtest: W0-04 GREEN: Electron, sidecar, and release artifact require the same context-memory feature
+ok 230 - W0-04 GREEN: Electron, sidecar, and release artifact require the same context-memory feature
+  ---
+  duration_ms: 7.506
+  type: 'test'
+  ...
+# Subtest: W0-08 freezes unavailable stop authorities as a promotion-blocking policy
+ok 231 - W0-08 freezes unavailable stop authorities as a promotion-blocking policy
+  ---
+  duration_ms: 0.985292
+  type: 'test'
+  ...
+# Subtest: W0-08 only accepts a new Shadow build identity with retained payload lineage
+ok 232 - W0-08 only accepts a new Shadow build identity with retained payload lineage
+  ---
+  duration_ms: 0.338541
+  type: 'test'
+  ...
+# Subtest: formal candidate and qualification signing share one guarded implementation
+ok 233 - formal candidate and qualification signing share one guarded implementation
+  ---
+  duration_ms: 5.242459
+  type: 'test'
+  ...
+# Subtest: Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check
+not ok 234 - Windows signing qualification is an explicit, protected, non-publishing Artifact Signing check
+  ---
+  duration_ms: 6.50125
+  type: 'test'
+  location: '/private/tmp/pupu-224/scripts/release-qa/windows-signing-qualification-workflow.test.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /--profile contracts\/memory-v2\/release-profile\.all\.v2\.json/. Input:
+    
+    'name: Windows Signing Qualification\n' +
+      '\n' +
+      'on:\n' +
+      '  workflow_dispatch:\n' +
+      '    inputs:\n' +
+      '      confirmation:\n' +
+      '        description: "Type SIGN_WINDOWS_QUALIFICATION to build and sign a non-publishing Windows qualification package"\n' +
+      '        required: true\n' +
+      '        type: string\n' +
+      '\n' +
+      'permissions:\n' +
+      '  contents: read\n' +
+      '\n' +
+      'jobs:\n' +
+      '  windows-signing-qualification:\n' +
+      '    name: Build and verify Windows Artifact Signing\n' +
+      '    runs-on: windows-latest\n' +
+      '    environment: windows-signing-qualification\n' +
+      '    permissions:\n' +
+      '      contents: read\n' +
+      '      actions: read\n' +
+      '      id-token: write\n' +
+      '\n' +
+      '    steps:\n' +
+      '      - name: Require explicit non-publishing signing confirmation\n' +
+      '        shell: pwsh\n' +
+      '        env:\n' +
+      '          CONFIRMATION: ${{ inputs.confirmation }}\n' +
+      '          QUALIFICATION_REF: ${{ github.ref }}\n' +
+      '        run: |\n' +
+      '          if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {\n' +
+      '            throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"\n' +
+      '          }\n' +
+      '          if ($env:QUALIFICATION_REF -ne "refs/heads/dev") {\n' +
+      '            throw "qualification must run from refs/heads/dev"\n' +
+      '          }\n' +
+      '\n' +
+      '      - name: Initialize isolated qualification paths\n' +
+      '        shell: pwsh\n' +
+      '        run: |\n' +
+      '          $qualificationRoot = Join-Path $env:RUNNER_TEMP "pupu-windows-signing-$env:GITHUB_RUN_ID"\n' +
+      '          $qualificationPayload = Join-Path $qualificationRoot "payload"\n' +
+      '          "QUALIFICATION_ROOT=$qualificationRoot" >> $env:GITHUB_ENV\n' +
+      '          "QUALIFICATION_PAYLOAD=$qualificationPayload" >> $env:GITHUB_ENV\n' +
+      '\n' +
+      '      - name: Checkout the selected source revision\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          persist-credentials: false\n' +
+      '\n' +
+      '      - name: Require protected isolated signing environment\n' +
+      '        env:\n' +
+      '          GH_TOKEN: ${{ github.token }}\n' +
+      '        run: |\n' +
+      '          gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |\n' +
+      '            node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification\n' +
+      '\n' +
+      '      - name: Checkout Unchain source for the qualification build\n' +
+      '        uses: actions/checkout@v4\n' +
+      '        with:\n' +
+      '          repository: haoxiang-xu/unchain\n' +
+      '          ref: dev\n' +
+      '          path: .qualification-unchain\n' +
+      '          persist-credentials: false\n' +
+      '\n' +
+      '      - name: Set up Node\n' +
+      '        uses: actions/setup-node@v4\n' +
+      '        with:\n' +
+      '          node-version: 20\n' +
+      '          cache: npm\n' +
+      '\n' +
+      '      - name: Set up Python\n' +
+      '        uses: actions/setup-python@v5\n' +
+      '        with:\n' +
+      '          python-version: "3.12"\n' +
+      '\n' +
+      '      - name: Install Python runtime dependencies for wheel manifest inspection\n' +
+      '        run: python -m pip install -r unchain_runtime/server/requirements.txt\n' +
+      '\n' +
+      '      - name: Install build dependencies\n' +
+      '        run: npm ci\n' +
+      '\n' +
+      '      - name: Create controlled Memory V2 build snapshot\n' +
+      '        shell: pwsh\n' +
+      '        run: |\n' +
+      '          $snapshotRoot = Join-Path $env:RUNNER_TEMP "pupu-memory-snapshot-$env:GITHUB_RUN_ID"\n' +
+      '          $snapshotPath = Join-Path $snapshotRoot "build_feature_flags.snapshot.json"\n' +
+      '          node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.all.v1.json\n' +
+      '          "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshotPath" >> $env:GITHUB_ENV\n' +
+      '\n' +
+      '      - name: Resolve non-interactive build version\n' +
+      '        shell: pwsh\n' +
+      '        run: |\n' +
+      `          $buildVersion = node -p "require('./package.json').version"\n` +
+      '          if ([string]::IsNullOrWhiteSpace($buildVersion)) {\n' +
+      '            throw "package.json did not provide a build version"\n' +
+      '          }\n' +
+      '          "PUPU_BUILD_VERSION=$buildVersion" >> $env:GITHUB_ENV\n' +
+      '\n' +
+      '      - name: Build an unsigned unpacked Windows payload\n' +
+      '        env:\n' +
+      '          UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain\n' +
+      '          UNCHAIN_ARTIFACT_SOURCE_REF: dev\n' +
+      '        run: npm run build:electron:win:unpacked\n' +
+      '\n' +
+      '      - name: Copy the exact payload into an isolated signing directory\n' +
+      '        shell: pwsh\n' +
+      '        run: |\n' +
+      '          $source = Join-Path $PWD "dist\\win-unpacked"\n' +
+      '          if (-not (Test-Path -LiteralPath $source -PathType Container)) {\n' +
+      '            throw "missing unpacked Windows payload: $source"\n' +
+      '          }\n' +
+      '          if (Test-Path -LiteralPath $env:QUALIFICATION_ROOT) {\n' +
+      '            throw "qualification directory unexpectedly already exists: $env:QUALIFICATION_ROOT"\n' +
+      '          }\n' +
+      '          New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null\n' +
+      '          Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse\n' +
+      '\n' +
+      '      - name: Sign and verify isolated Windows qualification payload\n' +
+      '        id: windows_artifact_signing\n' +
+      '        uses: ./.github/actions/windows-artifact-signing\n' +
+      '        with:\n' +
+      '          working-directory: .\n' +
+      '          signing-root-path: ${{ env.QUALIFICATION_ROOT }}\n' +
+      '          payload-path: ${{ env.QUALIFICATION_PAYLOAD }}\n' +
+      '          bootstrap-output-path: ${{ env.QUALIFICATION_ROOT }}\\\\bootstrap-installer\n' +
+      '          installer-path: ${{ github.workspace }}\\dist\\PuPu-${{ env.PUPU_BUILD_VERSION }}-windows-x64-setup.exe\n' +
+      '          evidence-output: windows-signing-qualification.v1.json\n' +
+      '          evidence-schema: pupu.windows-signing-qualification.v1\n' +
+      '          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}\n' +
+      '          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}\n' +
+      '          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}\n' +
+      '          azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}\n' +
+      '          azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}\n' +
+      '          azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}\n' +
+      '\n' +
+      '      - name: Reject sensitive signing material before evidence upload\n' +
+      '        if: ${{ success() }}\n' +
+      '        shell: pwsh\n' +
+      '        run: |\n' +
+      '          node scripts/release-qa/secret-material-denylist.mjs `\n' +
+      '            --root "$env:GITHUB_WORKSPACE" `\n' +
+      '            --path "windows-signing-qualification.v1.json"\n' +
+      '\n' +
+      '      - name: Upload signing qualification evidence only\n' +
+      '        if: ${{ success() }}\n' +
+      '        uses: actions/upload-artifact@v4\n' +
+      '        with:\n' +
+      '          name: windows-signing-qualification\n' +
+      '          path: windows-signing-qualification.v1.json\n' +
+      '          if-no-files-found: error\n' +
+      '          retention-days: 30\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    name: Windows Signing Qualification
+    
+    on:
+      workflow_dispatch:
+        inputs:
+          confirmation:
+            description: "Type SIGN_WINDOWS_QUALIFICATION to build and sign a non-publishing Windows qualification package"
+            required: true
+            type: string
+    
+    permissions:
+      contents: read
+    
+    jobs:
+      windows-signing-qualification:
+        name: Build and verify Windows Artifact Signing
+        runs-on: windows-latest
+        environment: windows-signing-qualification
+        permissions:
+          contents: read
+          actions: read
+          id-token: write
+    
+        steps:
+          - name: Require explicit non-publishing signing confirmation
+            shell: pwsh
+            env:
+              CONFIRMATION: ${{ inputs.confirmation }}
+              QUALIFICATION_REF: ${{ github.ref }}
+            run: |
+              if ($env:CONFIRMATION -ne "SIGN_WINDOWS_QUALIFICATION") {
+                throw "confirmation must equal SIGN_WINDOWS_QUALIFICATION"
+              }
+              if ($env:QUALIFICATION_REF -ne "refs/heads/dev") {
+                throw "qualification must run from refs/heads/dev"
+              }
+    
+          - name: Initialize isolated qualification paths
+            shell: pwsh
+            run: |
+              $qualificationRoot = Join-Path $env:RUNNER_TEMP "pupu-windows-signing-$env:GITHUB_RUN_ID"
+              $qualificationPayload = Join-Path $qualificationRoot "payload"
+              "QUALIFICATION_ROOT=$qualificationRoot" >> $env:GITHUB_ENV
+              "QUALIFICATION_PAYLOAD=$qualificationPayload" >> $env:GITHUB_ENV
+    
+          - name: Checkout the selected source revision
+            uses: actions/checkout@v4
+            with:
+              persist-credentials: false
+    
+          - name: Require protected isolated signing environment
+            env:
+              GH_TOKEN: ${{ github.token }}
+            run: |
+              gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |
+                node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification
+    
+          - name: Checkout Unchain source for the qualification build
+            uses: actions/checkout@v4
+            with:
+              repository: haoxiang-xu/unchain
+              ref: dev
+              path: .qualification-unchain
+              persist-credentials: false
+    
+          - name: Set up Node
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20
+              cache: npm
+    
+          - name: Set up Python
+            uses: actions/setup-python@v5
+            with:
+              python-version: "3.12"
+    
+          - name: Install Python runtime dependencies for wheel manifest inspection
+            run: python -m pip install -r unchain_runtime/server/requirements.txt
+    
+          - name: Install build dependencies
+            run: npm ci
+    
+          - name: Create controlled Memory V2 build snapshot
+            shell: pwsh
+            run: |
+              $snapshotRoot = Join-Path $env:RUNNER_TEMP "pupu-memory-snapshot-$env:GITHUB_RUN_ID"
+              $snapshotPath = Join-Path $snapshotRoot "build_feature_flags.snapshot.json"
+              node scripts/write-build-feature-snapshot.cjs --out "$snapshotPath" --profile contracts/memory-v2/release-profile.all.v1.json
+              "PUPU_BUILD_FEATURE_SNAPSHOT_PATH=$snapshotPath" >> $env:GITHUB_ENV
+    
+          - name: Resolve non-interactive build version
+            shell: pwsh
+            run: |
+              $buildVersion = node -p "require('./package.json').version"
+              if ([string]::IsNullOrWhiteSpace($buildVersion)) {
+                throw "package.json did not provide a build version"
+              }
+              "PUPU_BUILD_VERSION=$buildVersion" >> $env:GITHUB_ENV
+    
+          - name: Build an unsigned unpacked Windows payload
+            env:
+              UNCHAIN_ARTIFACT_SOURCE_PATH: ${{ github.workspace }}/.qualification-unchain
+              UNCHAIN_ARTIFACT_SOURCE_REF: dev
+            run: npm run build:electron:win:unpacked
+    
+          - name: Copy the exact payload into an isolated signing directory
+            shell: pwsh
+            run: |
+              $source = Join-Path $PWD "dist\win-unpacked"
+              if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+                throw "missing unpacked Windows payload: $source"
+              }
+              if (Test-Path -LiteralPath $env:QUALIFICATION_ROOT) {
+                throw "qualification directory unexpectedly already exists: $env:QUALIFICATION_ROOT"
+              }
+              New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
+              Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
+    
+          - name: Sign and verify isolated Windows qualification payload
+            id: windows_artifact_signing
+            uses: ./.github/actions/windows-artifact-signing
+            with:
+              working-directory: .
+              signing-root-path: ${{ env.QUALIFICATION_ROOT }}
+              payload-path: ${{ env.QUALIFICATION_PAYLOAD }}
+              bootstrap-output-path: ${{ env.QUALIFICATION_ROOT }}\\bootstrap-installer
+              installer-path: ${{ github.workspace }}\dist\PuPu-${{ env.PUPU_BUILD_VERSION }}-windows-x64-setup.exe
+              evidence-output: windows-signing-qualification.v1.json
+              evidence-schema: pupu.windows-signing-qualification.v1
+              azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+              azure-endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+              azure-signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+              azure-certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+    
+          - name: Reject sensitive signing material before evidence upload
+            if: ${{ success() }}
+            shell: pwsh
+            run: |
+              node scripts/release-qa/secret-material-denylist.mjs `
+                --root "$env:GITHUB_WORKSPACE" `
+                --path "windows-signing-qualification.v1.json"
+    
+          - name: Upload signing qualification evidence only
+            if: ${{ success() }}
+            uses: actions/upload-artifact@v4
+            with:
+              name: windows-signing-qualification
+              path: windows-signing-qualification.v1.json
+              if-no-files-found: error
+              retention-days: 30
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/pupu-224/scripts/release-qa/windows-signing-qualification-workflow.test.mjs:40:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: Windows native probe evidence is independently strict-validated
+ok 235 - Windows native probe evidence is independently strict-validated
+  ---
+  duration_ms: 0.376833
+  type: 'test'
+  ...
+# Subtest: worktree fingerprint covers tracked and untracked content but ignores ignored outputs
+ok 236 - worktree fingerprint covers tracked and untracked content but ignores ignored outputs
+  ---
+  duration_ms: 481.963583
+  type: 'test'
+  ...
+# Subtest: qualification fixture build config changes only the signed package updater provider
+ok 237 - qualification fixture build config changes only the signed package updater provider
+  ---
+  duration_ms: 1.061458
+  type: 'test'
+  ...
+# Subtest: qualification fixture config rejects every feed other than a runner-loopback root endpoint
+ok 238 - qualification fixture config rejects every feed other than a runner-loopback root endpoint
+  ---
+  duration_ms: 0.488584
+  type: 'test'
+  ...
+# Subtest: qualification fixture config is written once and fails closed on unexpected source publishers
+ok 239 - qualification fixture config is written once and fails closed on unexpected source publishers
+  ---
+  duration_ms: 16.293875
+  type: 'test'
+  ...
+1..239
+# tests 239
+# suites 0
+# pass 235
+# fail 3
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 10954.151334

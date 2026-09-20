@@ -1,0 +1,1008 @@
+{
+  "toolkitId": "skillpack.superpowers-essentials",
+  "catalog": {
+    "id": "skillpack.superpowers-essentials",
+    "title": "Superpowers Essentials",
+    "titleZh": "\u8d85\u80fd\u529b\u7cbe\u9009",
+    "blurb": "Five battle-tested software-development methodology skills from obra/superpowers: brainstorm before building, debug by root cause, write step-by-step plans, take code review with rigor, and prove work is done before claiming it.",
+    "blurbZh": "obra/superpowers \u7cbe\u9009\u7684\u4e94\u6761\u8f6f\u4ef6\u5f00\u53d1\u65b9\u6cd5\u8bba:\u52a8\u624b\u524d\u5148\u6784\u601d\u3001\u6309\u6839\u56e0\u8c03\u8bd5\u3001\u5199\u5206\u6b65\u8ba1\u5212\u3001\u4ee5\u6280\u672f\u4e25\u8c28\u5bf9\u5f85\u8bc4\u5ba1\u3001\u5ba3\u79f0\u5b8c\u6210\u524d\u5148\u62ff\u8bc1\u636e\u3002",
+    "gradient": [
+      "#5B8DEF",
+      "#7C5CFC"
+    ],
+    "source": {
+      "provider": "github",
+      "repo": "obra/superpowers",
+      "sha": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+      "license": "MIT"
+    },
+    "subset": [
+      "skills/brainstorming",
+      "skills/systematic-debugging",
+      "skills/writing-plans",
+      "skills/receiving-code-review",
+      "skills/verification-before-completion"
+    ],
+    "manifest": [
+      {
+        "path": "skills/brainstorming/SKILL.md",
+        "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d"
+      },
+      {
+        "path": "skills/systematic-debugging/SKILL.md",
+        "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a"
+      },
+      {
+        "path": "skills/writing-plans/SKILL.md",
+        "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845"
+      },
+      {
+        "path": "skills/receiving-code-review/SKILL.md",
+        "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd"
+      },
+      {
+        "path": "skills/verification-before-completion/SKILL.md",
+        "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"
+      }
+    ],
+    "review": {
+      "recordId": "S5-2026-07-18-superpowers",
+      "reviewedAt": "2026-07-18",
+      "reviewers": [
+        "mcp-store-curator",
+        "pupu-llm-expert"
+      ]
+    },
+    "commandPreviews": [
+      {
+        "name": "brainstorming",
+        "description": "Explore before building: divergent ideas, cross-domain analogies, assumption checks",
+        "descriptionZh": "\u52a8\u624b\u524d\u5148\u6784\u601d:\u53d1\u6563\u63a2\u7d22\u3001\u8de8\u57df\u7c7b\u6bd4\u3001\u5047\u8bbe\u76d8\u70b9"
+      },
+      {
+        "name": "systematic-debugging",
+        "description": "Debug by root cause, not by patching symptoms",
+        "descriptionZh": "\u6309\u6839\u56e0\u8c03\u8bd5,\u4e0d\u6309\u75c7\u72b6\u6253\u8865\u4e01"
+      },
+      {
+        "name": "writing-plans",
+        "description": "Turn a spec into zero-context, bite-sized step-by-step plans",
+        "descriptionZh": "\u628a spec \u62c6\u6210\u96f6\u4e0a\u4e0b\u6587\u30012-5 \u5206\u949f\u7c92\u5ea6\u7684\u5206\u6b65\u8ba1\u5212"
+      },
+      {
+        "name": "receiving-code-review",
+        "description": "Treat review feedback with technical rigor \u2014 verify before implementing",
+        "descriptionZh": "\u4ee5\u6280\u672f\u4e25\u8c28\u5bf9\u5f85\u8bc4\u5ba1\u610f\u89c1,\u5148\u9a8c\u8bc1\u518d\u5b9e\u73b0"
+      },
+      {
+        "name": "verification-before-completion",
+        "description": "Evidence before claims: find the proving command, run it, read the output",
+        "descriptionZh": "\u5ba3\u79f0\u5b8c\u6210\u524d\u5148\u62ff\u8bc1\u636e:\u627e\u5230\u9a8c\u8bc1\u547d\u4ee4\u3001\u8dd1\u3001\u8bfb\u8f93\u51fa"
+      }
+    ]
+  },
+  "checkedAt": "2026-09-13T18:37:00.047839+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "skill-pack",
+  "artifactSha256": "d2c15e07a4637bffc7df15daa062eeb569c9adf6d6ad6ec08dec4ce6539b3910",
+  "files": [
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.agents/plugins/marketplace.json",
+      "sha256": "2b94116c190896480e5054222a744e375976f8ae5bdb66ff0ab6b348dfad4182",
+      "size": 363
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.claude-plugin/marketplace.json",
+      "sha256": "ff3f151a5a3adfdaaf9995642ac0433f4b1282f0c7a2882373bb5b7b0c3922e8",
+      "size": 514
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.claude-plugin/plugin.json",
+      "sha256": "475eecc40b42606656129d43d24c3ad9bedf43faeb3a85a8238988d59982f0da",
+      "size": 497
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.codex-plugin/plugin.json",
+      "sha256": "50ce01aeec3a3b13540ea43e196c25fee820739d7dbae7c52f4e7a2168b7a09f",
+      "size": 1730
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.cursor-plugin/plugin.json",
+      "sha256": "9fe248cc983544d6e265bca2d512bd07b908ce81f29c841ffcb86a76c29dbf79",
+      "size": 578
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.gitattributes",
+      "sha256": "4702b23e09afad9638c184c8900b31af635673ba439c265ecc3d341efb54eaf8",
+      "size": 373
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/FUNDING.yml",
+      "sha256": "2f9cdda7b1f3ea4be28bbcc3444c2c6512d7739589e6c5e72fd4f95950d3e7d4",
+      "size": 62
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/ISSUE_TEMPLATE/bug_report.md",
+      "sha256": "32a5b6e5ad3528daac479ad0025502dfad9dd06fe457242c1506ac19c77d6e46",
+      "size": 1593
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/ISSUE_TEMPLATE/config.yml",
+      "sha256": "e955d428a9ac46ed35f407b6532d74d1dade217d89d9a4c7f6b05b72872a004a",
+      "size": 241
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/ISSUE_TEMPLATE/feature_request.md",
+      "sha256": "59ad1c8a7b5faca0273fa310f6c78fe2a3ec4917d9f3e12fb1220d5381c8f783",
+      "size": 1604
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/ISSUE_TEMPLATE/platform_support.md",
+      "sha256": "1231296fef8bd072baa8d2f41bde4b758ffc22ac88ae435ed22d1a5084574a0b",
+      "size": 979
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.github/PULL_REQUEST_TEMPLATE.md",
+      "sha256": "b5cde91d5809bec88f6d11f6e295695549a59ea9fc5e32469ea12ad485cb37fb",
+      "size": 5814
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.gitignore",
+      "sha256": "8992ae88429d09d79bb49a8cf2c445fc0ef41753160b5a7d25f43e69cd9c54da",
+      "size": 297
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.kimi-plugin/plugin.json",
+      "sha256": "ff6ec089586c6cec64326c01f014227fbe7429064216ce85e7ba04978167e647",
+      "size": 3090
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.opencode/INSTALL.md",
+      "sha256": "c6cd33dc6962d391ccc13d1820769df84b4ef2e00dc61f89aabb08cd4620a138",
+      "size": 3342
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.opencode/plugins/superpowers.js",
+      "sha256": "a5c5e1dbb0abfbd6ec3322b724b9a7b3318bbbb3d83f9a661c56ae0ed0a3adb8",
+      "size": 5464
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.pi/extensions/superpowers.ts",
+      "sha256": "39c27000c047f8a1399a76e032e4cd239d7bdb0be168a121f46a2ac719deaae0",
+      "size": 4283
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.pre-commit-config.yaml",
+      "sha256": "73070dfddbcb1e94980a2e7172532e5d6403e44aa3f30ef5de30306b77684f32",
+      "size": 579
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/.version-bump.json",
+      "sha256": "7c4eb96a0c0cdd9a75b7f77229e767619603930a11509780646afc8ec29aca21",
+      "size": 660
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/CLAUDE.md",
+      "sha256": "78b3eaecf45e1a2812bf99468b1c8fa869f05bd56e4b3c219704498d0419bc9a",
+      "size": 8852
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/CODE_OF_CONDUCT.md",
+      "sha256": "3b3c37d182a611feb4e3f1105a7d3b998775f6a3bac714b90e01d1fdfe332739",
+      "size": 5224
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/GEMINI.md",
+      "sha256": "0823da8b7277f8b623746d57c0bee75fda02e4c832fe57843e644d0fe633abbc",
+      "size": 92
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/LICENSE",
+      "sha256": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
+      "size": 1070
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/README.md",
+      "sha256": "993584ac25724e9dcb1639b12850d922ca8c21a4456bc7edbb1c5cc24456540e",
+      "size": 10737
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/RELEASE-NOTES.md",
+      "sha256": "2f0f672dc2a1c58660c05e4356939d0ffc782c0421e149d48d1e2353b0489fe0",
+      "size": 84431
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/assets/app-icon.png",
+      "sha256": "b7477eb39b5109617fe37e51dd65d8bdd8dff6c40fda49adfbc21eec445777ee",
+      "size": 48231
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/assets/superpowers-small.svg",
+      "sha256": "54a632d9ee6197ccbc10d43d42217e23d08375bea63ba8eb4b6af757c1535038",
+      "size": 1733
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/README.kimi.md",
+      "sha256": "915b112731bbcb635885ed1c5f24a36b43248bc18689fa253bb4f89c937c6585",
+      "size": 2691
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/README.opencode.md",
+      "sha256": "299d3016ea3bd2ff436e70d27b7493f9c119febffed49bb0d82032bc246c28b1",
+      "size": 4580
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/plans/2025-11-22-opencode-support-design.md",
+      "sha256": "4688cb2e4bafa7e6124dd811be57c8873bfb4b8cccb95ddbd7032557a9cfd10b",
+      "size": 8831
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/plans/2025-11-22-opencode-support-implementation.md",
+      "sha256": "2cc68cc29ee1174e13a65739b004f2346911a0d89a20744930f9f5b81963b4f3",
+      "size": 27539
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/plans/2025-11-28-skills-improvements-from-user-feedback.md",
+      "sha256": "cce0b2e951209ac7d555fcbacfc858d8069b4036019d44dd95bb4334afaf2e65",
+      "size": 21033
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/plans/2026-01-17-visual-brainstorming.md",
+      "sha256": "2ff9c06d8c7cf650becb588d74507c5681c55844c61e21160a290cbe26d41ca4",
+      "size": 15107
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/porting-to-a-new-harness.md",
+      "sha256": "066e05d05eac48e6e6dab5bcd19f46d62090d5c4209669769716c441af6bc9fc",
+      "size": 50653
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-01-22-document-review-system.md",
+      "sha256": "92875a4d7db7acef7737ace512ed5a6ae29ab76aff421633276a4a824c5d5cf7",
+      "size": 8999
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-02-19-visual-brainstorming-refactor.md",
+      "sha256": "fbc67c4e7c5e42ff6e8e647951b749a2610ca2e13639903867258032c175bbbe",
+      "size": 18804
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-03-11-zero-dep-brainstorm-server.md",
+      "sha256": "d1e3b19e1111cab0a113519a9d2d9e881080c5fe13c3227e6c22fa88d08dc11d",
+      "size": 15576
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-03-23-codex-app-compatibility.md",
+      "sha256": "28b0335e97ceea066ab2eefa9a02eea6bf30d3e580788ce462976efce13dc709",
+      "size": 19177
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-04-06-worktree-rototill.md",
+      "sha256": "98d21b8bbbee1d7359aaf65ba74a9f1313d9f5114000613301a00244a415f61f",
+      "size": 29210
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-05-06-lift-drill-into-evals.md",
+      "sha256": "3b1b5c8748dde0754872181631ef8b6188d0221b2723106ab2a82d2b9290accd",
+      "size": 48218
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-05-07-pi-extension-and-evals.md",
+      "sha256": "887dda265dc5f61ad4a04b9d0da98c059f6d93d08ff79180afbdafa7a000d75e",
+      "size": 5748
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-06-09-sdd-task-scoped-review-dispatch.md",
+      "sha256": "1597b91dbf9f8113533c6da8410607c5ac6c47db92b043a1284fff075b037aa8",
+      "size": 28766
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-06-09-visual-companion-issues.md",
+      "sha256": "bf939ca1e1398f54e1950193299084836e45767cb00735342e3d7c31ff1fe31e",
+      "size": 18930
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-06-10-visual-companion-auth-hardening.md",
+      "sha256": "7387fa4ddbc9bf071088372802c9aed6e44b224875291d2309007d76929af2f2",
+      "size": 23632
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/plans/2026-06-11-visual-companion-final-hardening-fixup.md",
+      "sha256": "5604d33566ba5ca9940924819892a6d3f095a8704e2705e3fcc64a23334ca2f3",
+      "size": 36149
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-01-22-document-review-system-design.md",
+      "sha256": "19dd839168b9e4a072985e8941aa3ae7cf9101357111620755d50dbeb1bea04b",
+      "size": 4723
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-02-19-visual-brainstorming-refactor-design.md",
+      "sha256": "f27d0f9c33cc4f34101fd676d48e73d6259e6cd4e1b3adc477ea81f4c7557af7",
+      "size": 9445
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-03-11-zero-dep-brainstorm-server-design.md",
+      "sha256": "8f29bac7d4df2b51062c005fe4d591140f1da3ab2030b28537df6f964637b9e9",
+      "size": 6021
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-03-23-codex-app-compatibility-design.md",
+      "sha256": "f351216f0b8abb5f08a9209d71ec3c218c79b1ba9d6a1c68aec990ef00e31a53",
+      "size": 13369
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-04-06-worktree-rototill-design.md",
+      "sha256": "757ce61bbcd16dcb8f61fa69778ca7a3b1d26f7a11a0fcea3d302fd99a52ebae",
+      "size": 20120
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-05-05-platform-neutral-config-refs-design.md",
+      "sha256": "7a3c5e5fb77a3f8a500e9406283653cfee5edf1b98e58d5f267c5f21905eee19",
+      "size": 4886
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-05-05-platform-neutral-prose-design.md",
+      "sha256": "d55fa30a3b1422f8364a81f49c755ada9cc792b2cc10193b1dbd43c551918c19",
+      "size": 6038
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-05-05-platform-neutral-readme-design.md",
+      "sha256": "63eb346415386c6850832f4b7414d03570a033eaf37de0b60d2ec4834169896e",
+      "size": 2100
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-05-06-lift-drill-into-evals-design.md",
+      "sha256": "fac3785f6f779bd899a6e93bcd60a934b4946ce4f7e8b6129d7910979650a6a1",
+      "size": 21059
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-06-09-sdd-task-scoped-review-dispatch-design.md",
+      "sha256": "08b6b77be0d3b95e1d19a3dc320b93bba52917ca9beb0084fd74ecd75c015b59",
+      "size": 17835
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-06-10-positive-instruction-redesign-design.md",
+      "sha256": "3a87b9e873728a3a4331437eb90f9fc5f4c9d7d0b88a931cce2bc3bda041b68b",
+      "size": 10590
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-06-10-strict-cost-sdd-design.md",
+      "sha256": "e8865d184479ffd4f2fe2c3072bf6a2b70179bbb4565cd6cefcbcb127c9f9b28",
+      "size": 15315
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-06-10-visual-companion-auth-hardening-design.md",
+      "sha256": "8d97d0384c61c0400fb67429a4384ad989bdc11953cce160069c368ac1f7e362",
+      "size": 8314
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/superpowers/specs/2026-06-11-visual-companion-final-hardening-fixup-design.md",
+      "sha256": "78c4fbc2b609b1fe3ca0d7aba0f4d800511baf069355d25b37da5cf957dc0e7c",
+      "size": 12956
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/testing.md",
+      "sha256": "e270a51e42e8a5d19c9b64f35262b096a1a6d3a1dcc76f1e11bb37ac5f895368",
+      "size": 2218
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/docs/windows/polyglot-hooks.md",
+      "sha256": "df43fa0bf0f7554258244ba79e73f5f44b227f215eec34997dee4da0a19f83da",
+      "size": 5938
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/gemini-extension.json",
+      "sha256": "84bdec8d80f73c228b401502cebb9ef467476a56fef93bbe532ad74dd63072e2",
+      "size": 187
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/hooks/hooks-cursor.json",
+      "sha256": "53d8ceb3ff5d8bb1c4f283f238cc868b8c1af22e40a3ac30f6d6e4173effefbd",
+      "size": 137
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/hooks/hooks.json",
+      "sha256": "01616c57b96cc234cc984e77d2fc241dfd0e0bfacda54fe54589cd669a0d998e",
+      "size": 305
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/hooks/run-hook.cmd",
+      "sha256": "d3d9c6199678dab2858e60509dde5e7414f13c2a2b5e48a38b1d368b6e1d6abb",
+      "size": 1460
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/hooks/session-start",
+      "sha256": "88a060272ca8047e0d1cd73a016e1cebba8396807a44be1e296d7c02dcbb9934",
+      "size": 2274
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/package.json",
+      "sha256": "c070d76630332e2c7d358047ba650ad88e0db76a6497f68ce79f87d51839af6f",
+      "size": 433
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/scripts/bump-version.sh",
+      "sha256": "5d38c45c6b0ec931456aeffcd25dc95de87dab404dedc62cbe427082ddda9b27",
+      "size": 6129
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/scripts/lint-shell.sh",
+      "sha256": "aa34cc2dad4b130231bcf21fdd18f3f91e8fd7ab80d88a82a13e1395f32756f8",
+      "size": 4088
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/scripts/package-codex-plugin.sh",
+      "sha256": "bfae2378c4ffdd80d7c71393ce2009b88c9ce6e744a4fa711b8eb33202b6bae2",
+      "size": 9870
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/scripts/sync-to-codex-plugin.sh",
+      "sha256": "0797332e2abec9147b39db8b7fce319e51d42cfa91c206b13c4542daddd22a80",
+      "size": 14975
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/SKILL.md",
+      "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d",
+      "size": 10435
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/scripts/frame-template.html",
+      "sha256": "6a8a4e58bd6a44b904e2e3c57de774481d909204597e1498de53f1b2fecc4c4e",
+      "size": 8094
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/scripts/helper.js",
+      "sha256": "43c6d69954a46ec34a2a262bcc62a9a7e83e839c739f199cb72646d397c686e3",
+      "size": 5615
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/scripts/server.cjs",
+      "sha256": "2d2961ea8d11f56c5f4c3a1a68d22709efa5d7601a2246d8c880774e7e9e8412",
+      "size": 25693
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/scripts/start-server.sh",
+      "sha256": "a4e5ae84275bcaacd2f84345afeabe59cf7b00ba080e123da7cc1fb226f12847",
+      "size": 6908
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/scripts/stop-server.sh",
+      "sha256": "0b5ccbbd57f62d3ed88993f7940b5ee0e5c0fc9b21c550c623da4f6292e47daf",
+      "size": 3263
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/spec-document-reviewer-prompt.md",
+      "sha256": "95a0a195de9d984be2fffa95bab16fc8c563bc296a9cfc5e9c29cb3ece0d7457",
+      "size": 1747
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/brainstorming/visual-companion.md",
+      "sha256": "3321a044c777d03d7177df41c77bb83155ff2a6d0c16b8a3d752426d29f14ea8",
+      "size": 13084
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/dispatching-parallel-agents/SKILL.md",
+      "sha256": "f0df13f584049059cc5619f90061405b89dcc6e28ab3f2a8517d27d99c7a46a6",
+      "size": 6644
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/executing-plans/SKILL.md",
+      "sha256": "bbd8d28bb655a52817cc129ce49f9e46fa7c6303f72ed5de95bfe914ef8e0ce8",
+      "size": 2588
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/finishing-a-development-branch/SKILL.md",
+      "sha256": "e6d4a812de900d33c6eacfb40747f99427f25c304a7b7099120f9373b115a47f",
+      "size": 6832
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/receiving-code-review/SKILL.md",
+      "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd",
+      "size": 6382
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/requesting-code-review/SKILL.md",
+      "sha256": "1017ccdd5bc61fab67c654cf118cbdb520464b313073a0a6b9a6b9aa647a3ad6",
+      "size": 2826
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/requesting-code-review/code-reviewer.md",
+      "sha256": "b2f2ec7596925fe52dac158fdfbca19b3a7d779d619c481e6706a6c0001662d3",
+      "size": 5213
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/SKILL.md",
+      "sha256": "41ab239a6ad1c487cd839fdac972a8c9cf0f5e90efa59a63f963767864f0df4c",
+      "size": 21647
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/implementer-prompt.md",
+      "sha256": "49018b28dc11bc9f3d13a28959bb10ae1a96eabc5d8f19f4079d901f9ff2bf64",
+      "size": 5522
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/scripts/review-package",
+      "sha256": "0c0629f6e2c46fc8bf68dcfb8a247ab24eb548b7004fe494035e6fcba9b5cdfb",
+      "size": 1350
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/scripts/sdd-workspace",
+      "sha256": "9430befaff459ed862415b700c1a9efe45fd34838a684802a1d8320de0c3a007",
+      "size": 888
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/scripts/task-brief",
+      "sha256": "5380283f00bffa99ab82ae78482b7d248abe10655129c72ca7050bdc0b6a85e1",
+      "size": 1102
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/subagent-driven-development/task-reviewer-prompt.md",
+      "sha256": "2eb9d54373420de25bc0bd00635d3a3123a6c0eb30c881168e6f3348e2387331",
+      "size": 7919
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/CREATION-LOG.md",
+      "sha256": "c24733a5b1821bd6bed1fc950261f0b9f4e90097e0bbb96459d8179713730789",
+      "size": 4257
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/SKILL.md",
+      "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a",
+      "size": 9885
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/condition-based-waiting-example.ts",
+      "sha256": "40ae5ebe497fdf310200e43fe986552546d0a22837c0d39e855db1cfd33eb88e",
+      "size": 5054
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/condition-based-waiting.md",
+      "sha256": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26",
+      "size": 3516
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/defense-in-depth.md",
+      "sha256": "1e175fb86fc357e58c6aebf5441e481e1b7868b4380c0456b63a17eefbd18ba7",
+      "size": 3650
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/find-polluter.sh",
+      "sha256": "6462747eae9b175ac145b78bcfaeab755654a75e32637f08eb633f065a9e1d7c",
+      "size": 1528
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/root-cause-tracing.md",
+      "sha256": "6b0622269e098ca1399e123e553fd385f0b6412d88ef0e9c4f5a8ea9cf1cec7b",
+      "size": 5316
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/test-academic.md",
+      "sha256": "fe2ba480d78ac0d686dc025f41c2a32a43d642bf533f91b0c6053a04d35d6486",
+      "size": 653
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/test-pressure-1.md",
+      "sha256": "0b6a915db0054577819834c79be9eb614e97bddba10d73768e1fbe91cfed048a",
+      "size": 1900
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/test-pressure-2.md",
+      "sha256": "b2030aeffba07050e8ad573ddf87486457c4a016a786bb326235bebd856f2016",
+      "size": 2283
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/systematic-debugging/test-pressure-3.md",
+      "sha256": "96b50a52e2c7989c9cf20fb752c47c1e9a3a70dc362f8f7989f8f5b64dac7708",
+      "size": 2692
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/test-driven-development/SKILL.md",
+      "sha256": "b5b4717b8b761cce15a6cfe9022e33fd959e0894c0c39d72c9cb49c23486c10e",
+      "size": 9894
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/test-driven-development/testing-anti-patterns.md",
+      "sha256": "bde453bc258f06543987477c837939afaa774ea2acbd9f308d702fc452bc4283",
+      "size": 8251
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/using-git-worktrees/SKILL.md",
+      "sha256": "e2c3ec142e52868a51af246c620cd76ab648dcf27d6900d47e6ffd07159a9794",
+      "size": 7472
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/using-superpowers/SKILL.md",
+      "sha256": "55379fe7c1c473a02c61961c822996bff30e1320d6921d9062509bc508482c05",
+      "size": 3063
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/using-superpowers/references/antigravity-tools.md",
+      "sha256": "d0bcfa94dd0fa399fb9606a0f7c9562b43040cad02be167a2b999c3913a1d5e9",
+      "size": 1539
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/using-superpowers/references/codex-tools.md",
+      "sha256": "9310bb2315eed2c1cebea02cd1c9e8fe121cb788fc6b41e8b8f8b5ff46f85f37",
+      "size": 1528
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/using-superpowers/references/pi-tools.md",
+      "sha256": "703dbc83d23ecab9c6f388460c38abc482e9dee2fe6772a8c7a255152ad3a4d5",
+      "size": 1242
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/verification-before-completion/SKILL.md",
+      "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c",
+      "size": 4201
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-plans/SKILL.md",
+      "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845",
+      "size": 7092
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-plans/plan-document-reviewer-prompt.md",
+      "sha256": "aa728b96aad603c8be28875a4305637f6c984aa81ffcadcb13e743202fa2a0c7",
+      "size": 1713
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/SKILL.md",
+      "sha256": "6b8d08fe863318be8480ae8428e169640309fa9208df84bb0510012764454146",
+      "size": 26431
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/anthropic-best-practices.md",
+      "sha256": "217629b356c09c9bd11017c9788e8fc654ca1b32c92d4a51cd490e16dd65e59a",
+      "size": 46197
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/examples/CLAUDE_MD_TESTING.md",
+      "sha256": "0b379a3415e185d3c434b3ad283d8aa132f3022c2a4f210f168865b5986bcef0",
+      "size": 5423
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/graphviz-conventions.dot",
+      "sha256": "e2890a593c91370e384b42f2f67b1a6232c9e69dddea7891a0c1c46d7b20b694",
+      "size": 5970
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/persuasion-principles.md",
+      "sha256": "a51bc9bf75189ea73a27b3fb504a2fdfdb966fb1f7f1cdf03203230a216ccc03",
+      "size": 5901
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/render-graphs.js",
+      "sha256": "ccda971a87bb185f8febf81c56b556a20d026fa980c17b35fa3e8824fbb37852",
+      "size": 4857
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/skills/writing-skills/testing-skills-with-subagents.md",
+      "sha256": "c711346852c911b24a84aa161e0cff06a4cd7f4e2fa9e9c0a266cead5afcbade",
+      "size": 12558
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/antigravity/run-tests.sh",
+      "sha256": "76355b01132d4f27cc5545c15926eb0c3614d38db2b5d6988a2d818918d9eaf1",
+      "size": 319
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/antigravity/test-antigravity-tools.sh",
+      "sha256": "e7611af112163558cffd50f8b5dc40e5620e724d1267b5164081154a8d60593b",
+      "size": 2565
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/auth.test.js",
+      "sha256": "8efa43628b582973dcc543c0768e91066cf9834292e2e724657c6801b63df062",
+      "size": 12084
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/branding.test.js",
+      "sha256": "b116f645b46130a3a58867493863a1398cf5426375d695203c858c95eb5e8d02",
+      "size": 12213
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/browser-launcher.test.js",
+      "sha256": "ffb9ccecf27968b9359049ff96b50725669b1f86863f88b583b9aa0c3aa37c94",
+      "size": 1768
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/helper.test.js",
+      "sha256": "9917fc944e8c5594430ba2600035ff5fd8212119b9cae2d62c75f5725de94061",
+      "size": 8240
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/lifecycle.test.js",
+      "sha256": "8146fc31bd814dec0e497da6dc1c9423e4352e0fb1c3cdebd1b9db42a2ac8d8e",
+      "size": 23092
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/package-lock.json",
+      "sha256": "80f45a9d8857e27d9363d47789284a26d13fb47388fa8596ef0db7207e6d7c10",
+      "size": 861
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/package.json",
+      "sha256": "d785483894bfedbccf9731fd7ed52f959973f62dc9c42a8a7407fc7779d220c8",
+      "size": 374
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/server.test.js",
+      "sha256": "fd1cc628222a6fcc657461b84f85f3b50d5a9709056dc9232241f9cb4182593a",
+      "size": 23860
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/start-server.test.sh",
+      "sha256": "fb0c928e206fbd6a0fe77e750198d71ae0c331e361b13e9a8b8742cdb22302b5",
+      "size": 3099
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/stop-server.test.sh",
+      "sha256": "35e150e95f0e97d50470f2c0a30bc7c9c8c5cb7721c53dcff887b430067490db",
+      "size": 6346
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/windows-lifecycle.test.sh",
+      "sha256": "7dc8e09edfe0a4cc34550fdb0e5ae5117758991d490756971be51c88e4f5908d",
+      "size": 12043
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/brainstorm-server/ws-protocol.test.js",
+      "sha256": "abd0a10eaffe4e30a9918c79c7692775db36c8a3e132e04d52ec06d6cddaa132",
+      "size": 15002
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/README.md",
+      "sha256": "df8cc7a1709b5fd881f41f6e7afc180f1b686c14b97624c27e4957a174c09911",
+      "size": 4724
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/analyze-token-usage.py",
+      "sha256": "b3b124b975086e66540dca1328d7b6b75416450b0c93fc246f0d7d148fc2394c",
+      "size": 6733
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/run-skill-tests.sh",
+      "sha256": "7f1eb1274bd6c79dff173ebb96dd15f788816418e914715d65021e1379c39cbd",
+      "size": 5200
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-helpers.sh",
+      "sha256": "dbc2f7a989094ea7d8c86ff0292d4c45a6ffe39daab7a70282f383c488a319a3",
+      "size": 5154
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-sdd-workspace.sh",
+      "sha256": "d1f2154f8eed427540e8027a13dd3f73411c894fdfc8f05fd3271e0f1aef3824",
+      "size": 4493
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-subagent-driven-development-integration.sh",
+      "sha256": "0794d17e3cc5d8a64c07a6c181538e1142819b86382d171f677510cfe6a3f722",
+      "size": 10779
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-subagent-driven-development.sh",
+      "sha256": "b6147f049997adbcf59a6cdb7e96c720fdb22a9be15bf43bf3ed1f9bb3839682",
+      "size": 5485
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-worktree-native-preference.sh",
+      "sha256": "1c0a94fb097ad33186bb7ea2b0321b11d8ba92ed8c6ef61464a2246eec33acf6",
+      "size": 6680
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/claude-code/test-worktree-path-policy.sh",
+      "sha256": "3498f973a9cf288f2959b7a02fc3acea09ee11650b46d689aef81b394f8ab85c",
+      "size": 2546
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/codex-plugin-sync/test-sync-to-codex-plugin.sh",
+      "sha256": "f13e38b0a0fcb955bd362c1c91868b47e29c0e7717017e2d145f4069e5096e2c",
+      "size": 24022
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/codex/test-marketplace-manifest.sh",
+      "sha256": "9c5afb24318bd959606f5063f444042e08e6fc2c6ff8c4988760476021e4ec90",
+      "size": 2889
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/codex/test-package-codex-plugin.sh",
+      "sha256": "a0cd66669708cd7bfe4386b9391d48383c751cc5beb88be728bf722346e7ffff",
+      "size": 9552
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/action-oriented.txt",
+      "sha256": "4ee13db41ce891b5b328f8ad5284e516253f87dc65307df0e60a2713a47442d1",
+      "size": 173
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/after-planning-flow.txt",
+      "sha256": "7da11dd7918b083c43087cd21e241d3b397d5488ba1e06bebed74488c4827d22",
+      "size": 551
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/claude-suggested-it.txt",
+      "sha256": "cb46492d9f905ebf6098aa6d0884f046a1b863b39036e5ec9a3244991b758d6f",
+      "size": 498
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/i-know-what-sdd-means.txt",
+      "sha256": "64f33d0b328471c800541e268996a91e360d625bfe151b476b65bb64f0f1cd8d",
+      "size": 366
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/mid-conversation-execute-plan.txt",
+      "sha256": "601301c1da6e138427c5c1b18acf34b3931bdd08397c3aec7bc94bec30d5c606",
+      "size": 119
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/please-use-brainstorming.txt",
+      "sha256": "de9508ffad9e29ee8ddda26ed9403b4a650e1081df39800edb6b56a6a3a859dd",
+      "size": 73
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/skip-formalities.txt",
+      "sha256": "b4c1fc115fc67d9919a29db6d8ceaa57a41933bde343168bd0858a62cfe11c51",
+      "size": 171
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/subagent-driven-development-please.txt",
+      "sha256": "c2499520cb588008437148facc965800e4a302baa1cc4d726f5b02bfcfc5f3e1",
+      "size": 36
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/prompts/use-systematic-debugging.txt",
+      "sha256": "4aa7a8da6f68bb22d2b1fb66aeb26c1bed6fdf86d33d2d6f7a9752334856a990",
+      "size": 52
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/run-all.sh",
+      "sha256": "b657ef562b6ce3d02b3422eb5ab8571be5545525249088034ab36c27343b95cc",
+      "size": 1977
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/run-extended-multiturn-test.sh",
+      "sha256": "1004578e3ef68d6fda8646c9257d27dd4ca30c4c1bdc986a50fbcb929ea0934d",
+      "size": 3407
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/run-haiku-test.sh",
+      "sha256": "27b92722271fd25dfcad9b04e8c45b81e2a51a51005c3bcf13dd9d5a70567d01",
+      "size": 4042
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/run-multiturn-test.sh",
+      "sha256": "dc22f0b1ed0d367811ecf046c942430d15e87f4b8b2b4cc8260d60e00bee6ecb",
+      "size": 4564
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/explicit-skill-requests/run-test.sh",
+      "sha256": "841f1d014f231c84f441cc6b91f388cc3e9e788012e6d36f5e78406c1f4c9b49",
+      "size": 4327
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/hooks/test-session-start.sh",
+      "sha256": "0c742dff6df1023d3e5c1ba7ef43a272f086726a0da7e2575658f384ea9dc4f8",
+      "size": 5300
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/kimi/run-tests.sh",
+      "sha256": "fb53a9ce91ae119146764ef2d55c63a5d20b86198e2ee08759fbae8194177ff0",
+      "size": 127
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/kimi/test-plugin-manifest.sh",
+      "sha256": "d7ca4db2e67c8611d3d1fe1fbf28fe41a33b187155563f1a553212df04250aaa",
+      "size": 2301
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/run-tests.sh",
+      "sha256": "d2af80421663d1a4649e401b10fd8c111a1ae0b8dec4a50cb8adc2b59b726c46",
+      "size": 4323
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/setup.sh",
+      "sha256": "0e8600fa5e56d7613f41d19732601397d2c18087a71da2801cc53443756a6348",
+      "size": 2864
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/test-bootstrap-caching.mjs",
+      "sha256": "55dbc4be45609201f6969d56ffbe81e9a48444e55baec9fb54a58d1a75610ec3",
+      "size": 5233
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/test-bootstrap-caching.sh",
+      "sha256": "b13d826fdae77feaf922f4009f544d0ad51ce722258dee997b252f76af70330a",
+      "size": 1060
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/test-plugin-loading.sh",
+      "sha256": "41389f92e160766cfb27bfd15849e3ef546427444f88d241506915044209bed0",
+      "size": 2589
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/test-priority.sh",
+      "sha256": "123a82b72f22a5a0d1be2c6cfb898bf4d8d772ee4c7ba2f4540562a1b62a0902",
+      "size": 6994
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/opencode/test-tools.sh",
+      "sha256": "ae8bfae51fd2d25b9659177ec257c0551bc521d7f9e7c60c34110497b501e182",
+      "size": 3383
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/pi/test-pi-extension.mjs",
+      "sha256": "e8c94326b62f8176edafa8d3e3db8622449ef79dadd7651b8343fcb640be41a5",
+      "size": 5442
+    },
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/tests/shell-lint/test-lint-shell.sh",
+      "sha256": "e777907226ed8614fe1cbc06afd538e223e4081c368757b26a5f77dfb4355b40",
+      "size": 4719
+    }
+  ],
+  "manifestChecks": [
+    {
+      "path": "skills/brainstorming/SKILL.md",
+      "expected": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d",
+      "actual": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d",
+      "match": true
+    },
+    {
+      "path": "skills/systematic-debugging/SKILL.md",
+      "expected": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a",
+      "actual": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a",
+      "match": true
+    },
+    {
+      "path": "skills/writing-plans/SKILL.md",
+      "expected": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845",
+      "actual": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845",
+      "match": true
+    },
+    {
+      "path": "skills/receiving-code-review/SKILL.md",
+      "expected": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd",
+      "actual": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd",
+      "match": true
+    },
+    {
+      "path": "skills/verification-before-completion/SKILL.md",
+      "expected": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c",
+      "actual": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c",
+      "match": true
+    }
+  ],
+  "archiveRoot": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99",
+  "skippedArchiveLinks": [
+    {
+      "path": "superpowers-d884ae04edebef577e82ff7c4e143debd0bbec99/AGENTS.md",
+      "type": "b'2'",
+      "linkname": "CLAUDE.md"
+    }
+  ],
+  "initialAcquisitionError": "archive contains link/device; manual acquisition required",
+  "selected": [
+    {
+      "path": "skills/brainstorming/SKILL.md",
+      "bytes": 10435
+    },
+    {
+      "path": "skills/systematic-debugging/SKILL.md",
+      "bytes": 9885
+    },
+    {
+      "path": "skills/writing-plans/SKILL.md",
+      "bytes": 7092
+    },
+    {
+      "path": "skills/receiving-code-review/SKILL.md",
+      "bytes": 6382
+    },
+    {
+      "path": "skills/verification-before-completion/SKILL.md",
+      "bytes": 4201
+    }
+  ]
+}

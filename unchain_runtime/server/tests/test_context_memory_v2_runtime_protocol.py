@@ -16,6 +16,7 @@ DIGEST_DOMAIN = b"unchain.runtime_protocol_manifest.v1\\u0000"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WINDOWS_PROTOCOL_SINK_CONTRACT = (
     REPO_ROOT
+    / "docs"
     / "contracts"
     / "memory-v2"
     / "windows-required-protocol-and-sink-contract.v1.json"

@@ -10,7 +10,7 @@ import { readReleaseBootstrapPolicy } from "./release-bootstrap-policy.mjs";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const CLI_PATH = fileURLToPath(new URL("./validate-legacy-release-gap.mjs", import.meta.url));
-const POLICY_PATH = path.join(ROOT, "contracts/release/release-bootstrap-policy.v1.json");
+const POLICY_PATH = path.join(ROOT, "docs/contracts/release/release-bootstrap-policy.v1.json");
 const policy = readReleaseBootstrapPolicy(POLICY_PATH);
 
 const validApiRelease = () => ({

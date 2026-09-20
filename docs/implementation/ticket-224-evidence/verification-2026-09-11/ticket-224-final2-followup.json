@@ -1,0 +1,3589 @@
+{
+  "id": "chat-1789171864596-0b9fbabf860b48",
+  "pending": {
+    "session_id": "chat-1789171864596-0b9fbabf860b48",
+    "status": "none"
+  },
+  "messages": [
+    {
+      "id": "user-1789171873225",
+      "role": "user",
+      "content": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+      "createdAt": 1789171873225,
+      "updatedAt": 1789171873225
+    },
+    {
+      "id": "user-1789173838689",
+      "role": "user",
+      "content": "本轮测试结束。只回复“测试完成”，不要调用工具。",
+      "createdAt": 1789173838689,
+      "updatedAt": 1789173838689
+    },
+    {
+      "id": "assistant-1789173838689-e4ae0c044599f8",
+      "role": "assistant",
+      "content": "",
+      "createdAt": 1789173838689,
+      "updatedAt": 1789173838719,
+      "status": "error",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1789173838694,
+          "run_id": "unchain-1789173838692-b3eff7a7421a88",
+          "type": "stream_started",
+          "payload": {
+            "thread_id": "chat-1789171864596-0b9fbabf860b48",
+            "model": "ollama:qwen3:32b",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_64cf3642033441b1abb1754a884c2791"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1789173838719,
+          "run_id": "",
+          "type": "error",
+          "payload": {
+            "code": "session_execution_in_progress",
+            "message": "another execution currently owns this session"
+          }
+        }
+      ],
+      "meta": {
+        "model": "ollama:qwen3:32b",
+        "requestId": "unchain-1789173838692-b3eff7a7421a88",
+        "attemptId": "unchain-1789173838692-b3eff7a7421a88",
+        "executionSessionId": "chat-1789171864596-0b9fbabf860b48",
+        "error": {
+          "code": "session_execution_in_progress",
+          "message": "another execution currently owns this session"
+        }
+      }
+    },
+    {
+      "id": "user-1789173897331",
+      "role": "user",
+      "content": "本轮测试结束。只回复“测试完成”，不要调用工具。",
+      "createdAt": 1789173897331,
+      "updatedAt": 1789173897331
+    },
+    {
+      "id": "assistant-1789173897331-39a32e0cb579e8",
+      "role": "assistant",
+      "content": "测试完成",
+      "createdAt": 1789173897331,
+      "updatedAt": 1789174028191,
+      "status": "done",
+      "traceFrames": [
+        {
+          "seq": 1,
+          "ts": 1789173897334,
+          "run_id": "unchain-1789173897332-cdf08a067f673",
+          "type": "stream_started",
+          "payload": {
+            "thread_id": "chat-1789171864596-0b9fbabf860b48",
+            "model": "ollama:qwen3:32b",
+            "trace_level": "minimal",
+            "runtime_event_id": "evt_14b70fcd0368495d9678f3837aa58168"
+          }
+        },
+        {
+          "seq": 2,
+          "ts": 1789173898097,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "run_started",
+          "iteration": 0,
+          "payload": {
+            "status": "running",
+            "provider": "ollama",
+            "model": "qwen3:32b",
+            "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+            "runtime_event_id": "evt_d26ab07b1ee34a398ac8e56e575e797f"
+          }
+        },
+        {
+          "seq": 3,
+          "ts": 1789173898099,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "iteration_started",
+          "iteration": 0,
+          "payload": {
+            "iteration": 0,
+            "runtime_event_id": "evt_bd8d62286b5f48b1bd9c3c41221f77b7"
+          }
+        },
+        {
+          "seq": 7,
+          "ts": 1789174027936,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "response_received",
+          "iteration": 0,
+          "payload": {
+            "step_id": "model:graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb:turn-0:response",
+            "step_type": "model_response",
+            "status": "running",
+            "response_id": "",
+            "has_tool_calls": false,
+            "usage": {
+              "model": "qwen3:32b",
+              "consumed_tokens": 14048,
+              "input_tokens": 13750,
+              "output_tokens": 298,
+              "last_turn_tokens": 14048,
+              "last_turn_input_tokens": 13750,
+              "last_turn_output_tokens": 298,
+              "max_context_window_tokens": 32768,
+              "context_window_used_pct": 42.87,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "runtime_event_id": "evt_f5ac87be23704a4a84a1c5a793aaa508"
+          }
+        },
+        {
+          "seq": 8,
+          "ts": 1789174027943,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "final_message",
+          "iteration": 0,
+          "payload": {
+            "content": "测试完成",
+            "runtime_event_id": "evt_66c19c29309e4a2aaff23d48c9a950df",
+            "finality": "terminal"
+          }
+        },
+        {
+          "seq": 9,
+          "ts": 1789174027945,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "done",
+          "iteration": 0,
+          "payload": {
+            "status": "completed",
+            "usage": {
+              "model": "qwen3:32b",
+              "consumed_tokens": 14048,
+              "input_tokens": 13750,
+              "output_tokens": 298,
+              "last_turn_tokens": 14048,
+              "last_turn_input_tokens": 13750,
+              "last_turn_output_tokens": 298,
+              "max_context_window_tokens": 32768,
+              "context_window_used_pct": 42.87,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "bundle": {
+              "model": "qwen3:32b",
+              "consumed_tokens": 14048,
+              "input_tokens": 13750,
+              "output_tokens": 298,
+              "last_turn_tokens": 14048,
+              "last_turn_input_tokens": 13750,
+              "last_turn_output_tokens": 298,
+              "max_context_window_tokens": 32768,
+              "context_window_used_pct": 42.87,
+              "status": "completed",
+              "human_input_request": null,
+              "continuation": null,
+              "previous_response_id": null,
+              "iteration": 1
+            },
+            "runtime_event_id": "evt_5debf544354145a8826a287c7e3814e2"
+          }
+        }
+      ],
+      "meta": {
+        "model": "ollama:qwen3:32b",
+        "requestId": "unchain-1789173897332-cdf08a067f673",
+        "attemptId": "unchain-1789173897332-cdf08a067f673",
+        "executionSessionId": "chat-1789171864596-0b9fbabf860b48",
+        "bundle": {
+          "schema": "unchain.run_bundle.v1",
+          "bundle_id": "rb_5bf05401b055258b5c74c9b43a2ba970bec89614f190ec224a65ed182ea315b7",
+          "revision": 3,
+          "bundle_digest": "103593047858f70b7eeb52265babcdb3e964b1f464bec3559a3df474e706c602",
+          "identity": {
+            "execution_id": "chat-1789171864596-0b9fbabf860b48",
+            "attempt_id": "unchain-1789173897332-cdf08a067f673",
+            "root_run_id": "unchain-1789173897332-cdf08a067f673",
+            "run_id": "unchain-1789173897332-cdf08a067f673",
+            "parent_run_id": null,
+            "relation": "root"
+          },
+          "lifecycle": {
+            "status": "completed",
+            "started_at": "2026-09-12T00:44:57.591524000Z",
+            "completed_at": "2026-09-12T00:47:08.004006000Z",
+            "continued_from_run_id": null
+          },
+          "descriptor": {
+            "model": "qwen3:32b",
+            "display_model": "ollama:qwen3:32b",
+            "active_agent": "developer",
+            "agent_orchestration": "default",
+            "iteration": 0
+          },
+          "metrics": {
+            "algorithm": "unique_metric_event_set_union.v1",
+            "events": [
+              {
+                "metric_event_id": "me_4be9f9b7c779be35dbbc85866c8ea316fbbafa0eb2179778dbea1ead245835ca",
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "root_run_id": "unchain-1789173897332-cdf08a067f673",
+                "owner_run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "parent_run_id": "unchain-1789173897332-cdf08a067f673",
+                "kind": "iteration",
+                "subject_id": "iteration:0",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_8b17bc868c6ddfb6a95fb6d4b6839c7734a59f220127d9bda4e17595212ba87d",
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "root_run_id": "unchain-1789173897332-cdf08a067f673",
+                "owner_run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "parent_run_id": "unchain-1789173897332-cdf08a067f673",
+                "kind": "model_attempt",
+                "subject_id": "pc_acc7e6b82c8f39ca4beecc94659a9f71d7d6c27e1329f8ee8c6a5aec22b0de86",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": []
+              },
+              {
+                "metric_event_id": "me_94f1f338b3fa8791ee1754e569cc27b473ce4ee197823460b04414fafa194a0e",
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "root_run_id": "unchain-1789173897332-cdf08a067f673",
+                "owner_run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "parent_run_id": "unchain-1789173897332-cdf08a067f673",
+                "kind": "context_build",
+                "subject_id": "context-build-bd6e58184b21b930889494648fad1ef527eaf56c1b76a6266fe97fe00789a932",
+                "outcome": "completed",
+                "error": null,
+                "evidence_refs": [
+                  {
+                    "kind": "context_event",
+                    "ref_id": "context_event_e04e8b4c6a642bd88320c61a4ab80be15fd16f11f2bb529c205f0b5788c8dbd3"
+                  }
+                ]
+              }
+            ],
+            "direct": {
+              "artifacts": 0,
+              "model_attempts": 0,
+              "iterations": 0,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 0,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "descendant": {
+              "artifacts": 0,
+              "model_attempts": 1,
+              "iterations": 1,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 1,
+              "context_compactions": 0,
+              "errors": 0
+            },
+            "all": {
+              "artifacts": 0,
+              "model_attempts": 1,
+              "iterations": 1,
+              "tool_calls": 0,
+              "tool_results": 0,
+              "interactions": 0,
+              "context_builds": 1,
+              "context_compactions": 0,
+              "errors": 0
+            }
+          },
+          "provider_calls": [
+            {
+              "schema": "unchain.provider_call_usage.v1",
+              "provider_call_id": "pc_acc7e6b82c8f39ca4beecc94659a9f71d7d6c27e1329f8ee8c6a5aec22b0de86",
+              "identity": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "root_run_id": "unchain-1789173897332-cdf08a067f673",
+                "owner_run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                "parent_run_id": "unchain-1789173897332-cdf08a067f673",
+                "iteration": 0,
+                "retry_ordinal": 0,
+                "purpose": "agent_turn",
+                "request_sha256": "704c345c0ab9f46a701f39219ba974930edf1d0d07ff7ee0ebfa22d484495931",
+                "route": "ollama.chat"
+              },
+              "provider": {
+                "name": "ollama",
+                "model": "qwen3:32b",
+                "service_tier": null
+              },
+              "status": "completed",
+              "timing": {
+                "started_at": "2026-09-12T00:44:58.697722Z",
+                "completed_at": "2026-09-12T00:47:07.892522Z"
+              },
+              "provider_ids": {
+                "request_id_sha256": null,
+                "response_id_sha256": null
+              },
+              "billing_dimensions": {
+                "billing_surface": null,
+                "batch": null,
+                "inference_geo": null
+              },
+              "usage": {
+                "input": {
+                  "uncached_tokens": 13750,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": 0,
+                  "cache_write_1h_tokens": 0,
+                  "total_tokens": 13750
+                },
+                "output": {
+                  "visible_tokens": null,
+                  "reasoning_tokens": null,
+                  "total_tokens": 298
+                },
+                "total_tokens": 14048,
+                "source": "provider_observed_partial"
+              },
+              "raw_usage_sha256": "645c83502ee4681211fd8a55bcf0e56c18d89bc6cafbca53ed36d6a8048716e7",
+              "pricing": {
+                "status": "unavailable",
+                "basis": null,
+                "snapshot": null,
+                "amount_nano_usd": null,
+                "reason": "pricing_service_tier_unknown",
+                "input_multiplier_ppm": null,
+                "output_multiplier_ppm": null
+              },
+              "extensions": {
+                "unchain.context/context_composition_v1": {
+                  "attributed_tokens": 11304,
+                  "categories": [
+                    {
+                      "id": "instructions",
+                      "source_count": 2,
+                      "subtypes": [
+                        {
+                          "id": "core_system",
+                          "source_count": 2,
+                          "tokens": 3011
+                        }
+                      ],
+                      "tokens": 3011
+                    },
+                    {
+                      "id": "tool_definitions",
+                      "source_count": 26,
+                      "subtypes": [
+                        {
+                          "id": "provider_schema",
+                          "source_count": 26,
+                          "tokens": 4422
+                        }
+                      ],
+                      "tokens": 4422
+                    },
+                    {
+                      "id": "conversation",
+                      "source_count": 13,
+                      "subtypes": [
+                        {
+                          "id": "current_input",
+                          "source_count": 1,
+                          "tokens": 1248
+                        },
+                        {
+                          "id": "user_history",
+                          "source_count": 6,
+                          "tokens": 111
+                        },
+                        {
+                          "id": "assistant_history",
+                          "source_count": 6,
+                          "tokens": 2512
+                        }
+                      ],
+                      "tokens": 3871
+                    }
+                  ],
+                  "context_window_tokens": 32768,
+                  "coverage": {
+                    "manifest_items": 41,
+                    "matched_items": 41,
+                    "matched_surfaces": 2,
+                    "status": "complete",
+                    "wire_surfaces": 2
+                  },
+                  "method": "utf8_heuristic_v2",
+                  "quality": "reconciled_estimate",
+                  "residual_tokens": 2446,
+                  "schema": "unchain.context/context_composition_v1",
+                  "wire": {
+                    "context_mode": "semantic",
+                    "envelope_sha256": "sha256:82eb0fa3a7ebb225e3ed81ac6501b5d1c0b82beee7382c6067e6eb01925f4217",
+                    "route_name": "primary",
+                    "route_sha256": "sha256:8a7ac327c14f2575606bbac3baf58c5a31c8bcb617c45d4279288b4b93b628b1"
+                  }
+                },
+                "unchain.runtime/provider_attempt_classification": "success",
+                "unchain.runtime/usage_capture": "provider_adapter"
+              }
+            }
+          ],
+          "children": [
+            {
+              "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+              "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+              "parent_run_id": "unchain-1789173897332-cdf08a067f673",
+              "relation": "graph_node",
+              "bundle_id": "rb_dff5eed759eaed05fc1f1e9f9cde19dcfeb6a9e3b930a3a01cbf1bfa65d911df",
+              "status": "completed"
+            }
+          ],
+          "aggregation": {
+            "algorithm": "provider_call_set_union.v1",
+            "direct_call_ids": [],
+            "descendant_call_ids": [
+              "pc_acc7e6b82c8f39ca4beecc94659a9f71d7d6c27e1329f8ee8c6a5aec22b0de86"
+            ],
+            "all_call_ids": [
+              "pc_acc7e6b82c8f39ca4beecc94659a9f71d7d6c27e1329f8ee8c6a5aec22b0de86"
+            ],
+            "direct_usage": {
+              "input": {
+                "uncached_tokens": null,
+                "cache_read_tokens": null,
+                "cache_write_tokens": null,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": null
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": null
+              },
+              "total_tokens": null,
+              "source": "unavailable"
+            },
+            "descendant_usage": {
+              "input": {
+                "uncached_tokens": 13750,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": 0,
+                "cache_write_1h_tokens": 0,
+                "total_tokens": 13750
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": 298
+              },
+              "total_tokens": 14048,
+              "source": "provider_observed_partial"
+            },
+            "all_usage": {
+              "input": {
+                "uncached_tokens": 13750,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": 0,
+                "cache_write_1h_tokens": 0,
+                "total_tokens": 13750
+              },
+              "output": {
+                "visible_tokens": null,
+                "reasoning_tokens": null,
+                "total_tokens": 298
+              },
+              "total_tokens": 14048,
+              "source": "provider_observed_partial"
+            }
+          },
+          "usage_slices": [
+            {
+              "provider": "ollama",
+              "model": "qwen3:32b",
+              "service_tier": null,
+              "call_ids": [
+                "pc_acc7e6b82c8f39ca4beecc94659a9f71d7d6c27e1329f8ee8c6a5aec22b0de86"
+              ],
+              "usage": {
+                "input": {
+                  "uncached_tokens": 13750,
+                  "cache_read_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cache_write_5m_tokens": 0,
+                  "cache_write_1h_tokens": 0,
+                  "total_tokens": 13750
+                },
+                "output": {
+                  "visible_tokens": null,
+                  "reasoning_tokens": null,
+                  "total_tokens": 298
+                },
+                "total_tokens": 14048,
+                "source": "provider_observed_partial"
+              },
+              "coverage": {
+                "status": "complete",
+                "receipt_count": 1,
+                "observed_usage_count": 1,
+                "missing_usage_count": 0,
+                "uncertain_call_count": 0,
+                "missing_usage_call_ids": []
+              },
+              "cost": {
+                "status": "unavailable",
+                "basis": null,
+                "amount_nano_usd": null,
+                "currency": null,
+                "pricing_snapshot_ids": []
+              }
+            }
+          ],
+          "coverage": {
+            "status": "complete",
+            "receipt_count": 1,
+            "observed_usage_count": 1,
+            "missing_usage_count": 0,
+            "uncertain_call_count": 0,
+            "missing_usage_call_ids": []
+          },
+          "cost": {
+            "status": "unavailable",
+            "basis": null,
+            "amount_nano_usd": null,
+            "currency": null,
+            "pricing_snapshot_ids": []
+          },
+          "legacy": {
+            "status": "canonical",
+            "source": null,
+            "reason": null
+          },
+          "evidence": {
+            "receipt_sha256s": [
+              "7e87e858c21e8197021a4aae705ea2c05cefe68aa38c1503eb6341b27c10f79d"
+            ],
+            "raw_usage_sha256s": [
+              "645c83502ee4681211fd8a55bcf0e56c18d89bc6cafbca53ed36d6a8048716e7"
+            ],
+            "pricing_snapshot_ids": []
+          },
+          "extensions": {
+            "pupu.run/completion_diagnostics_ref_v1": {
+              "diagnostics_schema": "pupu.completion_diagnostics.v1",
+              "diagnostics_sha256": "220f374e1245f7abf3a2b14ef78a82ed485e4c486d63a0e9be39bd81ee12e891",
+              "schema": "pupu.completion_diagnostics_ref.v1"
+            }
+          }
+        },
+        "completion_diagnostics": {
+          "schema": "pupu.completion_diagnostics.v1",
+          "diagnostics_digest": "220f374e1245f7abf3a2b14ef78a82ed485e4c486d63a0e9be39bd81ee12e891",
+          "memory_v2": {
+            "available_input_tokens": 28837,
+            "canary_hash_strategy": "sha256_owner_v1",
+            "canary_percent": 100,
+            "canary_selected": true,
+            "compression_threshold_tokens": 25953,
+            "effective_rollout_mode": "all",
+            "mode": "active",
+            "output_reserve_tokens": 3276,
+            "real_context_window_tokens": 32768,
+            "reason": "",
+            "requested_mode": "all",
+            "requested_rollout_mode": "all",
+            "schema_version": "memory_v2.context.v1",
+            "transport_margin_tokens": 655
+          }
+        }
+      }
+    }
+  ],
+  "events": {
+    "after": 0,
+    "events": [
+      {
+        "agent_id": "",
+        "attempt_id": "pupu-bootstrap-attempt-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "cursor": 1,
+        "event": {
+          "generation_rebase": {
+            "empty_snapshot": true,
+            "expected_head_revision": 0,
+            "kind": "create",
+            "previous_generation_id": "",
+            "replacement_message_count": 0
+          },
+          "legacy_provenance": {
+            "capture_status": "legacy_partial",
+            "owner_chat_id": "chat-1789171864596-0b9fbabf860b48",
+            "session_id": "chat-1789171864596-0b9fbabf860b48",
+            "source": "host_sanitized_generation_snapshot",
+            "source_revision": "pupu-chat-revision-eec1f311d13769e466aaa547609e9cf993ef89dc23316798bd965c69f81f6571"
+          },
+          "run_id": "pupu-bootstrap-attempt-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+          "type": "generation.rebased"
+        },
+        "event_id": "generation-rebase-marker-8eb77ea0b328fbabf40a9121588d56e45fa09e96ee667348237f55b4a6ca8f29",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 1,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "09f7c51c033be63b25fa9ed26db723b3596d6a314008d97d8243724df792bed3",
+        "ref": "pupu://context/event/generation-rebase-marker-8eb77ea0b328fbabf40a9121588d56e45fa09e96ee667348237f55b4a6ca8f29",
+        "run_id": "pupu-bootstrap-attempt-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 1,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "generation.rebased",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789171873227-601e373af0d198",
+        "cursor": 2,
+        "event": {
+          "content_bytes": 136,
+          "content_ref": "pupu://artifact/artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c@1",
+          "content_sha256": "6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44",
+          "message": {
+            "content": "我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。",
+            "role": "user"
+          },
+          "preview": "{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\",\"role\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "unchain-1789171873227-601e373af0d198",
+          "type": "message.user"
+        },
+        "event_id": "event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 2,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd",
+        "ref": "pupu://context/event/event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b",
+        "run_id": "unchain-1789171873227-601e373af0d198",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 2,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789171873227-601e373af0d198",
+        "cursor": 3,
+        "event": {
+          "graph_plan_id": "graph-plan-0a75f0df2dbd1439e57f1cf19e0764c7a3f2cfa1a4d7c8ce4df40f7d10e79864",
+          "graph_scope_id": "graph-scope-a578eae0300abfbc582aa7d3691e37f4038a6fd4b8eb3aec3921aa5ae70f3e94",
+          "plan": {
+            "initial_input_cursor": {
+              "event_id": "event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 2
+            },
+            "orchestration_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "schema": "unchain.graph_execution_plan.v1",
+            "steps": [
+              {
+                "attempt": {
+                  "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+                  "generation": {
+                    "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                    "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                },
+                "configuration_sha256": "f9a0d197926b0939f00efd094a78ca2d8b607544b2b8b70afb8b4b095656cb48",
+                "index": 0,
+                "model": "qwen3:32b",
+                "node_id": "agent_main",
+                "provider": "ollama",
+                "source_attempt": {
+                  "attempt_id": "unchain-1789171873227-601e373af0d198",
+                  "generation": {
+                    "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                    "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                }
+              }
+            ],
+            "topology_sha256": "a9d5711aba1612897f2a436230d84d728a99be85c06e103139d7ab938b37dd4c"
+          },
+          "type": "graph.execution.admitted"
+        },
+        "event_id": "event-602e69fa824003686fccbb032503a87a47a14328c0d79bd6c5b2081012c5a5eb",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 3,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "7c2567f07ee276e21b513ccfc16f82f25c84032ea616b1692a4bc0f274450a72",
+        "ref": "pupu://context/event/event-602e69fa824003686fccbb032503a87a47a14328c0d79bd6c5b2081012c5a5eb",
+        "run_id": "unchain-1789171873227-601e373af0d198",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 3,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.execution.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 4,
+        "event": {
+          "child_run_id": "unchain-1789171873227-601e373af0d198",
+          "full_output_artifact": {
+            "byte_length": 1606,
+            "media_type": "application/json",
+            "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"payload_sha256\":\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":136,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我",
+            "ref": "pupu://artifact/artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917"
+          },
+          "handoff_envelope": {
+            "artifact_refs": [],
+            "byte_length": 1606,
+            "child_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "child_run_id": "unchain-1789171873227-601e373af0d198",
+            "full_output_ref": "pupu://artifact/artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8@1",
+            "schema": "unchain.handoff_envelope.v2",
+            "sha256": "603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917",
+            "source_event_range": {
+              "end": {
+                "event_id": "event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 2
+              },
+              "schema": "unchain.event_range.v1",
+              "start": {
+                "event_id": "event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 2
+              }
+            },
+            "status": "complete",
+            "summary": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"payload_sha256\":\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":136,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我"
+          },
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "handoff.recorded"
+        },
+        "event_id": "event-24bee1d6a9cf7cb3ed4522191e103f91f77e688c311b0cf5d03ef3fadfd7bb25",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 4,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "9e620f1f13a1146230a838443de442ce526c09a867e9c63c4a5e10e44eae9c8f",
+        "ref": "pupu://context/event/event-24bee1d6a9cf7cb3ed4522191e103f91f77e688c311b0cf5d03ef3fadfd7bb25",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 4,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "handoff.recorded",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 5,
+        "event": {
+          "attachment_refs": [
+            "pupu://artifact/artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8@1"
+          ],
+          "attachments": [
+            {
+              "artifact": {
+                "byte_length": 1606,
+                "media_type": "application/json",
+                "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"payload_sha256\":\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":136,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我",
+                "ref": "pupu://artifact/artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8@1",
+                "schema": "unchain.artifact_ref.v1",
+                "sha256": "603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917"
+              },
+              "kind": "handoff",
+              "media_type": "application/json",
+              "name": "unchain-1789171873227-601e373af0d198.json",
+              "schema": "unchain.host_resolved_attachment.v1"
+            }
+          ],
+          "content_bytes": 7352,
+          "content_ref": "pupu://artifact/artifact-40067ee102db648aa89d4af674937f5c0c946472f160b807afd2f083e1747c74@1",
+          "content_sha256": "94527fb9b54a2015004c6d45511f759d7869c9dd8427ed7f0408bbce5cd89265",
+          "message": {
+            "attachments": [
+              {
+                "artifact": {
+                  "byte_length": 1606,
+                  "media_type": "application/json",
+                  "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"payload_sha256\":\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":136,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\",\"message\":{\"content\":\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我",
+                  "ref": "pupu://artifact/artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8@1",
+                  "schema": "unchain.artifact_ref.v1",
+                  "sha256": "603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917"
+                },
+                "kind": "handoff",
+                "media_type": "application/json",
+                "name": "unchain-1789171873227-601e373af0d198.json",
+                "schema": "unchain.host_resolved_attachment.v1"
+              }
+            ],
+            "content": "{\"consumer_attempt\":{\"attempt_id\":\"graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"full_output_artifact\":{\"byte_length\":1606,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789171873227-601e373af0d198\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"payload_sha256\\\":\\\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":136,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\\\",\\\"role\\\":\\\"user\\\"},\\\"preview\\\":\\\"{\\\\\\\"content\\\\\\\":\\\\\\\"我要你在我电脑上创建一个项目。动手之前，先问我\",\"ref\":{\"fragment\":\"\",\"id\":\"artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.artifact_ref.v1\",\"sha256\":\"603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917\"},\"handoff_envelope\":{\"artifact_refs\":[],\"byte_length\":1606,\"child_attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"child_run_id\":\"unchain-1789171873227-601e373af0d198\",\"full_output_ref\":{\"fragment\":\"\",\"id\":\"artifact-e900dbad714990178b0874e410496d99ad3ca39ced51d7c009e317754b8072c8\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.handoff_envelope.v2\",\"sha256\":\"603a5fe0a2e786a2ef8cd4bcf86d0763564cd3b81768123b19bf77a92e1e6917\",\"source_event_range\":{\"end\":{\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":2},\"schema\":\"unchain.event_range.v1\",\"start\":{\"event_id\":\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":2}},\"status\":\"complete\",\"summary\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789171873227-601e373af0d198\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"payload_sha256\\\":\\\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":136,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\\\",\\\"role\\\":\\\"user\\\"},\\\"preview\\\":\\\"{\\\\\\\"content\\\\\\\":\\\\\\\"我要你在我电脑上创建一个项目。动手之前，先问我\"},\"handoff_event\":{\"event_id\":\"event-24bee1d6a9cf7cb3ed4522191e103f91f77e688c311b0cf5d03ef3fadfd7bb25\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":4},\"schema\":\"unchain.derived_handoff_input.v1\",\"source_attempt\":{\"attempt_id\":\"unchain-1789171873227-601e373af0d198\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"}}",
+            "role": "user"
+          },
+          "preview": "{\"attachments\":[{\"artifact\":{\"byte_length\":1606,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789171873227-601e373af0d198\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-9bfd5a0867efd62154b571ba7badee68564c0dbb19a97d0db64e8bdcd220ee5b\\\",\\\"payload_sha256\\\":\\\"b62f0d5c6753498c1869b633610fc1d8db9e007601ce20d677144f7fe3dcd5fd\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":136,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-37914f869c2474a75359c47aec2ed7c9369eeefa9d103c0f2f6bb40f938cba6c\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"6eb9161a66fe55ab038d2681426c8bb08d2064c4ee2e48534e01b0a79499dd44\\\",\\\"message\\\":{\\\"content\\\":\\\"我要你在我电脑上创建一个项目。动",
+          "preview_truncated": true,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "message.user"
+        },
+        "event_id": "event-ab9a8c838a6394b64b4e7aa18fb787e6e7cabcc4008880aa7c16304239661421",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 5,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "d3df4f82107f7d1d27c941410507c60c4857a5fa4ddd2ce5ac210969063b9882",
+        "ref": "pupu://context/event/event-ab9a8c838a6394b64b4e7aa18fb787e6e7cabcc4008880aa7c16304239661421",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 5,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 6,
+        "event": {
+          "graph_plan_id": "graph-plan-0a75f0df2dbd1439e57f1cf19e0764c7a3f2cfa1a4d7c8ce4df40f7d10e79864",
+          "graph_scope_id": "graph-scope-a578eae0300abfbc582aa7d3691e37f4038a6fd4b8eb3aec3921aa5ae70f3e94",
+          "handoff_cursor": {
+            "event_id": "event-24bee1d6a9cf7cb3ed4522191e103f91f77e688c311b0cf5d03ef3fadfd7bb25",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 4
+          },
+          "input_cursor": {
+            "event_id": "event-ab9a8c838a6394b64b4e7aa18fb787e6e7cabcc4008880aa7c16304239661421",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 5
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f9a0d197926b0939f00efd094a78ca2d8b607544b2b8b70afb8b4b095656cb48",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.started"
+        },
+        "event_id": "event-366f0b293f4e4ff92191c3b4c26b1f6d53c06a8df67fbaaa3e90b6c86195d230",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 6,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e12e1849296cc7cf33a30f63ec2a98d45f0b90cf75c8a968383c9f3dbc1a1e7d",
+        "ref": "pupu://context/event/event-366f0b293f4e4ff92191c3b4c26b1f6d53c06a8df67fbaaa3e90b6c86195d230",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 6,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 7,
+        "event": {
+          "iteration": 0,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-69b7b92a9bfe590535a75a29506498be6eb81926e0cb81a220ee1ce87cd656e6",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 7,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "6ac19e2e8786ffe552da3a664a132096a3a202bce5fedc0e6e0798821d89fb34",
+        "ref": "pupu://context/event/event-69b7b92a9bfe590535a75a29506498be6eb81926e0cb81a220ee1ce87cd656e6",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 7,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 8,
+        "event": {
+          "iteration": 0,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-f27104a41c432b63117b3ccc662fb266ceff2120e9bd643291696496ac572bbb",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 8,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "8b68a2ca215c98fe65fa32d2ea3f9b15a649a0ec1696c01864233c79b470ee7a",
+        "ref": "pupu://context/event/event-f27104a41c432b63117b3ccc662fb266ceff2120e9bd643291696496ac572bbb",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 8,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 9,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-39e111a070c711e6ff2a6a7cd4ba613048b93a2a622bb547098c92eae5019451@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "e947446455eb79083b41b455637be5d3872842f7a54e0c1c9e4ae42f3760bfc8"
+          },
+          "catalog_sha256": "d230c73fdc6107fe74d211624ec07bd575c79e15d637363770dca455afbe411c",
+          "iteration": 0,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-d230c73fdc6107fe74d211624ec07bd5",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 9,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "77d9ed7f2ac0f02c0f3112b8d91b77468040db5ccc11907be603dd5f481d0cfe",
+        "ref": "pupu://context/event/provider-authority-catalog-d230c73fdc6107fe74d211624ec07bd5",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 9,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 10,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "d230c73fdc6107fe74d211624ec07bd575c79e15d637363770dca455afbe411c",
+          "envelope_sha256": "e02d7ddbd8c675a5d399c4d0dbcdb68029161c90b0dda369e662832a93216355",
+          "iteration": 0,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 45360,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-8835d0bbfd2a5580229d7a12cc3146eb5a5610efe7fea40fd6d3359c283986fa@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "bad584eb3192563e1861188be007525dcdedf190bb49d885418ed8804a6f89d1"
+          }
+        },
+        "event_id": "provider-authority-wire-e02d7ddbd8c675a5d399c4d0dbcdb680",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 10,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "3ea29c422500408169371e88da52796952a8fa08bc360c4955e6b260fd964e6d",
+        "ref": "pupu://context/event/provider-authority-wire-e02d7ddbd8c675a5d399c4d0dbcdb680",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 10,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 11,
+        "event": {
+          "envelope_sha256": "e02d7ddbd8c675a5d399c4d0dbcdb68029161c90b0dda369e662832a93216355",
+          "iteration": 0,
+          "result_artifact": {
+            "byte_length": 29370,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-af1f6820638c1caca867b68f165fa54144ce2afd0679f30cd8fd67ec8c85ffd6@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "33a54624cfdcfdf9fd0d0b59cd7d9368188bb819b358b307077eaec460b3e912"
+          },
+          "result_sha256": "edcf9e28f85c80975e1837ec1b1e3772b14add4b99cea8dab2623f1b8c56241a",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "58406bceda53ceabcfccce47107cc1a37f868d451cd32d0eb42fd10791c79634",
+          "subject_sha256": "8347536b0167432eb08d4cda33523628a66846f59c8827c5407e9568bf0e3629",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-8347536b0167432eb08d4cda33523628a66846f59c8827c5407e9568bf0e3629",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 11,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "14131b6ac92f185ac2bab82e94d149eada07450d5c614570c25260b9629e7b59",
+        "ref": "pupu://context/event/provider-turn-result-8347536b0167432eb08d4cda33523628a66846f59c8827c5407e9568bf0e3629",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 11,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 12,
+        "event": {
+          "iteration": 0,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "runtime_event"
+        },
+        "event_id": "event-030fb449b700e236ff42309079394375cfcb6cc6cb9eaf84e107f20028d4ea4d",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 12,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "cfabf8d3c343bfa893174a47526a1414b7254df91d74d5ae14cdcec40e25e3c9",
+        "ref": "pupu://context/event/event-030fb449b700e236ff42309079394375cfcb6cc6cb9eaf84e107f20028d4ea4d",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 12,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 13,
+        "event": {
+          "arguments": {
+            "allow_other": true,
+            "options": [],
+            "other_label": "文件夹路径",
+            "other_placeholder": "/path/to/folder",
+            "question": "请指定项目应该放在哪个文件夹路径？",
+            "selection_mode": "single",
+            "title": "项目文件夹路径"
+          },
+          "call_id": "call_9jwwvs81",
+          "iteration": 0,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "tool_name": "ask_user_question",
+          "type": "tool_call"
+        },
+        "event_id": "event-9bfd5fa15b1c1fd8d41f93c3451a232cfe0156445976cf8a9ef7a9d0e8d22a1e",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 13,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "448e96cbfd1c602b52ee9a83a64ab9e13353bcba7e7960d749309ddd62471ee0",
+        "ref": "pupu://context/event/event-9bfd5fa15b1c1fd8d41f93c3451a232cfe0156445976cf8a9ef7a9d0e8d22a1e",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 13,
+        "tool_call_id": "call_9jwwvs81",
+        "turn_id": "",
+        "type": "tool_call",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 14,
+        "event": {
+          "has_tool_calls": true,
+          "iteration": 0,
+          "response_id": null,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "status": "awaiting_human_input",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-2da22a4f37f6dce74d949f778873057988d4e21f05ebe50c6d966cf88f875420",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 14,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "40a137a348a3722bc4dd27549aa55e383dc2de2b725ba71f98556f6d2c7a2d66",
+        "ref": "pupu://context/event/event-2da22a4f37f6dce74d949f778873057988d4e21f05ebe50c6d966cf88f875420",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 14,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 15,
+        "event": {
+          "interaction_id": "interaction_5f188950eff943dfff389c514b65b93c",
+          "interaction_request": {
+            "created_revision": 0,
+            "interaction_id": "interaction_5f188950eff943dfff389c514b65b93c",
+            "kind": "human_input",
+            "occurrence": "human:call_9jwwvs81:0",
+            "payload": {
+              "allow_other": true,
+              "kind": "selector",
+              "max_selected": 1,
+              "min_selected": 1,
+              "options": [],
+              "other_label": "文件夹路径",
+              "other_placeholder": "/path/to/folder",
+              "question": "请指定项目应该放在哪个文件夹路径？",
+              "request_id": "call_9jwwvs81",
+              "selection_mode": "single",
+              "title": "项目文件夹路径"
+            },
+            "request_digest": "5f188950eff943dfff389c514b65b93cd54c4e2d37233dcdc172e734747d3189",
+            "response_contract": {
+              "additionalProperties": false,
+              "properties": {
+                "other_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "selected_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "request_id",
+                "selected_values",
+                "other_text"
+              ],
+              "type": "object"
+            },
+            "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+            "schema_version": 1,
+            "session_id": "chat-1789171864596-0b9fbabf860b48",
+            "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+            "subject": {
+              "binding_version": 1,
+              "model": "qwen3:32b",
+              "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+              "provider": "ollama"
+            }
+          },
+          "iteration": 0,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "interaction.requested"
+        },
+        "event_id": "event-d67b3f7542077675c0491faf421b773810e61f4e677d61386f2b90e118707f0e",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 15,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e280906d4c2db3228310c0b68c139b315e2179ebfb63086df2c337ba38cfd794",
+        "ref": "pupu://context/event/event-d67b3f7542077675c0491faf421b773810e61f4e677d61386f2b90e118707f0e",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 15,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.requested",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 16,
+        "event": {
+          "content_bytes": 234,
+          "content_ref": "pupu://artifact/artifact-4d7a6b0c1fd604ecc27203db4709fd3550e299268078156160213515b4edf337@1",
+          "content_sha256": "5fb39ae11e48a3c0614110bf28d7880d42dc42511a8bdc7447ac0485e0fcc7ef",
+          "interaction_id": "interaction_5f188950eff943dfff389c514b65b93c",
+          "preview": "{\"interaction_id\":\"interaction_5f188950eff943dfff389c514b65b93c\",\"response\":{\"other_text\":\"/private/tmp/ticket-224-live-qwen/workspace/中文 对照\",\"request_id\":\"call_9jwwvs81\",\"selected_values\":[\"__other__\"]},\"submitted_by\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "submitted_by": "user",
+          "type": "interaction.resolved"
+        },
+        "event_id": "event-ce9eae502b106ae8f0ddcc32f9ab6b8c936759ce635fba0c2210a000418450b2",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 16,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "c4a20d5a6b0666edbc49a15162a30d3c4f2e26530fc11d1006fcd544f9ec956e",
+        "ref": "pupu://context/event/event-ce9eae502b106ae8f0ddcc32f9ab6b8c936759ce635fba0c2210a000418450b2",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 16,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.resolved",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 17,
+        "event": {
+          "iteration": 1,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-7ee96d90d4f9c92b0936bd011dc853238bb9bf97d54406ae9352f22f0b20d236",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 17,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "42f243463a3aed5e86bd7729a6983dec0d65e7fe2016660ffdab9036dcb29862",
+        "ref": "pupu://context/event/event-7ee96d90d4f9c92b0936bd011dc853238bb9bf97d54406ae9352f22f0b20d236",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 17,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 18,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-838e0f325007d0d3ba23bc5145f6679c51a62e2f93abd252d8c5648701ded94d@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f6fb8fe5efa8f6cad07bb7da3ba436b17a6773b5e3bfbbff6b7dcfae7e07537d"
+          },
+          "catalog_sha256": "e1eee6b9312fe69baee96177de209e867425cb41bcbf328525063e769d5ad4a9",
+          "iteration": 1,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-e1eee6b9312fe69baee96177de209e86",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 18,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "43d932e64cd9ae144d45398aa6704dda2f5ccb1ae2dc083e3c5a436b3363dd5c",
+        "ref": "pupu://context/event/provider-authority-catalog-e1eee6b9312fe69baee96177de209e86",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 18,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 19,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "e1eee6b9312fe69baee96177de209e867425cb41bcbf328525063e769d5ad4a9",
+          "envelope_sha256": "f5ffedbc77973c2e01f3ea6568a13d058cc7d70250f80e1d8fe4f950390f2775",
+          "iteration": 1,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 41786,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-853bfe1f05f1256516da109d5254731c5fad51f04567d32f7ae17a1c7202563c@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "200f741c49c95d415d097f64163fa057f0a7e9fc41b813a239709091aeb1b34c"
+          }
+        },
+        "event_id": "provider-authority-wire-f5ffedbc77973c2e01f3ea6568a13d05",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 19,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "f20ab48baf4cbd5e3a19689a08398e0577ceb1587df066a2163369ee63a534fe",
+        "ref": "pupu://context/event/provider-authority-wire-f5ffedbc77973c2e01f3ea6568a13d05",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 19,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 20,
+        "event": {
+          "envelope_sha256": "f5ffedbc77973c2e01f3ea6568a13d058cc7d70250f80e1d8fe4f950390f2775",
+          "iteration": 1,
+          "result_artifact": {
+            "byte_length": 26134,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-15b90a3dd7a9af8bbaf0d2bc1b5cb0a3140921aac16ec0924e35f1f9e2fbe05b@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "2a6304b79bd85e248dcea7c49187addf8275a9c30668786e098c40ee3254c447"
+          },
+          "result_sha256": "92a030ba64e3283e9c0372dfcb24cebb9841f09a545be7370a45a19cecd4052a",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "8ce5f9c6617c52641bf03eab1ca39efdcbf08ac71a3b1748333bd63adf017404",
+          "subject_sha256": "c4eb244489f28c4acd4b7671e5cde3bb848989c218641f1301f5565d22841bfb",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-c4eb244489f28c4acd4b7671e5cde3bb848989c218641f1301f5565d22841bfb",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 20,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e4ff2e2f2afbbbbf8569d7cf4cab5aaf460bf5a7f987c6ddd1af37bf3896a0c6",
+        "ref": "pupu://context/event/provider-turn-result-c4eb244489f28c4acd4b7671e5cde3bb848989c218641f1301f5565d22841bfb",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 20,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 21,
+        "event": {
+          "iteration": 1,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "runtime_event"
+        },
+        "event_id": "event-f7de42e40bdcbca2ad74f52eaa768cb073b33ffcb6cd78af5a9a8ffdc956ee58",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 21,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "185af64c024b6a715ae4d631d519820e0000699de590654f75b07fd605299287",
+        "ref": "pupu://context/event/event-f7de42e40bdcbca2ad74f52eaa768cb073b33ffcb6cd78af5a9a8ffdc956ee58",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 21,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 22,
+        "event": {
+          "arguments": {
+            "options": [
+              {
+                "label": "是的，使用这个路径",
+                "value": "confirm"
+              },
+              {
+                "label": "否，需要修改路径",
+                "value": "modify"
+              }
+            ],
+            "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+            "selection_mode": "single",
+            "title": "确认项目路径"
+          },
+          "call_id": "call_v9f47z22",
+          "iteration": 1,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "tool_name": "ask_user_question",
+          "type": "tool_call"
+        },
+        "event_id": "event-9a649968866da6650ea2f8360c3308e3488214d92094256fca3dcedf0699897e",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 22,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e0814beaa2a12a5cd25e420fc91140834fae5f18c7c81e9d77f435239afdc60c",
+        "ref": "pupu://context/event/event-9a649968866da6650ea2f8360c3308e3488214d92094256fca3dcedf0699897e",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 22,
+        "tool_call_id": "call_v9f47z22",
+        "turn_id": "",
+        "type": "tool_call",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 23,
+        "event": {
+          "has_tool_calls": true,
+          "iteration": 1,
+          "response_id": null,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "status": "awaiting_human_input",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-278bf717b5a4c4e3511bbc1c1cbbf46deaf18a200aedda622eb2aa9057a49ac8",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 23,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "493a0658a8b5fe73af44a2bcfa45702baf6afd52e5fb19ffba5eaeaa6b1ee7d0",
+        "ref": "pupu://context/event/event-278bf717b5a4c4e3511bbc1c1cbbf46deaf18a200aedda622eb2aa9057a49ac8",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 23,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 24,
+        "event": {
+          "interaction_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+          "interaction_request": {
+            "created_revision": 2,
+            "interaction_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+            "kind": "human_input",
+            "occurrence": "human:call_v9f47z22:1",
+            "payload": {
+              "allow_other": false,
+              "kind": "selector",
+              "max_selected": 1,
+              "min_selected": 1,
+              "options": [
+                {
+                  "description": "",
+                  "label": "是的，使用这个路径",
+                  "value": "confirm"
+                },
+                {
+                  "description": "",
+                  "label": "否，需要修改路径",
+                  "value": "modify"
+                }
+              ],
+              "other_label": "Other",
+              "other_placeholder": "",
+              "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？",
+              "request_id": "call_v9f47z22",
+              "selection_mode": "single",
+              "title": "确认项目路径"
+            },
+            "request_digest": "9f1b6ecc47fcf3c71c42dedd9bec94f0d35168df3b452b64a94c1555e16cc97c",
+            "response_contract": {
+              "additionalProperties": false,
+              "properties": {
+                "other_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "selected_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "request_id",
+                "selected_values",
+                "other_text"
+              ],
+              "type": "object"
+            },
+            "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+            "schema_version": 1,
+            "session_id": "chat-1789171864596-0b9fbabf860b48",
+            "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+            "subject": {
+              "binding_version": 1,
+              "model": "qwen3:32b",
+              "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+              "provider": "ollama"
+            }
+          },
+          "iteration": 1,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "interaction.requested"
+        },
+        "event_id": "event-55b1d92801f11dc3052cf95fd84d667c9b4b9965c01e4d3fc8383098e6cab8e6",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 24,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "0cbd65ba9b47759eab040596c8813fa3527eb360e4efaa66c8542f3dab765139",
+        "ref": "pupu://context/event/event-55b1d92801f11dc3052cf95fd84d667c9b4b9965c01e4d3fc8383098e6cab8e6",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 24,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.requested",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 25,
+        "event": {
+          "content_bytes": 176,
+          "content_ref": "pupu://artifact/artifact-ad711ef688af63d36e22f64f5f57f8c06cf075576d2e28bb385bb3868fdacfe4@1",
+          "content_sha256": "0f331abfdc98ed38f09651c780085c051016a614e4d82b3e9afa7f54954cb60c",
+          "interaction_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+          "preview": "{\"interaction_id\":\"interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0\",\"response\":{\"other_text\":null,\"request_id\":\"call_v9f47z22\",\"selected_values\":[\"modify\"]},\"submitted_by\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "submitted_by": "user",
+          "type": "interaction.resolved"
+        },
+        "event_id": "event-756dc11777128be0c90966b10a2110ea24d8e71751532e590d693bb247ad7263",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 25,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "a01a2ba8047738b5252b5cb7a7f517caf7c5206d7e5786d1b361d036d4c7546a",
+        "ref": "pupu://context/event/event-756dc11777128be0c90966b10a2110ea24d8e71751532e590d693bb247ad7263",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 25,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.resolved",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 26,
+        "event": {
+          "graph_plan_id": "graph-plan-0a75f0df2dbd1439e57f1cf19e0764c7a3f2cfa1a4d7c8ce4df40f7d10e79864",
+          "graph_scope_id": "graph-scope-a578eae0300abfbc582aa7d3691e37f4038a6fd4b8eb3aec3921aa5ae70f3e94",
+          "interaction_id": "interaction_9f1b6ecc47fcf3c71c42dedd9bec94f0",
+          "request_cursor": {
+            "event_id": "event-55b1d92801f11dc3052cf95fd84d667c9b4b9965c01e4d3fc8383098e6cab8e6",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 24
+          },
+          "resolution_cursor": {
+            "event_id": "event-756dc11777128be0c90966b10a2110ea24d8e71751532e590d693bb247ad7263",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 25
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f9a0d197926b0939f00efd094a78ca2d8b607544b2b8b70afb8b4b095656cb48",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.resume.admitted"
+        },
+        "event_id": "event-66dedb7f82f4999e73117824368faed42080d9b74d07adfd5a32d98ddc17a174",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 26,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "683b05c73065dd60886ae48aa171cdfb664ac21da6cc43f33f00298aeec13d34",
+        "ref": "pupu://context/event/event-66dedb7f82f4999e73117824368faed42080d9b74d07adfd5a32d98ddc17a174",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 26,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.resume.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 27,
+        "event": {
+          "iteration": 2,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-13a06f45579777ad766d6f0ca6c044df8dc5ef2279b5664ae178a5047deb4c5d",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 27,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "f7b6a3b4ab24df5b05e3abb2610a48e356ed4eb5d47893e35d40a1dc0a41f433",
+        "ref": "pupu://context/event/event-13a06f45579777ad766d6f0ca6c044df8dc5ef2279b5664ae178a5047deb4c5d",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 27,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 28,
+        "event": {
+          "iteration": 2,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-b7bd152bae2d630322b211670a99821b5f323de5ff4ce017a68401a5a42810b4",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 28,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "4c4c9a3ea4f0355ccf2b580d14d0d257064c735e7724ee4a12ca5b5d3e7ad8a8",
+        "ref": "pupu://context/event/event-b7bd152bae2d630322b211670a99821b5f323de5ff4ce017a68401a5a42810b4",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 28,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 29,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-a4d1ff06392d69684c0adef43733732b5146dfb837203cd0b27b55551c1745d4@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f64ace15833681bb8e95136355dc8bc1fc9b7fb3b44e561f8e6cc3f741559af6"
+          },
+          "catalog_sha256": "5825737886f236a5767dc009c0fe8f46b3b26011798a6a528db571a047f945b0",
+          "iteration": 2,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-5825737886f236a5767dc009c0fe8f46",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 29,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "741ef1df2f48c1a84d005444af8e3ea3d780edb7c5d6b7eb2f1bdf4325b32a97",
+        "ref": "pupu://context/event/provider-authority-catalog-5825737886f236a5767dc009c0fe8f46",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 29,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 30,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "5825737886f236a5767dc009c0fe8f46b3b26011798a6a528db571a047f945b0",
+          "envelope_sha256": "add4847cd8ab8cb4e75418b1d3207b017aab4add8813ef3b95abf2247c21a473",
+          "iteration": 2,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 42834,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-8aa404a22b0eeadc62d72c3add454ed5fe009a6d312016011c16ec149ef4b235@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "69922d4c231f9b5b5f8c97dd775b71bbe64e06cfc0ef102d7b0b72af3c62924b"
+          }
+        },
+        "event_id": "provider-authority-wire-add4847cd8ab8cb4e75418b1d3207b01",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 30,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "474d745c26eb4789168d3d23d19472440b97733f8a39c79e58b084f628e73ec9",
+        "ref": "pupu://context/event/provider-authority-wire-add4847cd8ab8cb4e75418b1d3207b01",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 30,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 31,
+        "event": {
+          "envelope_sha256": "add4847cd8ab8cb4e75418b1d3207b017aab4add8813ef3b95abf2247c21a473",
+          "iteration": 2,
+          "result_artifact": {
+            "byte_length": 27613,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-1c1dc22d35dabd55079d062264ff17738b423896fd56069edb05b92a49848a2e@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "fb9d5f85ea3d2cc24d084955e4252dec66a7f9eb223ff5d6d0478ae452f78f04"
+          },
+          "result_sha256": "6877d26f196b83bc1f079e42b2aea585a0b3120a238bba1c87d53a068d5a52b8",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "3f65e257f69d9853dd5d88a015f106d4b4ba21d0da17577a5e12b88b34740174",
+          "subject_sha256": "73c20b4671c7ffb6f7b038a33b6ecc53d1ba1bbce036a80a1e318073a6275579",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-73c20b4671c7ffb6f7b038a33b6ecc53d1ba1bbce036a80a1e318073a6275579",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 31,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "cc42bd4ab815924279050f0db10ec16c5133394f691f38c3f226dec04bdd042d",
+        "ref": "pupu://context/event/provider-turn-result-73c20b4671c7ffb6f7b038a33b6ecc53d1ba1bbce036a80a1e318073a6275579",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 31,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 32,
+        "event": {
+          "iteration": 2,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "runtime_event"
+        },
+        "event_id": "event-5331456978ce76c7787806b4d1edfbfad475429ccd2e407858a5cfbe266c4b96",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 32,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "3da56fe8a7041176eb496f1a4842e19dda1638689ddf58f7993f249ed1324be9",
+        "ref": "pupu://context/event/event-5331456978ce76c7787806b4d1edfbfad475429ccd2e407858a5cfbe266c4b96",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 32,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 33,
+        "event": {
+          "arguments": {
+            "allow_other": true,
+            "options": [],
+            "other_label": "文件夹路径",
+            "other_placeholder": "/new/path/to/project",
+            "question": "请输入需要修改的文件夹路径",
+            "selection_mode": "single",
+            "title": "项目文件夹路径"
+          },
+          "call_id": "call_zg2g2sjc",
+          "iteration": 2,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "tool_name": "ask_user_question",
+          "type": "tool_call"
+        },
+        "event_id": "event-373b675eaa3c1ed201717ecb50cfde2322b343cf04bb14901951d3a76f487bc8",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 33,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "316011b6c27f4f97e629168296d50289a73a09b0b9bb5ea266c2730ea37089b2",
+        "ref": "pupu://context/event/event-373b675eaa3c1ed201717ecb50cfde2322b343cf04bb14901951d3a76f487bc8",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 33,
+        "tool_call_id": "call_zg2g2sjc",
+        "turn_id": "",
+        "type": "tool_call",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 34,
+        "event": {
+          "has_tool_calls": true,
+          "iteration": 2,
+          "response_id": null,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "status": "awaiting_human_input",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-e959fda31ec8f2e4f51b0a62f6e5aba31f78997e6d57a07e750a5e05e8084b3f",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 34,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "4f68f1f053d30c6c406e8e10a090a14b5bfa3f17a622a2b1d5dc4a7a50c7bc40",
+        "ref": "pupu://context/event/event-e959fda31ec8f2e4f51b0a62f6e5aba31f78997e6d57a07e750a5e05e8084b3f",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 34,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 35,
+        "event": {
+          "interaction_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+          "interaction_request": {
+            "created_revision": 4,
+            "interaction_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+            "kind": "human_input",
+            "occurrence": "human:call_zg2g2sjc:2",
+            "payload": {
+              "allow_other": true,
+              "kind": "selector",
+              "max_selected": 1,
+              "min_selected": 1,
+              "options": [],
+              "other_label": "文件夹路径",
+              "other_placeholder": "/new/path/to/project",
+              "question": "请输入需要修改的文件夹路径",
+              "request_id": "call_zg2g2sjc",
+              "selection_mode": "single",
+              "title": "项目文件夹路径"
+            },
+            "request_digest": "1171f1ec91661b12961a918cdddd21279cd3cd49ffb711bdf48da3915d30d5a0",
+            "response_contract": {
+              "additionalProperties": false,
+              "properties": {
+                "other_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "selected_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "request_id",
+                "selected_values",
+                "other_text"
+              ],
+              "type": "object"
+            },
+            "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+            "schema_version": 1,
+            "session_id": "chat-1789171864596-0b9fbabf860b48",
+            "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+            "subject": {
+              "binding_version": 1,
+              "model": "qwen3:32b",
+              "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+              "provider": "ollama"
+            }
+          },
+          "iteration": 2,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "interaction.requested"
+        },
+        "event_id": "event-4c057f3152c6ecd00714550c1a63862a3944a42665a385f71884e9e81fdcba8e",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 35,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "cdcf58aefc19492aa369df00cacf11f69b169968fc19b6b5bc83d488d047dda1",
+        "ref": "pupu://context/event/event-4c057f3152c6ecd00714550c1a63862a3944a42665a385f71884e9e81fdcba8e",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 35,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.requested",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 36,
+        "event": {
+          "content_bytes": 234,
+          "content_ref": "pupu://artifact/artifact-1015e710a1b726b1e1506c3712c3b70a86c2bb45389116216855e73d8ae0b39a@1",
+          "content_sha256": "f72fbbf6d10adfc0fd82397a614c6706e6c6e856f2e9617e4f88bc7161222623",
+          "interaction_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+          "preview": "{\"interaction_id\":\"interaction_1171f1ec91661b12961a918cdddd2127\",\"response\":{\"other_text\":\"/private/tmp/ticket-224-live-qwen/workspace/中文 最终\",\"request_id\":\"call_zg2g2sjc\",\"selected_values\":[\"__other__\"]},\"submitted_by\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "submitted_by": "user",
+          "type": "interaction.resolved"
+        },
+        "event_id": "event-f4df046b6db4be8d97408e22dd04060db4b1359da428f737ebdfb719f86f52e9",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 36,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "d90766846f443aa040a26a98141ec2fa0f120a3e07ea1bfd53c5da72843d12b4",
+        "ref": "pupu://context/event/event-f4df046b6db4be8d97408e22dd04060db4b1359da428f737ebdfb719f86f52e9",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 36,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.resolved",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 37,
+        "event": {
+          "graph_plan_id": "graph-plan-0a75f0df2dbd1439e57f1cf19e0764c7a3f2cfa1a4d7c8ce4df40f7d10e79864",
+          "graph_scope_id": "graph-scope-a578eae0300abfbc582aa7d3691e37f4038a6fd4b8eb3aec3921aa5ae70f3e94",
+          "interaction_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+          "request_cursor": {
+            "event_id": "event-4c057f3152c6ecd00714550c1a63862a3944a42665a385f71884e9e81fdcba8e",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 35
+          },
+          "resolution_cursor": {
+            "event_id": "event-f4df046b6db4be8d97408e22dd04060db4b1359da428f737ebdfb719f86f52e9",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f9a0d197926b0939f00efd094a78ca2d8b607544b2b8b70afb8b4b095656cb48",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.resume.admitted"
+        },
+        "event_id": "event-8aa7d187ff52edb0515a9677b074d263de15242c3d8da5ed404cb65b0cda80e9",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 37,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "4c2ea081a327f0158258fda7d31e0b35c5c10908c0f4f03cf3507102d3506c5c",
+        "ref": "pupu://context/event/event-8aa7d187ff52edb0515a9677b074d263de15242c3d8da5ed404cb65b0cda80e9",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 37,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.resume.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 38,
+        "event": {
+          "iteration": 3,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-2c8a7ec7650446de12135b7749c9c2858863414a9aee9b72ee84dc0996674d51",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 38,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "ac89d1ff4be31feb8e2b8209dde11be71575819d2a8d47f28e1332510ba9ffa9",
+        "ref": "pupu://context/event/event-2c8a7ec7650446de12135b7749c9c2858863414a9aee9b72ee84dc0996674d51",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 38,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 39,
+        "event": {
+          "iteration": 3,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-7883e287e91bf8d38f815bf9fe029b3ab9430dc13658d74711ef343f654520c6",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 39,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "9a4b5aabd6f38f1cb3ee029e6995d87272a450478d586c14e8b54f1e0f2306c7",
+        "ref": "pupu://context/event/event-7883e287e91bf8d38f815bf9fe029b3ab9430dc13658d74711ef343f654520c6",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 39,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 40,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-4c9351aad3c4d0be14b423f617995579621fbba4a999556fb2ad12832e09c6d3@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "7b22d9ec4537d711186691696933be6fede3bc1a14920a374d0ce5601b003b55"
+          },
+          "catalog_sha256": "14efb53399b5afa9ee20c98f8f20cdb64006b55317a60156a3fa62263ab93442",
+          "iteration": 3,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-14efb53399b5afa9ee20c98f8f20cdb6",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 40,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "38f0319006d1cd96af99eaeff9d8ec652cb0941137d09b85ac76385aa204c0b3",
+        "ref": "pupu://context/event/provider-authority-catalog-14efb53399b5afa9ee20c98f8f20cdb6",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 40,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 41,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "14efb53399b5afa9ee20c98f8f20cdb64006b55317a60156a3fa62263ab93442",
+          "envelope_sha256": "344ff066acbb6113e6e1d18ef28c06cc50518500d467196bc7dc91866183481e",
+          "iteration": 3,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 44012,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-bf7c90946d9563113ff7a5c110321f5c855657a6d7dea9b010461677ac8a9e8c@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "df0712ac0c68af9ece43647267dbb89c2b76014add8632e0cd4e22b58bed738e"
+          }
+        },
+        "event_id": "provider-authority-wire-344ff066acbb6113e6e1d18ef28c06cc",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 41,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "8ad63f78198b8e8252811aed94c0fa3086305495e064e5fd7f01dc8d744a80ec",
+        "ref": "pupu://context/event/provider-authority-wire-344ff066acbb6113e6e1d18ef28c06cc",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 41,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 42,
+        "event": {
+          "envelope_sha256": "344ff066acbb6113e6e1d18ef28c06cc50518500d467196bc7dc91866183481e",
+          "iteration": 3,
+          "result_artifact": {
+            "byte_length": 29786,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-3072a8a80fe51d15dd87a2cb108261cc579ce7da73436e11287019adc7c692cc@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "ee9fd1411c161e313534b2e4305c6a8a98b198b56dcc610ec9bf9200daf19269"
+          },
+          "result_sha256": "dfdc32f1f697674af776fd12a6ccab1a5327f67cef9d264bd3c17f29d36eb7a3",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "6797ca3b45758cab396c30bbe35fc6ec9a2a434246abb9b262576b0f015409ed",
+          "subject_sha256": "219d20da935d25e20b1796b24cacf45f1c0b4058360906dc11c103885aaf155c",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-219d20da935d25e20b1796b24cacf45f1c0b4058360906dc11c103885aaf155c",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 42,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "c2c516515c546a28a977960d2783c369f0bcbfb4748977a762dd2033ec425d22",
+        "ref": "pupu://context/event/provider-turn-result-219d20da935d25e20b1796b24cacf45f1c0b4058360906dc11c103885aaf155c",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 42,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 43,
+        "event": {
+          "iteration": 3,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "runtime_event"
+        },
+        "event_id": "event-0db52d5f665029f80287b82c9bae6df8d09d611f0bea3effc8b46ae72f78e0de",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 43,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "616535c4ca95f447feec7b3270e64c685e8869418d313cee5777d73b8d00af8a",
+        "ref": "pupu://context/event/event-0db52d5f665029f80287b82c9bae6df8d09d611f0bea3effc8b46ae72f78e0de",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 43,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 44,
+        "event": {
+          "arguments": {
+            "options": [
+              {
+                "label": "是的，使用这个路径",
+                "value": "confirm"
+              },
+              {
+                "label": "否，需要修改路径",
+                "value": "modify"
+              }
+            ],
+            "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 最终” 下吗？",
+            "selection_mode": "single",
+            "title": "确认项目路径"
+          },
+          "call_id": "call_kjs1a9w9",
+          "iteration": 3,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "tool_name": "ask_user_question",
+          "type": "tool_call"
+        },
+        "event_id": "event-db2074cba8dcc3d7168ebadbe73c6d11c400e261e54a88891181fdc417682098",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 44,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "160fb88a8f62999c7393e86abecb4f958ea8163f041564a19b0c6d5a167d6815",
+        "ref": "pupu://context/event/event-db2074cba8dcc3d7168ebadbe73c6d11c400e261e54a88891181fdc417682098",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 44,
+        "tool_call_id": "call_kjs1a9w9",
+        "turn_id": "",
+        "type": "tool_call",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 45,
+        "event": {
+          "has_tool_calls": true,
+          "iteration": 3,
+          "response_id": null,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "status": "awaiting_human_input",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-4aa9faf6a535a673f491767c5d0554d00c1cee43c6cada4ac51caaef3241873d",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 45,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "c4cea5c8b925dc74701918bd1f9eb09e34bea99be8864727a12ba2f4418ff00d",
+        "ref": "pupu://context/event/event-4aa9faf6a535a673f491767c5d0554d00c1cee43c6cada4ac51caaef3241873d",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 45,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 46,
+        "event": {
+          "interaction_id": "interaction_e7b373c19c2ed5470bba357f00f7f804",
+          "interaction_request": {
+            "created_revision": 6,
+            "interaction_id": "interaction_e7b373c19c2ed5470bba357f00f7f804",
+            "kind": "human_input",
+            "occurrence": "human:call_kjs1a9w9:3",
+            "payload": {
+              "allow_other": false,
+              "kind": "selector",
+              "max_selected": 1,
+              "min_selected": 1,
+              "options": [
+                {
+                  "description": "",
+                  "label": "是的，使用这个路径",
+                  "value": "confirm"
+                },
+                {
+                  "description": "",
+                  "label": "否，需要修改路径",
+                  "value": "modify"
+                }
+              ],
+              "other_label": "Other",
+              "other_placeholder": "",
+              "question": "您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 最终” 下吗？",
+              "request_id": "call_kjs1a9w9",
+              "selection_mode": "single",
+              "title": "确认项目路径"
+            },
+            "request_digest": "e7b373c19c2ed5470bba357f00f7f804056a73928b398ec9e44261e2efdfabe0",
+            "response_contract": {
+              "additionalProperties": false,
+              "properties": {
+                "other_text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "selected_values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "request_id",
+                "selected_values",
+                "other_text"
+              ],
+              "type": "object"
+            },
+            "schema_digest": "efb199817ec50c95e4b77250c0ec7eac9356c12722c40ba6fa49ed039124eaf5",
+            "schema_version": 1,
+            "session_id": "chat-1789171864596-0b9fbabf860b48",
+            "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+            "subject": {
+              "binding_version": 1,
+              "model": "qwen3:32b",
+              "prompt_digest": "48710f964c80e358dd0172996a9fef49b7d5952fb100255609a1480163a58f5f",
+              "provider": "ollama"
+            }
+          },
+          "iteration": 3,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "interaction.requested"
+        },
+        "event_id": "event-3896bf15027f7cd064618f39f6d78fc7fb21346f01cc7b57219b53fee5a85868",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 46,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "5f25ba0205cf7acf3dda2526178d9c768dbf63e16116a3a6fc793afac52a06a9",
+        "ref": "pupu://context/event/event-3896bf15027f7cd064618f39f6d78fc7fb21346f01cc7b57219b53fee5a85868",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 46,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.requested",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 47,
+        "event": {
+          "content_bytes": 176,
+          "content_ref": "pupu://artifact/artifact-3a9c2f7d83691b754814af73983322b744c35b52b722da4733a9fbbca2db1f2b@1",
+          "content_sha256": "cd859617ce215a1fef419ecf29f92bad124003d6abc0fcf0915d5179d20ea0d2",
+          "interaction_id": "interaction_e7b373c19c2ed5470bba357f00f7f804",
+          "preview": "{\"interaction_id\":\"interaction_e7b373c19c2ed5470bba357f00f7f804\",\"response\":{\"other_text\":null,\"request_id\":\"call_kjs1a9w9\",\"selected_values\":[\"modify\"]},\"submitted_by\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "submitted_by": "user",
+          "type": "interaction.resolved"
+        },
+        "event_id": "event-99d523ad4de7c7dfe075d95c345e86c6e54b977fb4ba03e9a4d2036c49ab4ad2",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 47,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "f33dbbb838ef1a94028f901724d0fa102ad7077beb067c092f012113c6744376",
+        "ref": "pupu://context/event/event-99d523ad4de7c7dfe075d95c345e86c6e54b977fb4ba03e9a4d2036c49ab4ad2",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 47,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "interaction.resolved",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 48,
+        "event": {
+          "graph_plan_id": "graph-plan-0a75f0df2dbd1439e57f1cf19e0764c7a3f2cfa1a4d7c8ce4df40f7d10e79864",
+          "graph_scope_id": "graph-scope-a578eae0300abfbc582aa7d3691e37f4038a6fd4b8eb3aec3921aa5ae70f3e94",
+          "interaction_id": "interaction_e7b373c19c2ed5470bba357f00f7f804",
+          "request_cursor": {
+            "event_id": "event-3896bf15027f7cd064618f39f6d78fc7fb21346f01cc7b57219b53fee5a85868",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 46
+          },
+          "resolution_cursor": {
+            "event_id": "event-99d523ad4de7c7dfe075d95c345e86c6e54b977fb4ba03e9a4d2036c49ab4ad2",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 47
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f9a0d197926b0939f00efd094a78ca2d8b607544b2b8b70afb8b4b095656cb48",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789171873227-601e373af0d198",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.resume.admitted"
+        },
+        "event_id": "event-e3618a40fa00b86f8e298d5d920cc3bff7280339f0affabf1797cce80d299188",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 48,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e0a0cfeaa9b0d583608d3b0f6a47423e8b058684ede63e86a4dec63693002524",
+        "ref": "pupu://context/event/event-e3618a40fa00b86f8e298d5d920cc3bff7280339f0affabf1797cce80d299188",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 48,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.resume.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 49,
+        "event": {
+          "iteration": 4,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-9884c6ece4a923491bbbb450d18525a830ad2da09041ec8ebff96a98169ab300",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 49,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "93828e064f4630b4fb8b7562ad8f4e24bf1be2e32ecdc6e9ddfbb03794ffd7dc",
+        "ref": "pupu://context/event/event-9884c6ece4a923491bbbb450d18525a830ad2da09041ec8ebff96a98169ab300",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 49,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 50,
+        "event": {
+          "iteration": 4,
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-c1dcf01fa65f1fc203872fcde463177c65cb677e6df42792c5606609164d2943",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 50,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "b9140bc83253b8bbafa432bdd5da64cb2df340a508b7afc962d650b4f03c5688",
+        "ref": "pupu://context/event/event-c1dcf01fa65f1fc203872fcde463177c65cb677e6df42792c5606609164d2943",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 50,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 51,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-a9f6ee9136e035bab7a5fafe9751f48f8e84ff2de8103a55b9d5f267718458cd@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "8e6292dc2982af9ae6e85f599b9e32f6db2db5ae4e7227d9671f70612b81a72b"
+          },
+          "catalog_sha256": "106eccf8b22ebe96934a8455616b5bd2227b9da3dc280cfc2d00ccfde0c66298",
+          "iteration": 4,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-106eccf8b22ebe96934a8455616b5bd2",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 51,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "3a9a7553bd8ffb4529915b1cf4253cea36266ef14011121024240c09263ac065",
+        "ref": "pupu://context/event/provider-authority-catalog-106eccf8b22ebe96934a8455616b5bd2",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 51,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 52,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "106eccf8b22ebe96934a8455616b5bd2227b9da3dc280cfc2d00ccfde0c66298",
+          "envelope_sha256": "12e0d6a0394670738a04fa7fa549f0b9af52bce84d3fb74de370f341bffc3fc1",
+          "iteration": 4,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 45060,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-2a71d3cf9b19607622539be39ce16a29ca64505fdba65a2154207c5527051a42@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "063d84293b43b964527008666c3ce665f2fe5faa0538ed95e598412117fb438c"
+          }
+        },
+        "event_id": "provider-authority-wire-12e0d6a0394670738a04fa7fa549f0b9",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 52,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "08e957b0fe528414467302e3d32739eaa49d5b932077774d34dea76b3056cfaa",
+        "ref": "pupu://context/event/provider-authority-wire-12e0d6a0394670738a04fa7fa549f0b9",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 52,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 53,
+        "event": {
+          "envelope_sha256": "12e0d6a0394670738a04fa7fa549f0b9af52bce84d3fb74de370f341bffc3fc1",
+          "iteration": 4,
+          "result_artifact": {
+            "byte_length": 32694,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-dcb2a75f6e4446f6e4040c3fdc0ddf09f5758b37ce70cf2152e60a1cd4e466eb@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "a241f5f773e587fe2fda2815007e4e917b54a6680588cdcd51f9d21136096482"
+          },
+          "result_sha256": "ea126e4fc47ea1a53ae8047b876d220ecf45efb42a11579b786b7a568913ec01",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "f2f101b9f2814055d9f506c4016ab387c850bebf5ba0fe0ced081cca670634fa",
+          "subject_sha256": "0bfe22683164279a10550330406ec1455bb08bbd6d964741bd58251f2d55f4f5",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-0bfe22683164279a10550330406ec1455bb08bbd6d964741bd58251f2d55f4f5",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 53,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "18ce045acbd6f81a64eba0500aab28d43f3c58f329d998de6e545a6da7ad8051",
+        "ref": "pupu://context/event/provider-turn-result-0bfe22683164279a10550330406ec1455bb08bbd6d964741bd58251f2d55f4f5",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 53,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "cursor": 54,
+        "event": {
+          "iteration": 4,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+          "type": "runtime_event"
+        },
+        "event_id": "event-ea6e7898daead41fb239b38ee049e143cd5b74efedcb490cef646505f28ac9e1",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 54,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "19001360de9914afa0dd554da773a4ac1c66743ed0c0f8119b7e51a58afcec5d",
+        "ref": "pupu://context/event/event-ea6e7898daead41fb239b38ee049e143cd5b74efedcb490cef646505f28ac9e1",
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 54,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789173897332-cdf08a067f673",
+        "cursor": 55,
+        "event": {
+          "content_bytes": 100,
+          "content_ref": "pupu://artifact/artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9@1",
+          "content_sha256": "abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f",
+          "message": {
+            "content": "本轮测试结束。只回复“测试完成”，不要调用工具。",
+            "role": "user"
+          },
+          "preview": "{\"content\":\"本轮测试结束。只回复“测试完成”，不要调用工具。\",\"role\":\"user\"}",
+          "preview_truncated": false,
+          "run_id": "unchain-1789173897332-cdf08a067f673",
+          "type": "message.user"
+        },
+        "event_id": "event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 55,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808",
+        "ref": "pupu://context/event/event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f",
+        "run_id": "unchain-1789173897332-cdf08a067f673",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 55,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789173897332-cdf08a067f673",
+        "cursor": 56,
+        "event": {
+          "graph_plan_id": "graph-plan-6715618d4234db1b7ac2d0cfdfbc2ff292998d5078244e05cd349ba0b1315cfa",
+          "graph_scope_id": "graph-scope-6825a3a7ecc197cce7db6b3bfde34088fe7a645f5058d637b4a921bb7466f8fe",
+          "plan": {
+            "initial_input_cursor": {
+              "event_id": "event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 55
+            },
+            "orchestration_attempt": {
+              "attempt_id": "unchain-1789173897332-cdf08a067f673",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "schema": "unchain.graph_execution_plan.v1",
+            "steps": [
+              {
+                "attempt": {
+                  "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+                  "generation": {
+                    "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                    "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                },
+                "configuration_sha256": "f75788ae11b520bf20753a2cbe461e058453683506df874d019212550a0e7a13",
+                "index": 0,
+                "model": "qwen3:32b",
+                "node_id": "agent_main",
+                "provider": "ollama",
+                "source_attempt": {
+                  "attempt_id": "unchain-1789173897332-cdf08a067f673",
+                  "generation": {
+                    "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                    "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                    "schema": "unchain.generation_ref.v1"
+                  },
+                  "schema": "unchain.attempt_ref.v1"
+                }
+              }
+            ],
+            "topology_sha256": "74cf12275ad3408d064fc2ec622ef0e93f785fef4e9c2f1bed0fc1962cb523a0"
+          },
+          "type": "graph.execution.admitted"
+        },
+        "event_id": "event-8f5da0e84a2f18288ed8165365570e7250b33cb6c78465d029aa141797152907",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 56,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "18438ce9eba6e6bd9e7cf883d08b34fc86eae6328d1b2ad79a8a98f7d11fc643",
+        "ref": "pupu://context/event/event-8f5da0e84a2f18288ed8165365570e7250b33cb6c78465d029aa141797152907",
+        "run_id": "unchain-1789173897332-cdf08a067f673",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 56,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.execution.admitted",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 57,
+        "event": {
+          "child_run_id": "unchain-1789173897332-cdf08a067f673",
+          "full_output_artifact": {
+            "byte_length": 1533,
+            "media_type": "application/json",
+            "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"payload_sha256\":\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":100,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\",\"message\":{\"content\":\"本轮测试结束。只回复“测试完成”，不要调用工具。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"}\",\"preview_trun",
+            "ref": "pupu://artifact/artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd"
+          },
+          "handoff_envelope": {
+            "artifact_refs": [],
+            "byte_length": 1533,
+            "child_attempt": {
+              "attempt_id": "unchain-1789173897332-cdf08a067f673",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "child_run_id": "unchain-1789173897332-cdf08a067f673",
+            "full_output_ref": "pupu://artifact/artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf@1",
+            "schema": "unchain.handoff_envelope.v2",
+            "sha256": "f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd",
+            "source_event_range": {
+              "end": {
+                "event_id": "event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 55
+              },
+              "schema": "unchain.event_range.v1",
+              "start": {
+                "event_id": "event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f",
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 55
+              }
+            },
+            "status": "complete",
+            "summary": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"payload_sha256\":\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":100,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\",\"message\":{\"content\":\"本轮测试结束。只回复“测试完成”，不要调用工具。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"}\",\"preview_trun"
+          },
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "handoff.recorded"
+        },
+        "event_id": "event-f671d64cc326c8e904e24f9c8fcb72e754c2c2013105fd5aec7cf9b25a59eaba",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 57,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "d0abfc72fb0327cf2f01fb08fabfbc553386a79ed89c4b6e621763626d0d8318",
+        "ref": "pupu://context/event/event-f671d64cc326c8e904e24f9c8fcb72e754c2c2013105fd5aec7cf9b25a59eaba",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 57,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "handoff.recorded",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 58,
+        "event": {
+          "attachment_refs": [
+            "pupu://artifact/artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf@1"
+          ],
+          "attachments": [
+            {
+              "artifact": {
+                "byte_length": 1533,
+                "media_type": "application/json",
+                "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"payload_sha256\":\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":100,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\",\"message\":{\"content\":\"本轮测试结束。只回复“测试完成”，不要调用工具。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"}\",\"preview_trun",
+                "ref": "pupu://artifact/artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf@1",
+                "schema": "unchain.artifact_ref.v1",
+                "sha256": "f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd"
+              },
+              "kind": "handoff",
+              "media_type": "application/json",
+              "name": "unchain-1789173897332-cdf08a067f673.json",
+              "schema": "unchain.host_resolved_attachment.v1"
+            }
+          ],
+          "content_bytes": 7441,
+          "content_ref": "pupu://artifact/artifact-ab5e748d96489d88b15fd07a0aadc3cd2ef94fd02bf4728e36c865aa082e59a6@1",
+          "content_sha256": "e25a8647d934559d503b3e546df89ed6b08d561c143102f18d7d8d9194aaf5c0",
+          "message": {
+            "attachments": [
+              {
+                "artifact": {
+                  "byte_length": 1533,
+                  "media_type": "application/json",
+                  "preview": "{\"input_event\":{\"attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"event_type\":\"message.user\",\"operation\":{\"operation_id\":\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"payload_sha256\":\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\",\"schema\":\"unchain.operation_ref.v1\"},\"payload\":{\"content_bytes\":100,\"content_ref\":{\"fragment\":\"\",\"id\":\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"content_sha256\":\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\",\"message\":{\"content\":\"本轮测试结束。只回复“测试完成”，不要调用工具。\",\"role\":\"user\"},\"preview\":\"{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"}\",\"preview_trun",
+                  "ref": "pupu://artifact/artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf@1",
+                  "schema": "unchain.artifact_ref.v1",
+                  "sha256": "f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd"
+                },
+                "kind": "handoff",
+                "media_type": "application/json",
+                "name": "unchain-1789173897332-cdf08a067f673.json",
+                "schema": "unchain.host_resolved_attachment.v1"
+              }
+            ],
+            "content": "{\"consumer_attempt\":{\"attempt_id\":\"graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"full_output_artifact\":{\"byte_length\":1533,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789173897332-cdf08a067f673\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"payload_sha256\\\":\\\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":100,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\\\",\\\"message\\\":{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"},\\\"preview\\\":\\\"{\\\\\\\"content\\\\\\\":\\\\\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\\\\\",\\\\\\\"role\\\\\\\":\\\\\\\"user\\\\\\\"}\\\",\\\"preview_trun\",\"ref\":{\"fragment\":\"\",\"id\":\"artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.artifact_ref.v1\",\"sha256\":\"f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd\"},\"handoff_envelope\":{\"artifact_refs\":[],\"byte_length\":1533,\"child_attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"},\"child_run_id\":\"unchain-1789173897332-cdf08a067f673\",\"full_output_ref\":{\"fragment\":\"\",\"id\":\"artifact-b577d76fec64ef508512d241656a3e7e4243bc44bb0bcc48929c22916e216caf\",\"kind\":\"artifact\",\"revision\":1,\"schema\":\"unchain.resource_ref.v1\"},\"schema\":\"unchain.handoff_envelope.v2\",\"sha256\":\"f32eb1fbb68df49cade0c15f74b534a1410a13e17beed3c72b20dd094bf947fd\",\"source_event_range\":{\"end\":{\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":55},\"schema\":\"unchain.event_range.v1\",\"start\":{\"event_id\":\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":55}},\"status\":\"complete\",\"summary\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789173897332-cdf08a067f673\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"payload_sha256\\\":\\\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":100,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\\\",\\\"message\\\":{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\",\\\"role\\\":\\\"user\\\"},\\\"preview\\\":\\\"{\\\\\\\"content\\\\\\\":\\\\\\\"本轮测试结束。只回复“测试完成”，不要调用工具。\\\\\\\",\\\\\\\"role\\\\\\\":\\\\\\\"user\\\\\\\"}\\\",\\\"preview_trun\"},\"handoff_event\":{\"event_id\":\"event-f671d64cc326c8e904e24f9c8fcb72e754c2c2013105fd5aec7cf9b25a59eaba\",\"schema\":\"unchain.event_cursor.v1\",\"store_seq\":57},\"schema\":\"unchain.derived_handoff_input.v1\",\"source_attempt\":{\"attempt_id\":\"unchain-1789173897332-cdf08a067f673\",\"generation\":{\"execution_id\":\"chat-1789171864596-0b9fbabf860b48\",\"generation_id\":\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\",\"schema\":\"unchain.generation_ref.v1\"},\"schema\":\"unchain.attempt_ref.v1\"}}",
+            "role": "user"
+          },
+          "preview": "{\"attachments\":[{\"artifact\":{\"byte_length\":1533,\"media_type\":\"application/json\",\"preview\":\"{\\\"input_event\\\":{\\\"attempt\\\":{\\\"attempt_id\\\":\\\"unchain-1789173897332-cdf08a067f673\\\",\\\"generation\\\":{\\\"execution_id\\\":\\\"chat-1789171864596-0b9fbabf860b48\\\",\\\"generation_id\\\":\\\"pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6\\\",\\\"schema\\\":\\\"unchain.generation_ref.v1\\\"},\\\"schema\\\":\\\"unchain.attempt_ref.v1\\\"},\\\"event_id\\\":\\\"event-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"event_type\\\":\\\"message.user\\\",\\\"operation\\\":{\\\"operation_id\\\":\\\"operation-44f99b5d2e7982e9598f6eff9fc96467b34be0fa288b725c3d622a87df6f282f\\\",\\\"payload_sha256\\\":\\\"9be7643eac340734c197f70b953308710283210850e34f3b9624ebc4ea9a4808\\\",\\\"schema\\\":\\\"unchain.operation_ref.v1\\\"},\\\"payload\\\":{\\\"content_bytes\\\":100,\\\"content_ref\\\":{\\\"fragment\\\":\\\"\\\",\\\"id\\\":\\\"artifact-c101218aed2af2123868d10034dc10fd91ef4ebab31b69892b639e7724c083e9\\\",\\\"kind\\\":\\\"artifact\\\",\\\"revision\\\":1,\\\"schema\\\":\\\"unchain.resource_ref.v1\\\"},\\\"content_sha256\\\":\\\"abf8b08bb288b9d5e26045e048093288a1845282a6a2e2f1f532e2e07c66cb2f\\\",\\\"message\\\":{\\\"content\\\":\\\"本轮测试结束。只回复“测试完成”，",
+          "preview_truncated": true,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "message.user"
+        },
+        "event_id": "event-f7b021d9e91345490e679d3fd69b79db69f884e30b2c106cc2f9bc3359607712",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 58,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "395c51aba8f3ff24e759867199ceb00fd1a8cd980bb51d4d89598120fcccca74",
+        "ref": "pupu://context/event/event-f7b021d9e91345490e679d3fd69b79db69f884e30b2c106cc2f9bc3359607712",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 58,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "message.user",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 59,
+        "event": {
+          "graph_plan_id": "graph-plan-6715618d4234db1b7ac2d0cfdfbc2ff292998d5078244e05cd349ba0b1315cfa",
+          "graph_scope_id": "graph-scope-6825a3a7ecc197cce7db6b3bfde34088fe7a645f5058d637b4a921bb7466f8fe",
+          "handoff_cursor": {
+            "event_id": "event-f671d64cc326c8e904e24f9c8fcb72e754c2c2013105fd5aec7cf9b25a59eaba",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 57
+          },
+          "input_cursor": {
+            "event_id": "event-f7b021d9e91345490e679d3fd69b79db69f884e30b2c106cc2f9bc3359607712",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 58
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f75788ae11b520bf20753a2cbe461e058453683506df874d019212550a0e7a13",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789173897332-cdf08a067f673",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "type": "graph.step.started"
+        },
+        "event_id": "event-d5ad944c52a74a0713de5ee3d209c285355fba7fea8e78eb7bc95b92fb784e04",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 59,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e9f09f2edff78654dec858bddc000725fc6da5690a7b86aad0e13534b49d105f",
+        "ref": "pupu://context/event/event-d5ad944c52a74a0713de5ee3d209c285355fba7fea8e78eb7bc95b92fb784e04",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 59,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 60,
+        "event": {
+          "iteration": 0,
+          "model": "qwen3:32b",
+          "provider": "ollama",
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "run_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-044224edd77bf2d036fdd130dedeca3d576b66e78aaeed43d86a9ac627468fed",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 60,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "22eb48fc3325a7d58b3591fe059550efa2e5ce42069fe60f1d60e02768607db2",
+        "ref": "pupu://context/event/event-044224edd77bf2d036fdd130dedeca3d576b66e78aaeed43d86a9ac627468fed",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 60,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 61,
+        "event": {
+          "iteration": 0,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "iteration_started",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-5eb05f7c915145e97317a1b2b305021dc853b679512fe2240a1fb48c17eaad4f",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 61,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "82da6e88c5afcb951d3c5ab0d8508bff8adf71f07d7ba8461f2dd70cf6aab777",
+        "ref": "pupu://context/event/event-5eb05f7c915145e97317a1b2b305021dc853b679512fe2240a1fb48c17eaad4f",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 61,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "iteration_started",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 62,
+        "event": {
+          "catalog_artifact": {
+            "byte_length": 39395,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-7fcaa3056e02a68271820121439c9515a1e9d6d779c728c023d7be3691f0ea2e@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "ecfe6bb13ae0ec35faefea1ed6c9455503a4a1d85ae740c684532035a3b9360b"
+          },
+          "catalog_sha256": "3abf20508446fe035a4c1f866b5ee977890a1e3d1aabe7d1611e960e22a219a3",
+          "iteration": 0,
+          "type": "tool.catalog_snapshot"
+        },
+        "event_id": "provider-authority-catalog-3abf20508446fe035a4c1f866b5ee977",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 62,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "7b790fe592d0dc89aed47fd4d81acb927621f3eac283411a911d8c6dc3bfe92b",
+        "ref": "pupu://context/event/provider-authority-catalog-3abf20508446fe035a4c1f866b5ee977",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 62,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "tool.catalog_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 63,
+        "event": {
+          "adapter_revision": "unchain.ollama.chat.request.v1",
+          "catalog_sha256": "3abf20508446fe035a4c1f866b5ee977890a1e3d1aabe7d1611e960e22a219a3",
+          "envelope_sha256": "82eb0fa3a7ebb225e3ed81ac6501b5d1c0b82beee7382c6067e6eb01925f4217",
+          "iteration": 0,
+          "provider": "ollama",
+          "type": "provider.wire_snapshot",
+          "wire_artifact": {
+            "byte_length": 52750,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-cac6f57876f41a00c84e44e5b78d0ec9cfa32496bfe6fbea6e97e14aa48f9d45@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "d95ca1e2d162d8a28f12ee77ac514c6783d4510b953b7c790d92a6a3545a9dae"
+          }
+        },
+        "event_id": "provider-authority-wire-82eb0fa3a7ebb225e3ed81ac6501b5d1",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 63,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "82b01d387b08845636d18499939678c8605aec6a317f84565385a9c0ac0d9e6c",
+        "ref": "pupu://context/event/provider-authority-wire-82eb0fa3a7ebb225e3ed81ac6501b5d1",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 63,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.wire_snapshot",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 64,
+        "event": {
+          "envelope_sha256": "82eb0fa3a7ebb225e3ed81ac6501b5d1c0b82beee7382c6067e6eb01925f4217",
+          "iteration": 0,
+          "result_artifact": {
+            "byte_length": 37241,
+            "media_type": "application/json",
+            "preview": "",
+            "ref": "pupu://artifact/artifact-9583a6a73b0efb0c5425107596e7ede6e1b2f06c1b786cb21c1559f0909e03cd@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "68fd4fed0d2882e220cf16eca3e5b76d8687833c022d4a45bbed6d0eb5076918"
+          },
+          "result_sha256": "5c38536bd30d347d64d6a0ac905f07e6de70f6f8d866b6481f6c09c4519e3281",
+          "retry_ordinal": 0,
+          "route": "primary",
+          "route_sha256": "8a7ac327c14f2575606bbac3baf58c5a31c8bcb617c45d4279288b4b93b628b1",
+          "subject_sha256": "b28bf0af1a895bfcaf4193ccc36228e45a60aa3233dc3c460c59083bbfc65079",
+          "type": "provider.turn_result",
+          "visible_output": true
+        },
+        "event_id": "provider-turn-result-b28bf0af1a895bfcaf4193ccc36228e45a60aa3233dc3c460c59083bbfc65079",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 64,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "41911160f6f8e1259af4cc6287497aed12a7e563e0b761f474ca5460f277263c",
+        "ref": "pupu://context/event/provider-turn-result-b28bf0af1a895bfcaf4193ccc36228e45a60aa3233dc3c460c59083bbfc65079",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 64,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "provider.turn_result",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 65,
+        "event": {
+          "iteration": 0,
+          "raw_type": "request_messages",
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "runtime_event"
+        },
+        "event_id": "event-73a5896db328f14d2244e792559d19386c043bc2498540609938f3a07e753241",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 65,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "369650d04d4735763ca178b9a985e773e4c43d8ab9d5fbb8fc9df231e24eb444",
+        "ref": "pupu://context/event/event-73a5896db328f14d2244e792559d19386c043bc2498540609938f3a07e753241",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 65,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "runtime_event",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 66,
+        "event": {
+          "has_tool_calls": false,
+          "iteration": 0,
+          "response_id": null,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "status": "running",
+          "type": "response_received",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-bf1f5fbd4c46c5df890f7d5452dbb73e04935c7b70a6d52731ed9b5da6adc06f",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 66,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "e8eae8ba1bb3f173c3941d21b5efbe6eeb9816bd70df54b237f790d15ef52906",
+        "ref": "pupu://context/event/event-bf1f5fbd4c46c5df890f7d5452dbb73e04935c7b70a6d52731ed9b5da6adc06f",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 66,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "response_received",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 67,
+        "event": {
+          "content": "测试完成",
+          "iteration": 0,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "type": "final_message",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-9a5d670aa8fb8fb7bfb18e0aff762a88eadcc2fed201275693a62535b90059bd",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 67,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "cec8f6e72f62d811289e5c3238c5a4fdf27ecf3ee3c3c5c1f2b90a7112f50726",
+        "ref": "pupu://context/event/event-9a5d670aa8fb8fb7bfb18e0aff762a88eadcc2fed201275693a62535b90059bd",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 67,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "final_message",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 68,
+        "event": {
+          "iteration": 0,
+          "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+          "status": "completed",
+          "type": "run_completed",
+          "workflow_node_id": "agent_main",
+          "workflow_step_count": 1,
+          "workflow_step_index": 0
+        },
+        "event_id": "event-66bd3f1b9a09d502814ccf9548c31744b30ac7f38f78b6c17fbe470a078c48fb",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 68,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "069c9c4b47e54ba24a30f07e82d387c07ca553f881304d2e8e8b15cbeb90d6d9",
+        "ref": "pupu://context/event/event-66bd3f1b9a09d502814ccf9548c31744b30ac7f38f78b6c17fbe470a078c48fb",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 68,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "cursor": 69,
+        "event": {
+          "execution_event_range": {
+            "end": {
+              "event_id": "event-66bd3f1b9a09d502814ccf9548c31744b30ac7f38f78b6c17fbe470a078c48fb",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 68
+            },
+            "schema": "unchain.event_range.v1",
+            "start": {
+              "event_id": "event-d5ad944c52a74a0713de5ee3d209c285355fba7fea8e78eb7bc95b92fb784e04",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 59
+            }
+          },
+          "graph_plan_id": "graph-plan-6715618d4234db1b7ac2d0cfdfbc2ff292998d5078244e05cd349ba0b1315cfa",
+          "graph_scope_id": "graph-scope-6825a3a7ecc197cce7db6b3bfde34088fe7a645f5058d637b4a921bb7466f8fe",
+          "output_artifact": {
+            "byte_length": 86,
+            "media_type": "application/json",
+            "preview": "{\"output\":\"测试完成\",\"schema\":\"unchain.graph_step_output.v1\",\"status\":\"completed\"}",
+            "ref": "pupu://artifact/artifact-bb655c72caa73a685cdf1ff7220c1e1e495d9c76a5f4b70a888992aeba010105@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f2307a88560e9e0e8c39a30d37f188b59344b94cb1ba17016266bf6b4855471c"
+          },
+          "step": {
+            "attempt": {
+              "attempt_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            },
+            "configuration_sha256": "f75788ae11b520bf20753a2cbe461e058453683506df874d019212550a0e7a13",
+            "index": 0,
+            "model": "qwen3:32b",
+            "node_id": "agent_main",
+            "provider": "ollama",
+            "source_attempt": {
+              "attempt_id": "unchain-1789173897332-cdf08a067f673",
+              "generation": {
+                "execution_id": "chat-1789171864596-0b9fbabf860b48",
+                "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+                "schema": "unchain.generation_ref.v1"
+              },
+              "schema": "unchain.attempt_ref.v1"
+            }
+          },
+          "terminal_cursor": {
+            "event_id": "event-66bd3f1b9a09d502814ccf9548c31744b30ac7f38f78b6c17fbe470a078c48fb",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 68
+          },
+          "type": "graph.step.completed"
+        },
+        "event_id": "event-d1dd265f4bfebb24217e9b3324ace236cead77d0bf46952a8edfbccefc8121b4",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 69,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "2d9a0c688479f5bd9a5ab077e24bc39c10cb4a51a367ac6b571411681a486cf2",
+        "ref": "pupu://context/event/event-d1dd265f4bfebb24217e9b3324ace236cead77d0bf46952a8edfbccefc8121b4",
+        "run_id": "graph-step-42773f9941c64dee851c9e094fe4a5fe5db61db0947e4e3e6549f1e5685be9fb",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 69,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.step.completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789173897332-cdf08a067f673",
+        "cursor": 70,
+        "event": {
+          "final_step_index": 0,
+          "graph_plan_id": "graph-plan-6715618d4234db1b7ac2d0cfdfbc2ff292998d5078244e05cd349ba0b1315cfa",
+          "graph_scope_id": "graph-scope-6825a3a7ecc197cce7db6b3bfde34088fe7a645f5058d637b4a921bb7466f8fe",
+          "output_artifact": {
+            "byte_length": 86,
+            "media_type": "application/json",
+            "preview": "{\"output\":\"测试完成\",\"schema\":\"unchain.graph_step_output.v1\",\"status\":\"completed\"}",
+            "ref": "pupu://artifact/artifact-bb655c72caa73a685cdf1ff7220c1e1e495d9c76a5f4b70a888992aeba010105@1",
+            "schema": "unchain.artifact_ref.v1",
+            "sha256": "f2307a88560e9e0e8c39a30d37f188b59344b94cb1ba17016266bf6b4855471c"
+          },
+          "source_event_range": {
+            "end": {
+              "event_id": "event-d1dd265f4bfebb24217e9b3324ace236cead77d0bf46952a8edfbccefc8121b4",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 69
+            },
+            "schema": "unchain.event_range.v1",
+            "start": {
+              "event_id": "event-d1dd265f4bfebb24217e9b3324ace236cead77d0bf46952a8edfbccefc8121b4",
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 69
+            }
+          },
+          "status": "completed",
+          "type": "graph.execution.completed"
+        },
+        "event_id": "event-2dd9fbab5d53a0af48e3c403ef9817ac555aecb734e5edce8f5a537c4a9627b7",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 70,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "180fe8eba972153578b06a35aa3181993319bcf412c8b6d5854b4dffdd04098a",
+        "ref": "pupu://context/event/event-2dd9fbab5d53a0af48e3c403ef9817ac555aecb734e5edce8f5a537c4a9627b7",
+        "run_id": "unchain-1789173897332-cdf08a067f673",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 70,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "graph.execution.completed",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789173897332-cdf08a067f673",
+        "cursor": 71,
+        "event": {
+          "content": "测试完成",
+          "iteration": 1,
+          "run_id": "unchain-1789173897332-cdf08a067f673",
+          "type": "final_message"
+        },
+        "event_id": "event-a1ce61bf081091dfcdf1dc9b61b93061ec5b8db4e0a7d7e49401431ba11e73ac",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 71,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "23fd57cc941ef97ede1108cc75bf749e4ef7e01c4db867854211a2378b5b61fc",
+        "ref": "pupu://context/event/event-a1ce61bf081091dfcdf1dc9b61b93061ec5b8db4e0a7d7e49401431ba11e73ac",
+        "run_id": "unchain-1789173897332-cdf08a067f673",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 71,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "final_message",
+        "visibility": "trace"
+      },
+      {
+        "agent_id": "",
+        "attempt_id": "unchain-1789173897332-cdf08a067f673",
+        "cursor": 72,
+        "event": {
+          "iteration": 1,
+          "run_id": "unchain-1789173897332-cdf08a067f673",
+          "status": "completed",
+          "type": "run_completed"
+        },
+        "event_id": "event-a93d896e25d153bef400c1b0a17bc0ef3c6f05e2cc903ca21889b2c51d206fec",
+        "generation_id": "pupu-bootstrap-generation-9c4dda4835a3c8e485ac78018342cfe6bed026a665bb01955679038ed00089a6",
+        "journal_seq": 72,
+        "occurred_at": "",
+        "parent_run_id": "",
+        "payload_hash": "8c59b8a7565d56c9c0acca8eba60046e4c9fde14fe9dae0f147ac82100038c8e",
+        "ref": "pupu://context/event/event-a93d896e25d153bef400c1b0a17bc0ef3c6f05e2cc903ca21889b2c51d206fec",
+        "run_id": "unchain-1789173897332-cdf08a067f673",
+        "session_id": "chat-1789171864596-0b9fbabf860b48",
+        "source_seq": null,
+        "store_seq": 72,
+        "tool_call_id": "",
+        "turn_id": "",
+        "type": "run_completed",
+        "visibility": "trace"
+      }
+    ],
+    "has_more": false,
+    "next_after": 72,
+    "owner_chat_id": "chat-1789171864596-0b9fbabf860b48"
+  },
+  "text": "PUPU\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n本轮测试结束。只回复“测试完成”，不要调用工具。\nanother execution currently owns this session\n本轮测试结束。只回复“测试完成”，不要调用工具。\nDone · 130.6s\nMemory V2 · Complete\ndetail\nActive\n13,750 in · 298 out · 14,048 total\n\n测试完成\n\nTop\nPrev\nNext\nEnd\n/\nCOMMANDS · ↑↓ · ⏎\nORGANIZE\nqwen3:32b\n42\n1\nCurrent model does not support image or file inputs.\nPlugins\nWorkspaces\nCHATS\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n0m\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n36m\nSettings"
+}

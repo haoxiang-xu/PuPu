@@ -61,6 +61,15 @@ const ArrowRight = (props) => (
     <path d="M13.1717 12.0007L8.22192 7.05093L9.63614 5.63672L16.0001 12.0007L9.63614 18.3646L8.22192 16.9504L13.1717 12.0007Z"></path>
   </svg>
 );
+const ListSettings = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M2 18H9V20H2V18ZM2 11H11V13H2V11ZM2 4H22V6H2V4ZM20.674 13.0251L21.8301 12.634L22.8301 14.366L21.914 15.1711C21.9704 15.4386 22 15.7158 22 16C22 16.2842 21.9704 16.5614 21.914 16.8289L22.8301 17.634L21.8301 19.366L20.674 18.9749C20.2635 19.3441 19.7763 19.6295 19.2391 19.8044L19 21H17L16.7609 19.8044C16.2237 19.6295 15.7365 19.3441 15.326 18.9749L14.1699 19.366L13.1699 17.634L14.086 16.8289C14.0296 16.5614 14 16.2842 14 16C14 15.7158 14.0296 15.4386 14.086 15.1711L13.1699 14.366L14.1699 12.634L15.326 13.0251C15.7365 12.6559 16.2237 12.3705 16.7609 12.1956L17 11H19L19.2391 12.1956C19.7763 12.3705 20.2635 12.6559 20.674 13.0251ZM18 18C19.1046 18 20 17.1046 20 16C20 14.8954 19.1046 14 18 14C16.8954 14 16 14.8954 16 16C16 17.1046 16.8954 18 18 18Z"></path>
+  </svg>
+);
 const QueueArrow = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -641,14 +650,19 @@ const Key = (props) => (
     <path d="M10.313 11.5656L18.253 3.62561L20.3744 5.74693L18.9602 7.16114L21.0815 9.28246L17.5459 12.818L15.4246 10.6967L12.4343 13.687C13.4182 15.5719 13.1186 17.9524 11.5355 19.5355C9.58291 21.4881 6.41709 21.4881 4.46447 19.5355C2.51184 17.5829 2.51184 14.4171 4.46447 12.4644C6.04755 10.8814 8.42809 10.5818 10.313 11.5656ZM9.41421 17.4142C10.1953 16.6331 10.1953 15.3668 9.41421 14.5858C8.63316 13.8047 7.36684 13.8047 6.58579 14.5858C5.80474 15.3668 5.80474 16.6331 6.58579 17.4142C7.36684 18.1952 8.63316 18.1952 9.41421 17.4142Z"></path>
   </svg>
 );
-/* Kimi (Moonshot AI) wordmark — simple-icons (CC0-1.0), https://simpleicons.org/icons/kimi.svg */
+/* Kimi (Moonshot AI) wordmark — simple-icons (CC0-1.0), https://simpleicons.org/icons/kimi.svg
+   The upstream path fills the whole 24-unit box edge to edge, so next to the
+   other brand marks (which sit inside ~15–18 units) it read a size too big.
+   Scaled to 78% and centred; the path data itself is untouched. */
 const Kimi = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21.765.351C22.998.351 24 1.353 24 2.586S22.998 4.82 21.765 4.82h-1.974c-.15 0-.26-.12-.26-.26V2.586A2.237 2.237 0 0 1 21.765.35M9.41 13.388l8.447-8.377c.16-.16.07-.471-.14-.471h-4.55s-.1.02-.14.06l-9.099 9.029c-.14.14-.35.02-.35-.21V4.81c0-.15-.1-.27-.221-.27H.22c-.12 0-.22.12-.22.27v18.57c0 .15.1.27.22.27h3.137c.12 0 .22-.12.22-.27v-3.79c0-.08.03-.16.08-.21l2.826-2.796c.07-.07.16-.08.241-.03l7.546 5.551a8.9 8.9 0 0 0 4.018 1.493c.12.01.23-.11.23-.27V19.76c0-.14-.08-.25-.19-.26a5.8 5.8 0 0 1-2.355-.942l-6.533-4.73c-.14-.09-.15-.32-.03-.441"></path>
+    <g transform="translate(2.64 2.64) scale(0.78)">
+      <path d="M21.765.351C22.998.351 24 1.353 24 2.586S22.998 4.82 21.765 4.82h-1.974c-.15 0-.26-.12-.26-.26V2.586A2.237 2.237 0 0 1 21.765.35M9.41 13.388l8.447-8.377c.16-.16.07-.471-.14-.471h-4.55s-.1.02-.14.06l-9.099 9.029c-.14.14-.35.02-.35-.21V4.81c0-.15-.1-.27-.221-.27H.22c-.12 0-.22.12-.22.27v18.57c0 .15.1.27.22.27h3.137c.12 0 .22-.12.22-.27v-3.79c0-.08.03-.16.08-.21l2.826-2.796c.07-.07.16-.08.241-.03l7.546 5.551a8.9 8.9 0 0 0 4.018 1.493c.12.01.23-.11.23-.27V19.76c0-.14-.08-.25-.19-.26a5.8 5.8 0 0 1-2.355-.942l-6.533-4.73c-.14-.09-.15-.32-.03-.441"></path>
+    </g>
   </svg>
 );
 const Link = (props) => (
@@ -1313,6 +1327,35 @@ const Windows = (props) => (
     <path d="M3.00098 5.47902L10.3778 4.4625V11.5902H3.00098V5.47902ZM3.00098 18.521L10.3778 19.5375V12.4982H3.00098V18.521ZM11.1894 19.646L21.001 21V12.4982H11.1894V19.646ZM11.1894 4.35402V11.5902H21.001V3L11.1894 4.35402Z"></path>
   </svg>
 );
+/* Linux (GNOME / libadwaita) window controls: the symbolic glyphs that sit
+   in Adwaita's round headerbar buttons — a heavier ×, a low horizontal bar
+   for minimize, a square for maximize, two offset squares for restore. */
+const LinuxCloseButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M4.25 4.25L11.75 11.75M11.75 4.25L4.25 11.75"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const LinuxMinimizeButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 11.25H12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const LinuxMaximizeButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="8" height="8" rx="0.75" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const LinuxRestoreButton = (props) => (
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3.5" y="5.5" width="7" height="7" rx="0.75" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M6 3.5H11.75C12.164 3.5 12.5 3.836 12.5 4.25V10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
 const WindowsCloseButton = (props) => (
   <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -1543,6 +1586,7 @@ const UISVGs = {
   color: Color,
   copy: Copy,
   discover: Discover,
+  list_settings: ListSettings,
   storefront: Storefront,
   bar_chart: BarChart,
   data: Data,
@@ -1645,6 +1689,10 @@ const UISVGs = {
   upload: Upload,
   verified: Verified,
   warning: Warning,
+  linux_close_button: LinuxCloseButton,
+  linux_maximize_button: LinuxMaximizeButton,
+  linux_minimize_button: LinuxMinimizeButton,
+  linux_restore_button: LinuxRestoreButton,
   windows_close_button: WindowsCloseButton,
   windows_maximize_button: WindowsMaximizeButton,
   windows_minimize_button: WindowsMinimizeButton,

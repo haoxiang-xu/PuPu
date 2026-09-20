@@ -1,0 +1,93 @@
+{
+  "toolkitId": "skillpack.prompt-master",
+  "catalog": {
+    "id": "skillpack.prompt-master",
+    "title": "Prompt Master",
+    "titleZh": "\u63d0\u793a\u8bcd\u5927\u5e08",
+    "blurb": "Turns rough ideas into production-ready prompts \u2014 routed and tuned per target AI tool, with a 37-pattern failure diagnostic.",
+    "blurbZh": "\u628a\u7c97\u7cd9\u60f3\u6cd5\u6253\u78e8\u6210\u53ef\u76f4\u63a5\u7c98\u8d34\u7684\u751f\u4ea7\u7ea7\u63d0\u793a\u8bcd:\u6309\u76ee\u6807 AI \u5de5\u5177\u9010\u4e00\u8def\u7531\u8c03\u4f18,\u5185\u7f6e\u5931\u8d25\u6a21\u5f0f\u8bca\u65ad\u6e05\u5355\u3002",
+    "gradient": [
+      "#f59e0b",
+      "#b45309"
+    ],
+    "source": {
+      "provider": "github",
+      "repo": "nidhinjs/prompt-master",
+      "sha": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+      "license": "MIT"
+    },
+    "subset": [
+      "prompt-master"
+    ],
+    "manifest": [
+      {
+        "path": "SKILL.md",
+        "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b"
+      }
+    ],
+    "review": {
+      "recordId": "S5-2026-07-21-prompt-master",
+      "reviewedAt": "2026-07-21",
+      "reviewers": [
+        "claude-fable-5"
+      ]
+    },
+    "commandPreviews": [
+      {
+        "name": "prompt-master",
+        "description": "Route and tune prompts per target AI tool, with a 37-pattern failure diagnostic",
+        "descriptionZh": "\u6309\u76ee\u6807 AI \u5de5\u5177\u8def\u7531\u8c03\u4f18,\u5185\u7f6e 37 \u79cd\u5931\u8d25\u6a21\u5f0f\u8bca\u65ad"
+      }
+    ]
+  },
+  "checkedAt": "2026-09-13T18:37:00.074963+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "skill-pack",
+  "download": "https://codeload.github.com/nidhinjs/prompt-master/tar.gz/d15eabbe5d2122eedc060bae8a771381e9873d1b",
+  "commit": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+  "artifactSha256": "bde682e56eb53dc2442121983746b2e5eba58c6b34c1e6d6593f307ae817088e",
+  "files": [
+    {
+      "path": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b/LICENSE",
+      "sha256": "29e8ba0b54274eaa92b7cb074fe1765ba7b83993e0d2605e5308c6972a47daa7",
+      "size": 1077
+    },
+    {
+      "path": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b/README.md",
+      "sha256": "0990269b91ccbcd50e6574bd89edbf176043e097cf1584a5746240bc473afefc",
+      "size": 21020
+    },
+    {
+      "path": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b/SKILL.md",
+      "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b",
+      "size": 27165
+    },
+    {
+      "path": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b/references/patterns.md",
+      "sha256": "2d2eb623396ce5edade402cfcafbd457af093cf85fa5966c34c210e58ce1f9d1",
+      "size": 6083
+    },
+    {
+      "path": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b/references/templates.md",
+      "sha256": "0850a3871058077bfc6a16372fa3beb28d81f02baab8d42d3607ddc3a681ae67",
+      "size": 16650
+    }
+  ],
+  "manifestChecks": [
+    {
+      "path": "SKILL.md",
+      "expected": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b",
+      "actual": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b",
+      "match": true
+    }
+  ],
+  "archiveRoot": "prompt-master-d15eabbe5d2122eedc060bae8a771381e9873d1b",
+  "skippedArchiveLinks": [],
+  "initialAcquisitionError": null,
+  "selected": [
+    {
+      "path": "SKILL.md",
+      "bytes": 27165
+    }
+  ]
+}

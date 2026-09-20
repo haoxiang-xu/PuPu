@@ -133,6 +133,7 @@ const MCP_ICONS_META_KEYS = Object.freeze({
 const SENSITIVE_MODEL_PROVIDER_KEYS = Object.freeze([
   "openai_api_key",
   "anthropic_api_key",
+  "gemini_api_key",
   "custom_provider_secrets",
 ]);
 const MODEL_PROVIDERS_NAMESPACE = "model_providers";
@@ -152,7 +153,7 @@ const PROVIDER_CREDENTIAL_LIMITS = Object.freeze({
   OWNER_ID_MAX_LENGTH: 200,
 });
 const OFFICIAL_PROVIDER_CREDENTIAL_OWNERS = Object.freeze(
-  new Set(["openai", "anthropic"]),
+  new Set(["openai", "anthropic", "gemini"]),
 );
 const CUSTOM_PROVIDER_CREDENTIAL_OWNER_PATTERN =
   /^custom\.([a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?)$/;
@@ -2982,6 +2983,7 @@ const createSettingsStorageService = ({
     };
     pushTarget("provider", "openai", "openai", credentials.openai);
     pushTarget("provider", "anthropic", "anthropic", credentials.anthropic);
+    pushTarget("provider", "gemini", "gemini", credentials.gemini);
     const customMap = isPlainObject(credentials.custom)
       ? credentials.custom
       : {};

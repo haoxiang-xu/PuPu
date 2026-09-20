@@ -69,6 +69,9 @@ export async function startQualificationFeedServer({ feedDir, manifest, contract
     "qualification-feed.v1.json",
   ]);
   const requests = [];
+  const activeStreams = new Map();
+  let closing = false;
+  let closePromise;
 
   const server = http.createServer((request, response) => {
     const method = request.method || "";
@@ -86,6 +89,11 @@ export async function startQualificationFeedServer({ feedDir, manifest, contract
       });
     };
 
+    if (closing) {
+      finish(503);
+      response.end();
+      return;
+    }
     if (method !== "GET" && method !== "HEAD") {
       finish(405, { Allow: "GET, HEAD" });
       response.end();
@@ -120,6 +128,13 @@ export async function startQualificationFeedServer({ feedDir, manifest, contract
       return;
     }
     const stream = fs.createReadStream(filePath, { start, end });
+    const closed = new Promise((resolve) => stream.once("close", () => {
+      activeStreams.delete(stream);
+      resolve();
+    }));
+    activeStreams.set(stream, closed);
+    // pipe() does not close its source when the downloader disconnects.
+    response.once("close", () => stream.destroy());
     stream.on("error", () => {
       if (!response.headersSent) finish(500);
       response.end();
@@ -137,7 +152,18 @@ export async function startQualificationFeedServer({ feedDir, manifest, contract
     feed,
     requests,
     url: `http://${LOOPBACK_HOST}:${address.port}`,
-    close: () => closeServer(server),
+    close: () => {
+      if (!closePromise) {
+        closing = true;
+        const stopped = closeServer(server);
+        const streamsClosed = [...activeStreams.values()];
+        for (const stream of activeStreams.keys()) stream.destroy();
+        server.closeAllConnections();
+        // Listener shutdown alone does not release Windows file handles.
+        closePromise = Promise.all([stopped, ...streamsClosed]).then(() => undefined);
+      }
+      return closePromise;
+    },
   };
 }
 
@@ -198,7 +224,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     args = parseArgs(process.argv.slice(2));
     const candidateDir = path.resolve(args["candidate-dir"]);
     const manifest = readJson(path.join(candidateDir, "release-assets.v1.json"));
-    const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+    const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
     server = await startQualificationFeedServer({
       feedDir: args["feed-dir"],
       manifest,

@@ -1,0 +1,285 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/chat.test.js --testNamePattern=keeps a failed durable human-input|seals a cold recorded receipt
+
+FAIL src/PAGEs/chat/chat.test.js (7.82 s)
+  ChatInterface stop flow
+    ✕ keeps a failed durable human-input request actionable and records its submitted answer as confirmed (1138 ms)
+    ✕ seals a cold recorded receipt before relaying its exact queued successor (21 ms)
+    ○ skipped boot-loading gate: marks store hydration at 80% and signals ready exactly once on mount (S2->S3)
+    ○ skipped Test API starts, reads, and cancels only the addressed chat attempt
+    ○ skipped blocking Test API messages stay bound to their chat after switching
+    ○ skipped keeps an exact Test API cancellation terminal when the stream event wins the race
+    ○ skipped Test API same-tick activation starts each chat with its exact stored run config
+    ○ skipped treats a V4 done error as failed and never as a successful Test API run
+    ○ skipped blocking Test API resolves a successful artifact-only run with empty text
+    ○ skipped stopping a stream removes empty assistant placeholders without render-phase warnings
+    ○ skipped stopping a V4 run cancels the exact backend attempt before disconnecting transport
+    ○ skipped a failed V4 cancellation retries the old attempt without disconnecting a newer attempt
+    ○ skipped commits a transient first turn before an immediate chat switch
+    ○ skipped isolates concurrent V4 token, subagent, Stop, and late-callback state by chat
+    ○ skipped late callbacks from a stopped run do not affect the next explicit turn
+    ○ skipped stopping while an interject is pending ignores a late new-run result
+    ○ skipped passes the floating input height to ChatMessages as bottom inset
+    ○ skipped prefills the composer when the Plugins modal dispatches a Try-in-chat event
+    ○ skipped animates the chat surface offset when the side menu changes
+    ○ skipped disables send when no model is selected
+    ○ skipped hides and omits toolkits when selected model does not support tools
+    ○ skipped character chats hide model/tools/workspace selectors and inject character config into stream
+    ○ skipped blocks a second send while character preflight has no stream handle
+    ○ skipped persists an optimistic character turn before pending preflight unmounts
+    ○ skipped reattaches a persisted V4 attempt without starting a duplicate turn
+    ○ skipped keeps a reattached terminal stream pending until canonical accounting is durable
+    ○ skipped restores an unresolved replay interaction with exact chat ownership
+    ○ skipped keeps a replayed run failure terminal when the transport sends done
+    ○ skipped persists admitted accounting for a reattached failed canonical run
+    ○ skipped fails closed when reattached failed-run accounting rejects
+    ○ skipped preserves cancelled semantics when an attached stream is cancelled
+    ○ skipped persists exact V4 identity before an immediate unmount and reattaches
+    ○ skipped settles a missing replay once and never restarts the execution
+    ○ skipped restores a character draft when preflight fails after switching chats
+    ○ skipped clears the originating draft when attachment hydration finishes in the background
+    ○ skipped does not clear a newer originating draft after delayed attachment hydration
+    ○ skipped does not restore an old character draft after delayed preflight fails
+    ○ skipped does not resurrect a sent draft after an inactive type-and-erase ABA edit
+    ○ skipped does not clear a newer character draft when delayed preflight defers
+    ○ skipped character chat defer decisions reply locally without starting a stream
+    ○ skipped persists agent orchestration while leaving legacy token usage read-only
+    ○ skipped records a synthetic confirmation decision as soon as approval is accepted
+    ○ skipped rehydrates an awaiting durable interaction without cancelling or auto-resuming it
+    ○ skipped cold fresh send seals the exact awaiting attempt before starting one normal run
+    ○ skipped fresh send fails closed when authoritative lookup still reports the paused run
+    ○ skipped rolls back an unacknowledged mutation when an authoritative pending attempt owns the chat
+    ○ skipped stopping a recovered durable wait cancels its source attempt without a live stream handle
+    ○ skipped seals a recorded durable receipt on reload without auto-resuming
+    ○ skipped keeps an explicit durable tool-approval denial denied
+    ○ skipped retries sealing a durable receipt after a transient cancellation failure
+    ○ skipped adopts a newer awaiting interaction instead of retrying a stale durable receipt
+    ○ skipped waits for an authoritative lookup retry instead of replaying a stale receipt
+    ○ skipped reconciles a missing stale interaction without surfacing a terminal error
+    ○ skipped seals a replacement recorded interaction without resuming either receipt
+    ○ skipped stopping a durable cancellation retry prevents any later auto-resume
+    ○ skipped stopping an in-flight durable lookup ignores a late recorded receipt
+    ○ skipped keeps a late background receipt seal scoped to its original chat
+    ○ skipped stops retrying when another executor has already completed the durable run
+    ○ skipped sealing after a durable decision does not append a duplicate user message
+    ○ skipped does not start a second stream when a live confirmation continues
+    ○ skipped keeps a durable card actionable when confirmation admission fails closed
+    ○ skipped seals an authoritative recorded receipt once even while the old stream flag is stale
+    ○ skipped keeps pending confirmations isolated while two chats stream
+    ○ skipped uses the exact confirmation request when root and subagent tool calls share a call id
+    ○ skipped caches only the targeted subagent tool key when a root call id collides
+    ○ skipped keeps session-scoped tool approvals with their originating chat
+    ○ skipped does not cache a session approval when confirmation submission fails
+    ○ skipped keeps a durable resolution on the assistant bubble that owns the request
+    ○ skipped keeps low-risk shell tool calls in assistant trace frames
+    ○ skipped replaces a bare shell tool call with the enriched confirmation frame
+    ○ skipped auto-approves matching tools without exposing pending confirmation UI
+    ○ skipped auto-approve submission failure restores manual confirmation state
+    ○ skipped persists selector responses in synthetic confirmation trace frames
+    ○ skipped pins the disabled memory snapshot into the stream payload
+    ○ skipped retries once with history when memory is unavailable
+    ○ skipped keeps a V2 FYI durable across a memory fallback attempt
+    ○ skipped ignores a late interject response after a V4 retry changes attempt owner
+    ○ skipped keeps a queued background follow-up on its original chat model
+    ○ skipped keeps a background memory retry on its original chat model
+    ○ skipped stores child lifecycle metadata and child shell trace frames separately from the main trace
+    ○ skipped logs request_messages with a compact summary instead of full transcript
+    ○ skipped routes child ask_user_question frames to subagent timelines
+    ○ skipped keeps child final messages out of the main trace when lifecycle metadata arrives later
+    ○ skipped prefers runtime event stream v4 and stores run-level artifact summaries
+    ○ skipped does not store or expose legacy plan doc artifacts
+    ○ skipped batches token updates per animation frame and flushes pending tokens on done
+    ○ skipped suppresses child token deltas while keeping parent token streaming intact
+    ○ skipped stores the done bundle on the assistant message
+    ○ skipped keeps legacy done usage read-only during the RunBundle v1 cutover
+    ○ skipped projects a canonical done bundle into the keyed RunBundle store
+    ○ skipped keeps the assistant streaming until canonical accounting is durable
+    ○ skipped turns accounting rejection into a terminal error without persisting raw bundle
+    ○ skipped persists admitted V2 failed-run accounting before publishing the error
+    ○ skipped holds a V4 run.failed projection until failed accounting is durable
+    ○ skipped fails closed when failed-run accounting rejects without persisting raw evidence
+    ○ skipped uses the trace-frame iteration for continuation prompts
+    ○ skipped keeps continuation prompts scoped to the chat that emitted them
+    ○ skipped ignores a stale continuation decision and clears the active prompt on done
+    ○ skipped preserves a newer continuation prompt while an older decision settles
+    ○ skipped clears only the background chat continuation prompt on transport error
+    ○ skipped retries a retryable revision conflict with the same mutation operation
+    ○ skipped resend replaces short-term memory before starting a new stream
+    ○ skipped edit replaces short-term memory before starting a new stream
+    ○ skipped resend and edit lock the chat across async memory replacement
+    ○ skipped retains a queued relay while a resend owns the chat and sends it once after release
+    ○ skipped does not relay a consumed queue item again after stream startup throws
+    ○ skipped releases a pre-outbox mutation owner after unmount so a remount can retry
+    ○ skipped delete removes the containing turn and syncs remaining memory
+    ○ skipped delete locks the chat until async memory replacement commits
+    ○ skipped deleting a streaming assistant turn cancels the stream before replacing memory
+    ○ skipped resend skips session replacement when memory is disabled
+    ○ skipped queue relay fails closed without a proven execution session owner
+    ○ skipped queue relay fails closed when exact session owners disagree
+    ○ skipped holds an exact queued successor behind an authoritative suspended interaction
+    ○ skipped keeps a queued successor when a wrong-session none conflicts with its bound run
+    ○ skipped keeps the exact relay outbox queued while authoritative lookup fails
+    ○ skipped returned relay handle keeps the new-attempt outbox until authoritative acceptance
+    ○ skipped silent queue relay retries only after the first pre-register cancellation tombstone proves it never registered
+    ○ skipped silent queue relay retries only after an idempotent never-registered cancellation snapshot proves it never registered
+    ○ skipped silent queue relay stays fail-closed when exact cancellation is applied/cancelled
+    ○ skipped silent queue relay stays fail-closed when exact cancellation is already_terminal/completed
+    ○ skipped silent queue relay stays fail-closed when exact cancellation is unchanged/cancelled
+    ○ skipped never auto-retries a never-registered queue relay stopped by app_windows_closed
+    ○ skipped never auto-retries a never-registered queue relay stopped by system_suspend
+    ○ skipped queue relay replay gaps cancel exact ownership and never auto-retry
+    ○ skipped late acceptance during exact cancellation terminalizes locally without retrying
+    ○ skipped partial replay acceptance followed by attach failure cannot strand a stream
+    ○ skipped synchronous relay acceptance before handle return is never rebound
+    ○ skipped pre-acceptance lease conflict retries once under the rebound owner
+    ○ skipped an older relay cleanup cannot delete a newer relay outbox
+    ○ skipped an accepted relay cleanup cannot delete a clarify fallback replacement buffer
+    ○ skipped pending Test API cancel fences a relay lease-conflict retry
+    ○ skipped reattach relay survives an immediate remount without duplicate or stale outbox
+    ○ skipped reattach lease conflict retries the exact relayed turn without duplicating it
+    ○ skipped reattach keeps a relayed turn fail-closed on an unknown transport error
+    ○ skipped remount rebuilds the acceptance watchdog for a silent relayed attempt
+    ○ skipped remount safely retries a cancelled relayed attempt from its never-registered tombstone
+    ○ skipped reattach done ACKs relayed items and sends only the queued remainder
+    ○ skipped preserves an exact queued attempt when reattach ends in error
+    ○ skipped Stop clears the durable queue for the exact attached attempt
+    ○ skipped binds a pre-identity queue to the returned attempt before immediate remount
+    ○ skipped persists a pre-identity queue before a pending character preflight unmounts
+    ○ skipped keeps the composer and hides fake queue state when the outbox is full
+    ○ skipped keeps the composer and hides fake queue state when the outbox write fails
+    ○ skipped moves a relayed parent queue remainder to the successor attempt
+    ○ skipped durably falls a pending clarify back to its exact queue on terminal
+    ○ skipped persists an addressed FYI before dispatch and clears only its exact acknowledgement
+    ○ skipped durably ACKs a duplicate child FYI and keeps one stable replay after immediate remount
+    ○ skipped keeps a failed child FYI persistence in its durable queue fallback without ACK
+    ○ skipped keeps the FYI composer intact when its durable prewrite fails
+    ○ skipped falls an unacknowledged FYI into its source queue before terminal relay
+    ○ skipped keeps a late new-run interject result bound to its source chat
+    ○ skipped persists a late BTW result on its terminal owner before removing fallback
+    ○ skipped holds terminal relay for a delayed clarify-owned BTW and records it once
+    ○ skipped relays one queued successor when a clarify-owned BTW rejects after done
+    ○ skipped times out a hung clarify-owned BTW and releases one queued successor
+    ○ skipped atomically replaces clarify with one FYI before HTTP and preserves it on failure
+    ○ skipped a late clarify-owned BTW cannot write into a newer run generation
+    ○ skipped removes an error fallback when its delayed clarify-owned BTW succeeds
+    ○ skipped reconciles a persisted BTW receipt before remount queue recovery
+    ○ skipped does not reconcile a partial persisted BTW receipt
+    ○ skipped tombstones a stopped hung BTW before a successor starts its own BTW
+    ○ skipped keeps an existing queue visible when a BTW intent transition cannot persist
+    ○ skipped removes a queue-only FYI fallback when persisted replay evidence already acknowledged it
+
+  ● ChatInterface stop flow › keeps a failed durable human-input request actionable and records its submitted answer as confirmed
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: {"attempt_id": "attempt-human-input-after-error", "idempotency_key": "interaction-pause:attempt-human-input-after-error:interaction-human-input-after-error", "interaction_id": "interaction-human-input-after-error", "owner_chat_id": "chat-1789177636776-6a273f73b0bf4", "reason": "interaction_suspended", "session_id": "chat-1789177636776-6a273f73b0bf4", "source_attempt_id": "attempt-human-input-after-error"}
+
+    Number of calls: 0
+
+    Ignored nodes: comments, script, style
+    [36m<html>[39m
+      [36m<head />[39m
+      [36m<body>[39m
+        [36m<div>[39m
+          [36m<div[39m
+            [33mdata-chat-id[39m=[32m"chat-1789177636776-6a273f73b0bf4"[39m
+            [33mstyle[39m=[32m"position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: hidden; display: flex; flex-direction: column; font-family: inherit; transition: left 0.3s ease;"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maccept[39m=[32m"image/*,.pdf,application/pdf"[39m
+              [33mmultiple[39m=[32m""[39m
+              [33mstyle[39m=[32m"display: none;"[39m
+              [33mtype[39m=[32m"file"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mdata-testid[39m=[32m"chat-smooth-resize-frame"[39m
+              [33mstyle[39m=[32m"position: absolute; overflow: hidden; transform: translate3d(0, 0, 0); transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1), height 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; left: 0px; top: 0px; width: 1024px; height: 768px; will-change: width, height, transform;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"chat-messages"[39m
+              [36m>[39m
+                [36m<div>[39m
+                  [0muser[0m
+                  [0m:[0m
+                  [0mAsk me which stack to use[0m
+                  [0m:[0m
+                  [0mdone[0m
+                [36m</div>[39m
+                [36m<div>[39m
+                  [0massistant[0m
+                  [0m:[0m
+                  [0m:[0m
+                  [0mstreaming[0m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"position: absolute; left: 0px; right: 0px; bottom: 0px; z-index: 5;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mstyle[39m=[32m"position: absolute; inset: 0; pointer-events: none;"[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"position: relative;"[39m
+                [36m>[39m
+                  [36m<div>[39m
+                    [36m<input[39m
+                      [33mdata-testid[39m=[32m"chat-input"[39m
+                      [33mvalue[39m=[32m""[39m
+                    [36m/>[39m
+                    [36m<button[39m
+                      [33mdata-testid[39m=[32m"send-button"[39m
+                    [36m>[39m
+                      [0mSend[0m
+                    [36m</button>[39m
+                    [36m<button[39m
+                      [33mdata-testid[39m=[32m"stop-button"[39m
+                    [36m>[39m
+                      [0mStop[0m
+                    [36m</button>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</body>[39m
+    [36m</html>[39m
+
+      3771 |
+      3772 |     await waitFor(() => {
+    > 3773 |       expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith({
+           |                                                 ^
+      3774 |         owner_chat_id: sessionId,
+      3775 |         session_id: sessionId,
+      3776 |         attempt_id: sourceRunId,
+
+      at src/PAGEs/chat/chat.test.js:3773:49
+      at runWithExpensiveErrorDiagnosticsDisabled (node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (node_modules/jsdom/lib/jsdom/browser/Window.js:516:19)
+
+  ● ChatInterface stop flow › seals a cold recorded receipt before relaying its exact queued successor
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 2
+
+      9360 |       ),
+      9361 |     ).toBe(false);
+    > 9362 |     expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+           |                                               ^
+      9363 |     expect(readQueuedTurnsForAttempt(chatId, "attempt-reattach")).toBeNull();
+      9364 |   });
+      9365 |
+
+      at Object.<anonymous> (src/PAGEs/chat/chat.test.js:9362:47)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 162 skipped, 164 total
+Snapshots:   0 total
+Time:        12.982 s, estimated 58 s
+Ran all test suites within paths "src/PAGEs/chat/chat.test.js".

@@ -3,6 +3,11 @@ import PluginsDiscoverPage from "./plugins_discover_page";
 import api from "../../../SERVICEs/api";
 import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked — same rationale as
    plugins_installed_page.test.js: the vocabulary assertion reads rendered
    TEXT and an identity-key mock would leak i18n key NAMES (which themselves
@@ -395,5 +400,29 @@ describe("PluginsDiscoverPage — install error strip", () => {
     });
 
     expect(screen.getByText("Install failed: network error")).toBeInTheDocument();
+  });
+});
+
+describe("PluginsDiscoverPage — trust badges", () => {
+  beforeEach(() => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
+    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
+    loadStoreCuration.mockReturnValue(FULL_CURATION);
+  });
+
+  test("keeps trust badges out of the hero, essentials and expanded collection", async () => {
+    const onOpenDetail = jest.fn();
+    const onInstall = jest.fn();
+    await renderPage({ onOpenDetail, onInstall });
+
+    const hero = screen.getByTestId("discover-featured-aurora");
+    expect(within(hero).queryByTestId("plugin-trust-badge")).toBeNull();
+    const essential = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
+    expect(within(essential).queryByTestId("plugin-trust-badge")).toBeNull();
+    fireEvent.click(screen.getByTestId("collection-web-research-kit"));
+    expect(screen.queryByTestId("plugin-trust-badge")).toBeNull();
+
+    expect(onOpenDetail).not.toHaveBeenCalled();
+    expect(onInstall).not.toHaveBeenCalled();
   });
 });

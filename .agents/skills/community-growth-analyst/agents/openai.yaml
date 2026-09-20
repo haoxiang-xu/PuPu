@@ -1,0 +1,4 @@
+interface:
+  display_name: "Community: Growth Analyst"
+  short_description: "Open-source COO growth analysis for PuPu"
+  default_prompt: "Use $community-growth-analyst to produce a founder-ready weekly COO growth report for PuPu."

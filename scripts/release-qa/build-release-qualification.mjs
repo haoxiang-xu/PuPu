@@ -100,7 +100,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     const reportsDir = path.resolve(args["reports-dir"]);
     const contract = readReleaseArtifactContract(path.join(
       ROOT,
-      "contracts/release/release-artifact-contract.v1.json",
+      "docs/contracts/release/release-artifact-contract.v1.json",
     ));
     const manifest = readJson(path.join(candidateDir, "release-assets.v1.json"));
     const reportPaths = listNamedFiles(reportsDir, "installed-package-qualification.json");

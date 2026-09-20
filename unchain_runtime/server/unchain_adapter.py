@@ -29,7 +29,7 @@ from mcp_toolkits import (
     get_installed_mcp_toolkit,
     list_installed_mcp_toolkits,
 )
-from skill_packs import list_installed_skill_packs
+from skill_packs import SKILL_PACK_ID_PREFIX, get_installed_skill_pack, list_installed_skill_packs
 from custom_provider import (
     CustomProviderConfig,
     CustomProviderError,
@@ -586,7 +586,7 @@ def _prepare_memory_v2_first_message_recall(
 
 def _memory_v2_provider_default(provider: str) -> Dict[str, str] | None:
     normalized = str(provider or "").strip().lower()
-    if normalized not in {"openai", "anthropic", "ollama"}:
+    if normalized not in {"openai", "anthropic", "ollama", "gemini"}:
         return None
     model_id = str(_provider_default_model(normalized) or "").strip()
     return (
@@ -1859,7 +1859,7 @@ def _is_execution_cancelled_error(error: BaseException | None) -> bool:
         )
     )
 
-_SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
+_SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama", "gemini"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
 _OLLAMA_EMBEDDING_FAMILY_PREFIXES = ("bert", "nomic-bert", "bge")
@@ -2013,6 +2013,7 @@ _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
 _GENERAL_MODEL_BY_PROVIDER = {
     "openai": "gpt-4.1",
     "anthropic": "claude-sonnet-4",
+    "gemini": "gemini-3.6-flash",
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
@@ -3061,6 +3062,8 @@ def _make_continuation_callback(
 
 
 def _provider_default_model(provider: str) -> str:
+    if provider == "gemini":
+        return "gemini-3.6-flash"
     if provider == "openai":
         return "gpt-5"
     if provider == "anthropic":
@@ -3133,14 +3136,14 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
             provider_part, model_part = model_id.split(":", 1)
             provider_candidate = provider_part.strip().lower()
             model_candidate = model_part.strip()
-            if provider_candidate in {"openai", "anthropic", "ollama"} and model_candidate:
+            if provider_candidate in {"openai", "anthropic", "ollama", "gemini"} and model_candidate:
                 overrides["provider"] = provider_candidate
                 overrides["model"] = model_candidate
         else:
             overrides["model"] = model_id
 
     provider_raw = options.get("provider")
-    if isinstance(provider_raw, str) and provider_raw.strip().lower() in {"openai", "anthropic", "ollama"}:
+    if isinstance(provider_raw, str) and provider_raw.strip().lower() in {"openai", "anthropic", "ollama", "gemini"}:
         overrides["provider"] = provider_raw.strip().lower()
 
     model_raw = options.get("model")
@@ -3150,7 +3153,7 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
             provider_part, model_part = model_value.split(":", 1)
             provider_candidate = provider_part.strip().lower()
             model_candidate = model_part.strip()
-            if provider_candidate in {"openai", "anthropic", "ollama"} and model_candidate:
+            if provider_candidate in {"openai", "anthropic", "ollama", "gemini"} and model_candidate:
                 overrides["provider"] = provider_candidate
                 overrides["model"] = model_candidate
             else:
@@ -3166,7 +3169,7 @@ def _get_runtime_config(
     cfg: "CustomProviderConfig | None" = None,
 ) -> Dict[str, str]:
     base_provider = os.environ.get("UNCHAIN_PROVIDER", "ollama").strip().lower() or "ollama"
-    provider = base_provider if base_provider in {"openai", "anthropic", "ollama"} else "ollama"
+    provider = base_provider if base_provider in {"openai", "anthropic", "ollama", "gemini"} else "ollama"
 
     provider_override = (overrides or {}).get("provider", "").strip().lower()
 
@@ -3185,13 +3188,13 @@ def _get_runtime_config(
             "source": "",
         }
 
-    if provider_override in {"openai", "anthropic", "ollama"}:
+    if provider_override in {"openai", "anthropic", "ollama", "gemini"}:
         provider = provider_override
 
     env_model = os.environ.get("UNCHAIN_MODEL", _provider_default_model(provider)).strip()
     model = env_model or _provider_default_model(provider)
 
-    if provider_override and provider_override in {"openai", "anthropic", "ollama"}:
+    if provider_override and provider_override in {"openai", "anthropic", "ollama", "gemini"}:
         model = _provider_default_model(provider_override)
 
     model_override = (overrides or {}).get("model", "").strip()
@@ -3617,6 +3620,7 @@ def get_capability_catalog() -> Dict[str, List[str]]:
     providers: Dict[str, List[str]] = {
         "openai": [],
         "anthropic": [],
+        "gemini": [],
         "ollama": [],
     }
 
@@ -3667,18 +3671,81 @@ def get_embedding_provider_catalog() -> Dict[str, List[str]]:
     return providers
 
 
-def get_max_context_window_tokens(
-    provider: str,
-    model: str,
-    cfg: "CustomProviderConfig | None" = None,
-) -> int:
-    """Look up max_context_window_tokens for a provider:model pair.
+# The context window PuPu requests from the built-in Ollama provider. Every
+# built-in Ollama chat request sends it as options.num_ctx and the compiler
+# budgets to the same number, so neither side can silently outrun the other
+# (#227). Without it the daemon applies its own default (4k on machines under
+# 24 GiB of VRAM per Ollama's docs) and drops the front of the prompt — the
+# system prompt and tool definitions — behind a normal HTTP 200. A catalog
+# entry can only lower this value, never raise it: the KV cache grows linearly
+# with num_ctx, and 32k is the largest window that keeps typical 8B-class
+# models resident on a 16-18 GiB consumer machine. See
+# docs/data-models/model-and-toolkit-catalog.md § "Ollama context window".
+_OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS = 32_768
 
-    When ``cfg`` is present the value comes from the custom provider's declared
-    model capabilities (normalizer guarantees a fallback, never 0; design §7.2).
+# Bounds for a window the user picks in the attach panel (options.contextWindow).
+# Below 2k nothing useful fits; above 1M nothing PuPu ships can be served.
+_CONTEXT_WINDOW_MIN_TOKENS = 2_048
+_CONTEXT_WINDOW_MAX_TOKENS = 1_048_576
+
+
+class InvalidContextWindowError(ValueError):
+    """options.contextWindow is present but not a usable window (fail closed)."""
+
+    code = "invalid_context_window"
+
+
+def _requested_context_window(options: object) -> int | None:
+    """The window the user picked for this request, validated, or None when absent."""
+    if not isinstance(options, dict) or "contextWindow" not in options:
+        return None
+    raw = options.get("contextWindow")
+    if raw is None:
+        return None
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or raw < _CONTEXT_WINDOW_MIN_TOKENS
+        or raw > _CONTEXT_WINDOW_MAX_TOKENS
+    ):
+        raise InvalidContextWindowError(
+            "contextWindow must be an integer between "
+            f"{_CONTEXT_WINDOW_MIN_TOKENS} and {_CONTEXT_WINDOW_MAX_TOKENS} tokens, got {raw!r}"
+        )
+    return raw
+
+
+def _host_context_window(options: object, provider: str, model: str) -> int | None:
+    """The user's window, but only for the model the chat actually selected.
+
+    Graph steps and subagents may resolve other models through the same
+    function; a window picked for the root model must not leak onto them.
     """
-    if cfg is not None:
-        return cfg.max_context_window_tokens(model)
+    requested = _requested_context_window(options)
+    if requested is None:
+        return None
+    selected = get_runtime_config(options if isinstance(options, dict) else None)
+    normalized_provider = str(provider or "").strip().lower()
+    if str(selected.get("provider", "") or "").strip().lower() != normalized_provider:
+        return None
+    if _normalize_provider_model_name(normalized_provider, str(selected.get("model", "") or "")) != _normalize_provider_model_name(normalized_provider, str(model or "")):
+        return None
+    return requested
+
+
+def _ollama_context_window_tokens(declared: int, requested: int | None = None) -> int:
+    """Window for a built-in Ollama model.
+
+    The user's pick (attach panel) beats PuPu's default; a catalog entry may
+    lower either of them, never raise them.
+    """
+    base = requested if requested else _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+    if declared > 0:
+        return min(declared, base)
+    return base
+
+
+def _catalog_model_context_window(provider: str, model: str) -> int:
     raw_catalog = _load_raw_capability_catalog()
     normalized_model = _normalize_provider_model_name(
         str(provider or "").strip().lower(),
@@ -3689,9 +3756,38 @@ def get_max_context_window_tokens(
         cap_model = _normalize_provider_model_name(cap_provider, model_name)
         if cap_provider == str(provider or "").strip().lower() and cap_model == normalized_model:
             val = caps.get("max_context_window_tokens")
-            if isinstance(val, (int, float)) and val > 0:
-                return int(val)
+            if isinstance(val, (int, float)) and not isinstance(val, bool) and val > 0:
+                try:
+                    return int(val)
+                except (OverflowError, ValueError):
+                    pass
     return 0
+
+
+def get_max_context_window_tokens(
+    provider: str,
+    model: str,
+    cfg: "CustomProviderConfig | None" = None,
+    *,
+    options: Dict[str, object] | None = None,
+) -> int:
+    """Resolve a catalog/custom window, or PuPu's explicit local-model window.
+
+    For a built-in Ollama model the value returned here is exactly what
+    ``_build_payload`` sends as ``options.num_ctx``, so the compiler budget
+    and the daemon agree: the user's ``options.contextWindow`` (validated,
+    only for the chat's selected model) or PuPu's default, capped by a
+    catalog entry when one exists (#227).
+    """
+    if cfg is not None:
+        return cfg.max_context_window_tokens(model)
+    declared = _catalog_model_context_window(provider, model)
+    if str(provider or "").strip().lower() == "ollama":
+        return _ollama_context_window_tokens(
+            declared,
+            _host_context_window(options, provider, model),
+        )
+    return declared
 
 
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
@@ -3716,6 +3812,13 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
         normalized_capabilities["computer_use"] = resolve_computer_use_capability(
             provider, normalized_model
         )
+        if provider == "ollama":
+            # The picker in the attach panel renders only for models that
+            # declare a default window, the way the effort row renders only
+            # for models that declare levels. Built-in Ollama only.
+            normalized_capabilities["default_context_window_tokens"] = (
+                _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+            )
         catalog[model_id] = normalized_capabilities
 
     # Live Ollama models may not exist in the packaged capability file.  Give
@@ -3730,6 +3833,10 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
             normalized_capabilities["computer_use"] = resolve_computer_use_capability(
                 provider, model
             )
+            if provider == "ollama":
+                normalized_capabilities["default_context_window_tokens"] = (
+                    _OLLAMA_DEFAULT_CONTEXT_WINDOW_TOKENS
+                )
             catalog[model_id] = normalized_capabilities
 
     ordered_model_ids = sorted(catalog)
@@ -5265,7 +5372,9 @@ _ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 _CUSTOM_EFFORT_PROTOCOLS = ("anthropic", "openai-responses")
 
 
-def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
+def _build_payload(
+    provider: str, options: Dict[str, object], *, model: str = "",
+) -> Dict[str, Any]:
     payload: Dict[str, float] = {}
 
     temperature = options.get("temperature")
@@ -5278,13 +5387,24 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     # branch below (design §7.4).
     cfg = parse_custom_provider(options)
 
+    # Built-in Ollama: always name the window explicitly. It is the same value
+    # the compiler budgets with (see get_max_context_window_tokens), so the
+    # daemon evaluates exactly what the compiler admitted (#227).
+    if provider == "ollama" and cfg is None and (
+        model or options.get("modelId") or options.get("model")
+    ):
+        selected_model = model or get_runtime_config(options).get("model", "")
+        payload["num_ctx"] = get_max_context_window_tokens(
+            provider, selected_model, options=options,
+        )
+
     max_tokens = options.get("maxTokens")
     if isinstance(max_tokens, (int, float)):
         max_tokens_value = int(max_tokens)
         if cfg is not None:
             param_name = _CUSTOM_MAX_TOKENS_PARAM_BY_PROTOCOL[cfg.protocol]
             payload[param_name] = max_tokens_value
-        elif provider == "openai":
+        elif provider in {"openai", "gemini"}:
             payload["max_output_tokens"] = max_tokens_value
         elif provider == "anthropic":
             payload["max_tokens"] = max_tokens_value
@@ -5304,6 +5424,20 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     effort = options.get("reasoningEffort")
     if isinstance(effort, str):
         normalized_effort = effort.strip().lower()
+        if cfg is None and (model or options.get("modelId") or options.get("model")):
+            selected_model = model or get_runtime_config(options).get("model", "")
+            normalized_model = _normalize_provider_model_name(provider, selected_model)
+            capabilities = next((
+                entry for name, entry in _load_raw_capability_catalog().items()
+                if entry.get("provider") == provider
+                and _normalize_provider_model_name(provider, name) == normalized_model
+            ), {})
+            efforts = capabilities.get("reasoning_efforts")
+            if isinstance(efforts, list) and normalized_effort not in efforts:
+                default = capabilities.get("default_reasoning_effort")
+                normalized_effort = default if default in efforts else ""
+            elif capabilities and not efforts:
+                normalized_effort = ""
         if normalized_effort in _REASONING_EFFORT_LEVELS:
             if cfg is not None:
                 # Custom providers speak their declared protocol's shape. A
@@ -5315,6 +5449,18 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
                     payload["reasoning"] = {"effort": normalized_effort}
             elif provider == "openai":
                 payload["reasoning"] = {"effort": normalized_effort}
+            elif provider == "gemini":
+                selected_model = model or get_runtime_config(options).get("model", "")
+                if _normalize_provider_model_name(provider, selected_model).startswith("gemini-2.5-"):
+                    payload["thinking_config"] = {
+                        "thinking_budget": {"low": 1024, "medium": 8192, "high": 24576}.get(normalized_effort, 8192),
+                        "include_thoughts": True,
+                    }
+                else:
+                    payload["thinking_config"] = {
+                        "thinking_level": normalized_effort,
+                        "include_thoughts": True,
+                    }
             elif provider == "anthropic":
                 if normalized_effort in _ANTHROPIC_EFFORT_LEVELS:
                     payload["output_config"] = {"effort": normalized_effort}
@@ -5609,7 +5755,7 @@ def _extract_api_key_from_options(options: Dict[str, object] | None, provider: s
         return ""
 
     provider = provider.strip().lower()
-    provider_camel_key = "openaiApiKey" if provider == "openai" else "anthropicApiKey"
+    provider_camel_key = "geminiApiKey" if provider == "gemini" else "openaiApiKey" if provider == "openai" else "anthropicApiKey"
     provider_snake_key = f"{provider}_api_key"
 
     candidates = [
@@ -5917,6 +6063,13 @@ def _build_selected_toolkits(
     is_subagent_run = bool(isinstance(options, dict) and options.get("_recipe_subagent_run"))
 
     for toolkit_name in toolkit_names:
+        if toolkit_name.startswith(SKILL_PACK_ID_PREFIX):
+            # Composer commands retain their owning pack's identity for source
+            # attribution. Installed instruction-only packs have no factory or
+            # executable tools; the renderer already expanded their skill body.
+            if get_installed_skill_pack(toolkit_name) is None:
+                raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+            continue
         if toolkit_name.startswith(_BUILTIN_TOOLKIT_PREFIX):
             builtin_instance = _build_builtin_toolkit(
                 toolkit_name,
@@ -6125,6 +6278,19 @@ def _build_summary_generator(
             except Exception:
                 return previous_summary or ""
 
+        if normalized_provider == "gemini":
+            try:
+                from google import genai
+                with genai.Client(api_key=api_key) as client:
+                    response = client.models.generate_content(
+                        model=model_name or model, contents=user_msg,
+                        config={"system_instruction": _SUMMARY_SYSTEM_PROMPT,
+                                "max_output_tokens": max(256, max_chars // 3)},
+                    )
+                    return (response.text or "").strip()[:max_chars]
+            except Exception:
+                return previous_summary or ""
+
         # Unsupported provider — return previous summary as-is
         return previous_summary or ""
 
@@ -6199,6 +6365,15 @@ def _resolve_agent_api_key(
             )
         register_secret_values((custom_key,), source="provider")
         return custom_key
+
+    if provider == "gemini":
+        api_key = (_extract_api_key_from_options(options, provider)
+                   or os.environ.get("GEMINI_API_KEY")
+                   or os.environ.get("GOOGLE_API_KEY") or "").strip()
+        if not api_key:
+            raise RuntimeError("Provider gemini requires GEMINI_API_KEY or GOOGLE_API_KEY")
+        register_secret_values((api_key,), source="provider")
+        return api_key
 
     api_key = (
         _extract_api_key_from_options(options, provider)
@@ -7878,7 +8053,9 @@ def _build_developer_agent(
             and str(resolved_model or "").strip() == memory_v2_admission.model
         ):
             return memory_v2_admission.real_context_window_tokens
-        return get_max_context_window_tokens(resolved_provider, resolved_model)
+        return get_max_context_window_tokens(
+            resolved_provider, resolved_model, options=options,
+        )
 
     def memory_v2_optimizer_module():
         if memory_v2_admission is None or official_context_v2_active:
@@ -8095,6 +8272,7 @@ def _create_agent(
         custom_factory = make_custom_model_io_factory(cfg, api_key)
     raw_max_ctx = get_max_context_window_tokens(
         selected_config["provider"], selected_config["model"], cfg=cfg,
+        options=options,
     )
     memory_v2_active_preflight = None
     memory_v2_agent_selection = None
@@ -8117,6 +8295,7 @@ def _create_agent(
                 get_max_context_window_tokens(
                     resolved_provider,
                     resolved_model,
+                    options=options,
                 )
                 or 0
             ),
@@ -9078,6 +9257,7 @@ def _stream_recipe_graph_events(
         selected_config["provider"],
         selected_config["model"],
         cfg=graph_cfg,
+        options=options,
     )
     if options.get("_memory_v2_requested") is True:
         from memory_v2_unchain_graph_identity import (
@@ -9228,6 +9408,7 @@ def _stream_recipe_graph_events(
                         get_max_context_window_tokens(
                             resolved_provider,
                             resolved_model,
+                            options=options,
                         )
                         or 0
                     ),
@@ -9379,6 +9560,7 @@ def _stream_recipe_graph_events(
                     get_max_context_window_tokens(
                         resolved_provider,
                         resolved_model,
+                        options=options,
                     )
                     or 0
                 ),
@@ -10126,6 +10308,7 @@ def _stream_recipe_graph_events(
                     step_config["provider"],
                     step_config["model"],
                     cfg=step_cfg,
+                    options=options,
                 )
                 step_admission_options = dict(options)
                 step_context_modules = ()
@@ -10513,6 +10696,7 @@ def _stream_recipe_graph_events(
                         payload=_build_payload(
                             step_config["provider"],
                             options,
+                            model=step_config["model"],
                         ),
                         callback=step_runtime_callback,
                         on_tool_confirm=confirm_cb,
@@ -10535,7 +10719,9 @@ def _stream_recipe_graph_events(
                 else:
                     result = step_agent.run(
                         messages=step_messages,
-                        payload=_build_payload(step_config["provider"], options),
+                        payload=_build_payload(
+                            step_config["provider"], options, model=step_config["model"],
+                        ),
                         callback=step_runtime_callback,
                         max_iterations=max_iterations,
                         max_context_window_tokens=step_agent._max_context_window_tokens or None,
@@ -10997,7 +11183,7 @@ def stream_chat(
         raise RuntimeError(f"{_MEMORY_UNAVAILABLE_CODE}: {reason}")
 
     messages = _normalize_messages(history, message, attachments)
-    payload = _build_payload(agent.provider, options)
+    payload = _build_payload(agent.provider, options, model=getattr(agent, "model", ""))
 
     token_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
@@ -11313,7 +11499,7 @@ def stream_chat_events(
             message,
             attachments,
         )
-        payload = _build_payload(agent.provider, options)
+        payload = _build_payload(agent.provider, options, model=getattr(agent, "model", ""))
         memory_runtime = _memory_runtime_from_agent(agent)
         if (
             durable_interactions_required or memory_runtime["required"]
@@ -12545,7 +12731,9 @@ def resume_chat_interaction_events(
                 # bootstrap or create a second journal representation.
                 result = agent.resume_interaction(
                     session_id=normalized_session_id,
-                    payload=_build_payload(agent.provider, resolved_options),
+                    payload=_build_payload(
+                        agent.provider, resolved_options, model=getattr(agent, "model", ""),
+                    ),
                     callback=runtime_event_callback,
                     on_tool_confirm=confirm_cb,
                     on_human_input=human_input_cb,

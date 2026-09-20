@@ -1,0 +1,349 @@
+{
+  "checks": [
+    {
+      "id": "ENV-FS-POSITIVE",
+      "status": "PASS",
+      "observation": "Synthetic allowed file was written and read"
+    },
+    {
+      "id": "ENV-HOME-DENY",
+      "status": "PASS",
+      "observation": {
+        "error": "PermissionError",
+        "errno": 1
+      }
+    },
+    {
+      "id": "ENV-WRITE-DENY",
+      "status": "PASS",
+      "observation": {
+        "error": "PermissionError",
+        "errno": 1
+      }
+    },
+    {
+      "id": "ENV-TCP-DENY",
+      "status": "PASS",
+      "observation": {
+        "errno": 1
+      }
+    },
+    {
+      "id": "ENV-SOCKET-DENY",
+      "status": "PASS",
+      "observation": {
+        "errno": 1
+      }
+    },
+    {
+      "id": "CORE-READ-POSITIVE",
+      "status": "PASS",
+      "observation": {
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/normal.txt",
+        "content": "1\tnormal data",
+        "start_line": 1,
+        "end_line": 1,
+        "total_lines": 1,
+        "truncated": false,
+        "file_kind": "text"
+      }
+    },
+    {
+      "id": "CORE-READ-OUTSIDE",
+      "status": "PASS",
+      "observation": {
+        "error": "path is outside all workspace roots",
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/outside/canary.txt"
+      }
+    },
+    {
+      "id": "CORE-READ-SYMLINK",
+      "status": "PASS",
+      "observation": {
+        "error": "path is outside all workspace roots",
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/linked.txt"
+      }
+    },
+    {
+      "id": "CORE-GREP-SYMLINK",
+      "status": "FAIL",
+      "observation": {
+        "pattern": "PUPU_SYNTHETIC_CANARY",
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace",
+        "output_mode": "content",
+        "matches": [
+          {
+            "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/linked.txt",
+            "relative_path": "linked.txt",
+            "line": 1,
+            "match": "PUPU_SYNTHETIC_CANARY",
+            "line_text": "PUPU_SYNTHETIC_CANARY_20260913",
+            "context_before": [],
+            "context_after": []
+          }
+        ],
+        "match_count": 1,
+        "files_with_matches": 1,
+        "scanned_files": 2,
+        "applied_offset": 0,
+        "applied_limit": 50,
+        "truncated": false
+      }
+    },
+    {
+      "id": "CORE-GLOB-PARENT",
+      "status": "FAIL",
+      "observation": {
+        "pattern": "../outside/*",
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace",
+        "matches": [
+          "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/outside/canary.txt"
+        ],
+        "match_count": 1,
+        "truncated": false
+      }
+    },
+    {
+      "id": "CORE-WRITE-OUTSIDE",
+      "status": "PASS",
+      "observation": {
+        "error": "path is outside all workspace roots",
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/outside/not-owned.txt"
+      }
+    },
+    {
+      "id": "CORE-WRITE-POSITIVE",
+      "status": "PASS",
+      "observation": {
+        "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt",
+        "operation": "create",
+        "bytes_written": 18,
+        "structured_patch": {
+          "type": "create_file",
+          "before_lines": 0,
+          "after_lines": 1,
+          "before_bytes": 0,
+          "after_bytes": 18
+        },
+        "original_file": {
+          "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt",
+          "exists": false,
+          "sha1": "",
+          "total_lines": 0
+        },
+        "_artifacts": [
+          {
+            "kind": "file_diff",
+            "title": "Create /private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt",
+            "files": [
+              {
+                "path": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt",
+                "operation": "create",
+                "sub_operation": "create",
+                "unified_diff_full": "--- a//private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt\n+++ b//private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt\n@@ -0,0 +1 @@\n+new synthetic data\n",
+                "unified_diff": "--- a//private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt\n+++ b//private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace/new.txt\n@@ -0,0 +1 @@\n+new synthetic data\n",
+                "truncated": false,
+                "total_lines": 4,
+                "displayed_lines": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CORE-FETCH-REJECT-12",
+      "status": "PASS",
+      "observation": {
+        "ok": false,
+        "error": "url scheme must be http or https",
+        "url": "file:///etc/passwd",
+        "mode": "raw",
+        "cached": false,
+        "redirect": null,
+        "skipped": false,
+        "content_length": 0,
+        "returned_chars": 0,
+        "next_offset": null,
+        "file_kind": ""
+      }
+    },
+    {
+      "id": "CORE-FETCH-REJECT-13",
+      "status": "PASS",
+      "observation": {
+        "ok": false,
+        "error": "private or non-public network targets are not allowed",
+        "url": "http://127.0.0.1:9/",
+        "mode": "raw",
+        "cached": false,
+        "redirect": null,
+        "skipped": false,
+        "content_length": 0,
+        "returned_chars": 0,
+        "next_offset": null,
+        "file_kind": ""
+      }
+    },
+    {
+      "id": "CORE-FETCH-REJECT-14",
+      "status": "PASS",
+      "observation": {
+        "ok": false,
+        "error": "private or non-public network targets are not allowed",
+        "url": "http://169.254.169.254/latest/meta-data/",
+        "mode": "raw",
+        "cached": false,
+        "redirect": null,
+        "skipped": false,
+        "content_length": 0,
+        "returned_chars": 0,
+        "next_offset": null,
+        "file_kind": ""
+      }
+    },
+    {
+      "id": "CORE-FETCH-REJECT-15",
+      "status": "PASS",
+      "observation": {
+        "ok": false,
+        "error": "url must not include credentials",
+        "url": "https://user:secret@example.com/",
+        "mode": "raw",
+        "cached": false,
+        "redirect": null,
+        "skipped": false,
+        "content_length": 0,
+        "returned_chars": 0,
+        "next_offset": null,
+        "file_kind": ""
+      }
+    },
+    {
+      "id": "CORE-SHELL-EXECUTABLE-IDENTITY",
+      "status": "FAIL",
+      "observation": {
+        "command": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/fake-bin/cat",
+        "classifiedLowRisk": true
+      }
+    },
+    {
+      "id": "CORE-SHELL-DISGUISED-EFFECT",
+      "status": "FAIL",
+      "observation": {
+        "toolResult": {
+          "ok": true,
+          "action": "run",
+          "status": "completed",
+          "shell_family": "posix",
+          "platform": "darwin",
+          "cwd": "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/workspace",
+          "task_id": "",
+          "error": "",
+          "background": false,
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "",
+          "timed_out": false,
+          "truncated": false
+        },
+        "confirmationRequests": 0,
+        "denied": false,
+        "markerWritten": true
+      }
+    },
+    {
+      "id": "PLAN-RESTART-POSITIVE",
+      "status": "PASS",
+      "observation": {
+        "ok": true,
+        "plans": [
+          {
+            "plan_id": "plan_1",
+            "title": "Synthetic plan",
+            "status": "draft",
+            "revision": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "PLAN-ID-TRAVERSAL",
+      "status": "PASS",
+      "observation": {
+        "ok": false,
+        "plan_id": "../../outside/plan_99",
+        "error": "unknown plan_id: ../../outside/plan_99"
+      }
+    },
+    {
+      "id": "PLAN-FILE-SYMLINK-READ",
+      "status": "FAIL",
+      "observation": {
+        "ok": true,
+        "plans": [
+          {
+            "plan_id": "plan_1",
+            "title": "Synthetic plan",
+            "status": "draft",
+            "revision": 2
+          },
+          {
+            "plan_id": "plan_99",
+            "title": "PUPU_SYNTHETIC_CANARY_20260913",
+            "status": "draft",
+            "revision": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "PLAN-DIR-SYMLINK-READ",
+      "status": "FAIL",
+      "observation": {
+        "ok": true,
+        "plans": [
+          {
+            "plan_id": "plan_99",
+            "title": "PUPU_SYNTHETIC_CANARY_20260913",
+            "status": "draft",
+            "revision": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "PLAN-DIR-SYMLINK-WRITE",
+      "status": "PASS",
+      "observation": {
+        "result": {
+          "ok": true,
+          "plan_id": "plan_99",
+          "status": "draft",
+          "revision": 2,
+          "workspace_error": "workspace_root is required for workspace-backed plans"
+        },
+        "outsideUnchanged": true
+      }
+    },
+    {
+      "id": "METADATA-CORE-CONFIRMATION",
+      "status": "PASS",
+      "observation": {
+        "write": true,
+        "edit": true,
+        "shell": true,
+        "grep": false
+      }
+    },
+    {
+      "id": "METADATA-PLAN-CONFIRMATION",
+      "status": "PASS",
+      "observation": {
+        "finalize": true,
+        "list": false
+      }
+    }
+  ],
+  "note": "Real toolkit methods in isolated synthetic workspace; no real model or desktop was used."
+}

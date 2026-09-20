@@ -1,0 +1,133 @@
+{
+  "id": "chat-1789171864596-0b9fbabf860b48",
+  "pending": {
+    "active_attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "graph_coordinator_attempt_id": "unchain-1789171873227-601e373af0d198",
+    "graph_step_attempt_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "interaction_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+    "kind": "human_input",
+    "model": "qwen3:32b",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "文件夹路径",
+          "other_placeholder": "/new/path/to/project",
+          "question": "请输入需要修改的文件夹路径",
+          "request_id": "call_zg2g2sjc",
+          "selection_mode": "single",
+          "title": "项目文件夹路径"
+        },
+        "call_id": "call_zg2g2sjc",
+        "confirmation_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+        "description": "请输入需要修改的文件夹路径",
+        "interact_config": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "文件夹路径",
+          "other_placeholder": "/new/path/to/project",
+          "question": "请输入需要修改的文件夹路径",
+          "request_id": "call_zg2g2sjc",
+          "selection_mode": "single",
+          "title": "项目文件夹路径"
+        },
+        "interact_type": "single",
+        "requires_confirmation": true,
+        "tool_display_name": "Ask User",
+        "tool_name": "ask_user_question",
+        "toolkit_id": "core",
+        "toolkit_name": "Core"
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "allow_other": true,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [],
+            "other_label": "文件夹路径",
+            "other_placeholder": "/new/path/to/project",
+            "question": "请输入需要修改的文件夹路径",
+            "request_id": "call_zg2g2sjc",
+            "selection_mode": "single",
+            "title": "项目文件夹路径"
+          },
+          "call_id": "call_zg2g2sjc",
+          "confirmation_id": "interaction_1171f1ec91661b12961a918cdddd2127",
+          "description": "请输入需要修改的文件夹路径",
+          "interact_config": {
+            "allow_other": true,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [],
+            "other_label": "文件夹路径",
+            "other_placeholder": "/new/path/to/project",
+            "question": "请输入需要修改的文件夹路径",
+            "request_id": "call_zg2g2sjc",
+            "selection_mode": "single",
+            "title": "项目文件夹路径"
+          },
+          "interact_type": "single",
+          "requires_confirmation": true,
+          "tool_display_name": "Ask User",
+          "tool_name": "ask_user_question",
+          "toolkit_id": "core",
+          "toolkit_name": "Core"
+        },
+        "run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1789172934421,
+        "type": "tool_call"
+      }
+    },
+    "provider": "ollama",
+    "resume_available": true,
+    "resume_kind": "graph_step",
+    "resume_options": {
+      "_memory_v2_owner_chat_id": "chat-1789171864596-0b9fbabf860b48",
+      "agent_orchestration": {
+        "mode": "default"
+      },
+      "durable_interactions_required": true,
+      "memory_embedding_model": "text-embedding-3-small",
+      "memory_embedding_provider": "auto",
+      "memory_enabled": true,
+      "memory_last_n_turns": 8,
+      "memory_long_term_enabled": true,
+      "memory_long_term_episode_min_score": null,
+      "memory_long_term_episode_top_k": 4,
+      "memory_long_term_extract_every_n_turns": 6,
+      "memory_long_term_playbook_min_score": null,
+      "memory_long_term_playbook_top_k": 4,
+      "memory_long_term_vector_min_score": null,
+      "memory_long_term_vector_top_k": 4,
+      "memory_namespace": "pupu:default",
+      "memory_vector_min_score": null,
+      "memory_vector_top_k": 4,
+      "modelId": "ollama:qwen3:32b",
+      "system_prompt_v2": {
+        "defaults": {
+          "rules": "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information."
+        },
+        "enabled": true
+      },
+      "toolkits": [
+        "core"
+      ]
+    },
+    "session_id": "chat-1789171864596-0b9fbabf860b48",
+    "source_run_id": "graph-step-b7050073c87d6be6e24aaa771dfc1f2a9872cb6428c64c507009582881e83d27",
+    "status": "awaiting_response"
+  },
+  "text": "PUPU\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\nThinking…\nAsk User\ndetail\nSelected\n确认项目路径\n您确定项目要放在路径 “/private/tmp/ticket-224-live-qwen/workspace/中文 对照” 下吗？\n是的，使用这个路径\n否，需要修改路径\ntook\n53.7s\nRESULT\nsubmitted\ntrue\nselected_values\n[\"modify\"]\nother_text\nnull\nAsk User\n+120.1s\nPending\n项目文件夹路径\n请输入需要修改的文件夹路径\n文件夹路径\nThinking…\nTop\nPrev\nNext\nEnd\n/\nCOMMANDS · ↑↓ · ⏎\nORGANIZE\nqwen3:32b\n1\nRestoring an interrupted Unchain run...\nPlugins\nWorkspaces\nCHATS\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n1m\n我要你在我电脑上创建一个项目。动手之前，先问我具体要放在哪个文件夹路径。\n18m\nSettings"
+}

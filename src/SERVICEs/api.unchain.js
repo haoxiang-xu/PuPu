@@ -16,14 +16,15 @@ import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
 import {
   CUSTOM_PROVIDER_PREFIX,
   buildProviderInjectionPayload,
+  resolveProviderDefinition,
+  readRuntimeProviderDefinitions,
   customProviderKey,
-  findCustomProvider,
   getCustomProviderSecret,
   mapCustomModelCapabilities,
   parseCustomProviderKey,
-  readCustomProviders,
 } from "./custom_provider_store";
 import { isFeatureFlagEnabled } from "./feature_flags";
+import { isShippedSlug } from "./shipped_provider_registry";
 import { readNamespace } from "./settings_repository";
 import { readProviderSecret } from "./settings_secret_adapter";
 import {
@@ -34,7 +35,7 @@ import {
   markSecretStorageUnavailableForSession,
 } from "./bridges/settings_storage_bridge";
 
-const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
+const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic", "gemini"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
 
@@ -93,7 +94,7 @@ const parseProviderFromModelValue = (modelValue) => {
   // is literal; keeping case-exact avoids a spurious match on odd input.
   if (providerCandidate.startsWith(CUSTOM_PROVIDER_PREFIX)) {
     const parsed = parseCustomProviderKey(providerCandidate);
-    if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+    if (parsed && parsed.slug && resolveProviderDefinition(parsed.slug)) {
       return providerCandidate;
     }
     return "";
@@ -134,7 +135,7 @@ const detectProviderFromStreamPayload = (payload) => {
     const trimmed = candidate.trim();
     if (trimmed.startsWith(CUSTOM_PROVIDER_PREFIX)) {
       const parsed = parseCustomProviderKey(trimmed);
-      if (parsed && parsed.slug && findCustomProvider(parsed.slug)) {
+      if (parsed && parsed.slug && resolveProviderDefinition(parsed.slug)) {
         return trimmed;
       }
       continue;
@@ -156,6 +157,9 @@ const getStoredProviderApiKey = (provider) => {
     return readProviderSecret("openai_api_key").trim();
   }
 
+  if (provider === "gemini") {
+    return readProviderSecret("gemini_api_key").trim();
+  }
   if (provider === "anthropic") {
     return readProviderSecret("anthropic_api_key").trim();
   }
@@ -219,7 +223,7 @@ const injectProviderApiKeyIntoPayload = (payload) => {
 
   const currentOptions = isObject(payload.options) ? payload.options : {};
   const providerSpecificCamelKey =
-    provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
+    provider === "gemini" ? "geminiApiKey" : provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
 
   // Today's value-based short-circuit, preserved verbatim: an explicit key
@@ -695,16 +699,21 @@ const injectCustomProviderIntoPayload = (payload) => {
     return payload;
   }
 
-  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+  const parsed = parseCustomProviderKey(modelValue);
+  const slug = parsed?.slug || "";
+
+  // The flag is a per-slug decision, not a gate on the transport (#202). A
+  // shipped provider (DeepSeek / Kimi) rides the same custom-provider wire but
+  // is a first-class product feature, so enable_custom_model_providers only
+  // ever gates a user-authored provider.
+  if (!isShippedSlug(slug) && !isFeatureFlagEnabled("enable_custom_model_providers")) {
     throw new FrontendApiError(
       "custom_provider_disabled",
       "Custom model providers are disabled",
     );
   }
 
-  const parsed = parseCustomProviderKey(modelValue);
-  const slug = parsed?.slug || "";
-  const definition = slug ? findCustomProvider(slug) : null;
+  const definition = slug ? resolveProviderDefinition(slug) : null;
 
   if (!definition) {
     throw new FrontendApiError(
@@ -780,13 +789,12 @@ const mergeCustomProvidersIntoCatalog = (catalog) => {
   if (!isObject(catalog)) {
     return catalog;
   }
-  if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
-    return catalog;
-  }
-
   let customDefs;
   try {
-    customDefs = readCustomProviders();
+    // Shipped definitions always; user-authored only behind the flag (#202).
+    customDefs = readRuntimeProviderDefinitions({
+      includeUserAuthored: isFeatureFlagEnabled("enable_custom_model_providers"),
+    });
   } catch (_error) {
     return catalog;
   }
@@ -964,7 +972,10 @@ const isCanonicalHumanInputPayload = (toolCall) => {
       boundaryString(payload.question) &&
       ["single", "multiple"].includes(payload.selection_mode) &&
       Array.isArray(payload.options) &&
-      payload.options.length > 0 &&
+      (payload.options.length > 0 ||
+        (payload.allow_other === true &&
+          [0, 1].includes(payload.min_selected) &&
+          payload.max_selected === 1)) &&
       payload.options.every(
         (option) =>
           isObject(option) &&
@@ -2652,7 +2663,16 @@ export const createUnchainApi = () => {
   // provider-side failures), so the caller can render the outcome inline.
   // Timeout is 20s to sit just past the backend's 15s hard probe timeout.
   const testCustomProvider = async (definition, apiKey = "") => {
-    if (!isFeatureFlagEnabled("enable_custom_model_providers")) {
+    // Same per-slug rule as the injection path (#202): a shipped provider is
+    // testable regardless of the flag, a user-authored one is not.
+    const testedSlug =
+      isObject(definition) && typeof definition.id === "string"
+        ? definition.id
+        : "";
+    if (
+      !isShippedSlug(testedSlug) &&
+      !isFeatureFlagEnabled("enable_custom_model_providers")
+    ) {
       throw new FrontendApiError(
         "custom_provider_disabled",
         "Custom model providers are disabled",

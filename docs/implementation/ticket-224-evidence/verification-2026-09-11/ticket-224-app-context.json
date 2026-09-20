@@ -1,0 +1,16 @@
+{
+  "context": {
+    "available": true,
+    "schemaVersion": 2,
+    "journalMode": "wal",
+    "lexicalBackend": "fts5",
+    "vectorStatus": "disabled",
+    "featureCeiling": "all",
+    "rolloutMode": "all",
+    "readOnlyDegraded": false
+  },
+  "bundles": {
+    "ok": true,
+    "records": []
+  }
+}

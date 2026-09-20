@@ -1,0 +1,7 @@
+Using Python 3.12.11 environment at: /private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/runtimes/mcp.devops.grafana/venv
+Resolved 1 package in 0.77ms
+Downloading mcp-grafana (47.5MiB)
+ Downloaded mcp-grafana
+Prepared 1 package in 4.72s
+Installed 1 package in 4ms
+ + mcp-grafana==0.17.2

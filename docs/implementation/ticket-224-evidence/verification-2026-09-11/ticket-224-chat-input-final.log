@@ -1,0 +1,2086 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/chat-input/chat_input.test.js
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    Removing a style property during rerender (background) when a conflicting property is set (backgroundColor) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.
+
+      at setValueForStyles (node_modules/react-dom/cjs/react-dom-client.development.js:2787:23)
+      at setProp (node_modules/react-dom/cjs/react-dom-client.development.js:19968:11)
+      at updateProperties (node_modules/react-dom/cjs/react-dom-client.development.js:21128:13)
+      at commitUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:22168:7)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHostUpdate (node_modules/react-dom/cjs/react-dom-client.development.js:13601:9)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14842:13)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14821:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15102:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14591:11)
+      at recursivelyTraverseMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:14576:11)
+      at commitMutationEffectsOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:14883:11)
+      at flushMutationEffects (node_modules/react-dom/cjs/react-dom-client.development.js:17979:13)
+      at commitRoot (node_modules/react-dom/cjs/react-dom-client.development.js:17953:9)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16667:15)
+      at performSyncWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:18972:7)
+      at flushSyncWorkAcrossRoots_impl (node_modules/react-dom/cjs/react-dom-client.development.js:18814:21)
+      at flushSyncWork$1 (node_modules/react-dom/cjs/react-dom-client.development.js:16898:12)
+      at batchedUpdates$1 (node_modules/react-dom/cjs/react-dom-client.development.js:3263:14)
+      at dispatchEventForPluginEventSystem (node_modules/react-dom/cjs/react-dom-client.development.js:19320:7)
+      at dispatchEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23585:11)
+      at dispatchDiscreteEvent (node_modules/react-dom/cjs/react-dom-client.development.js:23553:11)
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+  console.error
+    An update to Icon inside a test was not wrapped in act(...).
+    
+    When testing, code that causes React state updates should be wrapped into act(...):
+    
+    act(() => {
+      /* fire events that update state */
+    });
+    /* assert on the output */
+    
+    This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+PASS src/COMPONENTs/chat-input/chat_input.test.js
+  ChatInput slash-command menu wiring
+    ✓ exposes a stable accessible name for AI and screen-reader control (77 ms)
+    ✓ typing '/' while streaming opens the command menu with matching commands (64 ms)
+    ✓ does not open the command menu when not streaming (no available commands) (16 ms)
+    ✓ narrows items by prefix as the user keeps typing (34 ms)
+    ✓ Enter picks the active command instead of sending; the command renders as an inline tag (45 ms)
+    ✓ ArrowDown/ArrowUp move the active row, and Enter picks the highlighted one (41 ms)
+    ✓ Tab also picks the active command (36 ms)
+    ✓ Backspace right after the token deletes it atomically (17 ms)
+    ✓ typing '/' mid-text opens the menu; picking moves the command to the front tag (34 ms)
+    ✓ mid-text token narrows the menu and requires a word boundary (35 ms)
+    ✓ conflicting commands are filtered from the menu once one is active (16 ms)
+    ✓ a hand-typed conflicting token stays plain text (inactive) (10 ms)
+    ✓ no tag when not streaming — the prefix stays plain text (8 ms)
+    ✓ Escape closes the menu without changing the input, and a plain Enter then sends (35 ms)
+    ✓ plain Enter still sends when the input does not look like a command (10 ms)
+    plugin skill commands (always visible while installed)
+      ✓ lists a plugin skill command when its toolkit is selected and not streaming (28 ms)
+      ✓ still lists the plugin skill command when its toolkit is NOT selected (24 ms)
+      ✓ hides the plugin skill command while streaming (composer phase only) (33 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        2.302 s, estimated 3 s
+Ran all test suites within paths "src/COMPONENTs/chat-input/chat_input.test.js".

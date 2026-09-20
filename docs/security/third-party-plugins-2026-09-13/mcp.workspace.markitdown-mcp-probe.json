@@ -1,0 +1,71 @@
+{
+  "toolkitId": "mcp.workspace.markitdown",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "7fb06fff7d722ec108d08752704dc8f313f7fd267e00dff546131ec229645230",
+  "initialize": "PASS",
+  "server": {
+    "name": "markitdown",
+    "version": "1.8.1"
+  },
+  "tools": [
+    {
+      "name": "convert_to_markdown",
+      "description": "Convert a resource described by an http:, https:, file: or data: URI to markdown",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri"
+        ],
+        "title": "convert_to_markdownArguments"
+      }
+    }
+  ],
+  "toolsSha256": "e2a8619fd7062818e2f47803a5cf8801052e2a024a36cf0ad70988b79ee8a483",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "resources": []
+  },
+  "prompts": {
+    "prompts": []
+  },
+  "calls": [
+    {
+      "call": {
+        "name": "convert_to_markdown",
+        "arguments": {
+          "uri": "data:text/plain,PUPU_SYNTHETIC_CONVERSION"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "PUPU_SYNTHETIC_CONVERSION"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "stderr": "/private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pupu-third-party-l_r9n202/runtimes/mcp.workspace.markitdown/venv/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work\n  warn(\"Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work\", RuntimeWarning)\nProcessing request of type ListToolsRequest\nProcessing request of type ListResourcesRequest\nProcessing request of type ListPromptsRequest\nProcessing request of type CallToolRequest\n",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

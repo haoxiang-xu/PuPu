@@ -851,11 +851,18 @@ describe("preload API contract", () => {
       CHANNELS.OLLAMA.LIST_INSTALLED_MODELS,
     );
 
-    exposed.ollamaLibraryAPI.search("q", "c");
+    exposed.ollamaLibraryAPI.search("q", "c", "newest");
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(CHANNELS.OLLAMA.LIBRARY_SEARCH, {
       query: "q",
       category: "c",
+      sort: "newest",
     });
+
+    exposed.ollamaLibraryAPI.tags("qwen3");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.OLLAMA.LIBRARY_TAGS,
+      { name: "qwen3" },
+    );
 
     exposed.unchainAPI.getComputerUseStatus();
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(

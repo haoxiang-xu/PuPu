@@ -1,0 +1,4 @@
+interface:
+  display_name: "PuPu Refine Ticket"
+  short_description: "Optionally deepen a PuPu release sub-issue for implementation"
+  default_prompt: "Use $issue-refine-ticket for an optional zero-context refinement of this PuPu release sub-issue."

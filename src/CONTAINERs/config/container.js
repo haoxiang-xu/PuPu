@@ -34,6 +34,9 @@ import { isSetupComplete } from "../../COMPONENTs/init-setup/init_setup_storage"
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
+import { readAppliedPlatformOverride } from "../../SERVICEs/platform_presentation";
+import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
 import {
   isDevSettingsAvailable,
   readDevSettings,
@@ -47,10 +50,6 @@ import {
   persistBootPalette,
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
-import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../SERVICEs/feature_flags";
 import {
   readSettingsRoot,
   readNamespace,
@@ -140,23 +139,15 @@ const resolveThemeDefinition = (themeName, themeMode) => {
   return available_themes?.[themeName]?.[themeMode] || null;
 };
 
-const defaultThemeColorSettings = () => ({
-  preset: "default",
-  custom: { light_mode: {}, dark_mode: {} },
-});
-
 const applyContainerThemeConfig = (
   base,
   locale,
   themeMode,
-  themeColorCustomizationEnabled = false,
 ) => {
   if (!base) return base;
 
   const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
-  const themeSettings = themeColorCustomizationEnabled
-    ? readThemeSettings()
-    : defaultThemeColorSettings();
+  const themeSettings = readThemeSettings();
   const semantic = resolveSemanticPalette(themeMode, {
     preset: themeSettings.preset,
     custom: themeSettings.custom,
@@ -262,11 +253,7 @@ const applyInitialSemanticVars = () => {
       persisted?.appearance?.theme_mode,
       "light_mode",
     );
-    const themeColorCustomizationEnabled =
-      readFeatureFlags().enable_theme_color_customization === true;
-    const themeSettings = themeColorCustomizationEnabled
-      ? persisted?.appearance?.theme || {}
-      : defaultThemeColorSettings();
+    const themeSettings = persisted?.appearance?.theme || {};
     const bootPalette = resolveSemanticPalette(mode, {
       preset: themeSettings.preset,
       custom: themeSettings.custom,
@@ -305,6 +292,14 @@ const EnvironmentProvider = ({ children }) => {
     [window_size, env_browser, device_type],
   );
 
+  /* #256: the native chrome follows the presented platform. Main holds no
+     record of its own, so the override is sent once on mount (a restart with
+     an override kept) and again on every change; null means "the host". */
+  const presentation = usePresentationPlatform();
+  useEffect(() => {
+    windowStateBridge.setPlatformPresentation(readAppliedPlatformOverride());
+  }, [presentation]);
+
   return (
     <EnvironmentContext.Provider value={environmentValue}>
       {children}
@@ -321,7 +316,6 @@ const ConfigContainer = ({ children }) => {
   const [_persisted] = useState(() => loadSettingsStorage());
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
   const _persistedLocale = _persisted?.appearance?.locale;
-  const [_initialFeatureFlags] = useState(() => readFeatureFlags());
   const [legacyEnvironmentSnapshot] = useState(readLegacyEnvironmentSnapshot);
   const initialThemeMode = resolveInitialThemeMode(
     _persistedThemeMode,
@@ -336,21 +330,17 @@ const ConfigContainer = ({ children }) => {
       resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
       _persistedLocale || "en",
       initialThemeMode,
-      _initialFeatureFlags.enable_theme_color_customization === true,
     ),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
   const [locale, setLocale] = useState(_persistedLocale || "en");
-  const [featureFlags, setFeatureFlags] = useState(_initialFeatureFlags);
   const [isThemeBooting, setIsThemeBooting] = useState(true);
   const availableThemes = THEME_NAMES;
   const selectedTheme = DEFAULT_THEME_NAME;
-  const themeColorCustomizationEnabled =
-    featureFlags.enable_theme_color_customization === true;
 
   useEffect(() => {
     /* Theme settings writes still live in Appearance/ThemeEditor. Direct color
-       commits call setTheme there; this effect handles mode, locale, and flag
+       commits call setTheme there; this effect handles mode and locale
        changes that require re-resolving the base theme. */
     const base = resolveThemeDefinition(selectedTheme, onThemeMode);
     if (base) {
@@ -358,13 +348,10 @@ const ConfigContainer = ({ children }) => {
         base,
         locale,
         onThemeMode,
-        themeColorCustomizationEnabled,
       );
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme(nextTheme);
-      const themeSettings = themeColorCustomizationEnabled
-        ? readThemeSettings()
-        : defaultThemeColorSettings();
+      const themeSettings = readThemeSettings();
       applySemanticCssVars(
         nextTheme.semantic,
         undefined,
@@ -391,11 +378,7 @@ const ConfigContainer = ({ children }) => {
     } else {
       setTheme(base);
     }
-  }, [onThemeMode, selectedTheme, locale, themeColorCustomizationEnabled]);
-  useEffect(() => {
-    setFeatureFlags(readFeatureFlags());
-    return subscribeFeatureFlags(setFeatureFlags);
-  }, []);
+  }, [onThemeMode, selectedTheme, locale]);
   useEffect(() => {
     if (theme?.backgroundColor) {
       themeBridge.setBackgroundColor({
@@ -509,6 +492,19 @@ const ConfigContainer = ({ children }) => {
     }),
     [themeValue, localeValue, legacyEnvironmentSnapshot, navigationValue],
   );
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || !window.__pupuTestBridge) return;
+    let current = true;
+    import("../../SERVICEs/test_bridge").then(({ setConfigContextRef }) => {
+      if (current) {
+        setConfigContextRef({ isDark: onThemeMode === "dark_mode", locale });
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [onThemeMode, locale]);
 
   return (
     <ThemeContext.Provider value={themeValue}>

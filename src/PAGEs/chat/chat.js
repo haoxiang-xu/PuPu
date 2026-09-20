@@ -12,6 +12,7 @@ import {
 } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import { CONTEXT_WINDOW_PRESETS } from "../../COMPONENTs/chat-input/constants";
 import SecretCaptureModal from "./secret_capture_modal";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
@@ -50,6 +51,7 @@ import { PUPU_PREFILL_COMPOSER } from "../../SERVICEs/composer_prefill";
 import { selectLatestContextCompositionBundle } from "../../SERVICEs/context_composition_v1";
 import {
   buildContextUsageView,
+  selectActiveContextWindowTokens,
   selectContextWindowTokens,
   selectLatestContextUsage,
 } from "../../SERVICEs/context_usage_v1";
@@ -74,6 +76,7 @@ const PROVIDER_ICON = {
   ollama: _OllamaSVG,
   openai: _OpenAISVG,
   anthropic: _AnthropicSVG,
+  gemini: LogoSVGs.gemini,
 };
 
 /**
@@ -101,6 +104,7 @@ const isSameUnchainStatus = (current, next) =>
 const readConfiguredBuiltInProviders = () => ({
   hasOpenAI: providerSecretConfigured("openai"),
   hasAnthropic: providerSecretConfigured("anthropic"),
+  hasGemini: providerSecretConfigured("gemini"),
 });
 
 /* Rise-in wrapper that DROPS its animation once finished. The lingering
@@ -457,6 +461,7 @@ const ChatInterface = () => {
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
     selectedReasoningEffort: session.selectedReasoningEffort,
+    selectedContextWindow: session.selectedContextWindow,
     agentOrchestration: session.agentOrchestration,
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
@@ -781,6 +786,22 @@ const ChatInterface = () => {
     ];
   }, [activeModelCapabilities, reasoningEffortOptions]);
 
+  const { selectedReasoningEffort, handleSelectReasoningEffort } = session;
+  useEffect(() => {
+    const selected = selectedReasoningEffort;
+    if (
+      selected &&
+      reasoningEffortOptions.length > 0 &&
+      !reasoningEffortOptions.includes(selected)
+    ) {
+      handleSelectReasoningEffort(defaultReasoningEffort);
+    }
+  }, [
+    selectedReasoningEffort,
+    handleSelectReasoningEffort,
+    reasoningEffortOptions,
+    defaultReasoningEffort,
+  ]);
 
   const onSelectReasoningEffort = useCallback(
     (level) => {
@@ -795,6 +816,38 @@ const ChatInterface = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       session.handleSelectReasoningEffort,
+      stream.isDurableInteractionBlocked,
+      stream.isTurnMutationBlocked,
+    ],
+  );
+
+  /* Context window (#227): the picker renders only for a model that declares
+     a default window (built-in Ollama), mirroring how effort renders only for
+     a model that declares levels. The declared maximum, when the catalog has
+     one, makes the notches past it unreachable. */
+  const defaultContextWindow = useMemo(() => {
+    const declared = activeModelCapabilities?.default_context_window_tokens;
+    return Number.isInteger(declared) && declared > 0 ? declared : null;
+  }, [activeModelCapabilities]);
+
+  const maxContextWindow = useMemo(() => {
+    const declared = activeModelCapabilities?.max_context_window_tokens;
+    return Number.isInteger(declared) && declared > 0 ? declared : null;
+  }, [activeModelCapabilities]);
+
+  const onSelectContextWindow = useCallback(
+    (tokens) => {
+      if (
+        stream.isDurableInteractionBlocked ||
+        stream.isTurnMutationBlocked
+      ) {
+        return;
+      }
+      session.handleSelectContextWindow(tokens);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      session.handleSelectContextWindow,
       stream.isDurableInteractionBlocked,
       stream.isTurnMutationBlocked,
     ],
@@ -902,16 +955,26 @@ const ChatInterface = () => {
     [session.messages],
   );
   // Accounting-only pressure. Independent of Context Composition so the
-  // indicator works before any contribution source is instrumented; the window
-  // comes from model capabilities and stays null when the catalog has none.
+  // indicator works before any contribution source is instrumented. Normal
+  // chats use the active composer selection; character chats retain the
+  // catalog-maximum behavior because their request path has no window picker.
   const contextUsageView = useMemo(() => {
     const usage = selectLatestContextUsage(session.messages);
     if (!usage) return null;
-    return buildContextUsageView(
-      usage,
-      selectContextWindowTokens(activeModelCapabilities),
-    );
-  }, [session.messages, activeModelCapabilities]);
+    const windowTokens = session.isCharacterChat
+      ? selectContextWindowTokens(activeModelCapabilities)
+      : selectActiveContextWindowTokens(activeModelCapabilities, {
+          modelId: session.selectedModelId,
+          selectedContextWindow: session.selectedContextWindow,
+        });
+    return buildContextUsageView(usage, windowTokens);
+  }, [
+    session.messages,
+    activeModelCapabilities,
+    session.isCharacterChat,
+    session.selectedModelId,
+    session.selectedContextWindow,
+  ]);
   const {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
@@ -973,8 +1036,13 @@ const ChatInterface = () => {
       onSelectModel,
       reasoningEffortOptions,
       selectedReasoningEffort: session.selectedReasoningEffort,
+    selectedContextWindow: session.selectedContextWindow,
       defaultReasoningEffort,
       onSelectReasoningEffort,
+      contextWindowPresets: CONTEXT_WINDOW_PRESETS,
+      defaultContextWindow,
+      maxContextWindow,
+      onSelectContextWindow,
       modelSelectDisabled: isModelSelectionDisabled,
       toolSelectDisabled: stream.isSecretCapturePending,
       showModelSelector: !session.isCharacterChat,
@@ -1011,6 +1079,8 @@ const ChatInterface = () => {
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
       reasoningEffortOptions, session.selectedReasoningEffort, onSelectReasoningEffort,
       defaultReasoningEffort,
+      session.selectedContextWindow, defaultContextWindow, maxContextWindow,
+      onSelectContextWindow,
       modelSupportsTools,
       stream.isSecretCapturePending,
       t,
@@ -1082,6 +1152,9 @@ const ChatInterface = () => {
             {(() => {
               const providers = modelCatalog?.providers || {};
               const chips = [
+                ...(configuredProviders.hasGemini ? providers.gemini || [] : []).map((model) => ({
+                  id: `gemini:${model}`, label: model, provider: "gemini",
+                })),
                 ...(providers.ollama || []).map((model) => ({
                   id: `ollama:${model}`,
                   label: model,

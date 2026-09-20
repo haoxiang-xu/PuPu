@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import { TOOLS_QUALIFICATION_SCHEMA } from "./release-toolchain.mjs";
 
 import {
   readJson,
@@ -60,7 +61,7 @@ function assertQaReport(report, manifest) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
+  const contractPath = args.contract ? path.resolve(args.contract) : path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json");
   const manifestPath = requiredPath(args, "manifest");
   const manifest = readJson(manifestPath);
   const assetDir = requiredPath(args, "asset-dir");
@@ -84,7 +85,7 @@ function main() {
       : null;
     validateQualificationReceipt(qualification, manifest, contract, { bootstrapPolicy });
     if (args["require-restart-qualification"] === "true" &&
-        !["pupu.release-update-qualification.v1", RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA].includes(qualification.schema)) {
+        !["pupu.release-update-qualification.v1", TOOLS_QUALIFICATION_SCHEMA, RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA].includes(qualification.schema)) {
       throw new Error("qualification receipt must include complete restart-update evidence or the frozen one-time bootstrap admission");
     }
     if (args["qualification-run-id"] &&

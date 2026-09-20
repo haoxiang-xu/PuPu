@@ -1,0 +1,87 @@
+[
+  {
+    "path": "README.md",
+    "sha256": "0ef046af1cb522817fb977f58b6e64c514e793a8ef86d471937bc742dd113f19",
+    "size": 7209
+  },
+  {
+    "path": "baseline-success.png",
+    "sha256": "8ccbd1557f54720b49dd70c6dc9211c70c0207fc23f6e799572df40df703ea19",
+    "size": 120392
+  },
+  {
+    "path": "baseline-ui.txt",
+    "sha256": "465f47568a1f6093997da6775c655547d534a024ef2ee761ae2e66e58e20c836",
+    "size": 718
+  },
+  {
+    "path": "build-feature-flags.json",
+    "sha256": "5ec27ac531f7f382a294b7ccd6e9fb65fa589cf01a2ea04e96a001a84d363a47",
+    "size": 550
+  },
+  {
+    "path": "candidate-tree.json",
+    "sha256": "50925f16fcf019eb0e58e5d4d480c4d22010a8046f2d404077028f7d57a229b2",
+    "size": 1711418
+  },
+  {
+    "path": "cleanup.json",
+    "sha256": "fc4af24ffc446a77c4a51e802771d2b7755e86b813fc751d6e729a98af28ad76",
+    "size": 268
+  },
+  {
+    "path": "i18n.json",
+    "sha256": "00a87c6aface6ddfce6de7b50244b98c3ad7441a6f5308f013a8561a6e127b90",
+    "size": 3153
+  },
+  {
+    "path": "imported-runtime-status.json",
+    "sha256": "9b31ee9bab550ab1da441f6c70634e68ac536f3c9d12d11150e4851ff933b0db",
+    "size": 1474
+  },
+  {
+    "path": "installed-skill-packs.json",
+    "sha256": "b4d951ed017240a84113f2e4ac28b5a76c02583c58ae1ea9d70b1fd73e70dd69",
+    "size": 12820
+  },
+  {
+    "path": "package-smoke-selected.json",
+    "sha256": "fead6085517b284fabc6f91cc0efccd09b9d3ad73843ff5c5c4be5c59c666263",
+    "size": 498
+  },
+  {
+    "path": "results.json",
+    "sha256": "c79464b86458714442c2e579c8fcc3db5560073695e61da0c831bdc39ad714c5",
+    "size": 2397
+  },
+  {
+    "path": "synthetic-chat-observations.json",
+    "sha256": "5a6773049c6d856fa7c39f87bd57d24e4fb3292a32d3b0a368eae068adb7e30e",
+    "size": 39151
+  },
+  {
+    "path": "trail-failure-ui.txt",
+    "sha256": "875ec99a8de24e1d0e8aaf1c59695bff7d70c59410a769cfd9fced3e72f019a7",
+    "size": 1412
+  },
+  {
+    "path": "trail-failure.png",
+    "sha256": "58baf727f5964d7889c3a1b959a031dce68263460adfd74763e767c520517b54",
+    "size": 198471
+  },
+  {
+    "path": "unchain-artifact.json",
+    "sha256": "a7e08f86887c3b8a4b87e584ed7a21acd8849d73be05d3e90995602bbd752917",
+    "size": 2369
+  },
+  {
+    "path": "vercel-failure-ui.txt",
+    "sha256": "3c75e927172371e49bb631891cd4b56870f0c19c394305b39218c52e7df91f43",
+    "size": 875
+  },
+  {
+    "path": "vercel-failure.png",
+    "sha256": "66db8213e8230e1c9631bf6618d8b7f0e00f148aac1cf570a05de4f14506f67b",
+    "size": 140980
+  }
+]

@@ -1,0 +1,6 @@
+[
+  { "name": "qwen3", "why_key": "model_providers.store.featured_qwen3" },
+  { "name": "gemma3", "why_key": "model_providers.store.featured_gemma3" },
+  { "name": "deepseek-r1", "why_key": "model_providers.store.featured_deepseek_r1" },
+  { "name": "nomic-embed-text", "why_key": "model_providers.store.featured_nomic_embed_text" }
+]

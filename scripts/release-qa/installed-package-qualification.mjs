@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import asar from "@electron/asar";
 import { verifyWindowsSidecarIdentity } from "./seal-windows-sidecar-identity.mjs";
+import { closeMacApplication } from "./macos-graceful-close.mjs";
 
 import {
   readJson,
@@ -275,6 +276,9 @@ export const selectInstalledCleanupPids = ({
 };
 
 const assertSnapshot = (asarPath) => {
+  // Native updates replace app.asar at the same path. Discard its cached header
+  // before extraction, or old offsets can read unrelated bytes from the new file.
+  asar.uncache(asarPath);
   const bytes = Buffer.from(asar.extractFile(asarPath, "build/build_feature_flags.json"));
   const snapshot = JSON.parse(bytes.toString("utf8"));
   const fingerprint = snapshot?._pupu_memory_v2_release?.snapshot_fingerprint;
@@ -363,9 +367,7 @@ export const installMacDmg = ({ installerPath, tempRoot }) => {
       launchCwd: path.dirname(identity.executablePath),
       sidecarNeedle: identity.sidecarPath,
       candidateNeedle: appPath,
-      close: () => runChecked("/usr/bin/osascript", [
-        "-l", "JavaScript", "-e", "function run(argv) { Application(argv[0]).quit(); }", appPath,
-      ]),
+      close: (pid, options) => closeMacApplication(pid, appPath, identity.executablePath, options),
       cleanup: detach,
     };
   } catch (error) {
@@ -380,11 +382,133 @@ export const installMacDmg = ({ installerPath, tempRoot }) => {
   }
 };
 
-export const installWindowsNsis = ({ installerPath, tempRoot }) => {
+const compactProcessDetail = (value) => String(value || "")
+  .replace(/\s+/g, " ")
+  .trim()
+  .slice(-4_000);
+
+const windowsNsisAttemptDiagnostic = (result, attempt, maxAttempts) => {
+  const detail = compactProcessDetail(
+    result.stderr || result.stdout || result.error?.message || "no process output",
+  );
+  return `attempt ${attempt}/${maxAttempts}: status=${result.status ?? "null"} ` +
+    `signal=${result.signal ?? "null"} error_code=${result.error?.code || "none"} detail=${detail}`;
+};
+
+export const runWindowsNsisInstaller = async (
+  installerPath,
+  installRoot,
+  {
+    spawnInstaller = spawnSync,
+    makeDirectory = fs.mkdirSync,
+    remove = fs.rmSync,
+    pause = sleep,
+    maxAttempts = 3,
+    retryDelayMs = 2_000,
+  } = {},
+) => {
+  requirePositiveInteger(maxAttempts, "Windows NSIS installer maxAttempts");
+  const diagnostics = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    makeDirectory(installRoot, { recursive: true });
+    const result = spawnInstaller(installerPath, ["/S", `/D=${installRoot}`], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (!result.error && result.status === 0) return;
+
+    diagnostics.push(windowsNsisAttemptDiagnostic(result, attempt, maxAttempts));
+    if (attempt === maxAttempts) break;
+    try {
+      remove(installRoot, { recursive: true, force: true, maxRetries: 0 });
+    } catch (cleanupError) {
+      throw new Error(
+        `Windows NSIS installer failed: ${diagnostics.join("; ")}; ` +
+        `retry cleanup failed: ${cleanupError.message || String(cleanupError)}`,
+      );
+    }
+    console.warn(
+      `[release-qualification] Windows NSIS install failed; retrying clean install (${attempt + 1}/${maxAttempts})`,
+    );
+    await pause(retryDelayMs);
+  }
+  throw new Error(`Windows NSIS installer failed: ${diagnostics.join("; ")}`);
+};
+
+// Sending WM_CLOSE is separate from proving exit. Callers must await this
+// bounded readiness phase, then independently observe normal process exit.
+export const closeWindowsApplication = async (pid, {
+  timeoutMs = 60_000,
+  retryDelayMs = 1_000,
+  spawnProbe = spawnSync,
+  pause = sleep,
+  now = Date.now,
+  onObservation = (row) => console.log(`[windows-close] ${JSON.stringify(row)}`),
+} = {}) => {
+  requirePositiveInteger(pid, "Windows close pid");
+  if (pid > 2_147_483_647 || pid === process.pid || pid === process.ppid) {
+    throw new Error("Windows close requires an owned application pid");
+  }
+  requirePositiveInteger(timeoutMs, "Windows close timeoutMs");
+  requirePositiveInteger(retryDelayMs, "Windows close retryDelayMs");
+  const deadline = now() + timeoutMs;
+  let startedAt = "";
+  let last = null;
+  let attempt = 0;
+  while (now() < deadline) {
+    // Pin creation time after the first observation. Never send a close to a
+    // replacement process that happens to reuse the same PID during retries.
+    const script = `
+$ErrorActionPreference = 'Stop'
+$appProcess = Get-Process -Id ${pid} -ErrorAction Stop
+$startedAt = $appProcess.StartTime.ToUniversalTime().Ticks.ToString()
+if ('${startedAt}' -ne '' -and $startedAt -ne '${startedAt}') { throw 'Windows close process identity changed' }
+$appProcess.Refresh()
+if ($appProcess.HasExited) { throw 'Windows close process exited before close request' }
+$handle = $appProcess.MainWindowHandle.ToInt64().ToString()
+$responding = [bool]$appProcess.Responding
+$requested = $false
+if ($handle -ne '0' -and $responding) { $requested = [bool]$appProcess.CloseMainWindow() }
+[ordered]@{
+  schema = 'pupu.windows-close-observation.v1'; pid = [int]$appProcess.Id
+  started_at = $startedAt; window_handle = $handle
+  responding = $responding; close_requested = $requested
+} | ConvertTo-Json -Compress
+`;
+    const result = spawnProbe("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      encoding: "utf8", windowsHide: true,
+      timeout: Math.max(1, Math.min(10_000, deadline - now())),
+    });
+    attempt += 1;
+    if (result.error || result.status !== 0) {
+      throw new Error(`Windows close probe failed (pid=${pid}, attempt=${attempt}): ${String(
+        result.stderr || result.error?.message || result.stdout || "unknown failure",
+      ).trim()}; last=${JSON.stringify(last)}`);
+    }
+    const row = JSON.parse(String(result.stdout || "").replace(/^\uFEFF/, "").trim());
+    exactKeys(row, ["schema", "pid", "started_at", "window_handle", "responding", "close_requested"], "Windows close observation");
+    if (row.schema !== "pupu.windows-close-observation.v1" || row.pid !== pid ||
+        typeof row.started_at !== "string" || !/^[1-9][0-9]{0,18}$/.test(row.started_at) ||
+        typeof row.window_handle !== "string" || !/^(0|[1-9][0-9]*)$/.test(row.window_handle) ||
+        typeof row.responding !== "boolean" || typeof row.close_requested !== "boolean" ||
+        (row.close_requested && (row.window_handle === "0" || !row.responding))) {
+      throw new Error("invalid Windows close observation");
+    }
+    if (startedAt && row.started_at !== startedAt) throw new Error("Windows close process identity changed");
+    startedAt = row.started_at;
+    last = { ...row, attempt };
+    onObservation(last);
+    if (now() >= deadline) break;
+    if (row.close_requested) return last;
+    await pause(Math.min(retryDelayMs, deadline - now()));
+  }
+  throw new Error(`Windows close request timed out (pid=${pid}, budget=${timeoutMs}ms); last=${JSON.stringify(last)}`);
+};
+
+export const installWindowsNsis = async ({ installerPath, tempRoot }) => {
   if (process.platform !== "win32") throw new Error("NSIS qualification requires Windows");
   const installRoot = path.join(tempRoot, "installed");
-  fs.mkdirSync(installRoot, { recursive: true });
-  runChecked(installerPath, ["/S", `/D=${installRoot}`]);
+  await runWindowsNsisInstaller(installerPath, installRoot);
   const resourceRoot = appRootFromAsar(installRoot);
   const executablePath = path.join(path.dirname(resourceRoot), "PuPu.exe");
   const identity = inspectResources({ resourceRoot, executablePath, sidecarPlatform: "windows" });
@@ -394,10 +518,7 @@ export const installWindowsNsis = ({ installerPath, tempRoot }) => {
     launchCwd: path.dirname(executablePath),
     sidecarNeedle: identity.sidecarPath,
     candidateNeedle: installRoot,
-    close: (pid) => runChecked("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      `$process = Get-Process -Id ${pid} -ErrorAction Stop; if (-not $process.CloseMainWindow()) { throw 'CloseMainWindow returned false' }`,
-    ]),
+    close: closeWindowsApplication,
     cleanup: () => {},
   };
 };
@@ -518,8 +639,8 @@ const launchInstalledApplication = async ({ installed, tempRoot }) => {
       return sidecar || null;
     }, 60_000, "bundled Sidecar descendant");
 
-    installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
-    await waitFor(() => !processAlive(child.pid), 15_000, "controlled installed-app shutdown");
+    await installed.close(buildInstalledProcessControl({ pid: child.pid }).shutdownPid);
+    await waitFor(() => !processAlive(child.pid), process.platform === "win32" ? 60_000 : 15_000, "controlled installed-app shutdown");
     const cleanupRows = readProcessTable();
     const cleanupPids = selectInstalledCleanupPids({
       rows: cleanupRows,
@@ -654,7 +775,7 @@ export function validateInstalledPackageQualificationReport(report, {
 }
 
 export async function runInstalledPackageQualification({ candidateDir, targetId }) {
-  const contract = readReleaseArtifactContract(path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"));
+  const contract = readReleaseArtifactContract(path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"));
   const candidateRoot = path.resolve(candidateDir);
   const manifest = readJson(path.join(candidateRoot, "release-assets.v1.json"));
   validateReleaseAssetManifest(manifest, contract);
@@ -677,7 +798,7 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       fs.mkdirSync(formRoot, { recursive: true });
       let installed;
       if (format === "dmg") installed = installMacDmg({ installerPath, tempRoot: formRoot });
-      else if (format === "exe") installed = installWindowsNsis({ installerPath, tempRoot: formRoot });
+      else if (format === "exe") installed = await installWindowsNsis({ installerPath, tempRoot: formRoot });
       else if (format === "AppImage") installed = installLinuxAppImage({ installerPath, tempRoot: formRoot });
       else if (format === "deb") installed = installLinuxDeb({ installerPath, tempRoot: formRoot });
       else throw new Error(`installed qualification has no installer for ${format}`);

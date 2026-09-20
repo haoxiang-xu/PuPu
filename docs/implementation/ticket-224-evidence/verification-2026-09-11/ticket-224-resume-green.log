@@ -1,0 +1,207 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+
+FakeTimers: cancelAnimationFrame was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+FAIL src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+  Memory V2 P0 payload seams
+    ✓ a fresh chat can send before a late none recovery lookup (51 ms)
+    ✓ a fresh chat can send before a late awaiting_response recovery lookup (20 ms)
+    ✓ a failed speculative lookup does not mark a fresh chat as restoring (17 ms)
+    ✓ a chat with persisted history stays blocked until its recovery lookup resolves (12 ms)
+    ✓ flag off: owner_chat_id is the UI chat id and no memory-v2 fields exist (18 ms)
+    ✓ flag on: bootstrap fields are added while legacy history stays byte-equivalent (34 ms)
+    ✓ character chat: threadId is the character session while owner_chat_id stays the UI chat id (18 ms)
+    ✓ explicit answer to recovered human input resumes once without sealing the receipt (14 ms)
+    ✓ live human input callback does not start another stream (10 ms)
+    ✕ mismatched receipt cannot resume or cancel a recorded human answer (1015 ms)
+    ✕ unavailable resume cannot resume or cancel a recorded human answer (1016 ms)
+    ✓ Stop while the answer is being recorded prevents the late receipt from resuming (11 ms)
+    ✓ Stop carries a live tool confirmation id and the same chat can send again (29 ms)
+    ✓ a failed confirmation stays actionable and retries the same decision (15 ms)
+    ✓ old Stop outbox recovers only a same attempt target (8 ms)
+    ✓ old Stop outbox recovers only a foreign attempt target (5 ms)
+    ✓ cancel failures stop retrying after three attempts and stay stopped after remount (14 ms)
+    ✓ Codex replaces a persisted minimal preference with its supported default (16 ms)
+    ✓ flag off: a durable receipt is sealed without a model payload (10 ms)
+    ✓ flag on: a durable receipt is still sealed without a model payload (9 ms)
+
+  ● Memory V2 P0 payload seams › mismatched receipt cannot resume or cancel a recorded human answer
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /different interaction|missing_checkpoint/
+    Received string:  "This run is waiting for your confirmation."
+
+    Ignored nodes: comments, script, style
+    [36m<html>[39m
+      [36m<head />[39m
+      [36m<body>[39m
+        [36m<div>[39m
+          [36m<div[39m
+            [33mdata-chat-id[39m=[32m"chat-1789172306256-d3b26f934b879"[39m
+            [33mstyle[39m=[32m"position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: hidden; display: flex; flex-direction: column; font-family: inherit; transition: left 0.3s ease;"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maccept[39m=[32m"image/*,.pdf,application/pdf"[39m
+              [33mmultiple[39m=[32m""[39m
+              [33mstyle[39m=[32m"display: none;"[39m
+              [33mtype[39m=[32m"file"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mdata-testid[39m=[32m"chat-smooth-resize-frame"[39m
+              [33mstyle[39m=[32m"position: absolute; overflow: hidden; transform: translate3d(0, 0, 0); transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1), height 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; left: 0px; top: 0px; width: 1024px; height: 768px; will-change: width, height, transform;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"chat-messages"[39m
+              [36m>[39m
+                [36m<div>[39m
+                  [0muser[0m
+                  [0m:[0m
+                  [0mAsk where to put the project[0m
+                  [0m:[0m
+                  [0mdone[0m
+                [36m</div>[39m
+                [36m<div>[39m
+                  [0massistant[0m
+                  [0m:[0m
+                  [0m:[0m
+                  [0mdone[0m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"position: absolute; left: 0px; right: 0px; bottom: 0px; z-index: 5;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mstyle[39m=[32m"position: absolute; inset: 0; pointer-events: none;"[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"position: relative;"[39m
+                [36m>[39m
+                  [36m<div>[39m
+                    [36m<input[39m
+                      [33mdata-testid[39m=[32m"chat-input"[39m
+                      [33mvalue[39m=[32m""[39m
+                    [36m/>[39m
+                    [36m<button[39m
+                      [33mdata-testid[39m=[32m"send-button"[39m
+                    [36m>[39m
+                      [0mSend[0m
+                    [36m</button>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</body>[39m
+    [36m</html>[39m
+
+      585 |     const { decision } = await prepareRecoveredHumanInput(options);
+      586 |     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    > 587 |     await waitFor(() => expect(lastChatInputProps.disclaimer).toMatch(/different interaction|missing_checkpoint/));
+          |                                                               ^
+      588 |     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+      589 |     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+      590 |   });
+
+      at src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:587:63
+      at runWithExpensiveErrorDiagnosticsDisabled (node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (node_modules/jsdom/lib/jsdom/browser/Window.js:516:19)
+
+  ● Memory V2 P0 payload seams › unavailable resume cannot resume or cancel a recorded human answer
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /different interaction|missing_checkpoint/
+    Received string:  "Waiting to retry restoring the interrupted run..."
+
+    Ignored nodes: comments, script, style
+    [36m<html>[39m
+      [36m<head />[39m
+      [36m<body>[39m
+        [36m<div>[39m
+          [36m<div[39m
+            [33mdata-chat-id[39m=[32m"chat-1789172307298-244aa697ca868"[39m
+            [33mstyle[39m=[32m"position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: hidden; display: flex; flex-direction: column; font-family: inherit; transition: left 0.3s ease;"[39m
+          [36m>[39m
+            [36m<input[39m
+              [33maccept[39m=[32m"image/*,.pdf,application/pdf"[39m
+              [33mmultiple[39m=[32m""[39m
+              [33mstyle[39m=[32m"display: none;"[39m
+              [33mtype[39m=[32m"file"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33mdata-testid[39m=[32m"chat-smooth-resize-frame"[39m
+              [33mstyle[39m=[32m"position: absolute; overflow: hidden; transform: translate3d(0, 0, 0); transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1), height 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; left: 0px; top: 0px; width: 1024px; height: 768px; will-change: width, height, transform;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"chat-messages"[39m
+              [36m>[39m
+                [36m<div>[39m
+                  [0muser[0m
+                  [0m:[0m
+                  [0mAsk where to put the project[0m
+                  [0m:[0m
+                  [0mdone[0m
+                [36m</div>[39m
+                [36m<div>[39m
+                  [0massistant[0m
+                  [0m:[0m
+                  [0m:[0m
+                  [0mdone[0m
+                [36m</div>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mstyle[39m=[32m"position: absolute; left: 0px; right: 0px; bottom: 0px; z-index: 5;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mstyle[39m=[32m"position: absolute; inset: 0; pointer-events: none;"[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mstyle[39m=[32m"position: relative;"[39m
+                [36m>[39m
+                  [36m<div>[39m
+                    [36m<input[39m
+                      [33mdata-testid[39m=[32m"chat-input"[39m
+                      [33mvalue[39m=[32m""[39m
+                    [36m/>[39m
+                    [36m<button[39m
+                      [33mdata-testid[39m=[32m"send-button"[39m
+                      [33mdisabled[39m=[32m""[39m
+                    [36m>[39m
+                      [0mSend[0m
+                    [36m</button>[39m
+                  [36m</div>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</body>[39m
+    [36m</html>[39m
+
+      585 |     const { decision } = await prepareRecoveredHumanInput(options);
+      586 |     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    > 587 |     await waitFor(() => expect(lastChatInputProps.disclaimer).toMatch(/different interaction|missing_checkpoint/));
+          |                                                               ^
+      588 |     expect(window.unchainAPI.startStreamV4).not.toHaveBeenCalled();
+      589 |     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+      590 |   });
+
+      at src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:587:63
+      at runWithExpensiveErrorDiagnosticsDisabled (node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (node_modules/jsdom/lib/jsdom/browser/Window.js:516:19)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 18 passed, 20 total
+Snapshots:   0 total
+Time:        3.161 s
+Ran all test suites within paths "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js".

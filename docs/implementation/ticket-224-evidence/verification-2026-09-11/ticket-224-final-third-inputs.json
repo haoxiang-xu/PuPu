@@ -1,0 +1,14 @@
+[
+  {
+    "placeholder": "/new/path/to/project",
+    "value": ""
+  },
+  {
+    "placeholder": "",
+    "value": ""
+  },
+  {
+    "placeholder": "Search...",
+    "value": ""
+  }
+]

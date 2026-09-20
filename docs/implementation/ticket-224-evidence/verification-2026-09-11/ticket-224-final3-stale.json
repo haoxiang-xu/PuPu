@@ -1,0 +1,5 @@
+{
+  "rejected": true,
+  "message": "Error invoking remote method 'unchain:tool-confirmation': Error: session_guard_graph_owner_missing: Graph interaction has no authoritative coordinator binding",
+  "code": ""
+}

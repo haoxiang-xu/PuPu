@@ -4,7 +4,7 @@
  * The first describe block locks the consumer-visible read/write behavior in
  * fallback (localStorage) mode. It was written against the legacy
  * implementation and passed unchanged — assertions use exactly the access
- * patterns of the real consumers (api_key_input.js, use_chat_input_models.js,
+ * patterns of the real consumers (provider_key_section.js, use_chat_input_models.js,
  * chat.js, configure_providers.js): `readModelProviders()[key] || ""` and
  * `!!readModelProviders()[key]`.
  *

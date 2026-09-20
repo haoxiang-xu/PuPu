@@ -1,0 +1,470 @@
+{
+  "toolkitId": "mcp.productivity.discord",
+  "catalog": {
+    "id": "productivity.discord",
+    "toolkitId": "mcp.productivity.discord",
+    "name": "Discord",
+    "description": "Third-party Discord MCP server (IQAI) for messaging, channels, forums, reactions and webhooks via a Discord bot token.",
+    "category": "communication",
+    "source": "mcp",
+    "trustLevel": "needs_review",
+    "status": "needs_review",
+    "installable": false,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
+    "docsUrl": "https://github.com/IQAIcom/mcp-discord",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/IQAIcom/mcp-discord",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "@iqai/mcp-discord@0.0.6"
+      ]
+    },
+    "setupPreview": "npx -y @iqai/mcp-discord@0.0.6",
+    "prerequisites": [
+      "Discord bot token from the Developer Portal"
+    ],
+    "secrets": [
+      {
+        "key": "DISCORD_TOKEN",
+        "label": "Discord bot token"
+      }
+    ],
+    "tools": [
+      {
+        "name": "discord_get_server_info",
+        "title": "Get server info",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "discord_read_messages",
+        "title": "Read messages",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "discord_get_forum_channels",
+        "title": "List forum channels",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "discord_get_forum_post",
+        "title": "Get forum post",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "discord_login",
+        "title": "Login",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_send",
+        "title": "Send message",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_create_forum_post",
+        "title": "Create forum post",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_reply_to_forum",
+        "title": "Reply to forum",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_create_category",
+        "title": "Create category",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_edit_category",
+        "title": "Edit category",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_delete_category",
+        "title": "Delete category",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_create_text_channel",
+        "title": "Create text channel",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_delete_channel",
+        "title": "Delete channel",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_delete_message",
+        "title": "Delete message",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_delete_forum_post",
+        "title": "Delete forum post",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_add_reaction",
+        "title": "Add reaction",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_add_multiple_reactions",
+        "title": "Add multiple reactions",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_remove_reaction",
+        "title": "Remove reaction",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_create_webhook",
+        "title": "Create webhook",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_send_webhook_message",
+        "title": "Send webhook message",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_edit_webhook",
+        "title": "Edit webhook",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "discord_delete_webhook",
+        "title": "Delete webhook",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 18
+    },
+    "readmeMarkdown": "## Discord (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-discord` server (IQAI) over stdio, pinned to `@0.0.6`. This is **not** an official Discord MCP server and is **pending PuPu review** (`needs_review`); the version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `DISCORD_TOKEN` environment variable, injected by the PuPu backend secret store \u2014 it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Discord bot** for the agent and grant it the **minimum** permissions only:\n\n- Do **not** grant the **Administrator** permission. Grant only the specific guild/channel permissions for the actions you want the agent to perform (e.g. Send Messages / Read Message History for the specific channels in use).\n- **Scope the bot to a single guild (server)** wherever possible, rather than inviting it to multiple servers.\n- When inviting the bot, select only the OAuth2 scopes/permissions it needs; avoid blanket permission integers.\n- Treat the bot token as a secret: rotate it if it leaks, and remove the bot from servers you no longer want the agent to reach.\n\nEvery write, messaging, moderation, webhook and login tool requires explicit confirmation; only read-only tools (get server info, read messages, list/get forum posts) run without a prompt."
+  },
+  "checkedAt": "2026-09-13T18:36:59.480810+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "@iqai/mcp-discord",
+  "version": "0.0.6",
+  "download": "https://registry.npmjs.org/@iqai/mcp-discord/-/mcp-discord-0.0.6.tgz",
+  "artifactSha256": "0494e82a8481f7f839839105b91ef466165cdd11d5eb51a64d4505c0fd01f789",
+  "registryIntegrity": "sha512-sm+YBQthmRaVVJXwjUZg4HpNJin0pFttKCanU7Ql1KA82Sxo7SKVlmrTvZPQ+wlv8XcMNdDWT4VLu3jefGejFw==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/LICENSE",
+      "sha256": "d18fa082b5ccb86d620dc8c5729d9e92d23625466ee98275ca8ce1ff80237ccf",
+      "size": 1062
+    },
+    {
+      "path": "package/dist/tools/channel.js",
+      "sha256": "8e5e26e933aa5df947b46c05dec3e1d784e7c540a732526ce7fa9f522ecb186e",
+      "size": 13434
+    },
+    {
+      "path": "package/dist/config.js",
+      "sha256": "b0373a14d2f0e70548a7f48277dc5f161adeec085e54cc4368a392c524179d24",
+      "size": 4750
+    },
+    {
+      "path": "package/dist/error-handler.js",
+      "sha256": "6c3907b0f787bc75091b9549daa571804c3de64cc76d7caa491597174aa1fa2d",
+      "size": 2999
+    },
+    {
+      "path": "package/dist/tools/forum.js",
+      "sha256": "c705c21e183479e157f8ee601f65a21e72382de357c895f73b52cc22ea4d2739",
+      "size": 7496
+    },
+    {
+      "path": "package/dist/index.js",
+      "sha256": "524701a2a760601c60a15139ca1e2a70ce550263bc4c5fd11d690858176db0d4",
+      "size": 3370
+    },
+    {
+      "path": "package/dist/logger.js",
+      "sha256": "7db6996bfbb2b5cc2f105bef0bdb9a6cf3d7aed9e3875557735646414b559ee6",
+      "size": 414
+    },
+    {
+      "path": "package/dist/tools/login.js",
+      "sha256": "7f4505d79793dee303c5155c530c5f70af4977513ce9500cd777a31e2fe738ec",
+      "size": 3477
+    },
+    {
+      "path": "package/dist/tools/reactions.js",
+      "sha256": "b43dfc31fefa3b2f87a75cbe3853c5e86f72a0addefbb89030fc291ff145626a",
+      "size": 7410
+    },
+    {
+      "path": "package/dist/sampling.js",
+      "sha256": "01ac5506721d55270490d376580419663666cba3994890c0cb33a75d46669c33",
+      "size": 7202
+    },
+    {
+      "path": "package/dist/schemas.js",
+      "sha256": "6ad710a15a5a362278c6c43150473649ee3dfd5790fc59a7f3a5ec8517dc5256",
+      "size": 3170
+    },
+    {
+      "path": "package/dist/tools/send-message.js",
+      "sha256": "1583641942bd0b37ab108bf74bb445b972285a28330c8be1692ce689a16d2512",
+      "size": 1518
+    },
+    {
+      "path": "package/dist/server.js",
+      "sha256": "d1065245cf383d44c1dc935ef20041d5b1be5e341101f1b8d6e9f28ca2c92c7c",
+      "size": 9788
+    },
+    {
+      "path": "package/dist/tool-list.js",
+      "sha256": "bd384715b85349f5818313a442bfbfb1df8f75a1fdd26ff4a0110a4fe227fd7d",
+      "size": 9409
+    },
+    {
+      "path": "package/dist/tools/tools.js",
+      "sha256": "0494a63a30758808d4ada9d129eb92fb9dff41e09e3fb5a9ad8be454066f91ea",
+      "size": 811
+    },
+    {
+      "path": "package/dist/transport.js",
+      "sha256": "6a02a34f8f0cc8505fcf26b0900134a466abf2a513aaba0cb33b8505d229f1be",
+      "size": 32886
+    },
+    {
+      "path": "package/dist/tools/types.js",
+      "sha256": "01ae2a5b120382f9a648ced7ee8507493a134f216d100fc61600c6c9738235d2",
+      "size": 44
+    },
+    {
+      "path": "package/dist/tools/webhooks.js",
+      "sha256": "5b074f867e42600d4f6a62d35857b7dfedfdb0aeaba0b54290117d84e246ec85",
+      "size": 5321
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "c90f142ad518672a66f1abce5634582c35aa2cddd84d0c770dd9ca6a4b5cb834",
+      "size": 1831
+    },
+    {
+      "path": "package/dist/tools/channel.js.map",
+      "sha256": "927ccd1241e7717a9b28e298ade46429da2e5985fbf00c5c12f73de374d0b361",
+      "size": 11477
+    },
+    {
+      "path": "package/dist/config.js.map",
+      "sha256": "9da0cd6e782dd856632b7acf246edf24376e5259f1978b532bedace697927ebc",
+      "size": 4205
+    },
+    {
+      "path": "package/dist/error-handler.js.map",
+      "sha256": "692021474bfd53b78de4b9b76d346ad921b47f2484a6e7b1493e5eb064ce19bb",
+      "size": 1370
+    },
+    {
+      "path": "package/dist/tools/forum.js.map",
+      "sha256": "a03a3ea676543bae96322b04343b8b1b2d2568bdbf5dd528f39cae33c6ffcc2b",
+      "size": 6407
+    },
+    {
+      "path": "package/dist/index.js.map",
+      "sha256": "279b853d3cc9b73775f5e43d9daf75998c0f7e6f2f35b174af8f47fb87f505fa",
+      "size": 2785
+    },
+    {
+      "path": "package/dist/logger.js.map",
+      "sha256": "4546443d17dc22e1e2369af77ee1fea5f861cf23d50daeda437e768c9c217e91",
+      "size": 521
+    },
+    {
+      "path": "package/dist/tools/login.js.map",
+      "sha256": "45441212566407630f07dd5120e4274787ed6a568ed6b7e7c6754a43cf6e20c1",
+      "size": 2636
+    },
+    {
+      "path": "package/dist/tools/reactions.js.map",
+      "sha256": "e288729f2c7d3d9b8f37eea82101c5f35f27109e9dad2925dac7a43f3f08f24f",
+      "size": 5868
+    },
+    {
+      "path": "package/dist/sampling.js.map",
+      "sha256": "0f957c50a815e5e7348349d87d7a1b758d48911d4f7dbe368dd9d74c1f33ae9b",
+      "size": 6520
+    },
+    {
+      "path": "package/dist/schemas.js.map",
+      "sha256": "7eefc3ae931f62ae853e734693813a906e8f286393e9cf65f877a948efda8cf1",
+      "size": 4489
+    },
+    {
+      "path": "package/dist/tools/send-message.js.map",
+      "sha256": "4488c435f5965c4f4576b46b5892b34bc1de8f771af334e4b4eb95c0ccf8ccf2",
+      "size": 1238
+    },
+    {
+      "path": "package/dist/server.js.map",
+      "sha256": "20c400302fcf655b2b2520eac78a27644c002858328a894c30925328282450cb",
+      "size": 6543
+    },
+    {
+      "path": "package/dist/tool-list.js.map",
+      "sha256": "3dcf2eae160b299d1c8db8189b2f58e7a7af98152a7518eb50360e3659ad1b04",
+      "size": 6327
+    },
+    {
+      "path": "package/dist/tools/tools.js.map",
+      "sha256": "eb1811b0b970b997b36c8a59a90a34b0cb354b98b162d5451cc295e53e982934",
+      "size": 669
+    },
+    {
+      "path": "package/dist/transport.js.map",
+      "sha256": "90aa6ea668627e38668936194954bf47d224d034ab66472a143f3d13a25ab0d6",
+      "size": 19001
+    },
+    {
+      "path": "package/dist/tools/types.js.map",
+      "sha256": "a3c432f9de74d48869dc1ff0f8e916fa7091214178c1d98cda8b326722ca2d77",
+      "size": 111
+    },
+    {
+      "path": "package/dist/tools/webhooks.js.map",
+      "sha256": "f4675db2db5177c0e7ff82c2c545ef827930694a298b7c4ce639407a27160ad2",
+      "size": 4173
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "4abec4927f3dd0ddbdd16f9ea59ce2af89f6b5482dd9f52328c8f4082f22e242",
+      "size": 9789
+    },
+    {
+      "path": "package/dist/tools/channel.d.ts",
+      "sha256": "cfd39ce876fcac37e2b50bcc8a5c17c9b0eb40ac270b971153cf942dd77fd8e5",
+      "size": 807
+    },
+    {
+      "path": "package/dist/config.d.ts",
+      "sha256": "0ace17e9f319de0111e513fd21a5390f75878ee0e23b2443f2682429fcd131a5",
+      "size": 545
+    },
+    {
+      "path": "package/dist/error-handler.d.ts",
+      "sha256": "425b6d60ae29137ce2cfbb84640a9bd0e9bee4c82b9d83d2205e38134501f2c6",
+      "size": 410
+    },
+    {
+      "path": "package/dist/tools/forum.d.ts",
+      "sha256": "d3cf67942baf12945b66a2e9841562c20fac3352fe4605c5dc531c96477e3a08",
+      "size": 332
+    },
+    {
+      "path": "package/dist/index.d.ts",
+      "sha256": "43e818adf60173644896298637f47b01d5819b17eda46eaa32d0c7d64724d012",
+      "size": 31
+    },
+    {
+      "path": "package/dist/logger.d.ts",
+      "sha256": "80a2ddb420705aa449ce2ba41f4c98594b5b741c67cad819b88cd1818ebb326e",
+      "size": 185
+    },
+    {
+      "path": "package/dist/tools/login.d.ts",
+      "sha256": "21d348e576a6210839a891abd7dc72a26117fb29f389cf32f0f93ca26f78f74b",
+      "size": 95
+    },
+    {
+      "path": "package/dist/tools/reactions.d.ts",
+      "sha256": "efccb25864248dd53554ba952eb367f7df5b8ffae43726ab0a4e14f8d43c1c93",
+      "size": 491
+    },
+    {
+      "path": "package/dist/sampling.d.ts",
+      "sha256": "746a06b76e1d5e1fa7f2f5fde47dee0d11f659966dc7e6e7cd7bc75a7badfd81",
+      "size": 727
+    },
+    {
+      "path": "package/dist/schemas.d.ts",
+      "sha256": "b70d8765805cb1c68eb5b3606957bfb7525c72e35d0b7056289666baa7f127ef",
+      "size": 7690
+    },
+    {
+      "path": "package/dist/tools/send-message.d.ts",
+      "sha256": "c329e2aecb4fdd26c12000660977ff12b04c9807d9f9c2d75e9e3c64ba4d81ce",
+      "size": 101
+    },
+    {
+      "path": "package/dist/server.d.ts",
+      "sha256": "57f9ff2685e17f42c756d9a05fde40e9711f7cadd0583ec1907019873b541fcf",
+      "size": 509
+    },
+    {
+      "path": "package/dist/tool-list.d.ts",
+      "sha256": "f37b10b6e8b8327885e1ba24fb32b08c2f61cbf8ce3748666429955daf9764ac",
+      "size": 23311
+    },
+    {
+      "path": "package/dist/tools/tools.d.ts",
+      "sha256": "f9c3190cf7b5d22ee0b3ccf536c4e43850985919be1ae09a314d2923e5c56310",
+      "size": 916
+    },
+    {
+      "path": "package/dist/transport.d.ts",
+      "sha256": "44a24e228e02b22ba43792fe0ea23bb899b593978df12f949d4a79e930ee6e16",
+      "size": 1367
+    },
+    {
+      "path": "package/dist/tools/types.d.ts",
+      "sha256": "7d976e9016fd14d831b2f945acece29cb9c6758a1fa30c6d9abfa390d2f1b4e9",
+      "size": 341
+    },
+    {
+      "path": "package/dist/tools/webhooks.d.ts",
+      "sha256": "dae7b1cb51e771a58f23e0808caf2d336e9b57becba2ec4a740d81d02c9b877f",
+      "size": 488
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/IQAICOM/mcp-discord.git",
+    "type": "git"
+  },
+  "gitHead": null,
+  "resolvedLockSha256": "8e2ce1b99d01b9275b9664711b8044d46ccc8d90b62fc18414f0f969f6a8c5fb",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

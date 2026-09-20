@@ -18,7 +18,7 @@ import {
 } from "./release-artifact-manifest.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
-const CONTRACT_PATH = path.join(ROOT, "contracts/release/release-artifact-contract.v1.json");
+const CONTRACT_PATH = path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json");
 const CONTRACT = readReleaseArtifactContract(CONTRACT_PATH);
 const VERSION = "0.1.10";
 const TAG = `v${VERSION}`;

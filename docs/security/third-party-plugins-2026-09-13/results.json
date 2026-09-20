@@ -1,0 +1,354 @@
+{
+  "schemaVersion": "pupu.verification-batch.v1",
+  "checkedAt": "2026-09-13T18:55:05.209102+00:00",
+  "scope": "23 third-party MCP entries, 5 curated skill packs (9 selected skills), and bundled third-party Agent Reach wrapper",
+  "status": "INCOMPLETE",
+  "results": [
+    {
+      "toolkitId": "agent_reach",
+      "name": "Agent Reach",
+      "kind": "third-party-wrapper",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/agent_reach.json"
+    },
+    {
+      "toolkitId": "mcp.browser.browser-use-local",
+      "name": "Browser Use",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 16,
+      "catalogConfirmationMismatch": [
+        "browser_click",
+        "browser_type"
+      ],
+      "report": "reports/mcp.browser.browser-use-local.json"
+    },
+    {
+      "toolkitId": "mcp.browser.chrome-devtools",
+      "name": "Chrome DevTools",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 29,
+      "catalogConfirmationMismatch": [
+        "evaluate_script",
+        "performance_start_trace"
+      ],
+      "report": "reports/mcp.browser.chrome-devtools.json"
+    },
+    {
+      "toolkitId": "mcp.browser.playwright",
+      "name": "Playwright Browser",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 24,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.browser.playwright.json"
+    },
+    {
+      "toolkitId": "mcp.dev.bug-bounty-intelligence",
+      "name": "Bug Bounty Intelligence",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 3,
+      "catalogConfirmationMismatch": [
+        "scan_contract"
+      ],
+      "report": "reports/mcp.dev.bug-bounty-intelligence.json"
+    },
+    {
+      "toolkitId": "mcp.dev.figma-remote",
+      "name": "Figma",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.dev.figma-remote.json"
+    },
+    {
+      "toolkitId": "mcp.dev.github-remote",
+      "name": "GitHub",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.dev.github-remote.json"
+    },
+    {
+      "toolkitId": "mcp.dev.microsoft-learn",
+      "name": "Microsoft Learn",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 3,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.dev.microsoft-learn.json"
+    },
+    {
+      "toolkitId": "mcp.devops.grafana",
+      "name": "Grafana",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 65,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.devops.grafana.json"
+    },
+    {
+      "toolkitId": "mcp.devops.netdata-cloud",
+      "name": "Netdata Cloud",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.devops.netdata-cloud.json"
+    },
+    {
+      "toolkitId": "mcp.devops.sentry-remote",
+      "name": "Sentry",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.devops.sentry-remote.json"
+    },
+    {
+      "toolkitId": "mcp.devops.vercel-remote",
+      "name": "Vercel",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.devops.vercel-remote.json"
+    },
+    {
+      "toolkitId": "mcp.memory.memory",
+      "name": "Memory",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 9,
+      "catalogConfirmationMismatch": [
+        "create_entities"
+      ],
+      "report": "reports/mcp.memory.memory.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.brave-search",
+      "name": "Brave Search",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 4,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.productivity.brave-search.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.discord",
+      "name": "Discord",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 22,
+      "catalogConfirmationMismatch": [
+        "discord_create_category",
+        "discord_edit_category",
+        "discord_delete_category",
+        "discord_login",
+        "discord_send",
+        "discord_create_forum_post",
+        "discord_reply_to_forum",
+        "discord_create_text_channel",
+        "discord_delete_channel",
+        "discord_add_reaction",
+        "discord_add_multiple_reactions",
+        "discord_remove_reaction",
+        "discord_delete_forum_post",
+        "discord_delete_message",
+        "discord_create_webhook",
+        "discord_send_webhook_message",
+        "discord_edit_webhook",
+        "discord_delete_webhook"
+      ],
+      "report": "reports/mcp.productivity.discord.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.firecrawl",
+      "name": "Firecrawl",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 26,
+      "catalogConfirmationMismatch": [
+        "firecrawl_scrape",
+        "firecrawl_map",
+        "firecrawl_search"
+      ],
+      "report": "reports/mcp.productivity.firecrawl.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.notion-remote",
+      "name": "Notion",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.productivity.notion-remote.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.slack-remote",
+      "name": "Slack Remote",
+      "kind": "hosted-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "AUTH_REQUIRED",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.productivity.slack-remote.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.tavily",
+      "name": "Tavily",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 5,
+      "catalogConfirmationMismatch": [
+        "tavily_search",
+        "tavily_extract",
+        "tavily_crawl",
+        "tavily_map",
+        "tavily_research"
+      ],
+      "report": "reports/mcp.productivity.tavily.json"
+    },
+    {
+      "toolkitId": "mcp.productivity.telegram",
+      "name": "Telegram",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 5,
+      "catalogConfirmationMismatch": [
+        "SEND_MESSAGE",
+        "FORWARD_MESSAGE",
+        "PIN_MESSAGE"
+      ],
+      "report": "reports/mcp.productivity.telegram.json"
+    },
+    {
+      "toolkitId": "mcp.workspace.fetch",
+      "name": "Fetch",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 1,
+      "catalogConfirmationMismatch": [
+        "fetch"
+      ],
+      "report": "reports/mcp.workspace.fetch.json"
+    },
+    {
+      "toolkitId": "mcp.workspace.filesystem",
+      "name": "Filesystem",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 14,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.workspace.filesystem.json"
+    },
+    {
+      "toolkitId": "mcp.workspace.markitdown",
+      "name": "MarkItDown",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 1,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/mcp.workspace.markitdown.json"
+    },
+    {
+      "toolkitId": "mcp.workspace.sqlite",
+      "name": "SQLite",
+      "kind": "local-mcp",
+      "status": "INCOMPLETE",
+      "protocol": "PASS",
+      "tools": 6,
+      "catalogConfirmationMismatch": [
+        "write_query",
+        "create_table",
+        "append_insight"
+      ],
+      "report": "reports/mcp.workspace.sqlite.json"
+    },
+    {
+      "toolkitId": "skillpack.frontend-design",
+      "name": "Frontend Design",
+      "kind": "skill-pack",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/skillpack.frontend-design.json"
+    },
+    {
+      "toolkitId": "skillpack.prompt-master",
+      "name": "Prompt Master",
+      "kind": "skill-pack",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/skillpack.prompt-master.json"
+    },
+    {
+      "toolkitId": "skillpack.superpowers-essentials",
+      "name": "Superpowers Essentials",
+      "kind": "skill-pack",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/skillpack.superpowers-essentials.json"
+    },
+    {
+      "toolkitId": "skillpack.trailofbits-audit-prep",
+      "name": "Trail of Bits Audit Prep",
+      "kind": "skill-pack",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/skillpack.trailofbits-audit-prep.json"
+    },
+    {
+      "toolkitId": "skillpack.vercel-web-review",
+      "name": "Vercel Web Review",
+      "kind": "skill-pack",
+      "status": "INCOMPLETE",
+      "protocol": "NOT_RUN",
+      "tools": 0,
+      "catalogConfirmationMismatch": [],
+      "report": "reports/skillpack.vercel-web-review.json"
+    }
+  ],
+  "counts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "INCOMPLETE": 29
+  },
+  "integrationStatus": "FAIL",
+  "integrationReport": "integration-report.json"
+}

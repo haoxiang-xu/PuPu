@@ -260,6 +260,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "input_modalities": ["text"],
                 "input_source_types": {},
                 "supports_tools": False,
+                # Built-in Ollama declares PuPu's default window so the attach
+                # panel can render the context picker (#227).
+                "default_context_window_tokens": 32_768,
             },
         )
         anthropic_capabilities = dict(

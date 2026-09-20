@@ -56,6 +56,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.INSTALL,
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
+  CHANNELS.OLLAMA.LIBRARY_TAGS,
   CHANNELS.UNCHAIN.GET_STATUS,
   CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
   CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
@@ -136,6 +137,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.THEME.SET_BACKGROUND_COLOR,
   CHANNELS.THEME.SET_MODE,
   CHANNELS.WINDOW_STATE.HANDLE_ACTION,
+  CHANNELS.WINDOW_STATE.SET_PRESENTATION,
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_START_V4,
@@ -190,6 +192,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.on(CHANNELS.WINDOW_STATE.HANDLE_ACTION, (_event, action) => {
     windowService.handleWindowStateEvent(action);
   });
+  ipcMain.on(CHANNELS.WINDOW_STATE.SET_PRESENTATION, (_event, platform) => {
+    windowService.handlePlatformPresentation(platform);
+  });
 
   ipcMain.handle(CHANNELS.APP.GET_VERSION, () => app.getVersion());
 
@@ -231,6 +236,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.OLLAMA.LIBRARY_SEARCH, async (_event, payload = {}) =>
     ollamaService.searchLibrary(payload),
+  );
+  ipcMain.handle(CHANNELS.OLLAMA.LIBRARY_TAGS, async (_event, payload = {}) =>
+    ollamaService.fetchLibraryTags(payload),
   );
 
   ipcMain.handle(CHANNELS.UNCHAIN.GET_STATUS, () =>

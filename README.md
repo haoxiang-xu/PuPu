@@ -2,10 +2,10 @@
 <div align="center">
   <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
-  <p>Your AI, your way — beautifully simple.</p>
+  <p>Your desktop workspace for local and cloud AI.</p>
   <p>
-    A desktop AI client for local and cloud models — workspace-aware chat and a
-    built-in MCP tool store, in one clean native app.
+    Chat with Ollama locally or cloud providers, with your files, conversation
+    context, and MCP tools together in one native app.
   </p>
   <p>
     <a href="#macos">
@@ -22,9 +22,9 @@
   </p>
 </div>
 
-PuPu is a cross-platform desktop AI client that lets you chat with local models through Ollama or connect to cloud providers such as OpenAI and Anthropic. It is built for people who want one fast desktop app for everyday AI work, not a browser tab maze.
+PuPu is the desktop home for people who use both local and cloud AI: run models privately with Ollama or switch to providers such as OpenAI and Anthropic, while keeping your files, context, and tools together. Install it on macOS, Windows, or Linux and get back to the work—not a browser-tab maze.
 
-If you find the project useful, ⭐⭐⭐ star the repo.
+If PuPu makes your AI work simpler, ⭐ star the repo to help more people find it.
 
 ![PuPu UI](./public/assets/v0.1.5-release/social_preview.png)
 
@@ -44,16 +44,14 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 ## Get PuPu
 
 <!-- release-downloads:start -->
-**v0.1.10** — Choose your platform and click to download.
-
-> **Coming soon:** v0.1.10 is currently a draft. The download buttons below become publicly available after publication. For the current public version, see the [latest release](https://github.com/haoxiang-xu/PuPu/releases/latest).
+**v0.1.11** — Choose your platform and click to download.
 
 <a id="macos"></a>
 
 ### macOS
 
-[![Download for Mac — Apple Silicon](https://img.shields.io/badge/Mac-Apple_Silicon-111827?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-arm64.dmg)
-[![Download for Mac — Intel](https://img.shields.io/badge/Mac-Intel-64748B?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-x64.dmg)
+[![Download for Mac — Apple Silicon](https://img.shields.io/badge/Mac-Apple_Silicon-111827?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-arm64.dmg)
+[![Download for Mac — Intel](https://img.shields.io/badge/Mac-Intel-64748B?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-x64.dmg)
 
 **Not sure which Mac you have?** Open **Apple menu → About This Mac**. Choose **Apple Silicon** for an Apple M-series chip, or **Intel** for an Intel processor.
 
@@ -61,7 +59,7 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 ### Windows
 
-[![Download for Windows x64](https://img.shields.io/badge/Download-Windows_x64-0078D4?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-windows-x64-setup.exe)
+[![Download for Windows x64](https://img.shields.io/badge/Download-Windows_x64-0078D4?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-windows-x64-setup.exe)
 
 Run the installer, then launch PuPu from the Start menu.
 
@@ -69,13 +67,13 @@ Run the installer, then launch PuPu from the Start menu.
 
 ### Linux
 
-[![Download for Ubuntu / Debian x64](https://img.shields.io/badge/Ubuntu_%2F_Debian-x64_DEB-E95420?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.deb)
-[![Download Linux AppImage x64](https://img.shields.io/badge/Linux-x64_AppImage-2563EB?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.AppImage)
+[![Download for Ubuntu / Debian x64](https://img.shields.io/badge/Ubuntu_%2F_Debian-x64_DEB-E95420?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-linux-x64.deb)
+[![Download Linux AppImage x64](https://img.shields.io/badge/Linux-x64_AppImage-2563EB?style=for-the-badge)](https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-linux-x64.AppImage)
 
 For the `.deb`, download it first and install it with:
 
 ```bash
-sudo apt install ./PuPu-0.1.10-linux-x64.deb
+sudo apt install ./PuPu-0.1.11-linux-x64.deb
 ```
 
 <!-- release-downloads:end -->

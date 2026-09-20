@@ -1,0 +1,20 @@
+{
+  "toolkitId": "mcp.devops.netdata-cloud",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "endpoint": "https://app.netdata.cloud/api/v1/mcp",
+  "error": "Streamable HTTP error: Error POSTing to endpoint: {\"errorCode\":\"LZ0MelKWWZ-307114196\",\"errorMsgKey\":\"ErrUnauthenticated\",\"errorMessage\":\"no cookie\"}\n",
+  "stderr": "",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ]
+}

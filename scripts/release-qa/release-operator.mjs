@@ -7,6 +7,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { resolveReleaseCandidateRef } from "./release-candidate-ref.mjs";
+import { validateToolsTag } from "./release-toolchain.mjs";
 
 export const RELEASE_OPERATOR_PLAN_SCHEMA = "pupu.release-operator-plan.v1";
 export const RELEASE_OPERATOR_DISPATCH_SCHEMA = "pupu.release-operator-dispatch.v1";
@@ -31,6 +32,12 @@ const RUN_CONCLUSIONS = new Set([
 ]);
 
 const PHASES = Object.freeze({
+  "windows-diagnostic": Object.freeze({
+    workflow: ".github/workflows/windows-signing-qualification.yml",
+    confirmation: "START_WINDOWS_DIAGNOSTIC",
+    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "fromTag"]),
+    requiredArtifacts: Object.freeze(["windows-upgrade-diagnostic"]),
+  }),
   candidate: Object.freeze({
     workflow: ".github/workflows/release-qa.yml",
     confirmation: "START_CANDIDATE",
@@ -40,7 +47,7 @@ const PHASES = Object.freeze({
   qualification: Object.freeze({
     workflow: ".github/workflows/release-qualification.yml",
     confirmation: "START_QUALIFICATION",
-    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "fromTag"]),
+    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "fromTag", "toolsTag"]),
     requiredArtifacts: Object.freeze(["pupu-release-qualification"]),
   }),
   bootstrap: Object.freeze({
@@ -52,13 +59,13 @@ const PHASES = Object.freeze({
   stage: Object.freeze({
     workflow: ".github/workflows/release-stage.yml",
     confirmation: "STAGE_DRAFT",
-    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "qualificationRunId"]),
+    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "candidateRunId", "qualificationRunId", "toolsTag"]),
     requiredArtifacts: Object.freeze([]),
   }),
   publish: Object.freeze({
     workflow: ".github/workflows/release-publish.yml",
     confirmation: "PUBLISH_RELEASE",
-    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion"]),
+    planKeys: Object.freeze(["phase", "repo", "tag", "packageVersion", "toolsTag"]),
     requiredArtifacts: Object.freeze([]),
   }),
 });
@@ -176,13 +183,14 @@ const workflowInputsForPlan = (phase, options) => {
       unchain_ref: unchainRef,
     };
   }
-  if (phase === "qualification") {
+  if (phase === "qualification" || phase === "windows-diagnostic") {
     const targetTuple = stableVersionTuple(`v${options.packageVersion}`, "package version tag");
     const fromTuple = stableVersionTuple(options.fromTag, "qualification source tag");
     if (compareVersionTuple(fromTuple, targetTuple) >= 0) {
       throw new Error("qualification source tag must be lower than the target package version");
     }
     return {
+      ...(phase === "windows-diagnostic" ? { confirmation: "DIAGNOSE_WINDOWS_UPGRADE" } : {}),
       candidate_run_id: requiredRunId(options.candidateRunId, "candidate run ID"),
       release_tag: options.tag,
       from_tag: options.fromTag,
@@ -234,7 +242,8 @@ export function buildReleaseOperatorPlan(options = {}) {
     mutates: false,
     phase,
     repository,
-    ref: releaseRef.tag,
+    ref: phase === "windows-diagnostic" ? "dev" :
+      (options.toolsTag === undefined ? releaseRef.tag : validateToolsTag(options.toolsTag, releaseRef.tag)),
     workflow: config.workflow,
     workflow_inputs: Object.freeze(workflowInputs),
     confirmation_required: config.confirmation,
@@ -247,18 +256,21 @@ const rebuildReleaseOperatorPlan = (plan) => {
   }
   const phase = requirePhase(plan.phase);
   const ref = requiredExactString(plan.ref, "release operator plan ref");
-  if (!ref.startsWith("v")) throw new Error("release operator plan ref must start with v");
+  if (phase === "windows-diagnostic" ? ref !== "dev" : !ref.startsWith("v")) {
+    throw new Error("release operator plan ref must be dev for diagnostics, or start with v for releases");
+  }
   if (!plan.workflow_inputs || typeof plan.workflow_inputs !== "object" || Array.isArray(plan.workflow_inputs)) {
     throw new Error("release operator plan workflow_inputs must be an object");
   }
   const options = {
     phase,
     repo: plan.repository,
-    tag: ref,
-    packageVersion: packageVersionForReleaseRef(ref),
+    tag: phase === "candidate" ? ref : plan.workflow_inputs.release_tag,
+    packageVersion: packageVersionForReleaseRef(phase === "candidate" ? ref : plan.workflow_inputs.release_tag),
   };
+  if (["qualification", "stage", "publish"].includes(phase) && ref !== options.tag) options.toolsTag = ref;
   if (phase === "candidate") options.unchainRef = plan.workflow_inputs.unchain_ref;
-  if (phase === "qualification") {
+  if (phase === "qualification" || phase === "windows-diagnostic") {
     options.candidateRunId = plan.workflow_inputs.candidate_run_id;
     options.fromTag = plan.workflow_inputs.from_tag;
   }
@@ -423,18 +435,22 @@ const normalizeRelease = (release, phase, tag, commit) => {
   });
 };
 
-export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, run, jobs, artifacts, release = null } = {}) {
+export function projectReleaseOperatorState({ phase, repo, tag, commit, toolsTag, toolsCommit, runId, run, jobs, artifacts, release = null } = {}) {
   const selectedPhase = requirePhase(phase);
   const config = PHASES[selectedPhase];
   const repository = requireRepository(repo);
   const expectedRunId = requiredRunId(runId, "run ID");
   const expectedTag = requiredExactString(tag, "release tag");
   const expectedCommit = requiredCommit(commit);
+  if ((toolsTag === undefined) !== (toolsCommit === undefined)) throw new Error("tools tag and commit must be supplied together");
+  if (toolsTag !== undefined && !["qualification", "stage", "publish"].includes(selectedPhase)) throw new Error("tools identity is unsupported for this phase");
+  const executionTag = toolsTag === undefined ? expectedTag : validateToolsTag(toolsTag, expectedTag);
+  const executionCommit = toolsCommit === undefined ? expectedCommit : requiredCommit(toolsCommit);
   if (!run || typeof run !== "object" || Array.isArray(run)) throw new Error("Actions run response must be an object");
   if (String(run.id) !== expectedRunId) throw new Error("Actions run ID does not match the requested run");
   if (run.event !== "workflow_dispatch") throw new Error("release operation run event must be workflow_dispatch");
-  if (run.head_branch !== expectedTag) throw new Error("Actions run tag does not match the requested tag");
-  if (run.head_sha !== expectedCommit) throw new Error("Actions run commit does not match the requested commit");
+  if (run.head_branch !== (selectedPhase === "windows-diagnostic" ? "dev" : executionTag)) throw new Error("Actions run tag/ref does not match the requested tag/ref");
+  if (run.head_sha !== executionCommit) throw new Error("Actions run commit does not match the requested commit");
   if (normalizeWorkflowPath(run.path) !== config.workflow) {
     throw new Error(`Actions workflow path must equal ${config.workflow}`);
   }
@@ -444,7 +460,8 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
   const normalizedArtifacts = normalizeArtifacts(artifacts);
   const artifactNames = new Set(normalizedArtifacts.map((artifact) => artifact.name));
   const missingArtifacts = config.requiredArtifacts.filter((name) => !artifactNames.has(name));
-  const failedJobs = normalizedJobs.filter((job) => job.status === "completed" && job.conclusion !== "success");
+  const failedJobs = normalizedJobs.filter((job) => job.status === "completed" && job.conclusion !== "success"
+    && !(selectedPhase === "windows-diagnostic" && job.name === "Build and verify Windows Artifact Signing" && job.conclusion === "skipped"));
   const blockingReasons = [];
   if (run.status === "waiting") blockingReasons.push("environment-approval-required");
   for (const job of failedJobs) blockingReasons.push(`job-failed:${job.name}`);
@@ -468,7 +485,10 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
     phase: selectedPhase,
     repository,
     workflow: config.workflow,
-    release: Object.freeze({ tag: expectedTag, commit: expectedCommit }),
+    ...(selectedPhase === "windows-diagnostic"
+      ? { diagnostic_only: true, tools: Object.freeze({ ref: "dev", commit: expectedCommit }), requested_candidate_tag: expectedTag }
+      : { release: Object.freeze({ tag: expectedTag, commit: expectedCommit }) }),
+    ...(toolsTag === undefined ? {} : { tools: Object.freeze({ tag: executionTag, commit: executionCommit }) }),
     run: Object.freeze({
       id: expectedRunId,
       url: requiredExactString(run.html_url, "Actions run URL"),
@@ -483,7 +503,7 @@ export function projectReleaseOperatorState({ phase, repo, tag, commit, runId, r
   });
 }
 
-export function observeReleaseRun({ phase, repo = DEFAULT_REPOSITORY, tag, commit, runId, runner = defaultGhRunner } = {}) {
+export function observeReleaseRun({ phase, repo = DEFAULT_REPOSITORY, tag, commit, toolsTag, toolsCommit, runId, runner = defaultGhRunner } = {}) {
   const selectedPhase = requirePhase(phase);
   const repository = requireRepository(repo);
   const expectedRunId = requiredRunId(runId, "run ID");
@@ -503,6 +523,8 @@ export function observeReleaseRun({ phase, repo = DEFAULT_REPOSITORY, tag, commi
     repo: repository,
     tag,
     commit,
+    toolsTag,
+    toolsCommit,
     runId: expectedRunId,
     run,
     jobs,
@@ -549,10 +571,10 @@ export function parseReleaseOperatorArgs(argv) {
   }
   const common = ["phase", "repo", "tag"];
   const commandKeys = {
-    plan: [...common, "unchain-ref", "candidate-run-id", "qualification-run-id", "from-tag"],
-    dispatch: [...common, "unchain-ref", "candidate-run-id", "qualification-run-id", "from-tag", "confirm"],
-    status: [...common, "commit", "run-id"],
-    wait: [...common, "commit", "run-id", "timeout-seconds", "poll-seconds"],
+    plan: [...common, "unchain-ref", "candidate-run-id", "qualification-run-id", "from-tag", "tools-tag"],
+    dispatch: [...common, "unchain-ref", "candidate-run-id", "qualification-run-id", "from-tag", "tools-tag", "confirm"],
+    status: [...common, "commit", "run-id", "tools-tag", "tools-commit"],
+    wait: [...common, "commit", "run-id", "timeout-seconds", "poll-seconds", "tools-tag", "tools-commit"],
   };
   const allowed = new Set(commandKeys[command]);
   const unknown = Object.keys(values).filter((key) => !allowed.has(key));
@@ -580,6 +602,7 @@ const planOptionsFromCli = (values) => {
   if (values["candidate-run-id"]) options.candidateRunId = values["candidate-run-id"];
   if (values["qualification-run-id"]) options.qualificationRunId = values["qualification-run-id"];
   if (values["from-tag"]) options.fromTag = values["from-tag"];
+  if (values["tools-tag"]) options.toolsTag = values["tools-tag"];
   return options;
 };
 
@@ -605,6 +628,8 @@ async function main() {
     repo: values.repo,
     tag: values.tag,
     commit: values.commit,
+    toolsTag: values["tools-tag"],
+    toolsCommit: values["tools-commit"],
     runId: values["run-id"],
   });
   if (command === "status") {

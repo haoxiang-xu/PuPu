@@ -1,0 +1,759 @@
+[
+  {
+    "chat_id": "chat-1789331079212-22a23ed6d1d1c8",
+    "ord": 0,
+    "role": "user",
+    "content": "For this acceptance test, prepare a short audit plan using only the synthetic facts below. Do not read or write files and do not run tools. Project: a calculator library with add(a,b), two unit tests, no network or credentials. Goal: prepare for an external arithmetic-correctness review. Give three concrete preparation priorities, begin with AUDIT283, and explicitly say no security certification is established.",
+    "status": null,
+    "meta": null,
+    "traceFrames": []
+  },
+  {
+    "chat_id": "chat-1789331079212-22a23ed6d1d1c8",
+    "ord": 1,
+    "role": "assistant",
+    "content": "",
+    "status": "error",
+    "meta": {
+      "model": "openai:gpt-4.1",
+      "requestId": "unchain-1789331627300-6b6fc4ab952d2",
+      "attemptId": "unchain-1789331627300-6b6fc4ab952d2",
+      "executionSessionId": "chat-1789331079212-22a23ed6d1d1c8",
+      "error": {
+        "code": "stream_failed",
+        "message": "ContextCompileCoordinator.__init__() got an unexpected keyword argument 'artifacts'"
+      }
+    },
+    "traceFrames": [
+      {
+        "seq": 1,
+        "ts": 1789331627305,
+        "run_id": "unchain-1789331627300-6b6fc4ab952d2",
+        "type": "stream_started",
+        "payload": {
+          "thread_id": "chat-1789331079212-22a23ed6d1d1c8",
+          "model": "openai:gpt-4.1",
+          "trace_level": "minimal",
+          "runtime_event_id": "evt_25d84d88ae3f465687b9d871592d6af5"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": 1789331627456,
+        "run_id": "",
+        "type": "error",
+        "payload": {
+          "code": "stream_failed",
+          "message": "ContextCompileCoordinator.__init__() got an unexpected keyword argument 'artifacts'"
+        }
+      }
+    ]
+  },
+  {
+    "chat_id": "chat-1789331845505-41e078163c4a6",
+    "ord": 0,
+    "role": "user",
+    "content": "# Audit Prep Assistant\n\n## Purpose\n\nHelps prepare for a security review using Trail of Bits' checklist. A well-prepared codebase makes the review process smoother and more effective.\n\n**Use this**: 1-2 weeks before your security audit\n\n---\n\n## The Preparation Process\n\n### Step 1: Set Review Goals\n\nHelps define what you want from the review:\n\n**Key Questions**:\n- What's the overall security level you're aiming for?\n- What areas concern you most?\n  - Previous audit issues?\n  - Complex components?\n  - Fragile parts?\n- What's the worst-case scenario for your project?\n\nDocuments goals to share with the assessment team.\n\n---\n\n### Step 2: Resolve Easy Issues\n\nRuns static analysis and helps fix low-hanging fruit:\n\n**Run Static Analysis**:\n\nFor Solidity:\n```bash\nslither . --exclude-dependencies\n```\n\nFor Rust:\n```bash\ndylint --all\n```\n\nFor Go:\n```bash\ngolangci-lint run\n```\n\nFor Go/Rust/C++:\n```bash\n# CodeQL and Semgrep checks\n```\n\nThen I'll:\n- Triage all findings\n- Help fix easy issues\n- Document accepted risks\n\n**Increase Test Coverage**:\n- Analyze current coverage\n- Identify untested code\n- Suggest new tests\n- Run full test suite\n\n**Remove Dead Code**:\n- Find unused functions/variables\n- Identify unused libraries\n- Locate stale features\n- Suggest cleanup\n\n**Goal**: Clean static analysis report, high test coverage, minimal dead code\n\n---\n\n### Step 3: Ensure Code Accessibility\n\nHelps make code clear and accessible:\n\n**Provide Detailed File List**:\n- List all files in scope\n- Mark out-of-scope files\n- Explain folder structure\n- Document dependencies\n\n**Create Build Instructions**:\n- Write step-by-step setup guide\n- Test on fresh environment\n- Document dependencies and versions\n- Verify build succeeds\n\n**Freeze Stable Version**:\n- Identify commit hash for review\n- Create dedicated branch\n- Tag release version\n- Lock dependencies\n\n**Identify Boilerplate**:\n- Mark copied/forked code\n- Highlight your modifications\n- Document third-party code\n- Focus review on your code\n\n---\n\n### Step 4: Generate Documentation\n\nHelps create documentation:\n\n**Flowcharts and Sequence Diagrams**:\n- Map primary workflows\n- Show component relationships\n- Visualize data flow\n- Identify critical paths\n\n**User Stories**:\n- Define user roles\n- Document use cases\n- Explain interactions\n- Clarify expectations\n\n**On-chain/Off-chain Assumptions**:\n- Data validation procedures\n- Oracle information\n- Bridge assumptions\n- Trust boundaries\n\n**Actors and Privileges**:\n- List all actors\n- Document roles\n- Define privileges\n- Map access controls\n\n**External Developer Docs**:\n- Link docs to code\n- Keep synchronized\n- Explain architecture\n- Document APIs\n\n**Function Documentation**:\n- System and function invariants\n- Parameter ranges (min/max values)\n- Arithmetic formulas and precision loss\n- Complex logic explanations\n- NatSpec for Solidity\n\n**Glossary**:\n- Define domain terms\n- Explain acronyms\n- Consistent terminology\n- Business logic concepts\n\n**Video Walkthroughs** (optional):\n- Complex workflows\n- Areas of concern\n- Architecture overview\n\n---\n\n## How I Work\n\nWhen invoked, I will:\n\n1. **Help set review goals** - Ask about concerns and document them\n2. **Run static analysis** - Execute appropriate tools for your platform\n3. **Analyze test coverage** - Identify gaps and suggest improvements\n4. **Find dead code** - Search for unused code and libraries\n5. **Review accessibility** - Check build instructions and scope clarity\n6. **Generate documentation** - Create flowcharts, user stories, glossaries\n7. **Create prep checklist** - Track what's done and what's remaining\n\nAdapts based on:\n- Your platform (Solidity, Rust, Go, etc.)\n- Available tools\n- Existing documentation\n- Review timeline\n\n---\n\n## Rationalizations (Do Not Skip)\n\n| Rationalization | Why It's Wrong | Required Action |\n|-----------------|----------------|-----------------|\n| \"README covers setup, no need for detailed build instructions\" | READMEs assume context auditors don't have | Test build on fresh environment, document every dependency version |\n| \"Static analysis already ran, no need to run again\" | Codebase changed since last run | Execute static analysis tools, generate fresh report |\n| \"Test coverage looks decent\" | \"Looks decent\" isn't measured coverage | Run coverage tools, identify specific untested code paths |\n| \"Not much dead code to worry about\" | Dead code hides during manual review | Use automated detection tools to find unused functions/variables |\n| \"Architecture is straightforward, no diagrams needed\" | Text descriptions miss visual patterns | Generate actual flowcharts and sequence diagrams |\n| \"Can freeze version right before audit\" | Last-minute freezing creates rushed handoff | Identify and document commit hash now, create dedicated branch |\n| \"Terms are self-explanatory\" | Domain knowledge isn't universal | Create comprehensive glossary with all domain-specific terms |\n| \"I'll do this step later\" | Steps build on each other - skipping creates gaps | Complete all 4 steps sequentially, track progress with checklist |\n\n---\n\n## Example Output\n\nWhen I finish helping you prepare, you'll have concrete deliverables like:\n\n```\n=== AUDIT PREP PACKAGE ===\n\nProject: DeFi DEX Protocol\nAudit Date: March 15, 2024\nPreparation Status: Complete\n\n---\n\n## REVIEW GOALS DOCUMENT\n\nSecurity Objectives:\n- Verify economic security of liquidity pool swaps\n- Validate oracle manipulation resistance\n- Assess flash loan attack vectors\n\nAreas of Concern:\n1. Complex AMM pricing calculation (src/SwapRouter.sol:89-156)\n2. Multi-hop swap routing logic (src/Router.sol)\n3. Oracle price aggregation (src/PriceOracle.sol:45-78)\n\nWorst-Case Scenario:\n- Flash loan attack drains liquidity pools via oracle manipulation\n\nQuestions for Auditors:\n- Can the AMM pricing model produce negative slippage under edge cases?\n- Is the slippage protection sufficient to prevent sandwich attacks?\n- How resilient is the system to temporary oracle failures?\n\n---\n\n## STATIC ANALYSIS REPORT\n\nSlither Scan Results:\n\u2713 High: 0 issues\n\u2713 Medium: 0 issues\n\u26a0 Low: 2 issues (triaged - documented in TRIAGE.md)\n\u2139 Info: 5 issues (code style, acceptable)\n\nTool: slither . --exclude-dependencies\nDate: March 1, 2024\nStatus: CLEAN (all critical issues resolved)\n\n---\n\n## TEST COVERAGE REPORT\n\nOverall Coverage: 94%\n- Statements: 1,245 / 1,321 (94%)\n- Branches: 456 / 498 (92%)\n- Functions: 89 / 92 (97%)\n\nUncovered Areas:\n- Emergency pause admin functions (tested manually)\n- Governance migration path (one-time use)\n\nCommand: forge coverage\nStatus: EXCELLENT\n\n---\n\n## CODE SCOPE\n\nIn-Scope Files (8):\n\u2713 src/SwapRouter.sol (456 lines)\n\u2713 src/LiquidityPool.sol (234 lines)\n\u2713 src/PairFactory.sol (389 lines)\n\u2713 src/PriceOracle.sol (167 lines)\n\u2713 src/LiquidityManager.sol (298 lines)\n\u2713 src/Governance.sol (201 lines)\n\u2713 src/FlashLoan.sol (145 lines)\n\u2713 src/RewardsDistributor.sol (178 lines)\n\nOut-of-Scope:\n- lib/ (OpenZeppelin, external dependencies)\n- test/ (test contracts)\n- scripts/ (deployment scripts)\n\nTotal In-Scope: 2,068 lines of Solidity\n\n---\n\n## BUILD INSTRUCTIONS\n\nPrerequisites:\n- Foundry 0.2.0+\n- Node.js 18+\n- Git\n\nSetup:\n```bash\ngit clone https://github.com/project/repo.git\ncd repo\ngit checkout audit-march-2024  # Frozen branch\nforge install\nforge build\nforge test\n```\n\nVerification:\n\u2713 Build succeeds without errors\n\u2713 All 127 tests pass\n\u2713 No warnings from compiler\n\n---\n\n## DOCUMENTATION\n\nGenerated Artifacts:\n\u2713 ARCHITECTURE.md - System overview with diagrams\n\u2713 USER_STORIES.md - 12 user interaction flows\n\u2713 GLOSSARY.md - 34 domain terms defined\n\u2713 docs/diagrams/contract-interactions.png\n\u2713 docs/diagrams/swap-flow.png\n\u2713 docs/diagrams/state-machine.png\n\nNatSpec Coverage: 100% of public functions\n\n---\n\n## DEPLOYMENT INFO\n\nNetwork: Ethereum Mainnet\nCommit: abc123def456 (audit-march-2024 branch)\nDeployed Contracts:\n- SwapRouter: 0x1234...\n- PriceOracle: 0x5678...\n[... etc]\n\n---\n\nPACKAGE READY FOR AUDIT \u2713\nNext Step: Share with Trail of Bits assessment team\n```\n\n---\n\n## What You'll Get\n\n**Review Goals Document**:\n- Security objectives\n- Areas of concern\n- Worst-case scenarios\n- Questions for auditors\n\n**Clean Codebase**:\n- Triaged static analysis (or clean report)\n- High test coverage\n- No dead code\n- Clear scope\n\n**Accessibility Package**:\n- File list with scope\n- Build instructions\n- Frozen commit/branch\n- Boilerplate identified\n\n**Documentation Suite**:\n- Flowcharts and diagrams\n- User stories\n- Architecture docs\n- Actor/privilege map\n- Inline code comments\n- Glossary\n- Video walkthroughs (if created)\n\n**Audit Prep Checklist**:\n- [ ] Review goals documented\n- [ ] Static analysis clean/triaged\n- [ ] Test coverage >80%\n- [ ] Dead code removed\n- [ ] Build instructions verified\n- [ ] Stable version frozen\n- [ ] Flowcharts created\n- [ ] User stories documented\n- [ ] Assumptions documented\n- [ ] Actors/privileges listed\n- [ ] Function docs complete\n- [ ] Glossary created\n\n---\n\n## Timeline\n\n**2 weeks before audit**:\n- Set review goals\n- Run static analysis\n- Start fixing issues\n\n**1 week before audit**:\n- Increase test coverage\n- Remove dead code\n- Freeze stable version\n- Start documentation\n\n**Few days before audit**:\n- Complete documentation\n- Verify build instructions\n- Create final checklist\n- Send package to auditors\n\n---\n\n## Ready to Prep\n\nLet me know when you're ready and I'll help you prepare for your security review!\n\nFor this acceptance test, prepare a short audit plan using only the synthetic facts below. Do not read or write files and do not run tools. Project: a calculator library with add(a,b), two unit tests, no network or credentials. Goal: prepare for an external arithmetic-correctness review. Give three concrete preparation priorities, begin with AUDIT283, and explicitly say no security certification is established.",
+    "status": null,
+    "meta": null,
+    "traceFrames": []
+  },
+  {
+    "chat_id": "chat-1789331845505-41e078163c4a6",
+    "ord": 1,
+    "role": "assistant",
+    "content": "",
+    "status": "error",
+    "meta": {
+      "model": "openai:gpt-4.1",
+      "requestId": "unchain-1789331914311-64170ff2080f8",
+      "attemptId": "unchain-1789331914311-64170ff2080f8",
+      "executionSessionId": "chat-1789331845505-41e078163c4a6",
+      "error": {
+        "code": "stream_failed",
+        "message": "Requested toolkit is unavailable: skillpack.trailofbits-audit-prep"
+      }
+    },
+    "traceFrames": [
+      {
+        "seq": 1,
+        "ts": 1789331914315,
+        "run_id": "unchain-1789331914311-64170ff2080f8",
+        "type": "stream_started",
+        "payload": {
+          "thread_id": "chat-1789331845505-41e078163c4a6",
+          "model": "openai:gpt-4.1",
+          "trace_level": "minimal",
+          "runtime_event_id": "evt_55210b85d40d41d58a95e2c6b656fc72"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": 1789331915331,
+        "run_id": "",
+        "type": "error",
+        "payload": {
+          "code": "stream_failed",
+          "message": "Requested toolkit is unavailable: skillpack.trailofbits-audit-prep"
+        }
+      }
+    ]
+  },
+  {
+    "chat_id": "chat-1789331845505-41e078163c4a6",
+    "ord": 2,
+    "role": "user",
+    "content": "# Web Interface Guidelines\n\nReview files for compliance with Web Interface Guidelines.\n\n## How It Works\n\n1. Fetch the latest guidelines from the source URL below\n2. Read the specified files (or prompt user for files/pattern)\n3. Check against all rules in the fetched guidelines\n4. Output findings in the terse `file:line` format\n\n## Guidelines Source\n\nFetch fresh guidelines before each review:\n\n```\nhttps://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md\n```\n\nUse WebFetch to retrieve the latest rules. The fetched content contains all the rules and output format instructions.\n\n## Usage\n\nWhen a user provides a file or pattern argument:\n1. Fetch guidelines from the source URL above\n2. Read the specified files\n3. Apply all rules from the fetched guidelines\n4. Output findings using the format specified in the guidelines\n\nIf no files specified, ask the user which files to review.\n\nFor this acceptance test use only this pasted HTML: <button>Save</button>. Do not access files or websites. State one accessibility improvement, begin with VERCEL283.",
+    "status": null,
+    "meta": null,
+    "traceFrames": []
+  },
+  {
+    "chat_id": "chat-1789331845505-41e078163c4a6",
+    "ord": 3,
+    "role": "assistant",
+    "content": "",
+    "status": "error",
+    "meta": {
+      "model": "openai:gpt-4.1",
+      "requestId": "unchain-1789331954465-34f1df11cbd8f8",
+      "attemptId": "unchain-1789331954465-34f1df11cbd8f8",
+      "executionSessionId": "chat-1789331845505-41e078163c4a6",
+      "error": {
+        "code": "context_v2_failed",
+        "message": "context_v2_failed"
+      }
+    },
+    "traceFrames": [
+      {
+        "seq": 1,
+        "ts": 1789331954468,
+        "run_id": "unchain-1789331954465-34f1df11cbd8f8",
+        "type": "stream_started",
+        "payload": {
+          "thread_id": "chat-1789331845505-41e078163c4a6",
+          "model": "openai:gpt-4.1",
+          "trace_level": "minimal",
+          "runtime_event_id": "evt_042dabf1e5734e088f9d4f0527cab0c2"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": 1789331954506,
+        "run_id": "",
+        "type": "error",
+        "payload": {
+          "code": "context_v2_failed",
+          "message": "context_v2_failed"
+        }
+      }
+    ]
+  },
+  {
+    "chat_id": "chat-1789331983699-035d2d60fb9838",
+    "ord": 0,
+    "role": "user",
+    "content": "# Web Interface Guidelines\n\nReview files for compliance with Web Interface Guidelines.\n\n## How It Works\n\n1. Fetch the latest guidelines from the source URL below\n2. Read the specified files (or prompt user for files/pattern)\n3. Check against all rules in the fetched guidelines\n4. Output findings in the terse `file:line` format\n\n## Guidelines Source\n\nFetch fresh guidelines before each review:\n\n```\nhttps://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md\n```\n\nUse WebFetch to retrieve the latest rules. The fetched content contains all the rules and output format instructions.\n\n## Usage\n\nWhen a user provides a file or pattern argument:\n1. Fetch guidelines from the source URL above\n2. Read the specified files\n3. Apply all rules from the fetched guidelines\n4. Output findings using the format specified in the guidelines\n\nIf no files specified, ask the user which files to review.\n\nFor this acceptance test use only this pasted HTML: <button>Save</button>. Do not access files or websites. State one accessibility improvement, begin with VERCEL283.",
+    "status": null,
+    "meta": null,
+    "traceFrames": []
+  },
+  {
+    "chat_id": "chat-1789331983699-035d2d60fb9838",
+    "ord": 1,
+    "role": "assistant",
+    "content": "",
+    "status": "error",
+    "meta": {
+      "model": "openai:gpt-4.1",
+      "requestId": "unchain-1789332005136-d2724aff2b1928",
+      "attemptId": "unchain-1789332005136-d2724aff2b1928",
+      "executionSessionId": "chat-1789331983699-035d2d60fb9838",
+      "error": {
+        "code": "stream_failed",
+        "message": "Requested toolkit is unavailable: skillpack.vercel-web-review"
+      }
+    },
+    "traceFrames": [
+      {
+        "seq": 1,
+        "ts": 1789332005145,
+        "run_id": "unchain-1789332005136-d2724aff2b1928",
+        "type": "stream_started",
+        "payload": {
+          "thread_id": "chat-1789331983699-035d2d60fb9838",
+          "model": "openai:gpt-4.1",
+          "trace_level": "minimal",
+          "runtime_event_id": "evt_90540d7dd0f04600a7f8e10aa967e03d"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": 1789332005665,
+        "run_id": "",
+        "type": "error",
+        "payload": {
+          "code": "stream_failed",
+          "message": "Requested toolkit is unavailable: skillpack.vercel-web-review"
+        }
+      }
+    ]
+  },
+  {
+    "chat_id": "chat-1789332032730-28ebd6f44c9b7",
+    "ord": 0,
+    "role": "user",
+    "content": "Reply with BASELINE283 only. Do not call tools.",
+    "status": null,
+    "meta": null,
+    "traceFrames": []
+  },
+  {
+    "chat_id": "chat-1789332032730-28ebd6f44c9b7",
+    "ord": 1,
+    "role": "assistant",
+    "content": "BASELINE283",
+    "status": "done",
+    "meta": {
+      "model": "openai:gpt-4.1",
+      "requestId": "unchain-1789332044001-936bef7d9ad2c",
+      "attemptId": "unchain-1789332044001-936bef7d9ad2c",
+      "executionSessionId": "chat-1789332032730-28ebd6f44c9b7",
+      "bundle": {
+        "schema": "unchain.run_bundle.v1",
+        "bundle_id": "rb_ec468bccd487cac2a0c57d6beac449300bd2e49f05d80a936e515f2817f48897",
+        "revision": 3,
+        "bundle_digest": "fa96d94d6a5f4550b98c8af00df59542da996b41b89fe03bbda87b9a76a2621d",
+        "identity": {
+          "execution_id": "chat-1789332032730-28ebd6f44c9b7",
+          "attempt_id": "unchain-1789332044001-936bef7d9ad2c",
+          "root_run_id": "unchain-1789332044001-936bef7d9ad2c",
+          "run_id": "unchain-1789332044001-936bef7d9ad2c",
+          "parent_run_id": null,
+          "relation": "root"
+        },
+        "lifecycle": {
+          "status": "completed",
+          "started_at": "2026-09-13T20:40:44.509862000Z",
+          "completed_at": "2026-09-13T20:40:48.249303000Z",
+          "continued_from_run_id": null
+        },
+        "descriptor": {
+          "model": "gpt-4.1",
+          "display_model": "openai:gpt-4.1",
+          "active_agent": "developer",
+          "agent_orchestration": "default",
+          "iteration": 0
+        },
+        "metrics": {
+          "algorithm": "unique_metric_event_set_union.v1",
+          "events": [
+            {
+              "metric_event_id": "me_34ce77114676c310c736cfb969410fc3f6bc082c173bdd1351143c1dadff1f4d",
+              "execution_id": "chat-1789332032730-28ebd6f44c9b7",
+              "attempt_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "root_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "owner_run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "parent_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "kind": "iteration",
+              "subject_id": "iteration:0",
+              "outcome": "completed",
+              "error": null,
+              "evidence_refs": []
+            },
+            {
+              "metric_event_id": "me_5d86b915fd4eea9ca057726c7c829542a745fc436ba256e0b2e2765fe1efe51a",
+              "execution_id": "chat-1789332032730-28ebd6f44c9b7",
+              "attempt_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "root_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "owner_run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "parent_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "kind": "model_attempt",
+              "subject_id": "pc_04b25477acd18b1519cfbf0ba6fe6a7effa00ad02453dbafa3a44d5603bb7933",
+              "outcome": "completed",
+              "error": null,
+              "evidence_refs": []
+            },
+            {
+              "metric_event_id": "me_e13615f057df275001bb9a09de96991e0e62f0c951d625ae3672e399678c641a",
+              "execution_id": "chat-1789332032730-28ebd6f44c9b7",
+              "attempt_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "root_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "owner_run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "parent_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "kind": "context_build",
+              "subject_id": "context-build-53c0277d697550189e4d4f4e62b6da29fa51800c3972dd32426bc25b775faeee",
+              "outcome": "completed",
+              "error": null,
+              "evidence_refs": [
+                {
+                  "kind": "context_event",
+                  "ref_id": "context_event_5ff93fe642e2d8ecab7aa5bc15db997a4d8d73d4664ea1f5db54601f57536bf9"
+                }
+              ]
+            }
+          ],
+          "direct": {
+            "artifacts": 0,
+            "model_attempts": 0,
+            "iterations": 0,
+            "tool_calls": 0,
+            "tool_results": 0,
+            "interactions": 0,
+            "context_builds": 0,
+            "context_compactions": 0,
+            "errors": 0
+          },
+          "descendant": {
+            "artifacts": 0,
+            "model_attempts": 1,
+            "iterations": 1,
+            "tool_calls": 0,
+            "tool_results": 0,
+            "interactions": 0,
+            "context_builds": 1,
+            "context_compactions": 0,
+            "errors": 0
+          },
+          "all": {
+            "artifacts": 0,
+            "model_attempts": 1,
+            "iterations": 1,
+            "tool_calls": 0,
+            "tool_results": 0,
+            "interactions": 0,
+            "context_builds": 1,
+            "context_compactions": 0,
+            "errors": 0
+          }
+        },
+        "provider_calls": [
+          {
+            "schema": "unchain.provider_call_usage.v1",
+            "provider_call_id": "pc_04b25477acd18b1519cfbf0ba6fe6a7effa00ad02453dbafa3a44d5603bb7933",
+            "identity": {
+              "execution_id": "chat-1789332032730-28ebd6f44c9b7",
+              "attempt_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "root_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "owner_run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+              "parent_run_id": "unchain-1789332044001-936bef7d9ad2c",
+              "iteration": 0,
+              "retry_ordinal": 0,
+              "purpose": "agent_turn",
+              "request_sha256": "1d4e9c74f81f3f9fbb3b9c59e776f2a702f8fac02fcf0a95ed7a22ab041c1165",
+              "route": "openai.responses.create"
+            },
+            "provider": {
+              "name": "openai",
+              "model": "gpt-4.1",
+              "service_tier": null
+            },
+            "status": "completed",
+            "timing": {
+              "started_at": "2026-09-13T20:40:45.450383Z",
+              "completed_at": "2026-09-13T20:40:48.155389Z"
+            },
+            "provider_ids": {
+              "request_id_sha256": null,
+              "response_id_sha256": "d132f4928a37988f5a95d0f44fdcf53a23adef931276de6fff8f150355b120cd"
+            },
+            "billing_dimensions": {
+              "billing_surface": null,
+              "batch": null,
+              "inference_geo": null
+            },
+            "usage": {
+              "input": {
+                "uncached_tokens": 6842,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": 6842
+              },
+              "output": {
+                "visible_tokens": 5,
+                "reasoning_tokens": 0,
+                "total_tokens": 5
+              },
+              "total_tokens": 6847,
+              "source": "provider_observed_partial"
+            },
+            "raw_usage_sha256": "b4fd857a52eb0a88b2c50fa65b0b26ec6873272b3d6d2efc83905512e9b9c84b",
+            "pricing": {
+              "status": "unavailable",
+              "basis": null,
+              "snapshot": null,
+              "amount_nano_usd": null,
+              "reason": "pricing_service_tier_unknown",
+              "input_multiplier_ppm": null,
+              "output_multiplier_ppm": null
+            },
+            "extensions": {
+              "unchain.context/context_composition_v1": {
+                "attributed_tokens": 6842,
+                "categories": [
+                  {
+                    "id": "instructions",
+                    "source_count": 2,
+                    "subtypes": [
+                      {
+                        "id": "core_system",
+                        "source_count": 2,
+                        "tokens": 2726
+                      }
+                    ],
+                    "tokens": 2726
+                  },
+                  {
+                    "id": "tool_definitions",
+                    "source_count": 29,
+                    "subtypes": [
+                      {
+                        "id": "provider_schema",
+                        "source_count": 29,
+                        "tokens": 3916
+                      }
+                    ],
+                    "tokens": 3916
+                  },
+                  {
+                    "id": "conversation",
+                    "source_count": 2,
+                    "subtypes": [
+                      {
+                        "id": "current_input",
+                        "source_count": 1,
+                        "tokens": 14
+                      },
+                      {
+                        "id": "assistant_history",
+                        "source_count": 1,
+                        "tokens": 186
+                      }
+                    ],
+                    "tokens": 200
+                  }
+                ],
+                "context_window_tokens": 1047576,
+                "coverage": {
+                  "manifest_items": 33,
+                  "matched_items": 33,
+                  "matched_surfaces": 2,
+                  "status": "complete",
+                  "wire_surfaces": 2
+                },
+                "method": "utf8_heuristic_v2",
+                "quality": "reconciled_estimate",
+                "residual_tokens": 0,
+                "schema": "unchain.context/context_composition_v1",
+                "wire": {
+                  "context_mode": "semantic",
+                  "envelope_sha256": "sha256:cf4980eac67987b6d009fff344095eb41360fbdadc3f0330859af7852392a0e1",
+                  "route_name": "primary",
+                  "route_sha256": "sha256:caee38d2e565bea81c37e1f030a62d350b33fed25ecd9b228e29cefa9454bf52"
+                }
+              },
+              "unchain.runtime/provider_attempt_classification": "success",
+              "unchain.runtime/usage_capture": "provider_adapter"
+            }
+          }
+        ],
+        "children": [
+          {
+            "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+            "attempt_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+            "parent_run_id": "unchain-1789332044001-936bef7d9ad2c",
+            "relation": "graph_node",
+            "bundle_id": "rb_fbcae9b2cc4228a0bbbe3382265a0715b81b27305f7e971827132f626f4c8be4",
+            "status": "completed"
+          }
+        ],
+        "aggregation": {
+          "algorithm": "provider_call_set_union.v1",
+          "direct_call_ids": [],
+          "descendant_call_ids": [
+            "pc_04b25477acd18b1519cfbf0ba6fe6a7effa00ad02453dbafa3a44d5603bb7933"
+          ],
+          "all_call_ids": [
+            "pc_04b25477acd18b1519cfbf0ba6fe6a7effa00ad02453dbafa3a44d5603bb7933"
+          ],
+          "direct_usage": {
+            "input": {
+              "uncached_tokens": null,
+              "cache_read_tokens": null,
+              "cache_write_tokens": null,
+              "cache_write_5m_tokens": null,
+              "cache_write_1h_tokens": null,
+              "total_tokens": null
+            },
+            "output": {
+              "visible_tokens": null,
+              "reasoning_tokens": null,
+              "total_tokens": null
+            },
+            "total_tokens": null,
+            "source": "unavailable"
+          },
+          "descendant_usage": {
+            "input": {
+              "uncached_tokens": 6842,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_write_5m_tokens": null,
+              "cache_write_1h_tokens": null,
+              "total_tokens": 6842
+            },
+            "output": {
+              "visible_tokens": 5,
+              "reasoning_tokens": 0,
+              "total_tokens": 5
+            },
+            "total_tokens": 6847,
+            "source": "provider_observed_partial"
+          },
+          "all_usage": {
+            "input": {
+              "uncached_tokens": 6842,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_write_5m_tokens": null,
+              "cache_write_1h_tokens": null,
+              "total_tokens": 6842
+            },
+            "output": {
+              "visible_tokens": 5,
+              "reasoning_tokens": 0,
+              "total_tokens": 5
+            },
+            "total_tokens": 6847,
+            "source": "provider_observed_partial"
+          }
+        },
+        "usage_slices": [
+          {
+            "provider": "openai",
+            "model": "gpt-4.1",
+            "service_tier": null,
+            "call_ids": [
+              "pc_04b25477acd18b1519cfbf0ba6fe6a7effa00ad02453dbafa3a44d5603bb7933"
+            ],
+            "usage": {
+              "input": {
+                "uncached_tokens": 6842,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_write_5m_tokens": null,
+                "cache_write_1h_tokens": null,
+                "total_tokens": 6842
+              },
+              "output": {
+                "visible_tokens": 5,
+                "reasoning_tokens": 0,
+                "total_tokens": 5
+              },
+              "total_tokens": 6847,
+              "source": "provider_observed_partial"
+            },
+            "coverage": {
+              "status": "complete",
+              "receipt_count": 1,
+              "observed_usage_count": 1,
+              "missing_usage_count": 0,
+              "uncertain_call_count": 0,
+              "missing_usage_call_ids": []
+            },
+            "cost": {
+              "status": "unavailable",
+              "basis": null,
+              "amount_nano_usd": null,
+              "currency": null,
+              "pricing_snapshot_ids": []
+            }
+          }
+        ],
+        "coverage": {
+          "status": "complete",
+          "receipt_count": 1,
+          "observed_usage_count": 1,
+          "missing_usage_count": 0,
+          "uncertain_call_count": 0,
+          "missing_usage_call_ids": []
+        },
+        "cost": {
+          "status": "unavailable",
+          "basis": null,
+          "amount_nano_usd": null,
+          "currency": null,
+          "pricing_snapshot_ids": []
+        },
+        "legacy": {
+          "status": "canonical",
+          "source": null,
+          "reason": null
+        },
+        "evidence": {
+          "receipt_sha256s": [
+            "e2fb7247d61a4e313327f5fbcd59f5841f9ad7ad6cb8f85452263a3c88056a57"
+          ],
+          "raw_usage_sha256s": [
+            "b4fd857a52eb0a88b2c50fa65b0b26ec6873272b3d6d2efc83905512e9b9c84b"
+          ],
+          "pricing_snapshot_ids": []
+        },
+        "extensions": {
+          "pupu.run/completion_diagnostics_ref_v1": {
+            "diagnostics_schema": "pupu.completion_diagnostics.v1",
+            "diagnostics_sha256": "0eed429052a782fe639c171fa4e8363870d6767aede3d8710693310d599111d9",
+            "schema": "pupu.completion_diagnostics_ref.v1"
+          }
+        }
+      },
+      "completion_diagnostics": {
+        "schema": "pupu.completion_diagnostics.v1",
+        "diagnostics_digest": "0eed429052a782fe639c171fa4e8363870d6767aede3d8710693310d599111d9",
+        "memory_v2": {
+          "available_input_tokens": 1035288,
+          "canary_hash_strategy": "sha256_owner_v1",
+          "canary_percent": 5,
+          "canary_selected": true,
+          "compression_threshold_tokens": 931759,
+          "effective_rollout_mode": "all",
+          "mode": "active",
+          "output_reserve_tokens": 8192,
+          "real_context_window_tokens": 1047576,
+          "reason": "",
+          "requested_mode": "all",
+          "requested_rollout_mode": "all",
+          "schema_version": "memory_v2.context.v1",
+          "transport_margin_tokens": 4096
+        }
+      }
+    },
+    "traceFrames": [
+      {
+        "seq": 1,
+        "ts": 1789332044002,
+        "run_id": "unchain-1789332044001-936bef7d9ad2c",
+        "type": "stream_started",
+        "payload": {
+          "thread_id": "chat-1789332032730-28ebd6f44c9b7",
+          "model": "openai:gpt-4.1",
+          "trace_level": "minimal",
+          "runtime_event_id": "evt_4bcfd1244b524cd59eb810cbdad2951b"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": 1789332044694,
+        "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+        "type": "run_started",
+        "iteration": 0,
+        "payload": {
+          "status": "running",
+          "provider": "openai",
+          "model": "gpt-4.1",
+          "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+          "runtime_event_id": "evt_8ff9441711374daaa5d2c4df637f3c17"
+        }
+      },
+      {
+        "seq": 3,
+        "ts": 1789332044696,
+        "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+        "type": "iteration_started",
+        "iteration": 0,
+        "payload": {
+          "iteration": 0,
+          "runtime_event_id": "evt_5019dcb1073440afab1c6af16d58f4a5"
+        }
+      },
+      {
+        "seq": 8,
+        "ts": 1789332048202,
+        "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+        "type": "response_received",
+        "iteration": 0,
+        "payload": {
+          "step_id": "model:graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923:turn-0:response",
+          "step_type": "model_response",
+          "status": "running",
+          "response_id": "resp_0894ac8c19aeb907006aa70a4ed50087d0a04b5fe4dc95a228",
+          "has_tool_calls": false,
+          "usage": {
+            "model": "gpt-4.1",
+            "consumed_tokens": 6847,
+            "input_tokens": 6842,
+            "output_tokens": 5,
+            "last_turn_tokens": 6847,
+            "last_turn_input_tokens": 6842,
+            "last_turn_output_tokens": 5,
+            "max_context_window_tokens": 1047576,
+            "context_window_used_pct": 0.65,
+            "status": "completed",
+            "human_input_request": null,
+            "continuation": null,
+            "previous_response_id": "resp_0894ac8c19aeb907006aa70a4ed50087d0a04b5fe4dc95a228",
+            "iteration": 1
+          },
+          "runtime_event_id": "evt_7a7ce9957a964fedbf610f0e4c127970"
+        }
+      },
+      {
+        "seq": 9,
+        "ts": 1789332048206,
+        "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+        "type": "final_message",
+        "iteration": 0,
+        "payload": {
+          "content": "BASELINE283",
+          "runtime_event_id": "evt_27ec1fd420094ec7be267076b2beb92c",
+          "finality": "terminal"
+        }
+      },
+      {
+        "seq": 10,
+        "ts": 1789332048208,
+        "run_id": "graph-step-9ae6987ca483abbb41fa28117802fb2a637cce1f0bc47fc62be7cd7ceb7f5923",
+        "type": "done",
+        "iteration": 0,
+        "payload": {
+          "status": "completed",
+          "usage": {
+            "model": "gpt-4.1",
+            "consumed_tokens": 6847,
+            "input_tokens": 6842,
+            "output_tokens": 5,
+            "last_turn_tokens": 6847,
+            "last_turn_input_tokens": 6842,
+            "last_turn_output_tokens": 5,
+            "max_context_window_tokens": 1047576,
+            "context_window_used_pct": 0.65,
+            "status": "completed",
+            "human_input_request": null,
+            "continuation": null,
+            "previous_response_id": "resp_0894ac8c19aeb907006aa70a4ed50087d0a04b5fe4dc95a228",
+            "iteration": 1
+          },
+          "bundle": {
+            "model": "gpt-4.1",
+            "consumed_tokens": 6847,
+            "input_tokens": 6842,
+            "output_tokens": 5,
+            "last_turn_tokens": 6847,
+            "last_turn_input_tokens": 6842,
+            "last_turn_output_tokens": 5,
+            "max_context_window_tokens": 1047576,
+            "context_window_used_pct": 0.65,
+            "status": "completed",
+            "human_input_request": null,
+            "continuation": null,
+            "previous_response_id": "resp_0894ac8c19aeb907006aa70a4ed50087d0a04b5fe4dc95a228",
+            "iteration": 1
+          },
+          "runtime_event_id": "evt_27da929635714ca68dc238ca8601dec3"
+        }
+      }
+    ]
+  }
+]

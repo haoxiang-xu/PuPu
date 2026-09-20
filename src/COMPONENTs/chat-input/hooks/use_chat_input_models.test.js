@@ -258,5 +258,39 @@ describe("useChatInputModels", () => {
       );
       expect(readOptions().find((g) => g.is_custom)).toBeUndefined();
     });
+
+    /* #202: the flag gates user-authored providers only. A shipped provider
+       reaches the selector on its key alone, like any first-class provider. */
+    test("a keyed shipped provider surfaces with the flag off", async () => {
+      const {
+        setCustomProviderSecret,
+      } = require("../../../SERVICEs/custom_provider_store");
+      setCustomProviderSecret("deepseek", "sk-deepseek-key");
+      writeFeatureFlags({ enable_custom_model_providers: false });
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      const group = readOptions().find((g) => g.group === "DeepSeek");
+      expect(group).toBeDefined();
+      expect(group.options.map((o) => o.value)).toContain(
+        "custom.deepseek:deepseek-v4-flash",
+      );
+    });
+
+    test("an unkeyed shipped provider stays out of the selector", async () => {
+      writeFeatureFlags({ enable_custom_model_providers: false });
+      api.ollama.listChatModels.mockResolvedValue([]);
+
+      render(<HookHarness modelCatalog={{ providers: {} }} />);
+
+      await waitFor(() =>
+        expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1),
+      );
+      expect(readOptions().find((g) => g.group === "DeepSeek")).toBeUndefined();
+    });
   });
 });

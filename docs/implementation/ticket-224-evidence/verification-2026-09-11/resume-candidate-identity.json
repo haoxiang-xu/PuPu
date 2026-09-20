@@ -1,0 +1,21 @@
+{
+  "app_asar": {
+    "path": "/private/tmp/pupu-224/dist/mac-arm64/PuPu.app/Contents/Resources/app.asar",
+    "sha256": "sha256:d548db42af7137e92b2341e55f500f8dd686a2e7b282f3e8e35507592249e2f6",
+    "archive_sha256": "sha256:d548db42af7137e92b2341e55f500f8dd686a2e7b282f3e8e35507592249e2f6"
+  },
+  "sidecar": {
+    "path": "/private/tmp/pupu-224/dist/mac-arm64/PuPu.app/Contents/Resources/unchain_runtime/dist/macos/unchain-server",
+    "sha256": "sha256:c890efcd6c32e354fada21073ab388b89ed9aa883cab05bfef133564323d4ea7",
+    "archive_sha256": "sha256:c890efcd6c32e354fada21073ab388b89ed9aa883cab05bfef133564323d4ea7"
+  },
+  "wheel": {
+    "path": "/private/tmp/ticket-224-artifact/unchain-0.2.0-py3-none-any.whl",
+    "sha256": "sha256:13aa7c14a3fb454afb8a8082f26e630c87f7e469be3d9c6e8c74cd337d8e8282"
+  },
+  "runtime_manifest_digest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+  "candidate": {
+    "path": "/private/tmp/ticket-224-artifact/PuPu-ticket-224-resume-candidate.zip",
+    "sha256": "sha256:97bd4038f19ed6a23279e56c0bb7c32b0e01ef76b20914861751ea835767e328"
+  }
+}

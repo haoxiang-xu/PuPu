@@ -1,0 +1,106 @@
+{
+  "toolkitId": "mcp.dev.figma-remote",
+  "catalog": {
+    "id": "dev.figma-remote",
+    "toolkitId": "mcp.dev.figma-remote",
+    "name": "Figma",
+    "description": "Official remote Figma MCP server; PuPu connection is pending Figma client approval.",
+    "category": "dev",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "coming_soon",
+    "installable": false,
+    "license": "hosted",
+    "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
+    "docsUrl": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+    "icon": {
+      "type": "file",
+      "mimeType": "image/svg+xml",
+      "content": "<svg viewBox=\"0 0 1024 1024\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"1024\" height=\"1024\" rx=\"180\" fill=\"#000000\"/><g transform=\"translate(0 -148)\"><path d=\"M312 840C312 784.772 356.772 740 412 740H512V840C512 895.228 467.228 940 412 940C356.772 940 312 895.228 312 840Z\" fill=\"#24CB71\"/><path d=\"M512 340V540H612C667.228 540 712 495.228 712 440C712 384.772 667.228 340 612 340H512Z\" fill=\"#FF7237\"/><circle cx=\"611.167\" cy=\"640\" r=\"100\" fill=\"#00B6FF\"/><path d=\"M312 440C312 495.228 356.772 540 412 540H512V340H412C356.772 340 312 384.772 312 440Z\" fill=\"#FF3737\"/><path d=\"M312 640C312 695.228 356.772 740 412 740H512V540H412C356.772 540 312 584.772 312 640Z\" fill=\"#874FFF\"/></g></svg>"
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://mcp.figma.com/mcp",
+      "headers": []
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "figma",
+        "providerLabel": "Figma",
+        "clientRegistration": "dynamic",
+        "releaseStatus": "approval_required",
+        "mcpUrl": "https://mcp.figma.com/mcp",
+        "transport": "streamable_http",
+        "protectedResourceMetadataUrl": "https://mcp.figma.com/.well-known/oauth-protected-resource",
+        "authorizationServerMetadataUrl": "https://api.figma.com/.well-known/oauth-authorization-server",
+        "authorizationEndpoint": "https://www.figma.com/oauth/mcp",
+        "tokenEndpoint": "https://api.figma.com/v1/oauth/token",
+        "registrationEndpoint": "https://api.figma.com/v1/oauth/mcp/register",
+        "scopes": [
+          "mcp:connect"
+        ],
+        "authUrlParams": {},
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "protected_resource"
+      }
+    },
+    "setupPreview": "https://mcp.figma.com/mcp",
+    "prerequisites": [
+      "Figma account",
+      "Figma file access"
+    ],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "get_design_context",
+        "title": "Get design context",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_metadata",
+        "title": "Get metadata",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_screenshot",
+        "title": "Get screenshot",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_variable_defs",
+        "title": "Get variables",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "create_new_file",
+        "title": "Create file",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "generate_diagram",
+        "title": "Generate diagram",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "use_figma",
+        "title": "Use Figma",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 3
+    },
+    "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
+  },
+  "checkedAt": "2026-09-13T18:36:58.717440+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://mcp.figma.com/mcp"
+}

@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/usr/bin/sandbox-exec",
+    "-f",
+    "/private/tmp/pupu-official-verify-mj1zxup1/sandbox.sb",
+    "/Users/red/Desktop/GITRepo/unchain/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "--basetemp",
+    "/private/tmp/pupu-official-verify-mj1zxup1/sandbox/pytest-tmp",
+    "/private/tmp/pupu-official-verify-mj1zxup1/unchain/tests/test_core_toolkit.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/unchain/tests/test_plan_toolkit.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/unchain/tests/test_core_write_edit_code_diff.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/unchain/tests/test_web_fetch_failures.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/unchain/tests/test_web_fetch_retry_limit.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/pupu/unchain_runtime/server/tests/test_computer_toolkit_confirmation.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/pupu/unchain_runtime/server/tests/test_computer_toolkit.py",
+    "/private/tmp/pupu-official-verify-mj1zxup1/pupu/unchain_runtime/server/tests/test_computer_control_protocol.py"
+  ],
+  "exitCode": 0,
+  "hardware": "mocked",
+  "model": "scripted or mocked; not live model",
+  "network": "denied by sandbox"
+}

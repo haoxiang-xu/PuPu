@@ -1,0 +1,71 @@
+{
+  "checkedAt": "2026-09-14T05:48:29.139Z",
+  "candidateBase": "a372365df79d47dd98d5569942626ecece1a5e91",
+  "boundary": [
+    "BC-PT-001",
+    "BC-PT-002"
+  ],
+  "sequence": "SEQ-PT-001",
+  "checks": [
+    "AC-PT-001",
+    "AC-PT-002"
+  ],
+  "records": [
+    {
+      "id": "skillpack.ponytail",
+      "source": {
+        "provider": "github",
+        "repo": "DietrichGebert/ponytail",
+        "sha": "356918eba965ee1eac64bd3a7f0dd02108350de5",
+        "license": "MIT"
+      },
+      "manifest": [
+        {
+          "path": "skills/ponytail/SKILL.md",
+          "sha256": "1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2"
+        },
+        {
+          "path": "skills/ponytail-review/SKILL.md",
+          "sha256": "40df33b58fc6ef889b93585733feb9566b76e9586efa7f376785c1e995197ac0"
+        },
+        {
+          "path": "skills/ponytail-audit/SKILL.md",
+          "sha256": "5560b8e383dbe2ddfddc873a1e2bf2e586e23e0cd7d995537482b2315331f6d1"
+        },
+        {
+          "path": "skills/ponytail-debt/SKILL.md",
+          "sha256": "c84fba75f0ca12bfe83f9a78ea02fd125c5dd3f1fbb18124105a489937f284e6"
+        }
+      ],
+      "commands": [
+        {
+          "name": "ponytail",
+          "bodyBytes": 5699,
+          "bodySha256": "2a8d06b7a9bdc82f64aedf821b71f26afeaf6bc8cfa4295d9895f334053bc912"
+        },
+        {
+          "name": "ponytail-audit",
+          "bodyBytes": 1193,
+          "bodySha256": "26c947a8791e83956efa6ca5ee7a84f57edaefbf5da43d0590ea7602cf86526a"
+        },
+        {
+          "name": "ponytail-debt",
+          "bodyBytes": 1261,
+          "bodySha256": "67d7db5d91bfcd8c239c7c664d2b2ffce3e68211c08b95902fd0fd71d17a5b08"
+        },
+        {
+          "name": "ponytail-review",
+          "bodyBytes": 1865,
+          "bodySha256": "80f8f46bc74da550ea6b5f401f6dc82d95cb0e8f51c6cdc69677bcccb5f9a827"
+        }
+      ],
+      "realDownloadScanImport": "PASS",
+      "duplicateRejected": "PASS",
+      "freshProcessRead": "PASS",
+      "uninstallReinstall": "PASS",
+      "badHashFailsClosed": "PASS",
+      "liveModelInvocation": "NOT_RUN",
+      "packagedSidecarQualification": "NOT_RUN"
+    }
+  ]
+}

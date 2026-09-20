@@ -30,19 +30,9 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Characters tab inside the Agents modal. The side-menu entry is visible whenever this or enable_user_access_to_agents is enabled.",
     defaultValue: false,
   },
-  enable_app_update_settings: {
-    description:
-      "Show the Update page in Settings and allow access to in-app update controls.",
-    defaultValue: true,
-  },
-  enable_theme_color_customization: {
-    description:
-      "Show Theme colors in Appearance and apply saved semantic color presets/customizations.",
-    defaultValue: false,
-  },
   enable_custom_model_providers: {
     description:
-      "Show Custom Model Providers plus the shipped DeepSeek/Kimi preset sections in Settings, and allow custom models in catalogs, selectors, connection tests, and chat requests.",
+      "Show the Custom Model Providers section in Settings and allow USER-AUTHORED custom providers in catalogs, selectors, connection tests, and chat requests. It does not gate the shipped providers (DeepSeek, Kimi), which are first class and always available (#202).",
     defaultValue: false,
   },
   enable_computer_use: {

@@ -1,0 +1,16 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/chat.test.js src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/chat.test.js (48.281 s)
+
+Test Suites: 2 passed, 2 total
+Tests:       188 passed, 188 total
+Snapshots:   0 total
+Time:        49.392 s, estimated 51 s
+Ran all test suites within paths "src/PAGEs/chat/chat.test.js", "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js".

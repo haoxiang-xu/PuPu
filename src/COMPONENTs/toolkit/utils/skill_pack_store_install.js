@@ -96,6 +96,7 @@ export const installStoreSkillPack = async (packEntry) => {
     ...built,
     toolkitId: packEntry.id,
     toolkitName: packEntry.title || built.toolkitName,
+    ...(packEntry.icon ? { toolkitIcon: packEntry.icon } : {}),
   };
   await api.unchain.installSkillPack(pack);
   return pack;

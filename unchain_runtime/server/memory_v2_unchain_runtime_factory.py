@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
+import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -861,7 +862,12 @@ class PupuUnchainContextMemoryV2HostFactory:
             event = candidates[-1]
             return ResourceRef("context_event", event.event_id, 1)
 
-        objective = current_input.content
+        # Task-state objective is a bounded single-line summary, unlike the
+        # verbatim user message retained in the journal and referenced below.
+        objective = " ".join(re.sub(r"[\x00-\x1f]", " ", current_input.content).split())
+        objective = unicodedata.normalize("NFC", objective)
+        if len(objective) > 32_768:
+            objective = objective[:32_767] + "…"
         if not objective.strip() and current_input.attachments:
             objective = "Process the attached user input."
         return PinnedTaskStateBootstrapBinding(
@@ -947,6 +953,7 @@ class PupuUnchainContextMemoryV2HostFactory:
         sink = DurableEventSink(journal, attempt, projector)
         coordinator = ContextCompileCoordinator(
             journal=journal,
+            artifacts=artifacts,
             checkpoint_repository=compiler_capabilities.checkpoints,
             build_repository=compiler_capabilities.context_builds,
             partial_attempt_sink=self._partial_attempt_sink,
@@ -958,6 +965,7 @@ class PupuUnchainContextMemoryV2HostFactory:
         handoffs = HandoffService(artifacts)
         request_factory = JournalContextRequestFactory(
             attempt=attempt,
+            artifacts=artifacts,
             journal=journal,
             model_window_fallback=self._model_window_fallback,
         )

@@ -1,0 +1,58 @@
+src/COMPONENTs/toolkit/plugins_shell.js:4:import PluginsDiscoverPage from "./pages/plugins_discover_page";
+src/COMPONENTs/toolkit/plugins_shell.js:5:import PluginsCategoriesPage from "./pages/plugins_categories_page";
+src/COMPONENTs/toolkit/plugins_shell.js:6:import PluginsInstalledPage from "./pages/plugins_installed_page";
+src/COMPONENTs/toolkit/plugins_shell.js:8:import PluginDetailPage from "./pages/plugin_detail_page";
+src/COMPONENTs/toolkit/plugins_shell.js:11:import SkillPackDetailPage from "./pages/skill_pack_detail_page";
+src/COMPONENTs/toolkit/plugins_shell.js:91:  /* ── Handlers from PluginsInstalledPage ── */
+src/COMPONENTs/toolkit/plugins_shell.js:180:     }` — same envelope PluginsInstalledPage already uses). The three
+src/COMPONENTs/toolkit/plugins_shell.js:220:  /* Neither PluginsDiscoverPage nor PluginsCategoriesPage take a
+src/COMPONENTs/toolkit/plugins_shell.js:263:     once PluginsInstalledPage has mounted — so a delete/toggle fired from a
+src/COMPONENTs/toolkit/plugins_shell.js:467:     PluginDetailPage. Same api.unchain calls as
+src/COMPONENTs/toolkit/plugins_shell.js:530:     has none); PluginsCategoriesPage keeps this as its own in-page search,
+src/COMPONENTs/toolkit/plugins_shell.js:542:        <PluginsInstalledPage
+src/COMPONENTs/toolkit/plugins_shell.js:555:        <PluginsCategoriesPage
+src/COMPONENTs/toolkit/plugins_shell.js:574:      <PluginsDiscoverPage
+src/COMPONENTs/toolkit/plugins_shell.js:715:                   the same default-toolkit selection PluginsInstalledPage
+src/COMPONENTs/toolkit/plugins_shell.js:723:                  <PluginDetailPage
+src/COMPONENTs/toolkit/plugins_shell.js:750:              <SkillPackDetailPage
+src/COMPONENTs/toolkit/plugins_shell.js:875:              <PluginDetailPage
+src/COMPONENTs/toolkit/components/aurora_feature_card.js:13:/* AuroraFeatureCard — the Discover page's featured/hero card. (The name is
+src/COMPONENTs/toolkit/components/aurora_feature_card.js:64:const AuroraFeatureCard = ({
+src/COMPONENTs/toolkit/components/aurora_feature_card.js:283:export default AuroraFeatureCard;
+src/COMPONENTs/toolkit/components/plugin_list_row.js:5:/* PluginListRow — the settings-isomorphic list row shared by Installed,
+src/COMPONENTs/toolkit/components/plugin_list_row.js:20:const PluginListRow = ({
+src/COMPONENTs/toolkit/components/plugin_list_row.js:124:export default PluginListRow;
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:19:import PluginListRow from "../components/plugin_list_row";
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:34: * PluginsInstalledPage — settings-isomorphic "Installed" screen (T3).
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:49:const PluginsInstalledPage = ({
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:197:     description and command/tool names), which PluginsInstalledPage dropped
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:327:      <PluginListRow
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:372:      </PluginListRow>
+src/COMPONENTs/toolkit/pages/plugins_installed_page.js:459:export default PluginsInstalledPage;
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:27:import PluginListRow from "../components/plugin_list_row";
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:88:/* PluginsCategoriesPage — the Store page behind plugins_shell.js's "store"
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:112:const PluginsCategoriesPage = ({
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:467:            <PluginListRow
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:514:            </PluginListRow>
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:519:              <PluginListRow
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:542:              </PluginListRow>
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:544:              <PluginListRow
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:561:              </PluginListRow>
+src/COMPONENTs/toolkit/pages/plugins_categories_page.js:612:export default PluginsCategoriesPage;
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:9:import AuroraFeatureCard from "../components/aurora_feature_card";
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:10:import BrandOrbCard from "../components/brand_orb_card";
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:140:/* PluginsDiscoverPage — Discover screen, C2 design (aurora featured card +
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:149:const PluginsDiscoverPage = ({
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:244:  /* Same install/OAuth error strip pattern as PluginsCategoriesPage
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:362:      <BrandOrbCard
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:385:      </BrandOrbCard>
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:415:            <AuroraFeatureCard
+src/COMPONENTs/toolkit/pages/plugins_discover_page.js:480:export default PluginsDiscoverPage;
+src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js:12:/* SkillPackDetailPage — the detail surface for a NOT-yet-installed store
+src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js:42:const SkillPackDetailPage = ({ pack, isDark = false, onBack }) => {
+src/COMPONENTs/toolkit/pages/skill_pack_detail_page.js:319:export default SkillPackDetailPage;
+src/COMPONENTs/toolkit/pages/plugin_detail_page.js:232:const PluginDetailPage = ({
+src/COMPONENTs/toolkit/pages/plugin_detail_page.js:1256:export default PluginDetailPage;
+src/COMPONENTs/toolkit/components/brand_orb_card.js:6:/* BrandOrbCard — the Discover page's Essentials grid card. (Name is a
+src/COMPONENTs/toolkit/components/brand_orb_card.js:21:const BrandOrbCard = ({
+src/COMPONENTs/toolkit/components/brand_orb_card.js:145:export default BrandOrbCard;

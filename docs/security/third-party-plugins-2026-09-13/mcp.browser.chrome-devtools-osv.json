@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/mcp.browser.chrome-devtools-package-lock.json",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "chrome-devtools-mcp",
+            "version": "1.6.0",
+            "ecosystem": "npm"
+          }
+        }
+      ]
+    }
+  ],
+  "experimental_config": {
+    "licenses": {
+      "summary": false,
+      "allowlist": null
+    }
+  }
+}

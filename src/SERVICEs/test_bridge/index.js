@@ -64,12 +64,8 @@ const installConsolePatch = (bridge) => {
 
 let installed = false;
 const catalogCounts = { models: 0, toolkits: 0, characters: 0 };
-let isStreamingFlag = false;
 let configContextRef = { isDark: false, locale: "en" };
 
-export const setIsStreaming = (v) => {
-  isStreamingFlag = !!v;
-};
 export const setConfigContextRef = (ctx) => {
   configContextRef = ctx || configContextRef;
 };
@@ -135,7 +131,6 @@ export const installTestBridge = () => {
     chatStorage,
     getConfigContext: () => configContextRef,
     getCatalogCounts: () => catalogCounts,
-    getIsStreaming: () => isStreamingFlag,
   });
   bridge.markReady();
 

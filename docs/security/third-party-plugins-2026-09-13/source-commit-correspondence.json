@@ -1,0 +1,65 @@
+[
+  {
+    "id": "mcp.browser.playwright",
+    "repo": "microsoft/playwright-mcp",
+    "expectedCommit": "5f8fc00210b27b4407c375b59cda4838045d429c",
+    "resolvedCommit": "5f8fc00210b27b4407c375b59cda4838045d429c",
+    "url": "https://github.com/microsoft/playwright-mcp/commit/5f8fc00210b27b4407c375b59cda4838045d429c",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.workspace.filesystem",
+    "repo": "modelcontextprotocol/servers",
+    "expectedCommit": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+    "resolvedCommit": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+    "url": "https://github.com/modelcontextprotocol/servers/commit/9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.browser.chrome-devtools",
+    "repo": "ChromeDevTools/chrome-devtools-mcp",
+    "expectedCommit": "f621d0052fd241dca76e7f615b20e9d320ba965f",
+    "resolvedCommit": "f621d0052fd241dca76e7f615b20e9d320ba965f",
+    "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp/commit/f621d0052fd241dca76e7f615b20e9d320ba965f",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.dev.bug-bounty-intelligence",
+    "repo": "holistis/bug-bounty-intelligence-mcp",
+    "expectedCommit": "0abdc1a0dffe228ff3633398be149756f232993f",
+    "resolvedCommit": "0abdc1a0dffe228ff3633398be149756f232993f",
+    "url": "https://github.com/holistis/bug-bounty-intelligence-mcp/commit/0abdc1a0dffe228ff3633398be149756f232993f",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.productivity.tavily",
+    "repo": "tavily-ai/tavily-mcp",
+    "expectedCommit": "259bfd205de90d74a131e9d2b29cb69ebe11feb7",
+    "resolvedCommit": "259bfd205de90d74a131e9d2b29cb69ebe11feb7",
+    "url": "https://github.com/tavily-ai/tavily-mcp/commit/259bfd205de90d74a131e9d2b29cb69ebe11feb7",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.memory.memory",
+    "repo": "modelcontextprotocol/servers",
+    "expectedCommit": "6dd0a683e198783e30feabf7abaf42f925bd18b1",
+    "resolvedCommit": "6dd0a683e198783e30feabf7abaf42f925bd18b1",
+    "url": "https://github.com/modelcontextprotocol/servers/commit/6dd0a683e198783e30feabf7abaf42f925bd18b1",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  },
+  {
+    "id": "mcp.productivity.brave-search",
+    "repo": "brave/brave-search-mcp-server",
+    "expectedCommit": "76106c83f9d57319478b540374ba261061d26c3e",
+    "resolvedCommit": "76106c83f9d57319478b540374ba261061d26c3e",
+    "url": "https://github.com/brave/brave-search-mcp-server/commit/76106c83f9d57319478b540374ba261061d26c3e",
+    "match": true,
+    "scope": "Commit exists in claimed source repository; build correspondence and publisher attestation not established."
+  }
+]

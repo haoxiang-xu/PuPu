@@ -1,0 +1,4 @@
+interface:
+  display_name: "PuPu Draft Ticket"
+  short_description: "Turn project-owner direction into a draft release sub-issue"
+  default_prompt: "Use $issue-draft-ticket to turn this direction into a PuPu release sub-issue."

@@ -67,6 +67,7 @@ const MODEL_PROVIDERS_NAMESPACE = "model_providers";
 const SENSITIVE_MODEL_PROVIDER_KEYS = Object.freeze([
   "openai_api_key",
   "anthropic_api_key",
+  "gemini_api_key",
   "custom_provider_secrets",
 ]);
 

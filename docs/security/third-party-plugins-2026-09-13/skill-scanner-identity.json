@@ -1,0 +1,6 @@
+{
+  "version": "2.1.0",
+  "download": "https://files.pythonhosted.org/packages/5e/b5/a16cbb76ef9c7428409f2e74d48b42ad02329d44d9782978bb8c9125b207/cisco_ai_skill_scanner-2.1.0-cp311.cp312.cp313.cp314-none-macosx_13_0_arm64.whl",
+  "sha256": "452811a64399a7f5f6656f5fccb5487a5f3a0ca00e8cdfa484761022da852bf6",
+  "mode": "local static/behavioral only; no cloud analyzers"
+}

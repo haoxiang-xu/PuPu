@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-09-14T02:57:38.552623+00:00",
+  "issue": 283,
+  "scope": "Pure-skill invocation repair, not full release/security certification",
+  "result": "PASS",
+  "source_base": "17d279c3",
+  "candidate_digest": "sha256:ac1b9a1296c572ab2820d121e5f825eed11b175fa298c201d4bfd7c0aa6cbcb8",
+  "source_patch_sha256": "4706fb30728b2edebffee3026e1bca7765ee034fc74f3d3ae2b2b815ea949178",
+  "wheel_sha256": "sha256:f2e6ddeb85363f1ae54583c7c7ea9d9c6effb1f5c2cba5d7a39c0607d0bec9b7",
+  "runtime_manifest_digest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+  "tests": {
+    "backend_tool_attachment": 129,
+    "frontend_command_expansion": 66,
+    "context_bootstrap_and_graph": 26,
+    "package_smoke_checks": 5
+  },
+  "live_model": "openai:gpt-4.1",
+  "live_results": {
+    "trail_first_turn": "done",
+    "trail_same_chat_second_turn": "done: SECOND283",
+    "vercel_first_turn": "done: VERCEL283"
+  },
+  "intermediate_failure_chat": "chat-1789353178818-eb4520872f83",
+  "limits": [
+    "Actual tool execution and quality/correctness of upstream skill advice are not certified.",
+    "Paid MCP provider flows, live durable interaction replay and signed release qualification were not run.",
+    "No commit, push or rollout; existing running user app needs a sidecar restart to load source changes."
+  ]
+}

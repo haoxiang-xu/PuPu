@@ -1,0 +1,18 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js src/COMPONENTs/chat-bubble/interact/confirm_interact.test.js src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js src/SERVICEs/api.humanInputFreeText.test.js src/SERVICEs/api.memoryProvider.test.js src/PAGEs/chat/hooks/durable_interaction_recovery.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js src/SERVICEs/runtime_events/trace_chain_adapter.test.js
+
+PASS src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/SERVICEs/api.memoryProvider.test.js
+PASS src/SERVICEs/runtime_events/trace_chain_adapter.test.js
+PASS src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js
+PASS src/COMPONENTs/chat-bubble/interact/confirm_interact.test.js
+PASS src/SERVICEs/api.humanInputFreeText.test.js
+PASS src/PAGEs/chat/hooks/durable_interaction_recovery.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       112 passed, 112 total
+Snapshots:   0 total
+Time:        2.128 s, estimated 14 s
+Ran all test suites within paths "src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js", "src/COMPONENTs/chat-bubble/interact/confirm_interact.test.js", "src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js", "src/SERVICEs/api.humanInputFreeText.test.js", "src/SERVICEs/api.memoryProvider.test.js", "src/PAGEs/chat/hooks/durable_interaction_recovery.test.js", "src/COMPONENTs/chat-bubble/trace_chain.test.js", "src/SERVICEs/runtime_events/trace_chain_adapter.test.js".

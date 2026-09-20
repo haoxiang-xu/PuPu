@@ -13,7 +13,7 @@ const MODEL_OPTIONS = [
   { value: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
   { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
   { value: "gpt-4o", label: "gpt-4o" },
-  { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
+  { value: "gemini:gemini-3.6-flash", label: "gemini:gemini-3.6-flash" },
 ];
 
 const TYPE_OPTIONS = [

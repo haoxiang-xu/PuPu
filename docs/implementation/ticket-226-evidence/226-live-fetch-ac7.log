@@ -1,0 +1,50 @@
+unchain: /Users/red/Desktop/GITRepo/pupu-226/.release-qa/ticket-226/venv/lib/python3.12/site-packages/unchain/__init__.py
+{
+  "github": {
+    "ok": true,
+    "url": "https://github.com/haoxiang-xu/PuPu",
+    "final_url": "https://github.com/haoxiang-xu/PuPu",
+    "host": "github.com",
+    "status_code": 200,
+    "content_type": "text/html",
+    "file_kind": "text",
+    "content_length": 16405,
+    "returned_chars": 16405,
+    "truncated": false,
+    "next_offset": null,
+    "cached": false,
+    "redirect": null,
+    "skipped": false,
+    "error": "",
+    "mode": "raw",
+    "desc_index": 27,
+    "featureFlags_index": -1,
+    "v0.1_index": 10463,
+    "ends_with_notice": false,
+    "tail": "://github.com/security)\n- Status (https://www.githubstatus.com/)\n- Community (https://github.community/)\n- Docs (https://docs.github.com/)\n- Contact (https://support.github.com?tags=dotcom-footer)\n-  Manage cookies\n-  Do not share my personal information\n\n You can’t perform that action at this time."
+  },
+  "mdn": {
+    "ok": true,
+    "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script",
+    "final_url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/script",
+    "host": "developer.mozilla.org",
+    "status_code": 200,
+    "content_type": "text/html",
+    "file_kind": "text",
+    "content_length": 49901,
+    "returned_chars": 20000,
+    "truncated": true,
+    "next_offset": 20000,
+    "cached": false,
+    "redirect": null,
+    "skipped": false,
+    "error": "",
+    "mode": "raw",
+    "desc_index": -1,
+    "featureFlags_index": -1,
+    "v0.1_index": -1,
+    "ends_with_notice": true,
+    "tail": "ata block, and won't be processed by the browser. Developers must use a valid MIME \n\n[web_fetch notice: this page has 49901 characters; you received characters 0-20000. Call web_fetch again with offset=20000 to read the rest. Do not treat this partial page as the whole page or answer from it alone.]"
+  }
+}
+AC-226-7: PASS

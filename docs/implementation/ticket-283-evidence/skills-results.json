@@ -1,0 +1,70 @@
+{
+  "checkedAt": "2026-09-12T22:17:48.067Z",
+  "candidateBase": "65811ee3d7bb62cc86f27c681764d7de0bfeef48",
+  "boundary": "BC-283-002",
+  "sequence": "SEQ-283-001",
+  "checks": [
+    "AC-283-003",
+    "AC-283-004"
+  ],
+  "records": [
+    {
+      "id": "skillpack.vercel-web-review",
+      "source": {
+        "provider": "github",
+        "repo": "vercel-labs/agent-skills",
+        "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+        "license": "MIT"
+      },
+      "manifest": [
+        {
+          "path": "skills/web-design-guidelines/SKILL.md",
+          "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+        }
+      ],
+      "commands": [
+        {
+          "name": "web-design-guidelines",
+          "bodyBytes": 914,
+          "bodySha256": "0c32d86cde536150628bcad6ff3a6a8313054d2cbb03dc51baa6c02b6cff8149"
+        }
+      ],
+      "realDownloadScanImport": "PASS",
+      "duplicateRejected": "PASS",
+      "freshProcessRead": "PASS",
+      "uninstallReinstall": "PASS",
+      "badHashFailsClosed": "PASS",
+      "liveModelInvocation": "NOT_RUN",
+      "packagedSidecarQualification": "NOT_RUN"
+    },
+    {
+      "id": "skillpack.trailofbits-audit-prep",
+      "source": {
+        "provider": "github",
+        "repo": "trailofbits/skills",
+        "sha": "321ccfe628eca0d314b0ee4eaffcdd8a05639aaf",
+        "license": "CC-BY-SA-4.0"
+      },
+      "manifest": [
+        {
+          "path": "plugins/building-secure-contracts/skills/audit-prep-assistant/SKILL.md",
+          "sha256": "d639b411a315ea9420e40afabe75bbf4b1bfed6ea5c8601a3e963343ac9924f2"
+        }
+      ],
+      "commands": [
+        {
+          "name": "audit-prep-assistant",
+          "bodyBytes": 9375,
+          "bodySha256": "e979aa3caa896090bd27f24092999eedc132ab9a5df73e88ba91fe370116a782"
+        }
+      ],
+      "realDownloadScanImport": "PASS",
+      "duplicateRejected": "PASS",
+      "freshProcessRead": "PASS",
+      "uninstallReinstall": "PASS",
+      "badHashFailsClosed": "PASS",
+      "liveModelInvocation": "NOT_RUN",
+      "packagedSidecarQualification": "NOT_RUN"
+    }
+  ]
+}

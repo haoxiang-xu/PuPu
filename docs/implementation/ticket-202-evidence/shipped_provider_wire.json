@@ -1,0 +1,147 @@
+{
+  "note": "Real producer output: buildProviderInjectionPayload(resolveShippedDefinition(slug)). Regenerate by running this suite. Consumed by unchain_runtime/server/tests/test_shipped_provider_wire_contract.py.",
+  "ticket": "https://github.com/haoxiang-xu/PuPu/issues/202",
+  "contract": "BC-002",
+  "providers": {
+    "deepseek": {
+      "slug": "deepseek",
+      "id": "deepseek",
+      "display_name": "DeepSeek",
+      "protocol": "anthropic",
+      "base_url": "https://api.deepseek.com/anthropic",
+      "auth": {
+        "mode": "x-api-key",
+        "key_label": "DeepSeek API Key",
+        "key_hint": "Create an API key at platform.deepseek.com."
+      },
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 65536,
+            "max_context_window_tokens": 1000000
+          }
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 65536,
+            "max_context_window_tokens": 1000000
+          }
+        }
+      ],
+      "timeout_seconds": 600,
+      "default_model": "deepseek-v4-flash"
+    },
+    "kimi": {
+      "slug": "kimi",
+      "id": "kimi",
+      "display_name": "Kimi (Moonshot)",
+      "protocol": "anthropic",
+      "base_url": "https://api.moonshot.ai/anthropic",
+      "auth": {
+        "mode": "bearer",
+        "key_label": "Moonshot API Key",
+        "key_hint": "Create an API key at platform.kimi.ai. For the China platform use the Kimi (China) preset."
+      },
+      "models": [
+        {
+          "id": "kimi-k3",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 1000000
+          },
+          "default_payload": {
+            "thinking": {
+              "type": "disabled"
+            }
+          }
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        },
+        {
+          "id": "kimi-k2.6",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          },
+          "default_payload": {
+            "thinking": {
+              "type": "disabled"
+            }
+          }
+        }
+      ],
+      "timeout_seconds": 600,
+      "default_model": "kimi-k3"
+    },
+    "kimi-cn": {
+      "slug": "kimi-cn",
+      "id": "kimi-cn",
+      "display_name": "Kimi (China)",
+      "protocol": "anthropic",
+      "base_url": "https://api.moonshot.cn/anthropic",
+      "auth": {
+        "mode": "bearer",
+        "key_label": "Moonshot API Key",
+        "key_hint": "Create an API key at platform.kimi.com."
+      },
+      "models": [
+        {
+          "id": "kimi-k3",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 1000000
+          },
+          "default_payload": {
+            "thinking": {
+              "type": "disabled"
+            }
+          }
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          }
+        },
+        {
+          "id": "kimi-k2.6",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": false,
+            "max_tokens": 32768,
+            "max_context_window_tokens": 262144
+          },
+          "default_payload": {
+            "thinking": {
+              "type": "disabled"
+            }
+          }
+        }
+      ],
+      "timeout_seconds": 600,
+      "default_model": "kimi-k3"
+    }
+  }
+}

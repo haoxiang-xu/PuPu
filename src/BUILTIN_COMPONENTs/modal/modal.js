@@ -17,6 +17,9 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 const ANIM_DURATION = 260; // ms — matches CSS transition
 
+/* mount-ordered tokens of every mounted Modal; see the stacking effect */
+const modalStack = [];
+
 const Modal = ({
   open,
   onClose,
@@ -50,11 +53,33 @@ const Modal = ({
     return () => clearTimeout(timerRef.current);
   }, [open]);
 
+  /* ── stacking: which modal is on top ─────────────────── */
+  /* Modals nest (a confirm over Settings, the skill organizer over Plugins).
+     Each one used to listen for Escape on its own, so one keypress closed
+     the whole stack at once. The stack is module-level and ordered by mount:
+     the last entry is the one the user sees on top, and only it may answer
+     Escape. Backdrop clicks need no such guard — a lower modal's overlay is
+     covered by the upper one's. */
+  const stackTokenRef = useRef(null);
+  useEffect(() => {
+    if (!mounted) return undefined;
+    const token = {};
+    stackTokenRef.current = token;
+    modalStack.push(token);
+    return () => {
+      const at = modalStack.indexOf(token);
+      if (at !== -1) modalStack.splice(at, 1);
+      stackTokenRef.current = null;
+    };
+  }, [mounted]);
+
   /* ── ESC to close ────────────────────────────────────── */
   useEffect(() => {
     if (!mounted) return;
     const handler = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key !== "Escape") return;
+      if (modalStack[modalStack.length - 1] !== stackTokenRef.current) return;
+      onClose?.();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

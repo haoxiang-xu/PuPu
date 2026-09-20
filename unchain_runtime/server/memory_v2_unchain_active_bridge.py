@@ -844,7 +844,10 @@ class PupuUnchainActiveBridge:
                 attempt=attempt_runtime.bundle.attempt,
                 interaction_id=authority.interaction_id,
                 response=resolution.response,
-                submitted_by=resolution.submitted_by,
+                # HTTP acceptance and cold resume use this canonical actor.
+                # The durable host receipt retains the actual UI submitter;
+                # replaying its actor here would conflict with the same op ID.
+                submitted_by="user",
             )
         )
         if (

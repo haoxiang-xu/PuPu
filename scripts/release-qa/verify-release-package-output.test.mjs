@@ -13,7 +13,7 @@ import {
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const SCRIPT = path.join(ROOT, "scripts/release-qa/verify-release-package-output.mjs");
 const CONTRACT = readReleaseArtifactContract(
-  path.join(ROOT, "contracts/release/release-artifact-contract.v1.json"),
+  path.join(ROOT, "docs/contracts/release/release-artifact-contract.v1.json"),
 );
 
 function fixture(targetId, { omit = "", support = [], extra = [], version = "0.1.10" } = {}) {

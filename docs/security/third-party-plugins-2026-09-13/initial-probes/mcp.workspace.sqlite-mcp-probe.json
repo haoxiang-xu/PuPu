@@ -1,0 +1,197 @@
+{
+  "toolkitId": "mcp.workspace.sqlite",
+  "scope": "Direct MCP protocol; no real PuPu model/confirmation path",
+  "credentialMode": "No real credential; synthetic token for stdio requiring one",
+  "before": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    }
+  ],
+  "artifactSha256": "5ba5706aa29d249a3cde8226577e021c07792d3198e9db40fd005578d2a0801d",
+  "initialize": "PASS",
+  "server": {
+    "name": "sqlite",
+    "version": "0.1.0"
+  },
+  "tools": [
+    {
+      "name": "read_query",
+      "description": "Execute a SELECT query on the SQLite database",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SELECT SQL query to execute"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "write_query",
+      "description": "Execute an INSERT, UPDATE, or DELETE query on the SQLite database",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SQL query to execute"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "create_table",
+      "description": "Create a new table in the SQLite database",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "CREATE TABLE SQL statement"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "list_tables",
+      "description": "List all tables in the SQLite database",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "describe_table",
+      "description": "Get the schema information for a specific table",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table_name": {
+            "type": "string",
+            "description": "Name of the table to describe"
+          }
+        },
+        "required": [
+          "table_name"
+        ]
+      }
+    },
+    {
+      "name": "append_insight",
+      "description": "Add a business insight to the memo",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "insight": {
+            "type": "string",
+            "description": "Business insight discovered from data analysis"
+          }
+        },
+        "required": [
+          "insight"
+        ]
+      }
+    }
+  ],
+  "toolsSha256": "d432983abc546eac2725c9db1a07f5f8dad0e6cbfb12f925c1d4fb61743d1c6b",
+  "previewMissing": [],
+  "extraTools": [],
+  "resources": {
+    "resources": [
+      {
+        "name": "Business Insights Memo",
+        "uri": "memo://insights",
+        "description": "A living document of discovered business insights",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "prompts": {
+    "prompts": [
+      {
+        "name": "mcp-demo",
+        "description": "A prompt to seed the database with initial data and demonstrate what you can do with an SQLite MCP Server + Claude",
+        "arguments": [
+          {
+            "name": "topic",
+            "description": "Topic to seed the database with initial data",
+            "required": true
+          }
+        ]
+      }
+    ]
+  },
+  "calls": [
+    {
+      "call": {
+        "name": "list_tables",
+        "arguments": {}
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "call": {
+        "name": "read_query",
+        "arguments": {
+          "query": "SELECT 1 AS positive"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "[{'positive': 1}]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    {
+      "call": {
+        "name": "read_query",
+        "arguments": {
+          "query": "CREATE TABLE forbidden(id INTEGER)"
+        }
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: Only SELECT queries are allowed for read_query"
+          }
+        ],
+        "isError": false
+      }
+    }
+  ],
+  "stderr": "",
+  "after": [
+    {
+      "path": "canary.txt",
+      "sha256": "98c72347047a0bc8db9bccdb3fdab9b238ea167b36034e6fc9f132b4376d4acc"
+    },
+    {
+      "path": "pupu-mcp.sqlite",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

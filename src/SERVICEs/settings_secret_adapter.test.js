@@ -22,15 +22,17 @@ beforeEach(() => {
 });
 
 describe("field constants", () => {
-  test("cover exactly the three Phase 4-deferred secret fields", () => {
+  test("cover all built-in and custom secret fields", () => {
     expect([...PROVIDER_SECRET_FIELDS]).toEqual([
       "openai_api_key",
       "anthropic_api_key",
+      "gemini_api_key",
     ]);
     expect(CUSTOM_PROVIDER_SECRETS_FIELD).toBe("custom_provider_secrets");
     expect([...SENSITIVE_MODEL_PROVIDER_FIELDS]).toEqual([
       "openai_api_key",
       "anthropic_api_key",
+      "gemini_api_key",
       "custom_provider_secrets",
     ]);
   });

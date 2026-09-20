@@ -1,0 +1,65 @@
+name: "Submit a Skill"
+description: "Propose a reusable Skill or Skill Pack for PuPu."
+title: "[Skill] <name>"
+labels: ["skill-submission", "considering"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a community contribution; maintainers will evaluate it before
+        deciding on inclusion or release scope. You can open an issue without
+        writing code. Do not include API keys, tokens, or private user data.
+        Guide: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/community-submissions.md
+        For a PR, branch from upstream dev and select base: dev.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: What does it help users do?
+      description: Describe the use case and how it differs from an existing plugin.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source or proposal
+      description: Repository/homepage and license, or say that this is a proposal without an implementation yet.
+    validations:
+      required: true
+  - type: dropdown
+    id: relationship
+    attributes:
+      label: Your relationship to this contribution
+      options:
+        - I maintain or wrote it
+        - I contribute to it
+        - I am recommending someone else's work
+        - This is a proposal for something new
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Files, integration, and dependencies
+      description: "Link to the SKILL.md files and supporting Markdown references. Include a source commit or release, required tools, and any scripts or other dependencies."
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example and test evidence
+      description: "Give one user prompt, the expected result, and the PuPu version/platform on which you tried it. Say clearly if it has not been tested."
+    validations:
+      required: true
+  - type: textarea
+    id: effects
+    attributes:
+      label: Permissions, side effects, costs, and limitations
+      description: Mention file writes, commands, network requests, secrets/OAuth, paid services, or other effects. Write none if not applicable.
+    validations:
+      required: true

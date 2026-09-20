@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modal Standard"
+  short_description: "Standardize modal UI to Settings/Tools baseline in this repo."
+  default_prompt: "Audit and normalize a modal to match Settings/Tools standards (close button, border radius, title typography, and state-based panels)."

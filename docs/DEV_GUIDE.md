@@ -9,7 +9,7 @@
 
 PuPu is a cross-platform desktop AI client built with **React 19 + Electron 40** (frontend) and a **Python Flask sidecar** (`unchain_runtime`) for chat orchestration, memory, workspace context, and character management.
 
-It supports multiple model providers (OpenAI, Anthropic, Gemini, Ollama) and provides features like multi-conversation management, file attachments, tool orchestration, sub-agent delegation, and AI character personas.
+It supports multiple model providers (OpenAI, Anthropic, Gemini via the native Unchain driver, Ollama) and provides features like multi-conversation management, file attachments, tool orchestration, sub-agent delegation, and AI character personas.
 
 ---
 
@@ -161,6 +161,7 @@ npm run build:electron:linux       # Linux
 | [Runtime Events V3](architecture/runtime-events-v3.md) | Typed runtime event store, ActivityTree reducer, TraceChain adapter |
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
 | [System Prompt V2](architecture/system-prompt-v2.md) | 3-layer prompt override architecture |
+| [Context V2 & Memory V2](architecture/context-v2-and-memory-v2.md) | Canonical durable context, Memory V2 admission, execution recovery, and legacy-memory boundary |
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
 | [Storage Model](architecture/storage-model.md) | Chat persistence, and App Settings authoritative in `settings.db` (SQLite) with a `localStorage` fallback |
 | [App Settings → SQLite Migration](architecture/settings-sqlite-migration-plan.md) | Settings SQLite architecture, migration state machine, secret storage boundary |
@@ -180,6 +181,8 @@ npm run build:electron:linux       # Linux
 | [Toolkit & Tool Catalog](features/toolkit-and-tool-catalog.md) | Toolkit discovery, TOML format, tool metadata, auto-approval |
 | [Workspace System](features/workspace-system.md) | Named workspaces, per-chat selection, path resolution |
 | [Agent Orchestration](features/agent-orchestration.md) | Sub-agent delegation, child-run routing, prompt sections |
+| [Attach Panel Layout](features/attach-panel-layout.md) | Movable composer widgets, the "…" overflow menu, arrange mode, persisted order |
+| [Platform Presentation](features/platform-presentation.md) | Dev-only switch that presents the UI as macOS / Windows / Linux |
 | **[Conventions](conventions/)** | |
 | [Project Conventions](conventions/project-conventions.md) | Naming, styling, file org, component patterns, pitfalls |
 | [Build & Testing](conventions/build-and-testing.md) | Build pipeline, test commands, CI setup |

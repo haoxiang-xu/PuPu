@@ -225,6 +225,17 @@ export const sanitizeModel = (model) => {
     cleaned.maxTokens = Math.max(0, Math.floor(Number(model.maxTokens)));
   }
 
+  /* The context window the user picked in the attach panel (#227). Only a
+     positive integer is a window; the sidecar rejects anything else, so
+     nothing else is worth persisting. */
+  if (
+    typeof model.contextWindow === "number" &&
+    Number.isInteger(model.contextWindow) &&
+    model.contextWindow > 0
+  ) {
+    cleaned.contextWindow = model.contextWindow;
+  }
+
   if (
     typeof model.reasoningEffort === "string" &&
     model.reasoningEffort.trim()

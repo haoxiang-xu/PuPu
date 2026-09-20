@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: 🐛 Bug report / feature request
-    url: https://github.com/haoxiang-xu/PuPu/issues/new
-    about: For app bugs or feature ideas (not MCP submissions).
-  - name: 📖 Contribution guide
+  - name: Community contribution guide
+    url: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/community-submissions.md
+    about: Choose MCP, Skill, or Toolkit; learn what to include in an issue or PR.
+  - name: Code contribution guide
     url: https://github.com/haoxiang-xu/PuPu/blob/main/CONTRIBUTING.md
-    about: How to contribute code or MCP servers.
+    about: Development setup, tests, and PRs targeting dev.

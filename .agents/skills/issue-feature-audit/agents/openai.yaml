@@ -1,0 +1,4 @@
+interface:
+  display_name: "PuPu Feature Audit"
+  short_description: "Audit a completed PuPu release sub-issue"
+  default_prompt: "Use $issue-feature-audit to audit this completed PuPu release sub-issue."

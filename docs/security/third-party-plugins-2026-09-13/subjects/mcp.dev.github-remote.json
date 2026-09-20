@@ -1,0 +1,100 @@
+{
+  "toolkitId": "mcp.dev.github-remote",
+  "catalog": {
+    "id": "dev.github-remote",
+    "toolkitId": "mcp.dev.github-remote",
+    "name": "GitHub",
+    "description": "Remote GitHub MCP server for repositories, issues and pull requests.",
+    "category": "dev",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "MIT",
+    "sourceRepo": "https://github.com/github/github-mcp-server",
+    "docsUrl": "https://github.com/github/github-mcp-server",
+    "icon": {
+      "type": "builtin",
+      "name": "github",
+      "color": "#ffffff",
+      "backgroundColor": "#1f2328"
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": [
+        {
+          "name": "Authorization",
+          "valueFromSecret": "GITHUB_MCP_PAT",
+          "prefix": "Bearer "
+        }
+      ]
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "github",
+        "providerLabel": "GitHub",
+        "clientRegistration": "user_credentials",
+        "releaseStatus": "app_required",
+        "mcpUrl": "https://api.githubcopilot.com/mcp/",
+        "transport": "streamable_http",
+        "authorizationEndpoint": "https://github.com/login/oauth/authorize",
+        "tokenEndpoint": "https://github.com/login/oauth/access_token",
+        "scopes": [
+          "repo",
+          "read:org"
+        ],
+        "authUrlParams": {},
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "www_authenticate"
+      }
+    },
+    "setupPreview": "https://api.githubcopilot.com/mcp/",
+    "prerequisites": [
+      "GitHub account"
+    ],
+    "secrets": [
+      {
+        "key": "GITHUB_MCP_PAT",
+        "label": "GitHub Personal Access Token"
+      }
+    ],
+    "tools": [
+      {
+        "name": "search_repositories",
+        "title": "Search repositories",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "get_file_contents",
+        "title": "Get file contents",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "create_issue",
+        "title": "Create issue",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "create_pull_request",
+        "title": "Create pull request",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 2
+    },
+    "readmeMarkdown": "## GitHub (remote)\n\nConnect to the official GitHub MCP server with a Personal Access Token. OAuth remains unavailable until PuPu has an approved GitHub OAuth app."
+  },
+  "checkedAt": "2026-09-13T18:36:58.716791+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://api.githubcopilot.com/mcp/"
+}

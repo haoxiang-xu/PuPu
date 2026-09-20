@@ -2219,7 +2219,7 @@ synthetic secret 只记录命中计数和 digest，不记录原文。
   `PUPU_BUILD_FEATURE_SNAPSHOT_PATH`（或默认 `.local` path）读取一个 object snapshot；
   缺失、JSON 损坏或非 object 都在 React build 前退出非零，不能回落默认 flags。
 - `scripts/write-build-feature-snapshot.cjs` 仍可显式接受 `--feature-flags`，但 release
-  workflow 只接受 versioned `contracts/memory-v2/release-profile.shadow.v1.json`。该 profile
+  workflow 只接受 versioned `docs/contracts/memory-v2/release-profile.shadow.v1.json`。该 profile
   有 exact schema、五个 sidecar env fields，且 producer 拒绝将 profile 与 flags 混用；profile
   生成时忽略调用进程的 `all`/canary/readonly 覆写，输出必须仍是 canonical Shadow snapshot。
 - deterministic job 只生成一次 snapshot，并上传 bytes 与 SHA-256；每个 package job 下载后先
@@ -2260,7 +2260,7 @@ synthetic secret 只记录命中计数和 digest，不记录原文。
   attestation → Windows executed evidence；任一步失败均不得产生 Active admission。
   `WAC-004`：三方 green parity、四类 sink 的 disabled/unsupported negative matrix、以及
   installed Windows candidate 的零 payload execution shadow proof。当前 fixture
-  `contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json`
+  `docs/contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json`
   （SHA-256 `99297a280d4023ea43a931d7b73087c20a67076af547aca57874f0075e8e0441`）已被独立
   Node parser 与 Python parser 消费：Node 1/1；Python 1/1，后者使用本地 Unchain checkout
   `abd7e08f26452e1dbe2767fac3dbfaff7dfb9f3b`，仅为单元契约验证，不能替代 exact deployed
@@ -2278,7 +2278,7 @@ synthetic secret 只记录命中计数和 digest，不记录原文。
   install-attestation → evidence-envelope`。每层仅引用已存在的父 fingerprint，并以其
   schema domain-separated canonical JSON 计算自身 fingerprint；任何层都不能引用自身，
   build identity 也不得预填 installer/install digest。
-- `contracts/memory-v2/windows-candidate-identity-fixture.v1.json`（SHA-256
+- `docs/contracts/memory-v2/windows-candidate-identity-fixture.v1.json`（SHA-256
   `5dd9a3bd01e6876d5778dd8f0d4989554e9ffb44bc9cdd54f2610f258743c4eb`）固定一个
   payload lineage 和两个 immutable snapshots。Node golden tests 4/4 证明 snapshot
   descendant 复用 lineage、但生成不同 build/package identity；并拒绝 parent mismatch、
@@ -2294,7 +2294,7 @@ synthetic secret 只记录命中计数和 digest，不记录原文。
 
 ##### W0-06 mode-aware report topology（`IN_PROGRESS`，本地 gate 已实现，未实跑 CI）
 
-- `contracts/memory-v2/release-qa-report-topology.v1.json` 冻结 `lite`、`release` 和
+- `docs/contracts/memory-v2/release-qa-report-topology.v1.json` 冻结 `lite`、`release` 和
   `windows-active-qualification` 三种 mode 的 expected report platform set。merge 时由
   workflow 的 event/input 显式传入 `--mode` 和 manifest；required set 不再由已经下载到的
   reports 倒推。每个 expected platform 必须恰有一份 report，缺失、重复或 report 内的 failed/
@@ -2317,7 +2317,7 @@ synthetic secret 只记录命中计数和 digest，不记录原文。
 
 ##### W0-08 staged rollback / stop authority（`IN_PROGRESS`，policy 已冻结，authority 未接通）
 
-- `contracts/memory-v2/windows-rollout-stop-policy.v1.json` 是 closed policy。当前 internal
+- `docs/contracts/memory-v2/windows-rollout-stop-policy.v1.json` 是 closed policy。当前 internal
   和 public channel 的 `authority` 都明确为 `unavailable` 且 `promotion_allowed=false`；
   internal 将来只能接受 `managed_device_force_install`，public 将来只能接受
   `signed_remote_stop_or_forced_update`。optional updater、普通 runtime flag 或“尚未收到

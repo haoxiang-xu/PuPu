@@ -78,6 +78,14 @@ export const build_model_options = ({
     });
   }
 
+  if (Array.isArray(providers?.gemini) && providers.gemini.length > 0) {
+    groups.push({
+      group: MODEL_GROUPS.GEMINI, icon: "gemini",
+      collapsed: Boolean(collapsed_groups?.[MODEL_GROUPS.GEMINI]),
+      options: providers.gemini.map((name) => ({ value: `gemini:${name}`, label: name, trigger_label: name })),
+    });
+  }
+
   // ── Custom (user-defined) provider groups ──
   // One group per gated custom provider. default_model is ordered first.
   // The group value prefix is "custom.<slug>:" and each group carries a

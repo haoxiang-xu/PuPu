@@ -137,7 +137,7 @@ jobs:
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
             --mode "$QA_MODE" \
-            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
+            --expected-report-manifest docs/contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md
 
@@ -175,7 +175,7 @@ jobs:
           node scripts/release-qa/merge-reports.mjs \
             --input-dir ../qa-job-reports \
             --mode "$QA_MODE" \
-            --expected-report-manifest contracts/memory-v2/release-qa-report-topology.v1.json \
+            --expected-report-manifest docs/contracts/memory-v2/release-qa-report-topology.v1.json \
             --out-json release-qa-report.json \
             --out-md release-qa-report.md \
             --fail-on-deterministic-failure true \

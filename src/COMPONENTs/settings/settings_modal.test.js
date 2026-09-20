@@ -1,7 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { SettingsModal } from "./settings_modal";
-import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../../BUILTIN_COMPONENTs/modal/modal", () => ({
   __esModule: true,
@@ -22,7 +21,15 @@ jest.mock("./appearance", () => ({
 
 jest.mock("./model_providers", () => ({
   __esModule: true,
-  ModelProvidersSettings: () => <div>Model Providers Content</div>,
+  ModelProvidersSettings: ({ onOpenModelProviders }) => (
+    <div>
+      Model Providers Content
+      <button onClick={() => onOpenModelProviders?.("ollama")}>
+        Open in Models (from page)
+      </button>
+    </div>
+  ),
+  OllamaLibraryBrowser: () => <div>Ollama Library Browser</div>,
 }));
 
 jest.mock("./local_storage", () => ({
@@ -60,11 +67,11 @@ jest.mock("./dev/storage", () => ({
   isDevSettingsAvailable: () => false,
 }));
 
-const renderSettingsModal = () =>
+const renderSettingsModal = (props = {}) =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
       <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
-        <SettingsModal open onClose={jest.fn()} />
+        <SettingsModal open onClose={jest.fn()} {...props} />
       </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
@@ -89,12 +96,35 @@ describe("SettingsModal", () => {
     expect(screen.queryByText("Computer Use")).not.toBeInTheDocument();
   });
 
-  test("hides the Update page when the app update feature flag is disabled", async () => {
-    writeFeatureFlags({ enable_app_update_settings: false });
-
+  test("opens the Update page without feature flag configuration", async () => {
     renderSettingsModal();
 
+    fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    expect(await screen.findByText("Update Content")).toBeInTheDocument();
+  });
+
+  /* #204 R5: Settings keeps a narrow Model Providers page (the N1 accordion)
+     again — the item navigates in place like every other settings page. The
+     page itself gets onOpenModelProviders so its Ollama row can hand off to
+     the wide layer (AC-12). */
+  test("clicking Model Providers renders the page and passes onOpenModelProviders", async () => {
+    const onOpenModelProviders = jest.fn();
+    renderSettingsModal({ onOpenModelProviders });
+
     await screen.findByText("Appearance Content");
-    expect(screen.queryByText("Update")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Model Providers" }),
+    );
+
+    expect(
+      await screen.findByText("Model Providers Content"),
+    ).toBeInTheDocument();
+    expect(onOpenModelProviders).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open in Models (from page)" }),
+    );
+    expect(onOpenModelProviders).toHaveBeenCalledWith("ollama");
   });
 });

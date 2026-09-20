@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import YAML from "yaml";
+import { TOOLS_QUALIFICATION_SCHEMA, validateReleaseTools } from "./release-toolchain.mjs";
 
 import {
   RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA,
@@ -635,7 +636,7 @@ export function verifyReleaseAssetDirectory({ manifest, contract, assetDir, allo
 
 export function validateQualificationReceipt(receipt, manifest, contract, { bootstrapPolicy = null } = {}) {
   validateReleaseAssetManifest(manifest, contract);
-  if (receipt?.schema === RELEASE_UPDATE_QUALIFICATION_SCHEMA) {
+  if ([RELEASE_UPDATE_QUALIFICATION_SCHEMA, TOOLS_QUALIFICATION_SCHEMA].includes(receipt?.schema)) {
     return validateReleaseUpdateQualificationReceipt(receipt, manifest, contract);
   }
   if (receipt?.schema === RELEASE_BOOTSTRAP_QUALIFICATION_SCHEMA) {
@@ -811,15 +812,17 @@ export function validateReleaseUpdateQualificationReceipt(receipt, manifest, con
       "restart_targets",
       "schema",
       "status",
+      ...(receipt?.schema === TOOLS_QUALIFICATION_SCHEMA ? ["tools"] : []),
     ],
     "release update qualification receipt",
   );
-  if (receipt.schema !== RELEASE_UPDATE_QUALIFICATION_SCHEMA) {
+  if (![RELEASE_UPDATE_QUALIFICATION_SCHEMA, TOOLS_QUALIFICATION_SCHEMA].includes(receipt.schema)) {
     throw new Error(`release update qualification receipt schema must be ${RELEASE_UPDATE_QUALIFICATION_SCHEMA}`);
   }
   if (receipt.status !== "passed") {
     throw new Error("release update qualification receipt status must be passed");
   }
+  if (receipt.schema === TOOLS_QUALIFICATION_SCHEMA) validateReleaseTools(receipt.tools, manifest.release);
   if (receipt.manifest_digest !== manifest.manifest_digest) {
     throw new Error("release update qualification receipt manifest_digest does not match candidate manifest");
   }

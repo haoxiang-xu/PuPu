@@ -556,7 +556,17 @@ describe("legacy fallback + mixed authority", () => {
     seedCustomProvider();
     installStorageBridge({
       secretStorageStatus: "available",
-      configuredCredentials: ["custom.sap-hyperspace"],
+      // Every custom-addressed identity the catalog will consider is SQL-known,
+      // including the shipped providers PuPu now resolves from its own bundle
+      // (#202). With no identity left to fall back on, a legacy secret read
+      // here could only be the catalog reaching for a VALUE — which is what
+      // this test forbids.
+      configuredCredentials: [
+        "custom.sap-hyperspace",
+        "custom.deepseek",
+        "custom.kimi",
+        "custom.kimi-cn",
+      ],
     });
     window.unchainAPI.getModelCatalog = jest.fn(async () => ({
       providers: { openai: ["gpt-5"], anthropic: [], ollama: [] },
@@ -573,4 +583,23 @@ describe("legacy fallback + mixed authority", () => {
     ]);
     expect(readCustomProviderSecrets).not.toHaveBeenCalled();
   });
+});
+
+
+test("Gemini uses its own descriptor without reading the plaintext key", () => {
+  installStorageBridge({ secretStorageStatus: "available", configuredCredentials: ["gemini"] });
+  seedLegacy({ gemini_api_key: "gemini-SENTINEL" });
+  const payload = driveV2({ model: "gemini:gemini-2.5-flash", memory_enabled: false });
+  expect(descriptorList(payload)).toEqual([{ kind: "provider", id: "gemini", channel: "model" }]);
+  expect(JSON.stringify(payload)).not.toContain("gemini-SENTINEL");
+  expect(readProviderSecret).not.toHaveBeenCalled();
+});
+
+test("Gemini degraded mode writes only its two provider key fields", () => {
+  seedLegacy({ gemini_api_key: "gemini-SENTINEL", anthropic_api_key: "wrong-provider" });
+  const payload = driveV2({ model: "gemini:gemini-2.5-flash", memory_enabled: false });
+  expect(payload.options.geminiApiKey).toBe("gemini-SENTINEL");
+  expect(payload.options.gemini_api_key).toBe("gemini-SENTINEL");
+  expect(payload.options.anthropicApiKey).toBeUndefined();
+  expect(payload.options.apiKey).toBeUndefined();
 });

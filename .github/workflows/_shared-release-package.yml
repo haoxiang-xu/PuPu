@@ -141,6 +141,14 @@ jobs:
         working-directory: pupu
         run: npm ci
 
+      - name: Verify native Windows installer sidecar cleanup
+        if: inputs.target_id == 'windows-x64'
+        working-directory: pupu
+        shell: pwsh
+        run: |
+          ./scripts/release-qa/test-windows-installer-sidecar-cleanup.ps1 -PowerShellArchitecture x64
+          ./scripts/release-qa/test-windows-installer-sidecar-cleanup.ps1 -PowerShellArchitecture x86
+
       - name: Resolve QA version
         working-directory: pupu
         shell: bash

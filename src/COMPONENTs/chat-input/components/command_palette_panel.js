@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import CommandMenu from "./command_menu";
+import CommandMenu, { commandListCapHeight } from "./command_menu";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 /**
  * CommandPalettePanel — the "palette morph" (design D, Elevator Push motion).
@@ -18,14 +19,28 @@ import CommandMenu from "./command_menu";
 
 const FALLBACK_H = 40; // pill row height fallback before measurement
 const PANEL_RADIUS = 22; // matches the attach pill container
-const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
-const MAX_ROWS = 6;
+/* Row stride and the ten-row cap live in command_menu, which is what actually
+   renders the rows — see commandListCapHeight. The list's height itself is
+   measured, not computed (see listContentHRef below). */
 const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
+/* The frame's height: header slot plus the list — one formula, used by the
+   render and by the observer callback that follows the rows (see below). */
+const panelHeight = (headerH, listH) => headerH + BLEED * 2 + listH;
+/* The thumb's distance from the panel's wall — the Select palette's value,
+   so the two palettes read as one family. */
+const SCROLLBAR_WALL = 2;
 
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN = "cubic-bezier(0.4, 0, 1, 1)";
 const EASE_SPRING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+
+/* The open morph's height transition: delay + duration. After this the frame
+   stops easing on its own and simply follows the rows (see listH). */
+const OPEN_HEIGHT_DELAY_MS = 40;
+const OPEN_HEIGHT_MS = 210;
+const OPEN_HEIGHT_TRANSITION = `height ${OPEN_HEIGHT_MS}ms cubic-bezier(0.3,1,0.35,1) ${OPEN_HEIGHT_DELAY_MS}ms`;
+const CLOSE_HEIGHT_TRANSITION = "height 150ms cubic-bezier(0.4,0,0.6,1)";
 
 const CommandPalettePanel = ({
   open = false,
@@ -33,7 +48,13 @@ const CommandPalettePanel = ({
   items = [],
   activeIndex = 0,
   onPick = () => {},
-  onHover = null,
+  onHoverId = null,
+  onVisibleChange = null,
+  folderState = null,
+  expandRef = null,
+  onOrganize = null,
+  organizeLabel = "",
+  visibleRowCount = 0,
   isDark = false,
   surfaceBg,
   children,
@@ -73,7 +94,90 @@ const CommandPalettePanel = ({
   }, []);
 
   const headerH = pillH || FALLBACK_H;
-  const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + 8 : 0;
+
+  /* The list's height is MEASURED, not computed from a row count. A folder
+     toggled in the tree is Explorer's own 280ms height animation on the rows;
+     a count-derived height changed at once, so the frame eased to its new
+     size on its own clock while the rows folded on theirs — 86px of empty
+     panel above the rows at the worst frame, rows chopped by a cap that had
+     already snapped. Measuring the host makes the frame the rows' motion,
+     nothing else.
+
+     The measurement is written straight to the panel's DOM node from the
+     observer callback, not through state. A ResizeObserver runs after layout
+     and before paint, and the frame has to land in the same paint as the
+     rows it follows — a render scheduled for later paints one frame behind.
+     flushSync would land it in time, but flushSync flushes EVERY pending
+     update, the textfield's own measurements included, and re-laying out an
+     observed element inside the observer pass is the "ResizeObserver loop
+     completed with undelivered notifications" error. The value also lives
+     in a ref read during render, so a render for any other reason (the open
+     morph, an arrow key) computes the same height the DOM already shows. */
+  const panelRef = useRef(null);
+  const listHostRef = useRef(null);
+  const listContentHRef = useRef(0);
+  const frameRef = useRef({ on: false, headerH: FALLBACK_H });
+  frameRef.current = { on, headerH };
+  const applyFrameHeight = () => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const { on: isOn, headerH: h } = frameRef.current;
+    panel.style.height = `${panelHeight(h, isOn ? listContentHRef.current : 0)}px`;
+  };
+  useEffect(() => {
+    const el = listHostRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        listContentHRef.current = Math.round(entry.contentRect.height);
+      }
+      applyFrameHeight();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // applyFrameHeight reads refs only; it never goes stale
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const listMaxH = commandListCapHeight({ bare: true });
+  const listH = on ? listContentHRef.current : 0;
+
+  /* Which motion owns the height. The open and close morphs ease it — the
+     panel growing out of the pill and folding back into it. Once the open
+     morph has settled, the height carries no transition at all, so the
+     measured value above is applied as the rows move, frame for frame. */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!on) {
+      setSettled(false);
+      return undefined;
+    }
+    const timer = setTimeout(
+      () => setSettled(true),
+      OPEN_HEIGHT_DELAY_MS + OPEN_HEIGHT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [on]);
+  const heightTransition = on
+    ? settled
+      ? null
+      : OPEN_HEIGHT_TRANSITION
+    : CLOSE_HEIGHT_TRANSITION;
+  const panelTransition = [
+    heightTransition,
+    ...(on
+      ? [
+          "background-color 180ms ease",
+          "border-color 180ms ease",
+          "box-shadow 210ms ease",
+        ]
+      : [
+          "background-color 130ms ease 40ms",
+          "border-color 130ms ease 40ms",
+          "box-shadow 130ms ease",
+        ]),
+  ]
+    .filter(Boolean)
+    .join(", ");
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
@@ -90,6 +194,13 @@ const CommandPalettePanel = ({
     ? "1px solid rgba(var(--pupu-text-rgb),0.10)"
     : "1px solid rgba(var(--pupu-text-rgb),0.09)";
   const hintColor = isDark ? "rgba(var(--pupu-text-rgb),0.35)" : "rgba(var(--pupu-text-rgb),0.38)";
+  /* the organize action sits in this same bar and speaks in the same voice as
+     the hints — a shade stronger at rest so it reads as pressable, a wash on
+     hover; it is an action among the panel's other panel-level things
+     (↑↓ ⏎), which is why it lives here and not as a row in the list */
+  const actionColor = isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.5)";
+  const actionHoverBg = isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)";
+  const actionActiveBg = isDark ? "rgba(var(--pupu-text-rgb),0.14)" : "rgba(var(--pupu-text-rgb),0.1)";
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
 
@@ -101,6 +212,7 @@ const CommandPalettePanel = ({
     >
       {/* the morphing panel — grows upward from the pill's bounds, BEHIND it */}
       <div
+        ref={panelRef}
         aria-hidden={!on}
         style={{
           position: "absolute",
@@ -108,7 +220,7 @@ const CommandPalettePanel = ({
           bottom: -BLEED,
           width: panelW,
           maxWidth: "calc(100vw - 40px)",
-          height: headerH + BLEED * 2 + listH,
+          height: panelHeight(headerH, listH),
           display: "flex",
           flexDirection: "column",
           justifyContent: "flex-end",
@@ -127,26 +239,64 @@ const CommandPalettePanel = ({
               ? "0 10px 34px rgba(0,0,0,0.5)"
               : "0 10px 34px rgba(0,0,0,0.12)"
             : "none",
-          transition: on
-            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, border-color 180ms ease, box-shadow 210ms ease"
-            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, border-color 130ms ease 40ms, box-shadow 130ms ease",
+          transition: panelTransition,
           zIndex: 1,
           pointerEvents: on ? "auto" : "none",
         }}
       >
-        {/* command rows (above the header slot) */}
+        {/* command rows (above the header slot). The outer div is the morph's
+            reveal clip: it shrinks with the panel's height and hides what is
+            not yet grown into view. The inner div — not the menu — is the
+            scroll host, and its viewport is a fixed cap, so nothing scrolls
+            it while the panel is still growing (a shrinking host asked the
+            active row into view and opened the list 7px down). PuPu's
+            scrollbar is the overlay thumb that `.scrollable` hangs on a
+            container's parent, and its track is laid out here against the
+            panel's own frame: it begins where the 22px corner begins (the
+            host sits 1px inside the border) and stops the same distance
+            short of the bottom. Boxed inside the panel with its own inset,
+            the menu could only ever run the thumb from the corner down to
+            the hint bar. */}
         <div style={{ minHeight: 0, overflow: "hidden" }}>
-          {open && (
-            <CommandMenu
-              items={items}
-              activeIndex={activeIndex}
-              onPick={onPick}
-              onHover={onHover}
-              isDark={isDark}
-              bare
-              visible={on}
-            />
-          )}
+          {/* The scrollbar's mount. PuPu's overlay thumb is appended to the
+              scroll host's PARENT and that parent is observed for resizes
+              along with the host. It must not be the reveal clip above: the
+              clip's size follows the frame's, and the frame is set from
+              inside a ResizeObserver callback (applyFrameHeight) — resizing
+              an observed, shallower element in that same pass is the
+              "ResizeObserver loop completed with undelivered notifications"
+              error, once per frame of a fold. This wrapper is sized by its
+              content alone, so the frame's motion never touches it. */}
+          <div data-command-list-mount="">
+            <div
+              ref={listHostRef}
+              className="scrollable"
+              data-command-list-scroll=""
+              data-sb-edge={PANEL_RADIUS - 1}
+              data-sb-wall={SCROLLBAR_WALL}
+              style={{
+                maxHeight: listMaxH,
+                overflowY: "auto",
+                overscrollBehavior: "contain",
+              }}
+            >
+              {open && (
+                <CommandMenu
+                  items={items}
+                  activeIndex={activeIndex}
+                  onPick={onPick}
+                  onHover={onHoverId}
+                  onVisibleChange={onVisibleChange}
+                  folderState={folderState}
+                  expandRef={expandRef}
+                  visibleRowCount={visibleRowCount}
+                  isDark={isDark}
+                  bare
+                  visible={on}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
         {/* header slot spacer — same box the pill occupies */}
@@ -208,8 +358,47 @@ const CommandPalettePanel = ({
                 WebkitUserSelect: "none",
               }}
             >
-              COMMANDS · ↑↓ · ⏎ · esc
+              {onOrganize ? "COMMANDS · ↑↓ · ⏎" : "COMMANDS · ↑↓ · ⏎ · esc"}
             </span>
+            {onOrganize ? (
+              /* The header is pointer-events:none (it is decorative — the
+                 pill underneath owns the clicks at rest). This one child
+                 re-enables them for itself. mousedown is cancelled on the
+                 wrapper so the composer's textarea keeps focus: a blur would
+                 close the palette before the click ever lands. */
+              <span
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                style={{
+                  marginLeft: "auto",
+                  display: "inline-flex",
+                  pointerEvents: "auto",
+                }}
+              >
+                <Button
+                  prefix_icon="list_settings"
+                  label={organizeLabel}
+                  onClick={onOrganize}
+                  dom_props={{ "data-command-organize-action": "" }}
+                  style={{
+                    height: 18,
+                    fontSize: 10.5,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    color: actionColor,
+                    paddingVertical: 0,
+                    paddingHorizontal: 8,
+                    iconSize: 12,
+                    gap: 5,
+                    borderRadius: 9,
+                    hoverBackgroundColor: actionHoverBg,
+                    activeBackgroundColor: actionActiveBg,
+                  }}
+                />
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

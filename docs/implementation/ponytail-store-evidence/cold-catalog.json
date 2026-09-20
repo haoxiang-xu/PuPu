@@ -1,0 +1,11 @@
+{
+  "toolkitId": "skillpack.ponytail",
+  "commands": [
+    "ponytail",
+    "ponytail-audit",
+    "ponytail-debt",
+    "ponytail-review"
+  ],
+  "iconSha256": "c6f885b6a1f21d663d732365d4a212ca3e7de242be6c69dcd10c291d5b3896dc",
+  "toolCount": 0
+}

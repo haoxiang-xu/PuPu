@@ -1,0 +1,144 @@
+{
+  "toolkitId": "mcp.workspace.filesystem",
+  "catalog": {
+    "id": "workspace.filesystem",
+    "toolkitId": "mcp.workspace.filesystem",
+    "name": "Filesystem",
+    "description": "Read and write files within an allowed workspace directory.",
+    "category": "workspace",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": true,
+    "license": "Apache-2.0 / MIT",
+    "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+    "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+    "metadata": {
+      "type": "http_json",
+      "request": {
+        "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+        "headers": {
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "PuPu-MCP-Store"
+        }
+      },
+      "fields": {
+        "fullName": "full_name",
+        "description": "description",
+        "stars": "stargazers_count",
+        "license": "license.spdx_id",
+        "ownerLogin": "owner.login",
+        "ownerAvatarUrl": "owner.avatar_url"
+      },
+      "icon": {
+        "urlPath": "owner.avatar_url"
+      },
+      "iconPolicy": "fallback",
+      "cacheTtlMs": 86400000
+    },
+    "workspace": {
+      "required": true,
+      "placeholder": "${WORKSPACE}",
+      "binding": "agent_workspace_root"
+    },
+    "mcp": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--before=2026-07-28T00:00:00Z",
+        "@modelcontextprotocol/server-filesystem@2026.7.10",
+        "${WORKSPACE}"
+      ]
+    },
+    "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
+    "prerequisites": [],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "read_file",
+        "title": "Read file",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "list_directory",
+        "title": "List directory",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "write_file",
+        "title": "Write file",
+        "requiresConfirmation": true
+      },
+      {
+        "name": "move_file",
+        "title": "Move file",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 2
+    },
+    "readmeMarkdown": "## Filesystem\n\nReference MCP server for scoped file access. The `${WORKSPACE}` placeholder is filled with the chosen directory during setup."
+  },
+  "checkedAt": "2026-09-13T18:36:59.028215+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "local-mcp",
+  "ecosystem": "npm",
+  "package": "@modelcontextprotocol/server-filesystem",
+  "version": "2026.7.10",
+  "download": "https://registry.npmjs.org/@modelcontextprotocol/server-filesystem/-/server-filesystem-2026.7.10.tgz",
+  "artifactSha256": "c17c1da371c8089cff2206cce3001194d8276bae2b5ac1e2b425b6612068e3ba",
+  "registryIntegrity": "sha512-Mmjg4anFBD5OzbPnGJOA0jPPN8645ERhQk38HQLpSenx1ox9bfdPkmAzUnNjeQtqQGFLtKe13J20RtLBmUKMZA==",
+  "integrityVerified": true,
+  "files": [
+    {
+      "path": "package/dist/index.js",
+      "sha256": "ac12c0307497ebd1c8e0b0fe4b057165cded007cd7c7afc9aeaa68fefe68eb15",
+      "size": 28217
+    },
+    {
+      "path": "package/dist/lib.js",
+      "sha256": "e2f5648317613530f60b582b8b0ed10c1beddc10c2d0926213300d827f27208e",
+      "size": 14315
+    },
+    {
+      "path": "package/dist/path-utils.js",
+      "sha256": "2129214ece0aa7ee51a0e7d615bfdd9266c7284d8d5ecf02aff07d0a2c3dacd1",
+      "size": 4655
+    },
+    {
+      "path": "package/dist/path-validation.js",
+      "sha256": "c2d5481e236814c3a4f32c74580f03fb19b25ff7d0b743cf9d51555c9399d9b6",
+      "size": 2904
+    },
+    {
+      "path": "package/dist/roots-utils.js",
+      "sha256": "4074f48adb2a22d9d07792cbe0d8b8f59c63e499ef7b9722066fbb8d3d4d74b0",
+      "size": 2760
+    },
+    {
+      "path": "package/package.json",
+      "sha256": "6b2c11d4d348cace9c652636d602713c377ba59d868e013de69f3a9046d61244",
+      "size": 1169
+    },
+    {
+      "path": "package/README.md",
+      "sha256": "df276d57efc04b85fa1e8163fe1aa3d5b11d5b2a7de5ec51ba083e5cb04019cd",
+      "size": 15068
+    }
+  ],
+  "repository": {
+    "url": "git+https://github.com/modelcontextprotocol/servers.git",
+    "type": "git"
+  },
+  "gitHead": "9a96ea6e5913736f92b88345bf51caeaaa8e719f",
+  "resolvedLockSha256": "92ca99755bbd703fb42bf7c188504bb5d8ecaf9bd77eb4591f7781b207fb6526",
+  "dependencyAcquisition": {
+    "exitCode": 0,
+    "lifecycleScripts": false,
+    "cutoff": "2026-07-28T00:00:00Z"
+  }
+}

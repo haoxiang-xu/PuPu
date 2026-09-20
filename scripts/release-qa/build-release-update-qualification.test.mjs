@@ -7,16 +7,18 @@ import test from "node:test";
 import YAML from "yaml";
 
 import { buildReleaseUpdateQualificationReceipt } from "./build-release-update-qualification.mjs";
+import { qualificationWorkflowPath } from "./qualification-provenance.mjs";
 import {
   buildReleaseAssetManifest,
   expectedTargetAssets,
   hashFileSha512,
   readReleaseArtifactContract,
+  validateQualificationReceipt,
 } from "./release-artifact-manifest.mjs";
 
 const digest = (letter) => `sha256:${letter.repeat(64)}`;
 const SHA512 = "cGF5bG9hZA==";
-const CONTRACT = readReleaseArtifactContract("contracts/release/release-artifact-contract.v1.json");
+const CONTRACT = readReleaseArtifactContract("docs/contracts/release/release-artifact-contract.v1.json");
 const SOURCE = { fromTag: "v0.1.9", fromVersion: "0.1.9", fromCommit: "b".repeat(40) };
 
 const fixture = () => {
@@ -116,6 +118,35 @@ const restartReport = (manifest, targetId) => {
     executed_tests: 12,
   };
 };
+
+test("versioned tools receipt preserves all targets and binds independent promotion tools identity", () => {
+  const { root, manifest } = fixture();
+  try {
+    const tools = { tag: "v0.1.10-tools.1", commit: "e".repeat(40) };
+    const receipt = buildReleaseUpdateQualificationReceipt({ manifest, contract: CONTRACT,
+      freshReports: freshReports(manifest),
+      restartReports: ["macos-arm64", "macos-x64", "windows-x64"].map((id) => restartReport(manifest, id)),
+      qualificationRunId: "76543", fixtureSource: SOURCE, tools });
+    assert.equal(receipt.schema, "pupu.release-update-qualification.v2");
+    assert.deepEqual(receipt.tools, tools);
+    validateQualificationReceipt(receipt, manifest, CONTRACT);
+    const provenance = { receipt, candidateRunId: "12345", qualificationRunId: "76543",
+      releaseTag: manifest.release.tag, releaseCommit: manifest.release.commit, toolsTag: tools.tag, toolsCommit: tools.commit };
+    assert.equal(qualificationWorkflowPath(provenance), ".github/workflows/release-qualification.yml");
+    assert.throws(() => qualificationWorkflowPath({ ...provenance, toolsCommit: "f".repeat(40) }), /tools/);
+    assert.throws(() => qualificationWorkflowPath({ ...provenance, toolsTag: undefined, toolsCommit: undefined }), /tools/);
+    for (const malformed of [
+      { ...receipt, unexpected: true },
+      { ...receipt, schema: "pupu.release-update-qualification.v3" },
+      { ...receipt, tools: { ...tools, extra: true } },
+      { ...receipt, tools: { ...tools, tag: "v0.1.11-tools.1" } },
+      { ...receipt, restart_targets: receipt.restart_targets.slice(1) },
+      { ...receipt, manifest_digest: digest("f") },
+    ]) assert.throws(() => validateQualificationReceipt(malformed, manifest, CONTRACT));
+    assert.throws(() => qualificationWorkflowPath({ ...provenance,
+      receipt: { ...receipt, schema: "pupu.windows-upgrade-diagnostic.v1", diagnostic_only: true } }), /schema/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
 
 test("complete update receipt requires every fresh and restart target with one explicit N-1 source", () => {
   const { root, manifest } = fixture();

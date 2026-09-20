@@ -1,0 +1,7 @@
+{
+  "name": "OSV-Scanner",
+  "version": "2.5.1",
+  "download": "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_darwin_arm64",
+  "sha256": "75c44d6332f892a1e56286f4105a98ed751ae28d215ca0a8b65cc00d84103054",
+  "verification": "Matches GitHub release asset digest; no SLSA signature claim"
+}

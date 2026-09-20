@@ -1,0 +1,50 @@
+..EEEF.........
+======================================================================
+ERROR: test_installed_skill_commands_need_no_executable_toolkit (unchain_runtime.server.tests.test_skill_packs.SkillPackRuntimeTests.test_installed_skill_commands_need_no_executable_toolkit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_skill_packs.py", line 143, in test_installed_skill_commands_need_no_executable_toolkit
+    self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": selected}), [])
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py", line 6129, in _build_selected_toolkits
+    raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+RuntimeError: Requested toolkit is unavailable: skillpack.trailofbits-audit-prep
+
+======================================================================
+ERROR: test_missing_deleted_and_wrong_identity_remain_blocked (unchain_runtime.server.tests.test_skill_packs.SkillPackRuntimeTests.test_missing_deleted_and_wrong_identity_remain_blocked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_skill_packs.py", line 171, in test_missing_deleted_and_wrong_identity_remain_blocked
+    self.assertEqual(unchain_adapter._build_selected_toolkits({"toolkits": ["skillpack.superpowers"]}), [])
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py", line 6129, in _build_selected_toolkits
+    raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+RuntimeError: Requested toolkit is unavailable: skillpack.superpowers
+
+======================================================================
+ERROR: test_skill_selection_preserves_mcp_and_builtin_tools (unchain_runtime.server.tests.test_skill_packs.SkillPackRuntimeTests.test_skill_selection_preserves_mcp_and_builtin_tools)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_skill_packs.py", line 154, in test_skill_selection_preserves_mcp_and_builtin_tools
+    result = unchain_adapter._build_selected_toolkits({
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py", line 6129, in _build_selected_toolkits
+    raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+RuntimeError: Requested toolkit is unavailable: skillpack.superpowers
+
+======================================================================
+FAIL: test_unknown_generic_toolkit_is_not_hidden_by_valid_skill (unchain_runtime.server.tests.test_skill_packs.SkillPackRuntimeTests.test_unknown_generic_toolkit_is_not_hidden_by_valid_skill)
+----------------------------------------------------------------------
+RuntimeError: Requested toolkit is unavailable: skillpack.superpowers
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_skill_packs.py", line 176, in test_unknown_generic_toolkit_is_not_hidden_by_valid_skill
+    with self.assertRaisesRegex(RuntimeError, "Requested toolkit is unavailable: MissingToolkit283"):
+AssertionError: "Requested toolkit is unavailable: MissingToolkit283" does not match "Requested toolkit is unavailable: skillpack.superpowers"
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.008s
+
+FAILED (failures=1, errors=3)

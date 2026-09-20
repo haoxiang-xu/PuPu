@@ -1,12 +1,14 @@
 # Memory System
 
-> Embedding-based memory with Qdrant vector storage.
+> Legacy embedding-based memory with Qdrant vector storage.
+
+> **Boundary:** This page documents optional semantic recall. It does not define the canonical durable execution context. For Context V2, Memory V2 admission, recovery, and the ownership boundary, see [Context V2 & Memory V2](context-v2-and-memory-v2.md).
 
 ---
 
 ## Overview
 
-PuPu provides two tiers of memory:
+The legacy embedding subsystem provides two tiers of memory:
 - **Session memory (short-term)** — scoped to a single chat conversation
 - **Long-term memory** — shared across conversations within a namespace
 

@@ -1,0 +1,48 @@
+{
+  "status": "ready",
+  "reason": "",
+  "ready": true,
+  "pid": 36933,
+  "port": 5879,
+  "url": "http://127.0.0.1:5879",
+  "contract": {
+    "capabilities": {
+      "automatic_wake_resume": false,
+      "durable_interactions": true,
+      "durable_jobs": {
+        "available": true,
+        "reason": "",
+        "version": "D4.1"
+      },
+      "exact_cancellation": true,
+      "execution_fencing": true,
+      "runtime_events_v4": true
+    },
+    "reasons": {},
+    "schema": "pupu.runtime-capabilities",
+    "version": 1
+  },
+  "memoryV2": {
+    "configured": true,
+    "ready": true,
+    "status": "ready",
+    "reason": "",
+    "featureCeiling": "all",
+    "configuredMode": "all",
+    "releaseRolloutMode": "all",
+    "rolloutMode": "all",
+    "canaryPercent": 5,
+    "readOnlyDegraded": false,
+    "platformActiveBlocked": false,
+    "releaseRolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+    "rolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+    "sidecarFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+    "runtimeProtocolDigest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+    "runtimeProtocolVerification": "runtime_protocol",
+    "snapshotFingerprint": "30715567f98d5463f6e9a08ad8799a20474895efece0371836401b6227607057",
+    "windowsCapability": {
+      "reason": "",
+      "status": "not_applicable"
+    }
+  }
+}

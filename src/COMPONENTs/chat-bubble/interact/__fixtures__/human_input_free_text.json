@@ -1,0 +1,252 @@
+{
+  "single": {
+    "tool_arguments": {
+      "title": "Project folder",
+      "question": "What folder path should I use?",
+      "selection_mode": "single",
+      "options": [],
+      "allow_other": true,
+      "other_label": "Folder path",
+      "other_placeholder": "Enter the folder path"
+    },
+    "pending": {
+      "status": "awaiting_response",
+      "session_id": "free-text-contract",
+      "interaction_id": "interaction_d9dafe73db42481010a3f9262c52d1c7",
+      "source_run_id": "run-free-text",
+      "active_attempt_id": "run-free-text",
+      "kind": "human_input",
+      "provider": "openai",
+      "model": "gpt-5",
+      "presentation": {
+        "trace_frame": {
+          "seq": 0,
+          "ts": 0,
+          "type": "tool_call",
+          "run_id": "run-free-text",
+          "stage": "durable_recovery",
+          "payload": {
+            "tool_name": "ask_user_question",
+            "tool_display_name": "Ask User",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "call_id": "folder-single",
+            "arguments": {
+              "request_id": "folder-single",
+              "kind": "selector",
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "single",
+              "options": [],
+              "allow_other": true,
+              "other_label": "Folder path",
+              "other_placeholder": "Enter the folder path",
+              "min_selected": 1,
+              "max_selected": 1
+            },
+            "description": "What folder path should I use?",
+            "confirmation_id": "interaction_d9dafe73db42481010a3f9262c52d1c7",
+            "requires_confirmation": true,
+            "interact_type": "single",
+            "interact_config": {
+              "request_id": "folder-single",
+              "kind": "selector",
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "single",
+              "options": [],
+              "allow_other": true,
+              "other_label": "Folder path",
+              "other_placeholder": "Enter the folder path",
+              "min_selected": 1,
+              "max_selected": 1
+            }
+          }
+        },
+        "tool_call": {
+          "tool_name": "ask_user_question",
+          "tool_display_name": "Ask User",
+          "toolkit_id": "core",
+          "toolkit_name": "Core",
+          "call_id": "folder-single",
+          "arguments": {
+            "request_id": "folder-single",
+            "kind": "selector",
+            "title": "Project folder",
+            "question": "What folder path should I use?",
+            "selection_mode": "single",
+            "options": [],
+            "allow_other": true,
+            "other_label": "Folder path",
+            "other_placeholder": "Enter the folder path",
+            "min_selected": 1,
+            "max_selected": 1
+          },
+          "description": "What folder path should I use?",
+          "confirmation_id": "interaction_d9dafe73db42481010a3f9262c52d1c7",
+          "requires_confirmation": true,
+          "interact_type": "single",
+          "interact_config": {
+            "request_id": "folder-single",
+            "kind": "selector",
+            "title": "Project folder",
+            "question": "What folder path should I use?",
+            "selection_mode": "single",
+            "options": [],
+            "allow_other": true,
+            "other_label": "Folder path",
+            "other_placeholder": "Enter the folder path",
+            "min_selected": 1,
+            "max_selected": 1
+          }
+        }
+      },
+      "resume_available": true,
+      "resume_options": {}
+    },
+    "user_response": {
+      "value": "__other__",
+      "other_text": "/Users/example/项目"
+    },
+    "runtime_response": {
+      "request_id": "folder-single",
+      "selected_values": [
+        "__other__"
+      ],
+      "other_text": "/Users/example/项目"
+    },
+    "tool_result": {
+      "submitted": true,
+      "selected_values": [
+        "__other__"
+      ],
+      "other_text": "/Users/example/项目"
+    }
+  },
+  "multiple": {
+    "tool_arguments": {
+      "title": "Project folder",
+      "question": "What folder path should I use?",
+      "selection_mode": "multiple",
+      "options": [],
+      "allow_other": true,
+      "other_label": "Folder path",
+      "other_placeholder": "Enter the folder path"
+    },
+    "pending": {
+      "status": "awaiting_response",
+      "session_id": "free-text-contract",
+      "interaction_id": "interaction_0062661f21a9a225b140552698678f4d",
+      "source_run_id": "run-free-text",
+      "active_attempt_id": "run-free-text",
+      "kind": "human_input",
+      "provider": "openai",
+      "model": "gpt-5",
+      "presentation": {
+        "trace_frame": {
+          "seq": 0,
+          "ts": 0,
+          "type": "tool_call",
+          "run_id": "run-free-text",
+          "stage": "durable_recovery",
+          "payload": {
+            "tool_name": "ask_user_question",
+            "tool_display_name": "Ask User",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "call_id": "folder-multiple",
+            "arguments": {
+              "request_id": "folder-multiple",
+              "kind": "selector",
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "multiple",
+              "options": [],
+              "allow_other": true,
+              "other_label": "Folder path",
+              "other_placeholder": "Enter the folder path",
+              "min_selected": 1,
+              "max_selected": 1
+            },
+            "description": "What folder path should I use?",
+            "confirmation_id": "interaction_0062661f21a9a225b140552698678f4d",
+            "requires_confirmation": true,
+            "interact_type": "multi",
+            "interact_config": {
+              "request_id": "folder-multiple",
+              "kind": "selector",
+              "title": "Project folder",
+              "question": "What folder path should I use?",
+              "selection_mode": "multiple",
+              "options": [],
+              "allow_other": true,
+              "other_label": "Folder path",
+              "other_placeholder": "Enter the folder path",
+              "min_selected": 1,
+              "max_selected": 1
+            }
+          }
+        },
+        "tool_call": {
+          "tool_name": "ask_user_question",
+          "tool_display_name": "Ask User",
+          "toolkit_id": "core",
+          "toolkit_name": "Core",
+          "call_id": "folder-multiple",
+          "arguments": {
+            "request_id": "folder-multiple",
+            "kind": "selector",
+            "title": "Project folder",
+            "question": "What folder path should I use?",
+            "selection_mode": "multiple",
+            "options": [],
+            "allow_other": true,
+            "other_label": "Folder path",
+            "other_placeholder": "Enter the folder path",
+            "min_selected": 1,
+            "max_selected": 1
+          },
+          "description": "What folder path should I use?",
+          "confirmation_id": "interaction_0062661f21a9a225b140552698678f4d",
+          "requires_confirmation": true,
+          "interact_type": "multi",
+          "interact_config": {
+            "request_id": "folder-multiple",
+            "kind": "selector",
+            "title": "Project folder",
+            "question": "What folder path should I use?",
+            "selection_mode": "multiple",
+            "options": [],
+            "allow_other": true,
+            "other_label": "Folder path",
+            "other_placeholder": "Enter the folder path",
+            "min_selected": 1,
+            "max_selected": 1
+          }
+        }
+      },
+      "resume_available": true,
+      "resume_options": {}
+    },
+    "user_response": {
+      "values": [
+        "__other__"
+      ],
+      "other_text": "/Users/example/项目"
+    },
+    "runtime_response": {
+      "request_id": "folder-multiple",
+      "selected_values": [
+        "__other__"
+      ],
+      "other_text": "/Users/example/项目"
+    },
+    "tool_result": {
+      "submitted": true,
+      "selected_values": [
+        "__other__"
+      ],
+      "other_text": "/Users/example/项目"
+    }
+  }
+}

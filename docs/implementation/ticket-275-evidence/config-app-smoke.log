@@ -1,0 +1,43 @@
+[WebServer] Attempting to bind to HOST environment variable: 127.0.0.1
+
+[WebServer] If this was unintentional, check that you haven't mistakenly set it in your shell.
+[WebServer] Learn more here: https://cra.link/advanced-config
+[WebServer]
+
+
+[WebServer] (node:88661) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:88661) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+
+[WebServer] Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+[WebServer]   npx update-browserslist-db@latest
+[WebServer]   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+[WebServer] (node:88661) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+[WebServer] (node:88661) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+[WebServer] Starting the development server...
+[WebServer]
+
+[WebServer] Compiled successfully!
+
+[WebServer]
+[WebServer] You can now view PuPu in the browser.
+[WebServer]
+[WebServer]   http://127.0.0.1:2945
+[WebServer]
+[WebServer] Note that the development build is not optimized.
+[WebServer] To create a production build, use npm run build.
+[WebServer]
+
+[WebServer] webpack compiled successfully
+
+
+Running 1 test using 1 worker
+
+
+(node:89070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/1] e2e/ticket-275-config-probe.spec.js:2:1 › ticket 275 config reaches real Electron debug API after reload
+  1 passed (5.7s)

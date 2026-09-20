@@ -1,0 +1,82 @@
+{
+  "toolkitId": "mcp.productivity.notion-remote",
+  "catalog": {
+    "id": "productivity.notion-remote",
+    "toolkitId": "mcp.productivity.notion-remote",
+    "name": "Notion",
+    "description": "Hosted remote MCP for Notion pages, databases and search.",
+    "category": "productivity",
+    "source": "mcp",
+    "trustLevel": "verified",
+    "status": "available",
+    "installable": false,
+    "license": "hosted",
+    "sourceRepo": "https://developers.notion.com/docs/get-started-with-mcp",
+    "docsUrl": "https://developers.notion.com/docs/get-started-with-mcp",
+    "icon": {
+      "type": "builtin",
+      "name": "notion",
+      "color": "#ffffff",
+      "backgroundColor": "#191919"
+    },
+    "mcp": {
+      "transport": "http",
+      "runtimeTransport": "streamable_http",
+      "url": "https://mcp.notion.com/mcp",
+      "headers": []
+    },
+    "auth": {
+      "oauth": {
+        "type": "oauth",
+        "provider": "notion",
+        "providerLabel": "Notion",
+        "clientRegistration": "dynamic",
+        "releaseStatus": "ready",
+        "mcpUrl": "https://mcp.notion.com/mcp",
+        "transport": "streamable_http",
+        "protectedResourceMetadataUrl": "https://mcp.notion.com/.well-known/oauth-protected-resource",
+        "scopes": [],
+        "authUrlParams": {
+          "prompt": "consent"
+        },
+        "tokenRequest": {
+          "contentType": "form",
+          "includeClientSecret": true
+        },
+        "discovery": "protected_resource"
+      }
+    },
+    "setupPreview": "https://mcp.notion.com/mcp",
+    "prerequisites": [
+      "Notion account"
+    ],
+    "secrets": [],
+    "tools": [
+      {
+        "name": "notion-search",
+        "title": "Search workspace",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "notion-fetch",
+        "title": "Fetch content",
+        "requiresConfirmation": false
+      },
+      {
+        "name": "notion-create-pages",
+        "title": "Create pages",
+        "requiresConfirmation": true
+      }
+    ],
+    "policySummary": {
+      "reviewed": true,
+      "defaultEnabledTools": 0,
+      "confirmationRequiredTools": 1
+    },
+    "readmeMarkdown": "## Notion (hosted)\n\nConnect to Notion's hosted MCP endpoint with OAuth. PuPu opens the authorization page and enables the toolkit after the connection succeeds."
+  },
+  "checkedAt": "2026-09-13T18:36:59.028077+00:00",
+  "acquisition": "No lifecycle scripts or candidate execution",
+  "kind": "hosted-mcp",
+  "endpoint": "https://mcp.notion.com/mcp"
+}

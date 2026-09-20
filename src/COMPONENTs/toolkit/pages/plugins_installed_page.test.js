@@ -7,6 +7,11 @@ import {
   removeInvalidToolkitIds,
 } from "../../../SERVICEs/default_toolkit_store";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
+}));
+
 /* NOTE: useTranslation is intentionally left un-mocked here — the vocabulary
    test below asserts on rendered TEXT, and an identity-key mock would leak
    the i18n key NAME ("toolkit.installed_title") into the DOM, which itself
@@ -342,32 +347,56 @@ describe("PluginsInstalledPage", () => {
   });
 
   /* T5: the legacy "Custom MCP" store tab (toolkits_page.js's
-     TOOLKIT_SUB_PAGES) is retired — its entry point demotes to a low-key
-     footer link here and on PluginsCategoriesPage, opening the same
-     (unmodified) CustomMcpPage via the shell's onOpenCustomMcp callback. */
-  describe("PluginsInstalledPage — custom MCP footer entry", () => {
-    test("renders a low-key 'Add a custom plugin' footer entry", async () => {
-      await renderPage();
-      expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
-    });
-
-    test("clicking the footer entry calls onOpenCustomMcp", async () => {
+     TOOLKIT_SUB_PAGES) is retired — its entry point now sits on the MCP
+     section's own header row here (and stays a low-key footer link on
+     PluginsCategoriesPage), opening the same (unmodified) CustomMcpPage via
+     the shell's onOpenCustomMcp callback. */
+  describe("PluginsInstalledPage — custom MCP entry on the MCP header", () => {
+    test("the entry sits in the MCP section's header and opens the custom MCP page", async () => {
       const onOpenCustomMcp = jest.fn();
       await renderPage({ onOpenCustomMcp });
 
-      fireEvent.click(screen.getByText(/Add a custom plugin/i));
+      const entry = screen.getByTestId("installed-add-custom-mcp");
+      expect(entry).toHaveTextContent("Add custom MCP");
+      const section = screen.getByText("mcp").closest("div").parentElement;
+      expect(section.contains(entry)).toBe(true);
 
+      fireEvent.click(entry);
       expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
     });
 
-    test("still renders the footer entry when there are no installed plugins", async () => {
+    test("the footer link is gone", async () => {
+      await renderPage({ onOpenCustomMcp: jest.fn() });
+      expect(screen.queryByText(/Add a custom plugin/i)).toBeNull();
+    });
+
+    test("with no installed plugins the MCP section still shows, with the entry and a hint", async () => {
+      /* Custom MCP is one way to get a first MCP plugin, so the section that
+         hosts the entry cannot depend on one already being there. */
       const onOpenCustomMcp = jest.fn();
       api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
       await renderPage({ onOpenCustomMcp });
 
-      expect(screen.getByText(/Add a custom plugin/i)).toBeInTheDocument();
-      fireEvent.click(screen.getByText(/Add a custom plugin/i));
+      expect(screen.getByText(/No MCP plugins yet/)).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("installed-add-custom-mcp"));
       expect(onOpenCustomMcp).toHaveBeenCalledTimes(1);
+    });
+
+    test("without a handler an empty MCP section stays hidden, as before", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+      await renderPage();
+      expect(screen.queryByText("mcp")).toBeNull();
+      expect(screen.queryByText(/No MCP plugins yet/)).toBeNull();
+    });
+
+    test("a search matching no MCP plugin hides the section and its entry", async () => {
+      await renderPage({ onOpenCustomMcp: jest.fn() });
+      fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+        target: { value: "Plan" },
+      });
+      expect(screen.getByText("Plan")).toBeInTheDocument();
+      expect(screen.queryByText("mcp")).toBeNull();
+      expect(screen.queryByTestId("installed-add-custom-mcp")).toBeNull();
     });
   });
 
@@ -425,5 +454,169 @@ describe("PluginsInstalledPage", () => {
       expect(screen.getByText("Computer")).toBeInTheDocument();
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     });
+  });
+
+  describe("PluginsInstalledPage — trust badges", () => {
+    test("keeps trust badges out of Computer, builtin, MCP and imported-skill rows", async () => {
+      api.unchain.listToolModalCatalog.mockResolvedValue({
+        toolkits: [
+          ...CATALOG,
+          {
+            toolkitId: "skillpack.superpowers",
+            toolkitName: "Superpowers",
+            toolkitDescription: "Imported skill pack",
+            source: "skillpack",
+            tools: [],
+            skills: [
+              {
+                name: "brainstorming",
+                title: "Brainstorming",
+                description: "Explore.",
+              },
+            ],
+          },
+        ],
+      });
+      const onOpenDetail = jest.fn();
+      const onOpenPluginSettings = jest.fn();
+      await renderPage({ onOpenDetail, onOpenPluginSettings });
+
+      expect(screen.queryByTestId("plugin-trust-badge")).toBeNull();
+      expect(onOpenDetail).not.toHaveBeenCalled();
+      expect(onOpenPluginSettings).not.toHaveBeenCalled();
+      expect(setDefaultToolkitEnabled).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("PluginsInstalledPage — organize skills entry", () => {
+  const withSkillPack = () =>
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "skillpack.superpowers",
+          toolkitName: "Superpowers Essentials",
+          toolkitDescription: "Imported skill pack",
+          source: "skillpack",
+          tools: [],
+          skills: [{ name: "brainstorming", title: "Brainstorming" }],
+        },
+      ],
+    });
+
+  const renderPage = async (props = {}) => {
+    let rendered;
+    await act(async () => {
+      rendered = render(
+        <PluginsInstalledPage isDark={false} onOpenDetail={() => {}} {...props} />,
+      );
+    });
+    return rendered;
+  };
+
+  test("the Skill packs section carries the entry and it opens the organizer", async () => {
+    withSkillPack();
+    const onOpenSkillOrganizer = jest.fn();
+    await renderPage({ onOpenSkillOrganizer });
+
+    const entry = screen.getByTestId("installed-organize-skills");
+    // it lives in the Skill packs section's own header row, not in the footer
+    const section = screen.getByText("Skill packs").closest("div").parentElement;
+    expect(section.contains(entry)).toBe(true);
+
+    fireEvent.click(entry);
+    expect(onOpenSkillOrganizer).toHaveBeenCalledTimes(1);
+  });
+
+  test("without a handler the section header stays caption-only", async () => {
+    withSkillPack();
+    await renderPage();
+    expect(screen.queryByTestId("installed-organize-skills")).toBeNull();
+  });
+});
+
+describe("PluginsInstalledPage — import skills entry", () => {
+  const withSkillPack = () =>
+    api.unchain.listToolModalCatalog.mockResolvedValue({
+      toolkits: [
+        ...CATALOG,
+        {
+          toolkitId: "skillpack.superpowers",
+          toolkitName: "Superpowers Essentials",
+          toolkitDescription: "Imported skill pack",
+          source: "skillpack",
+          tools: [],
+          skills: [{ name: "brainstorming", title: "Brainstorming" }],
+        },
+      ],
+    });
+
+  const renderPage = async (props = {}) => {
+    let rendered;
+    await act(async () => {
+      rendered = render(
+        <PluginsInstalledPage isDark={false} onOpenDetail={() => {}} {...props} />,
+      );
+    });
+    return rendered;
+  };
+
+  test("it sits on the Skill packs header, before Organize, and opens the import flow", async () => {
+    withSkillPack();
+    const onOpenImportSkills = jest.fn();
+    const onOpenSkillOrganizer = jest.fn();
+    await renderPage({ onOpenImportSkills, onOpenSkillOrganizer });
+
+    const entry = screen.getByTestId("installed-import-skills");
+    const section = screen.getByText("Skill packs").closest("div").parentElement;
+    expect(section.contains(entry)).toBe(true);
+    expect(entry).toHaveTextContent("Import skills");
+
+    // add first, then arrange: Import reads before Organize on the row
+    const organize = screen.getByTestId("installed-organize-skills");
+    expect(
+      entry.compareDocumentPosition(organize) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(entry);
+    expect(onOpenImportSkills).toHaveBeenCalledTimes(1);
+    expect(onOpenSkillOrganizer).not.toHaveBeenCalled();
+  });
+
+  test("the footer no longer carries the import link", async () => {
+    withSkillPack();
+    await renderPage({ onOpenImportSkills: jest.fn() });
+    expect(screen.queryByText(/Import skills from a folder/i)).toBeNull();
+  });
+
+  test("with no packs installed the section still shows, with the entry and a hint", async () => {
+    /* The entry is the only way to get a first pack, so the section that
+       hosts it cannot depend on a pack already being there. */
+    const onOpenImportSkills = jest.fn();
+    await renderPage({ onOpenImportSkills });
+
+    expect(screen.getByText("Skill packs")).toBeInTheDocument();
+    expect(screen.getByText(/No skill packs yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("installed-import-skills"));
+    expect(onOpenImportSkills).toHaveBeenCalledTimes(1);
+  });
+
+  test("with no packs and no handlers the section stays hidden, as before", async () => {
+    await renderPage();
+    expect(screen.queryByText("Skill packs")).toBeNull();
+    expect(screen.queryByText(/No skill packs yet/)).toBeNull();
+  });
+
+  test("a search that matches no pack hides the section like the others", async () => {
+    withSkillPack();
+    await renderPage({ onOpenImportSkills: jest.fn() });
+
+    fireEvent.change(screen.getByPlaceholderText("Search plugins..."), {
+      target: { value: "Notion" },
+    });
+
+    expect(screen.getByText("Notion")).toBeInTheDocument();
+    expect(screen.queryByText("Skill packs")).toBeNull();
+    expect(screen.queryByTestId("installed-import-skills")).toBeNull();
   });
 });

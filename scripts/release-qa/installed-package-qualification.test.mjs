@@ -5,6 +5,7 @@ import {
   buildInstalledLaunchArguments,
   buildInstalledProcessControl,
   removeInstalledQualificationTempRoot,
+  runWindowsNsisInstaller,
   selectInstalledCleanupPids,
   validateInstalledPackageQualificationReport,
 } from "./installed-package-qualification.mjs";
@@ -151,6 +152,51 @@ test("installed qualification retries transient Windows locks without hiding per
   );
   assert.equal(exhaustedAttempts, 3);
   assert.deepEqual(exhaustedDelays, [2_000, 2_000]);
+});
+
+test("Windows NSIS qualification retries with a clean root and preserves process diagnostics", async () => {
+  const attempts = [];
+  const removals = [];
+  const delays = [];
+  await runWindowsNsisInstaller("C:\\candidate\\PuPu-setup.exe", "C:\\qualification\\installed", {
+    maxAttempts: 3,
+    makeDirectory: () => {},
+    spawnInstaller: (command, args) => {
+      attempts.push({ command, args });
+      return attempts.length === 1
+        ? { status: 2, signal: null, error: null, stdout: "", stderr: "" }
+        : { status: 0, signal: null, error: null, stdout: "", stderr: "" };
+    },
+    remove: (target, options) => removals.push({ target, options }),
+    pause: async (delayMs) => { delays.push(delayMs); },
+  });
+  assert.equal(attempts.length, 2);
+  assert.deepEqual(attempts[0], {
+    command: "C:\\candidate\\PuPu-setup.exe",
+    args: ["/S", "/D=C:\\qualification\\installed"],
+  });
+  assert.deepEqual(removals, [{
+    target: "C:\\qualification\\installed",
+    options: { recursive: true, force: true, maxRetries: 0 },
+  }]);
+  assert.deepEqual(delays, [2_000]);
+
+  await assert.rejects(
+    runWindowsNsisInstaller("C:\\candidate\\PuPu-setup.exe", "C:\\qualification\\installed", {
+      maxAttempts: 2,
+      makeDirectory: () => {},
+      spawnInstaller: () => ({
+        status: null,
+        signal: "SIGTERM",
+        error: Object.assign(new Error("blocked"), { code: "EPERM" }),
+        stdout: "",
+        stderr: "",
+      }),
+      remove: () => {},
+      pause: async () => {},
+    }),
+    /attempt 2\/2.*status=null.*signal=SIGTERM.*error_code=EPERM.*blocked/,
+  );
 });
 
 test("installed qualification cleans observed and candidate-owned residual processes", () => {

@@ -1,19 +1,33 @@
 # Contributing to PuPu
 
-Thanks for helping make PuPu better. There are two main ways to contribute.
+Thanks for helping make PuPu better. You can propose community integrations
+or contribute code directly.
 
-## 🧩 Add a tool / MCP server to the store
+## 🧩 Contribute an MCP server, Skill, or Toolkit
 
-The easiest way to extend PuPu for everyone. No code needed — open a
-**[Submit an MCP server](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml)**
-issue. Prefer a PR? Both paths are documented in
-[docs/contributing/mcp-store-submission.md](./docs/contributing/mcp-store-submission.md).
+No code is required to make a proposal. Choose the matching issue form:
+
+| Contribution | Issue form | Labels for the issue and related PR |
+| --- | --- | --- |
+| MCP server | [Submit an MCP](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml) | `mcp-submission` |
+| Skill / Skill Pack | [Submit a Skill](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-skill.yml) | `skill-submission` |
+| Native Toolkit / custom tools | [Submit a Toolkit](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-toolkit.yml) | `toolkit-submission` |
+
+Forms also apply `considering` while the proposal awaits evaluation. Contributors
+do not need permission to manage labels: choose the form, and maintainers label
+the related PR. A proposal does not automatically enter a release.
+
+See the [community submission guide](./docs/contributing/community-submissions.md)
+for examples, required information, and PR instructions. MCP-specific schema
+requirements are in the [MCP guide](./docs/contributing/mcp-store-submission.md).
 
 ## 💻 Contribute code
 
 1. Read [`.claude/CLAUDE.md`](./.claude/CLAUDE.md) for the project conventions
    (JavaScript only, inline styles, the IPC boundary) and [`docs/DEV_GUIDE.md`](./docs/DEV_GUIDE.md).
-2. Fork, branch, and make your change.
+2. Fork the repository, create your contribution branch from upstream `dev`,
+   and make your change. If your fork only contains `main`, fetch upstream `dev`
+   first.
 3. Run the test suites that cover your area:
 
    ```bash
@@ -21,7 +35,12 @@ issue. Prefer a PR? Both paths are documented in
    npm run validate:mcp     # if you touched the MCP store catalog
    ```
 
-4. Open a PR describing what changed and why.
+4. Open a PR with **`haoxiang-xu/PuPu` → `base: dev`**, describing what changed
+   and why. Check the base before submitting: GitHub may default to `main`.
+
+All ordinary contributions, including MCP catalog entries, target `dev`.
+Maintainers promote `dev` to the release branch `main`; ordinary contribution
+PRs targeting `main` fail the source-branch check.
 
 ## Licensing & CLA
 

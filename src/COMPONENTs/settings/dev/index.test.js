@@ -63,7 +63,66 @@ jest.mock("./components/mcp_registries_modal", () => ({
   default: ({ open }) => (open ? <div>MCP Registries Modal</div> : null),
 }));
 
+jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
+  __esModule: true,
+  default: ({ options, value, set_value }) => (
+    <select
+      data-testid="platform-select"
+      value={value}
+      onChange={(e) => set_value(e.target.value)}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  ),
+}));
+
 describe("DevSettings", () => {
+  const {
+    readPlatformOverride,
+    writePlatformOverride,
+  } = require("../../../SERVICEs/platform_presentation");
+  const {
+    resetSettingsRepositoryForTests,
+  } = require("../../../SERVICEs/settings_repository");
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetSettingsRepositoryForTests();
+    window.runtime = { isElectron: true, platform: "darwin" };
+  });
+  afterEach(() => {
+    delete window.runtime;
+  });
+
+  test("AC-256-6: the Platform presentation row offers System / macOS / Windows / Linux and writes the override", () => {
+    render(<DevSettings />);
+    expect(screen.getByText("dev.platform_presentation")).toBeInTheDocument();
+    expect(screen.getByText("dev.platform_presentation_desc")).toBeInTheDocument();
+    const select = screen.getByTestId("platform-select");
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual([
+      ["system", "dev.platform_system"],
+      ["darwin", "dev.platform_macos"],
+      ["win32", "dev.platform_windows"],
+      ["linux", "dev.platform_linux"],
+    ]);
+    expect(select.value).toBe("system");
+    fireEvent.change(select, { target: { value: "win32" } });
+    expect(readPlatformOverride()).toBe("win32");
+    expect(select.value).toBe("win32");
+    fireEvent.change(select, { target: { value: "system" } });
+    expect(readPlatformOverride()).toBeNull();
+    expect(select.value).toBe("system");
+  });
+
+  test("the row reflects an override written elsewhere", () => {
+    writePlatformOverride("linux");
+    render(<DevSettings />);
+    expect(screen.getByTestId("platform-select").value).toBe("linux");
+  });
+
   test("opens MCP Registries in a modal from a Developer row", () => {
     render(<DevSettings />);
 

@@ -1,0 +1,38 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+  Memory V2 P0 payload seams
+    ✓ a fresh chat can send before a late none recovery lookup (49 ms)
+    ✓ a fresh chat can send before a late awaiting_response recovery lookup (18 ms)
+    ✓ a failed speculative lookup does not mark a fresh chat as restoring (15 ms)
+    ✓ a chat with persisted history stays blocked until its recovery lookup resolves (9 ms)
+    ✓ flag off: owner_chat_id is the UI chat id and no memory-v2 fields exist (16 ms)
+    ✓ flag on: bootstrap fields are added while legacy history stays byte-equivalent (29 ms)
+    ✓ character chat: threadId is the character session while owner_chat_id stays the UI chat id (15 ms)
+    ✓ explicit answer to recovered human input resumes once without sealing the receipt (11 ms)
+    ✓ live human input callback does not start another stream (9 ms)
+    ✓ mismatched receipt cannot resume or cancel a recorded human answer (11 ms)
+    ✓ unavailable resume cannot resume or cancel a recorded human answer (10 ms)
+    ✓ passive recovery while an explicit answer POST is in flight cannot seal that answer (16 ms)
+    ✓ a new root question after resume remains actionable when that stream disconnects (18 ms)
+    ✓ a new child question after resume remains actionable when that stream disconnects (16 ms)
+    ✓ a resume startup error preserves the receipt and exposes the failure without cancellation (10 ms)
+    ✓ Stop while the answer is being recorded prevents the late receipt from resuming (6 ms)
+    ✓ Stop carries a live tool confirmation id and the same chat can send again (24 ms)
+    ✓ a failed confirmation stays actionable and retries the same decision (15 ms)
+    ✓ old Stop outbox recovers only a same attempt target (8 ms)
+    ✓ old Stop outbox recovers only a foreign attempt target (4 ms)
+    ✓ cancel failures stop retrying after three attempts and stay stopped after remount (10 ms)
+    ✓ Codex replaces a persisted minimal preference with its supported default (15 ms)
+    ✓ flag off: a durable receipt is sealed without a model payload (7 ms)
+    ✓ flag on: a durable receipt is still sealed without a model payload (11 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       24 passed, 24 total
+Snapshots:   0 total
+Time:        1.095 s, estimated 2 s
+Ran all test suites within paths "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js".

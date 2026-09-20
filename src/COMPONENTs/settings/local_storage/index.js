@@ -11,7 +11,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { SettingsSection } from "../appearance";
 import { listAttachmentEntries } from "../../../SERVICEs/attachment_storage";
-import { fetchOllamaModels } from "./utils/ollama_models";
+import { useOllamaInstalled } from "./hooks/use_ollama_installed";
 import {
   formatBytes,
   readLocalStorageEntriesAsync,
@@ -32,53 +32,16 @@ import { resetAllSettingsSafely } from "./reset_settings_coordinator";
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const [status, setStatus] = useState("loading");
-  const [models, setModels] = useState([]);
-  const hasOllamaBridge = api.ollama.isBridgeAvailable();
-
-  const load = useCallback(async () => {
-    setStatus("loading");
-
-    if (hasOllamaBridge) {
-      const electronStatus = await api.ollama.getStatus();
-      if (electronStatus === "not_found") {
-        setStatus("not_found");
-        return;
-      }
-      if (electronStatus === "checking" || electronStatus === "starting") {
-        setStatus("starting");
-        await new Promise((r) => setTimeout(r, 2000));
-      }
-    }
-
-    try {
-      const data = await fetchOllamaModels();
-      setModels(data);
-      setStatus("ready");
-    } catch {
-      setModels([]);
-      setStatus("offline");
-    }
-  }, [hasOllamaBridge]);
-
-  const handleRestart = useCallback(async () => {
-    if (!hasOllamaBridge) return;
-    setStatus("starting");
-    const result = await api.ollama.restart();
-    if (result === "not_found") {
-      setStatus("not_found");
-      return;
-    }
-    await load();
-  }, [hasOllamaBridge, load]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const handleDelete = useCallback((name) => {
-    setModels((prev) => prev.filter((m) => m.name !== name));
-  }, []);
+  /* Shared with the Model Providers page's Ollama pane (#204): one hook, one
+     truth for service state and the installed list. */
+  const {
+    status,
+    models,
+    hasOllamaBridge,
+    load,
+    restart: handleRestart,
+    removeLocally: handleDelete,
+  } = useOllamaInstalled();
 
   const maxSize = models.length > 0 ? models[0].size : 1;
   const totalSize = models.reduce((s, m) => s + m.size, 0);

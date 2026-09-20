@@ -1,0 +1,74 @@
+PUPU
+/audit-prep-assistant
+· Trail of Bits Audit Prep
+Expanded template
+· 404 lines
+For this acceptance test, prepare a short audit plan using only the synthetic facts below. Do not read or write files and do not run tools. Project: a calculator library with add(a,b), two unit tests, no network or credentials. Goal: prepare for an external arithmetic-correctness review. Give three concrete preparation priorities, begin with AUDIT283, and explicitly say no security certification is established.
+Done · 5.6s
+Memory V2 · Complete
+detail
+Active
+9,985 in · 356 out · 10,341 total
+
+=== AUDIT PREP PACKAGE ===
+
+Project: Calculator Library
+Audit Reference: AUDIT283
+Review Type: Arithmetic-Correctness Review (External)
+Security Certification: No security certification is established by this preparation or review
+
+Preparation Priorities
+Comprehensive Test Coverage
+Ensure that both provided unit tests for add(a, b) thoroughly cover all expected input ranges, including:
+Positive and negative integers
+Zero values
+Edge cases (e.g., integer overflows/underflows if relevant to language/runtime)
+Add additional test cases if any common arithmetic edge cases are untested.
+Document all test results and summarize coverage percentage.
+Static Analysis and Dead Code Elimination
+Run an appropriate static analysis tool for your language to check for:
+Arithmetic errors (e.g., overflow, underflow, type issues)
+Unused or unreachable code (dead code)
+Potential logic errors in add(a, b)
+Remove any dead code, commented-out blocks, or unused imports.
+Document all findings and their resolutions.
+Documentation and Build Clarity
+Provide minimal, clear build and usage instructions (e.g., dependencies, how to run tests, language version).
+Document the precise function contract for add(a, b):
+Expected input types and ranges
+Expected output and error conditions (if any)
+Known limitations or behaviors
+Clearly state that the code contains no network operations or credential handling.
+
+Note:
+This preparation does not establish any formal security certification. It is designed to maximize clarity and correctness for an arithmetic-focused external review.
+
+This is the second turn of the same acceptance chat. Reply with SECOND283 only; do not run any tools.
+Done · 3.1s
+Memory V2 · Complete
+detail
+Active
+10,370 in · 4 out · 10,374 total
+
+SECOND283
+
+100%
+Top
+Prev
+Next
+End
+/
+COMMANDS · ↑↓ · ⏎
+ORGANIZE
+gpt-4.1
+1
+1
+AI can make mistakes, please double-check critical information.
+Plugins
+Workspaces
+CHATS
+# Audit Prep Assistant ## Purpose Helps prepare for a security review using Trail of Bits' checklist. A well-prepared co
+0m
+# Audit Prep Assistant ## Purpose Helps prepare for a security review using Trail of Bits' checklist. A well-prepared co
+20m
+Settings

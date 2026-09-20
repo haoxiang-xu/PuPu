@@ -1,0 +1,15 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/toolkit/utils/skill_pack_store_install.test.js src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js src/COMPONENTs/toolkit/pages/plugins_categories_page.test.js src/SERVICEs/skill_pack_import.test.js src/SERVICEs/plugin_trust.test.js
+
+PASS src/SERVICEs/plugin_trust.test.js
+PASS src/COMPONENTs/toolkit/pages/plugins_categories_page.test.js
+PASS src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js
+PASS src/COMPONENTs/toolkit/utils/skill_pack_store_install.test.js
+PASS src/SERVICEs/skill_pack_import.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       99 passed, 99 total
+Snapshots:   0 total
+Time:        1.174 s, estimated 2 s
+Ran all test suites within paths "src/COMPONENTs/toolkit/utils/skill_pack_store_install.test.js", "src/COMPONENTs/toolkit/pages/skill_pack_detail_page.test.js", "src/COMPONENTs/toolkit/pages/plugins_categories_page.test.js", "src/SERVICEs/skill_pack_import.test.js", "src/SERVICEs/plugin_trust.test.js".

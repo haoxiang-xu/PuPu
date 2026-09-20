@@ -1,0 +1,17 @@
+
+> PuPu@0.1.10 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js src/PAGEs/chat/hooks/use_chat_stream.interject_channel.test.js src/PAGEs/chat/hooks/use_chat_stream.turn_mutation_v2.test.js src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+
+PASS src/PAGEs/chat/hooks/use_chat_stream.turn_mutation_v2.test.js
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.interject_channel.test.js
+
+Test Suites: 5 passed, 5 total
+Tests:       106 passed, 106 total
+Snapshots:   0 total
+Time:        4.801 s, estimated 6 s
+Ran all test suites within paths "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js", "src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js", "src/PAGEs/chat/hooks/use_chat_stream.interject_channel.test.js", "src/PAGEs/chat/hooks/use_chat_stream.turn_mutation_v2.test.js", "src/COMPONENTs/chat-bubble/interact/human_input_free_text.test.js".

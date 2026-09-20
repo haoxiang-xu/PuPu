@@ -31,6 +31,7 @@ describe("normalizeModelCatalog", () => {
     expect(normalized.providers).toEqual({
       openai: ["gpt-5", "gpt-5-codex"],
       anthropic: ["claude-sonnet-4-6"],
+      gemini: [],
       ollama: ["deepseek-r1:14b"],
     });
     expect(normalized.embeddingProviders).toEqual({
@@ -268,5 +269,42 @@ describe("normalizeModelCatalog", () => {
       stability: "stable",
       reason: "",
     });
+  });
+});
+
+describe("normalizeModelCatalog context window declaration (#227)", () => {
+  test("carries a positive default window and drops anything else", () => {
+    const normalized = normalizeModelCatalog({
+      providers: { openai: ["gpt-5"], anthropic: [], ollama: ["deepseek-r1:14b", "live"] },
+      model_capabilities: {
+        "ollama:deepseek-r1:14b": {
+          input_modalities: ["text"],
+          max_context_window_tokens: 128000,
+          default_context_window_tokens: 32768,
+        },
+        "ollama:live": {
+          input_modalities: ["text"],
+          default_context_window_tokens: "32768",
+        },
+        "openai:gpt-5": {
+          input_modalities: ["text"],
+          default_context_window_tokens: 0,
+        },
+      },
+    });
+
+    expect(
+      normalized.modelCapabilities["ollama:deepseek-r1:14b"].default_context_window_tokens,
+    ).toBe(32768);
+    expect(
+      normalized.modelCapabilities["ollama:deepseek-r1:14b"].max_context_window_tokens,
+    ).toBe(128000);
+    // A string or a zero is not a window: the key stays absent and the picker hides.
+    expect(
+      normalized.modelCapabilities["ollama:live"].default_context_window_tokens,
+    ).toBeUndefined();
+    expect(
+      normalized.modelCapabilities["openai:gpt-5"].default_context_window_tokens,
+    ).toBeUndefined();
   });
 });

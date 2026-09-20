@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import defaultTheme from "../../../BUILTIN_COMPONENTs/theme/default_mini_theme.json";
 import { CONTEXT_COMPOSITION_EXTENSION_KEY } from "../../../SERVICEs/context_composition_v1";
+import { buildContextUsageView, selectContextUsage } from "../../../SERVICEs/context_usage_v1";
 import ContextCompositionPanel, {
   CONTENT_HEIGHT_BUFFER,
   MAX_PANE_VIEWPORT_HEIGHT,
@@ -169,6 +170,77 @@ const renderPanel = async (props = {}) => {
 };
 
 const track = () => screen.getByTestId("context-composition-track");
+
+describe("Current composer window display", () => {
+  test("updates the readout and composition bar with current usage without rewriting the receipt", async () => {
+    const bundle = dualAvailableBundle();
+    const original = JSON.stringify(bundle);
+    const usage = selectContextUsage(bundle);
+    const surface = (windowTokens) => (
+      <ConfigContext.Provider value={{ theme: defaultTheme.dark_mode, onThemeMode: "dark_mode" }}>
+        <ContextCompositionPanel
+          bundle={bundle}
+          usageView={buildContextUsageView(usage, windowTokens)}
+          open
+          palette={palette}
+        />
+      </ConfigContext.Provider>
+    );
+    const { rerender } = render(surface(4000));
+    await act(async () => {});
+    const headline = () => screen.getByTestId("context-composition-headline");
+    const bar = () => within(screen.getByTestId("context-composition-pane-model_call"))
+      .getByRole("img", { name: /Estimated input composition against the context window/i });
+    expect(headline()).toHaveTextContent(/25% full/i);
+    expect(headline()).toHaveTextContent("~1K / 4K Tokens");
+    expect(bar().firstChild).toHaveStyle({ width: "7.5%" });
+
+    rerender(surface(8000));
+    expect(headline()).toHaveTextContent(/13% full/i);
+    expect(headline()).toHaveTextContent("~1K / 8K Tokens");
+    expect(bar().firstChild).toHaveStyle({ width: "3.75%" });
+    expect(JSON.stringify(bundle)).toBe(original);
+
+    // A historical shell has no current-composer usage override.
+    rerender(surface(null));
+    expect(headline()).toHaveTextContent("~1K / 128K Tokens");
+    expect(bar().firstChild).toHaveStyle({ width: "0.25%" });
+    expect(JSON.stringify(bundle)).toBe(original);
+  });
+
+  test("explicit call selection uses that call's recorded pressure and window", async () => {
+    const bundle = twoCallBundle();
+    const latest = bundle.provider_calls[0];
+    const usageView = buildContextUsageView({
+      inputTokens: latest.usage.input.total_tokens,
+      provider: latest.provider.name,
+      model: latest.provider.model,
+    }, 4000);
+    await renderPanel({ bundle, usageView });
+    expect(screen.getByTestId("context-composition-headline"))
+      .toHaveTextContent("~350 / 4K Tokens");
+    fireEvent.click(screen.getByRole("option", { name: /Call 1 · openai/i }));
+    expect(screen.getByTestId("context-composition-headline"))
+      .toHaveTextContent("~1K / 128K Tokens");
+    expect(screen.getByTestId("context-composition-headline"))
+      .toHaveTextContent(/0.8% full/i);
+  });
+
+  test("does not apply another model's accounting to the displayed call", async () => {
+    const bundle = dualAvailableBundle();
+    await renderPanel({
+      bundle,
+      usageView: buildContextUsageView({
+        ...selectContextUsage(bundle),
+        model: "another-model",
+      }, 4000),
+    });
+    expect(screen.getByTestId("context-composition-headline"))
+      .toHaveTextContent(/0.8% full/i);
+    expect(screen.getByTestId("context-composition-headline"))
+      .toHaveTextContent("~1K / 128K Tokens");
+  });
+});
 
 describe("Both scopes stay mounted for the slide", () => {
   test("Context and Summary panes are both in the DOM regardless of which is active", async () => {

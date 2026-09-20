@@ -25,6 +25,7 @@ const MODEL_PROVIDERS_NAMESPACE = "model_providers";
 export const PROVIDER_SECRET_FIELDS = Object.freeze([
   "openai_api_key",
   "anthropic_api_key",
+  "gemini_api_key",
 ]);
 export const CUSTOM_PROVIDER_SECRETS_FIELD = "custom_provider_secrets";
 export const SENSITIVE_MODEL_PROVIDER_FIELDS = Object.freeze([

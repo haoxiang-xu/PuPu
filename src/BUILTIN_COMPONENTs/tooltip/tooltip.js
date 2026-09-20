@@ -352,6 +352,12 @@ const Tooltip = ({
   wrapper_style,
   open,
   on_open_change,
+  /* Keep the bubble on an anchor that MOVES while the bubble is open — an
+     anchor inside a panel that is animating into place, say. Scroll and
+     resize are already handled; this watches the trigger's own rect every
+     frame and re-positions the moment it changes. Off by default: most
+     anchors never move, and a frame loop is not free. */
+  follow_trigger = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const trigger_ref = useRef(null);
@@ -795,6 +801,29 @@ const Tooltip = ({
       window.removeEventListener("resize", handleMove);
     };
   }, [isOpen, update_position]);
+
+  useEffect(() => {
+    if (!isOpen || !follow_trigger) return undefined;
+    if (typeof requestAnimationFrame !== "function") return undefined;
+    let rafId = 0;
+    let last = null;
+    const tick = () => {
+      const el = trigger_ref.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const key = `${rect.left}|${rect.top}|${rect.width}|${rect.height}`;
+        if (last !== null && key !== last) {
+          update_position(measure_bubble() || undefined);
+        }
+        last = key;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isOpen, follow_trigger, update_position, measure_bubble]);
 
   useEffect(() => {
     const isClickActive = isControlled ? open : isClickOpen;

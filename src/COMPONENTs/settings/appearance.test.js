@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { AppearanceSettings } from "./appearance";
-import { writeFeatureFlags } from "../../SERVICEs/feature_flags";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
@@ -29,20 +28,12 @@ const renderAppearanceSettings = () => {
   return { ...result, setOnThemeMode, setSyncWithSystemTheme, setLocale };
 };
 
-describe("AppearanceSettings theme color feature flag", () => {
+describe("AppearanceSettings theme colors", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  test("hides Theme colors when color customization is disabled", () => {
-    renderAppearanceSettings();
-
-    expect(screen.queryByText("Theme colors")).not.toBeInTheDocument();
-  });
-
-  test("shows Theme colors when color customization is enabled", () => {
-    writeFeatureFlags({ enable_theme_color_customization: true });
-
+  test("shows Theme colors by default", () => {
     renderAppearanceSettings();
 
     expect(screen.getByText("Theme colors")).toBeInTheDocument();

@@ -352,3 +352,77 @@ describe("plugin_skill_sync", () => {
     expect(commandRegistry.getCommand("/old-skill")).toBeNull();
   });
 });
+
+/* ======================================================================== */
+/*  Plugin-declared skill icons                                             */
+/*                                                                          */
+/*  The icon is the AUTHOR's choice. Admission is CLOSED against the shipped */
+/*  icon manifest: packs are downloaded, so an unrecognized name falls back  */
+/*  rather than rendering an empty box, and no pack-supplied string ever     */
+/*  reaches the DOM as a URL.                                               */
+/* ======================================================================== */
+
+describe("plugin-declared skill icons", () => {
+  const skill = (name, extra = {}) => ({
+    name,
+    description: `${name} desc`,
+    body: "body",
+    phase: "composer",
+    ...extra,
+  });
+
+  const syncOne = (skillRow, toolkitIcon) => {
+    const { commandRegistry, pluginSkillSync } = loadModules();
+    const toolkit = makeToolkit("acme", "Acme", [skillRow]);
+    if (toolkitIcon !== undefined) toolkit.toolkitIcon = toolkitIcon;
+    pluginSkillSync.syncPluginSkills([toolkit]);
+    return commandRegistry.getCommand(`/${skillRow.name}`);
+  };
+
+  test("a bare builtin icon name declared by the author is used", () => {
+    expect(syncOne(skill("a", { icon: "brain" })).icon).toBe("brain");
+  });
+
+  test("the { type: builtin, name } descriptor is accepted too", () => {
+    // same shape a toolkit already uses for its own icon — one icon contract,
+    // not a second one invented for skills
+    expect(
+      syncOne(skill("b", { icon: { type: "builtin", name: "brain" } })).icon,
+    ).toBe("brain");
+  });
+
+  test("an unknown icon name falls back instead of rendering an empty box", () => {
+    expect(syncOne(skill("c", { icon: "definitely-not-an-icon" })).icon).toBe(
+      "",
+    );
+  });
+
+  test("a URL or data URI is refused — icons are manifest names, not sources", () => {
+    expect(syncOne(skill("d", { icon: "https://evil.example/x.svg" })).icon).toBe(
+      "",
+    );
+    expect(
+      syncOne(skill("e", { icon: { type: "file", content: "PHN2Zz4=", mimeType: "image/svg+xml" } }))
+        .icon,
+    ).toBe("");
+  });
+
+  test("a skill with no icon inherits the plugin's own", () => {
+    expect(
+      syncOne(skill("f"), { type: "builtin", name: "brain" }).icon,
+    ).toBe("brain");
+  });
+
+  test("the skill's own icon wins over the plugin's", () => {
+    expect(
+      syncOne(skill("g", { icon: "settings" }), {
+        type: "builtin",
+        name: "brain",
+      }).icon,
+    ).toBe("settings");
+  });
+
+  test("declaring nothing anywhere leaves the row without an icon", () => {
+    expect(syncOne(skill("h")).icon).toBe("");
+  });
+});

@@ -1,0 +1,206 @@
+{
+  "id": "chat-1789174073771-06b80f66ddbe78",
+  "pending": {
+    "active_attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+    "graph_coordinator_attempt_id": "unchain-1789178205516-f5b9792521f94",
+    "graph_step_attempt_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+    "interaction_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+    "kind": "human_input",
+    "model": "qwen3:32b",
+    "presentation": {
+      "tool_call": {
+        "arguments": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "Folder path",
+          "other_placeholder": "/path/to/project",
+          "question": "What folder path should I use for the new project?",
+          "request_id": "call_9b54wtlu",
+          "selection_mode": "single",
+          "title": "Project Folder Path"
+        },
+        "call_id": "call_9b54wtlu",
+        "confirmation_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+        "description": "What folder path should I use for the new project?",
+        "interact_config": {
+          "allow_other": true,
+          "kind": "selector",
+          "max_selected": 1,
+          "min_selected": 1,
+          "options": [],
+          "other_label": "Folder path",
+          "other_placeholder": "/path/to/project",
+          "question": "What folder path should I use for the new project?",
+          "request_id": "call_9b54wtlu",
+          "selection_mode": "single",
+          "title": "Project Folder Path"
+        },
+        "interact_type": "single",
+        "requires_confirmation": true,
+        "tool_display_name": "Ask User",
+        "tool_name": "ask_user_question",
+        "toolkit_id": "core",
+        "toolkit_name": "Core"
+      },
+      "trace_frame": {
+        "payload": {
+          "arguments": {
+            "allow_other": true,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [],
+            "other_label": "Folder path",
+            "other_placeholder": "/path/to/project",
+            "question": "What folder path should I use for the new project?",
+            "request_id": "call_9b54wtlu",
+            "selection_mode": "single",
+            "title": "Project Folder Path"
+          },
+          "call_id": "call_9b54wtlu",
+          "confirmation_id": "interaction_9720c674684e03accac2fae4eccfdb43",
+          "description": "What folder path should I use for the new project?",
+          "interact_config": {
+            "allow_other": true,
+            "kind": "selector",
+            "max_selected": 1,
+            "min_selected": 1,
+            "options": [],
+            "other_label": "Folder path",
+            "other_placeholder": "/path/to/project",
+            "question": "What folder path should I use for the new project?",
+            "request_id": "call_9b54wtlu",
+            "selection_mode": "single",
+            "title": "Project Folder Path"
+          },
+          "interact_type": "single",
+          "requires_confirmation": true,
+          "tool_display_name": "Ask User",
+          "tool_name": "ask_user_question",
+          "toolkit_id": "core",
+          "toolkit_name": "Core"
+        },
+        "run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+        "seq": 0,
+        "stage": "durable_recovery",
+        "ts": 1789178438251,
+        "type": "tool_call"
+      }
+    },
+    "provider": "ollama",
+    "resume_available": true,
+    "resume_kind": "graph_step",
+    "resume_options": {
+      "_memory_v2_owner_chat_id": "chat-1789174073771-06b80f66ddbe78",
+      "agent_orchestration": {
+        "mode": "default"
+      },
+      "durable_interactions_required": true,
+      "memory_embedding_model": "text-embedding-3-small",
+      "memory_embedding_provider": "auto",
+      "memory_enabled": true,
+      "memory_last_n_turns": 8,
+      "memory_long_term_enabled": true,
+      "memory_long_term_episode_min_score": null,
+      "memory_long_term_episode_top_k": 4,
+      "memory_long_term_extract_every_n_turns": 6,
+      "memory_long_term_playbook_min_score": null,
+      "memory_long_term_playbook_top_k": 4,
+      "memory_long_term_vector_min_score": null,
+      "memory_long_term_vector_top_k": 4,
+      "memory_namespace": "pupu:default",
+      "memory_vector_min_score": null,
+      "memory_vector_top_k": 4,
+      "modelId": "ollama:qwen3:32b",
+      "system_prompt_v2": {
+        "defaults": {
+          "rules": "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information."
+        },
+        "enabled": true
+      },
+      "toolkits": [
+        "core"
+      ]
+    },
+    "session_id": "chat-1789174073771-06b80f66ddbe78",
+    "source_run_id": "graph-step-a89fce41a6166c5a27c92f4dcf1dd8f7febc8771c0e3d10b5538dcca61032e5d",
+    "status": "awaiting_response"
+  },
+  "runtime": {
+    "status": "ready",
+    "reason": "",
+    "ready": true,
+    "pid": 61544,
+    "port": 5879,
+    "url": "http://127.0.0.1:5879",
+    "contract": {
+      "capabilities": {
+        "automatic_wake_resume": false,
+        "durable_interactions": true,
+        "durable_jobs": {
+          "available": true,
+          "reason": "",
+          "version": "D4.1"
+        },
+        "exact_cancellation": true,
+        "execution_fencing": true,
+        "runtime_events_v4": true
+      },
+      "reasons": {},
+      "schema": "pupu.runtime-capabilities",
+      "version": 1
+    },
+    "memoryV2": {
+      "configured": true,
+      "ready": true,
+      "status": "ready",
+      "reason": "",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 100,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "rolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "sidecarFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "runtimeProtocolDigest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "ec28b85225d4ed2b3588b6bab14fd9053e523b70f9b77b1a49fe087eb205a27c",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "tag": "INPUT",
+      "placeholder": "",
+      "disabled": false,
+      "value": ""
+    },
+    {
+      "tag": "TEXTAREA",
+      "placeholder": "/path/to/project",
+      "disabled": false,
+      "value": ""
+    },
+    {
+      "tag": "TEXTAREA",
+      "placeholder": "",
+      "disabled": false,
+      "value": ""
+    },
+    {
+      "tag": "INPUT",
+      "placeholder": "Search...",
+      "disabled": false,
+      "value": ""
+    }
+  ]
+}

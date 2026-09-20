@@ -1,0 +1,124 @@
+{
+  "case": "strong_prompt",
+  "route": "/api/chat",
+  "request": {
+    "model": "deepseek-r1:8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a highly experienced, professional software developer with sharp logical thinking and a structured, methodical approach to problem-solving.\n\n[Capabilities]\nYou have the user's selected model, workspace access, and selected toolkits. You can read and write files, search code, run terminal commands, and interact with the user via structured questions.\n\n[Rules]\nOnce you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.\nTool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\nIf important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.\nIn the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff.\nAll file creation and modification must happen inside the user's workspace. Never write files outside the workspace unless the user explicitly provides an absolute path in their message.\n\n[Workflow]\n- If the task depends on the current codebase, use tools to inspect code before planning. Ground your work in facts.\n- For non-trivial changes, produce a complete implementation plan first and wait for user approval before executing.\n- When the user approves, execute the plan. If they revise scope, update the plan and wait again.\n- When executing, use tools rather than speculating. Read the code, make changes, and run validation when possible.\n- Be conservative with tool use and iteration count. Prefer the cheapest path that still produces a correct result.\n\n[Delegation]\nYou have subagent capabilities for context isolation and parallelism.\nCheck [Context Status] in the system messages to see your current context window usage. As usage rises above 50%, prefer delegation more aggressively to keep your context lean.\n\nCRITICAL: When you delegate a task, TRUST the subagent's output. Do NOT re-read the same files or re-run the same commands yourself afterward. If the output is insufficient, delegate again with a more specific task — never fall back to doing it yourself.\n\nDecision rule:\n- 1 small file or 1 command → do it directly.\n- Multiple files, cross-directory search, or several commands → delegate when the target lists delegate.\n- 2+ independent tasks → use spawn_worker_batch only when every task's target lists worker; otherwise delegate supported targets sequentially or proceed directly.\n\nEach subagent costs ~1000 tokens of fixed overhead but discards all intermediate tool output — only its summary enters your context.\n\nAvailable subagents:\n- Explore [modes: delegate, worker]: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns, search code for keywords, or answer questions about the codebase. Specify desired thoroughness level in the task: 'quick', 'medium', or 'very thorough'.\n\nEach subagent entry lists its allowed modes. Treat that list as authoritative.\n\nIf the list above shows (no subagents registered), subagent tools are unavailable — proceed without them.\n\nCalls:\n- Use delegate_to_subagent(...) only for a target listing delegate.\n- Use handoff_to_subagent(...) only for a target listing handoff.\n- Use spawn_worker_batch(...) only when every selected target lists worker.\n- Do not attempt an unsupported mode and then retry after runtime rejection.\n\nTask descriptions must be self-contained — the subagent has zero access to your conversation history.\n\n[Constraints]\n- Never fabricate file contents or command outputs. If you don't know, use a tool to find out.\n- Never modify files outside the user's selected workspace roots.\n- Do not use subagents for tasks you can accomplish with a single direct tool call.\n\n[Fallback]\nFor non-development conversations, answer directly without tools.\n<tools>\n# unchain generated tools guidance\nUse provider-native tool schemas as the source of truth for callable arguments.\nToolkit-level policy sections are mandatory operating instructions.\nPer-tool entries describe when and how to use callable tools.\n\n- ask_user_question: Ask the user for a concrete decision, clarification, or preference before continuing work that depends on that choice.\n  Use when:\n  - Multiple plausible approaches or interpretations would materially change the result.\n  - You need the user's preference on product direction, UX behavior, technical approach, scope, or tradeoffs.\n  - A specific decision blocks implementation and should come from the user rather than a guess.\n  Avoid when:\n  - You can discover the answer from the repo, runtime state, or earlier user messages.\n  - You only want permission to continue, plan approval, or a meta-discussion about what to talk about next.\n  - Your options are categories, dimensions, or brainstorming topics instead of direct candidate answers.\n  Examples:\n  - ask_user_question(title=\"Auth strategy\", question=\"Which auth approach should I implement?\", selection_mode=\"single\", options=[{\"label\": \"Session cookies\", \"value\": \"session\", \"description\": \"Server-managed sessions with cookies.\"}, {\"label\": \"JWT\", \"value\": \"jwt\", \"description\": \"Stateless tokens for API clients.\"}])\n  - ask_user_question(title=\"Platform support\", question=\"Which platforms should this first version support?\", selection_mode=\"multiple\", options=[{\"label\": \"Desktop web\", \"value\": \"desktop_web\"}, {\"label\": \"Mobile web\", \"value\": \"mobile_web\"}, {\"label\": \"Native mobile\", \"value\": \"native_mobile\"}], max_selected=2)\n  - ask_user_question(title=\"Project folder\", question=\"What folder path should I use?\", selection_mode=\"single\", options=[], allow_other=true, other_label=\"Folder path\", other_placeholder=\"/path/to/folder\")\n  Advanced tips:\n  - Prefer 2-4 strong options and make each option a concrete answer the user can directly pick.\n  - If one option is the best default, put it first and say so in the option label or description.\n  - For free text such as a folder path or name, use options=[] with allow_other=true, selection_mode=\"single\", and a meaningful other_label such as \"Folder path\".\n  - Ask for the blocking path or name directly before deciding downstream feature scope; never guess a local or OS-specific path or invent custom_path/enter_text options.\n  - Use this tool whenever a direct user answer is needed, including an unbounded folder path or name; use assistant text for discussion that does not require an answer.\n\n- read: Read a UTF-8 text file by absolute path with line-numbered output and optional line slicing.\n\n- write: Create or fully overwrite a UTF-8 text file by absolute path. Existing files must be fully read first.\n\n- edit: Replace one unique string match, or all matches when requested, in an existing UTF-8 text file by absolute path.\n\n- glob: List files matching a glob pattern inside the workspace, sorted by most recently modified first.\n\n- grep: Search UTF-8 text files inside the workspace with regex, optional glob filters, and paginated result modes.\n\n- web_fetch: Fetch a public web page over HTTP(S), return raw page content or run a runtime-configured extraction model.\n\n- shell: Run a shell command, poll or wait for a background task, or kill it within the workspace.\n\n- lsp: Query a language server for definitions, references, hover text, and symbols for Python or TS/JS files.\n</tools>\nFor this interaction test, your next response MUST call the actual ask_user_question tool. Do not describe the tool call or print JSON in assistant content. Ask only the blocking folder path, with options=[], allow_other=true, selection_mode=\"single\". Do not invent or propose a path. After the tool receives the user answer you may reply in text."
+      },
+      {
+        "role": "user",
+        "content": "这是交互测试，不要创建或修改文件。我要你在我电脑上创建一个项目。动手之前，先用 ask_user_question 问我具体要放在哪个文件夹路径；收到回答后只复述该路径并结束。"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "type": "function",
+          "name": "ask_user_question",
+          "description": "Ask the user a structured selector question and suspend the run until they respond. Use this when you need a concrete decision, clarification, or preference that would materially change the implementation or final result. Ask for the smallest concrete answer that unblocks the work. Do not ask meta-questions such as what to discuss first. The question must let the user directly choose an answer, and the options must be concrete candidate answers, not categories, dimensions, or discussion topics. For an unbounded answer such as a folder path or name, ask for that blocking value directly before making downstream feature-scope decisions; use options=[] with allow_other=true, selection_mode=\"single\", and a meaningful other_label such as \"Folder path\". Never guess a local or OS-specific path, and never invent custom_path or enter_text options. When several reasonable paths exist, ask the user instead of silently guessing.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Short title naming the concrete decision being made."
+              },
+              "question": {
+                "type": "string",
+                "description": "Concrete user-facing question for the decision you need now. Ask for a direct answer, not which dimensions, topics, or categories to explore. For an unbounded value such as a folder path or name, ask directly for that value."
+              },
+              "selection_mode": {
+                "type": "string",
+                "description": "Selection mode. Must be 'single' or 'multiple'."
+              },
+              "options": {
+                "type": "array",
+                "description": "Concrete candidate answers shown to the user. Do not use categories, placeholders, or meta options such as 'platform', 'tech', or 'scope'. For free text, use an empty array only with allow_other=true and set a meaningful other_label.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "User-facing label for a concrete answer the user can directly choose."
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Stable option value returned to the assistant."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Optional helper text clarifying what selecting this concrete answer means."
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "allow_other": {
+                "type": "boolean",
+                "description": "Whether to allow a freeform concrete answer when the listed options are insufficient. For an unbounded answer, set this true with options=[] and selection_mode=\"single\"."
+              },
+              "other_label": {
+                "type": "string",
+                "description": "Meaningful input label for the freeform answer when allow_other is true, such as 'Folder path'."
+              },
+              "other_placeholder": {
+                "type": "string",
+                "description": "Placeholder for the freeform input shown when Other is selected."
+              },
+              "min_selected": {
+                "type": "integer",
+                "description": "Minimum number of selections required."
+              },
+              "max_selected": {
+                "type": "integer",
+                "description": "Maximum number of selections allowed."
+              }
+            },
+            "required": [
+              "title",
+              "question",
+              "selection_mode",
+              "options"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    ],
+    "stream": false,
+    "options": {
+      "temperature": 0,
+      "num_predict": 1024
+    }
+  },
+  "note": "Instruction only; not transport-enforced. No generated tools executed.",
+  "response": {
+    "model": "deepseek-r1:8b",
+    "created_at": "2026-09-11T21:29:35.753291Z",
+    "message": {
+      "role": "assistant",
+      "content": "\n\n请使用 ask_user_question 工具询问具体的文件夹路径：\n\n```json\n{\n  \"title\": \"项目文件夹路径\",\n  \"question\": \"请告诉我您希望项目放在哪个文件夹路径？\",\n  \"selection_mode\": \"single\",\n  \"options\": [],\n  \"allow_other\": true,\n  \"other_label\": \"文件夹路径\",\n  \"other_placeholder\": \"文件夹路径\"\n}\n```\n\n请提供您的具体回答，我将只复述该路径并结束。",
+      "thinking": "\n嗯，用户让我进行一个交互测试，不需要创建或修改文件。他们希望我在他们的电脑上创建一个项目，但在动手之前，需要先用 ask_user_question 这个工具问具体要放在哪个文件夹路径。收到回答后，只复述该路径并结束。\n\n首先，我需要理解用户的具体需求。他们希望我在他们的电脑上创建一个项目，但需要先确定项目的文件夹路径。这可能是因为他们希望项目结构清晰，或者他们希望我知道在哪里存放项目文件，以便后续操作。\n\n接下来，我应该使用 ask_user_question 这个工具来询问具体的文件夹路径。根据用户提供的工具说明，ask_user_question 可以用来询问用户需要的具体路径，特别是当需要一个直接的用户答案时。这里，用户需要一个文件夹路径，所以我应该设置一个问用户的问题，询问他们希望项目放在哪个文件夹路径。\n\n我需要确保问题明确，让用户能够直接回答。根据工具的使用说明，我应该提供一个标题和问题，询问用户的项目文件夹路径。标题可以是“项目文件夹路径”，问题可以是“请告诉我您希望项目放在哪个文件夹路径？”这样用户可以直接提供路径。\n\n在设置选项时，用户可能需要一个默认的路径，或者他们可能有特定的偏好。根据工具的使用说明，我可以选择是否提供选项，但在这个情况下，用户可能希望自己决定，所以我可能不需要提供选项，而是直接询问他们的选择。\n\n最后，我需要确保只复述用户提供的路径，并结束对话，不需要进一步的操作或信息。这样用户可以根据我的复述进行后续操作。\n\n总结一下，我需要调用 ask_user_question 工具，询问用户项目的文件夹路径，确保问题明确，用户能够直接回答，然后根据他们的回答进行下一步操作。\n"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 23311087459,
+    "load_duration": 5325542,
+    "prompt_eval_count": 1697,
+    "prompt_eval_cached_count": 825,
+    "prompt_eval_duration": 2642376000,
+    "eval_count": 538,
+    "eval_duration": 20642462000
+  },
+  "tool_call_count": 0,
+  "admitted": [],
+  "elapsed_seconds": 23.34
+}

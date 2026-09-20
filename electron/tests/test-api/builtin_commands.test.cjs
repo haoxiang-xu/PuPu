@@ -26,6 +26,28 @@ describe("test-api builtin chat run commands", () => {
     return { registry, bridge, quit };
   };
 
+  test.each(["messages", "runs"].flatMap((endpoint) =>
+    [null, [], [{ path: "/tmp/example.txt" }], {}, "file"].map((attachments) =>
+      [endpoint, attachments],
+    ),
+  ))("rejects unsupported attachments on %s (%j) before invoking the renderer", async (endpoint, attachments) => {
+    const { registry, bridge } = makeHarness();
+    const result = await registry.dispatch({
+      method: "POST",
+      path: `/v1/chats/chat-a/${endpoint}`,
+      body: { text: "hello", attachments },
+      query: {},
+    });
+    expect(result).toEqual({
+      status: 400,
+      body: { error: {
+        code: "invalid_payload",
+        message: "body.attachments is not supported; this endpoint accepts text only",
+      } },
+    });
+    expect(bridge.invoke).not.toHaveBeenCalled();
+  });
+
   test("forwards the path chat id to both blocking messages and async start", async () => {
     const { registry, bridge } = makeHarness();
 

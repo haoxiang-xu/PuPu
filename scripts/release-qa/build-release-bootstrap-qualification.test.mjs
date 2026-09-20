@@ -21,8 +21,8 @@ import {
 
 const digest = (letter) => `sha256:${letter.repeat(64)}`;
 const fingerprint = "f".repeat(64);
-const contract = readReleaseArtifactContract("contracts/release/release-artifact-contract.v1.json");
-const policy = readReleaseBootstrapPolicy("contracts/release/release-bootstrap-policy.v1.json");
+const contract = readReleaseArtifactContract("docs/contracts/release/release-artifact-contract.v1.json");
+const policy = readReleaseBootstrapPolicy("docs/contracts/release/release-bootstrap-policy.v1.json");
 
 const createManifest = () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-bootstrap-qualification-"));

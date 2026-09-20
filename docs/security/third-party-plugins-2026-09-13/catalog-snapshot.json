@@ -1,0 +1,2237 @@
+{
+  "checkedAt": "2026-09-13T18:36:58.700796+00:00",
+  "mcp": {
+    "version": 1,
+    "dependencyCutoff": "2026-07-28T00:00:00Z",
+    "categories": [
+      "all",
+      "browser",
+      "dev",
+      "devops",
+      "productivity",
+      "workspace",
+      "memory",
+      "communication"
+    ],
+    "entries": [
+      {
+        "id": "browser.playwright",
+        "toolkitId": "mcp.browser.playwright",
+        "name": "Playwright Browser",
+        "description": "Browser automation through the official Playwright MCP server.",
+        "category": "browser",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0",
+        "sourceRepo": "https://github.com/microsoft/playwright-mcp",
+        "docsUrl": "https://github.com/microsoft/playwright-mcp",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "content": "<svg width=\"400\" height=\"400\" viewBox=\"0 0 400 400\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M136.444 221.556C123.558 225.213 115.104 231.625 109.535 238.032C114.869 233.364 122.014 229.08 131.652 226.348C141.51 223.554 149.92 223.574 156.869 224.915V219.481C150.941 218.939 144.145 219.371 136.444 221.556ZM108.946 175.876L61.0895 188.484C61.0895 188.484 61.9617 189.716 63.5767 191.36L104.153 180.668C104.153 180.668 103.578 188.077 98.5847 194.705C108.03 187.559 108.946 175.876 108.946 175.876ZM149.005 288.347C81.6582 306.486 46.0272 228.438 35.2396 187.928C30.2556 169.229 28.0799 155.067 27.5 145.928C27.4377 144.979 27.4665 144.179 27.5336 143.446C24.04 143.657 22.3674 145.473 22.7077 150.721C23.2876 159.855 25.4633 174.016 30.4473 192.721C41.2301 233.225 76.8659 311.273 144.213 293.134C158.872 289.185 169.885 281.992 178.152 272.81C170.532 279.692 160.995 285.112 149.005 288.347ZM161.661 128.11V132.903H188.077C187.535 131.206 186.989 129.677 186.447 128.11H161.661Z\" fill=\"#2D4552\"/><path d=\"M193.981 167.584C205.861 170.958 212.144 179.287 215.465 186.658L228.711 190.42C228.711 190.42 226.904 164.623 203.57 157.995C181.741 151.793 168.308 170.124 166.674 172.496C173.024 167.972 182.297 164.268 193.981 167.584ZM299.422 186.777C277.573 180.547 264.145 198.916 262.535 201.255C268.89 196.736 278.158 193.031 289.837 196.362C301.698 199.741 307.976 208.06 311.307 215.436L324.572 219.212C324.572 219.212 322.736 193.41 299.422 186.777ZM286.262 254.795L176.072 223.99C176.072 223.99 177.265 230.038 181.842 237.869L274.617 263.805C282.255 259.386 286.262 254.795 286.262 254.795ZM209.867 321.102C122.618 297.71 133.166 186.543 147.284 133.865C153.097 112.156 159.073 96.0203 164.029 85.204C161.072 84.5953 158.623 86.1529 156.203 91.0746C150.941 101.747 144.212 119.124 137.7 143.45C123.586 196.127 113.038 307.29 200.283 330.682C241.406 341.699 273.442 324.955 297.323 298.659C274.655 319.19 245.714 330.701 209.867 321.102Z\" fill=\"#2D4552\"/><path d=\"M161.661 262.296V239.863L99.3324 257.537C99.3324 257.537 103.938 230.777 136.444 221.556C146.302 218.762 154.713 218.781 161.661 220.123V128.11H192.869C189.471 117.61 186.184 109.526 183.423 103.909C178.856 94.612 174.174 100.775 163.545 109.665C156.059 115.919 137.139 129.261 108.668 136.933C80.1966 144.61 57.179 142.574 47.5752 140.911C33.9601 138.562 26.8387 135.572 27.5049 145.928C28.0847 155.062 30.2605 169.224 35.2445 187.928C46.0272 228.433 81.663 306.481 149.01 288.342C166.602 283.602 179.019 274.233 187.626 262.291H161.661V262.296ZM61.0848 188.484L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6614 203.743 61.0848 188.484 61.0848 188.484Z\" fill=\"#E2574C\"/><path d=\"M341.786 129.174C329.345 131.355 299.498 134.072 262.612 124.185C225.716 114.304 201.236 97.0224 191.537 88.8994C177.788 77.3834 171.74 69.3802 165.788 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.098C297.093 344.47 343.53 242.92 357.644 190.238C364.157 165.917 367.013 147.5 367.799 135.625C368.695 122.173 359.455 126.078 341.786 129.174ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756ZM223.42 268.713C182.403 256.698 176.077 223.99 176.077 223.99L286.262 254.796C286.262 254.791 264.021 280.578 223.42 268.713ZM262.377 201.495C262.377 201.495 276.107 180.126 299.422 186.773C322.736 193.411 324.572 219.208 324.572 219.208L262.377 201.495Z\" fill=\"#2EAD33\"/><path d=\"M139.88 246.04L99.3324 257.532C99.3324 257.532 103.737 232.44 133.607 222.496L110.647 136.33L108.663 136.933C80.1918 144.611 57.1742 142.574 47.5704 140.911C33.9554 138.563 26.834 135.572 27.5001 145.929C28.08 155.063 30.2557 169.224 35.2397 187.929C46.0225 228.433 81.6583 306.481 149.005 288.342L150.989 287.719L139.88 246.04ZM61.0848 188.485L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6615 203.743 61.0848 188.485 61.0848 188.485Z\" fill=\"#D65348\"/><path d=\"M225.27 269.163L223.415 268.712C182.398 256.698 176.072 223.99 176.072 223.99L232.89 239.872L262.971 124.281L262.607 124.185C225.711 114.304 201.232 97.0224 191.532 88.8994C177.783 77.3834 171.735 69.3802 165.783 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.097L211.655 321.5L225.27 269.163ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756Z\" fill=\"#1D8D22\"/><path d=\"M141.946 245.451L131.072 248.537C133.641 263.019 138.169 276.917 145.276 289.195C146.513 288.922 147.74 288.687 149 288.342C152.302 287.451 155.364 286.348 158.312 285.145C150.371 273.361 145.118 259.789 141.946 245.451ZM137.7 143.451C132.112 164.307 127.113 194.326 128.489 224.436C130.952 223.367 133.554 222.371 136.444 221.551L138.457 221.101C136.003 188.939 141.308 156.165 147.284 133.866C148.799 128.225 150.318 122.978 151.832 118.085C149.393 119.637 146.767 121.228 143.776 122.867C141.759 129.093 139.722 135.898 137.7 143.451Z\" fill=\"#C04B41\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/microsoft/playwright-mcp",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@playwright/mcp@0.0.78"
+          ]
+        },
+        "setupPreview": "npx -y @playwright/mcp@0.0.78",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "browser_navigate",
+            "title": "Navigate",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "browser_snapshot",
+            "title": "Snapshot",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "browser_click",
+            "title": "Click",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "browser_type",
+            "title": "Type",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## Playwright Browser\n\nDrives a real browser over stdio: navigation, clicks, form fill and accessibility snapshots. Maintained by Microsoft."
+      },
+      {
+        "id": "browser.browser-use-local",
+        "toolkitId": "mcp.browser.browser-use-local",
+        "name": "Browser Use",
+        "description": "Local agentic browser control via the browser-use CLI MCP server.",
+        "category": "browser",
+        "source": "mcp",
+        "trustLevel": "community",
+        "status": "available",
+        "installable": true,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/browser-use/browser-use",
+        "docsUrl": "https://github.com/browser-use/browser-use",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "content": "<svg viewBox=\"-24 -24 148 148\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"-24\" y=\"-24\" width=\"148\" height=\"148\" rx=\"28\" fill=\"#18181B\"/><path d=\"M97.8916 39.0448C82.6177 33.1997 95.2199 10.8169 74.212 11.3849C48.5413 12.0793 8.31528 52.4518 12.4236 78.6851C14.4652 91.6755 24.6096 86.2218 29.3732 88.1154C32.5364 89.3652 36.2792 95.0083 40.3245 95.9047C22.4293 106.193 -0.556809 96.397 0.0102912 74.3423C0.829435 41.86 47.7474 -5.25386 81.1937 0.477571C99.8702 3.68414 102.189 23.5422 97.8916 39.0448Z\" fill=\"#ffffff\"/><path d=\"M24.8115 57.7541L39.6068 71.7166C49.0332 80.1875 74.061 94.9706 85.403 84.9469C98.774 73.1306 70.495 32.3162 57.4769 25.802L68.9069 20.6639C86.7138 33.6796 113.783 75.9836 91.7294 94.4025C77.5014 106.282 54.5655 96.2204 41.0811 87.3707C30.8103 80.6294 15.9647 70.9591 24.8115 57.7415V57.7541Z\" fill=\"#ffffff\"/><path d=\"M40.3373 4.75723C35.5485 4.88347 31.8055 11.1199 28.2895 12.2182C25.1642 13.1903 20.8414 10.5266 16.1408 14.0487C11.0495 17.8613 12.7891 36.0655 3.02233 40.5976C-2.98893 22.9362 0.75354 1.8789 22.4672 0.0736228C24.1433 -0.0652445 42.7822 1.17195 40.3373 4.74463V4.75723Z\" fill=\"#ffffff\"/><path d=\"M76.1025 57.754C84.1175 71.0348 69.5871 86.2092 57.489 74.1025L76.1025 57.754Z\" fill=\"#ffffff\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/browser-use/browser-use",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "uvx",
+          "args": [
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--from",
+            "browser-use[cli]==0.13.6",
+            "browser-use",
+            "--mcp"
+          ]
+        },
+        "setupPreview": "uvx --from browser-use[cli]==0.13.6 browser-use --mcp",
+        "prerequisites": [],
+        "secrets": [
+          {
+            "key": "OPENAI_API_KEY",
+            "label": "OpenAI API key"
+          }
+        ],
+        "tools": [
+          {
+            "name": "browser_navigate",
+            "title": "Navigate",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "browser_get_state",
+            "title": "Get browser state",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "browser_click",
+            "title": "Click",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "browser_type",
+            "title": "Type",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. PuPu supplies the MCP runtime; you only need an `OPENAI_API_KEY`."
+      },
+      {
+        "id": "browser.chrome-devtools",
+        "toolkitId": "mcp.browser.chrome-devtools",
+        "name": "Chrome DevTools",
+        "description": "Official Chrome DevTools MCP server for browser debugging, console inspection and performance trace analysis.",
+        "category": "browser",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0",
+        "sourceRepo": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+        "docsUrl": "https://developer.chrome.com/docs/devtools/agents/get-started",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "displayScale": 0.82,
+          "content": "<svg fill=\"#4285F4\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Google Chrome</title><path d=\"M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728Z\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/ChromeDevTools/chrome-devtools-mcp",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "chrome-devtools-mcp@1.6.0",
+            "--no-usage-statistics",
+            "--no-performance-crux"
+          ]
+        },
+        "setupPreview": "npx -y chrome-devtools-mcp@1.6.0 --no-usage-statistics --no-performance-crux",
+        "prerequisites": [
+          "Chrome current stable or newer"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "navigate_page",
+            "title": "Navigate page",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "take_snapshot",
+            "title": "Take snapshot",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "list_console_messages",
+            "title": "Console messages",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "performance_start_trace",
+            "title": "Performance trace",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "evaluate_script",
+            "title": "Evaluate script",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## Chrome DevTools\n\nRuns Google's Chrome DevTools MCP server over stdio. It can inspect pages, console output, network activity and performance trace data from a Chrome browser. Browser contents may be exposed to the agent, so avoid using it with sensitive sessions unless you explicitly trust the agent."
+      },
+      {
+        "id": "dev.github-remote",
+        "toolkitId": "mcp.dev.github-remote",
+        "name": "GitHub",
+        "description": "Remote GitHub MCP server for repositories, issues and pull requests.",
+        "category": "dev",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/github/github-mcp-server",
+        "docsUrl": "https://github.com/github/github-mcp-server",
+        "icon": {
+          "type": "builtin",
+          "name": "github",
+          "color": "#ffffff",
+          "backgroundColor": "#1f2328"
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://api.githubcopilot.com/mcp/",
+          "headers": [
+            {
+              "name": "Authorization",
+              "valueFromSecret": "GITHUB_MCP_PAT",
+              "prefix": "Bearer "
+            }
+          ]
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "github",
+            "providerLabel": "GitHub",
+            "clientRegistration": "user_credentials",
+            "releaseStatus": "app_required",
+            "mcpUrl": "https://api.githubcopilot.com/mcp/",
+            "transport": "streamable_http",
+            "authorizationEndpoint": "https://github.com/login/oauth/authorize",
+            "tokenEndpoint": "https://github.com/login/oauth/access_token",
+            "scopes": [
+              "repo",
+              "read:org"
+            ],
+            "authUrlParams": {},
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "www_authenticate"
+          }
+        },
+        "setupPreview": "https://api.githubcopilot.com/mcp/",
+        "prerequisites": [
+          "GitHub account"
+        ],
+        "secrets": [
+          {
+            "key": "GITHUB_MCP_PAT",
+            "label": "GitHub Personal Access Token"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_repositories",
+            "title": "Search repositories",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_file_contents",
+            "title": "Get file contents",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "create_issue",
+            "title": "Create issue",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "create_pull_request",
+            "title": "Create pull request",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## GitHub (remote)\n\nConnect to the official GitHub MCP server with a Personal Access Token. OAuth remains unavailable until PuPu has an approved GitHub OAuth app."
+      },
+      {
+        "id": "dev.figma-remote",
+        "toolkitId": "mcp.dev.figma-remote",
+        "name": "Figma",
+        "description": "Official remote Figma MCP server; PuPu connection is pending Figma client approval.",
+        "category": "dev",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "coming_soon",
+        "installable": false,
+        "license": "hosted",
+        "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
+        "docsUrl": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "content": "<svg viewBox=\"0 0 1024 1024\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"1024\" height=\"1024\" rx=\"180\" fill=\"#000000\"/><g transform=\"translate(0 -148)\"><path d=\"M312 840C312 784.772 356.772 740 412 740H512V840C512 895.228 467.228 940 412 940C356.772 940 312 895.228 312 840Z\" fill=\"#24CB71\"/><path d=\"M512 340V540H612C667.228 540 712 495.228 712 440C712 384.772 667.228 340 612 340H512Z\" fill=\"#FF7237\"/><circle cx=\"611.167\" cy=\"640\" r=\"100\" fill=\"#00B6FF\"/><path d=\"M312 440C312 495.228 356.772 540 412 540H512V340H412C356.772 340 312 384.772 312 440Z\" fill=\"#FF3737\"/><path d=\"M312 640C312 695.228 356.772 740 412 740H512V540H412C356.772 540 312 584.772 312 640Z\" fill=\"#874FFF\"/></g></svg>"
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://mcp.figma.com/mcp",
+          "headers": []
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "figma",
+            "providerLabel": "Figma",
+            "clientRegistration": "dynamic",
+            "releaseStatus": "approval_required",
+            "mcpUrl": "https://mcp.figma.com/mcp",
+            "transport": "streamable_http",
+            "protectedResourceMetadataUrl": "https://mcp.figma.com/.well-known/oauth-protected-resource",
+            "authorizationServerMetadataUrl": "https://api.figma.com/.well-known/oauth-authorization-server",
+            "authorizationEndpoint": "https://www.figma.com/oauth/mcp",
+            "tokenEndpoint": "https://api.figma.com/v1/oauth/token",
+            "registrationEndpoint": "https://api.figma.com/v1/oauth/mcp/register",
+            "scopes": [
+              "mcp:connect"
+            ],
+            "authUrlParams": {},
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "protected_resource"
+          }
+        },
+        "setupPreview": "https://mcp.figma.com/mcp",
+        "prerequisites": [
+          "Figma account",
+          "Figma file access"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "get_design_context",
+            "title": "Get design context",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_metadata",
+            "title": "Get metadata",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_screenshot",
+            "title": "Get screenshot",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_variable_defs",
+            "title": "Get variables",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "create_new_file",
+            "title": "Create file",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "generate_diagram",
+            "title": "Generate diagram",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "use_figma",
+            "title": "Use Figma",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 3
+        },
+        "readmeMarkdown": "## Figma Remote\n\nFigma currently allows only clients approved in the Figma MCP Catalog to connect to its hosted MCP endpoint. PuPu is not approved yet, so this entry is intentionally unavailable instead of exposing a Connect button that ends in a 403 error. The integration can be enabled after Figma approves PuPu and the OAuth flow passes release testing."
+      },
+      {
+        "id": "dev.bug-bounty-intelligence",
+        "toolkitId": "mcp.dev.bug-bounty-intelligence",
+        "name": "Bug Bounty Intelligence",
+        "description": "Third-party smart contract security tools using Sherlock/Code4rena audit data. Two tools are free; the provider advertises paid scans at 5 USDC. See payment limitations before use.",
+        "category": "dev",
+        "source": "mcp",
+        "trustLevel": "community",
+        "status": "available",
+        "installable": true,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/holistis/bug-bounty-intelligence-mcp",
+        "docsUrl": "https://github.com/holistis/bug-bounty-intelligence-mcp#readme",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/holistis/bug-bounty-intelligence-mcp",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "bug-bounty-intelligence-mcp@1.0.3"
+          ]
+        },
+        "setupPreview": "npx -y bug-bounty-intelligence-mcp@1.0.3",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "list_vulnerability_patterns",
+            "title": "List vulnerability patterns",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_scan_report",
+            "title": "Get scan report",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "scan_contract",
+            "title": "Scan contract (paid, 5 USDC via x402)",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Bug Bounty Intelligence (third-party)\n\nRuns the **third-party** `bug-bounty-intelligence-mcp` server, published and operated by its author, not by PuPu. It is available to install as a community integration, pinned to `@1.0.3`. Catalog inclusion does not imply PuPu endorsement or verification of audit accuracy or paid-service delivery.\n\n`list_vulnerability_patterns` and `get_scan_report` are free. The provider advertises `scan_contract` at 5 USDC on Base; payment is handled by the provider, not billed through PuPu. Calling the paid tool requires confirmation.\n\n### Known payment limitations in version 1.0.3\n\nThe published client contains a stale fallback payment address and does not forward the payment signature required by the live x402 endpoint. Paid scanning may therefore fail to proceed. A manual transfer alone is not proof that the service will accept payment or deliver a report. Upstream source fixes do not change this pinned npm release. Confirm the current payment procedure with the provider before paying; PuPu has not verified a completed paid scan.\n\nNo secrets or OAuth setup is required by this entry. The public MCP client is open source; the hosted scanning backend is not included in that client repository. Acceptance-rate figures for the free patterns tool are based on 1,032 findings reconciled against Sherlock results, not all 27,681 submitted findings in the broader corpus; see the provider's METHODOLOGY.md."
+      },
+      {
+        "id": "devops.sentry-remote",
+        "toolkitId": "mcp.devops.sentry-remote",
+        "name": "Sentry",
+        "description": "Official hosted Sentry MCP service for issues, traces, projects and debugging workflows.",
+        "category": "devops",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": false,
+        "license": "NOASSERTION",
+        "sourceRepo": "https://github.com/getsentry/sentry-mcp",
+        "docsUrl": "https://mcp.sentry.dev",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "displayScale": 0.82,
+          "content": "<svg fill=\"#362D59\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Sentry</title><path d=\"M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/getsentry/sentry-mcp",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://mcp.sentry.dev/mcp",
+          "headers": []
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "sentry",
+            "providerLabel": "Sentry",
+            "clientRegistration": "dynamic",
+            "releaseStatus": "ready",
+            "mcpUrl": "https://mcp.sentry.dev/mcp",
+            "transport": "streamable_http",
+            "authorizationServerMetadataUrl": "https://mcp.sentry.dev/.well-known/oauth-authorization-server",
+            "authorizationEndpoint": "https://mcp.sentry.dev/oauth/authorize",
+            "tokenEndpoint": "https://mcp.sentry.dev/oauth/token",
+            "registrationEndpoint": "https://mcp.sentry.dev/oauth/register",
+            "scopes": [
+              "org:read",
+              "project:write",
+              "team:write",
+              "event:write"
+            ],
+            "authUrlParams": {},
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "protected_resource"
+          }
+        },
+        "setupPreview": "https://mcp.sentry.dev/mcp",
+        "prerequisites": [
+          "Sentry account"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "search_issues",
+            "title": "Search issues",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "search_events",
+            "title": "Search events",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_issue",
+            "title": "Get issue",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "create_team",
+            "title": "Create team",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Sentry Remote\n\nConnects to Sentry's hosted MCP service over Streamable HTTP with OAuth. It is focused on human-in-the-loop coding and debugging workflows such as issue, event and trace investigation."
+      },
+      {
+        "id": "devops.vercel-remote",
+        "toolkitId": "mcp.devops.vercel-remote",
+        "name": "Vercel",
+        "description": "Official Vercel remote MCP server; PuPu connection is pending Vercel client approval.",
+        "category": "devops",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "coming_soon",
+        "installable": false,
+        "license": "hosted",
+        "sourceRepo": "https://vercel.com/docs/agent-resources/vercel-mcp",
+        "docsUrl": "https://vercel.com/docs/agent-resources/vercel-mcp",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "displayScale": 0.82,
+          "content": "<svg fill=\"#000000\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Vercel</title><path d=\"m12 1.608 12 20.784H0Z\"/></svg>"
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://mcp.vercel.com",
+          "headers": []
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "vercel",
+            "providerLabel": "Vercel",
+            "clientRegistration": "dynamic",
+            "releaseStatus": "approval_required",
+            "mcpUrl": "https://mcp.vercel.com",
+            "transport": "streamable_http",
+            "protectedResourceMetadataUrl": "https://mcp.vercel.com/.well-known/oauth-protected-resource",
+            "scopes": [],
+            "authUrlParams": {},
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "protected_resource"
+          }
+        },
+        "setupPreview": "https://mcp.vercel.com",
+        "prerequisites": [
+          "Vercel account",
+          "Vercel-supported OAuth client access"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "search_documentation",
+            "title": "Search docs",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "list_projects",
+            "title": "List projects",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "list_deployments",
+            "title": "List deployments",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_deployment_build_logs",
+            "title": "Build logs",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_runtime_logs",
+            "title": "Runtime logs",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "deploy_to_vercel",
+            "title": "Deploy to Vercel",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Vercel Remote\n\nVercel currently allows only reviewed and approved AI clients to connect to its hosted MCP endpoint. PuPu is not on that list yet, so this entry is intentionally unavailable until provider approval and end-to-end OAuth testing are complete."
+      },
+      {
+        "id": "devops.grafana",
+        "toolkitId": "mcp.devops.grafana",
+        "name": "Grafana",
+        "description": "Official Grafana MCP server for dashboards, datasources, alerts and observability queries.",
+        "category": "devops",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0",
+        "sourceRepo": "https://github.com/grafana/mcp-grafana",
+        "docsUrl": "https://github.com/grafana/mcp-grafana",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "displayScale": 0.82,
+          "content": "<svg fill=\"#F46800\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Grafana</title><path d=\"M23.02 10.59a8.578 8.578 0 0 0-.862-3.034 8.911 8.911 0 0 0-1.789-2.445c.337-1.342-.413-2.505-.413-2.505-1.292-.08-2.113.4-2.416.62-.052-.02-.102-.044-.154-.064-.22-.089-.446-.172-.677-.247-.231-.073-.47-.14-.711-.197a9.867 9.867 0 0 0-.875-.161C14.557.753 12.94 0 12.94 0c-1.804 1.145-2.147 2.744-2.147 2.744l-.018.093c-.098.029-.2.057-.298.088-.138.042-.275.094-.413.143-.138.055-.275.107-.41.166a8.869 8.869 0 0 0-1.557.87l-.063-.029c-2.497-.955-4.716.195-4.716.195-.203 2.658.996 4.33 1.235 4.636a11.608 11.608 0 0 0-.607 2.635C1.636 12.677.953 15.014.953 15.014c1.926 2.214 4.171 2.351 4.171 2.351.003-.002.006-.002.006-.005.285.509.615.994.986 1.446.156.19.32.371.488.548-.704 2.009.099 3.68.099 3.68 2.144.08 3.553-.937 3.849-1.173a9.784 9.784 0 0 0 3.164.501h.08l.055-.003.107-.002.103-.005.003.002c1.01 1.44 2.788 1.646 2.788 1.646 1.264-1.332 1.337-2.653 1.337-2.94v-.058c0-.02-.003-.039-.003-.06.265-.187.52-.387.758-.6a7.875 7.875 0 0 0 1.415-1.7c1.43.083 2.437-.885 2.437-.885-.236-1.49-1.085-2.216-1.264-2.354l-.018-.013-.016-.013a.217.217 0 0 1-.031-.02c.008-.092.016-.18.02-.27.011-.162.016-.323.016-.48v-.253l-.005-.098-.008-.135a1.891 1.891 0 0 0-.01-.13c-.003-.042-.008-.083-.013-.125l-.016-.124-.018-.122a6.215 6.215 0 0 0-2.032-3.73 6.015 6.015 0 0 0-3.222-1.46 6.292 6.292 0 0 0-.85-.048l-.107.002h-.063l-.044.003-.104.008a4.777 4.777 0 0 0-3.335 1.695c-.332.4-.592.84-.768 1.297a4.594 4.594 0 0 0-.312 1.817l.003.091c.005.055.007.11.013.164a3.615 3.615 0 0 0 .698 1.82 3.53 3.53 0 0 0 1.827 1.282c.33.098.66.14.971.137.039 0 .078 0 .114-.002l.063-.003c.02 0 .041-.003.062-.003.034-.002.065-.007.099-.01.007 0 .018-.003.028-.003l.031-.005.06-.008a1.18 1.18 0 0 0 .112-.02c.036-.008.072-.013.109-.024a2.634 2.634 0 0 0 .914-.415c.028-.02.056-.041.085-.065a.248.248 0 0 0 .039-.35.244.244 0 0 0-.309-.06l-.078.042c-.09.044-.184.083-.283.116a2.476 2.476 0 0 1-.475.096c-.028.003-.054.006-.083.006l-.083.002c-.026 0-.054 0-.08-.002l-.102-.006h-.012l-.024.006c-.016-.003-.031-.003-.044-.006-.031-.002-.06-.007-.091-.01a2.59 2.59 0 0 1-.724-.213 2.557 2.557 0 0 1-.667-.438 2.52 2.52 0 0 1-.805-1.475 2.306 2.306 0 0 1-.029-.444l.006-.122v-.023l.002-.031c.003-.021.003-.04.005-.06a3.163 3.163 0 0 1 1.352-2.29 3.12 3.12 0 0 1 .937-.43 2.946 2.946 0 0 1 .776-.101h.06l.07.002.045.003h.026l.07.005a4.041 4.041 0 0 1 1.635.49 3.94 3.94 0 0 1 1.602 1.662 3.77 3.77 0 0 1 .397 1.414l.005.076.003.075c.002.026.002.05.002.075 0 .024.003.052 0 .07v.065l-.002.073-.008.174a6.195 6.195 0 0 1-.08.639 5.1 5.1 0 0 1-.267.927 5.31 5.31 0 0 1-.624 1.13 5.052 5.052 0 0 1-3.237 2.014 4.82 4.82 0 0 1-.649.066l-.039.003h-.287a6.607 6.607 0 0 1-1.716-.265 6.776 6.776 0 0 1-3.4-2.274 6.75 6.75 0 0 1-.746-1.15 6.616 6.616 0 0 1-.714-2.596l-.005-.083-.002-.02v-.056l-.003-.073v-.096l-.003-.104v-.07l.003-.163c.008-.22.026-.45.054-.678a8.707 8.707 0 0 1 .28-1.355c.128-.444.286-.872.473-1.277a7.04 7.04 0 0 1 1.456-2.1 5.925 5.925 0 0 1 .953-.763c.169-.111.343-.213.524-.306.089-.05.182-.091.273-.135.047-.02.093-.042.138-.062a7.177 7.177 0 0 1 .714-.267l.145-.045c.049-.015.098-.026.148-.041.098-.029.197-.052.296-.076.049-.013.1-.02.15-.033l.15-.032.151-.028.076-.013.075-.01.153-.024c.057-.01.114-.013.171-.023l.169-.021c.036-.003.073-.008.106-.01l.073-.008.036-.003.042-.002c.057-.003.114-.008.171-.01l.086-.006h.023l.037-.003.145-.007a7.999 7.999 0 0 1 1.708.125 7.917 7.917 0 0 1 2.048.68 8.253 8.253 0 0 1 1.672 1.09l.09.077.089.078c.06.052.114.107.171.159.057.052.112.106.166.16.052.055.107.107.159.164a8.671 8.671 0 0 1 1.41 1.978c.012.026.028.052.04.078l.04.078.075.156c.023.051.05.1.07.153l.065.15a8.848 8.848 0 0 1 .45 1.34.19.19 0 0 0 .201.142.186.186 0 0 0 .172-.184c.01-.246.002-.532-.024-.856z\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/grafana/mcp-grafana",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "uvx",
+          "args": [
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--from",
+            "mcp-grafana==0.17.2",
+            "mcp-grafana"
+          ]
+        },
+        "setupPreview": "uvx mcp-grafana==0.17.2",
+        "prerequisites": [
+          "Grafana instance or Grafana Cloud",
+          "Grafana service account token"
+        ],
+        "secrets": [
+          {
+            "key": "GRAFANA_URL",
+            "label": "Grafana URL"
+          },
+          {
+            "key": "GRAFANA_SERVICE_ACCOUNT_TOKEN",
+            "label": "Grafana service account token"
+          }
+        ],
+        "tools": [
+          {
+            "name": "search_dashboards",
+            "title": "Search dashboards",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_dashboard_by_uid",
+            "title": "Get dashboard",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "query_prometheus",
+            "title": "Query Prometheus",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "alerting_manage_rules",
+            "title": "Manage alert rules",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "update_dashboard",
+            "title": "Update dashboard",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## Grafana\n\nRuns Grafana Labs' official `mcp-grafana` server over stdio. Provide `GRAFANA_URL` and a `GRAFANA_SERVICE_ACCOUNT_TOKEN`; Grafana Cloud instances should use their HTTPS instance URL."
+      },
+      {
+        "id": "devops.netdata-cloud",
+        "toolkitId": "mcp.devops.netdata-cloud",
+        "name": "Netdata Cloud",
+        "description": "Official Netdata Cloud MCP endpoint for infrastructure metrics, nodes, alerts and functions.",
+        "category": "devops",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "GPL-3.0",
+        "sourceRepo": "https://github.com/netdata/netdata",
+        "docsUrl": "https://github.com/mcp/netdata/mcp-server",
+        "icon": {
+          "type": "file",
+          "mimeType": "image/svg+xml",
+          "displayScale": 0.82,
+          "content": "<svg fill=\"#00AB44\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Netdata</title><path d=\"M14.764 21.827H9.922L0 2.173h14.084c5.476.01 9.913 4.565 9.916 10.183-.009 5.235-4.14 9.47-9.238 9.47z\"/></svg>"
+        },
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/netdata/netdata",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://app.netdata.cloud/api/v1/mcp",
+          "headers": [
+            {
+              "name": "Authorization",
+              "valueFromSecret": "NETDATA_CLOUD_MCP_TOKEN",
+              "prefix": "Bearer "
+            }
+          ]
+        },
+        "setupPreview": "https://app.netdata.cloud/api/v1/mcp",
+        "prerequisites": [
+          "Netdata Cloud paid plan",
+          "Netdata Cloud API token with scope:mcp"
+        ],
+        "secrets": [
+          {
+            "key": "NETDATA_CLOUD_MCP_TOKEN",
+            "label": "Netdata Cloud MCP token"
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_nodes",
+            "title": "List nodes",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "search_metrics",
+            "title": "Search metrics",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "get_metrics",
+            "title": "Get metrics",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "run_function",
+            "title": "Run function",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Netdata Cloud\n\nConnects directly to Netdata Cloud's HTTPS MCP endpoint over Streamable HTTP. Provide a Netdata Cloud API token with `scope:mcp`. Local Netdata Agent HTTP endpoints should be added through Custom MCP or an approved external registry entry."
+      },
+      {
+        "id": "productivity.notion-remote",
+        "toolkitId": "mcp.productivity.notion-remote",
+        "name": "Notion",
+        "description": "Hosted remote MCP for Notion pages, databases and search.",
+        "category": "productivity",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": false,
+        "license": "hosted",
+        "sourceRepo": "https://developers.notion.com/docs/get-started-with-mcp",
+        "docsUrl": "https://developers.notion.com/docs/get-started-with-mcp",
+        "icon": {
+          "type": "builtin",
+          "name": "notion",
+          "color": "#ffffff",
+          "backgroundColor": "#191919"
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://mcp.notion.com/mcp",
+          "headers": []
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "notion",
+            "providerLabel": "Notion",
+            "clientRegistration": "dynamic",
+            "releaseStatus": "ready",
+            "mcpUrl": "https://mcp.notion.com/mcp",
+            "transport": "streamable_http",
+            "protectedResourceMetadataUrl": "https://mcp.notion.com/.well-known/oauth-protected-resource",
+            "scopes": [],
+            "authUrlParams": {
+              "prompt": "consent"
+            },
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "protected_resource"
+          }
+        },
+        "setupPreview": "https://mcp.notion.com/mcp",
+        "prerequisites": [
+          "Notion account"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "notion-search",
+            "title": "Search workspace",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "notion-fetch",
+            "title": "Fetch content",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "notion-create-pages",
+            "title": "Create pages",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Notion (hosted)\n\nConnect to Notion's hosted MCP endpoint with OAuth. PuPu opens the authorization page and enables the toolkit after the connection succeeds."
+      },
+      {
+        "id": "workspace.filesystem",
+        "toolkitId": "mcp.workspace.filesystem",
+        "name": "Filesystem",
+        "description": "Read and write files within an allowed workspace directory.",
+        "category": "workspace",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0 / MIT",
+        "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+        "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "workspace": {
+          "required": true,
+          "placeholder": "${WORKSPACE}",
+          "binding": "agent_workspace_root"
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@modelcontextprotocol/server-filesystem@2026.7.10",
+            "${WORKSPACE}"
+          ]
+        },
+        "setupPreview": "npx -y @modelcontextprotocol/server-filesystem@2026.7.10 ${WORKSPACE}",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "read_file",
+            "title": "Read file",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "list_directory",
+            "title": "List directory",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "write_file",
+            "title": "Write file",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "move_file",
+            "title": "Move file",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 2
+        },
+        "readmeMarkdown": "## Filesystem\n\nReference MCP server for scoped file access. The `${WORKSPACE}` placeholder is filled with the chosen directory during setup."
+      },
+      {
+        "id": "workspace.markitdown",
+        "toolkitId": "mcp.workspace.markitdown",
+        "name": "MarkItDown",
+        "description": "Convert documents, archives and rich files into Markdown through Microsoft's local MarkItDown MCP server.",
+        "category": "workspace",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/microsoft/markitdown",
+        "docsUrl": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/microsoft/markitdown",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "uvx",
+          "args": [
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--from",
+            "markitdown-mcp==0.0.1a4",
+            "markitdown-mcp"
+          ]
+        },
+        "setupPreview": "uvx markitdown-mcp==0.0.1a4",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "convert_to_markdown",
+            "title": "Convert to Markdown",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## MarkItDown\n\nRuns Microsoft's local MarkItDown MCP server over STDIO for local trusted agents. It exposes `convert_to_markdown(uri)` for `file:`, `http:`, `https:`, and `data:` URIs. The server runs with the current user's file and network access, so review URI inputs and avoid exposing HTTP or SSE modes beyond localhost."
+      },
+      {
+        "id": "memory.memory",
+        "toolkitId": "mcp.memory.memory",
+        "name": "Memory",
+        "description": "Persistent knowledge-graph memory via the reference MCP server.",
+        "category": "memory",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0 / MIT",
+        "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+        "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@modelcontextprotocol/server-memory@2026.7.4"
+          ]
+        },
+        "setupPreview": "npx -y @modelcontextprotocol/server-memory@2026.7.4",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "search_nodes",
+            "title": "Search nodes",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "read_graph",
+            "title": "Read graph",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "create_entities",
+            "title": "Create entities",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "smoke": {
+          "installCleanup": true
+        },
+        "readmeMarkdown": "## Memory\n\nReference knowledge-graph memory server. Stores entities and relations the agent can recall across sessions."
+      },
+      {
+        "id": "productivity.slack-remote",
+        "toolkitId": "mcp.productivity.slack-remote",
+        "name": "Slack Remote",
+        "description": "Official Slack remote MCP server; PuPu requires a registered Slack app before connection can ship.",
+        "category": "communication",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "coming_soon",
+        "installable": false,
+        "license": "hosted",
+        "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
+        "docsUrl": "https://docs.slack.dev/ai/slack-mcp-server/",
+        "icon": {
+          "type": "builtin",
+          "name": "slack",
+          "color": "#ffffff",
+          "backgroundColor": "#4A154B"
+        },
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://mcp.slack.com/mcp",
+          "headers": []
+        },
+        "auth": {
+          "oauth": {
+            "type": "oauth",
+            "provider": "slack",
+            "providerLabel": "Slack",
+            "clientRegistration": "user_credentials",
+            "releaseStatus": "app_required",
+            "mcpUrl": "https://mcp.slack.com/mcp",
+            "transport": "streamable_http",
+            "protectedResourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
+            "authorizationServerMetadataUrl": "https://mcp.slack.com/.well-known/oauth-authorization-server",
+            "authorizationEndpoint": "https://slack.com/oauth/v2_user/authorize",
+            "tokenEndpoint": "https://slack.com/api/oauth.v2.user.access",
+            "scopes": [
+              "search:read.public",
+              "search:read.private",
+              "search:read.mpim",
+              "search:read.im",
+              "search:read.files",
+              "files:read",
+              "emoji:read",
+              "search:read.users",
+              "chat:write",
+              "channels:history",
+              "groups:history",
+              "mpim:history",
+              "im:history",
+              "channels:write",
+              "groups:write",
+              "im:write",
+              "mpim:write",
+              "reactions:write",
+              "canvases:read",
+              "canvases:write",
+              "users:read",
+              "users:read.email",
+              "channels:read",
+              "groups:read",
+              "mpim:read"
+            ],
+            "authUrlParams": {},
+            "tokenRequest": {
+              "contentType": "form",
+              "includeClientSecret": true
+            },
+            "discovery": "protected_resource"
+          }
+        },
+        "setupPreview": "https://mcp.slack.com/mcp",
+        "prerequisites": [
+          "Slack account",
+          "Internal or directory Slack app"
+        ],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "search",
+            "title": "Search Slack",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "send_message",
+            "title": "Send message",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Slack Remote\n\nSlack does not support dynamic client registration. PuPu must ship or configure a registered Slack app before this hosted MCP can connect reliably, so the entry remains unavailable instead of sending users into a guaranteed OAuth configuration error."
+      },
+      {
+        "id": "workspace.fetch",
+        "toolkitId": "mcp.workspace.fetch",
+        "name": "Fetch",
+        "description": "Fetch a URL and convert its contents to Markdown for the agent via the official local Fetch MCP server.",
+        "category": "workspace",
+        "source": "mcp",
+        "trustLevel": "verified",
+        "status": "available",
+        "installable": true,
+        "license": "Apache-2.0 / MIT",
+        "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+        "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "uvx",
+          "args": [
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--from",
+            "mcp-server-fetch==2026.7.10",
+            "--with",
+            "mcp==1.28.0",
+            "mcp-server-fetch"
+          ]
+        },
+        "setupPreview": "uvx mcp-server-fetch==2026.7.10",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "fetch",
+            "title": "Fetch URL",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 1
+        },
+        "readmeMarkdown": "## Fetch\n\nRuns the official local `mcp-server-fetch` server over STDIO. It exposes a single `fetch(url)` tool that retrieves a web page and converts it to Markdown for the agent. Every fetch requires explicit confirmation.\n\nThis server can access local/internal IP addresses and may represent a security risk. Exercise caution when using this MCP server to ensure this does not expose any sensitive data."
+      },
+      {
+        "id": "productivity.discord",
+        "toolkitId": "mcp.productivity.discord",
+        "name": "Discord",
+        "description": "Third-party Discord MCP server (IQAI) for messaging, channels, forums, reactions and webhooks via a Discord bot token.",
+        "category": "communication",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
+        "docsUrl": "https://github.com/IQAIcom/mcp-discord",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/IQAIcom/mcp-discord",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@iqai/mcp-discord@0.0.6"
+          ]
+        },
+        "setupPreview": "npx -y @iqai/mcp-discord@0.0.6",
+        "prerequisites": [
+          "Discord bot token from the Developer Portal"
+        ],
+        "secrets": [
+          {
+            "key": "DISCORD_TOKEN",
+            "label": "Discord bot token"
+          }
+        ],
+        "tools": [
+          {
+            "name": "discord_get_server_info",
+            "title": "Get server info",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "discord_read_messages",
+            "title": "Read messages",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "discord_get_forum_channels",
+            "title": "List forum channels",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "discord_get_forum_post",
+            "title": "Get forum post",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "discord_login",
+            "title": "Login",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_send",
+            "title": "Send message",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_create_forum_post",
+            "title": "Create forum post",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_reply_to_forum",
+            "title": "Reply to forum",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_create_category",
+            "title": "Create category",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_edit_category",
+            "title": "Edit category",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_delete_category",
+            "title": "Delete category",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_create_text_channel",
+            "title": "Create text channel",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_delete_channel",
+            "title": "Delete channel",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_delete_message",
+            "title": "Delete message",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_delete_forum_post",
+            "title": "Delete forum post",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_add_reaction",
+            "title": "Add reaction",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_add_multiple_reactions",
+            "title": "Add multiple reactions",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_remove_reaction",
+            "title": "Remove reaction",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_create_webhook",
+            "title": "Create webhook",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_send_webhook_message",
+            "title": "Send webhook message",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_edit_webhook",
+            "title": "Edit webhook",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "discord_delete_webhook",
+            "title": "Delete webhook",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 18
+        },
+        "readmeMarkdown": "## Discord (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-discord` server (IQAI) over stdio, pinned to `@0.0.6`. This is **not** an official Discord MCP server and is **pending PuPu review** (`needs_review`); the version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `DISCORD_TOKEN` environment variable, injected by the PuPu backend secret store \u2014 it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Discord bot** for the agent and grant it the **minimum** permissions only:\n\n- Do **not** grant the **Administrator** permission. Grant only the specific guild/channel permissions for the actions you want the agent to perform (e.g. Send Messages / Read Message History for the specific channels in use).\n- **Scope the bot to a single guild (server)** wherever possible, rather than inviting it to multiple servers.\n- When inviting the bot, select only the OAuth2 scopes/permissions it needs; avoid blanket permission integers.\n- Treat the bot token as a secret: rotate it if it leaks, and remove the bot from servers you no longer want the agent to reach.\n\nEvery write, messaging, moderation, webhook and login tool requires explicit confirmation; only read-only tools (get server info, read messages, list/get forum posts) run without a prompt."
+      },
+      {
+        "id": "productivity.telegram",
+        "toolkitId": "mcp.productivity.telegram",
+        "name": "Telegram",
+        "description": "Third-party Telegram MCP server (IQAI, Bot API / Telegraf) for sending, forwarding and pinning messages and reading channel info/members via a Telegram bot token.",
+        "category": "communication",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
+        "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/IQAIcom/mcp-telegram",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@iqai/mcp-telegram@0.1.4"
+          ]
+        },
+        "setupPreview": "npx -y @iqai/mcp-telegram@0.1.4",
+        "prerequisites": [
+          "Telegram bot token from @BotFather"
+        ],
+        "secrets": [
+          {
+            "key": "TELEGRAM_BOT_TOKEN",
+            "label": "Telegram bot token"
+          }
+        ],
+        "tools": [
+          {
+            "name": "GET_CHANNEL_INFO",
+            "title": "Get channel info",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "GET_CHANNEL_MEMBERS",
+            "title": "Get channel members",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "SEND_MESSAGE",
+            "title": "Send message",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "FORWARD_MESSAGE",
+            "title": "Forward message",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "PIN_MESSAGE",
+            "title": "Pin message",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 3
+        },
+        "readmeMarkdown": "## Telegram (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-telegram` server (IQAI) over stdio, pinned to `@0.1.4`. This is built on the Telegram **Bot API** (Telegraf) and is **not** an official Telegram MCP server; it is **pending PuPu review** (`needs_review`). The version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `TELEGRAM_BOT_TOKEN` environment variable, injected by the PuPu backend secret store \u2014 it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Telegram bot** for the agent and constrain its reach:\n\n- Create the bot via [@BotFather](https://t.me/BotFather) and treat the token as a secret; rotate it if it leaks.\n- Add the bot **only to the specific groups/channels** the agent needs. The bot's group/channel membership **is its blast radius** and is not enforceable in code \u2014 a bot can message, forward from, and pin in every chat it has joined.\n- Enable **mention-only mode** (the package's `SAMPLING_MENTION_ONLY` is on by default) so the bot only reacts when explicitly mentioned in groups, rather than to all traffic.\n- Remove the bot from any chat you no longer want the agent to reach.\n\n### Forwarding is an exfiltration primitive\n\n`FORWARD_MESSAGE` copies content from one chat into another and is gated behind explicit confirmation, alongside `SEND_MESSAGE` and `PIN_MESSAGE`. Only the read-only tools (get channel info, get channel members) run without a prompt."
+      },
+      {
+        "id": "workspace.sqlite",
+        "toolkitId": "mcp.workspace.sqlite",
+        "name": "SQLite",
+        "description": "Query and manage a local SQLite database file through the SQLite reference MCP server.",
+        "category": "workspace",
+        "source": "mcp",
+        "trustLevel": "community",
+        "status": "available",
+        "installable": true,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
+        "docsUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+        "metadata": {
+          "type": "http_json",
+          "request": {
+            "url": "https://api.github.com/repos/modelcontextprotocol/servers-archived",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "PuPu-MCP-Store"
+            }
+          },
+          "fields": {
+            "fullName": "full_name",
+            "description": "description",
+            "stars": "stargazers_count",
+            "license": "license.spdx_id",
+            "ownerLogin": "owner.login",
+            "ownerAvatarUrl": "owner.avatar_url"
+          },
+          "icon": {
+            "urlPath": "owner.avatar_url"
+          },
+          "iconPolicy": "fallback",
+          "cacheTtlMs": 86400000
+        },
+        "workspace": {
+          "required": true,
+          "placeholder": "${WORKSPACE}",
+          "binding": "agent_workspace_root"
+        },
+        "mcp": {
+          "transport": "stdio",
+          "command": "uvx",
+          "args": [
+            "--exclude-newer=2026-07-28T00:00:00Z",
+            "--from",
+            "mcp-server-sqlite==2025.4.25",
+            "--with",
+            "mcp==1.28.0",
+            "mcp-server-sqlite",
+            "--db-path",
+            "${WORKSPACE}/pupu-mcp.sqlite"
+          ]
+        },
+        "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}/pupu-mcp.sqlite",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "read_query",
+            "title": "Run SELECT query",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "list_tables",
+            "title": "List tables",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "describe_table",
+            "title": "Describe table",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "write_query",
+            "title": "Run INSERT/UPDATE/DELETE query",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "create_table",
+            "title": "Create table",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "append_insight",
+            "title": "Append business insight to memo",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": true,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 3
+        },
+        "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository \u2014 it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server opens **`${WORKSPACE}/pupu-mcp.sqlite`**, a local SQLite database file inside the selected agent workspace.\n\n### Use a disposable, non-production workspace\n\nThe agent can read **every table and row** in this database file \u2014 reading the database **is** data exfiltration. Use a **disposable / non-production** workspace whose `pupu-mcp.sqlite` file you are comfortable exposing in full; never copy production or sensitive data into it.\n\n### Gated vs. ungated tools\n\nThe read tools \u2014 `read_query` (SELECT only), `list_tables`, and `describe_table` \u2014 run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` \u2014 INSERT / UPDATE / DELETE.\n- `create_table` \u2014 CREATE TABLE (DDL).\n- `append_insight` \u2014 writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
+      },
+      {
+        "id": "dev.microsoft-learn",
+        "toolkitId": "mcp.dev.microsoft-learn",
+        "name": "Microsoft Learn",
+        "description": "Official Microsoft Learn MCP service for searching and fetching Microsoft documentation and code samples.",
+        "category": "dev",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "hosted",
+        "sourceRepo": "https://github.com/MicrosoftDocs/mcp",
+        "docsUrl": "https://learn.microsoft.com/en-us/training/support/mcp",
+        "mcp": {
+          "transport": "http",
+          "runtimeTransport": "streamable_http",
+          "url": "https://learn.microsoft.com/api/mcp",
+          "headers": []
+        },
+        "setupPreview": "https://learn.microsoft.com/api/mcp",
+        "prerequisites": [],
+        "secrets": [],
+        "tools": [
+          {
+            "name": "microsoft_docs_search",
+            "title": "Search Microsoft Learn docs",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "microsoft_code_sample_search",
+            "title": "Search Microsoft code samples",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "microsoft_docs_fetch",
+            "title": "Fetch Microsoft docs page",
+            "requiresConfirmation": false
+          }
+        ],
+        "policySummary": {
+          "reviewed": false,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 0
+        },
+        "readmeMarkdown": "## Microsoft Learn (official hosted service, pending review)\n\nConnects to Microsoft's official Microsoft Learn MCP service at `https://learn.microsoft.com/api/mcp`, documented in [`MicrosoftDocs/mcp`](https://github.com/MicrosoftDocs/mcp). It searches and fetches Microsoft documentation and code samples; requests and URLs are sent to Microsoft's hosted endpoint and returned content is available to the agent. Microsoft documents this service as free and requiring no API key, subject to its service limits. Packaged PuPu qualification and maintainer review are pending, so this entry remains `needs_review` and cannot be installed."
+      },
+      {
+        "id": "productivity.brave-search",
+        "toolkitId": "mcp.productivity.brave-search",
+        "name": "Brave Search",
+        "description": "Official Brave Search MCP server for web, news, image and video search.",
+        "category": "productivity",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/brave/brave-search-mcp-server",
+        "docsUrl": "https://github.com/brave/brave-search-mcp-server#readme",
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "@brave/brave-search-mcp-server@2.1.0",
+            "--transport",
+            "stdio",
+            "--enabled-tools",
+            "brave_web_search",
+            "brave_news_search",
+            "brave_image_search",
+            "brave_video_search"
+          ]
+        },
+        "setupPreview": "npx -y @brave/brave-search-mcp-server@2.1.0 --transport stdio",
+        "prerequisites": [
+          "Brave Search API account"
+        ],
+        "secrets": [
+          {
+            "key": "BRAVE_API_KEY",
+            "label": "Brave Search API key"
+          }
+        ],
+        "tools": [
+          {
+            "name": "brave_web_search",
+            "title": "Search the web",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "brave_news_search",
+            "title": "Search news",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "brave_image_search",
+            "title": "Search images",
+            "requiresConfirmation": false
+          },
+          {
+            "name": "brave_video_search",
+            "title": "Search videos",
+            "requiresConfirmation": false
+          }
+        ],
+        "policySummary": {
+          "reviewed": false,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 0
+        },
+        "readmeMarkdown": "## Brave Search (official package, pending review)\n\nRuns Brave Software's official `@brave/brave-search-mcp-server` over stdio, pinned to `@2.1.0`; only the four listed search tools are requested and the server does not listen on a port. Search queries and result requests are sent to Brave Search, and the returned results are available to the agent. A Brave Search API account and `BRAVE_API_KEY` are required; usage and any charges follow Brave's current plan. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      },
+      {
+        "id": "productivity.tavily",
+        "toolkitId": "mcp.productivity.tavily",
+        "name": "Tavily",
+        "description": "Official Tavily MCP server for web search, extraction, crawling, mapping and research.",
+        "category": "productivity",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/tavily-ai/tavily-mcp",
+        "docsUrl": "https://github.com/tavily-ai/tavily-mcp#readme",
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "tavily-mcp@0.2.21"
+          ]
+        },
+        "setupPreview": "npx -y tavily-mcp@0.2.21",
+        "prerequisites": [
+          "Tavily API account"
+        ],
+        "secrets": [
+          {
+            "key": "TAVILY_API_KEY",
+            "label": "Tavily API key"
+          }
+        ],
+        "tools": [
+          {
+            "name": "tavily_search",
+            "title": "Search with Tavily",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "tavily_extract",
+            "title": "Extract web content",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "tavily_crawl",
+            "title": "Crawl a website",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "tavily_map",
+            "title": "Map a website",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "tavily_research",
+            "title": "Research with Tavily",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": false,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 5
+        },
+        "readmeMarkdown": "## Tavily (official package, pending review)\n\nRuns Tavily's official `tavily-mcp` package over stdio, pinned to `@0.2.21`. PuPu declares `TAVILY_API_KEY` for a predictable complete tool set even though upstream also documents a keyless mode. Search queries and supplied URLs are sent to Tavily for processing; search, extraction, crawling and research may consume provider credits or incur account charges. The catalog requests confirmation for every listed tool because crawl and research can perform broader external retrieval; enforcement must be qualified with the packaged runtime before promotion. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      },
+      {
+        "id": "productivity.firecrawl",
+        "toolkitId": "mcp.productivity.firecrawl",
+        "name": "Firecrawl",
+        "description": "Official Firecrawl MCP server for web scraping, search and site mapping.",
+        "category": "productivity",
+        "source": "mcp",
+        "trustLevel": "needs_review",
+        "status": "needs_review",
+        "installable": false,
+        "license": "MIT",
+        "sourceRepo": "https://github.com/firecrawl/firecrawl-mcp-server",
+        "docsUrl": "https://docs.firecrawl.dev/mcp-server",
+        "mcp": {
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "--before=2026-07-28T00:00:00Z",
+            "firecrawl-mcp@3.22.4"
+          ]
+        },
+        "setupPreview": "npx -y firecrawl-mcp@3.22.4",
+        "prerequisites": [
+          "Firecrawl API account"
+        ],
+        "secrets": [
+          {
+            "key": "FIRECRAWL_API_KEY",
+            "label": "Firecrawl API key"
+          }
+        ],
+        "tools": [
+          {
+            "name": "firecrawl_scrape",
+            "title": "Scrape a webpage",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "firecrawl_search",
+            "title": "Search the web",
+            "requiresConfirmation": true
+          },
+          {
+            "name": "firecrawl_map",
+            "title": "Map a website",
+            "requiresConfirmation": true
+          }
+        ],
+        "policySummary": {
+          "reviewed": false,
+          "defaultEnabledTools": 0,
+          "confirmationRequiredTools": 3
+        },
+        "readmeMarkdown": "## Firecrawl (official package, pending review)\n\nRuns Firecrawl's official `firecrawl-mcp` package over stdio, pinned to `@3.22.4`; the bundled package requires Node 22 or newer, supplied by PuPu's packaged runtime. The preview lists `firecrawl_scrape`, `firecrawl_search` and `firecrawl_map`, but the server can advertise broader scraping, crawling, extraction, monitoring and research capabilities; confirmation for the full discovered tool set must be qualified with the packaged runtime before promotion. URLs and requested page data are processed by Firecrawl or its configured service, and operations may consume Firecrawl credits. `firecrawl_scrape` can accept interactive actions, so this catalog requests confirmation for it. Live-auth qualification and PuPu maintainer review are pending, so this entry remains `needs_review` and cannot be installed. Dependency review on 2026-09-12 reported security advisories in the resolved npm dependencies; remediation or an evidence-backed applicability review is required before enabling this entry."
+      }
+    ]
+  },
+  "skillPacks": [
+    {
+      "id": "skillpack.superpowers-essentials",
+      "title": "Superpowers Essentials",
+      "titleZh": "\u8d85\u80fd\u529b\u7cbe\u9009",
+      "blurb": "Five battle-tested software-development methodology skills from obra/superpowers: brainstorm before building, debug by root cause, write step-by-step plans, take code review with rigor, and prove work is done before claiming it.",
+      "blurbZh": "obra/superpowers \u7cbe\u9009\u7684\u4e94\u6761\u8f6f\u4ef6\u5f00\u53d1\u65b9\u6cd5\u8bba:\u52a8\u624b\u524d\u5148\u6784\u601d\u3001\u6309\u6839\u56e0\u8c03\u8bd5\u3001\u5199\u5206\u6b65\u8ba1\u5212\u3001\u4ee5\u6280\u672f\u4e25\u8c28\u5bf9\u5f85\u8bc4\u5ba1\u3001\u5ba3\u79f0\u5b8c\u6210\u524d\u5148\u62ff\u8bc1\u636e\u3002",
+      "gradient": [
+        "#5B8DEF",
+        "#7C5CFC"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "obra/superpowers",
+        "sha": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "license": "MIT"
+      },
+      "subset": [
+        "skills/brainstorming",
+        "skills/systematic-debugging",
+        "skills/writing-plans",
+        "skills/receiving-code-review",
+        "skills/verification-before-completion"
+      ],
+      "manifest": [
+        {
+          "path": "skills/brainstorming/SKILL.md",
+          "sha256": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d"
+        },
+        {
+          "path": "skills/systematic-debugging/SKILL.md",
+          "sha256": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a"
+        },
+        {
+          "path": "skills/writing-plans/SKILL.md",
+          "sha256": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845"
+        },
+        {
+          "path": "skills/receiving-code-review/SKILL.md",
+          "sha256": "647036bbdab7bf2317e14e079595e984c9030f64295e2b4c0fb57dbeb48f25dd"
+        },
+        {
+          "path": "skills/verification-before-completion/SKILL.md",
+          "sha256": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-18-superpowers",
+        "reviewedAt": "2026-07-18",
+        "reviewers": [
+          "mcp-store-curator",
+          "pupu-llm-expert"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "brainstorming",
+          "description": "Explore before building: divergent ideas, cross-domain analogies, assumption checks",
+          "descriptionZh": "\u52a8\u624b\u524d\u5148\u6784\u601d:\u53d1\u6563\u63a2\u7d22\u3001\u8de8\u57df\u7c7b\u6bd4\u3001\u5047\u8bbe\u76d8\u70b9"
+        },
+        {
+          "name": "systematic-debugging",
+          "description": "Debug by root cause, not by patching symptoms",
+          "descriptionZh": "\u6309\u6839\u56e0\u8c03\u8bd5,\u4e0d\u6309\u75c7\u72b6\u6253\u8865\u4e01"
+        },
+        {
+          "name": "writing-plans",
+          "description": "Turn a spec into zero-context, bite-sized step-by-step plans",
+          "descriptionZh": "\u628a spec \u62c6\u6210\u96f6\u4e0a\u4e0b\u6587\u30012-5 \u5206\u949f\u7c92\u5ea6\u7684\u5206\u6b65\u8ba1\u5212"
+        },
+        {
+          "name": "receiving-code-review",
+          "description": "Treat review feedback with technical rigor \u2014 verify before implementing",
+          "descriptionZh": "\u4ee5\u6280\u672f\u4e25\u8c28\u5bf9\u5f85\u8bc4\u5ba1\u610f\u89c1,\u5148\u9a8c\u8bc1\u518d\u5b9e\u73b0"
+        },
+        {
+          "name": "verification-before-completion",
+          "description": "Evidence before claims: find the proving command, run it, read the output",
+          "descriptionZh": "\u5ba3\u79f0\u5b8c\u6210\u524d\u5148\u62ff\u8bc1\u636e:\u627e\u5230\u9a8c\u8bc1\u547d\u4ee4\u3001\u8dd1\u3001\u8bfb\u8f93\u51fa"
+        }
+      ]
+    },
+    {
+      "id": "skillpack.prompt-master",
+      "title": "Prompt Master",
+      "titleZh": "\u63d0\u793a\u8bcd\u5927\u5e08",
+      "blurb": "Turns rough ideas into production-ready prompts \u2014 routed and tuned per target AI tool, with a 37-pattern failure diagnostic.",
+      "blurbZh": "\u628a\u7c97\u7cd9\u60f3\u6cd5\u6253\u78e8\u6210\u53ef\u76f4\u63a5\u7c98\u8d34\u7684\u751f\u4ea7\u7ea7\u63d0\u793a\u8bcd:\u6309\u76ee\u6807 AI \u5de5\u5177\u9010\u4e00\u8def\u7531\u8c03\u4f18,\u5185\u7f6e\u5931\u8d25\u6a21\u5f0f\u8bca\u65ad\u6e05\u5355\u3002",
+      "gradient": [
+        "#f59e0b",
+        "#b45309"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "nidhinjs/prompt-master",
+        "sha": "d15eabbe5d2122eedc060bae8a771381e9873d1b",
+        "license": "MIT"
+      },
+      "subset": [
+        "prompt-master"
+      ],
+      "manifest": [
+        {
+          "path": "SKILL.md",
+          "sha256": "b85718374d27bbada453791af92b7ae0b3256e5552d2f3f9d940ca4183131e4b"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-21-prompt-master",
+        "reviewedAt": "2026-07-21",
+        "reviewers": [
+          "claude-fable-5"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "prompt-master",
+          "description": "Route and tune prompts per target AI tool, with a 37-pattern failure diagnostic",
+          "descriptionZh": "\u6309\u76ee\u6807 AI \u5de5\u5177\u8def\u7531\u8c03\u4f18,\u5185\u7f6e 37 \u79cd\u5931\u8d25\u6a21\u5f0f\u8bca\u65ad"
+        }
+      ]
+    },
+    {
+      "id": "skillpack.frontend-design",
+      "title": "Frontend Design",
+      "titleZh": "\u524d\u7aef\u8bbe\u8ba1",
+      "blurb": "Anthropic's anti-generic UI design methodology \u2014 deliberate palette, typography and one justified aesthetic risk.",
+      "blurbZh": "Anthropic \u5b98\u65b9\u7684\u53cd\u6a21\u677f UI \u8bbe\u8ba1\u65b9\u6cd5\u8bba:\u6df1\u601d\u719f\u8651\u7684\u914d\u8272\u3001\u5b57\u4f53\u7f16\u6392,\u4ee5\u53ca\u4e00\u6b21\u8bf4\u5f97\u51fa\u7406\u7531\u7684\u7f8e\u5b66\u5192\u9669\u3002",
+      "gradient": [
+        "#d97757",
+        "#b05730"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "anthropics/skills",
+        "sha": "fa0fa64bdc967915dc8399e803be67759e1e62b8",
+        "license": "Apache-2.0"
+      },
+      "subset": [
+        "skills/frontend-design"
+      ],
+      "manifest": [
+        {
+          "path": "skills/frontend-design/SKILL.md",
+          "sha256": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd"
+        }
+      ],
+      "review": {
+        "recordId": "S5-2026-07-21-frontend-design",
+        "reviewedAt": "2026-07-21",
+        "reviewers": [
+          "claude-fable-5"
+        ]
+      },
+      "commandPreviews": [
+        {
+          "name": "frontend-design",
+          "description": "Deliberate palette, typography and one justified aesthetic risk \u2014 anti-generic UI",
+          "descriptionZh": "\u6df1\u601d\u719f\u8651\u7684\u914d\u8272\u4e0e\u5b57\u4f53\u7f16\u6392,\u4e00\u6b21\u8bf4\u5f97\u51fa\u7406\u7531\u7684\u7f8e\u5b66\u5192\u9669"
+        }
+      ]
+    },
+    {
+      "id": "skillpack.vercel-web-review",
+      "title": "Vercel Web Review",
+      "titleZh": "Vercel \u7f51\u9875\u5ba1\u67e5",
+      "blurb": "Vercel\u2019s web-design-guidelines skill reviews accessibility, performance and interface quality. It reads your selected files and fetches current official guidelines online; the full React skills collection is not included.",
+      "blurbZh": "\u7cbe\u9009 Vercel \u7f51\u9875\u5ba1\u67e5\u6280\u80fd\uff0c\u68c0\u67e5\u65e0\u969c\u788d\u3001\u6027\u80fd\u4e0e\u754c\u9762\u4f53\u9a8c\u3002\u9700\u8981\u8bfb\u53d6\u6240\u9009\u6587\u4ef6\u5e76\u8054\u7f51\u83b7\u53d6\u5b98\u65b9\u89c4\u5219\uff1b\u4e0d\u5305\u542b\u5b8c\u6574 React \u6280\u80fd\u5408\u96c6\u3002",
+      "gradient": [
+        "#343434",
+        "#646464"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "vercel-labs/agent-skills",
+        "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+        "license": "MIT"
+      },
+      "subset": [
+        "skills/web-design-guidelines"
+      ],
+      "commandPreviews": [
+        {
+          "name": "web-design-guidelines",
+          "description": "Review web interfaces using current Vercel guidelines; requires file read and web fetch.",
+          "descriptionZh": "\u6309 Vercel \u6700\u65b0\u89c4\u5219\u5ba1\u67e5\u7f51\u9875\uff1b\u9700\u8981\u6587\u4ef6\u8bfb\u53d6\u4e0e\u7f51\u9875\u83b7\u53d6\u5de5\u5177\u3002"
+        }
+      ],
+      "manifest": [
+        {
+          "path": "skills/web-design-guidelines/SKILL.md",
+          "sha256": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-283-vercel-web-review-content-review",
+        "reviewedAt": "2026-09-12",
+        "reviewers": [
+          "Codex (selected instruction content review)"
+        ]
+      }
+    },
+    {
+      "id": "skillpack.trailofbits-audit-prep",
+      "title": "Trail of Bits Audit Prep",
+      "titleZh": "Trail of Bits \u5ba1\u8ba1\u51c6\u5907",
+      "blurb": "Trail of Bits\u2019 audit-prep-assistant helps define review scope, check test coverage and prepare audit documentation. Uses workspace tools; language-specific analyzers are separate dependencies. This is audit preparation, not a security certification.",
+      "blurbZh": "\u7cbe\u9009 Trail of Bits \u5ba1\u8ba1\u51c6\u5907\u6280\u80fd\uff0c\u6574\u7406\u5ba1\u67e5\u8303\u56f4\u3001\u6d4b\u8bd5\u8986\u76d6\u548c\u5ba1\u8ba1\u6587\u6863\u3002\u9700\u8981\u5de5\u4f5c\u533a\u5de5\u5177\uff0c\u4e13\u7528\u5206\u6790\u5668\u9700\u53e6\u884c\u914d\u7f6e\uff1b\u4f7f\u7528\u8be5\u6280\u80fd\u4e0d\u4ee3\u8868\u901a\u8fc7\u5b89\u5168\u8ba4\u8bc1\u3002",
+      "gradient": [
+        "#315173",
+        "#54769B"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "trailofbits/skills",
+        "sha": "321ccfe628eca0d314b0ee4eaffcdd8a05639aaf",
+        "license": "CC-BY-SA-4.0"
+      },
+      "subset": [
+        "plugins/building-secure-contracts/skills/audit-prep-assistant"
+      ],
+      "commandPreviews": [
+        {
+          "name": "audit-prep-assistant",
+          "description": "Prepare scope, coverage evidence and documentation for a security review.",
+          "descriptionZh": "\u51c6\u5907\u5b89\u5168\u5ba1\u67e5\u8303\u56f4\u3001\u8986\u76d6\u7387\u8bc1\u636e\u548c\u9879\u76ee\u6587\u6863\u3002"
+        }
+      ],
+      "manifest": [
+        {
+          "path": "plugins/building-secure-contracts/skills/audit-prep-assistant/SKILL.md",
+          "sha256": "d639b411a315ea9420e40afabe75bbf4b1bfed6ea5c8601a3e963343ac9924f2"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-283-trailofbits-audit-prep-content-review",
+        "reviewedAt": "2026-09-12",
+        "reviewers": [
+          "Codex (selected instruction content review)"
+        ]
+      }
+    }
+  ]
+}

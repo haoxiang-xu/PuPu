@@ -1,0 +1,17 @@
+const { test, expect } = require('./fixtures/pupu_app');
+test('ticket 275 config reaches real Electron debug API after reload', async ({pupu}, testInfo) => {
+  const { appWindow, testApi } = pupu;
+  await testApi.get('/debug/state');
+  for (const [theme_mode,locale] of [['dark_mode','zh-CN'],['light_mode','en']]) {
+    await appWindow.evaluate(async ({theme_mode,locale}) => {
+      let req;
+      const chunks=Object.keys(window).find(key=>key.startsWith('webpackChunk'));
+      window[chunks].push([[`ticket275-${Date.now()}`],{},r=>{req=r;}]);
+      const settings=req('./src/SERVICEs/settings_repository.js');
+      await settings.updateNamespace('appearance',current=>({...current,theme_mode,locale}));
+    },{theme_mode,locale});
+    await appWindow.reload();
+    await expect.poll(async () => (await testApi.get('/debug/state')).window_state).toMatchObject({isDark:theme_mode==='dark_mode',locale});
+    await testInfo.attach(locale,{body:JSON.stringify(await testApi.get('/debug/state'),null,2),contentType:'application/json'});
+  }
+});

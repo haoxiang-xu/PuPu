@@ -1,0 +1,2099 @@
+{
+  "results": [
+    {
+      "source": {
+        "path": "/Users/red/Desktop/GITRepo/PuPu/docs/security/third-party-plugins-2026-09-13/grafana-derived.go.mod",
+        "type": "lockfile"
+      },
+      "packages": [
+        {
+          "package": {
+            "name": "connectrpc.com/connect",
+            "version": "1.19.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/PaesslerAG/gval",
+            "version": "1.2.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/PaesslerAG/jsonpath",
+            "version": "0.1.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/apache/arrow-go/v18",
+            "version": "18.5.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2",
+            "version": "1.41.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/config",
+            "version": "1.32.12",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/credentials",
+            "version": "1.19.12",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
+            "version": "1.18.20",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/internal/configsources",
+            "version": "1.4.20",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
+            "version": "2.7.20",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/internal/ini",
+            "version": "1.8.6",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
+            "version": "1.13.7",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+            "version": "1.13.20",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/signin",
+            "version": "1.0.8",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/sso",
+            "version": "1.30.13",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
+            "version": "1.35.17",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/aws-sdk-go-v2/service/sts",
+            "version": "1.41.9",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/aws/smithy-go",
+            "version": "1.24.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/bahlo/generic-list-go",
+            "version": "0.2.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/beorn7/perks",
+            "version": "1.0.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/buger/jsonparser",
+            "version": "1.1.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/cenkalti/backoff/v5",
+            "version": "5.0.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/cespare/xxhash/v2",
+            "version": "2.3.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/cheekybits/genny",
+            "version": "1.0.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/clipperhouse/displaywidth",
+            "version": "0.6.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/clipperhouse/stringish",
+            "version": "0.1.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/clipperhouse/uax29/v2",
+            "version": "2.3.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/dennwc/varint",
+            "version": "1.0.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/fatih/color",
+            "version": "1.18.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/felixge/httpsnoop",
+            "version": "1.0.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-logr/logr",
+            "version": "1.4.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-logr/stdr",
+            "version": "1.2.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/analysis",
+            "version": "0.24.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/errors",
+            "version": "0.22.7",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/jsonpointer",
+            "version": "0.22.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/jsonreference",
+            "version": "0.21.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/loads",
+            "version": "0.23.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/runtime",
+            "version": "0.29.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/spec",
+            "version": "0.22.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/strfmt",
+            "version": "0.26.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag",
+            "version": "0.25.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/cmdutils",
+            "version": "0.25.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/conv",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/fileutils",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/jsonname",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/jsonutils",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/loading",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/mangling",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/netutils",
+            "version": "0.25.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/stringutils",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/typeutils",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/swag/yamlutils",
+            "version": "0.25.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-openapi/validate",
+            "version": "0.25.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/go-viper/mapstructure/v2",
+            "version": "2.5.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/goccy/go-json",
+            "version": "0.10.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/gogo/googleapis",
+            "version": "1.4.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/gogo/protobuf",
+            "version": "1.3.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/golang-jwt/jwt/v5",
+            "version": "5.3.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/golang/protobuf",
+            "version": "1.5.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/flatbuffers",
+            "version": "25.12.19+incompatible",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/gnostic",
+            "version": "0.7.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/gnostic-models",
+            "version": "0.7.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/go-cmp",
+            "version": "0.7.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/go-querystring",
+            "version": "1.2.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/jsonschema-go",
+            "version": "0.4.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/google/uuid",
+            "version": "1.6.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/gorilla/mux",
+            "version": "1.8.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/amixr-api-go-client",
+            "version": "0.0.28",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/grafana-openapi-client-go",
+            "version": "0.0.0-20260330113218-ee77c4f6f90e",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/grafana-plugin-sdk-go",
+            "version": "0.290.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/incident-go",
+            "version": "0.0.0-20251003115753-d71681611ddd",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/otel-profiling-go",
+            "version": "0.5.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/pyroscope-go/godeltaprof",
+            "version": "0.1.9",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/pyroscope/api",
+            "version": "1.3.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grafana/regexp",
+            "version": "0.0.0-20250905093917-f7b3be9d1853",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus",
+            "version": "1.1.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grpc-ecosystem/go-grpc-middleware/v2",
+            "version": "2.3.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/grpc-ecosystem/grpc-gateway/v2",
+            "version": "2.28.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/hashicorp/go-cleanhttp",
+            "version": "0.5.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/hashicorp/go-hclog",
+            "version": "1.6.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/hashicorp/go-plugin",
+            "version": "1.7.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/hashicorp/go-retryablehttp",
+            "version": "0.7.8",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/hashicorp/yamux",
+            "version": "0.1.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/invopop/jsonschema",
+            "version": "0.13.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/itchyny/gojq",
+            "version": "0.12.19",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/itchyny/timefmt-go",
+            "version": "0.1.8",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/jaegertracing/jaeger-idl",
+            "version": "0.6.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/jpillora/backoff",
+            "version": "1.0.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/json-iterator/go",
+            "version": "1.1.12",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/jszwedko/go-datemath",
+            "version": "0.1.1-0.20230526204004-640a500621d6",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/klauspost/compress",
+            "version": "1.18.5",
+            "ecosystem": "Go"
+          },
+          "groups": [
+            {
+              "ids": [
+                "GO-2026-5841"
+              ],
+              "aliases": [
+                "GHSA-259r-337f-4rfw",
+                "GO-2026-5841"
+              ],
+              "max_severity": ""
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-5841.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "github.com/klauspost/compress/s2",
+                        "symbols": [
+                          "NewDict"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "github.com/klauspost/compress",
+                    "purl": "pkg:golang/github.com/klauspost/compress"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "1.16.0"
+                        },
+                        {
+                          "fixed": "1.18.7"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "GHSA-259r-337f-4rfw"
+              ],
+              "database_specific": {
+                "review_status": "REVIEWED",
+                "url": "https://pkg.go.dev/vuln/GO-2026-5841"
+              },
+              "details": "Providing a specially crafted dictionary to s2.NewDict and using it to encode data can make the encoder read out of bounds.",
+              "id": "GO-2026-5841",
+              "modified": "2026-07-28T08:59:52.775777802Z",
+              "published": "2026-07-27T16:16:22Z",
+              "references": [
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/klauspost/compress/security/advisories/GHSA-259r-337f-4rfw"
+                },
+                {
+                  "type": "FIX",
+                  "url": "https://github.com/klauspost/compress/commit/8668e357e776d5152ed62f33c17f21b8690664fa"
+                }
+              ],
+              "related": [
+                "CGA-6h67-2j3q-q9qr"
+              ],
+              "schema_version": "1.7.5",
+              "summary": "OOB read in github.com/klauspost/compress/s2"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "github.com/mailru/easyjson",
+            "version": "0.9.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mark3labs/mcp-go",
+            "version": "0.55.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mattetti/filebuffer",
+            "version": "1.0.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mattn/go-colorable",
+            "version": "0.1.14",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mattn/go-isatty",
+            "version": "0.0.20",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mattn/go-runewidth",
+            "version": "0.0.19",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/modern-go/concurrent",
+            "version": "0.0.0-20180306012644-bacd9c7ef1dd",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/modern-go/reflect2",
+            "version": "1.0.3-0.20250322232337-35a7c28c31ee",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/munnerz/goautoneg",
+            "version": "0.0.0-20191010083416-a7dc8b61c822",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/mwitkow/go-conntrack",
+            "version": "0.0.0-20190716064945-2f068394615f",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/oklog/run",
+            "version": "1.2.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/oklog/ulid/v2",
+            "version": "2.1.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/olekukonko/cat",
+            "version": "0.0.0-20250911104152-50322a0618f6",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/olekukonko/errors",
+            "version": "1.1.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/olekukonko/ll",
+            "version": "0.1.4-0.20260115111900-9e59c2286df0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/olekukonko/tablewriter",
+            "version": "1.1.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/pierrec/lz4/v4",
+            "version": "4.1.23",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/planetscale/vtprotobuf",
+            "version": "0.6.1-0.20250313105119-ba97887b0a25",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/alertmanager",
+            "version": "0.31.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/client_golang",
+            "version": "1.23.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/client_model",
+            "version": "0.6.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/common",
+            "version": "0.67.5",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/otlptranslator",
+            "version": "1.0.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/prometheus",
+            "version": "0.311.3",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/prometheus/sigv4",
+            "version": "0.4.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/santhosh-tekuri/jsonschema/v6",
+            "version": "6.0.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/shopspring/decimal",
+            "version": "1.4.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/spf13/cast",
+            "version": "1.10.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/wk8/go-ordered-map/v2",
+            "version": "2.1.8",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/yosida95/uritemplate/v3",
+            "version": "3.0.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "github.com/zeebo/xxh3",
+            "version": "1.0.2",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/auto/sdk",
+            "version": "1.2.1",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/bridges/otelslog",
+            "version": "0.18.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+            "version": "0.65.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace",
+            "version": "0.67.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+            "version": "0.67.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/propagators/jaeger",
+            "version": "1.40.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/contrib/samplers/jaegerremote",
+            "version": "0.34.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel",
+            "version": "1.43.0",
+            "ecosystem": "Go"
+          },
+          "groups": [
+            {
+              "ids": [
+                "GO-2026-5158"
+              ],
+              "aliases": [
+                "CVE-2026-41178",
+                "GHSA-5wrp-cwcj-q835",
+                "GO-2026-5158"
+              ],
+              "max_severity": ""
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-5158.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "go.opentelemetry.io/otel/baggage",
+                        "symbols": [
+                          "New",
+                          "Parse"
+                        ]
+                      },
+                      {
+                        "path": "go.opentelemetry.io/otel/propagation",
+                        "symbols": [
+                          "Baggage.Extract"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "go.opentelemetry.io/otel",
+                    "purl": "pkg:golang/go.opentelemetry.io/otel"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "1.41.0"
+                        },
+                        {
+                          "fixed": "1.42.0"
+                        },
+                        {
+                          "introduced": "1.43.0"
+                        },
+                        {
+                          "fixed": "1.44.0"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-41178",
+                "GHSA-5wrp-cwcj-q835"
+              ],
+              "database_specific": {
+                "review_status": "REVIEWED",
+                "url": "https://pkg.go.dev/vuln/GO-2026-5158"
+              },
+              "details": "Opentelemetry-go's baggage parsing no longer caps raw header length in go.opentelemetry.io/otel",
+              "id": "GO-2026-5158",
+              "modified": "2026-07-27T21:59:42.805474793Z",
+              "published": "2026-07-24T18:35:55Z",
+              "references": [
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/open-telemetry/opentelemetry-go/security/advisories/GHSA-5wrp-cwcj-q835"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/open-telemetry/opentelemetry-go/pull/7880"
+                }
+              ],
+              "related": [
+                "CGA-594m-3qrh-m7qf"
+              ],
+              "schema_version": "1.7.5",
+              "summary": "Opentelemetry-go's baggage parsing no longer caps raw header length in go.opentelemetry.io/otel"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc",
+            "version": "0.19.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+            "version": "1.42.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
+            "version": "1.42.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/exporters/prometheus",
+            "version": "0.64.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/log",
+            "version": "0.19.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/metric",
+            "version": "1.43.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/sdk",
+            "version": "1.43.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/sdk/log",
+            "version": "0.19.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/sdk/metric",
+            "version": "1.43.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/otel/trace",
+            "version": "1.43.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.opentelemetry.io/proto/otlp",
+            "version": "1.10.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.uber.org/atomic",
+            "version": "1.11.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.yaml.in/yaml/v2",
+            "version": "2.4.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "go.yaml.in/yaml/v3",
+            "version": "3.0.4",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "golang.org/x/exp",
+            "version": "0.0.0-20260218203240-3dfff04db8fa",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "golang.org/x/net",
+            "version": "0.55.0",
+            "ecosystem": "Go"
+          },
+          "groups": [
+            {
+              "ids": [
+                "GO-2026-5942"
+              ],
+              "aliases": [
+                "BIT-golang-2026-46600",
+                "CVE-2026-46600",
+                "GO-2026-5942"
+              ],
+              "max_severity": ""
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-5942.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "net",
+                        "symbols": [
+                          "LookupCNAME",
+                          "Resolver.LookupCNAME",
+                          "cgoResSearch"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "stdlib",
+                    "purl": "pkg:golang/stdlib"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "1.26.0-0"
+                        },
+                        {
+                          "fixed": "1.26.6"
+                        },
+                        {
+                          "introduced": "1.27.0-0"
+                        },
+                        {
+                          "fixed": "1.27.0-rc.3"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                },
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-5942.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "golang.org/x/net/dns/dnsmessage",
+                        "symbols": [
+                          "Message.Unpack",
+                          "Parser.Additional",
+                          "Parser.AllAdditionals",
+                          "Parser.AllAnswers",
+                          "Parser.AllAuthorities",
+                          "Parser.Answer",
+                          "Parser.Authority",
+                          "Parser.HTTPSResource",
+                          "Parser.SVCBResource",
+                          "unpackSVCBResource"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "golang.org/x/net",
+                    "purl": "pkg:golang/golang.org/x/net"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "0.56.0"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "BIT-golang-2026-46600",
+                "CVE-2026-46600"
+              ],
+              "credits": [
+                {
+                  "name": "Mundur (https://github.com/M0nd0R)"
+                }
+              ],
+              "database_specific": {
+                "review_status": "REVIEWED",
+                "url": "https://pkg.go.dev/vuln/GO-2026-5942"
+              },
+              "details": "Parsing an invalid SVCB or HTTPS RR can panic when the size of a parameter value overflows the message buffer.",
+              "id": "GO-2026-5942",
+              "modified": "2026-08-17T12:25:32.471119200Z",
+              "published": "2026-07-14T17:29:16Z",
+              "references": [
+                {
+                  "type": "FIX",
+                  "url": "https://go.dev/cl/786345"
+                },
+                {
+                  "type": "REPORT",
+                  "url": "https://go.dev/issue/79795"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://groups.google.com/g/golang-announce/c/94pEornpRlI"
+                }
+              ],
+              "related": [
+                "CGA-6835-7pr2-x4gw"
+              ],
+              "schema_version": "1.9.0",
+              "summary": "Parsing an invalid SVCB or HTTPS RR can panic in golang.org/x/net/dns/dnsmessage"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "golang.org/x/oauth2",
+            "version": "0.36.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "golang.org/x/sync",
+            "version": "0.20.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "golang.org/x/sys",
+            "version": "0.45.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "golang.org/x/text",
+            "version": "0.37.0",
+            "ecosystem": "Go"
+          },
+          "groups": [
+            {
+              "ids": [
+                "GO-2026-5970"
+              ],
+              "aliases": [
+                "CVE-2026-56852",
+                "GO-2026-5970"
+              ],
+              "max_severity": ""
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-5970.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "golang.org/x/text/unicode/norm",
+                        "symbols": [
+                          "Form.Append",
+                          "Form.AppendString",
+                          "Form.Bytes",
+                          "Form.FirstBoundary",
+                          "Form.FirstBoundaryInString",
+                          "Form.IsNormal",
+                          "Form.IsNormalString",
+                          "Form.LastBoundary",
+                          "Form.NextBoundary",
+                          "Form.NextBoundaryInString",
+                          "Form.Properties",
+                          "Form.PropertiesString",
+                          "Form.QuickSpan",
+                          "Form.QuickSpanString",
+                          "Form.Span",
+                          "Form.SpanString",
+                          "Form.String",
+                          "Form.Transform",
+                          "Iter.Init",
+                          "Iter.InitString",
+                          "Iter.Next",
+                          "Iter.Seek",
+                          "nextComposed",
+                          "normReader.Read",
+                          "normWriter.Write"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "golang.org/x/text",
+                    "purl": "pkg:golang/golang.org/x/text"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "0.39.0"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-56852"
+              ],
+              "credits": [
+                {
+                  "name": "Viky Choi (\"vikychoi\" on GitHub)"
+                }
+              ],
+              "database_specific": {
+                "review_status": "REVIEWED",
+                "url": "https://pkg.go.dev/vuln/GO-2026-5970"
+              },
+              "details": "A norm.Iter can enter an infinite loop when handling input containing invalid UTF-8 bytes.",
+              "id": "GO-2026-5970",
+              "modified": "2026-08-14T10:42:20.494473428Z",
+              "published": "2026-07-14T17:29:56Z",
+              "references": [
+                {
+                  "type": "REPORT",
+                  "url": "https://go.dev/issue/80142"
+                },
+                {
+                  "type": "FIX",
+                  "url": "https://go.dev/cl/794100"
+                }
+              ],
+              "related": [
+                "CGA-jjqc-qfr4-frh9",
+                "RHSA-2026:40964",
+                "RHSA-2026:41020",
+                "RHSA-2026:42083",
+                "RHSA-2026:42230",
+                "RHSA-2026:42241",
+                "RHSA-2026:43015",
+                "RHSA-2026:43119",
+                "RHSA-2026:43311",
+                "RHSA-2026:43554",
+                "RHSA-2026:43581",
+                "RHSA-2026:43716",
+                "RHSA-2026:43797",
+                "RHSA-2026:43799",
+                "RHSA-2026:43801",
+                "RHSA-2026:43803",
+                "RHSA-2026:43852",
+                "RHSA-2026:43866",
+                "RHSA-2026:43873",
+                "RHSA-2026:43906",
+                "RHSA-2026:44151",
+                "RHSA-2026:44152",
+                "RHSA-2026:44162",
+                "RHSA-2026:44430",
+                "RHSA-2026:44451",
+                "RHSA-2026:44479",
+                "RHSA-2026:46953",
+                "RHSA-2026:46960",
+                "RHSA-2026:46988",
+                "RHSA-2026:48306",
+                "RHSA-2026:49317",
+                "RHSA-2026:49360",
+                "RHSA-2026:51065",
+                "RHSA-2026:52912",
+                "RHSA-2026:54364",
+                "RHSA-2026:54549"
+              ],
+              "schema_version": "1.8.0",
+              "summary": "Infinite loop on invalid input in golang.org/x/text"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "golang.org/x/xerrors",
+            "version": "0.0.0-20240903120638-7835f813f4da",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "google.golang.org/genproto/googleapis/api",
+            "version": "0.0.0-20260401024825-9d38bb4040a9",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "google.golang.org/genproto/googleapis/rpc",
+            "version": "0.0.0-20260401024825-9d38bb4040a9",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "google.golang.org/grpc",
+            "version": "1.80.0",
+            "ecosystem": "Go"
+          },
+          "groups": [
+            {
+              "ids": [
+                "GO-2026-6061",
+                "GHSA-hrxh-6v49-42gf"
+              ],
+              "aliases": [
+                "GHSA-hrxh-6v49-42gf",
+                "GO-2026-6061"
+              ],
+              "max_severity": "8.8"
+            },
+            {
+              "ids": [
+                "GHSA-2v4p-qf9q-27wj"
+              ],
+              "aliases": [
+                "CVE-2026-84445",
+                "GHSA-2v4p-qf9q-27wj"
+              ],
+              "max_severity": ""
+            },
+            {
+              "ids": [
+                "GHSA-qc2q-p7wx-3px3"
+              ],
+              "aliases": [
+                "CVE-2026-84303",
+                "GHSA-qc2q-p7wx-3px3"
+              ],
+              "max_severity": "6.3"
+            },
+            {
+              "ids": [
+                "GHSA-vp52-pcj8-j9qc"
+              ],
+              "aliases": [
+                "CVE-2026-84304",
+                "GHSA-vp52-pcj8-j9qc"
+              ],
+              "max_severity": "8.7"
+            }
+          ],
+          "vulnerabilities": [
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://vuln.go.dev/ID/GO-2026-6061.json"
+                  },
+                  "ecosystem_specific": {
+                    "imports": [
+                      {
+                        "path": "google.golang.org/grpc/internal/transport",
+                        "symbols": [
+                          "ClientStream.Close",
+                          "ClientStream.Header",
+                          "ClientStream.Read",
+                          "ClientStream.RecvCompress",
+                          "ClientStream.TrailersOnly",
+                          "ClientStream.Write",
+                          "NewHTTP2Client",
+                          "NewServerTransport",
+                          "ServerStream.Read",
+                          "ServerStream.SendHeader",
+                          "ServerStream.Write",
+                          "ServerStream.WriteStatus",
+                          "Stream.ReadMessageHeader",
+                          "controlBuffer.executeAndPut",
+                          "controlBuffer.getOnceLocked",
+                          "http2Client.Close",
+                          "http2Client.GracefulClose",
+                          "http2Client.NewStream",
+                          "http2Server.Drain",
+                          "http2Server.HandleStreams",
+                          "recvBufferReader.Read",
+                          "recvBufferReader.ReadMessageHeader",
+                          "transportReader.Read",
+                          "transportReader.ReadMessageHeader"
+                        ]
+                      },
+                      {
+                        "path": "google.golang.org/grpc/internal/xds/rbac",
+                        "symbols": [
+                          "ChainEngine.IsAuthorized",
+                          "NewChainEngine",
+                          "matchersFromPermissions",
+                          "matchersFromPrincipals"
+                        ]
+                      }
+                    ]
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.82.1"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "GHSA-hrxh-6v49-42gf"
+              ],
+              "database_specific": {
+                "review_status": "REVIEWED",
+                "url": "https://pkg.go.dev/vuln/GO-2026-6061"
+              },
+              "details": "Vulnerabilities in the xDS RBAC authorization engine and the HTTP/2 transport server implementation in google.golang.org/grpc",
+              "id": "GO-2026-6061",
+              "modified": "2026-07-28T15:15:01.470740781Z",
+              "published": "2026-07-27T15:30:50Z",
+              "references": [
+                {
+                  "type": "ADVISORY",
+                  "url": "https://github.com/grpc/grpc-go/security/advisories/GHSA-hrxh-6v49-42gf"
+                },
+                {
+                  "type": "FIX",
+                  "url": "https://github.com/grpc/grpc-go/commit/4ea465d4ab98013f72a142fe0fc89c19770b2935"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9236"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.82.1"
+                }
+              ],
+              "related": [
+                "CGA-xx3f-6h82-7qp3"
+              ],
+              "schema_version": "1.7.5",
+              "summary": "Vulnerabilities in the xDS RBAC authorization engine and the HTTP/2 transport server implementation in google.golang.org/grpc"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-2v4p-qf9q-27wj/GHSA-2v4p-qf9q-27wj.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.82.2"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                },
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-2v4p-qf9q-27wj/GHSA-2v4p-qf9q-27wj.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "1.83.0"
+                        },
+                        {
+                          "fixed": "1.83.2"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                },
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-2v4p-qf9q-27wj/GHSA-2v4p-qf9q-27wj.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "1.84.0-dev"
+                        },
+                        {
+                          "fixed": "1.85.0-dev.0.20260825072537-93e31b48545e"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-84445"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-129",
+                  "CWE-248"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-09-08T21:21:43Z",
+                "nvd_published_at": null,
+                "severity": "HIGH"
+              },
+              "details": "A vulnerability exists in gRPC-Go servers configured with `xds.NewGRPCServer()` where a crafted request missing both `:authority` and `Host` headers can cause a server panic, resulting in a Denial of Service (DoS).\n\nServers built with `xds.NewGRPCServer` install an xDS routing interceptor on every RPC. This interceptor looks up the request’s `:authority` header to pick a virtual host. The HTTP/2 server transport previously accepted requests that had neither `:authority` nor `Host`. When this happened, the xDS routing interceptor attempted to access the first element of an empty slice of authorities, leading to an index out of bounds panic. Since the per-RPC goroutine does not recover from panics, the entire server process would terminate.\n\nThis panic occurs in the interceptor pipeline, meaning the transport credentials handshake (TLS, mTLS, or ALTS) and HTTP/2 connection establishment must complete successfully before the crafted request can reach this logic.\n- Insecure/Standard TLS: If the server permits insecure (plaintext) connections or standard credentials (where client certs are not checked), any unauthenticated remote attacker can trigger the crash.\n- mTLS / ALTS: If strict transport-level authentication is enforced at the network edge or transport layer (e.g., requiring a valid client certificate), the attacker must possess valid transport credentials to initiate the stream and trigger the panic.\n\n### Impact\nAn attacker can cause a complete outage of the gRPC server by sending a request missing both `:authority` and `Host` headers, provided they can successfully establish a transport connection.\n\n### Patches\nThe issue has been addressed in `master` (and backported to `1.83.2` and `1.82.2`). The fix updates the HTTP/2 transport layer to reject requests missing both `:authority` and `Host` headers early, maintaining consistency with and other gRPC language implementations.",
+              "id": "GHSA-2v4p-qf9q-27wj",
+              "modified": "2026-09-08T21:40:56.860483Z",
+              "published": "2026-09-08T21:21:43Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/security/advisories/GHSA-2v4p-qf9q-27wj"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/issues/9354"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9365"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9366"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9367"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/3822494d8ea03b992c089fd2a195f041762fffb7"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/8668b69c167df908b6b3666dcbf40992b9e932a4"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/93e31b48545e2a8aaeb6e06b47fb249f94e6297f"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/grpc/grpc-go"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.82.2"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.83.2"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "summary": "gRPC-Go xDS servers: Denial of Service (DoS) via crash due to missing `:authority` and `Host` headers"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-hrxh-6v49-42gf/GHSA-hrxh-6v49-42gf.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.82.1"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "GO-2026-6061"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-248",
+                  "CWE-770",
+                  "CWE-863"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-07-21T22:03:55Z",
+                "nvd_published_at": null,
+                "severity": "HIGH"
+              },
+              "details": "Multiple security vulnerabilities have been identified and addressed in grpc-go affecting the xDS RBAC authorization engine (internal/xds/rbac) and the HTTP/2 transport server implementation (internal/transport). These vulnerabilities could result in:\n\n- Authorization Bypass (Fail-Open) when translating xDS RBAC policies containing `Metadata` or `RequestedServerName` fields.\n- Denial of Service (High CPU Consumption) due to an HTTP/2 Rapid Reset mitigation bypass during client-initiated stream resets.\n- Denial of Service (Server Panic) when parsing crafted xDS RBAC policies containing `NOT` rules around unsupported fields.\n\n\n### Impact\n_What kind of vulnerability is it? Who is impacted?_\n\n#### xDS RBAC Authorization Bypass via `Metadata` \u0026 `RequestedServerName` matchers\n\n- Affected Component: xDS RBAC \n- Impact: When building policy matchers for gRPC RBAC from xDS configurations, unsupported `permission` and `principal` rules (specifically `Metadata` and `RequestedServerName`) were silently ignored and treated as no-ops.\n  - If an authorization policy relied purely on these matchers for access control, treating those rules as no-ops effectively removed the restrictions.\n- If these unsupported rules were nested inside logical `NOT` rules (`Permission_NotRule` / `Principal_NotId`) or multi-condition `OR/AND` rules, silently dropping them changed the boolean logic flow of the authorization engine.\n\nAs a result, policy evaluation decisions could fail open, allowing unauthorized clients to access protected gRPC services or resources.\n\n#### HTTP/2 Rapid Reset Mitigation Bypass / Denial of Service via Stream Aborts\n\n- Affected Component: HTTP/2 transport\n- Impact: Earlier mitigations in grpc-go for HTTP/2 Rapid Reset only applied threshold checks to items that directly resulted in control frames being written back to the wire, such as `SETTINGS` ACKs or server-initiated `RST_STREAM`s.\n\nWhen a client initiated a rapid flood of stream creation (`HEADERS`) immediately followed by stream termination `RST_STREAM`, items queued up in the control buffer without counting against the transport response frame threshold. An attacker can repeatedly trigger this flood sequence to bypass reader blocking, resulting in high CPU usage, and Denial of Service (DoS).\n\n#### Denial of Service (Panic) in xDS RBAC Engine via Unsupported Fields inside NOT Rules\n\n- Affected Component: xDS RBAC \n- Impact: The xDS RBAC policy translators recursively generate matchers for nested rules. When a `NOT` rule wrapped an unsupported or unhandled field (such as `SourcedMetadata`), the recursive step returned an empty matcher. This could result in a runtime panic when the RBAC engine attempts to authorize an incoming request.\n\nAn attacker or misconfigured/malicious xDS management server delivering an LDS/RDS update containing a `NOT` rule around an unhandled field causes the gRPC server process to crash immediately (CWE-248 / Denial of Service).\n\n### Patches\n_Has the problem been patched? What versions should users upgrade to?_\n\nAll three issues have been fixed in `master` and will be released in 1.82.1 shortly.\n\n### Workarounds\n_Is there a way for users to fix or remediate the vulnerability without upgrading?_\n\nIf upgrading grpc-go immediately is not possible, apply the following workarounds based on your deployment architecture:\n\n* For xDS RBAC Vulnerabilities \u0026 Panics: Ensure that upstream xDS management servers do not push RBAC policies containing `Metadata`, `RequestedServerName`, or `NOT` rules wrapping unsupported fields (such as `SourcedMetadata`) to grpc-go servers.\n* For HTTP/2 Rapid Reset DOS: Configure upstream reverse proxies or load balancers (such as Envoy) with strict HTTP/2 `max_concurrent_streams` limits and active rate limiting on `RST_STREAM` frequency per connection.\n\n### Severity\n\n  | Vulnerability | Qualitative Severity | Approximate CVSS v3.1 Score | Primary Impact |\n  | :--- | :--- | :--- | :--- |\n  | **xDS RBAC Authorization Bypass** | **High** | `8.2` | Unauthorized Access / Fail-Open |\n  | **HTTP/2 Rapid Reset DOS Bypass** | **High** | `7.5` | High CPU Consumption / Denial of Service |\n  | **xDS RBAC Engine Server Panic** | **Medium** | `5.9` | Process Crash / Denial of Service |",
+              "id": "GHSA-hrxh-6v49-42gf",
+              "modified": "2026-09-10T03:51:11.547405330Z",
+              "published": "2026-07-21T22:03:55Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/security/advisories/GHSA-hrxh-6v49-42gf"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9236"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/4ea465d4ab98013f72a142fe0fc89c19770b2935"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/grpc/grpc-go"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.82.1"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "gRPC-Go: xDS RBAC and HTTP/2 Vulnerabilities"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "last_known_affected_version_range": "\u003c= 1.83.0",
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-qc2q-p7wx-3px3/GHSA-qc2q-p7wx-3px3.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.83.1"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-84303"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-178",
+                  "CWE-863"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-09-08T20:50:21Z",
+                "nvd_published_at": "2026-09-01T19:17:30Z",
+                "severity": "MODERATE"
+              },
+              "details": "### Summary\nA vulnerability in the xDS RBAC HTTP filter implementation in grpc-go allows remote attackers to bypass authorization policies (specifically DENY rules) by using mixed-case or canonical-case header matchers (e.g., X-Role instead of x-role). Additionally, the safety guards introduced by gRFC A41 to block grpc- prefixed headers can be evaded via variations in casing (e.g., Grpc-Status).\n\n### Impact\nWhen an operator defines an RBAC policy referencing headers containing uppercase letters (e.g. X-Role), grpc-go fails to match incoming metadata keys because they are unconditionally lowercased. Because of this case-sensitivity mismatch, a policy designed to block requests containing specific header values fails open: the rule is evaluated as a non-match, and traffic that should have been rejected is served.\n\nFurthermore, gRFC A41 requires rejecting configuration schemas specifying header matchers starting with grpc-. Because this check is executed case-sensitively in grpc-go, attackers can bypass the validation by specifying titles like Grpc-Status.\n\n### Patches\nThe problem is fixed in `master` and in the 1.83.1 release.",
+              "id": "GHSA-qc2q-p7wx-3px3",
+              "modified": "2026-09-08T21:00:06.241998965Z",
+              "published": "2026-09-08T20:50:21Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/security/advisories/GHSA-qc2q-p7wx-3px3"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-84303"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9332"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9335"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/db9482836c298f234c896cf82ab68cafc78237f8"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/ebba6f3f1b206e2b4dc4d1d5a96d18430302c2fe"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/grpc/grpc-go"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.83.1"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "gRPC-Go: xDS RBAC HTTP Filter bypass via mixed-case Header Matching and gRFC A41 validation evasion"
+            },
+            {
+              "affected": [
+                {
+                  "database_specific": {
+                    "last_known_affected_version_range": "\u003c= 1.83.0",
+                    "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/09/GHSA-vp52-pcj8-j9qc/GHSA-vp52-pcj8-j9qc.json"
+                  },
+                  "package": {
+                    "ecosystem": "Go",
+                    "name": "google.golang.org/grpc",
+                    "purl": "pkg:golang/google.golang.org/grpc"
+                  },
+                  "ranges": [
+                    {
+                      "events": [
+                        {
+                          "introduced": "0"
+                        },
+                        {
+                          "fixed": "1.83.1"
+                        }
+                      ],
+                      "type": "SEMVER"
+                    }
+                  ]
+                }
+              ],
+              "aliases": [
+                "CVE-2026-84304"
+              ],
+              "database_specific": {
+                "cwe_ids": [
+                  "CWE-400"
+                ],
+                "github_reviewed": true,
+                "github_reviewed_at": "2026-09-01T21:32:41Z",
+                "nvd_published_at": "2026-09-01T19:17:30Z",
+                "severity": "HIGH"
+              },
+              "details": "### Impact\nAn unauthenticated remote attacker can initiate a gRPC stream and purposefully fragment their payload into millions of tiny (e.g., 1-byte) HTTP/2 DATA frames. Even if the total payload volume falls within the configured connection and stream flow-control windows, each independent fragment incurs memory overhead due to internal tracking structures and queue allocation.\n\nRepeated fragmentation massively inflates the heap space consumed by the stream. An attacker multiplexing multiple concurrent streams can exhaust the memory bounds of the runtime, forcing a runtime panic or OutOfMemory condition and leading to a remote Denial of Service (DoS).\n\n### Patches\nThe change to fix this issue is merged in `master` and a patch release, 1.83.1, has been published that contains this fix.\n\n### Workarounds\nThis vulnerability is mitigated by implementing receive buffer compaction. Consecutive small data buffers are automatically coalesced into larger buffers from a shared pool once the overhead is perceived to be excessive relative to actual payload data, drastically minimizing per-frame memory overheads.\n\nThis behavior is enabled by default. A temporary escape hatch is provided via the environment variable `GRPC_GO_EXPERIMENTAL_ENABLE_RECEIVE_BUFFER_COMPACTION=false` to disable the feature if unforeseen issues arise, but it will be removed in a future release.",
+              "id": "GHSA-vp52-pcj8-j9qc",
+              "modified": "2026-09-10T03:51:15.486470462Z",
+              "published": "2026-09-01T21:32:41Z",
+              "references": [
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/security/advisories/GHSA-vp52-pcj8-j9qc"
+                },
+                {
+                  "type": "ADVISORY",
+                  "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-84304"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9331"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/pull/9333"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/7354d9c8debb4bcf2225bf429857078de310c176"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/commit/8cfeca0e1ee5ea0980dcc320e20240fa1079ec77"
+                },
+                {
+                  "type": "PACKAGE",
+                  "url": "https://github.com/grpc/grpc-go"
+                },
+                {
+                  "type": "WEB",
+                  "url": "https://github.com/grpc/grpc-go/releases/tag/v1.83.1"
+                }
+              ],
+              "schema_version": "1.9.0",
+              "severity": [
+                {
+                  "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+                  "type": "CVSS_V4"
+                }
+              ],
+              "summary": "gRPC-Go: Heap Memory Exhaustion (OOM) via HTTP/2 DATA Frame Fragmentation"
+            }
+          ]
+        },
+        {
+          "package": {
+            "name": "google.golang.org/protobuf",
+            "version": "1.36.11",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "gopkg.in/yaml.v2",
+            "version": "2.4.0",
+            "ecosystem": "Go"
+          }
+        },
+        {
+          "package": {
+            "name": "gopkg.in/yaml.v3",
+            "version": "3.0.1",
+            "ecosystem": "Go"
+          }
+        }
+      ]
+    }
+  ],
+  "experimental_config": {
+    "licenses": {
+      "summary": false,
+      "allowlist": null
+    }
+  }
+}

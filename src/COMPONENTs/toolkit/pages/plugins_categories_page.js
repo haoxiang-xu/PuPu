@@ -466,7 +466,8 @@ const PluginsCategoriesPage = ({
           return (
             <PluginListRow
               key={pack.id}
-              icon={{ type: "builtin", name: "command", color: "#6478f6" }}
+              trustEntry={pack}
+              icon={pack.icon || { type: "builtin", name: "command", color: "#6478f6" }}
               isDark={isDark}
               name={title}
               command={firstCommand ? `/${firstCommand}` : undefined}
@@ -518,6 +519,7 @@ const PluginsCategoriesPage = ({
             item.kind === "registry" ? (
               <PluginListRow
                 key={item.key}
+                trustEntry={item.entry}
                 icon={resolveMcpIcon(item.entry)}
                 isDark={isDark}
                 name={item.presentation.name}
@@ -543,6 +545,7 @@ const PluginsCategoriesPage = ({
             ) : (
               <PluginListRow
                 key={item.key}
+                trustEntry={item.toolkit}
                 icon={item.toolkit.toolkitIcon}
                 isDark={isDark}
                 name={item.presentation.name}

@@ -464,6 +464,24 @@ class DurableInteractionHostTests(unittest.TestCase):
         self.assertEqual(resolved["modelId"], "openai:gpt-5")
         self.assertNotIn("github_token", resolved)
 
+    def test_gemini_resume_uses_only_fresh_credentials_without_persisting(self) -> None:
+        host.save_resume_context(
+            session_id="chat-1", run_id="gemini-secret-test",
+            options={"modelId": "gemini:gemini-3.6-flash", "geminiApiKey": "old-secret"},
+            provider="gemini", model="gemini-3.6-flash",
+        )
+        persisted = host.load_resume_context("chat-1", "gemini-secret-test")
+        self.assertEqual(persisted["options"], {"modelId": "gemini:gemini-3.6-flash"})
+        for key in ("geminiApiKey", "gemini_api_key"):
+            resolved = host.resolve_resume_options(
+                session_id="chat-1", run_id="gemini-secret-test",
+                fresh_options={key: "fresh-secret", "google_token": "must-not-overlay"},
+                expected_provider="gemini", expected_model="gemini-3.6-flash",
+            )
+            self.assertEqual(resolved[key], "fresh-secret")
+            self.assertNotIn("google_token", resolved)
+        self.assertEqual(host.load_resume_context("chat-1", "gemini-secret-test"), persisted)
+
     def test_corrupt_context_keeps_pending_request_discoverable(self) -> None:
         self._seed_request()
         context_path = host._context_path("chat-1", "run-1")

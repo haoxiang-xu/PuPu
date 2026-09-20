@@ -186,6 +186,8 @@ _FRESH_SECRET_OPTION_KEYS = frozenset(
         # the user's endpoint (defect C6).
         "customProviderApiKey",
         "custom_provider_api_key",
+        "geminiApiKey",
+        "gemini_api_key",
         "openaiApiKey",
         "openai_api_key",
         "unchainApiKey",

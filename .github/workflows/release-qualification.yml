@@ -41,16 +41,14 @@ jobs:
       - name: Checkout the requested release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Require dispatch from that immutable tag
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ]; then
-            echo "::error title=Tag dispatch required::Run installed qualification from the exact release tag"
-            exit 1
-          fi
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -66,15 +64,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
-          if [ -z "$TAG_COMMIT" ]; then
-            echo "::error title=Release tag missing::Could not resolve $RELEASE_TAG"
-            exit 1
-          fi
-          if [ "$GITHUB_SHA" != "$TAG_COMMIT" ]; then
-            echo "::error title=Wrong dispatch revision::workflow SHA must equal the release tag commit"
-            exit 1
-          fi
+          TAG_COMMIT="$(node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG")"
           echo "tag_commit=$TAG_COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Verify candidate Actions run provenance
@@ -171,19 +161,47 @@ jobs:
       from_commit: ${{ needs.candidate-preflight.outputs.fixture_commit }}
     secrets: inherit
 
+  macos-restart-update:
+    name: Qualify signed macOS N-1 restart update (${{ matrix.target_id }})
+    needs: candidate-preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_id: macos-arm64
+            runner: macos-latest
+          - target_id: macos-x64
+            runner: macos-15-intel
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/_shared-release-macos-restart-update.yml
+    with:
+      candidate_run_id: ${{ inputs.candidate_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      tag_commit: ${{ needs.candidate-preflight.outputs.tag_commit }}
+      from_tag: ${{ needs.candidate-preflight.outputs.fixture_tag }}
+      from_version: ${{ needs.candidate-preflight.outputs.fixture_version }}
+      from_commit: ${{ needs.candidate-preflight.outputs.fixture_commit }}
+      target_id: ${{ matrix.target_id }}
+      runner_selector: ${{ matrix.runner }}
+    secrets: inherit
+
   qualification-receipt:
     name: Seal installed-package qualification receipt
     needs:
       - candidate-preflight
       - installed-package-matrix
       - windows-restart-update
+      - macos-restart-update
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the exact release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -225,12 +243,17 @@ jobs:
         continue-on-error: true
         env:
           QUALIFICATION_RUN_ID: ${{ github.run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAG_COMMIT: ${{ needs.candidate-preflight.outputs.tag_commit }}
         run: |
+          node scripts/release-qa/release-toolchain.mjs --release-tag "$RELEASE_TAG" --release-commit "$TAG_COMMIT"
           node scripts/release-qa/build-release-update-qualification.mjs \
             --candidate-dir candidate \
             --fresh-reports-dir installed-reports \
             --restart-reports-dir restart-reports \
             --qualification-run-id "$QUALIFICATION_RUN_ID" \
+            --tools-tag "$GITHUB_REF_NAME" \
+            --tools-commit "$GITHUB_SHA" \
             --from-tag "${{ needs.candidate-preflight.outputs.fixture_tag }}" \
             --from-version "${{ needs.candidate-preflight.outputs.fixture_version }}" \
             --from-commit "${{ needs.candidate-preflight.outputs.fixture_commit }}" \
@@ -252,9 +275,10 @@ jobs:
           PREFLIGHT_RESULT: ${{ needs.candidate-preflight.result }}
           MATRIX_RESULT: ${{ needs.installed-package-matrix.result }}
           WINDOWS_RESTART_UPDATE_RESULT: ${{ needs.windows-restart-update.result }}
+          MACOS_RESTART_UPDATE_RESULT: ${{ needs.macos-restart-update.result }}
           RECEIPT_OUTCOME: ${{ steps.receipt.outcome }}
         run: |
-          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$WINDOWS_RESTART_UPDATE_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
-            echo "::error title=Release qualification incomplete::candidate provenance, every fresh install, the Windows restart-update, and the strict receipt must pass"
+          if [ "$PREFLIGHT_RESULT" != "success" ] || [ "$MATRIX_RESULT" != "success" ] || [ "$WINDOWS_RESTART_UPDATE_RESULT" != "success" ] || [ "$MACOS_RESTART_UPDATE_RESULT" != "success" ] || [ "$RECEIPT_OUTCOME" != "success" ]; then
+            echo "::error title=Release qualification incomplete::candidate provenance, every fresh install, all three restart-update targets, and the strict receipt must pass"
             exit 1
           fi

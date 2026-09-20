@@ -1,0 +1,532 @@
+{
+  "date": "2026-09-14",
+  "base_commit": "7573f83484862f33635f08553c9bdc4e726c1cb3",
+  "run_type": "isolated Electron development profile; real renderer-to-sidecar-to-provider calls",
+  "turns": [
+    {
+      "slug": "deepseek",
+      "model": "custom.deepseek:deepseek-v4-flash",
+      "prompt": "Reply with the word OK and nothing else.",
+      "result": {
+        "message_id": "assistant-1789426984762-3391c162ae3c58",
+        "role": "assistant",
+        "content": "OK",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 1750,
+        "chat_id": "chat-1789426779550-fa823e9f2c957",
+        "execution_id": "chat-1789426779550-fa823e9f2c957",
+        "attempt_id": "unchain-1789426984767-c7465ffb15c688"
+      }
+    },
+    {
+      "slug": "deepseek",
+      "model": "custom.deepseek:deepseek-v4-flash",
+      "prompt": "For this second message in the same chat, reply with OK2 and nothing else.",
+      "result": {
+        "message_id": "assistant-1789427012280-aa5823e4a3de98",
+        "role": "assistant",
+        "content": "OK2",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 1619,
+        "chat_id": "chat-1789426779550-fa823e9f2c957",
+        "execution_id": "chat-1789426779550-fa823e9f2c957",
+        "attempt_id": "unchain-1789427012289-2d2d1fb800258"
+      }
+    },
+    {
+      "slug": "deepseek",
+      "model": "custom.deepseek:deepseek-v4-flash",
+      "prompt": "Use the read tool to read /tmp/pupu202-tool-probe.txt. Reply with the exact file content. You must actually call the tool; do not guess.",
+      "result": {
+        "message_id": "assistant-1789427027682-c802ecdc8ed678",
+        "role": "assistant",
+        "content": "The `read` tool refused the path (outside workspace roots), so I used a shell read instead. Exact file content of `/tmp/pupu202-tool-probe.txt`:\n\n```\nticket-202-tool-proof-67429\n```",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 31964,
+        "chat_id": "chat-1789426779550-fa823e9f2c957",
+        "execution_id": "chat-1789426779550-fa823e9f2c957",
+        "attempt_id": "unchain-1789427027695-2bdf0094636738"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k3",
+      "prompt": "Reply with the word OK and nothing else.",
+      "result": {
+        "message_id": "assistant-1789427072251-23b4d09d345f9",
+        "role": "assistant",
+        "content": "OK",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 4519,
+        "chat_id": "chat-1789426821291-51405ac95471d8",
+        "execution_id": "chat-1789426821291-51405ac95471d8",
+        "attempt_id": "unchain-1789427072253-6fd56a8e34c068"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k3",
+      "prompt": "For this second message in the same chat, reply with OK2 and nothing else.",
+      "result": {
+        "message_id": "assistant-1789427091816-7ca849260c2b6",
+        "role": "assistant",
+        "content": "OK2",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 8417,
+        "chat_id": "chat-1789426821291-51405ac95471d8",
+        "execution_id": "chat-1789426821291-51405ac95471d8",
+        "attempt_id": "unchain-1789427091821-6d32002492267"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k3",
+      "prompt": "Use the read tool to read /Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py, limited to its first 3 lines. Reply with the first line exactly. You must call the tool.",
+      "result": {
+        "error": {
+          "error": {
+            "code": "handler_error",
+            "message": "durable_provider_turn_uncertain"
+          }
+        }
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k2.6",
+      "prompt": "Use the read tool to read /Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py, limited to its first 3 lines. Reply with the first line exactly. You must call the tool.",
+      "result": {
+        "error": {
+          "error": {
+            "code": "handler_error",
+            "message": "durable_provider_turn_uncertain"
+          }
+        }
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k3",
+      "prompt": "Use the read tool to read /Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py, limited to its first 3 lines. Reply with the first line exactly. You must call the tool.",
+      "result": {
+        "message_id": "assistant-1789427302407-e2620f8d6cd07",
+        "role": "assistant",
+        "content": "import os",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 17829,
+        "chat_id": "chat-1789426821291-51405ac95471d8",
+        "execution_id": "chat-1789426821291-51405ac95471d8",
+        "attempt_id": "unchain-1789427302418-40c970e97a36b"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k2.6",
+      "prompt": "Use the read tool to read /Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py, limited to its first 3 lines. Reply with the first line exactly.",
+      "result": {
+        "message_id": "assistant-1789427333026-c2f0bb11c343d8",
+        "role": "assistant",
+        "content": "import os",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 4933,
+        "chat_id": "chat-1789426821291-51405ac95471d8",
+        "execution_id": "chat-1789426821291-51405ac95471d8",
+        "attempt_id": "unchain-1789427333044-c7044154de2c2"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k2.7-code",
+      "prompt": "Use the read tool to read /Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py, limited to its first 3 lines. Reply with the first line exactly.",
+      "result": {
+        "error": {
+          "error": {
+            "code": "handler_error",
+            "message": "durable_provider_turn_terminal_failed:non_retryable; Provider rejected the request (HTTP 400)"
+          }
+        }
+      }
+    },
+    {
+      "slug": "deepseek",
+      "model": "custom.deepseek:deepseek-v4-pro",
+      "prompt": "Reply with RESTART_OK and nothing else.",
+      "result": {
+        "message_id": "assistant-1789427504312-81264009c1a5f",
+        "role": "assistant",
+        "content": "RESTART_OK",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 3254,
+        "chat_id": "chat-1789426779550-fa823e9f2c957",
+        "execution_id": "chat-1789426779550-fa823e9f2c957",
+        "attempt_id": "unchain-1789427504328-e3d53df0efbe68"
+      }
+    },
+    {
+      "slug": "kimi",
+      "model": "custom.kimi:kimi-k3",
+      "prompt": "Reply with RESTART_OK and nothing else.",
+      "result": {
+        "message_id": "assistant-1789427532412-414c3962ac443",
+        "role": "assistant",
+        "content": "RESTART_OK",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 4650,
+        "chat_id": "chat-1789426821291-51405ac95471d8",
+        "execution_id": "chat-1789426821291-51405ac95471d8",
+        "attempt_id": "unchain-1789427532429-99ed19e7667338"
+      }
+    }
+  ],
+  "persisted_chats": {
+    "deepseek": {
+      "model": "custom.deepseek:deepseek-v4-pro",
+      "messages": [
+        {
+          "id": "assistant-1789426779965-33908d3d553f78",
+          "status": "error",
+          "content": "",
+          "model": "custom.deepseek:deepseek-v4-flash",
+          "error": {
+            "code": "durable_provider_turn_terminal_failed",
+            "message": "durable_provider_turn_terminal_failed:non_retryable; Provider HTTP request failed (HTTP 402, code=invalid_request_error)"
+          },
+          "tools": []
+        },
+        {
+          "id": "assistant-1789426799745-36d0e4ce95dd4",
+          "status": "error",
+          "content": "",
+          "model": "custom.deepseek:deepseek-v4-flash",
+          "error": {
+            "code": "durable_provider_turn_terminal_failed",
+            "message": "durable_provider_turn_terminal_failed:non_retryable; Provider HTTP request failed (HTTP 402, code=invalid_request_error)"
+          },
+          "tools": []
+        },
+        {
+          "id": "assistant-1789426984762-3391c162ae3c58",
+          "status": "done",
+          "content": "OK",
+          "model": "custom.deepseek:deepseek-v4-flash",
+          "error": null,
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427012280-aa5823e4a3de98",
+          "status": "done",
+          "content": "OK2",
+          "model": "custom.deepseek:deepseek-v4-flash",
+          "error": null,
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427027682-c802ecdc8ed678",
+          "status": "done",
+          "content": "The `read` tool refused the path (outside workspace roots), so I used a shell read instead. Exact file content of `/tmp/pupu202-tool-probe.txt`:\n\n```\nticket-202-tool-proof-67429\n```",
+          "model": "custom.deepseek:deepseek-v4-flash",
+          "error": null,
+          "tools": [
+            {
+              "type": "tool_call",
+              "payload": {
+                "step_id": "tool:call_00_QpOd6CaZLU1K7YWmQnhV6268",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "call_00_QpOd6CaZLU1K7YWmQnhV6268",
+                "toolkit_id": "core",
+                "toolkit_name": "Core",
+                "arguments": {
+                  "path": "/tmp/pupu202-tool-probe.txt"
+                },
+                "runtime_event_id": "evt_28337d09c071460fad4b78da3a603b04"
+              }
+            },
+            {
+              "type": "tool_result",
+              "payload": {
+                "step_id": "tool:call_00_QpOd6CaZLU1K7YWmQnhV6268",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "call_00_QpOd6CaZLU1K7YWmQnhV6268",
+                "status": "error",
+                "result": {
+                  "error": "path is outside all workspace roots",
+                  "path": "/tmp/pupu202-tool-probe.txt"
+                },
+                "runtime_event_id": "evt_2caf9f5d60aa418e9822e55632abc5a0"
+              }
+            },
+            {
+              "type": "tool_call",
+              "payload": {
+                "step_id": "tool:call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "step_type": "tool",
+                "tool_name": "shell",
+                "call_id": "call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "tool_display_name": "",
+                "toolkit_id": "core",
+                "toolkit_name": "Core",
+                "description": "Run a shell command, poll or wait for a background task, or kill it within the workspace.",
+                "confirmation_id": "interaction_e9f9c1c566014749f6464d51266da524",
+                "requires_confirmation": true,
+                "interact_type": "confirmation",
+                "interact_config": {},
+                "arguments": {
+                  "action": "run",
+                  "command": "cat /tmp/pupu202-tool-probe.txt; echo \"---exit:$?\""
+                },
+                "runtime_event_id": "evt_06c6dc4d9b4e4a9f804f63a074ac6865"
+              }
+            },
+            {
+              "type": "tool_call",
+              "payload": {
+                "step_id": "tool:call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "step_type": "tool",
+                "tool_name": "shell",
+                "call_id": "call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "toolkit_id": "core",
+                "toolkit_name": "Core",
+                "arguments": {
+                  "action": "run",
+                  "command": "cat /tmp/pupu202-tool-probe.txt; echo \"---exit:$?\""
+                },
+                "runtime_event_id": "evt_6cc58a28afb14f518ea3ee8eefe21507"
+              }
+            },
+            {
+              "type": "tool_result",
+              "payload": {
+                "step_id": "tool:call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "step_type": "tool",
+                "tool_name": "shell",
+                "call_id": "call_00_p4ge9CRXlxtuToYmBpSU9380",
+                "status": "error",
+                "result": {
+                  "ok": true,
+                  "action": "run",
+                  "status": "completed",
+                  "shell_family": "posix",
+                  "platform": "darwin",
+                  "cwd": "/Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server",
+                  "task_id": "",
+                  "error": "",
+                  "background": false,
+                  "returncode": 0,
+                  "stdout": "ticket-202-tool-proof-67429\n---exit:0\n",
+                  "stderr": "",
+                  "timed_out": false,
+                  "truncated": false
+                },
+                "runtime_event_id": "evt_539997cf8f034b1984d465d88c56da06"
+              }
+            }
+          ]
+        },
+        {
+          "id": "assistant-1789427504312-81264009c1a5f",
+          "status": "done",
+          "content": "RESTART_OK",
+          "model": "custom.deepseek:deepseek-v4-pro",
+          "error": null,
+          "tools": []
+        }
+      ]
+    },
+    "kimi": {
+      "model": "custom.kimi:kimi-k3",
+      "messages": [
+        {
+          "id": "assistant-1789426821803-3c52e71e9fc3a",
+          "status": "cancelled",
+          "content": "",
+          "model": "custom.kimi:kimi-k3",
+          "error": null,
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427072251-23b4d09d345f9",
+          "status": "done",
+          "content": "OK",
+          "model": "custom.kimi:kimi-k3",
+          "error": null,
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427091816-7ca849260c2b6",
+          "status": "done",
+          "content": "OK2",
+          "model": "custom.kimi:kimi-k3",
+          "error": null,
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427111450-e32792d60245f8",
+          "status": "error",
+          "content": "",
+          "model": "custom.kimi:kimi-k3",
+          "error": {
+            "code": "durable_provider_turn_uncertain",
+            "message": "durable_provider_turn_uncertain"
+          },
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427138908-bee1c0fe959de",
+          "status": "error",
+          "content": "",
+          "model": "custom.kimi:kimi-k2.6",
+          "error": {
+            "code": "durable_provider_turn_uncertain",
+            "message": "durable_provider_turn_uncertain"
+          },
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427302407-e2620f8d6cd07",
+          "status": "done",
+          "content": "import os",
+          "model": "custom.kimi:kimi-k3",
+          "error": null,
+          "tools": [
+            {
+              "type": "tool_call",
+              "payload": {
+                "step_id": "tool:read_0_ad7f0ccd",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "read_0_ad7f0ccd",
+                "toolkit_id": "core",
+                "toolkit_name": "Core",
+                "arguments": {
+                  "path": "/Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py",
+                  "limit": 3
+                },
+                "runtime_event_id": "evt_3867d162c30e40379f0704e6f5d21558"
+              }
+            },
+            {
+              "type": "tool_result",
+              "payload": {
+                "step_id": "tool:read_0_ad7f0ccd",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "read_0_ad7f0ccd",
+                "status": "success",
+                "result": {
+                  "path": "/Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py",
+                  "content": "1\timport os\n2\timport signal\n3\timport sys",
+                  "start_line": 1,
+                  "end_line": 3,
+                  "total_lines": 295,
+                  "truncated": true,
+                  "file_kind": "text"
+                },
+                "runtime_event_id": "evt_751441c193744a31a0506d7c41211238"
+              }
+            }
+          ]
+        },
+        {
+          "id": "assistant-1789427333026-c2f0bb11c343d8",
+          "status": "done",
+          "content": "import os",
+          "model": "custom.kimi:kimi-k2.6",
+          "error": null,
+          "tools": [
+            {
+              "type": "tool_call",
+              "payload": {
+                "step_id": "tool:read_0_c14a7798",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "read_0_c14a7798",
+                "toolkit_id": "core",
+                "toolkit_name": "Core",
+                "arguments": {
+                  "path": "/Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py",
+                  "limit": 3
+                },
+                "runtime_event_id": "evt_479e7bf7a8e74619909f98fdf112f33e"
+              }
+            },
+            {
+              "type": "tool_result",
+              "payload": {
+                "step_id": "tool:read_0_c14a7798",
+                "step_type": "tool",
+                "tool_name": "read",
+                "call_id": "read_0_c14a7798",
+                "status": "success",
+                "result": {
+                  "path": "/Users/red/Desktop/GITRepo/pupu-202/unchain_runtime/server/main.py",
+                  "content": "1\timport os\n2\timport signal\n3\timport sys",
+                  "start_line": 1,
+                  "end_line": 3,
+                  "total_lines": 295,
+                  "truncated": true,
+                  "file_kind": "text"
+                },
+                "runtime_event_id": "evt_cf20493ce6da442fbf59d8eea16db9f0"
+              }
+            }
+          ]
+        },
+        {
+          "id": "assistant-1789427360190-628f5fbfd31ae8",
+          "status": "error",
+          "content": "",
+          "model": "custom.kimi:kimi-k2.7-code",
+          "error": {
+            "code": "durable_provider_turn_terminal_failed",
+            "message": "durable_provider_turn_terminal_failed:non_retryable; Provider rejected the request (HTTP 400)"
+          },
+          "tools": []
+        },
+        {
+          "id": "assistant-1789427532412-414c3962ac443",
+          "status": "done",
+          "content": "RESTART_OK",
+          "model": "custom.kimi:kimi-k3",
+          "error": null,
+          "tools": []
+        }
+      ]
+    }
+  },
+  "kimi_original_failure": {
+    "exception": "ProviderReplayFrameError",
+    "message": "Anthropic thinking block is missing the replay signature",
+    "confirmed_by": "Direct HyperspaceModelIO.fetch_turn with real Kimi K2.7 Code response"
+  },
+  "kimi_code_nonthinking_failure": {
+    "http_status": 400,
+    "message": "invalid thinking: only type=enabled is allowed for this model"
+  },
+  "china_key_auth": {
+    "http_status": 401,
+    "message": "Invalid Authentication",
+    "note": "Provided Kimi credential belongs to the global platform; no funded China credential supplied"
+  },
+  "storage_checks": {
+    "feature_flag": false,
+    "save_does_not_copy_definition": true,
+    "cold_restart_preserves_keys": true,
+    "legacy_copies_cleaned": true,
+    "future_version_preserved": true,
+    "migration_repeat_noop": true,
+    "global_china_secret_isolation": true,
+    "clear_china_keeps_global": true,
+    "in_memory_preset_update_reaches_catalog_and_wire_without_storage_write": true
+  }
+}
