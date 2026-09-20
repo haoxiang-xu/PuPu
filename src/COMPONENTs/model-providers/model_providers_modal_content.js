@@ -15,9 +15,9 @@ import { ProviderRail } from "./provider_rail";
 import { KeyProviderPane } from "./panes/key_provider_pane";
 import { WelcomePane } from "./panes/welcome_pane";
 import {
-  OLLAMA_STATUS_CAPTION_KEY,
   OllamaHeadingActions,
   OllamaPane,
+  useOllamaTab,
 } from "./panes/ollama_pane";
 import { CustomProviderPane } from "./panes/custom_provider_pane";
 import { AddProviderPane } from "./panes/add_provider_pane";
@@ -49,6 +49,7 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
   const { t } = useTranslation();
   const ollama = useOllamaInstalled({ enabled: open });
   const ollamaReady = ollama.status === "ready";
+  const [ollamaTab, setOllamaTab] = useOllamaTab(ollama);
 
   const [tick, setTick] = useState(0);
   useEffect(() => subscribeModelCatalogRefresh(() => setTick((n) => n + 1)), []);
@@ -114,15 +115,17 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
     heading = { title: selectedEntry.title, icon: selectedEntry.icon };
     pane = <KeyProviderPane entry={selectedEntry} />;
   } else if (selectedEntry.kind === RAIL_KIND.OLLAMA) {
+    /* No status caption up here: the header row already holds the tabs and
+       the reload icon, and a third item squeezed the title to "Olla…" at
+       600 px. The status word opens the body instead. */
     heading = {
       title: "Ollama",
       icon: "ollama",
-      caption: t(
-        OLLAMA_STATUS_CAPTION_KEY[ollama.status] || OLLAMA_STATUS_CAPTION_KEY.loading,
+      action: (
+        <OllamaHeadingActions ollama={ollama} tab={ollamaTab} onTabChange={setOllamaTab} />
       ),
-      action: <OllamaHeadingActions ollama={ollama} />,
     };
-    pane = <OllamaPane ollama={ollama} />;
+    pane = <OllamaPane ollama={ollama} tab={ollamaTab} />;
   } else if (selectedEntry.kind === RAIL_KIND.CUSTOM) {
     heading = {
       title: selectedEntry.provider.display_name || selectedEntry.provider.id,

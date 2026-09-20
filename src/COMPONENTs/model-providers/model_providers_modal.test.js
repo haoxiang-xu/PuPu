@@ -62,6 +62,7 @@ jest.mock("./panes/ollama_pane", () => ({
   OLLAMA_STATUS_CAPTION_KEY: { ready: "running", offline: "offline", loading: "loading" },
   OllamaHeadingActions: () => <span data-testid="ollama-heading-actions" />,
   OllamaPane: () => <div data-testid="ollama-pane" />,
+  useOllamaTab: () => ["installed", () => {}],
 }));
 jest.mock("./panes/custom_provider_pane", () => ({
   __esModule: true,
