@@ -147,6 +147,17 @@ export const useOllamaLibrary = () => {
     progressStop(`ollama_pull_${key}`);
   }, []);
 
+  /* After a delete elsewhere (the model page's per-tag Delete) the
+     installed set must drop the tag without waiting for a pull. */
+  const refreshInstalled = useCallback(() => {
+    return api.ollama
+      .listModels()
+      .then((list) => {
+        setInstalledNames(new Set(list.map((m) => m.name)));
+      })
+      .catch(() => {});
+  }, []);
+
   const retrySearch = useCallback(() => {
     setError(null);
     setLoading(true);
@@ -177,6 +188,7 @@ export const useOllamaLibrary = () => {
     handlePull,
     handleCancel,
     retrySearch,
+    refreshInstalled,
   };
 };
 

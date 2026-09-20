@@ -88,3 +88,10 @@ Decisions: (5) Settings keeps a **narrow** Model Providers page — design **N1*
 - **R3 (strong)** renderer: `api.ollama.searchLibrary({ query, category, sort })`, `api.ollama.fetchLibraryTags(name)` + parser + test with the saved fixture `src/SERVICEs/__fixtures__/ollama_tags_qwen3.html`; `use_ollama_library` gains `sort`; new `use_ollama_model_tags(name)`.
 - **R4 (strong)** store UI: `src/COMPONENTs/model-providers/panes/ollama/{ollama_store.js, store_card.js, size_picker.js, featured.js}`, `src/SERVICEs/ollama_featured_models.json`, i18n `model_providers.store.*`.
 - **R5 (delegated)** Settings N1 accordion: `settings/model_providers/index.js` exports `ModelProvidersSettings` again (accordion over `buildProviderRailEntries()`), `ProviderKeySection heading="none"` (control only), `settings_modal_content.js` restores the page, `side_menu.js` passes `initialEntryId` through `onOpenModelProviders(entryId)`.
+
+
+## Round three (project owner, 2026-09-20, on dev)
+
+- Models modal back to the **Settings square frame** (600 × 600 / 80vh); pane heading is a **fixed header**; the Plugins / Models side menus copy the Settings strip verbatim (content-box 140 → 161 px rendered).
+- **Ollama pane = S4 + S3** (mockups https://claude.ai/artifact/M6oxtfPw7QTtGEf9uBnHLR): one group button (`SegmentedControl`, as in the Agents modal) switches **Installed** (the Local Storage rows with the hover trash icon, "N on disk", active downloads) and **Library** (design S3: tall search, category `Select`, Installed chip, "Try" chips from the curated JSON, one row per model with a size `Select` + icon Pull; the Select fetches the tags page on first touch and relabels with real GB; installed tag → trash icon → confirm → delete via the Local Storage path, both installed sets refreshed). **No Popular / Newest sort control** (owner); BC-003's `sort` stays in the IPC, unused by the UI. The O3 cards / expanding picker and the S2 model page are gone.
+- Store strings reshaped (`model_providers.store.*`: search_count, all_categories, try, popular, results, tab_installed, tab_library, on_disk; sort/featured/library/choose_size/pull_tag/show_* removed).

@@ -7,8 +7,6 @@ import { __resetOllamaModelTagsCache } from "./use_ollama_model_tags";
 const mockLibrary = {
   category: "",
   setCategory: jest.fn(),
-  sort: "",
-  setSort: jest.fn(),
   rawQuery: "",
   setRawQuery: jest.fn(),
   debouncedQuery: "",
@@ -20,6 +18,7 @@ const mockLibrary = {
   handlePull: jest.fn(),
   handleCancel: jest.fn(),
   retrySearch: jest.fn(),
+  refreshInstalled: jest.fn(() => Promise.resolve()),
 };
 jest.mock("../../../settings/model_providers/hooks/use_ollama_library", () => ({
   __esModule: true,
@@ -32,21 +31,45 @@ jest.mock("../../../../SERVICEs/api", () => ({
   default: { ollama: { fetchLibraryTags: (name) => mockTags.impl(name) } },
 }));
 
+const mockDelete = { impl: null };
+jest.mock("../../../settings/local_storage/utils/ollama_models", () => ({
+  __esModule: true,
+  deleteOllamaModel: (ref) => mockDelete.impl(ref),
+}));
+jest.mock("../../../../SERVICEs/model_catalog_refresh", () => ({
+  __esModule: true,
+  emitModelCatalogRefresh: jest.fn(),
+}));
+jest.mock("../../../settings/local_storage/components/confirm_delete_modal", () => ({
+  __esModule: true,
+  default: ({ open, onConfirm, target }) =>
+    open ? (
+      <div data-testid="confirm-delete" data-target={target}>
+        <button onClick={onConfirm}>confirm</button>
+      </div>
+    ) : null,
+}));
+
 jest.mock("../../../../SERVICEs/ollama_featured_models.json", () => [
   { name: "qwen3", why_key: "why.qwen3" },
-  { name: "not-in-list", why_key: "why.nil" },
+  { name: "gemma3", why_key: "why.gemma3" },
 ]);
 
-jest.mock("../../../toolkit/components/segmented_control", () => ({
+/* The BUILTIN Select is a portal + palette; a plain <select> stands in. */
+jest.mock("../../../../BUILTIN_COMPONENTs/select/select", () => ({
   __esModule: true,
-  default: ({ sections, selected, onChange }) => (
-    <div>
-      {sections.map((s) => (
-        <button key={s.key || "default"} data-testid={`sort-${s.key || "default"}`} data-on={s.key === selected} onClick={() => onChange(s.key)}>
-          {s.label}
-        </button>
+  default: ({ options, value, set_value, on_open_change }) => (
+    <select
+      value={value}
+      onFocus={() => on_open_change?.(true)}
+      onChange={(e) => set_value(e.target.value)}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
       ))}
-    </div>
+    </select>
   ),
 }));
 jest.mock("../../../../BUILTIN_COMPONENTs/input/input", () => ({
@@ -58,16 +81,16 @@ jest.mock("../../../../BUILTIN_COMPONENTs/input/input", () => ({
 jest.mock("../../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
   __esModule: true,
   useTranslation: () => ({
-    t: (k, vars) =>
-      vars ? `${k} ${Object.values(vars).join(" ")}` : k,
+    t: (k, vars) => (vars ? `${k} ${Object.values(vars).join(" ")}` : k),
   }),
 }));
 jest.mock("../../../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
-jest.mock("../../../../BUILTIN_COMPONENTs/spinner/arc_spinner", () => () => null);
 jest.mock("../../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner", () => () => null);
 
+const { emitModelCatalogRefresh } = require("../../../../SERVICEs/model_catalog_refresh");
+
 const MODELS = [
-  { name: "qwen3", description: "Qwen3 desc", tags: ["tools", "thinking"], sizes: ["0.6b", "14b", "32b"], pulls: "12.3M" },
+  { name: "qwen3", description: "Qwen3 desc", tags: ["tools"], sizes: ["0.6b", "14b", "32b"], pulls: "12.3M" },
   { name: "llama3.3", description: "Llama desc", tags: ["tools"], sizes: ["70b"], pulls: "9.8M" },
   { name: "gemma3", description: "Gemma desc", tags: ["vision"], sizes: ["1b", "4b"], pulls: "8.1M" },
 ];
@@ -78,20 +101,20 @@ const QWEN_TAGS = [
   { tag: "8b-q4_K_M", size_label: "5.2GB", size_bytes: 5.2e9, context: "40K", input: "Text", updated: "1 year ago" },
 ];
 
-const renderStore = () =>
+const renderStore = (props = {}) =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "dark_mode" }}>
-      <OllamaStore isDark />
+      <OllamaStore isDark {...props} />
     </ConfigContext.Provider>,
   );
 
 const flush = () => act(() => Promise.resolve());
+const row = (name) => screen.getByTestId(`store-row-${name}`);
 
 beforeEach(() => {
   __resetOllamaModelTagsCache();
   Object.assign(mockLibrary, {
     category: "",
-    sort: "",
     rawQuery: "",
     debouncedQuery: "",
     models: MODELS,
@@ -101,61 +124,53 @@ beforeEach(() => {
     pullingMap: {},
   });
   mockLibrary.setCategory.mockReset();
-  mockLibrary.setSort.mockReset();
+  mockLibrary.setRawQuery.mockReset();
   mockLibrary.handlePull.mockReset();
   mockLibrary.handleCancel.mockReset();
+  mockLibrary.refreshInstalled.mockClear();
   mockTags.impl = jest.fn(() => Promise.resolve(QWEN_TAGS));
+  mockDelete.impl = jest.fn(() => Promise.resolve());
+  emitModelCatalogRefresh.mockClear();
 });
 
-describe("OllamaStore — default view", () => {
-  test("featured row from the curated list (resolved against the library), then the rest of the grid", () => {
+describe("OllamaStore (S3) — default view", () => {
+  test("one row per model, the featured ones carry their reason; Try chips fill the search", () => {
     renderStore();
-    const featured = screen.getByTestId("ollama-store-featured");
-    expect(within(featured).getByTestId("store-card-qwen3")).toBeInTheDocument();
-    // a featured name the library did not return still gets a (bare) card
-    expect(within(featured).getByTestId("store-card-not-in-list")).toBeInTheDocument();
-    expect(within(featured).getByText("why.qwen3")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^store-row-/).map((e) => e.dataset.testid)).toEqual([
+      "store-row-qwen3",
+      "store-row-llama3.3",
+      "store-row-gemma3",
+    ]);
+    expect(within(row("qwen3")).getByText("why.qwen3")).toBeInTheDocument();
+    expect(within(row("llama3.3")).getByText("Llama desc")).toBeInTheDocument();
 
-    const grid = screen.getByTestId("ollama-store-grid");
-    expect(within(grid).queryByTestId("store-card-qwen3")).toBeNull(); // not repeated
-    expect(within(grid).getByTestId("store-card-llama3.3")).toBeInTheDocument();
-    expect(within(grid).getByTestId("store-card-gemma3")).toBeInTheDocument();
+    const tryRow = screen.getByTestId("ollama-store-try");
+    fireEvent.click(within(tryRow).getByText("gemma3"));
+    expect(mockLibrary.setRawQuery).toHaveBeenCalledWith("gemma3");
   });
 
-  test("installed mark on a model with any installed tag; size range otherwise", () => {
+  test("the search placeholder counts the library; the category select drives the hook", () => {
     renderStore();
-    const qwen = within(screen.getByTestId("ollama-store-featured")).getByTestId("store-card-qwen3");
-    expect(within(qwen).getByText("model_providers.store.installed")).toBeInTheDocument();
-    const llama = screen.getByTestId("store-card-llama3.3");
-    expect(within(llama).getByText("70b")).toBeInTheDocument();
-    expect(within(llama).getByText("model_providers.store.pulls 9.8M")).toBeInTheDocument();
-  });
-
-  test("sort and category go to the hook (BC-003 producer side)", () => {
-    renderStore();
-    fireEvent.click(screen.getByTestId("sort-newest"));
-    expect(mockLibrary.setSort).toHaveBeenCalledWith("newest");
-    fireEvent.click(screen.getByTestId("store-category-vision"));
+    expect(screen.getByLabelText("model_providers.store.search_count 3")).toBeInTheDocument();
+    const select = within(screen.getByTestId("store-category-select")).getByRole("combobox");
+    fireEvent.change(select, { target: { value: "vision" } });
     expect(mockLibrary.setCategory).toHaveBeenCalledWith("vision");
   });
 
-  test("featured hides once the view is no longer the default", () => {
+  test("Try chips hide once the view is not the default", () => {
     mockLibrary.debouncedQuery = "qwen";
     renderStore();
-    expect(screen.queryByTestId("ollama-store-featured")).toBeNull();
-    expect(within(screen.getByTestId("ollama-store-grid")).getByTestId("store-card-qwen3")).toBeInTheDocument();
+    expect(screen.queryByTestId("ollama-store-try")).toBeNull();
   });
 
-  test("Installed filter keeps only models with an installed tag", () => {
+  test("Installed chip keeps only models with an installed tag", () => {
     renderStore();
     fireEvent.click(screen.getByTestId("store-category-installed"));
-    expect(screen.queryByTestId("ollama-store-featured")).toBeNull();
-    const grid = screen.getByTestId("ollama-store-grid");
-    expect(within(grid).getByTestId("store-card-qwen3")).toBeInTheDocument();
-    expect(within(grid).queryByTestId("store-card-llama3.3")).toBeNull();
+    expect(screen.queryByTestId("store-row-llama3.3")).toBeNull();
+    expect(screen.getByTestId("store-row-qwen3")).toBeInTheDocument();
   });
 
-  test("error state offers retry; loading shows nothing else", () => {
+  test("error offers retry", () => {
     mockLibrary.error = "boom";
     renderStore();
     fireEvent.click(screen.getByText("model_providers.retry"));
@@ -163,68 +178,67 @@ describe("OllamaStore — default view", () => {
   });
 });
 
-describe("OllamaStore — expanding a card and the size picker (AC-11)", () => {
-  test("click expands one card at a time; the picker fetches the tags page (BC-002) and lists plain tags", async () => {
+describe("OllamaStore (S3) — the row's size select and actions", () => {
+  test("before the select is touched the sizes are the list's chips; the default skips installed tags", () => {
     renderStore();
-    fireEvent.click(screen.getByTestId("store-card-llama3.3"));
-    expect(screen.getByTestId("store-card-llama3.3").dataset.expanded).toBe("true");
-    expect(mockTags.impl).toHaveBeenCalledWith("llama3.3");
-
-    fireEvent.click(within(screen.getByTestId("ollama-store-featured")).getByTestId("store-card-qwen3"));
-    await flush();
-    expect(screen.getByTestId("store-card-llama3.3").dataset.expanded).toBe("false");
-    const picker = screen.getByTestId("size-picker-qwen3");
-    expect(within(picker).getByTestId("size-row-latest")).toBeInTheDocument();
-    expect(within(picker).getByTestId("size-row-32b")).toBeInTheDocument();
-    // quantisation variants are behind "show all"
-    expect(within(picker).queryByTestId("size-row-8b-q4_K_M")).toBeNull();
-    expect(within(picker).getByText("5.2GB · 40K ctx")).toBeInTheDocument();
-    // installed tag shows the mark, not a size
-    expect(within(within(picker).getByTestId("size-row-14b")).getByText("model_providers.store.installed")).toBeInTheDocument();
-
-    fireEvent.click(within(picker).getByText("model_providers.store.show_all_tags 4"));
-    expect(within(picker).getByTestId("size-row-8b-q4_K_M")).toBeInTheDocument();
+    const select = within(row("qwen3")).getByRole("combobox");
+    expect([...select.options].map((o) => o.textContent)).toEqual(["0.6b", "14b", "32b"]);
+    expect(select.value).toBe("0.6b");
+    expect(mockTags.impl).not.toHaveBeenCalled();
   });
 
-  test("default selection skips installed tags; Pull calls the existing pull path with name + tag", async () => {
+  test("touching the select fetches the tags page (BC-002) and relabels with real sizes, plain tags only", async () => {
     renderStore();
-    fireEvent.click(within(screen.getByTestId("ollama-store-featured")).getByTestId("store-card-qwen3"));
+    const select = within(row("qwen3")).getByRole("combobox");
+    fireEvent.focus(select);
     await flush();
-    const picker = screen.getByTestId("size-picker-qwen3");
-    // first non-installed row is "latest"
-    expect(within(picker).getByText("model_providers.store.pull_tag qwen3:latest")).toBeInTheDocument();
-    fireEvent.click(within(picker).getByTestId("size-row-32b"));
-    fireEvent.click(within(picker).getByText("model_providers.store.pull_tag qwen3:32b"));
+    expect(mockTags.impl).toHaveBeenCalledWith("qwen3");
+    const relabelled = within(row("qwen3")).getByRole("combobox");
+    expect([...relabelled.options].map((o) => o.textContent)).toEqual([
+      "latest · 5.2GB",
+      "14b · 9.3GB",
+      "32b · 20GB",
+    ]);
+  });
+
+  test("Pull sends name + the picked tag through the existing pull path", () => {
+    renderStore();
+    const select = within(row("qwen3")).getByRole("combobox");
+    fireEvent.change(select, { target: { value: "32b" } });
+    fireEvent.click(within(row("qwen3")).getByLabelText("Pull qwen3:32b"));
     expect(mockLibrary.handlePull).toHaveBeenCalledWith("qwen3", "32b");
   });
 
-  test("a running pull renders progress + Cancel in the picker", async () => {
-    mockLibrary.pullingMap = { "qwen3:latest": { status: "pulling", percent: 41, error: null } };
+  test("a running pull shows progress and Cancel in the row", () => {
+    mockLibrary.pullingMap = { "qwen3:0.6b": { status: "pulling", percent: 41, error: null } };
     renderStore();
-    fireEvent.click(within(screen.getByTestId("ollama-store-featured")).getByTestId("store-card-qwen3"));
-    await flush();
-    const picker = screen.getByTestId("size-picker-qwen3");
-    expect(within(picker).getByText(/pulling 41%/)).toBeInTheDocument();
-    fireEvent.click(within(picker).getByText("Cancel"));
-    expect(mockLibrary.handleCancel).toHaveBeenCalledWith("qwen3:latest");
+    expect(within(row("qwen3")).getByText("0.6b · pulling 41%")).toBeInTheDocument();
+    fireEvent.click(within(row("qwen3")).getByLabelText("Cancel qwen3:0.6b"));
+    expect(mockLibrary.handleCancel).toHaveBeenCalledWith("qwen3:0.6b");
   });
 
-  test("tags page failure falls back to the list's size chips and offers Retry", async () => {
+  test("an installed tag shows the trash icon; confirming deletes and refreshes both installed sets", async () => {
+    const onInstalledChanged = jest.fn();
+    renderStore({ onInstalledChanged });
+    const select = within(row("qwen3")).getByRole("combobox");
+    fireEvent.change(select, { target: { value: "14b" } });
+    fireEvent.click(within(row("qwen3")).getByLabelText("Delete qwen3:14b"));
+    expect(screen.getByTestId("confirm-delete").dataset.target).toBe("qwen3:14b");
+    fireEvent.click(screen.getByText("confirm"));
+    await flush();
+    await flush();
+    expect(mockDelete.impl).toHaveBeenCalledWith("qwen3:14b");
+    expect(emitModelCatalogRefresh).toHaveBeenCalled();
+    expect(mockLibrary.refreshInstalled).toHaveBeenCalled();
+    expect(onInstalledChanged).toHaveBeenCalledWith("qwen3:14b");
+  });
+
+  test("tags page failure keeps the list's chips (fallback)", async () => {
     mockTags.impl = jest.fn(() => Promise.reject(new Error("timeout")));
     renderStore();
-    fireEvent.click(screen.getByTestId("store-card-gemma3"));
+    const select = within(row("gemma3")).getByRole("combobox");
+    fireEvent.focus(select);
     await flush();
-    const picker = screen.getByTestId("size-picker-gemma3");
-    expect(within(picker).getByTestId("size-row-1b")).toBeInTheDocument();
-    expect(within(picker).getByTestId("size-row-4b")).toBeInTheDocument();
-    expect(within(picker).getByText("model_providers.store.tags_failed")).toBeInTheDocument();
-    fireEvent.click(within(picker).getByText("model_providers.store.tags_retry"));
-    expect(mockTags.impl).toHaveBeenCalledTimes(2);
-  });
-
-  test("a bare featured card (no library record) still expands and fetches its tags", async () => {
-    renderStore();
-    fireEvent.click(within(screen.getByTestId("ollama-store-featured")).getByTestId("store-card-not-in-list"));
-    expect(mockTags.impl).toHaveBeenCalledWith("not-in-list");
+    expect([...within(row("gemma3")).getByRole("combobox").options].map((o) => o.value)).toEqual(["1b", "4b"]);
   });
 });

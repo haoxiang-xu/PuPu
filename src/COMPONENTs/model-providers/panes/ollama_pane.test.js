@@ -6,6 +6,18 @@ jest.mock("./ollama/ollama_store", () => ({
   __esModule: true,
   OllamaStore: () => <div data-testid="ollama-library" />,
 }));
+jest.mock("../../toolkit/components/segmented_control", () => ({
+  __esModule: true,
+  default: ({ sections, selected, onChange }) => (
+    <div data-testid="ollama-tabs-control">
+      {sections.map((s) => (
+        <button key={s.key} data-testid={`tab-${s.key}`} data-on={s.key === selected} onClick={() => onChange(s.key)}>
+          {s.label}
+        </button>
+      ))}
+    </div>
+  ),
+}));
 jest.mock("../../settings/model_providers/components/active_downloads", () => ({
   __esModule: true,
   default: () => <div data-testid="active-downloads" />,
@@ -42,8 +54,8 @@ const renderPane = (state) =>
     </ConfigContext.Provider>,
   );
 
-describe("OllamaPane", () => {
-  test("ready: installed list with delete, then downloads and the library", () => {
+describe("OllamaPane (S4: Installed / Library group button)", () => {
+  test("ready with models: opens on Installed with the count, rows with delete, Library behind the other tab", () => {
     const state = makeOllama({
       models: [
         { name: "qwen3:30b", size: 18e9 },
@@ -51,37 +63,46 @@ describe("OllamaPane", () => {
       ],
     });
     renderPane(state);
-    expect(OLLAMA_STATUS_CAPTION_KEY.ready).toBe("model_providers.page.ollama_running");
+    expect(screen.getByTestId("tab-installed").textContent).toBe("model_providers.store.tab_installed · 2");
+    expect(screen.getByTestId("tab-installed").dataset.on).toBe("true");
     expect(screen.getByTestId("installed-row-qwen3:30b")).toBeInTheDocument();
-    expect(screen.getByTestId("installed-row-llama3.2:3b")).toBeInTheDocument();
     expect(screen.getByTestId("active-downloads")).toBeInTheDocument();
-    expect(screen.getByTestId("ollama-library")).toBeInTheDocument();
+    expect(screen.queryByTestId("ollama-library")).toBeNull();
 
     fireEvent.click(screen.getAllByText("delete")[0]);
     expect(state.removeLocally).toHaveBeenCalledWith("qwen3:30b");
-    // Ready state offers Reload but not Restart.
+    // Ready state offers Reload but not Restart (header actions).
     expect(screen.getByText("local_storage.reload")).toBeInTheDocument();
     expect(screen.queryByText("local_storage.restart")).toBeNull();
-  });
 
-  test("ready with nothing installed says so; the library is still there to pull from", () => {
-    renderPane(makeOllama({ models: [] }));
-    expect(screen.getByText("local_storage.no_models")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-library"));
     expect(screen.getByTestId("ollama-library")).toBeInTheDocument();
+    expect(screen.queryByTestId("installed-row-qwen3:30b")).toBeNull();
   });
 
-  test("not_found: install hint, no installed list, no restart", () => {
+  test("ready with nothing installed: opens on Library", () => {
+    renderPane(makeOllama({ models: [] }));
+    expect(screen.getByTestId("tab-library").dataset.on).toBe("true");
+    expect(screen.getByTestId("ollama-library")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-installed"));
+    expect(screen.getByText("local_storage.no_models")).toBeInTheDocument();
+  });
+
+  test("not_found: opens on Library with the install hint; Installed tab shows the hint too, no restart", () => {
     renderPane(makeOllama({ status: "not_found" }));
     expect(OLLAMA_STATUS_CAPTION_KEY.not_found).toBe("local_storage.not_installed");
+    expect(screen.getByTestId("tab-library").dataset.on).toBe("true");
     expect(screen.getByText("local_storage.ollama_not_installed")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-installed"));
     expect(screen.getByText("https://ollama.com")).toBeInTheDocument();
     expect(screen.queryByTestId("ollama-installed-list")).toBeNull();
     expect(screen.queryByText("local_storage.restart")).toBeNull();
   });
 
-  test("offline with a bridge: failed-start copy and a Restart action that calls the hook", () => {
+  test("offline with a bridge: failed-start copy on the Installed tab and a Restart action that calls the hook", () => {
     const state = makeOllama({ status: "offline" });
     renderPane(state);
+    fireEvent.click(screen.getByTestId("tab-installed"));
     expect(screen.getByText("local_storage.ollama_failed_start")).toBeInTheDocument();
     expect(screen.getByText("ollama serve")).toBeInTheDocument();
     fireEvent.click(screen.getByText("local_storage.restart"));
@@ -92,6 +113,7 @@ describe("OllamaPane", () => {
 
   test("offline without a bridge: not-running copy, no Restart", () => {
     renderPane(makeOllama({ status: "offline", hasOllamaBridge: false }));
+    fireEvent.click(screen.getByTestId("tab-installed"));
     expect(screen.getByText("local_storage.ollama_not_running")).toBeInTheDocument();
     expect(screen.queryByText("local_storage.restart")).toBeNull();
   });

@@ -1,7 +1,8 @@
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import SegmentedControl from "../../toolkit/components/segmented_control";
 import ActiveDownloads from "../../settings/model_providers/components/active_downloads";
 import { OllamaStore } from "./ollama/ollama_store";
 import OllamaModelRow from "../../settings/local_storage/components/ollama_model_row";
@@ -9,21 +10,19 @@ import { formatBytes } from "../../settings/local_storage/utils/storage_metrics"
 
 /**
  * OllamaPane — the one provider where models are chosen, downloaded and
- * managed (#204, project owner decision 1). Top to bottom:
+ * managed (#204, project owner decision 1). Design S4: the modal's fixed
+ * header carries the service state (caption) and Restart / Reload
+ * (OllamaHeadingActions); the body is one group button with two tabs:
  *
- *   heading  — service state as the caption (running / offline / not
- *              installed / starting), Restart / Reload on the right — lives
- *              in the modal's fixed header (OllamaHeadingActions +
- *              OLLAMA_STATUS_CAPTION_KEY, composed by
- *              model_providers_modal_content.js);
- *   installed — the local models with size bars and Delete (the Local
- *              Storage rows, same delete path, same catalog refresh);
- *   downloads — pulls in flight (ActiveDownloads);
- *   store    — the library as a card grid with a per-tag size picker
- *              (design O3, ./ollama/ollama_store.js).
+ *   Installed — the local models with size bars and a hover trash icon
+ *               (the Local Storage rows, same delete path, same catalog
+ *               refresh), then pulls in flight;
+ *   Library   — the store (design S3, ./ollama/ollama_store.js).
  *
- * State comes from the shared `useOllamaInstalled` hook the modal owns, so
- * the rail dot and this pane can never disagree.
+ * The pane opens on Installed when there is something installed, on Library
+ * when there is not; the choice is made once, when the service first
+ * answers. State comes from the shared `useOllamaInstalled` hook the modal
+ * owns, so the rail dot and this pane can never disagree.
  */
 
 export const OLLAMA_STATUS_CAPTION_KEY = {
@@ -68,20 +67,21 @@ export const OllamaPane = ({ ollama }) => {
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const { status, models, hasOllamaBridge, removeLocally } = ollama;
+  const { status, models, hasOllamaBridge, load, removeLocally } = ollama;
+
+  /* Land on Installed when there is something installed, else Library —
+     decided once, the first time the service answers. */
+  const [tab, setTab] = useState(null);
+  useEffect(() => {
+    if (tab !== null) return;
+    if (status === "ready") setTab(models.length > 0 ? "installed" : "library");
+    else if (status === "offline" || status === "not_found") setTab("library");
+  }, [status, models.length, tab]);
+  const activeTab = tab || "installed";
 
   const maxSize = models.length > 0 ? models[0].size : 1;
   const totalSize = models.reduce((s, m) => s + m.size, 0);
 
-  const captionStyle = {
-    fontSize: 10,
-    fontFamily,
-    textTransform: "uppercase",
-    letterSpacing: "1.5px",
-    color: "var(--pupu-text-faint)",
-    opacity: 0.7,
-    margin: "14px 0 2px",
-  };
   const mutedStyle = {
     fontSize: 12.5,
     fontFamily,
@@ -98,60 +98,92 @@ export const OllamaPane = ({ ollama }) => {
 
   return (
     <div data-testid="ollama-pane">
-      <p style={mutedStyle}>{t("model_providers.ollama_desc")}</p>
+      <div data-testid="ollama-tabs" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <SegmentedControl
+          sections={[
+            {
+              key: "installed",
+              label:
+                status === "ready" && models.length > 0
+                  ? `${t("model_providers.store.tab_installed")} · ${models.length}`
+                  : t("model_providers.store.tab_installed"),
+            },
+            { key: "library", label: t("model_providers.store.tab_library") },
+          ]}
+          selected={activeTab}
+          onChange={setTab}
+          isDark={isDark}
+          buttonFontWeight={500}
+        />
+      </div>
 
-      {status === "not_found" && (
-        <div style={{ margin: "12px 0 4px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={mutedStyle}>{t("local_storage.ollama_not_installed")}</p>
-          <span style={monoStyle}>https://ollama.com</span>
+      {activeTab === "installed" && (
+        <div data-testid="ollama-installed-tab">
+          {status === "not_found" && (
+            <div style={{ margin: "4px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+              <p style={mutedStyle}>{t("local_storage.ollama_not_installed")}</p>
+              <span style={monoStyle}>https://ollama.com</span>
+            </div>
+          )}
+          {status === "starting" && (
+            <p style={{ ...mutedStyle, margin: "4px 0" }}>{t("local_storage.ollama_starting")}</p>
+          )}
+          {status === "offline" && (
+            <div style={{ margin: "4px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+              <p style={mutedStyle}>
+                {hasOllamaBridge
+                  ? t("local_storage.ollama_failed_start")
+                  : t("local_storage.ollama_not_running")}
+              </p>
+              <span style={monoStyle}>ollama serve</span>
+            </div>
+          )}
+          {status === "ready" && (
+            <>
+              {models.length > 0 && (
+                <p style={{ ...mutedStyle, fontSize: 11.5, marginBottom: 2 }}>
+                  {t("model_providers.store.on_disk", { size: formatBytes(totalSize) })}
+                </p>
+              )}
+              <div data-testid="ollama-installed-list">
+                {models.length === 0 ? (
+                  <p style={{ ...mutedStyle, padding: "14px 0 6px" }}>{t("local_storage.no_models")}</p>
+                ) : (
+                  models.map((model) => (
+                    <OllamaModelRow
+                      key={model.name}
+                      model={model}
+                      maxSize={maxSize}
+                      isDark={isDark}
+                      onDelete={removeLocally}
+                    />
+                  ))
+                )}
+              </div>
+            </>
+          )}
+          {/* ActiveDownloads carries its own "Active Downloads" caption and
+              renders nothing while no pull is running. */}
+          <div style={{ marginTop: 6 }}>
+            <ActiveDownloads isDark={isDark} />
+          </div>
         </div>
       )}
-      {status === "starting" && (
-        <p style={{ ...mutedStyle, margin: "12px 0 4px" }}>{t("local_storage.ollama_starting")}</p>
-      )}
-      {status === "offline" && (
-        <div style={{ margin: "12px 0 4px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <p style={mutedStyle}>
-            {hasOllamaBridge
-              ? t("local_storage.ollama_failed_start")
-              : t("local_storage.ollama_not_running")}
-          </p>
-          <span style={monoStyle}>ollama serve</span>
+
+      {activeTab === "library" && (
+        <div data-testid="ollama-library-tab">
+          {status !== "ready" && (
+            <p style={{ ...mutedStyle, marginBottom: 8 }}>
+              {status === "not_found"
+                ? t("local_storage.ollama_not_installed")
+                : status === "offline"
+                  ? t("local_storage.ollama_not_running")
+                  : t("local_storage.ollama_starting")}
+            </p>
+          )}
+          <OllamaStore isDark={isDark} onInstalledChanged={load} />
         </div>
       )}
-
-      {status === "ready" && (
-        <>
-          <div style={captionStyle}>
-            {t("model_providers.page.installed_models")}
-            {models.length > 0 && (
-              <span style={{ marginLeft: 8, letterSpacing: 0, textTransform: "none", fontVariantNumeric: "tabular-nums" }}>
-                {models.length} · {formatBytes(totalSize)}
-              </span>
-            )}
-          </div>
-          <div data-testid="ollama-installed-list">
-            {models.length === 0 ? (
-              <p style={{ ...mutedStyle, padding: "14px 0 6px" }}>{t("local_storage.no_models")}</p>
-            ) : (
-              models.map((model) => (
-                <OllamaModelRow
-                  key={model.name}
-                  model={model}
-                  maxSize={maxSize}
-                  isDark={isDark}
-                  onDelete={removeLocally}
-                />
-              ))
-            )}
-          </div>
-        </>
-      )}
-
-      <ActiveDownloads isDark={isDark} />
-
-      <div style={{ ...captionStyle, marginTop: 18 }}>{t("model_providers.model_library")}</div>
-      <OllamaStore isDark={isDark} />
     </div>
   );
 };
