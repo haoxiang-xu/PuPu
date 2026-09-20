@@ -157,7 +157,8 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
           overflow: "hidden",
         }}
       >
-        <div data-testid="model-providers-pane-heading" style={{ padding: "24px 24px 0", flexShrink: 0 }}>
+        {/* Same horizontal inset as the Settings page title / body (32 px). */}
+        <div data-testid="model-providers-pane-heading" style={{ padding: "24px 32px 0", flexShrink: 0 }}>
           {heading && <PaneHeading {...heading} />}
         </div>
         <div
@@ -167,7 +168,7 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
             flex: 1,
             minHeight: 0,
             overflowY: "auto",
-            padding: "4px 24px 24px",
+            padding: "4px 32px 24px",
             boxSizing: "border-box",
           }}
         >
