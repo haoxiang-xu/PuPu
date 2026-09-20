@@ -78,6 +78,18 @@ INCOMPLETE, missing candidate/evidence, or an unapproved exception keeps the
 parent In Review. On a passing record, close the parent GitHub issue and set
 Project Status=Done; read back both states before declaring the release closed.
 
+**Act 7 — post-publication branch handoff.** Once the release is public and all
+release steps/follow-ups are complete or explicitly excepted by the owner,
+follow [Final handoff in release-run-pipeline](../release-run-pipeline/SKILL.md#final-handoff--dev--main-prs-in-both-repositories):
+create or reuse one `dev` → `main` PR in each of `haoxiang-xu/PuPu` and
+`haoxiang-xu/unchain`. This step runs after publication, not during the
+pre-publication certification handoff. Record both PR URLs, observed branch
+SHAs, and pending checks/conflicts on the Release parent; record an explicit
+no-diff result for a repository that needs no PR. If already administratively
+closed, append the handoff evidence without rerunning Acts 1–6 or reopening
+scope. Missing PRs remain an outstanding release follow-up. Do not auto-merge
+or claim the branches are synchronized just because the PRs exist.
+
 ## Common mistakes
 
 - Inferring version scope from Iterations, title, label, or a document instead

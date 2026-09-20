@@ -17,7 +17,7 @@ Operate the existing release workflows through the deterministic repository CLI.
 
 ## Canonical CLI
 
-Use only:
+For pipeline plan/dispatch/status/wait, use only:
 
 ```text
 node scripts/release-qa/release-operator.mjs <command> ...
@@ -64,6 +64,45 @@ Use only after release work is complete and the exact candidate/qualification pa
 ### Publish
 
 First inspect the Draft Release and complete the repository's release certification/close workflow. Dispatch only after a fresh publication instruction and confirmation `PUBLISH_RELEASE`. The workflow receives its own closed `PUBLISH` input and still pauses at `release-publish` approval.
+
+### Final handoff — dev → main PRs in both repositories
+
+Every release ends with a branch-sync PR in **each** repository:
+`haoxiang-xu/PuPu` and `haoxiang-xu/unchain`, always **head `dev`, base `main`**.
+This is post-release housekeeping, not another Candidate or publication step.
+When executing the owner's release-completion request, create these PRs after
+all release steps and follow-ups are complete (or have an explicit recorded
+owner exception). Verify the exact release is public, not a Draft; an overall
+red Publish run can still have published successfully. Resolve remaining
+follow-ups such as the README update into `dev` before taking the final branch
+snapshot. A skill-edit-only request does not itself authorize opening live PRs.
+
+Use GitHub read/create PR operations for this handoff, not pipeline dispatch:
+
+1. Read both repositories' current `dev` and `main` SHAs and compare
+   `main...dev`. Inspect commits and changed files; the current `dev` may contain
+   work beyond the frozen PuPu candidate or delivered Unchain revision. Call out
+   that difference in the PR body; never claim the entire branch was qualified
+   merely because the release passed.
+2. Look for an open PR with exactly head `dev` and base `main` in each repository.
+   Reuse it instead of creating a duplicate. If there is no mergeable content
+   difference, record “already synchronized / no PR needed”; do not invent a
+   commit or force a branch change to manufacture a PR.
+3. Otherwise create a PR titled `chore(release): sync dev to main after vX.Y.Z`.
+   Include the public release and exact run/evidence links, the repository's
+   observed head/base SHAs, and its diff summary. For Unchain, include the
+   delivered runtime revision from the candidate evidence; do not assume its
+   current `dev` equals that revision.
+4. Read back both PRs' repository, head/base, state, and check/conflict status.
+   Report both URLs (or the explicit no-diff result) in the final handoff and
+   pass them to `release-close-sprint` for the Release parent close record.
+   If one fails, retain the successful result and retry only the missing part
+   after resolving its blocker; never rerun publication for this task.
+
+Create/reuse PRs only: **do not merge, enable auto-merge, approve, bypass branch
+protection, force-push, or move release tags**. Leave checks, conflicts, and
+merge decisions visible to the project owner. PR creation is the handoff;
+do not describe `main` as synchronized until a merge is actually verified.
 
 ## Observation and handoff
 
