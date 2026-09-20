@@ -155,7 +155,6 @@
       "rail_providers": "提供商",
       "rail_custom": "自定义",
       "add_provider": "添加提供商",
-      "custom_caption": "自定义提供商",
       "get_key_at": "在 {host} 获取密钥",
       "welcome_title": "尚未配置模型提供商",
       "welcome_desc": "PuPu 需要先配置一个才能发送聊天。选择一种方式：",

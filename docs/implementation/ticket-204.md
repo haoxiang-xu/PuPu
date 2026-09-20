@@ -68,7 +68,7 @@ Report back instead of improvising when: a needed export does not exist, a test 
 
 ## Round two (project owner, 2026-09-19, after the as-built preview)
 
-Decisions: (5) Settings keeps a **narrow** Model Providers page — design **N1** accordion — sharing the pane components with the wide layer; the Settings item no longer redirects. (6) The Models modal matches the Agent Builder modal: **920 × 600, maxWidth 92vw, maxHeight 88vh** (fullscreen toggle dropped by the project owner after review). (7) The Ollama store is redesigned — design **O3** card grid with an expanding card: search, Popular/Newest sort, category chips, Installed filter, a Featured row (curated JSON shipped with the app), and a per-tag size picker with real download size / context (new tags fetch). Mockups: https://claude.ai/artifact/Xh5etqFkYdPkAxor2rsBxD
+Decisions: (5) Settings keeps a **narrow** Model Providers page — design **N1** accordion — sharing the pane components with the wide layer; the Settings item no longer redirects. (6) The Models modal matches the **Settings modal frame: 600 × 600, maxHeight 80vh** (the project owner tried the 920-wide Agent Builder frame and a fullscreen toggle on dev and reverted to the square). Rail 160 px; panes fit ~380 px; the expanded store card stacks its picker under the description at this width. (7) The Ollama store is redesigned — design **O3** card grid with an expanding card: search, Popular/Newest sort, category chips, Installed filter, a Featured row (curated JSON shipped with the app), and a per-tag size picker with real download size / context (new tags fetch). Mockups: https://claude.ai/artifact/Xh5etqFkYdPkAxor2rsBxD
 
 ### Boundary contracts (cross-boundary gate — IPC)
 
@@ -79,7 +79,7 @@ Decisions: (5) Settings keeps a **narrow** Model Providers page — design **N1*
 **AC-10** `ollamaLibraryAPI.tags("qwen3")` invokes `ollama:library-tags` with `{ name: "qwen3" }` (contract twin test); main rejects `"../x"`; a fixture of the real tags page parses into tags with size label, context and input; a garbage page parses to `[]`.
 **AC-11** The store shows Featured (from the curated JSON, only entries the library search can resolve are clickable), Popular/Newest sort, categories, Installed filter; a card expands to the picker; Pull uses the existing pull path (`handlePull(name, tag)`), progress and cancel render in the expanded card; an installed tag shows a check.
 **AC-12** Settings → Model Providers renders the N1 accordion: one row per rail entry (same `buildProviderRailEntries()`), expanding to the same key control / custom row; Ollama's row shows status and an "Open in Models" action that opens the wide layer on the Ollama entry.
-**AC-13** The Models modal is 920 × 600 / 92vw / 88vh with no fullscreen toggle; the store grid reflows (auto-fill) with the available width.
+**AC-13** The Models modal is 600 × 600 / 80vh (Settings frame), no fullscreen; the store grid and the expanded card reflow (auto-fill / auto-fit) to the ~380 px pane.
 
 ### Slices
 

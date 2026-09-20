@@ -126,7 +126,7 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
           flex: 1,
           minWidth: 0,
           overflowY: "auto",
-          padding: "24px 32px 24px",
+          padding: "24px 24px 24px",
           boxSizing: "border-box",
         }}
       >

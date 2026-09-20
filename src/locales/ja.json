@@ -155,7 +155,6 @@
       "rail_providers": "プロバイダー",
       "rail_custom": "カスタム",
       "add_provider": "プロバイダーを追加",
-      "custom_caption": "カスタムプロバイダー",
       "get_key_at": "{host} でキーを取得",
       "welcome_title": "モデルプロバイダー未設定",
       "welcome_desc": "チャットを送信するには PuPu にプロバイダーが必要です。方法を選んでください：",

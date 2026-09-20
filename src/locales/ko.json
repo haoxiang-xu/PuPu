@@ -155,7 +155,6 @@
       "rail_providers": "제공자",
       "rail_custom": "사용자 지정",
       "add_provider": "제공자 추가",
-      "custom_caption": "사용자 지정 제공자",
       "get_key_at": "{host}에서 키 발급받기",
       "welcome_title": "아직 모델 제공자가 없습니다",
       "welcome_desc": "채팅을 보내려면 PuPu에 제공자가 필요합니다. 방법을 선택하세요:",

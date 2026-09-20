@@ -155,7 +155,6 @@
       "rail_providers": "Proveedores",
       "rail_custom": "Personalizados",
       "add_provider": "Añadir proveedor",
-      "custom_caption": "Proveedor personalizado",
       "get_key_at": "Consigue una clave en {host}",
       "welcome_title": "Aún no hay proveedor de modelos",
       "welcome_desc": "PuPu necesita uno antes de poder enviar un chat. Elige un camino:",

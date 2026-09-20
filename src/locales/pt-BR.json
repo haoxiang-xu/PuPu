@@ -155,7 +155,6 @@
       "rail_providers": "Provedores",
       "rail_custom": "Personalizados",
       "add_provider": "Adicionar provedor",
-      "custom_caption": "Provedor personalizado",
       "get_key_at": "Obtenha uma chave em {host}",
       "welcome_title": "Ainda não há provedor de modelo",
       "welcome_desc": "O PuPu precisa de um antes de enviar uma conversa. Escolha um caminho:",

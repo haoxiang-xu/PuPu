@@ -287,10 +287,9 @@ export const ProviderKeySection = ({
           gap: 10,
           paddingTop: 4,
           paddingBottom: 12,
-          /* In the wide Models pane the control block stops well short of
-             the pane's ~690 px: a key field that runs the full width reads
-             as a text area (project owner). The heading and its hairline
-             keep the full width above it. */
+          /* A key field that runs the full width of a wide pane reads as a
+             text area (project owner); in the 600 px modal the pane is
+             narrower than this cap and the block simply fills it. */
           maxWidth: heading === "page" ? 520 : undefined,
         }}
       >

@@ -155,7 +155,6 @@
       "rail_providers": "Provider",
       "rail_custom": "Personalizzati",
       "add_provider": "Aggiungi provider",
-      "custom_caption": "Provider personalizzato",
       "get_key_at": "Ottieni una chiave su {host}",
       "welcome_title": "Nessun provider di modelli ancora",
       "welcome_desc": "PuPu ne richiede uno prima di poter inviare una chat. Scegli un percorso:",
