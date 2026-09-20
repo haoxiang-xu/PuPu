@@ -155,7 +155,6 @@
       "rail_providers": "Providers",
       "rail_custom": "Custom",
       "add_provider": "Add provider",
-      "custom_caption": "Custom provider",
       "get_key_at": "Get a key at {host}",
       "welcome_title": "No model provider yet",
       "welcome_desc": "PuPu needs one before a chat can be sent. Pick a path:",

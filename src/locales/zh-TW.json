@@ -155,7 +155,6 @@
       "rail_providers": "供應商",
       "rail_custom": "自訂",
       "add_provider": "新增供應商",
-      "custom_caption": "自訂供應商",
       "get_key_at": "在 {host} 取得金鑰",
       "welcome_title": "尚未設定模型供應商",
       "welcome_desc": "PuPu 需要先設定一個才能傳送聊天。選擇一種方式：",

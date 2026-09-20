@@ -50,10 +50,11 @@ export const CustomProviderPane = ({ entry, onDeleted }) => {
 
   return (
     <div data-testid={`custom-provider-pane-${provider.id}`}>
+      {/* No "custom provider" caption: the rail's Custom group already says
+          it, and the 600 px pane has no room beside a long display name. */}
       <PaneHeading
         title={provider.display_name || provider.id}
         icon={CUSTOM_MODEL_GROUP_ICON}
-        caption={t("model_providers.page.custom_caption")}
       />
       <CustomProviderRow
         provider={provider}

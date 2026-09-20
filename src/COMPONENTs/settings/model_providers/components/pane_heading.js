@@ -19,6 +19,8 @@ export const PaneHeading = ({ title, icon, action = null, caption = null }) => {
           alignItems: "center",
           gap: 10,
           minHeight: 32,
+          /* keep clear of the modal's close button in the top-right corner */
+          paddingRight: 28,
         }}
       >
         {icon && (

@@ -76,7 +76,7 @@ const RailRow = ({ entry, selected, onSelect, label }) => {
           justifyContent: "flex-start",
           fontSize: 13,
           opacity: selected ? 1 : isAction ? 0.5 : 0.65,
-          padding: isAction ? "7px 12px 7px 12px" : "7px 12px 7px 22px",
+          padding: isAction ? "7px 10px 7px 10px" : "7px 10px 7px 20px",
           borderRadius: 7,
           iconSize: 16,
           ...(selected
@@ -114,7 +114,7 @@ export const ProviderRail = ({ entries, selectedId, onSelect }) => {
       className="scrollable"
       style={{
         position: "relative",
-        width: 200,
+        width: 160,
         flexShrink: 0,
         backgroundColor: "var(--pupu-sidebar)",
         borderRight: "1px solid var(--pupu-border)",

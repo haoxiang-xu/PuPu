@@ -9,11 +9,11 @@ import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
  * ModelProvidersModal — the Model Providers page (#204).
  *
  * A sibling of ToolkitModal / WorkspaceModal: opened from the side menu's top
- * group, a BUILTIN Modal layered over the still-mounted chat. It takes the
- * Agent Builder modal's frame — 920 × 600, capped at 92vw / 88vh; no
- * fullscreen toggle (project owner) — because it carries a provider rail
- * beside the pane (design A1) and the Ollama store wants the width. Settings
- * keeps a narrow accordion version of the same panes (N1).
+ * group, a BUILTIN Modal layered over the still-mounted chat. Same square
+ * frame as the Settings modal — 600 × 600, capped at 80vh (project owner,
+ * after trying the wider Agent Builder frame) — with a provider rail beside
+ * the pane (design A1); the panes are written to fit the ~400 px that leaves.
+ * Settings keeps a narrow accordion version of the same panes (N1).
  */
 
 export const MODEL_PROVIDERS_MODAL_ID = "model-providers-modal";
@@ -50,10 +50,11 @@ export const ModelProvidersModal = ({ open, onClose, initialEntryId = null }) =>
       open={open}
       onClose={onClose}
       style={{
-        width: 920,
-        maxWidth: "92vw",
+        width: 600,
+        minWidth: 600,
+        maxWidth: 600,
         height: 600,
-        maxHeight: "88vh",
+        maxHeight: "80vh",
         padding: 0,
         backgroundColor: "var(--pupu-background)",
         color: "var(--pupu-text)",

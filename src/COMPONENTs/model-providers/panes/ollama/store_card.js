@@ -187,7 +187,9 @@ export const StoreCard = ({
         ...baseStyle,
         gridColumn: "1 / -1",
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 260px)",
+        /* Description beside the picker when there is room (wide window),
+           stacked when the pane is the 600 px modal's ~380 px. */
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
         gap: 18,
       }}
     >
