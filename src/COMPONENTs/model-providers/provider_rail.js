@@ -121,7 +121,10 @@ export const ProviderRail = ({ entries, selectedId, onSelect }) => {
         flexDirection: "column",
         gap: 2,
         overflowY: "auto",
-        boxSizing: "border-box",
+        /* content-box, like the Settings strip: 140 + 10 + 10 padding + the
+           hairline = 161 px rendered. Declaring border-box here made the
+           rail 21 px narrower than Settings' while claiming the same
+           width. */
       }}
     >
       <RailCaption>{t("model_providers.page.rail_providers")}</RailCaption>
