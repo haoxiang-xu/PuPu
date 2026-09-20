@@ -40,7 +40,7 @@ const DEV_SETTINGS_PAGE = {
   pinToBottom: true,
 };
 
-export const SettingsModalContent = ({ onClose }) => {
+export const SettingsModalContent = ({ onClose, onOpenModelProviders }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const [selectedPage, setSelectedPage] = useState("appearance");
@@ -182,7 +182,10 @@ export const SettingsModalContent = ({ onClose }) => {
           }}
         >
           <div style={{ paddingRight: 32 }}>
-            <ActivePageComponent onNavigate={setSelectedPage} />
+            <ActivePageComponent
+              onNavigate={setSelectedPage}
+              onOpenModelProviders={onOpenModelProviders}
+            />
           </div>
         </div>
       </div>

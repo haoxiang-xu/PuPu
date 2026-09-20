@@ -36,6 +36,25 @@
 >   `components/provider_key_section.js`，七个区块共用一个控件；Kimi 的双站点是一行
 >   Platform `Select`。§6.1 / §8.4 的组件结构按此为准。
 >
+> **Model Providers page 勘误（#204）**：provider 配置有两个入口，共用同一套 pane 组件：
+> - **宽版**：side menu 顶部分组的 **Models** → `ModelProvidersModal`（`src/COMPONENTs/model-providers/`，
+>   BUILTIN Modal 920×600 / 92vw / 88vh，带全屏切换，与 Agent Builder modal 同框）。左轨由
+>   `rail_entries.js` 的 `buildProviderRailEntries()` 生成（native → shipped registry → Ollama →
+>   flag 门控的自定义 provider），右侧 pane 按 kind 路由。
+> - **窄版**：Settings → Model Providers 仍是一个页面（`settings/model_providers/index.js` 的
+>   `ModelProvidersSettings`，手风琴列表），行下展开同一个 `ProviderKeySection`（`heading="none"`）；
+>   Ollama 行只显示状态并跳到宽版。
+> - **pane 复用**：key provider = `ProviderKeySection`（`heading="page"` 变体 + `key_url` 取 key 链接）；
+>   custom provider 复用本文 §6/§8 的 row / editor / import / preset 组件；Ollama pane = 服务状态 +
+>   已安装模型（与 Local Storage 共用 `settings/local_storage/hooks/use_ollama_installed.js`）+ 下载中 +
+>   **商店**（`model-providers/panes/ollama/ollama_store.js`：搜索、Popular/Newest、分类、Installed 过滤、
+>   `src/SERVICEs/ollama_featured_models.json` 精选行、卡片展开为逐 tag 尺寸选择）。
+> - **新增 IPC**（BC-002/BC-003，见 `docs/implementation/ticket-204.md`）：`ollama:library-tags`
+>   抓取 `ollama.com/library/<name>/tags`（主进程校验 name，渲染进程 `parseLibraryTagsHtml` 防御式解析，
+>   失败回落到列表的尺寸 tag）；`ollama:library-search` 增加 `sort ∈ {"", "newest"}`。
+> - **不变**：`custom_provider_store.js`、custom provider 的 wire payload、Flask 端零改动；
+>   本文其余章节（协议孪生映射、白名单导出、catalog 前端合并、`model_io_factory` 闭包）继续有效。
+>
 > 其余架构（协议孪生映射、白名单导出、catalog 前端合并、`model_io_factory` 闭包）不变。
 > 动机场景：SAP Hyperspace LLM proxy —— 本地 `hai proxy start` 在 `http://localhost:6655/anthropic` 暴露 Anthropic 兼容 Messages API，`x-api-key` 认证，模型 ID 形如 `anthropic--claude-4.5-haiku`。
 > 文中 file:line 引用来自勘察时点（dev 分支），行号漂移时以函数名为准。

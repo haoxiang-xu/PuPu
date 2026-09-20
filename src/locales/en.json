@@ -150,7 +150,53 @@
     },
     "platform": "Platform",
     "site_global": "Global",
-    "site_china": "China"
+    "site_china": "China",
+    "page": {
+      "rail_providers": "Providers",
+      "rail_custom": "Custom",
+      "add_provider": "Add provider",
+      "custom_caption": "Custom provider",
+      "get_key_at": "Get a key at {host}",
+      "welcome_title": "No model provider yet",
+      "welcome_desc": "PuPu needs one before a chat can be sent. Pick a path:",
+      "path_key_title": "Bring an API key",
+      "path_key_desc": "Choose a provider on the left and paste its key. It is stored encrypted on this machine.",
+      "path_key_action": "Choose a provider",
+      "path_local_title": "Run models locally",
+      "path_local_desc": "Ollama runs open models on this computer. No key, no account; models download from its library.",
+      "path_local_action": "Install Ollama",
+      "path_local_open": "Open Ollama",
+      "ollama_running": "running",
+      "installed_models": "Installed models"
+    },
+    "store": {
+      "search": "Search the library",
+      "sort_popular": "Popular",
+      "sort_newest": "Newest",
+      "filter_installed": "Installed",
+      "featured": "Featured",
+      "library": "Library",
+      "choose_size": "Choose a size",
+      "pull_tag": "Pull {ref}",
+      "installed": "Installed",
+      "tags_loading": "Loading sizes…",
+      "tags_failed": "Could not load sizes from ollama.com",
+      "tags_retry": "Retry",
+      "show_all_tags": "Show all {count} tags",
+      "show_fewer_tags": "Show fewer",
+      "pulls": "{count} pulls",
+      "updated": "updated {when}",
+      "empty_installed": "Nothing installed matches this filter.",
+      "featured_qwen3": "Best all-rounder that fits a laptop",
+      "featured_gemma3": "Small, fast, understands images",
+      "featured_deepseek_r1": "Reasoning on your own machine",
+      "featured_nomic_embed_text": "Embeddings for memory and search"
+    },
+    "settings": {
+      "ready": "Ready",
+      "open_in_models": "Open in Models",
+      "ollama_hint": "Installed models and the library live in the Models page."
+    }
   },
   "memory": {
     "title": "Chat Memory",
@@ -481,7 +527,8 @@
     "workspaces": "Workspaces",
     "settings": "Settings",
     "chats": "Chats",
-    "no_chats_found": "No chats found"
+    "no_chats_found": "No chats found",
+    "models": "Models"
   },
   "context_menu": {
     "new_chat": "New Chat",

@@ -150,7 +150,53 @@
     },
     "platform": "Plataforma",
     "site_global": "Global",
-    "site_china": "China"
+    "site_china": "China",
+    "page": {
+      "rail_providers": "Proveedores",
+      "rail_custom": "Personalizados",
+      "add_provider": "Añadir proveedor",
+      "custom_caption": "Proveedor personalizado",
+      "get_key_at": "Consigue una clave en {host}",
+      "welcome_title": "Aún no hay proveedor de modelos",
+      "welcome_desc": "PuPu necesita uno antes de poder enviar un chat. Elige un camino:",
+      "path_key_title": "Aporta una clave API",
+      "path_key_desc": "Elige un proveedor a la izquierda y pega su clave. Se almacena cifrada en este equipo.",
+      "path_key_action": "Elegir proveedor",
+      "path_local_title": "Ejecuta modelos localmente",
+      "path_local_desc": "Ollama ejecuta modelos abiertos en este equipo. Sin clave, sin cuenta; los modelos se descargan de su biblioteca.",
+      "path_local_action": "Instalar Ollama",
+      "path_local_open": "Abrir Ollama",
+      "ollama_running": "en ejecución",
+      "installed_models": "Modelos instalados"
+    },
+    "store": {
+      "search": "Buscar en la biblioteca",
+      "sort_popular": "Popular",
+      "sort_newest": "Más reciente",
+      "filter_installed": "Instalado",
+      "featured": "Destacados",
+      "library": "Biblioteca",
+      "choose_size": "Elige un tamaño",
+      "pull_tag": "Descargar {ref}",
+      "installed": "Instalado",
+      "tags_loading": "Cargando tamaños…",
+      "tags_failed": "No se pudieron cargar los tamaños desde ollama.com",
+      "tags_retry": "Reintentar",
+      "show_all_tags": "Mostrar los {count} tags",
+      "show_fewer_tags": "Mostrar menos",
+      "pulls": "{count} descargas",
+      "updated": "actualizado {when}",
+      "empty_installed": "Nada instalado coincide con este filtro.",
+      "featured_qwen3": "El mejor modelo versátil que cabe en un portátil",
+      "featured_gemma3": "Pequeño, rápido, entiende imágenes",
+      "featured_deepseek_r1": "Razonamiento en tu propio equipo",
+      "featured_nomic_embed_text": "Embeddings para memoria y búsqueda"
+    },
+    "settings": {
+      "ready": "Listo",
+      "open_in_models": "Abrir en Modelos",
+      "ollama_hint": "Los modelos instalados y la biblioteca están en la página Modelos."
+    }
   },
   "memory": {
     "title": "Memoria de chat",
@@ -481,7 +527,8 @@
     "workspaces": "Espacios",
     "settings": "Ajustes",
     "chats": "Chats",
-    "no_chats_found": "No se encontraron chats"
+    "no_chats_found": "No se encontraron chats",
+    "models": "Modelos"
   },
   "context_menu": {
     "new_chat": "Nuevo chat",

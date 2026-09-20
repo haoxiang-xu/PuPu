@@ -98,6 +98,51 @@ const fetchInstalledOllamaModels = async ({
   }
 };
 
+const SIZE_UNIT = { KB: 1e3, MB: 1e6, GB: 1e9, TB: 1e12 };
+
+/**
+ * Parse ollama.com/library/<name>/tags. Exported for the fixture test.
+ * Each tag appears twice on the page (a mobile block carrying the metadata
+ * line and a desktop grid); the mobile anchor's text is the one read. Tags
+ * are de-duplicated in page order.
+ */
+export const parseLibraryTagsHtml = (rawHtml, modelName) => {
+  if (typeof rawHtml !== "string" || !rawHtml || typeof DOMParser === "undefined") {
+    return [];
+  }
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(rawHtml, "text/html");
+  } catch (_error) {
+    return [];
+  }
+  const prefix = `/library/${modelName}:`;
+  const seen = new Set();
+  const tags = [];
+  doc.querySelectorAll(`a[href^="${prefix}"]`).forEach((a) => {
+    const href = a.getAttribute("href") || "";
+    const tag = href.slice(prefix.length).split(/[/?#]/)[0];
+    if (!tag || seen.has(tag)) return;
+    const text = (a.textContent || "").replace(/\s+/g, " ").trim();
+    const sizeMatch = text.match(/(\d+(?:\.\d+)?)\s*(KB|MB|GB|TB)\b/i);
+    if (!sizeMatch) return; // the desktop anchor carries no metadata
+    seen.add(tag);
+    const unit = sizeMatch[2].toUpperCase();
+    const contextMatch = text.match(/(\d+(?:\.\d+)?[KM]?)\s+context window/i);
+    const inputMatch = text.match(/([A-Za-z]+(?:,\s*[A-Za-z]+)*)\s+input\b/i);
+    const updatedMatch = text.match(/(\d+\s+\w+\s+ago|yesterday|today)/i);
+    tags.push({
+      tag,
+      size_label: `${sizeMatch[1]}${unit}`,
+      size_bytes: Math.round(Number(sizeMatch[1]) * (SIZE_UNIT[unit] || 0)) || null,
+      context: contextMatch ? contextMatch[1].toUpperCase() : "",
+      input: inputMatch ? inputMatch[1] : "",
+      updated: updatedMatch ? updatedMatch[1] : "",
+    });
+  });
+  return tags;
+};
+
 export const createOllamaApi = () => ({
   isBridgeAvailable: () =>
     hasBridgeMethod("ollamaAPI", "getStatus") &&
@@ -215,7 +260,9 @@ export const createOllamaApi = () => ({
       .map(({ name, size }) => ({ name, size }));
   },
 
-  searchLibrary: async ({ query = "", category = "" } = {}) => {
+  /* `sort` is "" (ollama.com's default, most pulled first) or "newest" —
+     BC-003: main maps only the exact value, anything else is the default. */
+  searchLibrary: async ({ query = "", category = "", sort = "" } = {}) => {
     if (
       typeof window === "undefined" ||
       typeof window.ollamaLibraryAPI?.search !== "function"
@@ -225,7 +272,11 @@ export const createOllamaApi = () => ({
         "Ollama library bridge not available",
       );
     }
-    const rawHtml = await window.ollamaLibraryAPI.search(query, category);
+    const rawHtml = await window.ollamaLibraryAPI.search(
+      query,
+      category,
+      sort === "newest" ? "newest" : "",
+    );
     if (typeof rawHtml !== "string") {
       throw new FrontendApiError(
         "parse_error",
@@ -308,6 +359,40 @@ export const createOllamaApi = () => ({
         parseErr,
       );
     }
+  },
+
+  /**
+   * The tags of one library model — what the store's size picker shows
+   * (#204, design O3). Main fetches `ollama.com/library/<name>/tags`
+   * (BC-002, name validated there); this side parses the page's per-tag
+   * line: "<digest> • 5.2GB • 40K context window • Text input • 1 year ago".
+   * Parsing is defensive: a page that no longer matches yields [] and the
+   * picker falls back to the size tags from the list.
+   *
+   * @returns {Promise<Array<{tag:string, size_label:string, size_bytes:number|null, context:string, input:string, updated:string}>>}
+   */
+  fetchLibraryTags: async (name) => {
+    const modelName = typeof name === "string" ? name.trim() : "";
+    if (!modelName) {
+      throw new FrontendApiError("invalid_argument", "Model name is required");
+    }
+    if (
+      typeof window === "undefined" ||
+      typeof window.ollamaLibraryAPI?.tags !== "function"
+    ) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "Ollama library bridge not available",
+      );
+    }
+    const rawHtml = await window.ollamaLibraryAPI.tags(modelName);
+    if (typeof rawHtml !== "string") {
+      throw new FrontendApiError(
+        "parse_error",
+        "Unexpected response from library tags",
+      );
+    }
+    return parseLibraryTagsHtml(rawHtml, modelName);
   },
 
   pullModel: async ({ name, onProgress, signal } = {}) => {

@@ -1,49 +1,30 @@
-import { useContext } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { SettingsSection } from "../appearance";
-import ProviderKeySection from "./components/provider_key_section";
-import CustomProvidersSection from "./custom-providers";
 import ModelCard from "./components/model_card";
-import ActiveDownloads from "./components/active_downloads";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
-import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
-import { SHIPPED_PROVIDERS } from "../../../SERVICEs/shipped_provider_registry";
+import ProviderKeySection from "./components/provider_key_section";
+import { CustomProviderRow } from "./custom-providers/custom_provider_list";
+import CustomProviderEditor from "./custom-providers/custom_provider_editor";
+import CustomProviderImportModal from "./custom-providers/custom_provider_import_modal";
+import PresetPicker from "./custom-providers/preset_picker";
+import { exportCustomProvider } from "./custom-providers/export_provider";
+import { findCustomProvider } from "../../../SERVICEs/custom_provider_store";
+import { toast } from "../../../SERVICEs/toast";
+import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { useOllamaInstalled } from "../local_storage/hooks/use_ollama_installed";
+import {
+  RAIL_KIND,
+  buildProviderRailEntries,
+  customRailId,
+} from "../../model-providers/rail_entries";
 
-/* Native providers: a first-party ModelIO inside unchain, a dedicated storage
-   key, a credential identity of its own. */
-const NATIVE_PROVIDERS = [
-  {
-    id: "openai",
-    title: "OpenAI",
-    icon: "open_ai",
-    storage_key: "openai_api_key",
-    credential_id: "openai",
-    placeholder: "sk-...",
-  },
-  {
-    id: "anthropic",
-    title: "Anthropic",
-    icon: "Anthropic",
-    storage_key: "anthropic_api_key",
-    credential_id: "anthropic",
-    placeholder: "sk-ant-...",
-  },
-  {
-    id: "gemini",
-    title: "Gemini",
-    icon: "gemini",
-    storage_key: "gemini_api_key",
-    credential_id: "gemini",
-    placeholder: "AIza...",
-  },
-];
-
-const OllamaLibraryBrowser = ({ isDark }) => {
+export const OllamaLibraryBrowser = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const {
@@ -207,84 +188,461 @@ const OllamaLibraryBrowser = ({ isDark }) => {
   );
 };
 
-const OllamaSection = () => {
-  const { t } = useTranslation();
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
-  const mutedColor = "var(--pupu-text-faint)";
+/* ── N1: the narrow Settings → Model Providers accordion (#204 R5) ────────
+   Rows share `buildProviderRailEntries()` with the wide layer's rail (S1),
+   so a row and its dot never disagree with the Model Providers modal. Each
+   row is 38px, collapsed by default; expanding one closes whichever other
+   row was open — the body reuses the same pane pieces the wide layer's
+   panes wire up (`ProviderKeySection`, `CustomProviderRow` +
+   `CustomProviderEditor`, the Add-provider actions), just without a second
+   page heading, since the row itself already carries the icon and title. */
 
-  return (
-    <SettingsSection title="Ollama" icon="ollama">
-      <ActiveDownloads isDark={isDark} />
-      <p
-        style={{
-          margin: "4px 0 6px",
-          fontSize: 13,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          color: mutedColor,
-          lineHeight: 1.5,
-        }}
-      >
-        {t("model_providers.ollama_desc")}
-      </p>
-      <div
-        style={{
-          fontSize: 10,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          textTransform: "uppercase",
-          letterSpacing: "1.5px",
-          color: mutedColor,
-          opacity: 0.7,
-          marginTop: 10,
-          marginBottom: 0,
-        }}
-      >
-        {t("model_providers.model_library")}
-      </div>
-      <OllamaLibraryBrowser isDark={isDark} />
-    </SettingsSection>
-  );
+const DOT_ON = "var(--pupu-success, #5cc084)";
+const DOT_OFF = "var(--pupu-border)";
+
+const OLLAMA_STATUS_TEXT_KEY = {
+  ready: "model_providers.page.ollama_running",
+  offline: "local_storage.offline",
+  not_found: "local_storage.not_installed",
+  starting: "local_storage.starting",
+  loading: "local_storage.loading",
 };
 
-export const ModelProvidersSettings = () => {
-  const customModelProvidersEnabled = isFeatureFlagEnabled(
-    "enable_custom_model_providers",
-  );
+/** The faint status word at the row's right edge — the same wording a rail
+ *  dot would imply, spelled out. */
+const rowStatusKey = (entry, ollamaStatus) => {
+  if (entry.kind === RAIL_KIND.ADD_CUSTOM) {
+    return null;
+  }
+  if (entry.kind === RAIL_KIND.OLLAMA) {
+    return OLLAMA_STATUS_TEXT_KEY[ollamaStatus] || OLLAMA_STATUS_TEXT_KEY.loading;
+  }
+  if (entry.kind === RAIL_KIND.CUSTOM) {
+    return entry.configured ? "model_providers.custom.key_set" : "model_providers.custom.key_unset";
+  }
+  // native / shipped
+  return entry.configured ? "model_providers.settings.ready" : "model_providers.custom.key_unset";
+};
 
+const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, children }) => {
+  const { t } = useTranslation();
   return (
-    <div
-      className="scrollable"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-        padding: "8px 0",
-        overflowY: "auto",
-        height: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      {NATIVE_PROVIDERS.map((provider) => (
-        <ProviderKeySection
-          key={provider.id}
-          title={provider.title}
-          icon={provider.icon}
-          storage_key={provider.storage_key}
-          credential_id={provider.credential_id}
-          placeholder={provider.placeholder}
+    <div>
+      <div
+        data-testid={`model-providers-settings-row-${entry.id}`}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          height: 38,
+          cursor: "pointer",
+          userSelect: "none",
+          borderRadius: 6,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--pupu-overlay-hover)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "transparent";
+        }}
+      >
+        {entry.kind !== RAIL_KIND.ADD_CUSTOM && (
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              backgroundColor: entry.configured ? DOT_ON : DOT_OFF,
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <Icon src={entry.icon} style={{ width: 16, height: 16, opacity: 0.85, flexShrink: 0 }} />
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 13,
+            fontFamily,
+            color: "var(--pupu-text)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        {statusKey && (
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily,
+              color: "var(--pupu-text-faint)",
+              opacity: 0.75,
+              flexShrink: 0,
+            }}
+          >
+            {t(statusKey)}
+          </span>
+        )}
+        <Icon
+          src={open ? "arrow_down" : "arrow_right"}
+          style={{ width: 10, height: 10, opacity: 0.45, flexShrink: 0 }}
         />
-      ))}
-      {SHIPPED_PROVIDERS.map((provider) => (
-        <ProviderKeySection
-          key={provider.id}
-          title={provider.title}
-          icon={provider.icon}
-          sites={provider.sites}
-          placeholder={provider.placeholder}
-        />
-      ))}
-      <OllamaSection />
-      {customModelProvidersEnabled && <CustomProvidersSection />}
+      </div>
+      {open && <div style={{ padding: "2px 0 14px 20px" }}>{children}</div>}
     </div>
   );
 };
+
+/** native / shipped body — the one key control, control-only (no second
+ *  page heading; the row above already carries the title). */
+const KeyRowBody = ({ entry }) => {
+  const provider = entry.provider;
+  if (entry.kind === RAIL_KIND.SHIPPED) {
+    return (
+      <ProviderKeySection
+        heading="none"
+        title={provider.title}
+        icon={provider.icon}
+        sites={provider.sites}
+        placeholder={provider.placeholder}
+        key_url={provider.key_url}
+      />
+    );
+  }
+  return (
+    <ProviderKeySection
+      heading="none"
+      title={provider.title}
+      icon={provider.icon}
+      storage_key={provider.storage_key}
+      credential_id={provider.credential_id}
+      placeholder={provider.placeholder}
+      key_url={provider.key_url}
+    />
+  );
+};
+
+/** Ollama body — status line plus a hand-off to the wide layer, which is
+ *  where installed models and the library live (project owner decision 1). */
+const OllamaRowBody = ({ status, statusKey, onOpenModelProviders, fontFamily }) => {
+  const { t } = useTranslation();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, padding: "4px 0 10px" }}>
+      <span style={{ fontSize: 12.5, fontFamily, color: "var(--pupu-text-secondary)" }}>
+        {statusKey ? t(statusKey) : ""}
+      </span>
+      <span style={{ fontSize: 11.5, fontFamily, color: "var(--pupu-text-faint)", lineHeight: 1.4 }}>
+        {t("model_providers.settings.ollama_hint")}
+      </span>
+      <Button
+        label={t("model_providers.settings.open_in_models")}
+        onClick={() => onOpenModelProviders?.("ollama")}
+        style={{
+          fontSize: 12,
+          fontFamily,
+          paddingVertical: 4,
+          paddingHorizontal: 10,
+          borderRadius: 6,
+          color: "var(--pupu-text-secondary)",
+          hoverBackgroundColor: "var(--pupu-overlay-hover)",
+        }}
+      />
+    </div>
+  );
+};
+
+/** Custom provider body — the Settings list row (toggle / edit / export /
+ *  delete) plus its editor, wired exactly as the wide layer's
+ *  `CustomProviderPane` does, minus the page heading it no longer needs. */
+const CustomRowBody = ({ entry, onDeleted, isDark }) => {
+  const { t } = useTranslation();
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  const provider = findCustomProvider(entry.provider.id) || entry.provider;
+
+  const handleExport = async (slug) => {
+    const result = await exportCustomProvider(slug);
+    if (result.ok) {
+      toast.success(t("model_providers.custom.export_success"), {
+        dedupeKey: `custom_provider_export_${slug}`,
+      });
+    } else if (result.error !== "canceled") {
+      toast.error(t("model_providers.custom.export_failed"), {
+        dedupeKey: `custom_provider_export_fail_${slug}`,
+      });
+    }
+  };
+
+  const handleChanged = () => {
+    if (!findCustomProvider(entry.provider.id)) {
+      onDeleted?.();
+    }
+  };
+
+  return (
+    <div data-testid={`model-providers-settings-custom-body-${provider.id}`}>
+      <CustomProviderRow
+        provider={provider}
+        isDark={isDark}
+        onEdit={() => setEditorOpen(true)}
+        onExport={handleExport}
+        onChanged={handleChanged}
+      />
+      <CustomProviderEditor
+        open={editorOpen}
+        slug={provider.id}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {}}
+      />
+    </div>
+  );
+};
+
+/** "Add provider" body — the same three ways in as the wide layer's
+ *  `AddProviderPane` (Add / From preset / Import), driving the same
+ *  modals. Creating one hands the new row's id back so the accordion opens
+ *  on it, same as the rail landing on a freshly created provider. */
+const AddCustomRowBody = ({ onCreated, fontFamily }) => {
+  const { t } = useTranslation();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingSlug, setEditingSlug] = useState(null);
+  const [editorAutoFocusKey, setEditorAutoFocusKey] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
+  const [presetSeed, setPresetSeed] = useState(null);
+
+  const openAdd = () => {
+    setEditingSlug(null);
+    setEditorAutoFocusKey(false);
+    setEditorOpen(true);
+  };
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setEditingSlug(null);
+    setEditorAutoFocusKey(false);
+  };
+  const openImport = () => {
+    setPresetSeed(null);
+    setImportOpen(true);
+  };
+  const closeImport = () => {
+    setImportOpen(false);
+    setPresetSeed(null);
+  };
+  const handlePresetSelect = (envelope) => {
+    setPresetOpen(false);
+    setPresetSeed(envelope);
+    setImportOpen(true);
+  };
+  const handleImported = ({ slug, requiresKey }) => {
+    if (requiresKey) {
+      setEditingSlug(slug);
+      setEditorAutoFocusKey(true);
+      setEditorOpen(true);
+      return;
+    }
+    onCreated?.(customRailId(slug));
+  };
+  const handleSaved = (slug) => {
+    if (typeof slug === "string" && slug) {
+      onCreated?.(customRailId(slug));
+    }
+  };
+
+  const buttonStyle = {
+    fontSize: 12.5,
+    fontFamily,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 7,
+    color: "var(--pupu-text-secondary)",
+    hoverBackgroundColor: "var(--pupu-overlay-hover)",
+    content: { icon: { width: 13, height: 13 } },
+  };
+
+  return (
+    <div data-testid="model-providers-settings-add-body">
+      <p
+        style={{
+          margin: "0 0 10px",
+          fontSize: 12.5,
+          fontFamily,
+          color: "var(--pupu-text-faint)",
+          lineHeight: 1.5,
+        }}
+      >
+        {t("model_providers.custom.section_desc")}
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Button
+          label={t("model_providers.custom.add")}
+          prefix_icon="add"
+          onClick={openAdd}
+          style={{ ...buttonStyle, backgroundColor: "var(--pupu-overlay-active)" }}
+        />
+        <Button
+          label={t("model_providers.custom.add_from_preset")}
+          prefix_icon="add"
+          onClick={() => setPresetOpen(true)}
+          style={buttonStyle}
+        />
+        <Button
+          label={t("model_providers.custom.import")}
+          prefix_icon="download"
+          onClick={openImport}
+          style={buttonStyle}
+        />
+      </div>
+
+      <CustomProviderEditor
+        open={editorOpen}
+        slug={editingSlug}
+        autoFocusKey={editorAutoFocusKey}
+        onClose={closeEditor}
+        onSaved={handleSaved}
+      />
+      <CustomProviderImportModal
+        open={importOpen}
+        presetSeed={presetSeed}
+        onClose={closeImport}
+        onImported={handleImported}
+      />
+      <PresetPicker
+        open={presetOpen}
+        onClose={() => setPresetOpen(false)}
+        onSelect={handlePresetSelect}
+      />
+    </div>
+  );
+};
+
+export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const isDark = onThemeMode === "dark_mode";
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+
+  const ollama = useOllamaInstalled();
+  const ollamaReady = ollama.status === "ready";
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => subscribeModelCatalogRefresh(() => setTick((n) => n + 1)), []);
+
+  const entries = useMemo(
+    () => buildProviderRailEntries({ ollamaReady }),
+    // `tick` is the catalog-refresh signal the builder's readers depend on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ollamaReady, tick],
+  );
+
+  const [openId, setOpenId] = useState(null);
+  const toggle = (id) => setOpenId((cur) => (cur === id ? null : id));
+
+  const providers = entries.filter(
+    (e) => e.kind !== RAIL_KIND.CUSTOM && e.kind !== RAIL_KIND.ADD_CUSTOM,
+  );
+  const custom = entries.filter(
+    (e) => e.kind === RAIL_KIND.CUSTOM || e.kind === RAIL_KIND.ADD_CUSTOM,
+  );
+
+  const renderBody = (entry) => {
+    if (entry.kind === RAIL_KIND.NATIVE || entry.kind === RAIL_KIND.SHIPPED) {
+      return <KeyRowBody entry={entry} />;
+    }
+    if (entry.kind === RAIL_KIND.OLLAMA) {
+      return (
+        <OllamaRowBody
+          status={ollama.status}
+          statusKey={rowStatusKey(entry, ollama.status)}
+          onOpenModelProviders={onOpenModelProviders}
+          fontFamily={fontFamily}
+        />
+      );
+    }
+    if (entry.kind === RAIL_KIND.CUSTOM) {
+      return (
+        <CustomRowBody
+          entry={entry}
+          isDark={isDark}
+          onDeleted={() => setOpenId(null)}
+        />
+      );
+    }
+    return (
+      <AddCustomRowBody
+        onCreated={(railId) => setOpenId(railId)}
+        fontFamily={fontFamily}
+      />
+    );
+  };
+
+  return (
+    <div data-testid="model-providers-settings">
+      <div style={{ borderTop: "1px solid var(--pupu-border)", margin: "0 0 8px" }} />
+
+      {providers.map((entry) => (
+        <AccordionRow
+          key={entry.id}
+          entry={entry}
+          label={entry.title}
+          open={openId === entry.id}
+          onToggle={() => toggle(entry.id)}
+          statusKey={rowStatusKey(entry, ollama.status)}
+          fontFamily={fontFamily}
+        >
+          {renderBody(entry)}
+        </AccordionRow>
+      ))}
+
+      {custom.length > 0 && (
+        <>
+          <div
+            style={{
+              fontSize: 10,
+              fontFamily,
+              textTransform: "uppercase",
+              letterSpacing: "1.5px",
+              color: "var(--pupu-text)",
+              opacity: 0.3,
+              padding: "16px 0 6px",
+            }}
+          >
+            {t("model_providers.page.rail_custom")}
+          </div>
+          {custom.map((entry) => (
+            <AccordionRow
+              key={entry.id}
+              entry={entry}
+              label={
+                entry.kind === RAIL_KIND.ADD_CUSTOM
+                  ? t("model_providers.page.add_provider")
+                  : entry.title
+              }
+              open={openId === entry.id}
+              onToggle={() => toggle(entry.id)}
+              statusKey={rowStatusKey(entry, ollama.status)}
+              fontFamily={fontFamily}
+            >
+              {renderBody(entry)}
+            </AccordionRow>
+          ))}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ModelProvidersSettings;

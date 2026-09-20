@@ -150,7 +150,53 @@
     },
     "platform": "플랫폼",
     "site_global": "글로벌",
-    "site_china": "중국"
+    "site_china": "중국",
+    "page": {
+      "rail_providers": "제공자",
+      "rail_custom": "사용자 지정",
+      "add_provider": "제공자 추가",
+      "custom_caption": "사용자 지정 제공자",
+      "get_key_at": "{host}에서 키 발급받기",
+      "welcome_title": "아직 모델 제공자가 없습니다",
+      "welcome_desc": "채팅을 보내려면 PuPu에 제공자가 필요합니다. 방법을 선택하세요:",
+      "path_key_title": "API 키 사용하기",
+      "path_key_desc": "왼쪽에서 제공자를 선택하고 키를 붙여넣으세요. 이 기기에 암호화되어 저장됩니다.",
+      "path_key_action": "제공자 선택",
+      "path_local_title": "모델을 로컬에서 실행",
+      "path_local_desc": "Ollama는 이 컴퓨터에서 오픈 모델을 실행합니다. 키도 계정도 필요 없으며, 모델은 라이브러리에서 다운로드됩니다.",
+      "path_local_action": "Ollama 설치",
+      "path_local_open": "Ollama 열기",
+      "ollama_running": "실행 중",
+      "installed_models": "설치된 모델"
+    },
+    "store": {
+      "search": "라이브러리 검색",
+      "sort_popular": "인기순",
+      "sort_newest": "최신순",
+      "filter_installed": "설치됨",
+      "featured": "추천",
+      "library": "라이브러리",
+      "choose_size": "크기 선택",
+      "pull_tag": "{ref} 다운로드",
+      "installed": "설치됨",
+      "tags_loading": "크기 로드 중…",
+      "tags_failed": "ollama.com에서 크기를 불러올 수 없습니다",
+      "tags_retry": "다시 시도",
+      "show_all_tags": "태그 {count}개 모두 보기",
+      "show_fewer_tags": "간략히 보기",
+      "pulls": "{count}회 다운로드",
+      "updated": "{when} 업데이트됨",
+      "empty_installed": "이 필터에 해당하는 설치된 항목이 없습니다.",
+      "featured_qwen3": "노트북에서도 돌아가는 만능 모델",
+      "featured_gemma3": "작고 빠르며 이미지도 이해",
+      "featured_deepseek_r1": "내 기기에서 실행하는 추론",
+      "featured_nomic_embed_text": "메모리와 검색을 위한 임베딩"
+    },
+    "settings": {
+      "ready": "준비 완료",
+      "open_in_models": "모델 페이지에서 열기",
+      "ollama_hint": "설치된 모델과 라이브러리는 모델 페이지에 있습니다."
+    }
   },
   "memory": {
     "title": "채팅 메모리",
@@ -481,7 +527,8 @@
     "workspaces": "워크스페이스",
     "settings": "설정",
     "chats": "채팅",
-    "no_chats_found": "채팅을 찾을 수 없습니다"
+    "no_chats_found": "채팅을 찾을 수 없습니다",
+    "models": "모델"
   },
   "context_menu": {
     "new_chat": "새 채팅",

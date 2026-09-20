@@ -150,7 +150,53 @@
     },
     "platform": "Plateforme",
     "site_global": "Mondial",
-    "site_china": "Chine"
+    "site_china": "Chine",
+    "page": {
+      "rail_providers": "Fournisseurs",
+      "rail_custom": "Personnalisés",
+      "add_provider": "Ajouter un fournisseur",
+      "custom_caption": "Fournisseur personnalisé",
+      "get_key_at": "Obtenez une clé sur {host}",
+      "welcome_title": "Aucun fournisseur de modèle pour l'instant",
+      "welcome_desc": "PuPu en a besoin d'un avant de pouvoir envoyer un chat. Choisissez une voie :",
+      "path_key_title": "Apporter une clé API",
+      "path_key_desc": "Choisissez un fournisseur à gauche et collez sa clé. Elle est stockée chiffrée sur cette machine.",
+      "path_key_action": "Choisir un fournisseur",
+      "path_local_title": "Exécuter des modèles en local",
+      "path_local_desc": "Ollama exécute des modèles ouverts sur cet ordinateur. Aucune clé, aucun compte ; les modèles se téléchargent depuis sa bibliothèque.",
+      "path_local_action": "Installer Ollama",
+      "path_local_open": "Ouvrir Ollama",
+      "ollama_running": "en cours d'exécution",
+      "installed_models": "Modèles installés"
+    },
+    "store": {
+      "search": "Rechercher dans la bibliothèque",
+      "sort_popular": "Populaire",
+      "sort_newest": "Plus récent",
+      "filter_installed": "Installé",
+      "featured": "En vedette",
+      "library": "Bibliothèque",
+      "choose_size": "Choisir une taille",
+      "pull_tag": "Télécharger {ref}",
+      "installed": "Installé",
+      "tags_loading": "Chargement des tailles…",
+      "tags_failed": "Impossible de charger les tailles depuis ollama.com",
+      "tags_retry": "Réessayer",
+      "show_all_tags": "Afficher les {count} tags",
+      "show_fewer_tags": "Afficher moins",
+      "pulls": "{count} téléchargements",
+      "updated": "mis à jour {when}",
+      "empty_installed": "Rien d'installé ne correspond à ce filtre.",
+      "featured_qwen3": "Le meilleur généraliste, adapté à un ordinateur portable",
+      "featured_gemma3": "Petit, rapide, comprend les images",
+      "featured_deepseek_r1": "Raisonnement sur votre propre machine",
+      "featured_nomic_embed_text": "Embeddings pour la mémoire et la recherche"
+    },
+    "settings": {
+      "ready": "Prêt",
+      "open_in_models": "Ouvrir dans Modèles",
+      "ollama_hint": "Les modèles installés et la bibliothèque se trouvent dans la page Modèles."
+    }
   },
   "memory": {
     "title": "Mémoire de chat",
@@ -481,7 +527,8 @@
     "workspaces": "Espaces",
     "settings": "Paramètres",
     "chats": "Chats",
-    "no_chats_found": "Aucun chat trouvé"
+    "no_chats_found": "Aucun chat trouvé",
+    "models": "Modèles"
   },
   "context_menu": {
     "new_chat": "Nouveau chat",

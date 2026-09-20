@@ -150,7 +150,53 @@
     },
     "platform": "平台",
     "site_global": "國際",
-    "site_china": "中國"
+    "site_china": "中國",
+    "page": {
+      "rail_providers": "供應商",
+      "rail_custom": "自訂",
+      "add_provider": "新增供應商",
+      "custom_caption": "自訂供應商",
+      "get_key_at": "在 {host} 取得金鑰",
+      "welcome_title": "尚未設定模型供應商",
+      "welcome_desc": "PuPu 需要先設定一個才能傳送聊天。選擇一種方式：",
+      "path_key_title": "使用 API Key",
+      "path_key_desc": "在左側選擇一個供應商並貼上其金鑰，金鑰會加密保存在本機。",
+      "path_key_action": "選擇供應商",
+      "path_local_title": "在本機執行模型",
+      "path_local_desc": "Ollama 在本機執行開源模型，無需金鑰或帳號；模型會從其模型庫下載。",
+      "path_local_action": "安裝 Ollama",
+      "path_local_open": "開啟 Ollama",
+      "ollama_running": "執行中",
+      "installed_models": "已安裝的模型"
+    },
+    "store": {
+      "search": "搜尋模型庫",
+      "sort_popular": "熱門",
+      "sort_newest": "最新",
+      "filter_installed": "已安裝",
+      "featured": "精選",
+      "library": "模型庫",
+      "choose_size": "選擇大小",
+      "pull_tag": "提取 {ref}",
+      "installed": "已安裝",
+      "tags_loading": "正在載入大小…",
+      "tags_failed": "無法從 ollama.com 載入大小",
+      "tags_retry": "重試",
+      "show_all_tags": "顯示全部 {count} 個標籤",
+      "show_fewer_tags": "收合",
+      "pulls": "{count} 次提取",
+      "updated": "{when} 更新",
+      "empty_installed": "沒有已安裝的模型符合此篩選條件。",
+      "featured_qwen3": "適合筆記型電腦的全能之選",
+      "featured_gemma3": "小巧快速，支援圖像理解",
+      "featured_deepseek_r1": "在本機進行推理",
+      "featured_nomic_embed_text": "用於記憶與搜尋的嵌入模型"
+    },
+    "settings": {
+      "ready": "就緒",
+      "open_in_models": "在模型頁面中開啟",
+      "ollama_hint": "已安裝的模型與模型庫都在模型頁面。"
+    }
   },
   "memory": {
     "title": "聊天記憶",
@@ -481,7 +527,8 @@
     "workspaces": "工作區",
     "settings": "設定",
     "chats": "聊天",
-    "no_chats_found": "找不到聊天"
+    "no_chats_found": "找不到聊天",
+    "models": "模型"
   },
   "context_menu": {
     "new_chat": "新增聊天",

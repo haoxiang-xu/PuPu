@@ -150,7 +150,53 @@
     },
     "platform": "プラットフォーム",
     "site_global": "グローバル",
-    "site_china": "中国"
+    "site_china": "中国",
+    "page": {
+      "rail_providers": "プロバイダー",
+      "rail_custom": "カスタム",
+      "add_provider": "プロバイダーを追加",
+      "custom_caption": "カスタムプロバイダー",
+      "get_key_at": "{host} でキーを取得",
+      "welcome_title": "モデルプロバイダー未設定",
+      "welcome_desc": "チャットを送信するには PuPu にプロバイダーが必要です。方法を選んでください：",
+      "path_key_title": "API キーを使う",
+      "path_key_desc": "左でプロバイダーを選び、キーを貼り付けてください。このマシンに暗号化して保存されます。",
+      "path_key_action": "プロバイダーを選ぶ",
+      "path_local_title": "モデルをローカルで実行",
+      "path_local_desc": "Ollama はこのコンピューター上でオープンモデルを実行します。キーもアカウントも不要。モデルはそのライブラリからダウンロードされます。",
+      "path_local_action": "Ollama をインストール",
+      "path_local_open": "Ollama を開く",
+      "ollama_running": "実行中",
+      "installed_models": "インストール済みモデル"
+    },
+    "store": {
+      "search": "ライブラリを検索",
+      "sort_popular": "人気",
+      "sort_newest": "新着",
+      "filter_installed": "インストール済み",
+      "featured": "おすすめ",
+      "library": "ライブラリ",
+      "choose_size": "サイズを選択",
+      "pull_tag": "{ref} を取得",
+      "installed": "インストール済み",
+      "tags_loading": "サイズを読み込み中…",
+      "tags_failed": "ollama.com からサイズを読み込めませんでした",
+      "tags_retry": "再試行",
+      "show_all_tags": "{count} 件のタグをすべて表示",
+      "show_fewer_tags": "表示を減らす",
+      "pulls": "{count} 回取得",
+      "updated": "{when} に更新",
+      "empty_installed": "このフィルターに一致するインストール済みモデルはありません。",
+      "featured_qwen3": "ノートPCにも収まる万能モデル",
+      "featured_gemma3": "小さく高速で、画像も理解",
+      "featured_deepseek_r1": "自分のマシンで推論",
+      "featured_nomic_embed_text": "メモリと検索のための埋め込み"
+    },
+    "settings": {
+      "ready": "準備完了",
+      "open_in_models": "モデルページで開く",
+      "ollama_hint": "インストール済みモデルとライブラリはモデルページにあります。"
+    }
   },
   "memory": {
     "title": "チャットメモリ",
@@ -481,7 +527,8 @@
     "workspaces": "ワークスペース",
     "settings": "設定",
     "chats": "チャット",
-    "no_chats_found": "チャットが見つかりません"
+    "no_chats_found": "チャットが見つかりません",
+    "models": "モデル"
   },
   "context_menu": {
     "new_chat": "新規チャット",

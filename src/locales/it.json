@@ -150,7 +150,53 @@
     },
     "platform": "Piattaforma",
     "site_global": "Globale",
-    "site_china": "Cina"
+    "site_china": "Cina",
+    "page": {
+      "rail_providers": "Provider",
+      "rail_custom": "Personalizzati",
+      "add_provider": "Aggiungi provider",
+      "custom_caption": "Provider personalizzato",
+      "get_key_at": "Ottieni una chiave su {host}",
+      "welcome_title": "Nessun provider di modelli ancora",
+      "welcome_desc": "PuPu ne richiede uno prima di poter inviare una chat. Scegli un percorso:",
+      "path_key_title": "Usa una chiave API",
+      "path_key_desc": "Scegli un provider a sinistra e incolla la sua chiave. Viene memorizzata cifrata su questo computer.",
+      "path_key_action": "Scegli provider",
+      "path_local_title": "Esegui modelli in locale",
+      "path_local_desc": "Ollama esegue modelli aperti su questo computer. Nessuna chiave, nessun account; i modelli si scaricano dalla sua libreria.",
+      "path_local_action": "Installa Ollama",
+      "path_local_open": "Apri Ollama",
+      "ollama_running": "in esecuzione",
+      "installed_models": "Modelli installati"
+    },
+    "store": {
+      "search": "Cerca nella libreria",
+      "sort_popular": "Popolare",
+      "sort_newest": "Più recente",
+      "filter_installed": "Installato",
+      "featured": "In evidenza",
+      "library": "Libreria",
+      "choose_size": "Scegli una dimensione",
+      "pull_tag": "Scarica {ref}",
+      "installed": "Installato",
+      "tags_loading": "Caricamento dimensioni…",
+      "tags_failed": "Impossibile caricare le dimensioni da ollama.com",
+      "tags_retry": "Riprova",
+      "show_all_tags": "Mostra tutti i {count} tag",
+      "show_fewer_tags": "Mostra meno",
+      "pulls": "{count} download",
+      "updated": "aggiornato {when}",
+      "empty_installed": "Nessun elemento installato corrisponde a questo filtro.",
+      "featured_qwen3": "Il miglior tuttofare che sta in un laptop",
+      "featured_gemma3": "Piccolo, veloce, comprende le immagini",
+      "featured_deepseek_r1": "Ragionamento sul tuo dispositivo",
+      "featured_nomic_embed_text": "Embedding per memoria e ricerca"
+    },
+    "settings": {
+      "ready": "Pronto",
+      "open_in_models": "Apri in Modelli",
+      "ollama_hint": "I modelli installati e la libreria si trovano nella pagina Modelli."
+    }
   },
   "memory": {
     "title": "Memoria chat",
@@ -481,7 +527,8 @@
     "workspaces": "Spazi",
     "settings": "Impostazioni",
     "chats": "Chat",
-    "no_chats_found": "Nessuna chat trovata"
+    "no_chats_found": "Nessuna chat trovata",
+    "models": "Modelli"
   },
   "context_menu": {
     "new_chat": "Nuova chat",
