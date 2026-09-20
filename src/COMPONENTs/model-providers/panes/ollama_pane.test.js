@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import { OllamaPane } from "./ollama_pane";
+import { OllamaPane, OllamaHeadingActions, OLLAMA_STATUS_CAPTION_KEY } from "./ollama_pane";
 
 jest.mock("./ollama/ollama_store", () => ({
   __esModule: true,
@@ -37,6 +37,7 @@ const makeOllama = (overrides = {}) => ({
 const renderPane = (state) =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+      <OllamaHeadingActions ollama={state} />
       <OllamaPane ollama={state} />
     </ConfigContext.Provider>,
   );
@@ -50,7 +51,7 @@ describe("OllamaPane", () => {
       ],
     });
     renderPane(state);
-    expect(screen.getByText("model_providers.page.ollama_running")).toBeInTheDocument();
+    expect(OLLAMA_STATUS_CAPTION_KEY.ready).toBe("model_providers.page.ollama_running");
     expect(screen.getByTestId("installed-row-qwen3:30b")).toBeInTheDocument();
     expect(screen.getByTestId("installed-row-llama3.2:3b")).toBeInTheDocument();
     expect(screen.getByTestId("active-downloads")).toBeInTheDocument();
@@ -71,7 +72,7 @@ describe("OllamaPane", () => {
 
   test("not_found: install hint, no installed list, no restart", () => {
     renderPane(makeOllama({ status: "not_found" }));
-    expect(screen.getByText("local_storage.not_installed")).toBeInTheDocument();
+    expect(OLLAMA_STATUS_CAPTION_KEY.not_found).toBe("local_storage.not_installed");
     expect(screen.getByText("local_storage.ollama_not_installed")).toBeInTheDocument();
     expect(screen.getByText("https://ollama.com")).toBeInTheDocument();
     expect(screen.queryByTestId("ollama-installed-list")).toBeNull();

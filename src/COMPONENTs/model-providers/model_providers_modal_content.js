@@ -8,10 +8,17 @@ import {
   defaultRailSelection,
   hasConfiguredProvider,
 } from "./rail_entries";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { PaneHeading } from "../settings/model_providers/components/pane_heading";
+import { CUSTOM_MODEL_GROUP_ICON } from "../chat-input/constants";
 import { ProviderRail } from "./provider_rail";
 import { KeyProviderPane } from "./panes/key_provider_pane";
 import { WelcomePane } from "./panes/welcome_pane";
-import { OllamaPane } from "./panes/ollama_pane";
+import {
+  OLLAMA_STATUS_CAPTION_KEY,
+  OllamaHeadingActions,
+  OllamaPane,
+} from "./panes/ollama_pane";
 import { CustomProviderPane } from "./panes/custom_provider_pane";
 import { AddProviderPane } from "./panes/add_provider_pane";
 
@@ -22,6 +29,10 @@ import { AddProviderPane } from "./panes/add_provider_pane";
  * key emits one through the store helpers) so the B1 dots follow the truth
  * without the user reopening. Ollama's dot comes from the shared installed
  * hook, which is the same state the Ollama pane renders.
+ *
+ * Layout, like the Settings modal: the pane's heading is a fixed header —
+ * title, hairline, and for Ollama the status caption + Restart / Reload —
+ * and only the body underneath scrolls.
  *
  * Selection rules:
  *   - open with `initialEntryId` when the caller knows where to land
@@ -35,6 +46,7 @@ import { AddProviderPane } from "./panes/add_provider_pane";
 const WELCOME_ID = "__welcome__";
 
 export const ModelProvidersModalContent = ({ open = true, initialEntryId = null }) => {
+  const { t } = useTranslation();
   const ollama = useOllamaInstalled({ enabled: open });
   const ollamaReady = ollama.status === "ready";
 
@@ -91,16 +103,31 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
   }, []);
 
   let pane = null;
+  let heading = null;
   if (selectedId === WELCOME_ID || !selectedEntry) {
+    heading = { title: t("model_providers.page.welcome_title") };
     pane = <WelcomePane entries={entries} onSelect={handleSelect} />;
   } else if (
     selectedEntry.kind === RAIL_KIND.NATIVE ||
     selectedEntry.kind === RAIL_KIND.SHIPPED
   ) {
+    heading = { title: selectedEntry.title, icon: selectedEntry.icon };
     pane = <KeyProviderPane entry={selectedEntry} />;
   } else if (selectedEntry.kind === RAIL_KIND.OLLAMA) {
+    heading = {
+      title: "Ollama",
+      icon: "ollama",
+      caption: t(
+        OLLAMA_STATUS_CAPTION_KEY[ollama.status] || OLLAMA_STATUS_CAPTION_KEY.loading,
+      ),
+      action: <OllamaHeadingActions ollama={ollama} />,
+    };
     pane = <OllamaPane ollama={ollama} />;
   } else if (selectedEntry.kind === RAIL_KIND.CUSTOM) {
+    heading = {
+      title: selectedEntry.provider.display_name || selectedEntry.provider.id,
+      icon: CUSTOM_MODEL_GROUP_ICON,
+    };
     pane = (
       <CustomProviderPane
         entry={selectedEntry}
@@ -108,6 +135,7 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
       />
     );
   } else if (selectedEntry.kind === RAIL_KIND.ADD_CUSTOM) {
+    heading = { title: t("model_providers.custom.section_title"), icon: "server" };
     pane = <AddProviderPane onCreated={handleCustomCreated} />;
   }
 
@@ -120,17 +148,31 @@ export const ModelProvidersModalContent = ({ open = true, initialEntryId = null 
       />
       <div
         data-testid="model-providers-pane"
-        className="scrollable"
         style={{
           position: "relative",
           flex: 1,
           minWidth: 0,
-          overflowY: "auto",
-          padding: "24px 24px 24px",
-          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        {pane}
+        <div data-testid="model-providers-pane-heading" style={{ padding: "24px 24px 0", flexShrink: 0 }}>
+          {heading && <PaneHeading {...heading} />}
+        </div>
+        <div
+          data-testid="model-providers-pane-body"
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "4px 24px 24px",
+            boxSizing: "border-box",
+          }}
+        >
+          {pane}
+        </div>
       </div>
     </>
   );

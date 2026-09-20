@@ -3,7 +3,6 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { PaneHeading } from "../../settings/model_providers/components/pane_heading";
 import { OLLAMA_RAIL_ID, RAIL_KIND } from "../rail_entries";
 
 const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
@@ -51,7 +50,6 @@ export const WelcomePane = ({ entries, onSelect }) => {
 
   return (
     <div data-testid="model-providers-welcome">
-      <PaneHeading title={t("model_providers.page.welcome_title")} />
       <p style={{ ...mutedStyle, margin: "4px 0 18px" }}>
         {t("model_providers.page.welcome_desc")}
       </p>

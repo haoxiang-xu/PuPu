@@ -2,7 +2,6 @@ import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { PaneHeading } from "../../settings/model_providers/components/pane_heading";
 import ActiveDownloads from "../../settings/model_providers/components/active_downloads";
 import { OllamaStore } from "./ollama/ollama_store";
 import OllamaModelRow from "../../settings/local_storage/components/ollama_model_row";
@@ -13,7 +12,10 @@ import { formatBytes } from "../../settings/local_storage/utils/storage_metrics"
  * managed (#204, project owner decision 1). Top to bottom:
  *
  *   heading  — service state as the caption (running / offline / not
- *              installed / starting), Restart / Reload on the right;
+ *              installed / starting), Restart / Reload on the right — lives
+ *              in the modal's fixed header (OllamaHeadingActions +
+ *              OLLAMA_STATUS_CAPTION_KEY, composed by
+ *              model_providers_modal_content.js);
  *   installed — the local models with size bars and Delete (the Local
  *              Storage rows, same delete path, same catalog refresh);
  *   downloads — pulls in flight (ActiveDownloads);
@@ -24,7 +26,7 @@ import { formatBytes } from "../../settings/local_storage/utils/storage_metrics"
  * the rail dot and this pane can never disagree.
  */
 
-const STATUS_CAPTION_KEY = {
+export const OLLAMA_STATUS_CAPTION_KEY = {
   ready: "model_providers.page.ollama_running",
   offline: "local_storage.offline",
   not_found: "local_storage.not_installed",
@@ -32,12 +34,41 @@ const STATUS_CAPTION_KEY = {
   starting: "local_storage.starting",
 };
 
+/** Restart / Reload — rendered in the modal's fixed header beside the title. */
+export const OllamaHeadingActions = ({ ollama }) => {
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+  const { status, hasOllamaBridge, load, restart } = ollama;
+  const actionStyle = {
+    fontSize: 12,
+    fontFamily,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    color: "var(--pupu-text-secondary)",
+    hoverBackgroundColor: "var(--pupu-overlay-hover)",
+  };
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      {hasOllamaBridge && (status === "offline" || status === "starting") && (
+        <Button
+          label={t("local_storage.restart")}
+          onClick={restart}
+          style={{ ...actionStyle, opacity: status === "starting" ? 0.35 : 1 }}
+        />
+      )}
+      <Button label={t("local_storage.reload")} onClick={load} style={actionStyle} />
+    </span>
+  );
+};
+
 export const OllamaPane = ({ ollama }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const { status, models, hasOllamaBridge, load, restart, removeLocally } = ollama;
+  const { status, models, hasOllamaBridge, removeLocally } = ollama;
 
   const maxSize = models.length > 0 ? models[0].size : 1;
   const totalSize = models.reduce((s, m) => s + m.size, 0);
@@ -64,37 +95,9 @@ export const OllamaPane = ({ ollama }) => {
     color: "var(--pupu-text-secondary)",
     userSelect: "text",
   };
-  const actionStyle = {
-    fontSize: 12,
-    fontFamily,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    color: "var(--pupu-text-secondary)",
-    hoverBackgroundColor: "var(--pupu-overlay-hover)",
-  };
-
-  const actions = (
-    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      {hasOllamaBridge && (status === "offline" || status === "starting") && (
-        <Button
-          label={t("local_storage.restart")}
-          onClick={restart}
-          style={{ ...actionStyle, opacity: status === "starting" ? 0.35 : 1 }}
-        />
-      )}
-      <Button label={t("local_storage.reload")} onClick={load} style={actionStyle} />
-    </span>
-  );
 
   return (
     <div data-testid="ollama-pane">
-      <PaneHeading
-        title="Ollama"
-        icon="ollama"
-        caption={t(STATUS_CAPTION_KEY[status] || STATUS_CAPTION_KEY.loading)}
-        action={actions}
-      />
       <p style={mutedStyle}>{t("model_providers.ollama_desc")}</p>
 
       {status === "not_found" && (

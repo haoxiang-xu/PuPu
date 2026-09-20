@@ -67,10 +67,9 @@ describe("CustomProviderPane", () => {
     findCustomProvider.mockReset();
   });
 
-  test("heading + the existing row; edit opens the editor for this slug", () => {
+  test("the existing row (heading is the modal's fixed header); edit opens the editor for this slug", () => {
     findCustomProvider.mockReturnValue(HYPER);
     wrap(<CustomProviderPane entry={{ provider: HYPER }} onDeleted={jest.fn()} />);
-    expect(screen.getByText("Hyperspace")).toBeInTheDocument();
     expect(screen.getByTestId("row-hyperspace")).toBeInTheDocument();
     expect(screen.queryByTestId("editor")).toBeNull();
     fireEvent.click(screen.getByText("edit"));
