@@ -599,10 +599,10 @@ export const PluginsShell = ({
         style={{
           width: 140,
           flexShrink: 0,
-          backgroundColor: isDark
-            ? "rgba(var(--pupu-text-rgb),0.03)"
-            : "rgba(var(--pupu-text-rgb),0.04)",
-          borderRight: `1px solid rgba(var(--pupu-text-rgb),0.06)`,
+          /* Same fill and hairline as the Settings strip — the three modal
+             side menus (Settings / Plugins / Models) are one design. */
+          backgroundColor: "var(--pupu-sidebar)",
+          borderRight: "1px solid var(--pupu-border)",
           padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",

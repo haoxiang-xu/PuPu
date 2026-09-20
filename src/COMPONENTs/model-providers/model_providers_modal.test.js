@@ -59,6 +59,8 @@ jest.mock("../settings/local_storage/hooks/use_ollama_installed", () => ({
 /* Heavy panes are not under test here — the routing to them is. */
 jest.mock("./panes/ollama_pane", () => ({
   __esModule: true,
+  OLLAMA_STATUS_CAPTION_KEY: { ready: "running", offline: "offline", loading: "loading" },
+  OllamaHeadingActions: () => <span data-testid="ollama-heading-actions" />,
   OllamaPane: () => <div data-testid="ollama-pane" />,
 }));
 jest.mock("./panes/custom_provider_pane", () => ({
@@ -178,6 +180,22 @@ describe("ModelProvidersModal shell", () => {
     expect(screen.queryByTestId("model-providers-welcome")).toBeNull();
     expect(screen.getByTestId("provider-rail-row-kimi").dataset.selected).toBe("true");
     expect(screen.getByTestId("provider-key-section-kimi")).toBeInTheDocument();
+  });
+
+  test("the pane heading is a fixed header outside the scrolling body (like Settings)", async () => {
+    providerSecretConfigured.mockImplementation((id) => id === "anthropic");
+    renderModal();
+    await flushLazy();
+    const heading = screen.getByTestId("model-providers-pane-heading");
+    const body = screen.getByTestId("model-providers-pane-body");
+    expect(within(heading).getByText("Anthropic")).toBeInTheDocument();
+    expect(within(body).getByTestId("provider-key-section-anthropic_api_key")).toBeInTheDocument();
+    expect(within(body).queryByText("Anthropic")).toBeNull();
+    // Ollama: caption + actions live in the header too
+    clickRailRow("ollama");
+    expect(within(heading).getByText("Ollama")).toBeInTheDocument();
+    expect(within(heading).getByTestId("ollama-heading-actions")).toBeInTheDocument();
+    expect(within(body).getByTestId("ollama-pane")).toBeInTheDocument();
   });
 
   test("initialEntryId wins over the default selection", async () => {

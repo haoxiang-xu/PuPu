@@ -2,7 +2,6 @@ import { useContext, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { PaneHeading } from "../../settings/model_providers/components/pane_heading";
 import CustomProviderEditor from "../../settings/model_providers/custom-providers/custom_provider_editor";
 import CustomProviderImportModal from "../../settings/model_providers/custom-providers/custom_provider_import_modal";
 import PresetPicker from "../../settings/model_providers/custom-providers/preset_picker";
@@ -78,10 +77,6 @@ export const AddProviderPane = ({ onCreated }) => {
 
   return (
     <div data-testid="add-provider-pane">
-      <PaneHeading
-        title={t("model_providers.custom.section_title")}
-        icon="server"
-      />
       <p
         style={{
           margin: "4px 0 14px",

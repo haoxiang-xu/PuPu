@@ -1,13 +1,11 @@
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { PaneHeading } from "../../settings/model_providers/components/pane_heading";
 import { CustomProviderRow } from "../../settings/model_providers/custom-providers/custom_provider_list";
 import CustomProviderEditor from "../../settings/model_providers/custom-providers/custom_provider_editor";
 import { exportCustomProvider } from "../../settings/model_providers/custom-providers/export_provider";
 import { findCustomProvider } from "../../../SERVICEs/custom_provider_store";
 import { toast } from "../../../SERVICEs/toast";
-import { CUSTOM_MODEL_GROUP_ICON } from "../../chat-input/constants";
 
 /**
  * CustomProviderPane — one user-authored provider (#204). Reuses the Settings
@@ -50,12 +48,6 @@ export const CustomProviderPane = ({ entry, onDeleted }) => {
 
   return (
     <div data-testid={`custom-provider-pane-${provider.id}`}>
-      {/* No "custom provider" caption: the rail's Custom group already says
-          it, and the 600 px pane has no room beside a long display name. */}
-      <PaneHeading
-        title={provider.display_name || provider.id}
-        icon={CUSTOM_MODEL_GROUP_ICON}
-      />
       <CustomProviderRow
         provider={provider}
         isDark={isDark}

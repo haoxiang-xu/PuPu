@@ -3,8 +3,9 @@ import { RAIL_KIND } from "../rail_entries";
 
 /**
  * KeyProviderPane — a native or shipped provider's pane (#204): the ONE key
- * control (`ProviderKeySection`) in its page-heading form, nothing else. A
- * key provider's page is its key configuration — project owner decision.
+ * control (`ProviderKeySection`), nothing else — a key provider's page is its
+ * key configuration (project owner). The heading is the modal's fixed header
+ * (model_providers_modal_content.js), so the control renders bare.
  */
 export const KeyProviderPane = ({ entry }) => {
   const provider = entry.provider;
@@ -12,7 +13,7 @@ export const KeyProviderPane = ({ entry }) => {
     return (
       <ProviderKeySection
         key={entry.id}
-        heading="page"
+        heading="none"
         title={provider.title}
         icon={provider.icon}
         sites={provider.sites}
@@ -24,7 +25,7 @@ export const KeyProviderPane = ({ entry }) => {
   return (
     <ProviderKeySection
       key={entry.id}
-      heading="page"
+      heading="none"
       title={provider.title}
       icon={provider.icon}
       storage_key={provider.storage_key}

@@ -7,12 +7,16 @@ import { RAIL_KIND } from "./rail_entries";
 /**
  * ProviderRail — the left strip of the Model Providers page (#204, design B1).
  *
- * Same region language as the Settings modal's strip: sidebar fill, one
- * hairline on the right, uppercase captions. A row is a full-width BUILTIN
- * Button carrying the brand icon and the title; the B1 status dot sits in
- * front of it (green = usable, hollow = needs a key / service down). Shipped
- * providers follow the native ones under the same caption; user-authored
- * providers get their own "Custom" caption and the Add entry.
+ * Strictly the Settings modal's strip (settings_modal_content.js): 140 px,
+ * sidebar fill, one hairline on the right, `16px 10px 10px` padding, 2 px
+ * gap, 12 px uppercase captions padded `8px 12px 12px`, rows as full-width
+ * BUILTIN Buttons at `8px 12px` / radius 7 / 13 px with opacity-only
+ * selection (1 vs 0.65) — the project owner wants the Plugins, Models and
+ * Settings strips identical. The B1 status dot (green = usable, hollow =
+ * needs a key / service down) therefore sits at the row's right edge, inside
+ * the Button, so the left padding stays the shared value. Shipped providers
+ * follow the native ones under the same caption; user-authored providers get
+ * their own "Custom" caption and the Add entry.
  */
 
 const DOT_ON = "var(--pupu-success, #5cc084)";
@@ -23,13 +27,13 @@ const RailCaption = ({ children }) => {
   return (
     <div
       style={{
-        fontSize: 10,
+        fontSize: 12,
         fontFamily: theme?.font?.fontFamily || "inherit",
         textTransform: "uppercase",
         letterSpacing: "1.5px",
         color: "var(--pupu-text)",
         opacity: 0.3,
-        padding: "12px 12px 6px",
+        padding: "8px 12px 12px",
         whiteSpace: "nowrap",
       }}
     >
@@ -47,25 +51,7 @@ const RailRow = ({ entry, selected, onSelect, label }) => {
       data-configured={
         entry.configured === null ? "none" : entry.configured ? "true" : "false"
       }
-      style={{ position: "relative" }}
     >
-      {!isAction && (
-        <span
-          aria-hidden="true"
-          data-testid="provider-rail-dot"
-          style={{
-            position: "absolute",
-            left: 9,
-            top: "50%",
-            transform: "translateY(-50%)",
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            backgroundColor: entry.configured ? DOT_ON : DOT_OFF,
-            pointerEvents: "none",
-          }}
-        />
-      )}
       <Button
         prefix_icon={entry.icon}
         label={label}
@@ -75,25 +61,37 @@ const RailRow = ({ entry, selected, onSelect, label }) => {
           width: "100%",
           justifyContent: "flex-start",
           fontSize: 13,
-          opacity: selected ? 1 : isAction ? 0.5 : 0.65,
-          padding: isAction ? "7px 10px 7px 10px" : "7px 10px 7px 20px",
+          opacity: selected ? 1 : 0.65,
+          padding: "8px 12px",
           borderRadius: 7,
           iconSize: 16,
-          ...(selected
-            ? { backgroundColor: "var(--pupu-overlay-active)" }
-            : {}),
-          /* A long custom display name truncates instead of running under
-             the rail's right edge. */
           content: {
+            /* A long custom display name truncates instead of running under
+               the rail's right edge. */
             label: {
               minWidth: 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             },
+            children: { marginLeft: "auto", display: "flex", alignItems: "center" },
           },
         }}
-      />
+      >
+        {!isAction && (
+          <span
+            aria-hidden="true"
+            data-testid="provider-rail-dot"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              backgroundColor: entry.configured ? DOT_ON : DOT_OFF,
+              flex: "none",
+            }}
+          />
+        )}
+      </Button>
     </div>
   );
 };
@@ -114,7 +112,7 @@ export const ProviderRail = ({ entries, selectedId, onSelect }) => {
       className="scrollable"
       style={{
         position: "relative",
-        width: 160,
+        width: 140,
         flexShrink: 0,
         backgroundColor: "var(--pupu-sidebar)",
         borderRight: "1px solid var(--pupu-border)",
@@ -146,8 +144,10 @@ export const ProviderRail = ({ entries, selectedId, onSelect }) => {
               selected={entry.id === selectedId}
               onSelect={onSelect}
               label={
+                /* "Add" — the Custom caption above already says what; the
+                   140 px strip has no room for "Add provider". */
                 entry.kind === RAIL_KIND.ADD_CUSTOM
-                  ? t("model_providers.page.add_provider")
+                  ? t("model_providers.custom.add")
                   : entry.title
               }
             />
