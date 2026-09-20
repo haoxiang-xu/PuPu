@@ -103,22 +103,24 @@ export const OllamaStore = ({ isDark }) => {
     opacity: 0.7,
     margin: "14px 0 6px",
   };
+  /* Category / Installed chips: BUILTIN Button in its default form, dressed
+     as the pill the Settings library browser used (no bare <button>). */
   const pillStyle = (active) => ({
     fontSize: 11,
     fontFamily,
     fontWeight: 500,
-    padding: "3px 10px",
+    paddingVertical: 3,
+    paddingHorizontal: 10,
     borderRadius: 999,
-    border: `1px solid ${active ? (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)") : "transparent"}`,
     backgroundColor: active ? "var(--pupu-overlay-active)" : "transparent",
+    hoverBackgroundColor: "var(--pupu-overlay-hover)",
     color: active
       ? "var(--pupu-text-strong)"
       : isDark
         ? "rgba(255,255,255,0.45)"
         : "rgba(0,0,0,0.42)",
-    cursor: "pointer",
-    outline: "none",
-    transition: "background 0.12s, color 0.12s",
+    outline: `1px solid ${active ? (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)") : "transparent"}`,
+    outlineOffset: -1,
   });
   const gridStyle = {
     display: "grid",
@@ -171,26 +173,24 @@ export const OllamaStore = ({ isDark }) => {
         {LIBRARY_CATEGORIES.map((cat) => {
           const active = !installedOnly && category === cat.value;
           return (
-            <button
+            <Button
               key={cat.value || "all"}
-              data-testid={`store-category-${cat.value || "all"}`}
+              label={cat.label}
+              dom_props={{ "data-testid": `store-category-${cat.value || "all"}` }}
               onClick={() => {
                 setInstalledOnly(false);
                 setCategory(cat.value);
               }}
               style={pillStyle(active)}
-            >
-              {cat.label}
-            </button>
+            />
           );
         })}
-        <button
-          data-testid="store-category-installed"
+        <Button
+          label={t("model_providers.store.filter_installed")}
+          dom_props={{ "data-testid": "store-category-installed" }}
           onClick={() => setInstalledOnly((v) => !v)}
           style={pillStyle(installedOnly)}
-        >
-          {t("model_providers.store.filter_installed")}
-        </button>
+        />
       </div>
 
       {/* ── featured ── */}

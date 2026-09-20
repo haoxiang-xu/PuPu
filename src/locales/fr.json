@@ -185,7 +185,6 @@
       "show_all_tags": "Afficher les {count} tags",
       "show_fewer_tags": "Afficher moins",
       "pulls": "{count} téléchargements",
-      "updated": "mis à jour {when}",
       "empty_installed": "Rien d'installé ne correspond à ce filtre.",
       "featured_qwen3": "Le meilleur généraliste, adapté à un ordinateur portable",
       "featured_gemma3": "Petit, rapide, comprend les images",

@@ -185,7 +185,6 @@
       "show_all_tags": "顯示全部 {count} 個標籤",
       "show_fewer_tags": "收合",
       "pulls": "{count} 次提取",
-      "updated": "{when} 更新",
       "empty_installed": "沒有已安裝的模型符合此篩選條件。",
       "featured_qwen3": "適合筆記型電腦的全能之選",
       "featured_gemma3": "小巧快速，支援圖像理解",

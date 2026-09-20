@@ -185,7 +185,6 @@
       "show_all_tags": "Mostrar los {count} tags",
       "show_fewer_tags": "Mostrar menos",
       "pulls": "{count} descargas",
-      "updated": "actualizado {when}",
       "empty_installed": "Nada instalado coincide con este filtro.",
       "featured_qwen3": "El mejor modelo versátil que cabe en un portátil",
       "featured_gemma3": "Pequeño, rápido, entiende imágenes",

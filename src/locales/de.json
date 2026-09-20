@@ -185,7 +185,6 @@
       "show_all_tags": "Alle {count} Tags anzeigen",
       "show_fewer_tags": "Weniger anzeigen",
       "pulls": "{count} Abrufe",
-      "updated": "aktualisiert {when}",
       "empty_installed": "Nichts Installiertes entspricht diesem Filter.",
       "featured_qwen3": "Bestes Allround-Modell, das auf einen Laptop passt",
       "featured_gemma3": "Klein, schnell, versteht Bilder",

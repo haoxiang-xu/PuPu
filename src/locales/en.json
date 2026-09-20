@@ -185,7 +185,6 @@
       "show_all_tags": "Show all {count} tags",
       "show_fewer_tags": "Show fewer",
       "pulls": "{count} pulls",
-      "updated": "updated {when}",
       "empty_installed": "Nothing installed matches this filter.",
       "featured_qwen3": "Best all-rounder that fits a laptop",
       "featured_gemma3": "Small, fast, understands images",

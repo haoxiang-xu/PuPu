@@ -185,7 +185,6 @@
       "show_all_tags": "태그 {count}개 모두 보기",
       "show_fewer_tags": "간략히 보기",
       "pulls": "{count}회 다운로드",
-      "updated": "{when} 업데이트됨",
       "empty_installed": "이 필터에 해당하는 설치된 항목이 없습니다.",
       "featured_qwen3": "노트북에서도 돌아가는 만능 모델",
       "featured_gemma3": "작고 빠르며 이미지도 이해",

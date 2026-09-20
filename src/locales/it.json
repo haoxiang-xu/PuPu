@@ -185,7 +185,6 @@
       "show_all_tags": "Mostra tutti i {count} tag",
       "show_fewer_tags": "Mostra meno",
       "pulls": "{count} download",
-      "updated": "aggiornato {when}",
       "empty_installed": "Nessun elemento installato corrisponde a questo filtro.",
       "featured_qwen3": "Il miglior tuttofare che sta in un laptop",
       "featured_gemma3": "Piccolo, veloce, comprende le immagini",

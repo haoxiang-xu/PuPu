@@ -185,7 +185,6 @@
       "show_all_tags": "{count} 件のタグをすべて表示",
       "show_fewer_tags": "表示を減らす",
       "pulls": "{count} 回取得",
-      "updated": "{when} に更新",
       "empty_installed": "このフィルターに一致するインストール済みモデルはありません。",
       "featured_qwen3": "ノートPCにも収まる万能モデル",
       "featured_gemma3": "小さく高速で、画像も理解",

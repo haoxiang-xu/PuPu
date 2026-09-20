@@ -185,7 +185,6 @@
       "show_all_tags": "显示全部 {count} 个标签",
       "show_fewer_tags": "收起",
       "pulls": "{count} 次拉取",
-      "updated": "{when} 更新",
       "empty_installed": "没有已安装的模型匹配此筛选条件。",
       "featured_qwen3": "适合笔记本电脑的全能之选",
       "featured_gemma3": "小巧快速，支持图像理解",
