@@ -198,6 +198,7 @@ const CHANNELS = Object.freeze({
     INSTALL: "ollama:install",
     INSTALL_PROGRESS: "ollama:install-progress",
     LIBRARY_SEARCH: "ollama:library-search",
+    LIBRARY_TAGS: "ollama:library-tags",
   }),
   UNCHAIN: Object.freeze({
     GET_STATUS: "unchain:get-status",

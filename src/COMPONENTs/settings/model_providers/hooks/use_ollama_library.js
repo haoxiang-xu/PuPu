@@ -16,6 +16,8 @@ const ollamaUiLogger = createLogger(
 
 export const useOllamaLibrary = () => {
   const [category, setCategory] = useState("");
+  /* "" = ollama.com's default (most pulled) | "newest" — BC-003. */
+  const [sort, setSort] = useState("");
   const [rawQuery, setRawQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [models, setModels] = useState([]);
@@ -40,15 +42,19 @@ export const useOllamaLibrary = () => {
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  const runSearch = useCallback((query, nextCategory) => {
-    return api.ollama.searchLibrary({ query, category: nextCategory });
+  const runSearch = useCallback((query, nextCategory, nextSort) => {
+    return api.ollama.searchLibrary({
+      query,
+      category: nextCategory,
+      sort: nextSort,
+    });
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    runSearch(debouncedQuery, category)
+    runSearch(debouncedQuery, category, sort)
       .then((result) => {
         if (!cancelled) {
           setModels(result);
@@ -64,7 +70,7 @@ export const useOllamaLibrary = () => {
     return () => {
       cancelled = true;
     };
-  }, [category, debouncedQuery, runSearch]);
+  }, [category, debouncedQuery, sort, runSearch]);
 
   const handlePull = useCallback((modelName, size) => {
     /* Same derivation the card uses for its pull_store key — see ../model_ref.
@@ -144,7 +150,7 @@ export const useOllamaLibrary = () => {
   const retrySearch = useCallback(() => {
     setError(null);
     setLoading(true);
-    runSearch(debouncedQuery, category)
+    runSearch(debouncedQuery, category, sort)
       .then((result) => {
         setModels(result);
         setLoading(false);
@@ -153,11 +159,13 @@ export const useOllamaLibrary = () => {
         setError(err?.message || "Failed to load models");
         setLoading(false);
       });
-  }, [category, debouncedQuery, runSearch]);
+  }, [category, debouncedQuery, sort, runSearch]);
 
   return {
     category,
     setCategory,
+    sort,
+    setSort,
     rawQuery,
     setRawQuery,
     debouncedQuery,

@@ -21,7 +21,15 @@ jest.mock("./appearance", () => ({
 
 jest.mock("./model_providers", () => ({
   __esModule: true,
-  ModelProvidersSettings: () => <div>Model Providers Content</div>,
+  ModelProvidersSettings: ({ onOpenModelProviders }) => (
+    <div>
+      Model Providers Content
+      <button onClick={() => onOpenModelProviders?.("ollama")}>
+        Open in Models (from page)
+      </button>
+    </div>
+  ),
+  OllamaLibraryBrowser: () => <div>Ollama Library Browser</div>,
 }));
 
 jest.mock("./local_storage", () => ({
@@ -59,11 +67,11 @@ jest.mock("./dev/storage", () => ({
   isDevSettingsAvailable: () => false,
 }));
 
-const renderSettingsModal = () =>
+const renderSettingsModal = (props = {}) =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
       <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
-        <SettingsModal open onClose={jest.fn()} />
+        <SettingsModal open onClose={jest.fn()} {...props} />
       </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
@@ -93,5 +101,30 @@ describe("SettingsModal", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Update" }));
     expect(await screen.findByText("Update Content")).toBeInTheDocument();
+  });
+
+  /* #204 R5: Settings keeps a narrow Model Providers page (the N1 accordion)
+     again — the item navigates in place like every other settings page. The
+     page itself gets onOpenModelProviders so its Ollama row can hand off to
+     the wide layer (AC-12). */
+  test("clicking Model Providers renders the page and passes onOpenModelProviders", async () => {
+    const onOpenModelProviders = jest.fn();
+    renderSettingsModal({ onOpenModelProviders });
+
+    await screen.findByText("Appearance Content");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Model Providers" }),
+    );
+
+    expect(
+      await screen.findByText("Model Providers Content"),
+    ).toBeInTheDocument();
+    expect(onOpenModelProviders).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open in Models (from page)" }),
+    );
+    expect(onOpenModelProviders).toHaveBeenCalledWith("ollama");
   });
 });

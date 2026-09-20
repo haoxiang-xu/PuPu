@@ -56,6 +56,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.INSTALL,
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
+  CHANNELS.OLLAMA.LIBRARY_TAGS,
   CHANNELS.UNCHAIN.GET_STATUS,
   CHANNELS.UNCHAIN.GET_COMPUTER_USE_STATUS,
   CHANNELS.UNCHAIN.SET_COMPUTER_USE_ENABLED,
@@ -235,6 +236,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.OLLAMA.LIBRARY_SEARCH, async (_event, payload = {}) =>
     ollamaService.searchLibrary(payload),
+  );
+  ipcMain.handle(CHANNELS.OLLAMA.LIBRARY_TAGS, async (_event, payload = {}) =>
+    ollamaService.fetchLibraryTags(payload),
   );
 
   ipcMain.handle(CHANNELS.UNCHAIN.GET_STATUS, () =>

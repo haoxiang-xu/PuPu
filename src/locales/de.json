@@ -150,7 +150,52 @@
     },
     "platform": "Plattform",
     "site_global": "Global",
-    "site_china": "China"
+    "site_china": "China",
+    "page": {
+      "rail_providers": "Anbieter",
+      "rail_custom": "Eigene",
+      "add_provider": "Anbieter hinzufügen",
+      "custom_caption": "Eigener Anbieter",
+      "get_key_at": "Schlüssel bei {host} erhalten",
+      "welcome_title": "Noch kein Modellanbieter",
+      "welcome_desc": "PuPu benötigt einen, bevor ein Chat gesendet werden kann. Wählen Sie einen Weg:",
+      "path_key_title": "API-Schlüssel verwenden",
+      "path_key_desc": "Wählen Sie links einen Anbieter und fügen Sie dessen Schlüssel ein. Er wird verschlüsselt auf diesem Gerät gespeichert.",
+      "path_key_action": "Anbieter wählen",
+      "path_local_title": "Modelle lokal ausführen",
+      "path_local_desc": "Ollama führt offene Modelle auf diesem Computer aus. Kein Schlüssel, kein Konto; Modelle werden aus seiner Bibliothek heruntergeladen.",
+      "path_local_action": "Ollama installieren",
+      "path_local_open": "Ollama öffnen",
+      "ollama_running": "läuft",
+      "installed_models": "Installierte Modelle"
+    },
+    "store": {
+      "search": "Bibliothek durchsuchen",
+      "sort_popular": "Beliebt",
+      "sort_newest": "Neu",
+      "filter_installed": "Installiert",
+      "featured": "Empfohlen",
+      "library": "Bibliothek",
+      "choose_size": "Größe wählen",
+      "pull_tag": "{ref} herunterladen",
+      "installed": "Installiert",
+      "tags_loading": "Größen werden geladen…",
+      "tags_failed": "Größen konnten nicht von ollama.com geladen werden",
+      "tags_retry": "Erneut versuchen",
+      "show_all_tags": "Alle {count} Tags anzeigen",
+      "show_fewer_tags": "Weniger anzeigen",
+      "pulls": "{count} Abrufe",
+      "empty_installed": "Nichts Installiertes entspricht diesem Filter.",
+      "featured_qwen3": "Bestes Allround-Modell, das auf einen Laptop passt",
+      "featured_gemma3": "Klein, schnell, versteht Bilder",
+      "featured_deepseek_r1": "Logisches Denken auf dem eigenen Gerät",
+      "featured_nomic_embed_text": "Embeddings für Speicher und Suche"
+    },
+    "settings": {
+      "ready": "Bereit",
+      "open_in_models": "In Modelle öffnen",
+      "ollama_hint": "Installierte Modelle und die Bibliothek befinden sich auf der Seite Modelle."
+    }
   },
   "memory": {
     "title": "Chat-Speicher",
@@ -481,7 +526,8 @@
     "workspaces": "Bereiche",
     "settings": "Einstellungen",
     "chats": "Chats",
-    "no_chats_found": "Keine Chats gefunden"
+    "no_chats_found": "Keine Chats gefunden",
+    "models": "Modelle"
   },
   "context_menu": {
     "new_chat": "Neuer Chat",

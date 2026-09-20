@@ -175,19 +175,8 @@ const createOllamaService = ({
     });
   };
 
-  const searchLibrary = async ({ query = "", category = "" } = {}) => {
-    const rawQuery = String(query || "").trim();
-    const rawCategory = String(category || "").trim();
-    const q = encodeURIComponent(rawQuery);
-    const c = encodeURIComponent(rawCategory);
-    const parts = [];
-    if (q) parts.push(`q=${q}`);
-    if (c) parts.push(`c=${c}`);
-    const url = parts.length
-      ? `https://ollama.com/search?${parts.join("&")}`
-      : `https://ollama.com/library`;
-
-    return new Promise((resolve, reject) => {
+  const fetchHtml = (url, timeoutMessage) =>
+    new Promise((resolve, reject) => {
       const req = https.get(
         url,
         { headers: { "User-Agent": "Mozilla/5.0", Accept: "text/html" } },
@@ -201,10 +190,40 @@ const createOllamaService = ({
       );
       req.setTimeout(12000, () => {
         req.destroy();
-        reject(new Error("ollama library search timed out"));
+        reject(new Error(timeoutMessage));
       });
       req.on("error", reject);
     });
+
+  const searchLibrary = async ({
+    query = "",
+    category = "",
+    sort = "",
+  } = {}) => {
+    const rawQuery = String(query || "").trim();
+    const rawCategory = String(category || "").trim();
+    const rawSort = String(sort || "").trim();
+    const q = encodeURIComponent(rawQuery);
+    const c = encodeURIComponent(rawCategory);
+    const parts = [];
+    if (q) parts.push(`q=${q}`);
+    if (c) parts.push(`c=${c}`);
+    if (rawSort === "newest") parts.push("o=newest");
+    const url = parts.length
+      ? `https://ollama.com/search?${parts.join("&")}`
+      : `https://ollama.com/library`;
+
+    return fetchHtml(url, "ollama library search timed out");
+  };
+
+  const OLLAMA_MODEL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+
+  const fetchLibraryTags = async ({ name } = {}) => {
+    if (typeof name !== "string" || !OLLAMA_MODEL_NAME_PATTERN.test(name)) {
+      throw new Error("invalid model name");
+    }
+    const url = `https://ollama.com/library/${encodeURIComponent(name)}/tags`;
+    return fetchHtml(url, "ollama library tags request timed out");
   };
 
   return {
@@ -215,6 +234,7 @@ const createOllamaService = ({
     listInstalledModels: () => requestOllamaJson("/api/tags"),
     installOllama,
     searchLibrary,
+    fetchLibraryTags,
   };
 };
 

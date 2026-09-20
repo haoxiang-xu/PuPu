@@ -5,6 +5,7 @@ import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "../../../../BUILTIN_COMPONENTs/select/select";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../../appearance";
+import { PaneHeading } from "./pane_heading";
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
@@ -93,6 +94,8 @@ export const ProviderKeySection = ({
   credential_id,
   sites,
   placeholder,
+  heading = "section",
+  key_url,
 }) => {
   const { t } = useTranslation();
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -260,8 +263,22 @@ export const ProviderKeySection = ({
     </div>
   );
 
+  const activeSite = isShipped
+    ? siteList.find((site) => site.slug === activeSlug) || siteList[0]
+    : null;
+  const keyUrl =
+    (activeSite && typeof activeSite.key_url === "string" && activeSite.key_url) ||
+    (typeof key_url === "string" && key_url) ||
+    "";
+  const Wrapper =
+    heading === "page"
+      ? PaneHeadingWrapper
+      : heading === "none"
+        ? BareWrapper
+        : SettingsSection;
+
   return (
-    <SettingsSection title={title} icon={icon}>
+    <Wrapper title={title} icon={icon}>
       <div
         data-testid={`provider-key-section-${isShipped ? siteList[0].slug : storage_key}`}
         style={{
@@ -270,6 +287,11 @@ export const ProviderKeySection = ({
           gap: 10,
           paddingTop: 4,
           paddingBottom: 12,
+          /* In the wide Models pane the control block stops well short of
+             the pane's ~690 px: a key field that runs the full width reads
+             as a text area (project owner). The heading and its hairline
+             keep the full width above it. */
+          maxWidth: heading === "page" ? 520 : undefined,
         }}
       >
         {multiSite && (
@@ -415,6 +437,28 @@ export const ProviderKeySection = ({
           {t("model_providers.key_storage_desc")}
         </span>
 
+        {heading !== "section" && keyUrl && (
+          <a
+            href={keyUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="provider-key-url"
+            style={{
+              fontSize: 12,
+              fontFamily,
+              color: accentColor,
+              textDecoration: "underline",
+              textDecorationColor: "var(--pupu-border)",
+              textUnderlineOffset: 3,
+              alignSelf: "flex-start",
+            }}
+          >
+            {t("model_providers.page.get_key_at", {
+              host: hostOf(keyUrl),
+            })}
+          </a>
+        )}
+
         <ConfirmDeleteApiKeyModal
           open={confirmOpen}
           onClose={() => setConfirmOpen(false)}
@@ -429,8 +473,27 @@ export const ProviderKeySection = ({
           isDark={isDark}
         />
       </div>
-    </SettingsSection>
+    </Wrapper>
   );
+};
+
+/* Page wrapper: heading on top, then the control. Kept next to the control so
+   the two wrappers are visibly the same slot. */
+const PaneHeadingWrapper = ({ title, icon, children }) => (
+  <div>
+    <PaneHeading title={title} icon={icon} />
+    {children}
+  </div>
+);
+
+const BareWrapper = ({ children }) => <div>{children}</div>;
+
+const hostOf = (url) => {
+  try {
+    return new URL(url).hostname;
+  } catch (_error) {
+    return url;
+  }
 };
 
 export default ProviderKeySection;

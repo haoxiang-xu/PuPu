@@ -49,6 +49,7 @@ export const readPresetEnvelopes = () => {
  * - `title`       section title. Brand name, not translated.
  * - `icon`        icon_manifest key.
  * - `placeholder` empty-state placeholder for the key field.
+ * - `key_url`     where a user gets a key (per site when sites differ).
  * - `sites`       one entry per preset slug. A provider with two sites (Kimi)
  *                 renders a Platform select; a single-site provider renders no
  *                 switcher at all. `labelKey` is the human half of the option
@@ -61,6 +62,7 @@ export const SHIPPED_PROVIDERS = Object.freeze([
     title: "DeepSeek",
     icon: "deepseek",
     placeholder: "sk-...",
+    key_url: "https://platform.deepseek.com/api_keys",
     sites: Object.freeze([Object.freeze({ slug: "deepseek" })]),
   }),
   Object.freeze({
@@ -69,8 +71,16 @@ export const SHIPPED_PROVIDERS = Object.freeze([
     icon: "kimi",
     placeholder: "sk-...",
     sites: Object.freeze([
-      Object.freeze({ slug: "kimi", labelKey: "model_providers.site_global" }),
-      Object.freeze({ slug: "kimi-cn", labelKey: "model_providers.site_china" }),
+      Object.freeze({
+        slug: "kimi",
+        labelKey: "model_providers.site_global",
+        key_url: "https://platform.moonshot.ai/console/api-keys",
+      }),
+      Object.freeze({
+        slug: "kimi-cn",
+        labelKey: "model_providers.site_china",
+        key_url: "https://platform.moonshot.cn/console/api-keys",
+      }),
     ]),
   }),
 ]);

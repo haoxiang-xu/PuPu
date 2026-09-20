@@ -29,7 +29,7 @@ const SettingsModalLoading = () => {
   );
 };
 
-export const SettingsModal = ({ open, onClose }) => {
+export const SettingsModal = ({ open, onClose, onOpenModelProviders }) => {
   useModalLifecycle("settings-modal", open);
 
   return (
@@ -48,7 +48,10 @@ export const SettingsModal = ({ open, onClose }) => {
       }}
     >
       <Suspense fallback={<SettingsModalLoading />}>
-        <SettingsModalContent onClose={onClose} />
+        <SettingsModalContent
+          onClose={onClose}
+          onOpenModelProviders={onOpenModelProviders}
+        />
       </Suspense>
     </Modal>
   );

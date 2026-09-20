@@ -51,6 +51,11 @@ const MemoryInspectModal = lazy(() =>
     default: m.MemoryInspectModal,
   })),
 );
+const ModelProvidersModal = lazy(() =>
+  import("../model-providers/model_providers_modal").then((m) => ({
+    default: m.ModelProvidersModal,
+  })),
+);
 /* eslint-enable import/first */
 
 export { sideMenuChatTreeAPI };
@@ -213,6 +218,8 @@ const SideMenu = () => {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+  const [modelProvidersOpen, setModelProvidersOpen] = useState(false);
+  const [modelProvidersInitialEntry, setModelProvidersInitialEntry] = useState(null);
 
   /* Track which lazy modals have been opened at least once.
      Once mounted, they stay in the tree so Modal's exit animation can play. */
@@ -221,6 +228,7 @@ const SideMenu = () => {
   if (toolkitOpen) lazyMountedRef.current.toolkit = true;
   if (agentsOpen) lazyMountedRef.current.agents = true;
   if (workspaceModalOpen) lazyMountedRef.current.workspace = true;
+  if (modelProvidersOpen) lazyMountedRef.current.modelProviders = true;
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -701,6 +709,24 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
+        <Button
+          prefix_icon="pentagon"
+          label={t("side_menu.models")}
+          onClick={() => {
+            setModelProvidersInitialEntry(null);
+            setModelProvidersOpen(true);
+          }}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
         <div
           style={{
             padding: "4px 4px 6px",
@@ -781,6 +807,13 @@ const SideMenu = () => {
           <SettingsModal
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            onOpenModelProviders={(entryId) => {
+              setSettingsOpen(false);
+              setModelProvidersInitialEntry(
+                typeof entryId === "string" ? entryId : null,
+              );
+              setModelProvidersOpen(true);
+            }}
           />
         )}
 
@@ -801,6 +834,14 @@ const SideMenu = () => {
           <WorkspaceModal
             open={workspaceModalOpen}
             onClose={() => setWorkspaceModalOpen(false)}
+          />
+        )}
+
+        {lazyMountedRef.current.modelProviders && (
+          <ModelProvidersModal
+            open={modelProvidersOpen}
+            onClose={() => setModelProvidersOpen(false)}
+            initialEntryId={modelProvidersInitialEntry}
           />
         )}
 
