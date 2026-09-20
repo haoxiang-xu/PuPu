@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { OllamaPane, OllamaHeadingActions, OLLAMA_STATUS_CAPTION_KEY } from "./ollama_pane";
+import { useState } from "react";
 
 jest.mock("./ollama/ollama_store", () => ({
   __esModule: true,
@@ -46,11 +47,21 @@ const makeOllama = (overrides = {}) => ({
   ...overrides,
 });
 
-const renderPane = (state) =>
+/* The header (tabs + reload) and the pane share the tab the way the modal
+   content wires them: one state, header writes, pane reads. */
+const Harness = ({ state, initialTab }) => {
+  const [tab, setTab] = useState(initialTab ?? (state.status === "ready" && state.models.length > 0 ? "installed" : "library"));
+  return (
+    <>
+      <OllamaHeadingActions ollama={state} tab={tab} onTabChange={setTab} />
+      <OllamaPane ollama={state} tab={tab} />
+    </>
+  );
+};
+const renderPane = (state, initialTab) =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-      <OllamaHeadingActions ollama={state} />
-      <OllamaPane ollama={state} />
+      <Harness state={state} initialTab={initialTab} />
     </ConfigContext.Provider>,
   );
 
@@ -71,8 +82,8 @@ describe("OllamaPane (S4: Installed / Library group button)", () => {
 
     fireEvent.click(screen.getAllByText("delete")[0]);
     expect(state.removeLocally).toHaveBeenCalledWith("qwen3:30b");
-    // Ready state offers Reload but not Restart (header actions).
-    expect(screen.getByText("local_storage.reload")).toBeInTheDocument();
+    // Ready state offers the icon Reload (aria-label) but not Restart.
+    expect(screen.getByLabelText("local_storage.reload")).toBeInTheDocument();
     expect(screen.queryByText("local_storage.restart")).toBeNull();
 
     fireEvent.click(screen.getByTestId("tab-library"));
@@ -107,7 +118,7 @@ describe("OllamaPane (S4: Installed / Library group button)", () => {
     expect(screen.getByText("ollama serve")).toBeInTheDocument();
     fireEvent.click(screen.getByText("local_storage.restart"));
     expect(state.restart).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByText("local_storage.reload"));
+    fireEvent.click(screen.getByLabelText("local_storage.reload"));
     expect(state.load).toHaveBeenCalledTimes(1);
   });
 

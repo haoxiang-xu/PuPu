@@ -11,7 +11,14 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const TRACK_PADDING = 3;
 const BUTTON_HEIGHT = 28;
-const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
+
+/* `compact` — the Models modal's Ollama tabs sit in a pane heading beside
+   an icon button, where the 34 px control is too tall; same anatomy, 22 px
+   buttons, 2 px track, 11.5 px labels. */
+const SIZES = {
+  default: { pad: TRACK_PADDING, h: BUTTON_HEIGHT, fs: 13, px: 13, radius: 10, btnRadius: 7 },
+  compact: { pad: 2, h: 22, fs: 11.5, px: 9, radius: 8, btnRadius: 6 },
+};
 
 const SegmentedControl = ({
   sections,
@@ -20,7 +27,9 @@ const SegmentedControl = ({
   isDark,
   trackStyle,
   buttonFontWeight = 600,
+  size = "default",
 }) => {
+  const dims = SIZES[size] || SIZES.default;
   const { theme } = useContext(ConfigContext);
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -111,10 +120,10 @@ const SegmentedControl = ({
         display: "inline-flex",
         alignItems: "center",
         gap: 2,
-        height: CONTROL_HEIGHT,
+        height: dims.h + dims.pad * 2,
         boxSizing: "border-box",
-        padding: TRACK_PADDING,
-        borderRadius: 10,
+        padding: dims.pad,
+        borderRadius: dims.radius,
         background: "rgba(var(--pupu-text-rgb),0.06)",
         ...trackStyle,
       }}
@@ -123,11 +132,11 @@ const SegmentedControl = ({
         aria-hidden="true"
         style={{
           position: "absolute",
-          top: TRACK_PADDING,
+          top: dims.pad,
           left: indicator.left,
           width: indicator.width,
-          height: BUTTON_HEIGHT,
-          borderRadius: 7,
+          height: dims.h,
+          borderRadius: dims.btnRadius,
           background: isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.92)",
           boxShadow: isDark
             ? "0 1px 4px rgba(0,0,0,0.45)"
@@ -155,14 +164,14 @@ const SegmentedControl = ({
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              height: BUTTON_HEIGHT,
+              height: dims.h,
               boxSizing: "border-box",
-              padding: "0 13px",
-              borderRadius: 7,
+              padding: `0 ${dims.px}px`,
+              borderRadius: dims.btnRadius,
               border: "none",
               cursor: "pointer",
               fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-              fontSize: 13,
+              fontSize: dims.fs,
               fontWeight: buttonFontWeight,
               lineHeight: 1,
               letterSpacing: "0.1px",

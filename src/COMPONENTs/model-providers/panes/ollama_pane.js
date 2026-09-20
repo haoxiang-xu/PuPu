@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import SegmentedControl from "../../toolkit/components/segmented_control";
 import ActiveDownloads from "../../settings/model_providers/components/active_downloads";
@@ -11,18 +12,20 @@ import { formatBytes } from "../../settings/local_storage/utils/storage_metrics"
 /**
  * OllamaPane — the one provider where models are chosen, downloaded and
  * managed (#204, project owner decision 1). Design S4: the modal's fixed
- * header carries the service state (caption) and Restart / Reload
- * (OllamaHeadingActions); the body is one group button with two tabs:
+ * header carries the service state (caption) and, on one row, the compact
+ * Installed / Library group button with the icon Reload (OllamaHeadingActions,
+ * composed by model_providers_modal_content.js; the tab state lives there
+ * because the header is outside this pane). The body is the active tab:
  *
  *   Installed — the local models with size bars and a hover trash icon
  *               (the Local Storage rows, same delete path, same catalog
  *               refresh), then pulls in flight;
  *   Library   — the store (design S3, ./ollama/ollama_store.js).
  *
- * The pane opens on Installed when there is something installed, on Library
- * when there is not; the choice is made once, when the service first
- * answers. State comes from the shared `useOllamaInstalled` hook the modal
- * owns, so the rail dot and this pane can never disagree.
+ * `useOllamaTab` opens on Installed when there is something installed, on
+ * Library when there is not — decided once, when the service first answers.
+ * State comes from the shared `useOllamaInstalled` hook the modal owns, so
+ * the rail dot and this pane can never disagree.
  */
 
 export const OLLAMA_STATUS_CAPTION_KEY = {
@@ -33,51 +36,83 @@ export const OLLAMA_STATUS_CAPTION_KEY = {
   starting: "local_storage.starting",
 };
 
-/** Restart / Reload — rendered in the modal's fixed header beside the title. */
-export const OllamaHeadingActions = ({ ollama }) => {
-  const { theme } = useContext(ConfigContext);
-  const { t } = useTranslation();
-  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const { status, hasOllamaBridge, load, restart } = ollama;
-  const actionStyle = {
-    fontSize: 12,
-    fontFamily,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    color: "var(--pupu-text-secondary)",
-    hoverBackgroundColor: "var(--pupu-overlay-hover)",
-  };
-  return (
-    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      {hasOllamaBridge && (status === "offline" || status === "starting") && (
-        <Button
-          label={t("local_storage.restart")}
-          onClick={restart}
-          style={{ ...actionStyle, opacity: status === "starting" ? 0.35 : 1 }}
-        />
-      )}
-      <Button label={t("local_storage.reload")} onClick={load} style={actionStyle} />
-    </span>
-  );
-};
-
-export const OllamaPane = ({ ollama }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const { t } = useTranslation();
-  const isDark = onThemeMode === "dark_mode";
-  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const { status, models, hasOllamaBridge, load, removeLocally } = ollama;
-
-  /* Land on Installed when there is something installed, else Library —
-     decided once, the first time the service answers. */
+/** The tab choice, owned by whoever renders the header (the modal content). */
+export const useOllamaTab = (ollama) => {
+  const { status, models } = ollama;
   const [tab, setTab] = useState(null);
   useEffect(() => {
     if (tab !== null) return;
     if (status === "ready") setTab(models.length > 0 ? "installed" : "library");
     else if (status === "offline" || status === "not_found") setTab("library");
   }, [status, models.length, tab]);
-  const activeTab = tab || "installed";
+  return [tab || "installed", setTab];
+};
+
+/** Header row: compact Installed / Library group button, Restart while the
+ *  service is down, and an icon-only Reload with a tooltip. */
+export const OllamaHeadingActions = ({ ollama, tab, onTabChange }) => {
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const isDark = onThemeMode === "dark_mode";
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+  const { status, models, hasOllamaBridge, load, restart } = ollama;
+  const iconBtn = {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    opacity: 0.6,
+    hoverBackgroundColor: "var(--pupu-overlay-hover)",
+    content: { icon: { width: 15, height: 15 } },
+  };
+  return (
+    <span data-testid="ollama-heading-actions" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <SegmentedControl
+        size="compact"
+        sections={[
+          {
+            key: "installed",
+            label:
+              status === "ready" && models.length > 0
+                ? `${t("model_providers.store.tab_installed")} · ${models.length}`
+                : t("model_providers.store.tab_installed"),
+          },
+          { key: "library", label: t("model_providers.store.tab_library") },
+        ]}
+        selected={tab}
+        onChange={onTabChange}
+        isDark={isDark}
+        buttonFontWeight={500}
+      />
+      {hasOllamaBridge && (status === "offline" || status === "starting") && (
+        <Button
+          label={t("local_storage.restart")}
+          onClick={restart}
+          style={{
+            fontSize: 12,
+            fontFamily,
+            paddingVertical: 3,
+            paddingHorizontal: 8,
+            borderRadius: 6,
+            color: "var(--pupu-text-secondary)",
+            hoverBackgroundColor: "var(--pupu-overlay-hover)",
+            opacity: status === "starting" ? 0.35 : 1,
+          }}
+        />
+      )}
+      <Tooltip label={t("local_storage.reload")} position="bottom">
+        <Button prefix_icon="update" ariaLabel={t("local_storage.reload")} onClick={load} style={iconBtn} />
+      </Tooltip>
+    </span>
+  );
+};
+
+export const OllamaPane = ({ ollama, tab = "installed" }) => {
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const isDark = onThemeMode === "dark_mode";
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+  const { status, models, hasOllamaBridge, load, removeLocally } = ollama;
+  const activeTab = tab;
 
   const maxSize = models.length > 0 ? models[0].size : 1;
   const totalSize = models.reduce((s, m) => s + m.size, 0);
@@ -98,25 +133,6 @@ export const OllamaPane = ({ ollama }) => {
 
   return (
     <div data-testid="ollama-pane">
-      <div data-testid="ollama-tabs" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <SegmentedControl
-          sections={[
-            {
-              key: "installed",
-              label:
-                status === "ready" && models.length > 0
-                  ? `${t("model_providers.store.tab_installed")} · ${models.length}`
-                  : t("model_providers.store.tab_installed"),
-            },
-            { key: "library", label: t("model_providers.store.tab_library") },
-          ]}
-          selected={activeTab}
-          onChange={setTab}
-          isDark={isDark}
-          buttonFontWeight={500}
-        />
-      </div>
-
       {activeTab === "installed" && (
         <div data-testid="ollama-installed-tab">
           {status === "not_found" && (
@@ -140,11 +156,16 @@ export const OllamaPane = ({ ollama }) => {
           )}
           {status === "ready" && (
             <>
-              {models.length > 0 && (
-                <p style={{ ...mutedStyle, fontSize: 11.5, marginBottom: 2 }}>
-                  {t("model_providers.store.on_disk", { size: formatBytes(totalSize) })}
-                </p>
-              )}
+              <p style={{ ...mutedStyle, fontSize: 11.5, marginBottom: 2 }}>
+                {[
+                  t(OLLAMA_STATUS_CAPTION_KEY.ready),
+                  models.length > 0
+                    ? t("model_providers.store.on_disk", { size: formatBytes(totalSize) })
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
               <div data-testid="ollama-installed-list">
                 {models.length === 0 ? (
                   <p style={{ ...mutedStyle, padding: "14px 0 6px" }}>{t("local_storage.no_models")}</p>
@@ -172,6 +193,9 @@ export const OllamaPane = ({ ollama }) => {
 
       {activeTab === "library" && (
         <div data-testid="ollama-library-tab">
+          {status === "ready" && (
+            <p style={{ ...mutedStyle, fontSize: 11.5, marginBottom: 8 }}>{t(OLLAMA_STATUS_CAPTION_KEY.ready)}</p>
+          )}
           {status !== "ready" && (
             <p style={{ ...mutedStyle, marginBottom: 8 }}>
               {status === "not_found"
