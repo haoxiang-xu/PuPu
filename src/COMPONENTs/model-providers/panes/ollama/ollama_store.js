@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
@@ -16,7 +16,11 @@ import ConfirmDeleteModal from "../../../settings/local_storage/components/confi
 import { deleteOllamaModel } from "../../../settings/local_storage/utils/ollama_models";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 import featuredModels from "../../../../SERVICEs/ollama_featured_models.json";
-import { useOllamaModelTags } from "./use_ollama_model_tags";
+import {
+  dropModelTagsRequest,
+  requestModelTags,
+  useOllamaModelTags,
+} from "./use_ollama_model_tags";
 
 /**
  * OllamaStore — the Library tab of the Ollama pane (#204, design S3):
@@ -30,18 +34,25 @@ import { useOllamaModelTags } from "./use_ollama_model_tags";
  *   rows      one line per model — name over a one-line description (the
  *             pick's reason for a featured model) — with a size Select and
  *             an icon Pull button. No expansion, no page. The size slot is
- *             a spinner until the tags page (BC-002) has answered — fetched
- *             when the pointer reaches the row — then the real tags with
- *             their GB appear once; nothing is pre-printed, so the menu
- *             never changes under the cursor. Progress + Cancel replace the
- *             controls while a pull runs; an installed tag shows a trash
- *             icon instead of Pull.
+ *             a spinner until the tags page (BC-002) has answered, then the
+ *             real tags with their GB appear once; nothing is pre-printed,
+ *             so the menu never changes under the cursor. Tags are fetched
+ *             for the rows in view plus ROW_MARGIN rows above and below
+ *             (one IntersectionObserver on the scrolling body), on hover
+ *             with priority, at most three requests in flight, cached for
+ *             the session (use_ollama_model_tags.js). Progress + Cancel
+ *             replace the controls while a pull runs; an installed tag shows
+ *             a trash icon instead of Pull.
  *
  * Data and pulls go through the same `useOllamaLibrary` hook as before;
  * only the presentation is new.
  */
 
 const PLAIN_TAG = (tag) => tag === "latest" || !tag.includes("-");
+
+/* Rows to prefetch beyond the visible area, each side. Rows are ~41 px. */
+const ROW_MARGIN = 5;
+const ROW_HEIGHT = 41;
 
 const anyTagInstalled = (installedNames, name) => {
   if (!installedNames) return false;
@@ -69,12 +80,14 @@ const StoreRow = ({
   onPull,
   onCancel,
   onDelete,
+  registerRow,
 }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
-  const [touched, setTouched] = useState(false);
-  const { state, tags } = useOllamaModelTags(touched ? model.name : null);
+  const { state, tags } = useOllamaModelTags(model.name);
+  const wantNow = useCallback(() => requestModelTags(model.name, { priority: true }), [model.name]);
+  const rowRef = useCallback((el) => registerRow?.(el, model.name), [registerRow, model.name]);
 
   /* Nothing is pre-printed: until the tags page has answered the size slot
      is a spinner (fetch starts when the pointer reaches the row, or on the
@@ -130,8 +143,10 @@ const StoreRow = ({
 
   return (
     <div
+      ref={rowRef}
       data-testid={`store-row-${model.name}`}
-      onMouseEnter={() => setTouched(true)}
+      data-tags-state={state}
+      onMouseEnter={wantNow}
       style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) auto auto",
@@ -170,8 +185,8 @@ const StoreRow = ({
           <span
             data-testid={`store-size-${model.name}`}
             data-pending={sizesPending ? "true" : "false"}
-            onMouseDown={() => setTouched(true)}
-            onFocus={() => setTouched(true)}
+            onMouseDown={wantNow}
+            onFocus={wantNow}
           >
             {sizesPending ? (
               <span
@@ -187,11 +202,7 @@ const StoreRow = ({
                   backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
                 }}
               >
-                {touched ? (
-                  <ArcSpinner size={12} stroke_width={2} color={isDark ? "#aaa" : "#555"} />
-                ) : (
-                  <span style={{ fontSize: 11, color: mutedColor }}>…</span>
-                )}
+                <ArcSpinner size={12} stroke_width={2} color={isDark ? "#aaa" : "#555"} />
               </span>
             ) : (
               <Select
@@ -280,6 +291,49 @@ export const OllamaStore = ({ isDark, onInstalledChanged }) => {
     [models, installedOnly, installedNames],
   );
 
+  /* Prefetch window: one observer on the scrolling body (the modal's pane
+     body), rootMargin = ROW_MARGIN rows each side. Rows register their
+     element; entering the window requests their tags, leaving it drops a
+     request that has not started yet. */
+  const observerRef = useRef(null);
+  const namesRef = useRef(new Map()); // element → model name
+  const listRef = useRef(null);
+  const hasList = !loading && !error && visible.length > 0;
+  useEffect(() => {
+    if (!hasList || typeof IntersectionObserver === "undefined") return undefined;
+    const root = listRef.current?.closest('[data-testid="model-providers-pane-body"]') || null;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const name = namesRef.current.get(entry.target);
+          if (!name) return;
+          if (entry.isIntersecting) requestModelTags(name);
+          else dropModelTagsRequest(name);
+        });
+      },
+      { root, rootMargin: `${ROW_MARGIN * ROW_HEIGHT}px 0px` },
+    );
+    observerRef.current = observer;
+    namesRef.current.forEach((_name, el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [hasList]);
+  const registerRow = useCallback((el, name) => {
+    if (el) {
+      namesRef.current.set(el, name);
+      observerRef.current?.observe(el);
+    } else {
+      namesRef.current.forEach((n, node) => {
+        if (n === name && !node.isConnected) {
+          observerRef.current?.unobserve(node);
+          namesRef.current.delete(node);
+        }
+      });
+    }
+  }, []);
+
   const whyByName = useMemo(
     () => new Map(featuredModels.map((f) => [f.name, t(f.why_key)])),
     [t],
@@ -315,6 +369,7 @@ export const OllamaStore = ({ isDark, onInstalledChanged }) => {
     onPull: handlePull,
     onCancel: handleCancel,
     onDelete: (ref) => setConfirmRef(ref),
+    registerRow,
   };
 
   return (
@@ -396,7 +451,7 @@ export const OllamaStore = ({ isDark, onInstalledChanged }) => {
           {installedOnly ? t("model_providers.store.empty_installed") : t("model_providers.no_models_found")}
         </div>
       ) : (
-        <div data-testid="ollama-store-list">
+        <div data-testid="ollama-store-list" ref={listRef}>
           {visible.map((model) => (
             <StoreRow key={model.name} model={model} why={whyByName.get(model.name) || null} {...rowProps} />
           ))}
