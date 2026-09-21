@@ -681,13 +681,14 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
         </>
       )}
 
-      {/* Pinned to the pane's bottom-right corner (project owner): the pane
+      {/* Pinned to the pane's bottom-right corner, the same 12 px off both
+          edges as the close button in the top-right (project owner): the pane
           is the nearest positioned ancestor, so this floats outside the
           scroll body instead of trailing the list. The root's bottom padding
           keeps the last row clear of it when the list scrolls. Opens the
           Models layer on its default selection — the whole page, not one
           provider. */}
-      <div style={{ position: "absolute", right: 44, bottom: 24, zIndex: 1 }}>
+      <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 1 }}>
         <Button
           prefix_icon="pentagon"
           label={t("model_providers.settings.open_models_page")}
