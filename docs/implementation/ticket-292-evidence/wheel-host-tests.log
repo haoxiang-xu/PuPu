@@ -1,0 +1,15 @@
+{"module": "/Users/red/Desktop/GITRepo/pupu-292/.venv/lib/python3.12/site-packages/unchain/__init__.py", "wheel": "sha256:adaab468bd7bcc1af22fb918b6d0050d9f6031c2074033d045938f3d5f61e5ff", "manifest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc", "sdk": "0.83.0", "httpx": "0.28.1", "source_revision": "ce421020e9766b4ff315953e45ae2b2c49a4d3ee"}
+..................................................................... [ 60%]
+.............................................               [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1345
+  /Users/red/Desktop/GITRepo/pupu-292/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1345: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; anyio
+    self._mark_plugins_for_rewrite(hook, disable_autoload)
+
+unchain_runtime/server/tests/test_kimi_replay_wire_contract.py::test_pinned_sdk_stream_and_final_message_replay[123]
+  /Users/red/Desktop/GITRepo/pupu-292/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='signature', input_value=123, input_type=int])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+114 passed, 2 warnings, 16 subtests passed in 1.02s

@@ -1,0 +1,109 @@
+{
+  "summary": {
+    "changed_count": 14,
+    "affected_count": 0,
+    "changed_files": 2,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Class:src/unchain/providers/anthropic.py:AnthropicModelIO",
+      "name": "AnthropicModelIO",
+      "type": "Class",
+      "filePath": "src/unchain/providers/anthropic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/providers/anthropic.py:AnthropicModelIO._fetch_turn_streaming#3",
+      "name": "_fetch_turn_streaming",
+      "type": "Method",
+      "filePath": "src/unchain/providers/anthropic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool",
+      "name": "test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_rejects_malformed_stream_delta_before_coercion",
+      "name": "test_kimi_rejects_malformed_stream_delta_before_coercion",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_sdk_final_message_thinking_shape",
+      "name": "test_kimi_sdk_final_message_thinking_shape",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:tests/test_kimi_replay.py:Stream",
+      "name": "Stream",
+      "type": "Class",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:tests/test_kimi_replay.py:Stream.__enter__#0",
+      "name": "__enter__",
+      "type": "Method",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:tests/test_kimi_replay.py:Stream.__exit__",
+      "name": "__exit__",
+      "type": "Method",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:tests/test_kimi_replay.py:Stream.__iter__#0",
+      "name": "__iter__",
+      "type": "Method",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:tests/test_kimi_replay.py:Stream.get_final_message#0",
+      "name": "get_final_message",
+      "type": "Method",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_durable_owned_provider_branch_preserves_repeated_thinking",
+      "name": "test_kimi_durable_owned_provider_branch_preserves_repeated_thinking",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:tests/test_kimi_replay.py:Factory",
+      "name": "Factory",
+      "type": "Class",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:tests/test_kimi_replay.py:Factory.bind#1",
+      "name": "bind",
+      "type": "Method",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_durable_owned_provider_branch_preserves_repeated_thinking.demo_tool@286:4",
+      "name": "demo_tool",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

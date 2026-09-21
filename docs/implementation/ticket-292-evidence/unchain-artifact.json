@@ -1,0 +1,86 @@
+{
+  "schema": "pupu.release.unchain-artifact.v1",
+  "artifact": {
+    "name": "unchain-0.2.0-py3-none-any.whl",
+    "sha256": "sha256:adaab468bd7bcc1af22fb918b6d0050d9f6031c2074033d045938f3d5f61e5ff",
+    "size_bytes": 1099943
+  },
+  "runtime_manifest": {
+    "manifest_digest": "sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "source": {
+    "repository": "haoxiang-xu/unchain",
+    "ref": "ce421020e9766b4ff315953e45ae2b2c49a4d3ee",
+    "revision": "ce421020e9766b4ff315953e45ae2b2c49a4d3ee",
+    "dirty": false
+  },
+  "build": {
+    "wheel_count": 1,
+    "built_once": true
+  }
+}
