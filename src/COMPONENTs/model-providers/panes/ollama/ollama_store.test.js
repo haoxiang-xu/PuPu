@@ -187,15 +187,16 @@ describe("OllamaStore (S3) — the row's size select and actions", () => {
     expect(mockTags.impl).not.toHaveBeenCalled();
   });
 
-  test("touching the select fetches the tags page (BC-002) and relabels with real sizes, plain tags only", async () => {
+  test("hovering the row fetches the tags page (BC-002); the options keep the listing's set and order and only gain GB", async () => {
     renderStore();
-    const select = within(row("qwen3")).getByRole("combobox");
-    fireEvent.focus(select);
+    fireEvent.mouseEnter(row("qwen3"));
     await flush();
     expect(mockTags.impl).toHaveBeenCalledWith("qwen3");
     const relabelled = within(row("qwen3")).getByRole("combobox");
+    // same three chips, same order; "latest" and the quantisation are NOT inserted
+    expect([...relabelled.options].map((o) => o.value)).toEqual(["0.6b", "14b", "32b"]);
     expect([...relabelled.options].map((o) => o.textContent)).toEqual([
-      "latest · 5.2GB",
+      "0.6b",
       "14b · 9.3GB",
       "32b · 20GB",
     ]);
