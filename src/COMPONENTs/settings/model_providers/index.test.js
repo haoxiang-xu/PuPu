@@ -230,6 +230,14 @@ describe("ModelProvidersSettings (N1 accordion, #204 R5)", () => {
     expect(onOpenModelProviders).toHaveBeenCalledWith("ollama");
   });
 
+  test("the page foot carries an Open Models page button that opens the layer on its default selection", () => {
+    const onOpenModelProviders = jest.fn();
+    renderSettings({ onOpenModelProviders });
+    fireEvent.click(screen.getByText("Open Models page"));
+    expect(onOpenModelProviders).toHaveBeenCalledTimes(1);
+    expect(onOpenModelProviders.mock.calls[0][0]).toBeUndefined();
+  });
+
   test("flag off (AC-12 negative): no Custom caption and no custom/Add rows, even with stored definitions", () => {
     readCustomProviders.mockReturnValue([
       {

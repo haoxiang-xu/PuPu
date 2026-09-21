@@ -188,6 +188,7 @@
     "settings": {
       "ready": "Listo",
       "open_in_models": "Abrir en Modelos",
+      "open_models_page": "Abrir la página Modelos",
       "ollama_hint": "Los modelos instalados y la biblioteca están en la página Modelos."
     }
   },

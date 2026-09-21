@@ -680,6 +680,27 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
           ))}
         </>
       )}
+
+      {/* Foot: the whole page, not one provider — opens the Models layer on
+          its default selection (project owner). */}
+      <div style={{ display: "flex", justifyContent: "flex-start", padding: "18px 12px 4px" }}>
+        <Button
+          prefix_icon="pentagon"
+          label={t("model_providers.settings.open_models_page")}
+          ariaLabel={t("model_providers.settings.open_models_page")}
+          onClick={() => onOpenModelProviders?.()}
+          style={{
+            fontSize: 12,
+            fontFamily,
+            paddingVertical: 5,
+            paddingHorizontal: 10,
+            borderRadius: 6,
+            color: "var(--pupu-text-secondary)",
+            hoverBackgroundColor: "var(--pupu-overlay-hover)",
+            content: { icon: { width: 14, height: 14 } },
+          }}
+        />
+      </div>
     </div>
   );
 };
