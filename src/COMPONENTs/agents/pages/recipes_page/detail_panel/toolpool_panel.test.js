@@ -401,6 +401,23 @@ describe("ToolPoolPanel — installed list", () => {
 });
 
 describe("ToolPoolPanel — merge switch", () => {
+  test("the merge switch uses the builder's switch size (80% of default)", async () => {
+    const { node, recipe } = makeRecipe({ merge_with_user_selected: true });
+    const sized = { theme: { switch: { width: 64, height: 32 } }, onThemeMode: "light_mode" };
+    const { container } = render(
+      <ConfigContext.Provider value={sized}>
+        <ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Merge with user-selected")).toBeInTheDocument();
+    });
+    const el = container.querySelector(".mini-ui-switch-track");
+    expect(el.style.width).toBe("52px");
+    expect(el.style.height).toBe("26px");
+  });
+
+
   test("toggling the merge switch updates node.merge_with_user_selected", async () => {
     const { node, recipe } = makeRecipe({ merge_with_user_selected: true });
     const onChange = jest.fn();

@@ -147,6 +147,10 @@ const Modal = ({
                 minWidth: 0,
                 borderRadius: 0,
                 margin: 0,
+                // The panel covers the whole window: a hairline border or
+                // shadow would only read as a stray line along the edges.
+                border: "none",
+                boxShadow: "none",
               }
             : null),
         }}

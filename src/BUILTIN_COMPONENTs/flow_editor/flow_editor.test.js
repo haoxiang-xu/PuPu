@@ -176,3 +176,83 @@ describe("FlowEditor edge endpoint reconnect smoke", () => {
     expect(container).toBeTruthy();
   });
 });
+
+describe("FlowEditor reset_token", () => {
+  const viewport_of = (container) =>
+    container.querySelector('[data-flow-node-id="start"]').parentElement;
+
+  function mount(props) {
+    const nodes = [
+      { id: "start", x: 100, y: 50, ports: [] },
+      { id: "other", x: 500, y: 400, ports: [] },
+    ];
+    const utils = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} data-testid="canvas" {...props} />),
+    );
+    const canvas = utils.getByTestId("canvas");
+    canvas.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 600,
+      right: 800,
+      bottom: 600,
+    });
+    const start_el = utils.container.querySelector('[data-flow-node-id="start"]');
+    Object.defineProperty(start_el, "offsetWidth", { value: 120, configurable: true });
+    Object.defineProperty(start_el, "offsetHeight", { value: 60, configurable: true });
+    return { ...utils, canvas, nodes };
+  }
+
+  test("without a focus node it resets the viewport to the origin", () => {
+    const { rerender, container, nodes } = mount({ reset_token: 0 });
+    rerender(wrap(<FlowEditor nodes={nodes} edges={[]} data-testid="canvas" reset_token={1} />));
+    expect(viewport_of(container).style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+
+  test("with reset_focus_node_id it centers that node in the canvas at zoom 1", () => {
+    const { rerender, container, nodes } = mount({
+      reset_token: 0,
+      reset_focus_node_id: "start",
+    });
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          data-testid="canvas"
+          reset_token={1}
+          reset_focus_node_id="start"
+        />,
+      ),
+    );
+    // canvas 800x600, node at (100,50) sized 120x60 → node center (160,80)
+    // → viewport offset (400-160, 300-80) = (240, 220)
+    expect(viewport_of(container).style.transform).toBe(
+      "translate(240px, 220px) scale(1)",
+    );
+  });
+
+  test("an unknown focus node falls back to the origin reset", () => {
+    const { rerender, container, nodes } = mount({
+      reset_token: 0,
+      reset_focus_node_id: "missing",
+    });
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          data-testid="canvas"
+          reset_token={1}
+          reset_focus_node_id="missing"
+        />,
+      ),
+    );
+    expect(viewport_of(container).style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+});
