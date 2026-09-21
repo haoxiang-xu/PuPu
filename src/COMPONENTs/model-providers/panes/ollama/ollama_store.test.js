@@ -65,7 +65,7 @@ jest.mock("../../../../BUILTIN_COMPONENTs/select/select", () => ({
       onChange={(e) => set_value(e.target.value)}
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value}>
+        <option key={o.value} value={o.value} data-icon={o.icon || ""}>
           {o.label}
         </option>
       ))}
@@ -201,8 +201,9 @@ describe("OllamaStore (S3) — the row's size select and actions", () => {
       "14b · 9.3GB",
       "32b · 20GB",
     ]);
-    // default skips the installed 14b → latest
+    // default skips the installed 14b → latest; the installed tag is the one carrying the check
     expect(select.value).toBe("latest");
+    expect([...select.options].map((o) => o.dataset.icon)).toEqual(["", "check", ""]);
   });
 
   test("Pull sends name + the picked tag through the existing pull path", async () => {

@@ -88,14 +88,20 @@ const StoreRow = ({
       return (plain.length > 0 ? plain : tags).map((tg) => ({
         value: tg.tag,
         label: tg.size_label ? `${tg.tag} · ${tg.size_label}` : tg.tag,
+        /* the installed tags carry a check in the menu and on the trigger */
+        icon: isModelRefInstalled(installedNames, model.name, tg.tag) ? "check" : undefined,
       }));
     }
     if (state === "error" || (state === "ready" && tags.length === 0)) {
       const sizes = Array.isArray(model.sizes) && model.sizes.length > 0 ? model.sizes : ["latest"];
-      return sizes.map((sz) => ({ value: sz, label: sz }));
+      return sizes.map((sz) => ({
+        value: sz,
+        label: sz,
+        icon: isModelRefInstalled(installedNames, model.name, sz) ? "check" : undefined,
+      }));
     }
     return [];
-  }, [state, tags, model.sizes]);
+  }, [state, tags, model.sizes, model.name, installedNames]);
   const sizesPending = options.length === 0;
 
   const [picked, setPicked] = useState(null);
