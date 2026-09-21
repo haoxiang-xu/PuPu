@@ -256,6 +256,9 @@ const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, chi
           alignItems: "center",
           gap: 8,
           height: 38,
+          /* Breathing room at both ends: the dot no longer starts at the
+             content edge and the hover wash has an inset (owner). */
+          padding: "0 12px",
           cursor: "pointer",
           userSelect: "none",
           borderRadius: 6,
@@ -334,7 +337,7 @@ const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, chi
       >
         <div style={{ overflow: "hidden", minHeight: 0 }}>
           {mountedRef.current && (
-            <div style={{ padding: "2px 0 14px 20px" }}>{children}</div>
+            <div style={{ padding: "2px 12px 14px 32px" }}>{children}</div>
           )}
         </div>
       </div>
