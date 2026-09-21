@@ -1,0 +1,3107 @@
+FF.......FFFFFFFF                                                        [100%]
+=================================== FAILURES ===================================
+_ test_kimi_unsigned_thinking_tool_capture[https://api.moonshot.ai/anthropic] __
+
+endpoint = 'https://api.moonshot.ai/anthropic'
+
+    @pytest.mark.parametrize("endpoint", [ENDPOINT, "https://api.moonshot.cn/anthropic/"])
+    def test_kimi_unsigned_thinking_tool_capture(endpoint):
+>       turn = _io([_tool_events()], [], endpoint=endpoint).fetch_turn(
+            ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}])
+        )
+
+tests/test_kimi_replay.py:59:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x113cbd8e0>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x113cbde80>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+_ test_kimi_unsigned_thinking_tool_capture[https://api.moonshot.cn/anthropic/] _
+
+endpoint = 'https://api.moonshot.cn/anthropic/'
+
+    @pytest.mark.parametrize("endpoint", [ENDPOINT, "https://api.moonshot.cn/anthropic/"])
+    def test_kimi_unsigned_thinking_tool_capture(endpoint):
+>       turn = _io([_tool_events()], [], endpoint=endpoint).fetch_turn(
+            ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}])
+        )
+
+tests/test_kimi_replay.py:59:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x113cda480>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x113ce0620>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+________________ test_kimi_repeated_tools_and_second_user_turn _________________
+
+    def test_kimi_repeated_tools_and_second_user_turn():
+        requests, calls = [], []
+        toolkit = Toolkit()
+
+        def demo_tool(x: int):
+            calls.append(x)
+            return {"value": x + 1}
+
+        toolkit.register(demo_tool, name="demo_tool")
+        model_io = _io([_tool_events(), _tool_events("toolu_2"), _done_events()], requests)
+>       result = build_runtime_loop(model_io=model_io).run(
+            [{"role": "user", "content": "two tools"}], provider="hyperspace",
+            model=MODEL, toolkit=toolkit, max_iterations=3,
+        )
+
+tests/test_kimi_replay.py:95:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/kernel/loop.py:1902: in run
+    return self._run_state_with_failure_bundle(
+src/unchain/kernel/loop.py:1765: in _run_state_with_failure_bundle
+    return self._run_state(state, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/unchain/kernel/loop.py:1460: in _run_state
+    turn = self.step_once(
+src/unchain/kernel/loop.py:702: in step_once
+    turn = self.fetch_model_turn(
+src/unchain/kernel/loop.py:359: in fetch_model_turn
+    return fetch_model_turn(
+src/unchain/providers/model_turn_runtime.py:419: in fetch_model_turn
+    return fetch_built_model_turn(
+src/unchain/providers/model_turn_runtime.py:377: in fetch_built_model_turn
+    turn = fetch_turn_with_retry(
+src/unchain/retry/wrapper.py:51: in fetch_turn_with_retry
+    return execute_with_retry(
+src/unchain/retry/executor.py:65: in execute_with_retry
+    result = operation()
+             ^^^^^^^^^^^
+src/unchain/retry/wrapper.py:52: in <lambda>
+    lambda: model_io.fetch_turn(request),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x113c9af90>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x113ce2000>
+request = ModelTurnRequest(messages=[{'role': 'system', 'content': '<tools>\n# unchain generated tools guidance\nUse provider-na... emit_stream=True, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'two tools', 'cache_con...mo_tool: Use `demo_tool` when it is the best available tool.\n</tools>', 'cache_control': {'type': 'ephemeral'}}], ...}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+_______ test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool _______
+
+tmp_path = PosixPath('/private/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/pytest-of-red/pytest-224/test_kimi_cold_restart_preserv0')
+
+    def test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool(tmp_path):
+        calls, first_requests, resumed_requests = [], [], []
+
+        def demo_tool(x: int):
+            calls.append(x)
+            return {"value": x + 1}
+
+        def make_agent(events, requests):
+            return Agent(
+                name="kimi-cold", provider="hyperspace", model=MODEL,
+                modules=(ToolsModule(tools=(demo_tool,)),
+                         MemoryModule(memory=MemoryManager(store=JsonFileSessionStore(tmp_path)))),
+                model_io_factory=lambda spec, context: _io(events, requests),
+            )
+
+>       stopped = make_agent([_tool_events()], first_requests).run(
+            "use tool", session_id="kimi-cold", max_iterations=1,
+        )
+
+tests/test_kimi_replay.py:121:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/agent/agent.py:258: in run
+    return prepared.run()
+           ^^^^^^^^^^^^^^
+src/unchain/agent/builder.py:833: in run
+    result = self._run_once(
+src/unchain/agent/builder.py:669: in _run_once
+    result = self.loop.run(
+src/unchain/kernel/loop.py:1902: in run
+    return self._run_state_with_failure_bundle(
+src/unchain/kernel/loop.py:1765: in _run_state_with_failure_bundle
+    return self._run_state(state, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/unchain/kernel/loop.py:1460: in _run_state
+    turn = self.step_once(
+src/unchain/kernel/loop.py:702: in step_once
+    turn = self.fetch_model_turn(
+src/unchain/kernel/loop.py:359: in fetch_model_turn
+    return fetch_model_turn(
+src/unchain/providers/model_turn_runtime.py:419: in fetch_model_turn
+    return fetch_built_model_turn(
+src/unchain/providers/model_turn_runtime.py:377: in fetch_built_model_turn
+    turn = fetch_turn_with_retry(
+src/unchain/retry/wrapper.py:51: in fetch_turn_with_retry
+    return execute_with_retry(
+src/unchain/retry/executor.py:65: in execute_with_retry
+    result = operation()
+             ^^^^^^^^^^^
+src/unchain/retry/wrapper.py:52: in <lambda>
+    lambda: model_io.fetch_turn(request),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114b68e60>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114bc1610>
+request = ModelTurnRequest(messages=[{'role': 'system', 'content': '<tools>\n# unchain generated tools guidance\nUse provider-na... emit_stream=True, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_cont...mo_tool: Use `demo_tool` when it is the best available tool.\n</tools>', 'cache_control': {'type': 'ephemeral'}}], ...}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+_______ test_profile_mismatch_rejected_before_provider_request[profile] ________
+
+mutation = 'profile'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114bc1880>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114bd3d10>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+_______ test_profile_mismatch_rejected_before_provider_request[endpoint] _______
+
+mutation = 'endpoint'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114bec3b0>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114c0d430>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+________ test_profile_mismatch_rejected_before_provider_request[model] _________
+
+mutation = 'model'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114bd2c00>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114bc2840>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+________ test_profile_mismatch_rejected_before_provider_request[extra] _________
+
+mutation = 'extra'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114c0d730>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114c56e10>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+________ test_profile_mismatch_rejected_before_provider_request[native] ________
+
+mutation = 'native'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114c3b380>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x114c79d00>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+______ test_profile_mismatch_rejected_before_provider_request[no-live-io] ______
+
+mutation = 'no-live-io'
+
+    @pytest.mark.parametrize("mutation", ["profile", "endpoint", "model", "extra", "native", "no-live-io"])
+    def test_profile_mismatch_rejected_before_provider_request(mutation):
+        model_io = _io([_tool_events()], [])
+>       turn = model_io.fetch_turn(ModelTurnRequest(messages=[{"role": "user", "content": "use tool"}]))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_kimi_replay.py:138:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/unchain/providers/anthropic.py:157: in fetch_turn
+    return self._fetch_turn_streaming(client, request, request_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unchain.providers.hyperspace.HyperspaceModelIO object at 0x114c78ad0>
+client = <tests.test_provider_replay._anthropic_factory.<locals>._Client object at 0x1150a50a0>
+request = ModelTurnRequest(messages=[{'role': 'user', 'content': 'use tool'}], payload={}, response_format=None, callback=None, ...emit_stream=False, previous_response_id=None, openai_text_format=None, fallback_messages=None, context_mode='semantic')
+request_kwargs = {'model': 'kimi-k2.7-code', 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'use tool', 'cache_control': {'type': 'ephemeral'}}]}], 'max_tokens': 4096}
+
+    def _fetch_turn_streaming(
+        self,
+        client: Any,
+        request: ModelTurnRequest,
+        request_kwargs: dict[str, Any],
+    ) -> ModelTurnResult:
+        collected_chunks: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        cache_read_input_tokens = 0
+        cache_creation_input_tokens = 0
+        observed_usage: dict[str, Any] = {}
+        blocks_by_index: dict[int, dict[str, Any]] = {}
+        tool_json_parts: dict[int, list[str]] = {}
+        active_index: int | None = None
+        next_fallback_index = 0
+        final_message = None
+
+        def observe_usage(value: dict[str, Any]) -> None:
+            for key, observed in value.items():
+                if key in {"cache_creation", "output_tokens_details"} and isinstance(
+                    observed, dict
+                ):
+                    prior = observed_usage.get(key)
+                    merged = dict(prior) if isinstance(prior, dict) else {}
+                    merged.update(copy.deepcopy(observed))
+                    observed_usage[key] = merged
+                    continue
+                prior = observed_usage.get(key)
+                if (
+                    type(prior) is int
+                    and type(observed) is int
+                    and prior >= 0
+                    and observed >= 0
+                ):
+                    observed_usage[key] = max(prior, observed)
+                else:
+                    observed_usage[key] = copy.deepcopy(observed)
+
+        def resolve_index(event: Any, *, block_type: str) -> int:
+            nonlocal next_fallback_index, active_index
+            raw_index = getattr(event, "index", None)
+            if isinstance(raw_index, int):
+                next_fallback_index = max(next_fallback_index, raw_index + 1)
+                return raw_index
+            if active_index is not None:
+                active = blocks_by_index.get(active_index)
+                if isinstance(active, dict) and active.get("type") == block_type:
+                    return active_index
+            index = next_fallback_index
+            next_fallback_index += 1
+            return index
+
+        def ensure_block(index: int, block_type: str) -> dict[str, Any]:
+            block = blocks_by_index.get(index)
+            if not isinstance(block, dict):
+                block = {"type": block_type}
+                blocks_by_index[index] = block
+            if block.get("type") != block_type:
+                raise ProviderReplayFrameError(
+                    "Anthropic stream reused a content block index for a different block type"
+                )
+            return block
+
+        with client.messages.stream(**request_kwargs) as stream:
+            for event in stream:
+                event_type = getattr(event, "type", None)
+
+                if event_type == "content_block_start":
+                    block_dict = self._as_dict(getattr(event, "content_block", None))
+                    block_type = str(block_dict.get("type") or "")
+                    if not block_type:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_start is missing block type"
+                        )
+                    index = resolve_index(event, block_type=block_type)
+                    if index in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic stream emitted duplicate content_block_start index"
+                        )
+                    block = strict_json_copy(block_dict)
+                    if block_type == "thinking":
+                        block.setdefault("thinking", "")
+                        block.setdefault("signature", "")
+                    elif block_type == "text":
+                        block.setdefault("text", "")
+                    elif block_type == "tool_use":
+                        tool_json_parts[index] = []
+                    blocks_by_index[index] = block
+                    active_index = index
+                    continue
+
+                if event_type == "content_block_delta":
+                    delta_dict = self._as_dict(getattr(event, "delta", None))
+                    delta_type = delta_dict.get("type", "")
+                    if delta_type == "thinking_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        thinking_text = delta_dict.get("thinking", "") or ""
+                        if thinking_text:
+                            block["thinking"] = str(block.get("thinking") or "") + str(
+                                thinking_text
+                            )
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "reasoning",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=thinking_text,
+                                )
+                        continue
+                    if delta_type == "signature_delta":
+                        index = resolve_index(event, block_type="thinking")
+                        block = ensure_block(index, "thinking")
+                        active_index = index
+                        signature = delta_dict.get("signature", "") or ""
+                        block["signature"] = str(block.get("signature") or "") + str(
+                            signature
+                        )
+                        continue
+                    if delta_type == "text_delta":
+                        index = resolve_index(event, block_type="text")
+                        block = ensure_block(index, "text")
+                        active_index = index
+                        text = delta_dict.get("text", "") or ""
+                        if text:
+                            block["text"] = str(block.get("text") or "") + str(text)
+                            collected_chunks.append(text)
+                            if request.emit_stream:
+                                self._emit(
+                                    request.callback,
+                                    "token_delta",
+                                    request.run_id,
+                                    iteration=request.iteration,
+                                    provider=self.provider,
+                                    delta=text,
+                                    accumulated_text="".join(collected_chunks),
+                                )
+                        continue
+                    if delta_type == "input_json_delta":
+                        index = resolve_index(event, block_type="tool_use")
+                        ensure_block(index, "tool_use")
+                        active_index = index
+                        partial = delta_dict.get("partial_json", "") or ""
+                        if partial:
+                            tool_json_parts.setdefault(index, []).append(str(partial))
+                    continue
+
+                if event_type == "content_block_stop":
+                    raw_index = getattr(event, "index", None)
+                    index = raw_index if isinstance(raw_index, int) else active_index
+                    if index is None or index not in blocks_by_index:
+                        raise ProviderReplayFrameError(
+                            "Anthropic content_block_stop has no matching block"
+                        )
+                    block = blocks_by_index[index]
+                    if block.get("type") == "tool_use":
+                        raw_json = "".join(tool_json_parts.get(index, []))
+                        if raw_json.strip():
+                            try:
+                                arguments = json.loads(raw_json)
+                            except json.JSONDecodeError as exc:
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input JSON was truncated or invalid"
+                                ) from exc
+                            if not isinstance(arguments, dict):
+                                raise ProviderReplayFrameError(
+                                    "Anthropic tool_use input must decode to an object"
+                                )
+                            block["input"] = arguments
+                        elif not isinstance(block.get("input"), dict):
+                            block["input"] = {}
+                    active_index = None
+                    continue
+
+                if event_type == "message_delta":
+                    usage_dict = self._as_dict(getattr(event, "usage", None))
+                    if usage_dict:
+                        observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+                if event_type == "message_start":
+                    msg_dict = self._as_dict(getattr(event, "message", None))
+                    usage_dict = msg_dict.get("usage", {}) if isinstance(msg_dict, dict) else {}
+                    if isinstance(usage_dict, dict):
+                        if usage_dict:
+                            observe_usage(usage_dict)
+                        input_tokens = max(input_tokens, self._coerce_token_count(usage_dict.get("input_tokens")))
+                        output_tokens = max(output_tokens, self._coerce_token_count(usage_dict.get("output_tokens")))
+                        cache_read_input_tokens = max(cache_read_input_tokens, self._coerce_token_count(usage_dict.get("cache_read_input_tokens")))
+                        cache_creation_input_tokens = max(cache_creation_input_tokens, self._coerce_token_count(usage_dict.get("cache_creation_input_tokens")))
+                    continue
+
+            get_final_message = getattr(stream, "get_final_message", None)
+            if callable(get_final_message):
+                final_message = get_final_message()
+
+        raw_blocks: list[dict[str, Any]] = []
+        response_id = None
+        if final_message is not None:
+            final_dict = self._as_dict(final_message)
+            raw_response_id = final_dict.get("id")
+            if isinstance(raw_response_id, str) and raw_response_id:
+                response_id = raw_response_id
+            raw_content = final_dict.get("content")
+            if isinstance(raw_content, list):
+                raw_blocks = strict_json_copy(
+                    [self._as_dict(block) for block in raw_content]
+                )
+        if not raw_blocks:
+            raw_blocks = strict_json_copy(
+                [blocks_by_index[index] for index in sorted(blocks_by_index)]
+            )
+
+        tool_calls: list[ToolCall] = []
+        reasoning_items: list[dict[str, Any]] = []
+        semantic_blocks: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        for block in raw_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                thinking_text = str(block.get("thinking") or "")
+                reasoning_items.append({"type": "thinking", "text": thinking_text})
+                continue
+            if block_type == "redacted_thinking":
+                if not isinstance(block.get("data"), str) or not block.get("data"):
+                    raise ProviderReplayFrameError(
+                        "Anthropic redacted_thinking block is missing data"
+                    )
+                continue
+            if block_type == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    text_parts.append(text)
+                    semantic_blocks.append({"type": "text", "text": text})
+                continue
+            if block_type == "tool_use":
+                call_id = block.get("id")
+                name = block.get("name")
+                arguments = block.get("input")
+                if not isinstance(call_id, str) or not call_id:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing id"
+                    )
+                if not isinstance(name, str) or not name:
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use block is missing name"
+                    )
+                if not isinstance(arguments, dict):
+                    raise ProviderReplayFrameError(
+                        "Anthropic tool_use input must be an object"
+                    )
+                tool_calls.append(
+                    ToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=copy.deepcopy(arguments),
+                    )
+                )
+                semantic_blocks.append(copy.deepcopy(block))
+
+        if tool_calls:
+            for block in raw_blocks:
+                if block.get("type") == "thinking":
+                    if not isinstance(block.get("signature"), str) or not block.get(
+                        "signature"
+                    ):
+>                       raise ProviderReplayFrameError(
+                            "Anthropic thinking block is missing the replay signature"
+                        )
+E                       unchain.kernel.provider_replay.ProviderReplayFrameError: Anthropic thinking block is missing the replay signature
+
+src/unchain/providers/anthropic.py:433: ProviderReplayFrameError
+=========================== short test summary info ============================
+FAILED tests/test_kimi_replay.py::test_kimi_unsigned_thinking_tool_capture[https://api.moonshot.ai/anthropic]
+FAILED tests/test_kimi_replay.py::test_kimi_unsigned_thinking_tool_capture[https://api.moonshot.cn/anthropic/]
+FAILED tests/test_kimi_replay.py::test_kimi_repeated_tools_and_second_user_turn
+FAILED tests/test_kimi_replay.py::test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[profile]
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[endpoint]
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[model]
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[extra]
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[native]
+FAILED tests/test_kimi_replay.py::test_profile_mismatch_rejected_before_provider_request[no-live-io]
+10 failed, 7 passed in 1.96s
