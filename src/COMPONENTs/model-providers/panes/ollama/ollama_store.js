@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import Select from "../../../../BUILTIN_COMPONENTs/select/select";
+import ArcSpinner from "../../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import CellSplitSpinner from "../../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { LIBRARY_CATEGORIES } from "../../../settings/model_providers/constants";
@@ -28,17 +29,19 @@ import { useOllamaModelTags } from "./use_ollama_model_tags";
  *             the search;
  *   rows      one line per model — name over a one-line description (the
  *             pick's reason for a featured model) — with a size Select and
- *             an icon Pull button. No expansion, no page. The Select's
- *             options are the listing's size tags; the tags page (BC-002)
- *             is fetched when the pointer reaches the row and only adds the
- *             real GB to those same options, so the menu never changes
- *             shape under the cursor. Progress + Cancel replace the controls
- *             while a pull runs; an installed tag shows a trash icon instead
- *             of Pull.
+ *             an icon Pull button. No expansion, no page. The size slot is
+ *             a spinner until the tags page (BC-002) has answered — fetched
+ *             when the pointer reaches the row — then the real tags with
+ *             their GB appear once; nothing is pre-printed, so the menu
+ *             never changes under the cursor. Progress + Cancel replace the
+ *             controls while a pull runs; an installed tag shows a trash
+ *             icon instead of Pull.
  *
  * Data and pulls go through the same `useOllamaLibrary` hook as before;
  * only the presentation is new.
  */
+
+const PLAIN_TAG = (tag) => tag === "latest" || !tag.includes("-");
 
 const anyTagInstalled = (installedNames, name) => {
   if (!installedNames) return false;
@@ -73,21 +76,27 @@ const StoreRow = ({
   const [touched, setTouched] = useState(false);
   const { state, tags } = useOllamaModelTags(touched ? model.name : null);
 
-  /* The option set is the listing's size chips, in the listing's order, and
-     never changes shape once the Select is open: the tags page (fetched when
-     the pointer reaches the row, so it is usually there before the click)
-     only decorates those same chips with their real GB. Tags the listing
-     does not carry — "latest", quantisation variants — are not inserted;
-     inserting "latest" at the top after the menu opened is exactly the jump
-     the project owner saw. */
+  /* Nothing is pre-printed: until the tags page has answered the size slot
+     is a spinner (fetch starts when the pointer reaches the row, or on the
+     first press), then the real tags — "latest" and every plain size with
+     its GB — appear once, so the menu never changes under the cursor. The
+     listing's size chips are only the fallback when the page cannot be
+     parsed. */
   const options = useMemo(() => {
-    const sizes = Array.isArray(model.sizes) && model.sizes.length > 0 ? model.sizes : ["latest"];
-    const byTag = new Map(state === "ready" ? tags.map((tg) => [tg.tag, tg]) : []);
-    return sizes.map((sz) => {
-      const hit = byTag.get(sz);
-      return { value: sz, label: hit?.size_label ? `${sz} · ${hit.size_label}` : sz };
-    });
+    if (state === "ready" && tags.length > 0) {
+      const plain = tags.filter((tg) => PLAIN_TAG(tg.tag));
+      return (plain.length > 0 ? plain : tags).map((tg) => ({
+        value: tg.tag,
+        label: tg.size_label ? `${tg.tag} · ${tg.size_label}` : tg.tag,
+      }));
+    }
+    if (state === "error" || (state === "ready" && tags.length === 0)) {
+      const sizes = Array.isArray(model.sizes) && model.sizes.length > 0 ? model.sizes : ["latest"];
+      return sizes.map((sz) => ({ value: sz, label: sz }));
+    }
+    return [];
   }, [state, tags, model.sizes]);
+  const sizesPending = options.length === 0;
 
   const [picked, setPicked] = useState(null);
   const effectiveTag =
@@ -154,23 +163,41 @@ const StoreRow = ({
         <>
           <span
             data-testid={`store-size-${model.name}`}
+            data-pending={sizesPending ? "true" : "false"}
             onMouseDown={() => setTouched(true)}
             onFocus={() => setTouched(true)}
           >
-            {options.length > 0 ? (
+            {sizesPending ? (
+              <span
+                role="status"
+                aria-label={t("model_providers.store.tags_loading")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 92,
+                  height: 24,
+                  borderRadius: 12,
+                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+                }}
+              >
+                {touched ? (
+                  <ArcSpinner size={12} stroke_width={2} color={isDark ? "#aaa" : "#555"} />
+                ) : (
+                  <span style={{ fontSize: 11, color: mutedColor }}>…</span>
+                )}
+              </span>
+            ) : (
               <Select
                 options={options}
                 value={effectiveTag}
                 set_value={setPicked}
                 variant="palette"
                 filterable={false}
-                on_open_change={(open) => open && setTouched(true)}
                 style={{ minWidth: 92, fontSize: 11.5, paddingVertical: 2, paddingHorizontal: 8, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }}
                 dropdown_style={{ width: 180, maxHeight: 220 }}
                 option_style={{ height: 24, borderRadius: 12 }}
               />
-            ) : (
-              <span style={{ fontSize: 11, fontFamily, color: mutedColor }}>—</span>
             )}
           </span>
           {installed ? (
@@ -178,6 +205,8 @@ const StoreRow = ({
               prefix_icon="delete"
               ariaLabel={`Delete ${ref}`}
               title={t("model_providers.store.installed")}
+              /* no tag known yet → no target to delete */
+              disabled={sizesPending}
               onClick={() => onDelete(ref)}
               style={{ ...iconBtn, hoverBackgroundColor: isDark ? "rgba(255,80,80,0.15)" : "rgba(220,50,50,0.10)" }}
             />
@@ -185,7 +214,7 @@ const StoreRow = ({
             <Button
               prefix_icon="download"
               ariaLabel={`Pull ${ref}`}
-              disabled={!effectiveTag}
+              disabled={sizesPending || !effectiveTag}
               onClick={() => onPull(model.name, effectiveTag)}
               style={iconBtn}
             />
