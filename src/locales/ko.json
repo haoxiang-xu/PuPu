@@ -188,6 +188,7 @@
     "settings": {
       "ready": "준비 완료",
       "open_in_models": "모델 페이지에서 열기",
+      "open_models_page": "모델 페이지 열기",
       "ollama_hint": "설치된 모델과 라이브러리는 모델 페이지에 있습니다."
     }
   },

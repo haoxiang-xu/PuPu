@@ -191,7 +191,7 @@ const StoreRow = ({
             {sizesPending ? (
               <span
                 role="status"
-                aria-label={t("model_providers.store.tags_loading")}
+                aria-label={t("local_storage.loading")}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
