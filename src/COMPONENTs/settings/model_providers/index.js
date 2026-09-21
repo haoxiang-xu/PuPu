@@ -629,7 +629,7 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
   };
 
   return (
-    <div data-testid="model-providers-settings">
+    <div data-testid="model-providers-settings" style={{ paddingBottom: 48 }}>
       <div style={{ borderTop: "1px solid var(--pupu-border)", margin: "0 0 8px" }} />
 
       {providers.map((entry) => (
@@ -681,9 +681,13 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
         </>
       )}
 
-      {/* Foot: the whole page, not one provider — opens the Models layer on
-          its default selection (project owner). */}
-      <div style={{ display: "flex", justifyContent: "flex-start", padding: "18px 12px 4px" }}>
+      {/* Pinned to the pane's bottom-right corner (project owner): the pane
+          is the nearest positioned ancestor, so this floats outside the
+          scroll body instead of trailing the list. The root's bottom padding
+          keeps the last row clear of it when the list scrolls. Opens the
+          Models layer on its default selection — the whole page, not one
+          provider. */}
+      <div style={{ position: "absolute", right: 44, bottom: 24, zIndex: 1 }}>
         <Button
           prefix_icon="pentagon"
           label={t("model_providers.settings.open_models_page")}
