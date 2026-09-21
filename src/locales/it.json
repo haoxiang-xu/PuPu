@@ -579,6 +579,10 @@
       "context_usage": "Uso del contesto",
       "done": "Fatto",
       "drop_here": "Rilascia qui per riporre"
+    },
+    "skill_inventory_stale": {
+      "title": "Le competenze sono cambiate",
+      "description": "Le competenze disponibili sono state aggiornate da quando hai aperto questa chat. L’elenco è stato aggiornato. Invia di nuovo il messaggio."
     }
   },
   "toolkit": {

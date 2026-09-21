@@ -78,6 +78,19 @@ const REQUIRED_PROTOCOLS = Object.freeze([
     major: 1,
     minor: 0,
   }),
+  Object.freeze({
+    features: Object.freeze([
+      "active_skills_snapshot_v1",
+      "catalog_v1",
+      "skill_md_registry_v1",
+      "skill_tool_v1",
+      "toolkit_embedded_skills_v1",
+      "user_invocation_v1",
+    ]),
+    id: "skills",
+    major: 1,
+    minor: 0,
+  }),
 ]);
 
 const cloneProtocols = () =>

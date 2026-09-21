@@ -687,3 +687,40 @@ def test_global_off_cannot_bypass_protocol_for_a_sticky_active_chat(
             real_context_window_tokens=200_000,
             session_id=session_id,
         )
+
+
+def test_manifest_without_skills_protocol_fails_closed_for_ticket_291() -> None:
+    """A pre-#327 wheel (no `skills` protocol) must not be admitted (P-D1 / BC-006)."""
+
+    manifest = _producer_manifest()
+    assert _protocol(manifest, "skills")["features"] == [
+        "active_skills_snapshot_v1",
+        "catalog_v1",
+        "skill_md_registry_v1",
+        "skill_tool_v1",
+        "toolkit_embedded_skills_v1",
+        "user_invocation_v1",
+    ]
+
+    legacy = copy.deepcopy(manifest)
+    legacy["protocols"] = [item for item in legacy["protocols"] if item["id"] != "skills"]
+    legacy = _resign(legacy)
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=legacy, requested_mode="all"
+    )
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_protocol_missing"
+
+    stripped = copy.deepcopy(manifest)
+    _protocol(stripped, "skills")["features"].remove("active_skills_snapshot_v1")
+    stripped = _resign(stripped)
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=stripped, requested_mode="all"
+    )
+    assert verdict.ready is False
+    assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
+
+    verdict = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest, requested_mode="all"
+    )
+    assert verdict.ready is True

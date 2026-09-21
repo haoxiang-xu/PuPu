@@ -215,7 +215,7 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     });
   };
 
-  test("writes composer on a command send with a byte-aligned templateLength", async () => {
+  test("writes a zero-template composer on a command send; content stays verbatim (#291)", async () => {
     selectPluginToolkit();
     renderChat();
     await waitForReady();
@@ -228,39 +228,27 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
 
     await waitFor(() => {
       const msg = lastUserMessage();
-      expect(msg?.content).toBe(`${TEMPLATE}\n\nbuild the login flow`);
+      // #291: the user's text is stored verbatim — the runtime resolves /plan,
+      // nothing is spliced in front of it on the client.
+      expect(msg?.content).toBe("/plan build the login flow");
       expect(msg?.composer).toBeTruthy();
     });
 
     const msg = lastUserMessage();
     expect(msg.composer.v).toBe(1);
-    // rawText is the pre-expansion input, verbatim (§1.2)
+    // rawText is the accepted input, verbatim (§1.2) — identical to content now
     expect(msg.composer.rawText).toBe("/plan build the login flow");
     // commands projected to exactly {name, sourceToolkitId}, order + slash kept
     expect(msg.composer.commands).toEqual([
       { name: "/plan", sourceToolkitId: PLUGIN_TOOLKIT_ID },
     ]);
-    // templateLength indexes the template prefix exactly (§1.4)
-    expect(msg.composer.templateLength).toBe(TEMPLATE.length);
-    expect(msg.content.slice(0, msg.composer.templateLength)).toBe(TEMPLATE);
-    expect(msg.content.slice(msg.composer.templateLength)).toBe(
-      "\n\nbuild the login flow",
-    );
+    // no client-side template prefix any more (§1.4 zero-template command)
+    expect(msg.composer.templateLength).toBe(0);
+    expect(msg.content).not.toContain(TEMPLATE);
 
     const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
-    expect(payload.context_composition_hint).toEqual({
-      schema: "pupu.context_composition_hint.v2",
-      contributions: [
-        {
-          category: "skills",
-          subtype: "expanded_invocation",
-          surface: "messages",
-          prefix_utf16_units: TEMPLATE.length,
-          utf8_bytes: TEMPLATE.length,
-          source_count: 1,
-        },
-      ],
-    });
+    // no prefix → no skills/expanded_invocation attribution is minted
+    expect(payload).not.toHaveProperty("context_composition_hint");
   });
 
   test("no command → no composer field on the user message", async () => {
@@ -305,13 +293,14 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     });
 
     const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
-    // model-visible message is the expanded content only
-    expect(payload.message).toBe(`${TEMPLATE}\n\nbuild the login flow`);
+    // #291: the model-visible message is the user's text verbatim; the
+    // /plan token stays in it so the Unchain runtime can resolve it.
+    expect(payload.message).toBe("/plan build the login flow");
     // no sidecar keys anywhere in message / history / options
     expect(deepHasKey(payload, "composer")).toBe(false);
     expect(deepHasKey(payload, "rawText")).toBe(false);
-    // the raw /command token was stripped from what the model sees
-    expect(JSON.stringify(payload)).not.toContain("/plan");
+    // and no client-side skill body leaks into the payload
+    expect(JSON.stringify(payload)).not.toContain(TEMPLATE);
   });
 
   test("禁读: an active-stream send routes to interject with raw text, no composer (§3.2)", async () => {
@@ -338,7 +327,7 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
   });
 
-  test("edit re-expands a newly-typed command into a fresh composer (§2)", async () => {
+  test("edit with a newly-typed command writes a fresh zero-template composer (§2, #291)", async () => {
     selectPluginToolkit();
     renderChat();
     await waitForReady();
@@ -363,27 +352,19 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     });
     await waitFor(() => {
       const edited = lastUserMessage();
-      expect(edited?.content).toBe(`${TEMPLATE}\n\nbuild the flow`);
+      expect(edited?.content).toBe("/plan build the flow");
       expect(edited?.composer?.rawText).toBe("/plan build the flow");
     });
     const edited = lastUserMessage();
-    expect(edited.composer.templateLength).toBe(TEMPLATE.length);
+    expect(edited.composer.templateLength).toBe(0);
+    expect(edited.composer.commands).toEqual([
+      { name: "/plan", sourceToolkitId: PLUGIN_TOOLKIT_ID },
+    ]);
     // and the model payload for the edit run is still clean
     const [editPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(deepHasKey(editPayload, "composer")).toBe(false);
-    expect(editPayload.context_composition_hint).toEqual({
-      schema: "pupu.context_composition_hint.v2",
-      contributions: [
-        {
-          category: "skills",
-          subtype: "expanded_invocation",
-          surface: "messages",
-          prefix_utf16_units: TEMPLATE.length,
-          utf8_bytes: TEMPLATE.length,
-          source_count: 1,
-        },
-      ],
-    });
+    expect(editPayload.message).toBe("/plan build the flow");
+    expect(editPayload).not.toHaveProperty("context_composition_hint");
   });
 
   test("edit to plain text drops the stale composer (宁删勿 stale, §2铁律)", async () => {

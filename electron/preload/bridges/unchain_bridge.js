@@ -26,6 +26,19 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG),
   listToolModalCatalog: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG),
+  // Ticket #291 P5: builds a well-typed request (workspaceRoot: "" | string,
+  // includeUserDirs: boolean, toolkits: string[]) — the main-process handler
+  // (getMisoSkillInventoryPayload) now rejects anything else outright rather
+  // than silently defaulting a mistyped field.
+  getSkillInventory: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_SKILL_INVENTORY, {
+      workspaceRoot:
+        typeof payload.workspaceRoot === "string" ? payload.workspaceRoot : "",
+      includeUserDirs: payload.includeUserDirs !== false,
+      toolkits: Array.isArray(payload.toolkits)
+        ? payload.toolkits.filter((id) => typeof id === "string" && id.length > 0)
+        : [],
+    }),
   getToolkitDetail: (toolkitId, toolName) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL, {
       toolkitId,

@@ -102,6 +102,21 @@ _REQUIRED_PROTOCOLS = (
             }
         ),
     ),
+    _RuntimeProtocolRequirement(
+        id="skills",
+        major=1,
+        minimum_minor=0,
+        features=frozenset(
+            {
+                "active_skills_snapshot_v1",
+                "catalog_v1",
+                "skill_md_registry_v1",
+                "skill_tool_v1",
+                "toolkit_embedded_skills_v1",
+                "user_invocation_v1",
+            }
+        ),
+    ),
 )
 
 

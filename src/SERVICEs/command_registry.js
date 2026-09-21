@@ -271,27 +271,19 @@ export const extractCommands = (text, ctx = {}) => {
 };
 
 /**
- * Like extractCommands, but active commands that declare a non-empty
- * `expandsTo` template contribute that template (in token order) ahead of
- * the remaining user text, joined by blank lines. Commands without a
- * template still strip from the text (their names remain in `commands`
- * for routing). Returned body is trimmed.
+ * Historical text-expansion entry point — KEPT ONLY FOR BACKWARD
+ * COMPATIBILITY. `/name` template expansion no longer happens in the
+ * renderer: the Unchain runtime now resolves `/name` tokens itself and
+ * never rewrites the user's accepted message (P-D5). This function
+ * therefore no longer prepends any registered `expandsTo` template — it
+ * still calls extractCommands to compute `commands` for routing / per-run
+ * pack-selection callers that have not migrated off it, but always returns
+ * the ORIGINAL `text` verbatim as `body` and `templateLength: 0`. New code
+ * should call `extractCommands` directly instead of this wrapper.
  */
 export const expandCommands = (text, ctx = {}) => {
-  const { commands, body } = extractCommands(text, ctx);
-  if (commands.length === 0) return { commands, body, templateLength: 0 };
-  const templates = commands
-    .map((cmd) => registry.get(cmd.name)?.expandsTo || "")
-    .map((template) => template.trim())
-    .filter(Boolean);
-  // templatePrefix is the exact byte-sequence that leads the expanded body;
-  // its length is the composer sidecar's `templateLength` (contract §1.4),
-  // computed here at expansion time so it never drifts from the join semantics.
-  // [templatePrefix, body].filter(Boolean).join is byte-identical to the prior
-  // [...templates, body].filter(Boolean).join (templates already non-empty).
-  const templatePrefix = templates.join("\n\n");
-  const joined = [templatePrefix, body.trim()].filter(Boolean).join("\n\n");
-  return { commands, body: joined, templateLength: templatePrefix.length };
+  const { commands } = extractCommands(text, ctx);
+  return { commands, body: text, templateLength: 0 };
 };
 
 /** Remove every command registered under `source` (e.g. "plugin:mcp.notion"). */

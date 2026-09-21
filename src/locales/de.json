@@ -579,6 +579,10 @@
       "context_usage": "Kontextauslastung",
       "done": "Fertig",
       "drop_here": "Hier ablegen zum Verstauen"
+    },
+    "skill_inventory_stale": {
+      "title": "Skills geändert",
+      "description": "Die verfügbaren Skills wurden seit dem Öffnen dieses Chats aktualisiert. Die Liste wurde aktualisiert. Bitte senden Sie Ihre Nachricht erneut."
     }
   },
   "toolkit": {

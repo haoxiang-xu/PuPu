@@ -195,7 +195,7 @@ describe("composer-send expansion of plugin skill commands", () => {
       .reverse()
       .find((message) => message.role === "user");
 
-  test("expands the skill token into the message body when its toolkit is selected", async () => {
+  test("keeps the skill token verbatim in the message body when its toolkit is selected (#291)", async () => {
     const seeded = getChatsStore();
     setChatSelectedToolkits(seeded.activeChatId, [PLUGIN_TOOLKIT_ID], {
       source: "test",
@@ -214,13 +214,13 @@ describe("composer-send expansion of plugin skill commands", () => {
     });
 
     await waitFor(() => {
-      expect(lastUserMessage()?.content).toBe(
-        `${TEMPLATE}\n\nbuild the login flow`,
-      );
+      // #291: no client-side expansion — the Unchain runtime resolves /plan.
+      expect(lastUserMessage()?.content).toBe("/plan build the login flow");
     });
+    expect(lastUserMessage()?.content).not.toContain(TEMPLATE);
   });
 
-  test("unselected toolkit: still expands, and the plugin rides THIS run's payload only", async () => {
+  test("unselected toolkit: text stays verbatim, and the plugin rides THIS run's payload only", async () => {
     renderChat();
     await waitForReady();
 
@@ -233,11 +233,9 @@ describe("composer-send expansion of plugin skill commands", () => {
       expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     });
 
-    // expansion no longer requires selection
+    // the command is recognised for routing without touching the text
     await waitFor(() => {
-      expect(lastUserMessage()?.content).toBe(
-        `${TEMPLATE}\n\nbuild something`,
-      );
+      expect(lastUserMessage()?.content).toBe("/plan build something");
     });
 
     // the run's payload carries the owning plugin (ephemeral selection) on
@@ -287,7 +285,7 @@ describe("composer-send expansion of plugin skill commands", () => {
     );
   });
 
-  test("expands to exactly the template when the message is only the skill token", async () => {
+  test("a message that is only the skill token is sent as that token (#291)", async () => {
     const seeded = getChatsStore();
     setChatSelectedToolkits(seeded.activeChatId, [PLUGIN_TOOLKIT_ID], {
       source: "test",
@@ -306,8 +304,11 @@ describe("composer-send expansion of plugin skill commands", () => {
     });
 
     await waitFor(() => {
-      expect(lastUserMessage()?.content).toBe(TEMPLATE);
+      expect(lastUserMessage()?.content).toBe("/plan");
     });
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.message).toBe("/plan");
+    expect(payload.options.toolkits).toContain(PLUGIN_TOOLKIT_ID);
   });
 
   test("edit expansion uses the toolkit selection captured before async preflight", async () => {
@@ -369,7 +370,9 @@ describe("composer-send expansion of plugin skill commands", () => {
       expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
     });
     const [editPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
-    expect(editPayload.message).toBe(`${SELECTED_TEMPLATE}\n\nupdate this`);
+    // #291: verbatim text; the selection captured before preflight still
+    // decides which plugin rides the edit run.
+    expect(editPayload.message).toBe("/selected-plan update this");
     expect(editPayload.options.toolkits).toContain(PLUGIN_TOOLKIT_ID);
   });
 

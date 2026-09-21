@@ -579,6 +579,10 @@
       "context_usage": "컨텍스트 사용량",
       "done": "완료",
       "drop_here": "여기에 놓아 정리"
+    },
+    "skill_inventory_stale": {
+      "title": "스킬이 변경되었습니다",
+      "description": "이 채팅을 연 후 사용 가능한 스킬이 변경되었습니다. 목록이 새로고침되었으니 메시지를 다시 보내 주세요."
     }
   },
   "toolkit": {

@@ -65,12 +65,17 @@ from net_tls import get_outbound_ssl_context
 def _ensure_unchain_on_path() -> None:
     _source = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
     if _source:
+        # An explicit source wins outright: when it names a directory that is
+        # already importable (e.g. a venv's site-packages holding the exact
+        # tested wheel) the sibling checkout must NOT be injected in front of it.
         _src_dir = os.path.join(_source, "src")
-        if os.path.isdir(_src_dir) and _src_dir not in sys.path:
-            sys.path.insert(0, _src_dir)
+        if os.path.isdir(_src_dir):
+            if _src_dir not in sys.path:
+                sys.path.insert(0, _src_dir)
             return
-        if os.path.isdir(_source) and _source not in sys.path:
-            sys.path.insert(0, _source)
+        if os.path.isdir(_source):
+            if _source not in sys.path:
+                sys.path.insert(0, _source)
             return
     _project_root = str(Path(__file__).resolve().parents[2])
     _sibling = os.path.join(os.path.dirname(_project_root), "unchain", "src")
@@ -6039,6 +6044,24 @@ def _build_builtin_toolkit(
     return None
 
 
+
+def _attach_embedded_skills_for(toolkit_instance: Any, toolkit_name: str, cache: dict) -> None:
+    """Ticket #291: the run's toolkit-embedded skills use the same identity
+    (`source="toolkit"`, `source_id=<requested catalog id>`) the inventory
+    route and the stale check publish, so menu and execution never diverge."""
+    try:
+        from skills_inventory import attach_embedded_skills, catalog_skill_rows_by_toolkit
+    except ImportError:  # pragma: no cover
+        return
+    if "rows" not in cache:
+        try:
+            cache["rows"] = catalog_skill_rows_by_toolkit()
+        except Exception as exc:  # noqa: BLE001 - never fail a run over the catalog
+            _subagent_logger.warning("[skills] toolkit catalog unavailable for embedded skills: %s", exc)
+            cache["rows"] = {}
+    attach_embedded_skills(toolkit_instance, toolkit_name, cache["rows"])
+
+
 def _build_selected_toolkits(
     options: Dict[str, object] | None = None,
     *,
@@ -6055,6 +6078,7 @@ def _build_selected_toolkits(
     workspace_root = resolved_roots[0] if resolved_roots else None
     result: list = []
     generic_toolkit_names: list[str] = []
+    _skill_rows_cache: dict = {}  # lazily filled catalog rows (ticket #291)
 
     builtin_runtime_config = get_runtime_config(options)
     # F9: recipe-subagent runs have no confirmation callback, so confirmable
@@ -6085,6 +6109,7 @@ def _build_selected_toolkits(
                 toolkit_id=toolkit_name,
                 toolkit_name=_display_toolkit_name_for_class(builtin_instance.__class__),
             )
+            _attach_embedded_skills_for(builtin_instance, toolkit_name, _skill_rows_cache)
             result.append(builtin_instance)
             continue
         if toolkit_name.startswith("mcp."):
@@ -6109,6 +6134,7 @@ def _build_selected_toolkits(
                 toolkit_id=toolkit_name,
                 toolkit_name=toolkit_name,
             )
+            _attach_embedded_skills_for(toolkit_instance, toolkit_name, _skill_rows_cache)
             result.append(toolkit_instance)
             continue
         generic_toolkit_names.append(toolkit_name)
@@ -6155,6 +6181,7 @@ def _build_selected_toolkits(
             toolkit_id=_canonical_runtime_toolkit_id(class_name),
             toolkit_name=_display_toolkit_name_for_class(toolkit_class),
         )
+        _attach_embedded_skills_for(toolkit_instance, toolkit_name, _skill_rows_cache)
         result.append(toolkit_instance)
 
     return result
@@ -7943,6 +7970,32 @@ def _toolkits_include_computer(toolkits: Any) -> bool:
     return False
 
 
+
+def _build_skills_module(options: Dict[str, object] | None) -> Any:
+    """`SkillsModule` for a developer-chat run, or ``None`` when the loaded
+    Unchain runtime has no skills support (protocol admission already fails
+    closed on such wheels; this is a defensive fallback)."""
+    try:
+        from unchain.agent import SkillsModule
+    except ImportError:  # pragma: no cover - admission rejects such wheels first
+        return None
+    from skills_inventory import (
+        build_skills_config,
+        installed_pack_skill_descriptors,
+        skills_options,
+    )
+
+    include_user_dirs, _revision = skills_options(options)
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+    config = build_skills_config(
+        workspace_root=workspace_root,
+        include_user_dirs=include_user_dirs,
+        extra_skills=tuple(installed_pack_skill_descriptors()),
+    )
+    return SkillsModule(config)
+
+
 def _build_developer_agent(
     *,
     UnchainAgent,
@@ -8022,6 +8075,15 @@ def _build_developer_agent(
         else:
             modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+    # Ticket #291: developer chat gets the Unchain skills runtime (catalog,
+    # `skill` tool, `/name` activation). Installed pack skills reach the
+    # registry as `SkillsConfig.extra_skills`; selected executable toolkits'
+    # embedded skills arrive through `builder.toolkit.skills`. Recipe-subagent
+    # runs are excluded for this ticket.
+    if not (isinstance(options, dict) and options.get("_recipe_subagent_run")):
+        skills_module = _build_skills_module(options)
+        if skills_module is not None:
+            modules.append(skills_module)
     composition_options = options if isinstance(options, dict) else {}
     composition_private_hint = composition_options.get(
         "_context_composition_hint_v1"

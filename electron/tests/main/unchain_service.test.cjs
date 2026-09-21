@@ -1582,6 +1582,138 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("getMisoSkillInventoryPayload proxies GET /skills/inventory with the query string and auth header, and rejects a malformed request at the boundary with no silent defaulting (ticket #291 P4/P5, BC-007)", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(createCompatibleHealthResponse())
+      .mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            schema: "pupu.skill_inventory.v1",
+            revision: "sha256:rev1",
+            skills: [],
+            diagnostics: [],
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+
+    const withWorkspaceAndToolkits = await service.getMisoSkillInventoryPayload({
+      workspaceRoot: "/tmp/project",
+      includeUserDirs: false,
+      toolkits: ["a", "b"],
+    });
+    expect(withWorkspaceAndToolkits).toEqual({
+      schema: "pupu.skill_inventory.v1",
+      revision: "sha256:rev1",
+      skills: [],
+      diagnostics: [],
+    });
+    // toolkits is comma-joined and appended only when non-empty; exact
+    // encoding is whatever URLSearchParams produces (comma -> %2C).
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/skills/inventory?workspace_root=%2Ftmp%2Fproject&include_user_dirs=false&toolkits=a%2Cb",
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-unchain-auth": "auth-token-123" },
+      }),
+    );
+
+    // no workspaceRoot, no toolkits -> query omits both entirely.
+    await service.getMisoSkillInventoryPayload({
+      workspaceRoot: "",
+      includeUserDirs: true,
+      toolkits: [],
+    });
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:5879/skills/inventory?include_user_dirs=true",
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-unchain-auth": "auth-token-123" },
+      }),
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+
+    // Ticket #291 P5 audit fix: this boundary used to silently DEFAULT a
+    // mistyped/unknown field (e.g. a non-boolean includeUserDirs falling
+    // back to true, a non-string workspaceRoot falling back to "").
+    // Admission is now CLOSED — every one of these shapes must THROW rather
+    // than shape the query string from untrusted input, and none of them
+    // may reach fetch.
+    const invalidRequests = [
+      undefined,
+      {},
+      null,
+      "garbage",
+      42,
+      // unknown top-level key
+      { workspaceRoot: "/tmp", includeUserDirs: true, toolkits: [], extra: "x" },
+      // non-string workspaceRoot
+      { workspaceRoot: 42, includeUserDirs: true, toolkits: [] },
+      // non-boolean includeUserDirs
+      { workspaceRoot: "/tmp", includeUserDirs: "nope", toolkits: [] },
+      { workspaceRoot: "/tmp", includeUserDirs: undefined, toolkits: [] },
+      // toolkits not an array of non-empty strings
+      { workspaceRoot: "/tmp", includeUserDirs: true, toolkits: "a,b" },
+      { workspaceRoot: "/tmp", includeUserDirs: true, toolkits: [""] },
+      { workspaceRoot: "/tmp", includeUserDirs: true, toolkits: [1, 2] },
+    ];
+    for (const invalidRequest of invalidRequests) {
+      await expect(
+        service.getMisoSkillInventoryPayload(invalidRequest),
+      ).rejects.toThrow(/^invalid skill inventory request:/);
+    }
+    await expect(service.getMisoSkillInventoryPayload()).rejects.toThrow(
+      /^invalid skill inventory request:/,
+    );
+
+    // none of the invalid requests ever reached fetch
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
   test("testMisoCustomProvider posts custom_provider/api_key and passes the result through", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
