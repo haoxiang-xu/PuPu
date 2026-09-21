@@ -4,6 +4,7 @@ import { compute_variable_scope } from "../variable_scope";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
@@ -284,7 +285,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             <Switch
               on={optimizer_enabled}
               set_on={set_optimizer_enabled}
-              style={{ width: 32, height: 18 }}
+              style={BUILDER_SWITCH_SIZE}
             />
           </div>
         </div>
@@ -434,7 +435,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                     hash_payloads: !!on,
                   })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
               <span>Context usage</span>
               <Switch
@@ -442,7 +443,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 set_on={(on) =>
                   update_custom_optimizer("context_usage", { enabled: !!on })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
               <span>Pair safety</span>
               <Switch
@@ -450,7 +451,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 set_on={(on) =>
                   update_custom_optimizer("tool_pair_safety", { enabled: !!on })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
             </div>
           </div>

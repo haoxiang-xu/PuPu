@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { ToolkitIconFrame } from "../../../../toolkit/components/toolkit_icon";
@@ -223,7 +224,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
         <Switch
           on={merge_on}
           set_on={set_merge}
-          style={{ width: 32, height: 18 }}
+          style={BUILDER_SWITCH_SIZE}
         />
       </div>
 

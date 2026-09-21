@@ -174,34 +174,28 @@ describe("ModelProvidersSettings (N1 accordion, #204 R5)", () => {
     ]);
   });
 
-  test("expanding a native row shows its key control; only one row is open at a time", () => {
+  test("expanding a native row shows its key control; only one row is open at a time (bodies stay mounted for the collapse animation)", () => {
     renderSettings();
-    expect(
-      screen.queryByTestId("provider-key-section-openai_api_key"),
-    ).toBeNull();
+    const body = (id) => screen.getByTestId(`model-providers-settings-body-${id}`);
+    // nothing mounted before the first open
+    expect(screen.queryByTestId("provider-key-section-openai_api_key")).toBeNull();
+    expect(body("openai").dataset.open).toBe("false");
 
     fireEvent.click(screen.getByTestId("model-providers-settings-row-openai"));
-    expect(
-      screen.getByTestId("provider-key-section-openai_api_key"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("provider-key-section-openai_api_key")).toBeInTheDocument();
+    expect(body("openai").dataset.open).toBe("true");
 
-    fireEvent.click(
-      screen.getByTestId("model-providers-settings-row-anthropic"),
-    );
-    expect(
-      screen.queryByTestId("provider-key-section-openai_api_key"),
-    ).toBeNull();
-    expect(
-      screen.getByTestId("provider-key-section-anthropic_api_key"),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("model-providers-settings-row-anthropic"));
+    // the OpenAI body stays mounted (it is folding shut) but is closed + hidden
+    expect(body("openai").dataset.open).toBe("false");
+    expect(body("openai").getAttribute("aria-hidden")).toBe("true");
+    expect(body("anthropic").dataset.open).toBe("true");
+    expect(screen.getByTestId("provider-key-section-anthropic_api_key")).toBeInTheDocument();
 
     // Clicking the already-open row closes it instead of leaving it open.
-    fireEvent.click(
-      screen.getByTestId("model-providers-settings-row-anthropic"),
-    );
-    expect(
-      screen.queryByTestId("provider-key-section-anthropic_api_key"),
-    ).toBeNull();
+    fireEvent.click(screen.getByTestId("model-providers-settings-row-anthropic"));
+    expect(body("anthropic").dataset.open).toBe("false");
+    expect(screen.getAllByTestId(/^model-providers-settings-body-/).every((b) => b.dataset.open === "false")).toBe(true);
   });
 
   test("a configured native provider reads Ready, an unconfigured one reads No key", () => {
@@ -234,6 +228,14 @@ describe("ModelProvidersSettings (N1 accordion, #204 R5)", () => {
     fireEvent.click(screen.getByTestId("model-providers-settings-row-ollama"));
     fireEvent.click(screen.getByText("Open in Models"));
     expect(onOpenModelProviders).toHaveBeenCalledWith("ollama");
+  });
+
+  test("the page foot carries an Open Models page button that opens the layer on its default selection", () => {
+    const onOpenModelProviders = jest.fn();
+    renderSettings({ onOpenModelProviders });
+    fireEvent.click(screen.getByText("Open Models page"));
+    expect(onOpenModelProviders).toHaveBeenCalledTimes(1);
+    expect(onOpenModelProviders.mock.calls[0][0]).toBeUndefined();
   });
 
   test("flag off (AC-12 negative): no Custom caption and no custom/Add rows, even with stored definitions", () => {

@@ -188,6 +188,7 @@
     "settings": {
       "ready": "Prêt",
       "open_in_models": "Ouvrir dans Modèles",
+      "open_models_page": "Ouvrir la page Modèles",
       "ollama_hint": "Les modèles installés et la bibliothèque se trouvent dans la page Modèles."
     }
   },

@@ -188,6 +188,7 @@
     "settings": {
       "ready": "就緒",
       "open_in_models": "在模型頁面中開啟",
+      "open_models_page": "開啟模型頁面",
       "ollama_hint": "已安裝的模型與模型庫都在模型頁面。"
     }
   },

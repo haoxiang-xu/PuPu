@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 
@@ -32,10 +33,9 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
     return map;
   }, [recipe.toolkits]);
 
+  // Builder-wide switch size; only the colours are the inspector's own.
   const switchStyle = {
-    width: 28,
-    height: 16,
-    borderRadius: 8,
+    ...BUILDER_SWITCH_SIZE,
     backgroundColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)",
     backgroundColor_on: "#4a5bd8",
     color: "#fff",

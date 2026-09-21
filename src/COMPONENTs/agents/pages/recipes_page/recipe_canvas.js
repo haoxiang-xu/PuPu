@@ -268,6 +268,7 @@ export default function RecipeCanvas({
             setContextMenu({ visible: true, x: client_x, y: client_y });
           }}
           reset_token={resetToken}
+          reset_focus_node_id="start"
         />
 
         <div

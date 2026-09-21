@@ -84,6 +84,7 @@ function FlowEditor({
   min_zoom = 0.1,
   max_zoom = 3,
   reset_token,
+  reset_focus_node_id,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -146,14 +147,35 @@ function FlowEditor({
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
 
+  /* ── Reset viewport (home button) ───────────────────────── */
+  /*  With `reset_focus_node_id` the named node is centered in   */
+  /*  the canvas at zoom 1; otherwise (or if the node is not     */
+  /*  mounted) the viewport snaps back to the origin.            */
   useEffect(() => {
     if (reset_token === undefined) return;
-    const next = { x: 0, y: 0, zoom: 1 };
+    let next = { x: 0, y: 0, zoom: 1 };
+    const focus = reset_focus_node_id
+      ? nodes_ref.current.find((n) => n.id === reset_focus_node_id)
+      : null;
+    const focus_el = focus ? node_elements_ref.current[focus.id] : null;
+    if (focus && focus_el && canvas_ref.current) {
+      const rect = canvas_ref.current.getBoundingClientRect();
+      const dims = node_dimensions_ref.current[focus.id] || {
+        width: focus_el.offsetWidth,
+        height: focus_el.offsetHeight,
+      };
+      next = {
+        x: rect.width / 2 - (focus.x + dims.width / 2),
+        y: rect.height / 2 - (focus.y + dims.height / 2),
+        zoom: 1,
+      };
+    }
     viewport_ref.current = next;
     if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(0px, 0px) scale(1)`;
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
     }
     setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
 
   /* ═══════════════════════════════════════════════════════════ */

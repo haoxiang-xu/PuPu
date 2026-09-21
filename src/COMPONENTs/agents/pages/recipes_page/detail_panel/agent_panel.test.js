@@ -118,6 +118,36 @@ describe("AgentPanel", () => {
     expect(call.nodes[0].outputs).toEqual([{ name: "", type: "string" }]);
   });
 
+  test("optimizer switches use the builder's switch size (80% of default)", () => {
+    const recipe = {
+      nodes: [
+        {
+          id: "a1",
+          type: "agent",
+          override: {
+            model: "m",
+            prompt: "",
+            optimizer: { preset: "custom", enabled: true },
+          },
+          outputs: [],
+        },
+      ],
+      edges: [],
+    };
+    const sized = { theme: { switch: { width: 64, height: 32 } }, onThemeMode: "light_mode" };
+    const { container } = render(
+      <ConfigContext.Provider value={sized}>
+        <AgentPanel node={recipe.nodes[0]} recipe={recipe} onChange={() => {}} />
+      </ConfigContext.Provider>,
+    );
+    const switches = container.querySelectorAll(".mini-ui-switch-track");
+    expect(switches.length).toBeGreaterThanOrEqual(1);
+    switches.forEach((el) => {
+      expect(el.style.width).toBe("52px");
+      expect(el.style.height).toBe("26px");
+    });
+  });
+
   test("renders optimizer controls and disabling writes the off preset", () => {
     const onChange = jest.fn();
     const recipe = {
