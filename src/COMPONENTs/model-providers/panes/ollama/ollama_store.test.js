@@ -109,7 +109,11 @@ const renderStore = (props = {}) =>
     </ConfigContext.Provider>,
   );
 
-const flush = () => act(() => Promise.resolve());
+/* fetch → cache → notify is two promise hops. */
+const flush = async () => {
+  await act(() => Promise.resolve());
+  await act(() => Promise.resolve());
+};
 const row = (name) => screen.getByTestId(`store-row-${name}`);
 
 beforeEach(() => {
