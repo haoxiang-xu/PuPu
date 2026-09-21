@@ -29,17 +29,16 @@ import { useOllamaModelTags } from "./use_ollama_model_tags";
  *   rows      one line per model — name over a one-line description (the
  *             pick's reason for a featured model) — with a size Select and
  *             an icon Pull button. No expansion, no page. The Select's
- *             options come from the tags page (BC-002, real GB per tag) the
- *             first time it is touched; until then, and when the page cannot
- *             be parsed, the list's size tags. Progress + Cancel replace the
- *             controls while a pull runs; an installed tag shows a trash
- *             icon instead of Pull.
+ *             options are the listing's size tags; the tags page (BC-002)
+ *             is fetched when the pointer reaches the row and only adds the
+ *             real GB to those same options, so the menu never changes
+ *             shape under the cursor. Progress + Cancel replace the controls
+ *             while a pull runs; an installed tag shows a trash icon instead
+ *             of Pull.
  *
  * Data and pulls go through the same `useOllamaLibrary` hook as before;
  * only the presentation is new.
  */
-
-const PLAIN_TAG = (tag) => tag === "latest" || !tag.includes("-");
 
 const anyTagInstalled = (installedNames, name) => {
   if (!installedNames) return false;
@@ -74,19 +73,20 @@ const StoreRow = ({
   const [touched, setTouched] = useState(false);
   const { state, tags } = useOllamaModelTags(touched ? model.name : null);
 
-  /* Options: real tags with GB once fetched, else the list's size chips. */
+  /* The option set is the listing's size chips, in the listing's order, and
+     never changes shape once the Select is open: the tags page (fetched when
+     the pointer reaches the row, so it is usually there before the click)
+     only decorates those same chips with their real GB. Tags the listing
+     does not carry — "latest", quantisation variants — are not inserted;
+     inserting "latest" at the top after the menu opened is exactly the jump
+     the project owner saw. */
   const options = useMemo(() => {
-    if (state === "ready" && tags.length > 0) {
-      const plain = tags.filter((tg) => PLAIN_TAG(tg.tag));
-      return (plain.length > 0 ? plain : tags).map((tg) => ({
-        value: tg.tag,
-        label: tg.size_label ? `${tg.tag} · ${tg.size_label}` : tg.tag,
-      }));
-    }
-    const sizes = Array.isArray(model.sizes) ? model.sizes : [];
-    /* A listing without size chips (embedding models, single-size models)
-       still has a "latest" tag to pull. */
-    return (sizes.length > 0 ? sizes : ["latest"]).map((sz) => ({ value: sz, label: sz }));
+    const sizes = Array.isArray(model.sizes) && model.sizes.length > 0 ? model.sizes : ["latest"];
+    const byTag = new Map(state === "ready" ? tags.map((tg) => [tg.tag, tg]) : []);
+    return sizes.map((sz) => {
+      const hit = byTag.get(sz);
+      return { value: sz, label: hit?.size_label ? `${sz} · ${hit.size_label}` : sz };
+    });
   }, [state, tags, model.sizes]);
 
   const [picked, setPicked] = useState(null);
@@ -116,6 +116,7 @@ const StoreRow = ({
   return (
     <div
       data-testid={`store-row-${model.name}`}
+      onMouseEnter={() => setTouched(true)}
       style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) auto auto",
