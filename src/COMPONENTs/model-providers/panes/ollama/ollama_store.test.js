@@ -86,6 +86,7 @@ jest.mock("../../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
 }));
 jest.mock("../../../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 jest.mock("../../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner", () => () => null);
+jest.mock("../../../../BUILTIN_COMPONENTs/spinner/arc_spinner", () => () => <span data-testid="arc-spinner" />);
 
 const { emitModelCatalogRefresh } = require("../../../../SERVICEs/model_catalog_refresh");
 
@@ -179,48 +180,56 @@ describe("OllamaStore (S3) — default view", () => {
 });
 
 describe("OllamaStore (S3) — the row's size select and actions", () => {
-  test("before the select is touched the sizes are the list's chips; the default skips installed tags", () => {
+  test("nothing is pre-printed: the size slot is pending until the tags page answers", () => {
     renderStore();
-    const select = within(row("qwen3")).getByRole("combobox");
-    expect([...select.options].map((o) => o.textContent)).toEqual(["0.6b", "14b", "32b"]);
-    expect(select.value).toBe("0.6b");
+    expect(within(row("qwen3")).queryByRole("combobox")).toBeNull();
+    expect(screen.getByTestId("store-size-qwen3").dataset.pending).toBe("true");
     expect(mockTags.impl).not.toHaveBeenCalled();
+    // no tag known yet → the row's action is inert (no "delete deepseek-r1" with no tag)
+    expect(within(row("qwen3")).getByLabelText(/^(Pull|Delete) /)).toBeDisabled();
   });
 
-  test("hovering the row fetches the tags page (BC-002); the options keep the listing's set and order and only gain GB", async () => {
+  test("hovering the row fetches the tags page (BC-002) with a spinner, then the real tags appear once with GB", async () => {
     renderStore();
     fireEvent.mouseEnter(row("qwen3"));
+    expect(within(row("qwen3")).getByTestId("arc-spinner")).toBeInTheDocument();
     await flush();
     expect(mockTags.impl).toHaveBeenCalledWith("qwen3");
-    const relabelled = within(row("qwen3")).getByRole("combobox");
-    // same three chips, same order; "latest" and the quantisation are NOT inserted
-    expect([...relabelled.options].map((o) => o.value)).toEqual(["0.6b", "14b", "32b"]);
-    expect([...relabelled.options].map((o) => o.textContent)).toEqual([
-      "0.6b",
+    const select = within(row("qwen3")).getByRole("combobox");
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "latest · 5.2GB",
       "14b · 9.3GB",
       "32b · 20GB",
     ]);
+    // default skips the installed 14b → latest
+    expect(select.value).toBe("latest");
   });
 
-  test("Pull sends name + the picked tag through the existing pull path", () => {
+  test("Pull sends name + the picked tag through the existing pull path", async () => {
     renderStore();
+    fireEvent.mouseEnter(row("qwen3"));
+    await flush();
     const select = within(row("qwen3")).getByRole("combobox");
     fireEvent.change(select, { target: { value: "32b" } });
     fireEvent.click(within(row("qwen3")).getByLabelText("Pull qwen3:32b"));
     expect(mockLibrary.handlePull).toHaveBeenCalledWith("qwen3", "32b");
   });
 
-  test("a running pull shows progress and Cancel in the row", () => {
-    mockLibrary.pullingMap = { "qwen3:0.6b": { status: "pulling", percent: 41, error: null } };
+  test("a running pull shows progress and Cancel in the row", async () => {
+    mockLibrary.pullingMap = { "qwen3:latest": { status: "pulling", percent: 41, error: null } };
     renderStore();
-    expect(within(row("qwen3")).getByText("0.6b · pulling 41%")).toBeInTheDocument();
-    fireEvent.click(within(row("qwen3")).getByLabelText("Cancel qwen3:0.6b"));
-    expect(mockLibrary.handleCancel).toHaveBeenCalledWith("qwen3:0.6b");
+    fireEvent.mouseEnter(row("qwen3"));
+    await flush();
+    expect(within(row("qwen3")).getByText("latest · pulling 41%")).toBeInTheDocument();
+    fireEvent.click(within(row("qwen3")).getByLabelText("Cancel qwen3:latest"));
+    expect(mockLibrary.handleCancel).toHaveBeenCalledWith("qwen3:latest");
   });
 
   test("an installed tag shows the trash icon; confirming deletes and refreshes both installed sets", async () => {
     const onInstalledChanged = jest.fn();
     renderStore({ onInstalledChanged });
+    fireEvent.mouseEnter(row("qwen3"));
+    await flush();
     const select = within(row("qwen3")).getByRole("combobox");
     fireEvent.change(select, { target: { value: "14b" } });
     fireEvent.click(within(row("qwen3")).getByLabelText("Delete qwen3:14b"));
@@ -234,11 +243,10 @@ describe("OllamaStore (S3) — the row's size select and actions", () => {
     expect(onInstalledChanged).toHaveBeenCalledWith("qwen3:14b");
   });
 
-  test("tags page failure keeps the list's chips (fallback)", async () => {
+  test("tags page failure falls back to the list's chips", async () => {
     mockTags.impl = jest.fn(() => Promise.reject(new Error("timeout")));
     renderStore();
-    const select = within(row("gemma3")).getByRole("combobox");
-    fireEvent.focus(select);
+    fireEvent.mouseEnter(row("gemma3"));
     await flush();
     expect([...within(row("gemma3")).getByRole("combobox").options].map((o) => o.value)).toEqual(["1b", "4b"]);
   });
