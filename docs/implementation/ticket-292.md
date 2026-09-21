@@ -193,3 +193,39 @@ The sidecar was not restarted into this candidate, so no currently running app
 is claimed as acceptance evidence. Merge is delivery evidence, not a substitute
 for those AC-292-5 observations. The candidate digest and actual PR checks are
 recorded in the issue audit after commit.
+
+## Live acceptance follow-up — 2026-09-21
+
+The owner's supplied credential enabled real cloud K2.7 Code acceptance. The
+packaged candidate completed one approved web_fetch (HTTP 200) and then failed
+before its second provider call: native replay comparison rejected SDK-generated
+`caller: null`, absent from canonical compiler tool messages. Previous
+missing-credential notes are historical; this is now a reproduced code defect.
+Issue checkpoint: https://github.com/haoxiang-xu/PuPu/issues/292#issuecomment-5763734878.
+
+BC-292-3: inside the existing exact Kimi replay profile, normalize only null or
+absent tool_use.caller to omission before semantic/native capture. Preserve
+non-null caller and unknown fields; strict replay comparison remains unchanged.
+Native Anthropic behavior is unchanged. No old checkpoint migration.
+AC-292-6: actual pinned SDK SSE -> ModelIO -> canonical context compiler -> replay
+assembler must preserve thinking and tool identity after a tool result. The
+previous installed wheel fails four signature variants at this exact boundary;
+the repair passes. Ten runtime matrix cases cover absent/null/meaningful/empty
+caller and unknown metadata, including native Anthropic preservation.
+SEQ-292-1 and AC-292-5 must be repeated on a fresh immutable wheel/package pair.
+
+Follow-up runtime branch: codex/ticket-292-kimi-sdk-replay, based on merged
+Unchain dev bc74d21db2f0cd07a19eb75004ca290e74170768. Exact parser impact is LOW,
+4 upstream symbols, direct callers fetch_turn and exact-route transport send;
+no indexed process hits. The test symbol has unresolved graph callers; pytest
+collection and source references establish its execution. Scope is normalization,
+regression coverage, runtime pin and evidence only.
+
+Follow-up delivery: Unchain PR #35, head
+04b3fb0a0a7097ce738ecb393f14f7044e03b99f. One newly built wheel is reused:
+SHA-256 939a3e26ce0eb19b24d6fda837d0d707a9a5fbd5bbc22fecc09812041d35e92a;
+manifest remains sha256:ab00567fe76a80e8661415eaea0ab57bba1d1c76ad19158153c51f1e64f2c6fc.
+Installed-wheel verification: 114 host tests +16 subtests and 127 runtime tests
+passed. Independent bounded code review found no actionable findings; its source
+checks passed 46 Kimi tests and 9 host contract tests. These do not substitute for
+fresh packaged cloud acceptance, which remains pending.

@@ -101,3 +101,22 @@ def test_pinned_sdk_stream_and_final_message_replay(signature):
     if signature == "valid-signature":
         expected["signature"] = signature
     assert turn.provider_replay_frame["items"][-1]["content"][0] == expected
+
+    # The real SDK adds caller=None to tool_use. Exercise the deployed context
+    # compiler boundary as well as capture: these messages are rebuilt on resume.
+    from unchain.context.compiler import _native_tool_call_messages
+    from unchain.providers.context_assembler import _rehydrate, _segments_for
+
+    canonical = _native_tool_call_messages(
+        "hyperspace", [({}, call) for call in turn.tool_calls],
+    )
+    result = {"role": "user", "content": [{
+        "type": "tool_result", "tool_use_id": "toolu_1", "content": "3",
+    }]}
+    canonical.append(result)
+    frame = turn.provider_replay_frame
+    segments = _segments_for(frame["format"], frame["items"], allow_unsigned_thinking=True)
+    replayed = _rehydrate("hyperspace", canonical, segments)
+    assert replayed == [{"role": "assistant", "content": [expected, {
+        "type": "tool_use", "id": "toolu_1", "name": "demo_tool", "input": {"x": 2},
+    }]}, result]
