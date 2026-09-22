@@ -580,6 +580,10 @@
       "context_usage": "上下文用量",
       "done": "完成",
       "drop_here": "拖到这里收起"
+    },
+    "skill_inventory_stale": {
+      "title": "技能列表已变化",
+      "description": "可用技能自打开本对话后发生了变化，列表已刷新，请重新发送这条消息。"
     }
   },
   "toolkit": {

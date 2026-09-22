@@ -26,6 +26,7 @@ import {
 import { isFeatureFlagEnabled } from "./feature_flags";
 import { isShippedSlug } from "./shipped_provider_registry";
 import { readNamespace } from "./settings_repository";
+import { getLastSkillInventoryRevision } from "./skill_inventory_store";
 import { readProviderSecret } from "./settings_secret_adapter";
 import {
   providerSecretConfigured,
@@ -596,6 +597,59 @@ const injectWorkspaceRootIntoPayload = (payload) => {
   };
 };
 
+// P-D7 (ticket #291): `skills.include_user_dirs` in the runtime settings
+// namespace, default true — forwarded as `options.skills.include_user_dirs`
+// on every composer send so `build_skills_config` can honor it.
+const readSkillsSettings = () => {
+  const runtimeSettings = readRuntimeSettings();
+  return isObject(runtimeSettings?.skills) ? runtimeSettings.skills : {};
+};
+
+// Ticket #291 P5: the cached revision must look like a real backend digest
+// before it is ever attached to an outgoing payload — a malformed/partial
+// cache entry must never ride along as if it were an authoritative
+// selection fingerprint. skill_inventory_store.applySkillInventory already
+// enforces this shape before caching, but this is the wire boundary, so it
+// is re-checked here too (defense in depth, not a "trust the cache" shortcut).
+const SKILL_INVENTORY_REVISION_PATTERN = /^sha256:[0-9a-f]{64}$/;
+
+/**
+ * Attach `options.skills = { include_user_dirs }` (P-D7) and, when the
+ * renderer has a cached skill inventory revision and the caller did not
+ * already set one explicitly, `options.skill_inventory_revision` (P-D4) —
+ * the per-send staleness check `route_chat` compares against a fresh
+ * `resolve_skill_inventory(...)` before opening a V4 stream. A cached
+ * revision that does not match the sha256 digest shape is never attached.
+ */
+const injectSkillsOptionsIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  const includeUserDirs = readSkillsSettings().include_user_dirs === false ? false : true;
+
+  const nextOptions = {
+    ...currentOptions,
+    skills: { include_user_dirs: includeUserDirs },
+  };
+
+  const hasExplicitRevision =
+    typeof currentOptions.skill_inventory_revision === "string" &&
+    currentOptions.skill_inventory_revision.trim().length > 0;
+  if (!hasExplicitRevision) {
+    const revision = getLastSkillInventoryRevision();
+    if (typeof revision === "string" && SKILL_INVENTORY_REVISION_PATTERN.test(revision)) {
+      nextOptions.skill_inventory_revision = revision;
+    }
+  }
+
+  return {
+    ...payload,
+    options: nextOptions,
+  };
+};
+
 const injectSystemPromptV2IntoPayload = (payload) => {
   if (!isObject(payload)) {
     return payload;
@@ -845,8 +899,11 @@ const mergeCustomProvidersIntoCatalog = (catalog) => {
 
 const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
-  const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
+  const payloadWithSkillsOptions = injectSkillsOptionsIntoPayload(
     payloadWithWorkspaceRoot,
+  );
+  const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
+    payloadWithSkillsOptions,
   );
   const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
   const payloadWithProviderKey =
@@ -1332,6 +1389,53 @@ export const createUnchainApi = () => {
           error,
           "unchain_tool_modal_catalog_failed",
           "Failed to query Unchain tool modal catalog",
+        );
+      }
+    },
+
+    // Ticket #291 P4 (BC-005/BC-007): backend-authoritative skill inventory
+    // (packs + workspace/user skill directories) behind the same command
+    // menu the toolkit catalog feeds — see plugin_skill_sync.syncSkillInventory.
+    // P1: also forwards the active chat's selected EXECUTABLE toolkit ids so
+    // the backend can include their embedded [[skills]] in the response.
+    getSkillInventory: async ({
+      workspaceRoot = "",
+      includeUserDirs = true,
+      toolkits = [],
+    } = {}) => {
+      const fallback = {
+        schema: "pupu.skill_inventory.v1",
+        revision: "",
+        skills: [],
+        diagnostics: [],
+      };
+      if (!hasBridgeMethod("unchainAPI", "getSkillInventory")) {
+        return fallback;
+      }
+
+      const safeToolkits = Array.isArray(toolkits)
+        ? toolkits.filter((id) => typeof id === "string" && id.length > 0)
+        : [];
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "getSkillInventory");
+        const payload = await withTimeout(
+          () =>
+            method({
+              workspaceRoot: typeof workspaceRoot === "string" ? workspaceRoot : "",
+              includeUserDirs: includeUserDirs !== false,
+              toolkits: safeToolkits,
+            }),
+          8000,
+          "unchain_skill_inventory_timeout",
+          "Unchain skill inventory request timed out",
+        );
+        return payload || fallback;
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_skill_inventory_failed",
+          "Failed to query Unchain skill inventory",
         );
       }
     },

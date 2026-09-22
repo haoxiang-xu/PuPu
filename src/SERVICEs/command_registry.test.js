@@ -390,7 +390,14 @@ describe("source, priority & unregisterBySource", () => {
 });
 
 describe("expandsTo & expandCommands", () => {
-  test("expanding token: body template prepended, user text follows", () => {
+  // P-D5: `/name` template expansion moved to the Unchain runtime.
+  // expandCommands is kept only for backward compatibility — it still
+  // detects command tokens via extractCommands (for routing / per-run pack
+  // selection), but it never rewrites the text: `body` is always exactly the
+  // original input and `templateLength` is always 0, even when a command
+  // declares a (now-unused) `expandsTo` template.
+
+  test("does not prepend the expandsTo template; returns the original text verbatim", () => {
     const { registerCommand, expandCommands } = loadCommandRegistryModule();
     registerCommand({
       name: "/plan",
@@ -399,27 +406,25 @@ describe("expandsTo & expandCommands", () => {
     });
     const { commands, body } = expandCommands("/plan build a todo app", {});
     expect(commands).toEqual([{ name: "/plan", channel: "", sourceToolkitId: "" }]);
-    expect(body).toBe(
-      "Draft a plan first and wait for confirmation.\n\nbuild a todo app",
-    );
+    expect(body).toBe("/plan build a todo app");
   });
 
-  test("non-expanding commands strip exactly like extractCommands", () => {
+  test("commands are still detected without stripping or altering the body", () => {
     const { expandCommands } = loadCommandRegistryModule();
     const { commands, body } = expandCommands("/fyi tests are green", {
       isStreaming: true,
     });
     expect(commands).toEqual([{ name: "/fyi", channel: "fyi", sourceToolkitId: "" }]);
-    expect(body).toBe("tests are green");
+    expect(body).toBe("/fyi tests are green");
   });
 
-  test("template-only message yields just the template", () => {
+  test("template-only message: body stays the raw token, templateLength is 0", () => {
     const { registerCommand, expandCommands } = loadCommandRegistryModule();
     registerCommand({ name: "/p", description: "p", expandsTo: "PLAN." });
     expect(expandCommands("/p", {})).toEqual({
       commands: [{ name: "/p", channel: "", sourceToolkitId: "" }],
-      body: "PLAN.",
-      templateLength: "PLAN.".length,
+      body: "/p",
+      templateLength: 0,
     });
   });
 
@@ -432,33 +437,30 @@ describe("expandsTo & expandCommands", () => {
     });
   });
 
-  test("templateLength aligns byte-for-byte with the expanded body prefix (contract §1.4)", () => {
+  test("templateLength is always 0 now that expansion moved to the runtime (contract §1.4)", () => {
     const { registerCommand, expandCommands } = loadCommandRegistryModule();
     registerCommand({ name: "/a", description: "a", expandsTo: "Alpha rules." });
     registerCommand({ name: "/b", description: "b", expandsTo: "Beta rules." });
 
-    // two templates + trailing user body
+    // multiple commands, none expanded — body is the untouched original text
     const r1 = expandCommands("/a /b do the thing", {});
-    expect(r1.body).toBe("Alpha rules.\n\nBeta rules.\n\ndo the thing");
-    // content.slice(0, templateLength) must be exactly the template prefix
-    expect(r1.body.slice(0, r1.templateLength)).toBe("Alpha rules.\n\nBeta rules.");
-    // and the user tail follows after one "\n\n" separator
-    expect(r1.body.slice(r1.templateLength)).toBe("\n\ndo the thing");
-    expect(r1.templateLength).toBeLessThanOrEqual(r1.body.length);
+    expect(r1.body).toBe("/a /b do the thing");
+    expect(r1.templateLength).toBe(0);
+    expect(r1.commands.map((c) => c.name)).toEqual(["/a", "/b"]);
 
-    // template-only: templateLength === content.length (no user tail)
+    // single command, still no expansion
     const r2 = expandCommands("/a", {});
-    expect(r2.body).toBe("Alpha rules.");
-    expect(r2.templateLength).toBe(r2.body.length);
+    expect(r2.body).toBe("/a");
+    expect(r2.templateLength).toBe(0);
   });
 
-  test("zero-template command contributes a command but templateLength 0", () => {
+  test("zero-template command contributes a command; body and templateLength unaffected", () => {
     const { registerCommand, expandCommands } = loadCommandRegistryModule();
-    // command with no expandsTo (empty template) still strips + reports
+    // command with no expandsTo (empty template) still reports for routing
     registerCommand({ name: "/z", description: "z", expandsTo: "" });
     const r = expandCommands("/z just the body", {});
     expect(r.commands).toEqual([{ name: "/z", channel: "", sourceToolkitId: "" }]);
-    expect(r.body).toBe("just the body");
+    expect(r.body).toBe("/z just the body");
     expect(r.templateLength).toBe(0);
   });
 });

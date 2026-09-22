@@ -55,6 +55,45 @@ describe("chat_storage composer sidecar passthrough", () => {
     );
   });
 
+  test("round-trips a zero-template composer unchanged (P-D5: expansion moved to the runtime, §1.4)", () => {
+    const store = getChatsStore();
+    const chatId = store.activeChatId;
+    // No client-side expansion any more: content is the rawText verbatim,
+    // and the composer's templateLength is always 0 — the contract already
+    // accepts this shape (sanitizeComposer only rejects templateLength < 0
+    // or > contentLength; 0 satisfies both).
+    const content = "/plan build the login flow";
+    const zeroTemplateComposer = {
+      v: 1,
+      rawText: content,
+      commands: [{ name: "/plan", sourceToolkitId: "demokit" }],
+      templateLength: 0,
+    };
+
+    setChatMessages(
+      chatId,
+      [
+        {
+          id: "user-zero-template",
+          role: "user",
+          content,
+          createdAt: 1000,
+          updatedAt: 1000,
+          composer: zeroTemplateComposer,
+        },
+      ],
+      { source: "test" },
+    );
+
+    const reloaded = getChatsStore();
+    const persisted = reloaded.chatsById[chatId].messages[0];
+
+    // accepted and preserved field-for-field — NOT rejected
+    expect(persisted.composer).toEqual(zeroTemplateComposer);
+    expect(persisted.composer.templateLength).toBe(0);
+    expect(persisted.content).toBe(content);
+  });
+
   test("messages without composer stay clean (no composer key injected)", () => {
     const store = getChatsStore();
     const chatId = store.activeChatId;

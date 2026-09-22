@@ -942,6 +942,42 @@ def chat_stream_v2() -> Response:
     )
 
 
+
+def _skill_inventory_stale_response(root, options: Dict[str, Any]):
+    """Ticket #291 BC-005: a send made against an outdated skill inventory is
+    refused (409 `skill_inventory_stale`) so the renderer refreshes and
+    re-sends, instead of a `/name` token silently resolving to another source.
+    Programmatic sends carry no revision and skip the check."""
+    from skills_inventory import resolve_skill_inventory, skills_options
+
+    include_user_dirs, expected_revision = skills_options(options)
+    if expected_revision is None:
+        return None
+    roots = root._resolve_workspace_roots(
+        root._extract_workspace_roots_from_options(options)
+    )
+    selected = options.get("toolkits")
+    inventory = resolve_skill_inventory(
+        workspace_root=roots[0] if roots else None,
+        include_user_dirs=include_user_dirs,
+        selected_toolkit_ids=[t for t in selected if isinstance(t, str)] if isinstance(selected, list) else (),
+    )
+    if inventory.revision == expected_revision:
+        return None
+    response = jsonify(
+        {
+            "error": {
+                "code": "skill_inventory_stale",
+                "message": "The skill inventory changed since it was loaded; refresh and resend.",
+                "expected_revision": expected_revision,
+                "current_revision": inventory.revision,
+            }
+        }
+    )
+    response.status_code = 409
+    return response
+
+
 @api_blueprint.post("/chat/stream/v4")
 def chat_stream_v4() -> Response:
     root = _root()
@@ -1061,6 +1097,11 @@ def chat_stream_v4() -> Response:
         )
     if continued_from_run_id:
         options["_run_bundle_continued_from_run_id"] = continued_from_run_id
+
+    if not resume_interaction:
+        stale_response = _skill_inventory_stale_response(root, options)
+        if stale_response is not None:
+            return stale_response
 
     memory_v2_requested_raw = payload.get("memory_v2_requested", False)
     if not isinstance(memory_v2_requested_raw, bool):

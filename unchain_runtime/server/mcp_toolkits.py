@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping
 
 import mcp_registry
+from skill_rows import normalize_skill_rows
 from mcp_managed_runtime import (
     McpManagedRuntimeError,
     resolve_managed_stdio_runtime,
@@ -1558,4 +1559,41 @@ def build_mcp_runtime_toolkit(
             connected._pupu_vault_redaction_values = vault_redaction_values
     except (AttributeError, TypeError):
         pass
+    _attach_record_skills(connected, record)
     return connected
+
+
+def _attach_record_skills(toolkit: Any, record: Dict[str, Any]) -> None:
+    """Expose the store entry's `[[skills]]` rows as `Toolkit.skills` (ticket #291).
+
+    Only a *selected* (connected) MCP toolkit reaches this point, so its
+    embedded skills participate exactly when its executable tools are
+    available. A non-PuPu toolkit object may reject the attribute; that is
+    not an error, it simply contributes no skills.
+    """
+    try:
+        from unchain.tools.models import SkillDescriptor  # submodule import: immune to lazy-export mocks
+    except ImportError:  # pragma: no cover - older runtime without skills
+        return
+    toolkit_id = str(record.get("toolkit_id") or "").strip()
+    descriptors = []
+    for row in normalize_skill_rows(record.get("skills")):
+        descriptors.append(
+            SkillDescriptor(
+                str(row["name"]),
+                str(row.get("description") or ""),
+                str(row["body"]),
+                tuple(str(tool) for tool in row.get("tools") or ()),
+                None,
+                model_invocable=bool(row.get("model_invocable", True)),
+                user_invocable=bool(row.get("user_invocable", True)),
+                metadata=dict(row.get("metadata") or {}),
+                aliases=tuple(str(alias) for alias in row.get("aliases") or ()),
+                source="toolkit",
+                source_id=toolkit_id,
+            )
+        )
+    try:
+        toolkit.skills = tuple(descriptors)
+    except (AttributeError, TypeError):
+        return

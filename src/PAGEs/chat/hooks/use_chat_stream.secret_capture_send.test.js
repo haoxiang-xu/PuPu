@@ -820,24 +820,28 @@ describe("Memory V2 P0 secret capture on send", () => {
     expect(storedActiveMessagesJson()).not.toContain(leakedValue);
   });
 
-  /* ── skill expansion: the guard's subject is the PRE-EXPANSION text ─────
-     The token binds to what the user reviewed. Composer plugin-skill
-     expansion happens AFTER the gate and splices in app-authored content, so
-     the final guard must scan the reviewed text, not the expanded body —
-     otherwise a skill whose template merely mentions a credential-shaped
-     example would refuse a send the user's own text never triggered. */
-  test("app skill expansion never false-positives the final guard", async () => {
+  /* ── P-D5: composer sends are verbatim, so secretGateText === outgoingText ─
+     The renderer no longer expands `/name` commands client-side — the
+     Unchain runtime resolves them itself, and buildComposerSend always sends
+     the user's accepted text VERBATIM. So the old "expanded body vs.
+     pre-expansion text" divergence the gate used to guard against no longer
+     exists: on a composer send, secretGateText (what the user reviewed) and
+     outgoingText (what actually goes out) are now the identical string. A
+     command whose (now-unused) `expandsTo` template merely mentions a
+     credential-shaped example must not affect the gate at all, because that
+     template is never spliced into the outgoing text any more. */
+  test("composer command sends go out verbatim; secretGateText === outgoingText", async () => {
     const PLUGIN_SOURCE = "plugin:leakykit";
-    // The TEMPLATE itself trips the scanner. It is app content, not the
-    // user's credential, and the user never saw or approved it.
-    const TEMPLATE = "Reference config: api_key=abcd1234efgh5678";
+    // `expandsTo` is a no-op now (kept only for the registry's own
+    // backward-compat shape) — the runtime, not the renderer, resolves
+    // whatever a `/leaky` invocation means server-side.
     registerCommand({
       name: "/leaky",
-      description: "Expands to credential-shaped app content",
+      description: "Runtime-resolved command; renderer performs no expansion",
       source: PLUGIN_SOURCE,
       sourceLabel: "Leakykit",
       sourceToolkitId: "leakykit",
-      expandsTo: TEMPLATE,
+      expandsTo: "Reference config: api_key=abcd1234efgh5678",
       availability: (ctx) => ctx.phase === "composer",
     });
     try {
@@ -845,7 +849,8 @@ describe("Memory V2 P0 secret capture on send", () => {
       renderChat();
       await waitForReady();
 
-      sendText("/leaky please check this");
+      const rawText = "/leaky please check this";
+      sendText(rawText);
 
       // The user's own text is clean, so no modal and no refusal.
       await waitFor(() => {
@@ -855,10 +860,11 @@ describe("Memory V2 P0 secret capture on send", () => {
       expect(lastChatInputProps.disclaimer || "").not.toContain(
         SECRET_CAPTURE_MESSAGES.secret_capture_gate_required,
       );
-      // The expanded app content went out untouched — the gate never
-      // rewrites content it did not show the user.
-      expect(window.unchainAPI.startStreamV2.mock.calls[0][0].message).toContain(
-        TEMPLATE,
+      // Verbatim, byte-for-byte: no client-side template splice — the
+      // outgoing message is exactly what the user typed and the gate
+      // reviewed (secretGateText === outgoingText === rawText).
+      expect(window.unchainAPI.startStreamV2.mock.calls[0][0].message).toBe(
+        rawText,
       );
       expect(window.memoryVaultAPI.deposit).not.toHaveBeenCalled();
     } finally {

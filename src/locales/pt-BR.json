@@ -580,6 +580,10 @@
       "context_usage": "Uso do contexto",
       "done": "Concluído",
       "drop_here": "Solte aqui para guardar"
+    },
+    "skill_inventory_stale": {
+      "title": "As habilidades mudaram",
+      "description": "As habilidades disponíveis foram atualizadas desde que você abriu este chat. A lista foi atualizada. Envie sua mensagem novamente."
     }
   },
   "toolkit": {

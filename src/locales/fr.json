@@ -580,6 +580,10 @@
       "context_usage": "Utilisation du contexte",
       "done": "Terminé",
       "drop_here": "Déposer ici pour ranger"
+    },
+    "skill_inventory_stale": {
+      "title": "Les compétences ont changé",
+      "description": "Les compétences disponibles ont été mises à jour depuis l’ouverture de cette conversation. La liste a été actualisée. Veuillez renvoyer votre message."
     }
   },
   "toolkit": {

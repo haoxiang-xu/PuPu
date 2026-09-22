@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
-import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
+import { extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
 import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
@@ -388,36 +389,39 @@ const isValidComposerForContent = (composer, contentLength) =>
       composer.templateLength <= contentLength,
   );
 
-/* Build the outgoing (expanded) text, the ephemeral per-run toolkit selection,
- * and the composer sidecar for a composer/edit send. `composer` is null unless
- * ≥1 command expanded (contract §2 write condition — a zero-template command
- * still counts, it contributes a chip). rawText is stored verbatim (pre-expand,
- * contract §1.2); commands are projected to {name, sourceToolkitId} preserving
- * token order and duplicates (§1.3). */
-const buildComposerSend = (rawText, selectedToolkits) => {
-  const expansion = expandCommands(rawText, {
+/* Build the outgoing text (VERBATIM — no client-side expansion; the Unchain
+ * runtime now resolves `/name` tokens itself and never rewrites the user's
+ * accepted message, contract §1.2/P-D5), the ephemeral per-run toolkit
+ * selection, and the composer sidecar for a composer/edit send.
+ * `extractCommands` is used ONLY to detect command tokens for routing and
+ * per-run pack selection — it never touches `outgoingText`, which is always
+ * exactly `rawText`. `composer` is null unless ≥1 command token was found
+ * (contract §2 write condition — a zero-template command still counts, it
+ * contributes a chip); its `templateLength` is always 0 now that expansion
+ * moved to the runtime (§1.4). commands are projected to
+ * {name, sourceToolkitId} preserving token order and duplicates (§1.3). */
+export const buildComposerSend = (rawText, selectedToolkits) => {
+  const outgoingText = typeof rawText === "string" ? rawText : "";
+  const { commands } = extractCommands(outgoingText, {
     isStreaming: false,
     selectedToolkits: Array.isArray(selectedToolkits) ? selectedToolkits : [],
   });
-  const outgoingText = (expansion.body || "").trim();
   const extraToolkits = [
-    ...new Set(
-      expansion.commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean),
-    ),
+    ...new Set(commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean)),
   ];
   const composer =
-    expansion.commands.length > 0
+    commands.length > 0
       ? {
           v: COMPOSER_SIDECAR_VERSION,
-          rawText,
-          commands: expansion.commands.map((cmd) => ({
+          rawText: outgoingText,
+          commands: commands.map((cmd) => ({
             name: cmd.name,
             sourceToolkitId:
               typeof cmd.sourceToolkitId === "string"
                 ? cmd.sourceToolkitId
                 : "",
           })),
-          templateLength: expansion.templateLength,
+          templateLength: 0,
         }
       : null;
   return { outgoingText, extraToolkits, composer };
@@ -446,6 +450,28 @@ const CUSTOM_PROVIDER_SEND_ERROR_KEYS = Object.freeze({
     description: "chat.custom_provider_error.disabled.description",
   },
 });
+
+/**
+ * Ticket #291 (BC-005): the sidecar refuses a send whose
+ * `options.skill_inventory_revision` no longer matches its inventory with
+ * `409 skill_inventory_stale`. Refresh the renderer's inventory (so the next
+ * send carries the current revision) and tell the user to resend — never
+ * silently resolve `/name` against a different source. Returns true when
+ * the error was this code.
+ */
+export const handleSkillInventoryStaleError = (error, translate) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  if (code !== "skill_inventory_stale") {
+    return false;
+  }
+  const t = typeof translate === "function" ? translate : (key) => key;
+  void resyncSkillInventory();
+  toast.error(t("chat.skill_inventory_stale.title"), {
+    description: t("chat.skill_inventory_stale.description"),
+    dedupeKey: "skill_inventory_stale",
+  });
+  return true;
+};
 
 /**
  * Fire an actionable toast for a custom-provider send-time error. No-op when
@@ -4723,13 +4749,16 @@ export const useChatStream = ({
          strictly before this call. Nothing is stored or redacted here; the
          only job is to prove the user reviewed this send.
 
-         The subject of the check is the PRE-EXPANSION text the user actually
-         saw (`secretGateText`), not `promptText`. Composer plugin-skill
-         expansion runs AFTER the gate and splices in app-authored content, so
-         scanning the expanded body here would fail closed on a skill's own
-         example credentials even though the user's own text was clean and
-         reviewed. Callers that pass no gated text fall back to promptText, so
-         an ungated programmatic path is refused rather than exempted. */
+         The subject of the check is `secretGateText` — the exact text the
+         user reviewed in the modal — not `promptText`. Composer sends no
+         longer diverge from what the user reviewed: buildComposerSend sends
+         the accepted text VERBATIM (no client-side command expansion; the
+         Unchain runtime resolves `/name` tokens itself), so on the
+         compose/edit paths `secretGateText` and `promptText` are now the
+         same string. The parameter stays separate because it is still the
+         exact binding the one-time token proves, and callers that pass no
+         gated text fall back to promptText, so an ungated programmatic path
+         is refused rather than exempted. */
       if (!isDurableResume && !secretGateSettled) {
         const gatedText =
           typeof secretGateText === "string" && secretGateText
@@ -8327,6 +8356,7 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              handleSkillInventoryStaleError(error, tRef.current);
               const hasAdmittedRunAccounting =
                 error?.[ADMITTED_RUN_ACCOUNTING_ERROR] === true;
               const admittedBundle =
@@ -8721,6 +8751,7 @@ export const useChatStream = ({
         // Surface an actionable toast instead of letting it fall into the
         // generic error bubble with no way forward.
         emitCustomProviderSendErrorToast(error, tRef.current);
+        handleSkillInventoryStaleError(error, tRef.current);
         if (scheduleDurableResumeRetry(error, nextMessages)) {
           cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);
@@ -12290,18 +12321,23 @@ export const useChatStream = ({
         return;
       }
 
-      // Composer plugin-skill expansion: only for text actually typed into
-      // the composer. Programmatic sends (interject new_run fallback / queue
-      // relay) already carry a resolved body — expanding them again would
-      // re-run command tokens that were already handled upstream, so they
-      // never carry a composer sidecar either.
+      // Composer command detection: only for text actually typed into the
+      // composer. buildComposerSend sends the accepted text VERBATIM — there
+      // is no client-side expansion any more; the Unchain runtime resolves
+      // `/name` tokens itself — and only uses detected command tokens to
+      // compute the ephemeral per-run toolkit selection and the composer
+      // sidecar. Programmatic sends (interject new_run fallback / queue
+      // relay) skip this entirely: their body is already resolved upstream,
+      // and re-scanning it here would just re-detect tokens already handled,
+      // so they never carry a composer sidecar either.
       let outgoingText = outgoingSource;
       let commandToolkits = [];
       let composer = null;
       if (!isProgrammaticSend) {
-        // buildComposerSend: expanded body + ephemeral per-run toolkit
-        // selection (using a plugin's command selects that plugin for THIS run
-        // only — never persisted to the session) + the presentation sidecar.
+        // buildComposerSend: verbatim outgoing text + ephemeral per-run
+        // toolkit selection (using a plugin's command selects that plugin for
+        // THIS run only — never persisted to the session) + the presentation
+        // sidecar (templateLength always 0 — expansion moved to the runtime).
         const built = buildComposerSend(
           outgoingSource,
           selectedToolkitsRef.current,
@@ -12311,7 +12347,11 @@ export const useChatStream = ({
         composer = built.composer;
       }
 
-      if (!outgoingText && !hasAttachments) {
+      // outgoingText is rawText verbatim now (contract §1.2, no trim), so a
+      // whitespace-only submission must be checked explicitly here instead of
+      // relying on falsy "".
+      const hasText = outgoingText.trim().length > 0;
+      if (!hasText && !hasAttachments) {
         return;
       }
 
@@ -13593,10 +13633,15 @@ export const useChatStream = ({
           );
         }
 
-        // The expanded edit and its sidecar are persisted in the outbox so a
-        // remount resumes the exact same operation, not a newly-resolved one.
+        // The edit's verbatim text and its sidecar are persisted in the
+        // outbox so a remount resumes the exact same operation, not a
+        // newly-resolved one.
         const built = buildComposerSend(editText, targetSelectedToolkits);
-        if (!built.outgoingText && originalAttachments.length === 0) {
+        // built.outgoingText is rawText verbatim (contract §1.2, no trim), so
+        // check for whitespace-only text explicitly, same as the compose
+        // path above.
+        const hasEditText = built.outgoingText.trim().length > 0;
+        if (!hasEditText && originalAttachments.length === 0) {
           setStreamErrorForChat(
             currentChatId,
             "This edit does not contain any text or usable attachments.",

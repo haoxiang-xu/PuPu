@@ -212,6 +212,12 @@ const CHANNELS = Object.freeze({
     GET_MODEL_CATALOG: "unchain:get-model-catalog",
     GET_TOOLKIT_CATALOG: "unchain:get-toolkit-catalog",
     LIST_TOOL_MODAL_CATALOG: "unchain:list-tool-modal-catalog",
+    // Ticket #291 P4 (BC-007): the renderer command menu's skill inventory —
+    // packs + workspace/user skill directories, fronted by the sidecar's
+    // GET /skills/inventory (schema pupu.skill_inventory.v1). Separate from
+    // LIST_TOOL_MODAL_CATALOG's toolkit-embedded skills on purpose: this
+    // inventory's `revision` is also what the per-send stale check compares.
+    GET_SKILL_INVENTORY: "unchain:get-skill-inventory",
     GET_TOOLKIT_DETAIL: "unchain:get-toolkit-detail",
     LIST_MCP_TOOLKITS: "unchain:list-mcp-toolkits",
     INSTALL_MCP_TOOLKIT: "unchain:install-mcp-toolkit",

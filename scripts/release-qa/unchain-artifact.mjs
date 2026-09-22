@@ -67,6 +67,14 @@ export const REQUIRED_RUNTIME_PROTOCOLS = Object.freeze({
     "run_bundle_v1",
     "run_bundle_v2",
   ]),
+  skills: Object.freeze([
+    "active_skills_snapshot_v1",
+    "catalog_v1",
+    "skill_md_registry_v1",
+    "skill_tool_v1",
+    "toolkit_embedded_skills_v1",
+    "user_invocation_v1",
+  ]),
 });
 const MANIFEST_DIGEST_DOMAIN =
   "unchain.runtime_protocol_manifest.v1\\u0000";

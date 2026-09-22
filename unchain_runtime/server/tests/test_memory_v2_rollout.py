@@ -6,7 +6,13 @@ from unittest import mock
 
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
-UNCHAIN_SRC = Path(__file__).resolve().parents[4] / "unchain" / "src"
+# Explicit UNCHAIN_SOURCE_PATH (pinned wheel) wins over the sibling checkout (#291).
+_EXPLICIT_UNCHAIN = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
+UNCHAIN_SRC = (
+    Path(_EXPLICIT_UNCHAIN)
+    if _EXPLICIT_UNCHAIN
+    else Path(__file__).resolve().parents[4] / "unchain" / "src"
+)
 for candidate in (SERVER_ROOT, UNCHAIN_SRC):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
