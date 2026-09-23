@@ -1,0 +1,238 @@
+{
+  "schema_version": 2,
+  "mode": "staggered-two-week-cohorts",
+  "repo": "haoxiang-xu/PuPu",
+  "status": "active",
+  "policy_corrected_at": "2026-09-22T21:27:30Z",
+  "authorization": "Owner clarified that A and B are two simultaneous groups within the 20 live topics, each held/reviewed for two weeks with a one-week offset. Optimize only part of the due group; retain good topics. This corrects the assistant's earlier whole-set alternation interpretation.",
+  "required_total_topics": 20,
+  "required_topics_per_group": 10,
+  "group_review_interval_days": 14,
+  "between_group_review_offset_days": 7,
+  "max_swaps_per_review": 5,
+  "preferred_swaps_per_review": [
+    1,
+    3
+  ],
+  "allow_zero_swaps": true,
+  "groups": {
+    "A": {
+      "revision": 1,
+      "topics": [
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "desktop-app",
+        "electron",
+        "llm",
+        "llm-ui",
+        "local-llm",
+        "mcp"
+      ],
+      "cohort_registered_at": "2026-09-22T21:27:30Z",
+      "latest_member_added_at": "2026-09-22T21:09:08Z",
+      "first_complete_observation_day_utc": "2026-09-23",
+      "next_review_due_utc": "2026-10-07T00:00:00Z",
+      "last_review_at": null,
+      "completed_reviews": 0,
+      "member_exposure": {
+        "agent-workspace": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
+        },
+        "ai-client": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
+        },
+        "ai-harness": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
+        },
+        "desktop-agent": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
+        },
+        "desktop-app": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
+        },
+        "electron": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
+        },
+        "llm": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
+        },
+        "llm-ui": {
+          "added_at": "2026-09-22T21:09:08Z",
+          "evidence": "2026-09-22-topics-change.md"
+        },
+        "local-llm": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
+        },
+        "mcp": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; subsequent membership snapshots"
+        }
+      }
+    },
+    "B": {
+      "revision": 1,
+      "topics": [
+        "agent-orchestration",
+        "anthropic",
+        "deepseek",
+        "llm-client",
+        "mcp-client",
+        "multi-agent",
+        "ollama",
+        "ollama-client",
+        "openai",
+        "self-hosted"
+      ],
+      "cohort_registered_at": "2026-09-22T21:27:30Z",
+      "historical_exposure_note": "All ten tags were already in the recorded September 8 applied set and subsequent snapshots; first review September 30 does not reduce their historical exposure to seven days. Group membership is bookkeeping introduced today, not a new GitHub application.",
+      "next_review_due_utc": "2026-09-30T00:00:00Z",
+      "last_review_at": null,
+      "completed_reviews": 0,
+      "member_exposure": {
+        "agent-orchestration": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "anthropic": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "deepseek": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "llm-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "mcp-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "multi-agent": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "ollama": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "ollama-client": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "openai": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "self-hosted": {
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        }
+      }
+    }
+  },
+  "live_topics": [
+    "agent-orchestration",
+    "agent-workspace",
+    "ai-client",
+    "ai-harness",
+    "anthropic",
+    "deepseek",
+    "desktop-agent",
+    "desktop-app",
+    "electron",
+    "llm",
+    "llm-client",
+    "llm-ui",
+    "local-llm",
+    "mcp",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
+  ],
+  "live_topics_last_applied_at": "2026-09-22T21:09:08Z",
+  "next_review_group": "B",
+  "next_review_due_utc": "2026-09-30T00:00:00Z",
+  "completed_reviews": 0,
+  "completed_topic_updates": 0,
+  "scheduler": {
+    "automation_id": "pupu-topics-cleanup-checkpoints",
+    "timezone": "America/Vancouver",
+    "daily_snapshot_local_time": "17:00",
+    "notes": "Daily 17:00 local corresponds to UTC midnight during daylight time. Scheduled reviews use the stored UTC due dates; preserve actual times, protect two-week topic exposure, and record delay or daylight-saving effects."
+  },
+  "planned_reviews": [
+    {
+      "group": "B",
+      "utc": "2026-09-30T00:00:00Z",
+      "vancouver_local": "2026-09-29 17:00"
+    },
+    {
+      "group": "A",
+      "utc": "2026-10-07T00:00:00Z",
+      "vancouver_local": "2026-10-06 17:00"
+    },
+    {
+      "group": "B",
+      "utc": "2026-10-14T00:00:00Z",
+      "vancouver_local": "2026-10-13 17:00"
+    },
+    {
+      "group": "A",
+      "utc": "2026-10-21T00:00:00Z",
+      "vancouver_local": "2026-10-20 17:00"
+    }
+  ],
+  "baseline_snapshot": "2026-09-22-topics-baseline.json",
+  "candidate_backlog": {
+    "research": {
+      "collected_at": "2026-09-22T21:20:50Z",
+      "repo_counts": {
+        "ai-workspace": 178,
+        "desktop-assistant": 321,
+        "ollama-ui": 90,
+        "ollama-gui": 182,
+        "local-ai": 5852
+      },
+      "projected_star_sort_positions_at_35_stars": {
+        "ai-workspace": "23–24",
+        "desktop-assistant": "13–14",
+        "ollama-ui": "17",
+        "ollama-gui": "24",
+        "local-ai": ">50"
+      },
+      "note": "Repository counts are ecosystem size, not search volume. Ranks are star-sort estimates, with ties bounded and >50 explicitly truncated."
+    },
+    "usage": "Research candidates only, not a predefined future B set. Remeasure and validate fit at a due review; select only justified replacements for that group."
+  },
+  "measurement_note": "Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations."
+}

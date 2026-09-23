@@ -1,0 +1,2387 @@
+{
+  "schema_version": 1,
+  "repo": "haoxiang-xu/PuPu",
+  "automation_id": "pupu-topics-cleanup-checkpoints",
+  "collected_at": "2026-09-23T00:00:58Z",
+  "collection_completed_at": "2026-09-23T00:02:47Z",
+  "local_date": "2026-09-22",
+  "local_timezone": "America/Vancouver",
+  "date_utc": "2026-09-23",
+  "phase": "daily-observation-before-first-review",
+  "cohorts": {
+    "A": {
+      "revision": 1,
+      "topics": [
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "desktop-app",
+        "electron",
+        "llm",
+        "llm-ui",
+        "local-llm",
+        "mcp"
+      ]
+    },
+    "B": {
+      "revision": 1,
+      "topics": [
+        "agent-orchestration",
+        "anthropic",
+        "deepseek",
+        "llm-client",
+        "mcp-client",
+        "multi-agent",
+        "ollama",
+        "ollama-client",
+        "openai",
+        "self-hosted"
+      ]
+    }
+  },
+  "live_topic_reconciliation": {
+    "expected_count": 20,
+    "actual_count": 20,
+    "matches": true,
+    "next_review_group": "B",
+    "next_review_due_utc": "2026-09-30T00:00:00Z",
+    "github_topics_changed": false,
+    "state_advanced": false
+  },
+  "coverage": {
+    "traffic_from_utc": "2026-09-08T00:00:00Z",
+    "traffic_through_utc": "2026-09-21T00:00:00Z",
+    "expected_last_complete_day_utc": "2026-09-22",
+    "missing_expected_day": "2026-09-22",
+    "note": "Traffic API still serves September 8–21 at midnight. Preserve this actual coverage; reporting delay means no completed post-change traffic day is yet observable. Backfill newer dated observations when GitHub provides them."
+  },
+  "overview": {
+    "id": 927432721,
+    "node_id": "R_kgDON0eAEQ",
+    "name": "PuPu",
+    "full_name": "haoxiang-xu/PuPu",
+    "private": false,
+    "owner": {
+      "login": "haoxiang-xu",
+      "id": 59581718,
+      "node_id": "MDQ6VXNlcjU5NTgxNzE4",
+      "avatar_url": "https://avatars.githubusercontent.com/u/59581718?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/haoxiang-xu",
+      "html_url": "https://github.com/haoxiang-xu",
+      "followers_url": "https://api.github.com/users/haoxiang-xu/followers",
+      "following_url": "https://api.github.com/users/haoxiang-xu/following{/other_user}",
+      "gists_url": "https://api.github.com/users/haoxiang-xu/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/haoxiang-xu/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/haoxiang-xu/subscriptions",
+      "organizations_url": "https://api.github.com/users/haoxiang-xu/orgs",
+      "repos_url": "https://api.github.com/users/haoxiang-xu/repos",
+      "events_url": "https://api.github.com/users/haoxiang-xu/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/haoxiang-xu/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "html_url": "https://github.com/haoxiang-xu/PuPu",
+    "description": "PuPu is a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. Whether you prefer running models on your own machine or connecting to providers like OpenAI and Anthropic, PuPu gives you a unified, elegant interface — your AI, your rules.",
+    "fork": false,
+    "url": "https://api.github.com/repos/haoxiang-xu/PuPu",
+    "forks_url": "https://api.github.com/repos/haoxiang-xu/PuPu/forks",
+    "keys_url": "https://api.github.com/repos/haoxiang-xu/PuPu/keys{/key_id}",
+    "collaborators_url": "https://api.github.com/repos/haoxiang-xu/PuPu/collaborators{/collaborator}",
+    "teams_url": "https://api.github.com/repos/haoxiang-xu/PuPu/teams",
+    "hooks_url": "https://api.github.com/repos/haoxiang-xu/PuPu/hooks",
+    "issue_events_url": "https://api.github.com/repos/haoxiang-xu/PuPu/issues/events{/number}",
+    "events_url": "https://api.github.com/repos/haoxiang-xu/PuPu/events",
+    "assignees_url": "https://api.github.com/repos/haoxiang-xu/PuPu/assignees{/user}",
+    "branches_url": "https://api.github.com/repos/haoxiang-xu/PuPu/branches{/branch}",
+    "tags_url": "https://api.github.com/repos/haoxiang-xu/PuPu/tags",
+    "blobs_url": "https://api.github.com/repos/haoxiang-xu/PuPu/git/blobs{/sha}",
+    "git_tags_url": "https://api.github.com/repos/haoxiang-xu/PuPu/git/tags{/sha}",
+    "git_refs_url": "https://api.github.com/repos/haoxiang-xu/PuPu/git/refs{/sha}",
+    "trees_url": "https://api.github.com/repos/haoxiang-xu/PuPu/git/trees{/sha}",
+    "statuses_url": "https://api.github.com/repos/haoxiang-xu/PuPu/statuses/{sha}",
+    "languages_url": "https://api.github.com/repos/haoxiang-xu/PuPu/languages",
+    "stargazers_url": "https://api.github.com/repos/haoxiang-xu/PuPu/stargazers",
+    "contributors_url": "https://api.github.com/repos/haoxiang-xu/PuPu/contributors",
+    "subscribers_url": "https://api.github.com/repos/haoxiang-xu/PuPu/subscribers",
+    "subscription_url": "https://api.github.com/repos/haoxiang-xu/PuPu/subscription",
+    "commits_url": "https://api.github.com/repos/haoxiang-xu/PuPu/commits{/sha}",
+    "git_commits_url": "https://api.github.com/repos/haoxiang-xu/PuPu/git/commits{/sha}",
+    "comments_url": "https://api.github.com/repos/haoxiang-xu/PuPu/comments{/number}",
+    "issue_comment_url": "https://api.github.com/repos/haoxiang-xu/PuPu/issues/comments{/number}",
+    "contents_url": "https://api.github.com/repos/haoxiang-xu/PuPu/contents/{+path}",
+    "compare_url": "https://api.github.com/repos/haoxiang-xu/PuPu/compare/{base}...{head}",
+    "merges_url": "https://api.github.com/repos/haoxiang-xu/PuPu/merges",
+    "archive_url": "https://api.github.com/repos/haoxiang-xu/PuPu/{archive_format}{/ref}",
+    "downloads_url": "https://api.github.com/repos/haoxiang-xu/PuPu/downloads",
+    "issues_url": "https://api.github.com/repos/haoxiang-xu/PuPu/issues{/number}",
+    "pulls_url": "https://api.github.com/repos/haoxiang-xu/PuPu/pulls{/number}",
+    "milestones_url": "https://api.github.com/repos/haoxiang-xu/PuPu/milestones{/number}",
+    "notifications_url": "https://api.github.com/repos/haoxiang-xu/PuPu/notifications{?since,all,participating}",
+    "labels_url": "https://api.github.com/repos/haoxiang-xu/PuPu/labels{/name}",
+    "releases_url": "https://api.github.com/repos/haoxiang-xu/PuPu/releases{/id}",
+    "deployments_url": "https://api.github.com/repos/haoxiang-xu/PuPu/deployments",
+    "created_at": "2025-02-05T00:10:52Z",
+    "updated_at": "2026-09-22T21:09:07Z",
+    "pushed_at": "2026-09-22T21:12:36Z",
+    "git_url": "git://github.com/haoxiang-xu/PuPu.git",
+    "ssh_url": "git@github.com:haoxiang-xu/PuPu.git",
+    "clone_url": "https://github.com/haoxiang-xu/PuPu.git",
+    "svn_url": "https://github.com/haoxiang-xu/PuPu",
+    "homepage": "",
+    "size": 291316,
+    "stargazers_count": 35,
+    "watchers_count": 35,
+    "language": "JavaScript",
+    "has_issues": true,
+    "has_projects": true,
+    "has_downloads": false,
+    "has_wiki": false,
+    "has_pages": false,
+    "has_discussions": false,
+    "forks_count": 7,
+    "mirror_url": null,
+    "archived": false,
+    "disabled": false,
+    "open_issues_count": 73,
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "spdx_id": "Apache-2.0",
+      "url": "https://api.github.com/licenses/apache-2.0",
+      "node_id": "MDc6TGljZW5zZTI="
+    },
+    "allow_forking": true,
+    "is_template": false,
+    "web_commit_signoff_required": false,
+    "has_pull_requests": true,
+    "pull_request_creation_policy": "all",
+    "topics": [
+      "agent-orchestration",
+      "agent-workspace",
+      "ai-client",
+      "ai-harness",
+      "anthropic",
+      "deepseek",
+      "desktop-agent",
+      "desktop-app",
+      "electron",
+      "llm",
+      "llm-client",
+      "llm-ui",
+      "local-llm",
+      "mcp",
+      "mcp-client",
+      "multi-agent",
+      "ollama",
+      "ollama-client",
+      "openai",
+      "self-hosted"
+    ],
+    "visibility": "public",
+    "forks": 7,
+    "open_issues": 73,
+    "watchers": 35,
+    "default_branch": "main",
+    "permissions": {
+      "admin": true,
+      "maintain": true,
+      "push": true,
+      "triage": true,
+      "pull": true
+    },
+    "temp_clone_token": "",
+    "allow_squash_merge": true,
+    "allow_merge_commit": true,
+    "allow_rebase_merge": true,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": false,
+    "allow_update_branch": false,
+    "use_squash_pr_title_as_default": false,
+    "squash_merge_commit_message": "COMMIT_MESSAGES",
+    "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+    "merge_commit_message": "PR_TITLE",
+    "merge_commit_title": "MERGE_MESSAGE",
+    "security_and_analysis": {
+      "secret_scanning": {
+        "status": "enabled"
+      },
+      "secret_scanning_push_protection": {
+        "status": "enabled"
+      },
+      "dependabot_security_updates": {
+        "status": "disabled"
+      },
+      "secret_scanning_non_provider_patterns": {
+        "status": "disabled"
+      },
+      "secret_scanning_validity_checks": {
+        "status": "disabled"
+      }
+    },
+    "network_count": 7,
+    "subscribers_count": 0
+  },
+  "views": {
+    "count": 1150,
+    "uniques": 94,
+    "views": [
+      {
+        "timestamp": "2026-09-08T00:00:00Z",
+        "count": 70,
+        "uniques": 4
+      },
+      {
+        "timestamp": "2026-09-09T00:00:00Z",
+        "count": 114,
+        "uniques": 14
+      },
+      {
+        "timestamp": "2026-09-10T00:00:00Z",
+        "count": 35,
+        "uniques": 11
+      },
+      {
+        "timestamp": "2026-09-11T00:00:00Z",
+        "count": 14,
+        "uniques": 6
+      },
+      {
+        "timestamp": "2026-09-12T00:00:00Z",
+        "count": 168,
+        "uniques": 7
+      },
+      {
+        "timestamp": "2026-09-13T00:00:00Z",
+        "count": 141,
+        "uniques": 7
+      },
+      {
+        "timestamp": "2026-09-14T00:00:00Z",
+        "count": 41,
+        "uniques": 5
+      },
+      {
+        "timestamp": "2026-09-15T00:00:00Z",
+        "count": 138,
+        "uniques": 10
+      },
+      {
+        "timestamp": "2026-09-16T00:00:00Z",
+        "count": 44,
+        "uniques": 8
+      },
+      {
+        "timestamp": "2026-09-17T00:00:00Z",
+        "count": 79,
+        "uniques": 16
+      },
+      {
+        "timestamp": "2026-09-18T00:00:00Z",
+        "count": 56,
+        "uniques": 9
+      },
+      {
+        "timestamp": "2026-09-19T00:00:00Z",
+        "count": 158,
+        "uniques": 9
+      },
+      {
+        "timestamp": "2026-09-20T00:00:00Z",
+        "count": 29,
+        "uniques": 8
+      },
+      {
+        "timestamp": "2026-09-21T00:00:00Z",
+        "count": 63,
+        "uniques": 10
+      }
+    ]
+  },
+  "clones": {
+    "count": 3739,
+    "uniques": 342,
+    "clones": [
+      {
+        "timestamp": "2026-09-08T00:00:00Z",
+        "count": 97,
+        "uniques": 16
+      },
+      {
+        "timestamp": "2026-09-09T00:00:00Z",
+        "count": 48,
+        "uniques": 24
+      },
+      {
+        "timestamp": "2026-09-10T00:00:00Z",
+        "count": 33,
+        "uniques": 23
+      },
+      {
+        "timestamp": "2026-09-11T00:00:00Z",
+        "count": 1108,
+        "uniques": 23
+      },
+      {
+        "timestamp": "2026-09-12T00:00:00Z",
+        "count": 159,
+        "uniques": 68
+      },
+      {
+        "timestamp": "2026-09-13T00:00:00Z",
+        "count": 193,
+        "uniques": 38
+      },
+      {
+        "timestamp": "2026-09-14T00:00:00Z",
+        "count": 27,
+        "uniques": 17
+      },
+      {
+        "timestamp": "2026-09-15T00:00:00Z",
+        "count": 297,
+        "uniques": 36
+      },
+      {
+        "timestamp": "2026-09-16T00:00:00Z",
+        "count": 135,
+        "uniques": 25
+      },
+      {
+        "timestamp": "2026-09-17T00:00:00Z",
+        "count": 83,
+        "uniques": 12
+      },
+      {
+        "timestamp": "2026-09-18T00:00:00Z",
+        "count": 1030,
+        "uniques": 36
+      },
+      {
+        "timestamp": "2026-09-19T00:00:00Z",
+        "count": 234,
+        "uniques": 51
+      },
+      {
+        "timestamp": "2026-09-20T00:00:00Z",
+        "count": 168,
+        "uniques": 39
+      },
+      {
+        "timestamp": "2026-09-21T00:00:00Z",
+        "count": 127,
+        "uniques": 57
+      }
+    ]
+  },
+  "referrers": [
+    {
+      "referrer": "github.com",
+      "count": 63,
+      "uniques": 10
+    },
+    {
+      "referrer": "yandex.com",
+      "count": 18,
+      "uniques": 17
+    },
+    {
+      "referrer": "Google",
+      "count": 13,
+      "uniques": 11
+    },
+    {
+      "referrer": "Bing",
+      "count": 11,
+      "uniques": 9
+    },
+    {
+      "referrer": "chatgpt.com",
+      "count": 2,
+      "uniques": 2
+    },
+    {
+      "referrer": "wap.yandex.com",
+      "count": 2,
+      "uniques": 2
+    },
+    {
+      "referrer": "es.beruby.com",
+      "count": 2,
+      "uniques": 1
+    },
+    {
+      "referrer": "DuckDuckGo",
+      "count": 1,
+      "uniques": 1
+    },
+    {
+      "referrer": "online.yandex.com",
+      "count": 1,
+      "uniques": 1
+    },
+    {
+      "referrer": "search.brave.com",
+      "count": 1,
+      "uniques": 1
+    }
+  ],
+  "paths": [
+    {
+      "path": "/haoxiang-xu/PuPu",
+      "title": "Overview",
+      "count": 291,
+      "uniques": 74
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/releases",
+      "title": "/releases",
+      "count": 91,
+      "uniques": 2
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/actions",
+      "title": "/actions",
+      "count": 61,
+      "uniques": 1
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/actions/workflows/release-qa.yml",
+      "title": "/actions/workflows/release-qa.yml",
+      "count": 53,
+      "uniques": 1
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/pulls",
+      "title": "/pulls",
+      "count": 48,
+      "uniques": 5
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/issues",
+      "title": "/issues",
+      "count": 45,
+      "uniques": 4
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/graphs/traffic",
+      "title": "/graphs/traffic",
+      "count": 28,
+      "uniques": 1
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/releases/tag/v0.1.10",
+      "title": "/releases/tag/v0.1.10",
+      "count": 26,
+      "uniques": 5
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/pulse",
+      "title": "/pulse",
+      "count": 26,
+      "uniques": 1
+    },
+    {
+      "path": "/haoxiang-xu/PuPu/issues/186",
+      "title": "/issues/186",
+      "count": 23,
+      "uniques": 3
+    }
+  ],
+  "stargazers": [
+    {
+      "starred_at": "2025-02-13T05:46:01Z",
+      "user": {
+        "login": "zxp19821005",
+        "id": 4915850,
+        "node_id": "MDQ6VXNlcjQ5MTU4NTA=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/4915850?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/zxp19821005",
+        "html_url": "https://github.com/zxp19821005",
+        "followers_url": "https://api.github.com/users/zxp19821005/followers",
+        "following_url": "https://api.github.com/users/zxp19821005/following{/other_user}",
+        "gists_url": "https://api.github.com/users/zxp19821005/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/zxp19821005/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/zxp19821005/subscriptions",
+        "organizations_url": "https://api.github.com/users/zxp19821005/orgs",
+        "repos_url": "https://api.github.com/users/zxp19821005/repos",
+        "events_url": "https://api.github.com/users/zxp19821005/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/zxp19821005/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-14T06:20:00Z",
+      "user": {
+        "login": "haoxiang-xu",
+        "id": 59581718,
+        "node_id": "MDQ6VXNlcjU5NTgxNzE4",
+        "avatar_url": "https://avatars.githubusercontent.com/u/59581718?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/haoxiang-xu",
+        "html_url": "https://github.com/haoxiang-xu",
+        "followers_url": "https://api.github.com/users/haoxiang-xu/followers",
+        "following_url": "https://api.github.com/users/haoxiang-xu/following{/other_user}",
+        "gists_url": "https://api.github.com/users/haoxiang-xu/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/haoxiang-xu/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/haoxiang-xu/subscriptions",
+        "organizations_url": "https://api.github.com/users/haoxiang-xu/orgs",
+        "repos_url": "https://api.github.com/users/haoxiang-xu/repos",
+        "events_url": "https://api.github.com/users/haoxiang-xu/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/haoxiang-xu/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-25T00:54:26Z",
+      "user": {
+        "login": "Dominiquini",
+        "id": 1180808,
+        "node_id": "MDQ6VXNlcjExODA4MDg=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/1180808?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Dominiquini",
+        "html_url": "https://github.com/Dominiquini",
+        "followers_url": "https://api.github.com/users/Dominiquini/followers",
+        "following_url": "https://api.github.com/users/Dominiquini/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Dominiquini/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Dominiquini/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Dominiquini/subscriptions",
+        "organizations_url": "https://api.github.com/users/Dominiquini/orgs",
+        "repos_url": "https://api.github.com/users/Dominiquini/repos",
+        "events_url": "https://api.github.com/users/Dominiquini/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Dominiquini/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-26T19:44:17Z",
+      "user": {
+        "login": "TenTen-Teng",
+        "id": 18547241,
+        "node_id": "MDQ6VXNlcjE4NTQ3MjQx",
+        "avatar_url": "https://avatars.githubusercontent.com/u/18547241?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/TenTen-Teng",
+        "html_url": "https://github.com/TenTen-Teng",
+        "followers_url": "https://api.github.com/users/TenTen-Teng/followers",
+        "following_url": "https://api.github.com/users/TenTen-Teng/following{/other_user}",
+        "gists_url": "https://api.github.com/users/TenTen-Teng/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/TenTen-Teng/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/TenTen-Teng/subscriptions",
+        "organizations_url": "https://api.github.com/users/TenTen-Teng/orgs",
+        "repos_url": "https://api.github.com/users/TenTen-Teng/repos",
+        "events_url": "https://api.github.com/users/TenTen-Teng/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/TenTen-Teng/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-26T21:50:27Z",
+      "user": {
+        "login": "skywalker007-cpu",
+        "id": 77311885,
+        "node_id": "MDQ6VXNlcjc3MzExODg1",
+        "avatar_url": "https://avatars.githubusercontent.com/u/77311885?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/skywalker007-cpu",
+        "html_url": "https://github.com/skywalker007-cpu",
+        "followers_url": "https://api.github.com/users/skywalker007-cpu/followers",
+        "following_url": "https://api.github.com/users/skywalker007-cpu/following{/other_user}",
+        "gists_url": "https://api.github.com/users/skywalker007-cpu/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/skywalker007-cpu/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/skywalker007-cpu/subscriptions",
+        "organizations_url": "https://api.github.com/users/skywalker007-cpu/orgs",
+        "repos_url": "https://api.github.com/users/skywalker007-cpu/repos",
+        "events_url": "https://api.github.com/users/skywalker007-cpu/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/skywalker007-cpu/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-26T21:53:26Z",
+      "user": {
+        "login": "tianyi-xia1",
+        "id": 180343291,
+        "node_id": "U_kgDOCr_R-w",
+        "avatar_url": "https://avatars.githubusercontent.com/u/180343291?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/tianyi-xia1",
+        "html_url": "https://github.com/tianyi-xia1",
+        "followers_url": "https://api.github.com/users/tianyi-xia1/followers",
+        "following_url": "https://api.github.com/users/tianyi-xia1/following{/other_user}",
+        "gists_url": "https://api.github.com/users/tianyi-xia1/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/tianyi-xia1/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/tianyi-xia1/subscriptions",
+        "organizations_url": "https://api.github.com/users/tianyi-xia1/orgs",
+        "repos_url": "https://api.github.com/users/tianyi-xia1/repos",
+        "events_url": "https://api.github.com/users/tianyi-xia1/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/tianyi-xia1/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-26T21:54:30Z",
+      "user": {
+        "login": "litaozheng",
+        "id": 99528961,
+        "node_id": "U_kgDOBe6xAQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/99528961?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/litaozheng",
+        "html_url": "https://github.com/litaozheng",
+        "followers_url": "https://api.github.com/users/litaozheng/followers",
+        "following_url": "https://api.github.com/users/litaozheng/following{/other_user}",
+        "gists_url": "https://api.github.com/users/litaozheng/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/litaozheng/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/litaozheng/subscriptions",
+        "organizations_url": "https://api.github.com/users/litaozheng/orgs",
+        "repos_url": "https://api.github.com/users/litaozheng/repos",
+        "events_url": "https://api.github.com/users/litaozheng/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/litaozheng/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-02-28T01:49:13Z",
+      "user": {
+        "login": "Steven-Wu-313",
+        "id": 180328566,
+        "node_id": "U_kgDOCr-Ydg",
+        "avatar_url": "https://avatars.githubusercontent.com/u/180328566?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Steven-Wu-313",
+        "html_url": "https://github.com/Steven-Wu-313",
+        "followers_url": "https://api.github.com/users/Steven-Wu-313/followers",
+        "following_url": "https://api.github.com/users/Steven-Wu-313/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Steven-Wu-313/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Steven-Wu-313/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Steven-Wu-313/subscriptions",
+        "organizations_url": "https://api.github.com/users/Steven-Wu-313/orgs",
+        "repos_url": "https://api.github.com/users/Steven-Wu-313/repos",
+        "events_url": "https://api.github.com/users/Steven-Wu-313/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Steven-Wu-313/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-03-06T20:32:32Z",
+      "user": {
+        "login": "mvandermeulen",
+        "id": 14543143,
+        "node_id": "MDQ6VXNlcjE0NTQzMTQz",
+        "avatar_url": "https://avatars.githubusercontent.com/u/14543143?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/mvandermeulen",
+        "html_url": "https://github.com/mvandermeulen",
+        "followers_url": "https://api.github.com/users/mvandermeulen/followers",
+        "following_url": "https://api.github.com/users/mvandermeulen/following{/other_user}",
+        "gists_url": "https://api.github.com/users/mvandermeulen/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/mvandermeulen/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/mvandermeulen/subscriptions",
+        "organizations_url": "https://api.github.com/users/mvandermeulen/orgs",
+        "repos_url": "https://api.github.com/users/mvandermeulen/repos",
+        "events_url": "https://api.github.com/users/mvandermeulen/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/mvandermeulen/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-05-11T05:53:54Z",
+      "user": {
+        "login": "gorge726",
+        "id": 203708576,
+        "node_id": "U_kgDODCRYoA",
+        "avatar_url": "https://avatars.githubusercontent.com/u/203708576?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/gorge726",
+        "html_url": "https://github.com/gorge726",
+        "followers_url": "https://api.github.com/users/gorge726/followers",
+        "following_url": "https://api.github.com/users/gorge726/following{/other_user}",
+        "gists_url": "https://api.github.com/users/gorge726/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/gorge726/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/gorge726/subscriptions",
+        "organizations_url": "https://api.github.com/users/gorge726/orgs",
+        "repos_url": "https://api.github.com/users/gorge726/repos",
+        "events_url": "https://api.github.com/users/gorge726/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/gorge726/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-06-12T22:15:56Z",
+      "user": {
+        "login": "pabloandreotti",
+        "id": 8776796,
+        "node_id": "MDQ6VXNlcjg3NzY3OTY=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/8776796?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/pabloandreotti",
+        "html_url": "https://github.com/pabloandreotti",
+        "followers_url": "https://api.github.com/users/pabloandreotti/followers",
+        "following_url": "https://api.github.com/users/pabloandreotti/following{/other_user}",
+        "gists_url": "https://api.github.com/users/pabloandreotti/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/pabloandreotti/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/pabloandreotti/subscriptions",
+        "organizations_url": "https://api.github.com/users/pabloandreotti/orgs",
+        "repos_url": "https://api.github.com/users/pabloandreotti/repos",
+        "events_url": "https://api.github.com/users/pabloandreotti/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/pabloandreotti/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-06-18T00:12:20Z",
+      "user": {
+        "login": "mushkalo",
+        "id": 39016087,
+        "node_id": "MDQ6VXNlcjM5MDE2MDg3",
+        "avatar_url": "https://avatars.githubusercontent.com/u/39016087?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/mushkalo",
+        "html_url": "https://github.com/mushkalo",
+        "followers_url": "https://api.github.com/users/mushkalo/followers",
+        "following_url": "https://api.github.com/users/mushkalo/following{/other_user}",
+        "gists_url": "https://api.github.com/users/mushkalo/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/mushkalo/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/mushkalo/subscriptions",
+        "organizations_url": "https://api.github.com/users/mushkalo/orgs",
+        "repos_url": "https://api.github.com/users/mushkalo/repos",
+        "events_url": "https://api.github.com/users/mushkalo/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/mushkalo/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-08-13T09:46:45Z",
+      "user": {
+        "login": "adityavijay21",
+        "id": 79340120,
+        "node_id": "MDQ6VXNlcjc5MzQwMTIw",
+        "avatar_url": "https://avatars.githubusercontent.com/u/79340120?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/adityavijay21",
+        "html_url": "https://github.com/adityavijay21",
+        "followers_url": "https://api.github.com/users/adityavijay21/followers",
+        "following_url": "https://api.github.com/users/adityavijay21/following{/other_user}",
+        "gists_url": "https://api.github.com/users/adityavijay21/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/adityavijay21/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/adityavijay21/subscriptions",
+        "organizations_url": "https://api.github.com/users/adityavijay21/orgs",
+        "repos_url": "https://api.github.com/users/adityavijay21/repos",
+        "events_url": "https://api.github.com/users/adityavijay21/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/adityavijay21/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-08-27T11:41:23Z",
+      "user": {
+        "login": "kybeq",
+        "id": 173198766,
+        "node_id": "U_kgDOClLNrg",
+        "avatar_url": "https://avatars.githubusercontent.com/u/173198766?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/kybeq",
+        "html_url": "https://github.com/kybeq",
+        "followers_url": "https://api.github.com/users/kybeq/followers",
+        "following_url": "https://api.github.com/users/kybeq/following{/other_user}",
+        "gists_url": "https://api.github.com/users/kybeq/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/kybeq/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/kybeq/subscriptions",
+        "organizations_url": "https://api.github.com/users/kybeq/orgs",
+        "repos_url": "https://api.github.com/users/kybeq/repos",
+        "events_url": "https://api.github.com/users/kybeq/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/kybeq/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-09-08T05:27:29Z",
+      "user": {
+        "login": "deltacodepl",
+        "id": 42242846,
+        "node_id": "MDQ6VXNlcjQyMjQyODQ2",
+        "avatar_url": "https://avatars.githubusercontent.com/u/42242846?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/deltacodepl",
+        "html_url": "https://github.com/deltacodepl",
+        "followers_url": "https://api.github.com/users/deltacodepl/followers",
+        "following_url": "https://api.github.com/users/deltacodepl/following{/other_user}",
+        "gists_url": "https://api.github.com/users/deltacodepl/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/deltacodepl/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/deltacodepl/subscriptions",
+        "organizations_url": "https://api.github.com/users/deltacodepl/orgs",
+        "repos_url": "https://api.github.com/users/deltacodepl/repos",
+        "events_url": "https://api.github.com/users/deltacodepl/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/deltacodepl/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-09-22T15:33:23Z",
+      "user": {
+        "login": "he66al",
+        "id": 52349539,
+        "node_id": "MDQ6VXNlcjUyMzQ5NTM5",
+        "avatar_url": "https://avatars.githubusercontent.com/u/52349539?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/he66al",
+        "html_url": "https://github.com/he66al",
+        "followers_url": "https://api.github.com/users/he66al/followers",
+        "following_url": "https://api.github.com/users/he66al/following{/other_user}",
+        "gists_url": "https://api.github.com/users/he66al/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/he66al/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/he66al/subscriptions",
+        "organizations_url": "https://api.github.com/users/he66al/orgs",
+        "repos_url": "https://api.github.com/users/he66al/repos",
+        "events_url": "https://api.github.com/users/he66al/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/he66al/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-10-10T19:34:42Z",
+      "user": {
+        "login": "thunderkatalyst",
+        "id": 52107291,
+        "node_id": "MDQ6VXNlcjUyMTA3Mjkx",
+        "avatar_url": "https://avatars.githubusercontent.com/u/52107291?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/thunderkatalyst",
+        "html_url": "https://github.com/thunderkatalyst",
+        "followers_url": "https://api.github.com/users/thunderkatalyst/followers",
+        "following_url": "https://api.github.com/users/thunderkatalyst/following{/other_user}",
+        "gists_url": "https://api.github.com/users/thunderkatalyst/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/thunderkatalyst/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/thunderkatalyst/subscriptions",
+        "organizations_url": "https://api.github.com/users/thunderkatalyst/orgs",
+        "repos_url": "https://api.github.com/users/thunderkatalyst/repos",
+        "events_url": "https://api.github.com/users/thunderkatalyst/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/thunderkatalyst/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-11-15T15:01:13Z",
+      "user": {
+        "login": "creekpld",
+        "id": 4295327,
+        "node_id": "MDQ6VXNlcjQyOTUzMjc=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/4295327?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/creekpld",
+        "html_url": "https://github.com/creekpld",
+        "followers_url": "https://api.github.com/users/creekpld/followers",
+        "following_url": "https://api.github.com/users/creekpld/following{/other_user}",
+        "gists_url": "https://api.github.com/users/creekpld/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/creekpld/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/creekpld/subscriptions",
+        "organizations_url": "https://api.github.com/users/creekpld/orgs",
+        "repos_url": "https://api.github.com/users/creekpld/repos",
+        "events_url": "https://api.github.com/users/creekpld/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/creekpld/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2025-12-11T01:03:12Z",
+      "user": {
+        "login": "BenitoJedai",
+        "id": 11005402,
+        "node_id": "MDQ6VXNlcjExMDA1NDAy",
+        "avatar_url": "https://avatars.githubusercontent.com/u/11005402?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/BenitoJedai",
+        "html_url": "https://github.com/BenitoJedai",
+        "followers_url": "https://api.github.com/users/BenitoJedai/followers",
+        "following_url": "https://api.github.com/users/BenitoJedai/following{/other_user}",
+        "gists_url": "https://api.github.com/users/BenitoJedai/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/BenitoJedai/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/BenitoJedai/subscriptions",
+        "organizations_url": "https://api.github.com/users/BenitoJedai/orgs",
+        "repos_url": "https://api.github.com/users/BenitoJedai/repos",
+        "events_url": "https://api.github.com/users/BenitoJedai/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/BenitoJedai/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-01-02T01:54:59Z",
+      "user": {
+        "login": "Heywaht",
+        "id": 62307852,
+        "node_id": "MDQ6VXNlcjYyMzA3ODUy",
+        "avatar_url": "https://avatars.githubusercontent.com/u/62307852?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Heywaht",
+        "html_url": "https://github.com/Heywaht",
+        "followers_url": "https://api.github.com/users/Heywaht/followers",
+        "following_url": "https://api.github.com/users/Heywaht/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Heywaht/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Heywaht/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Heywaht/subscriptions",
+        "organizations_url": "https://api.github.com/users/Heywaht/orgs",
+        "repos_url": "https://api.github.com/users/Heywaht/repos",
+        "events_url": "https://api.github.com/users/Heywaht/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Heywaht/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-01-20T02:44:26Z",
+      "user": {
+        "login": "okikio",
+        "id": 17222836,
+        "node_id": "MDQ6VXNlcjE3MjIyODM2",
+        "avatar_url": "https://avatars.githubusercontent.com/u/17222836?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/okikio",
+        "html_url": "https://github.com/okikio",
+        "followers_url": "https://api.github.com/users/okikio/followers",
+        "following_url": "https://api.github.com/users/okikio/following{/other_user}",
+        "gists_url": "https://api.github.com/users/okikio/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/okikio/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/okikio/subscriptions",
+        "organizations_url": "https://api.github.com/users/okikio/orgs",
+        "repos_url": "https://api.github.com/users/okikio/repos",
+        "events_url": "https://api.github.com/users/okikio/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/okikio/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-03-13T07:46:16Z",
+      "user": {
+        "login": "animaroy911",
+        "id": 35328363,
+        "node_id": "MDQ6VXNlcjM1MzI4MzYz",
+        "avatar_url": "https://avatars.githubusercontent.com/u/35328363?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/animaroy911",
+        "html_url": "https://github.com/animaroy911",
+        "followers_url": "https://api.github.com/users/animaroy911/followers",
+        "following_url": "https://api.github.com/users/animaroy911/following{/other_user}",
+        "gists_url": "https://api.github.com/users/animaroy911/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/animaroy911/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/animaroy911/subscriptions",
+        "organizations_url": "https://api.github.com/users/animaroy911/orgs",
+        "repos_url": "https://api.github.com/users/animaroy911/repos",
+        "events_url": "https://api.github.com/users/animaroy911/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/animaroy911/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-03-23T23:49:08Z",
+      "user": {
+        "login": "ankunhou",
+        "id": 136665087,
+        "node_id": "U_kgDOCCVX_w",
+        "avatar_url": "https://avatars.githubusercontent.com/u/136665087?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/ankunhou",
+        "html_url": "https://github.com/ankunhou",
+        "followers_url": "https://api.github.com/users/ankunhou/followers",
+        "following_url": "https://api.github.com/users/ankunhou/following{/other_user}",
+        "gists_url": "https://api.github.com/users/ankunhou/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/ankunhou/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/ankunhou/subscriptions",
+        "organizations_url": "https://api.github.com/users/ankunhou/orgs",
+        "repos_url": "https://api.github.com/users/ankunhou/repos",
+        "events_url": "https://api.github.com/users/ankunhou/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/ankunhou/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-03-27T12:36:39Z",
+      "user": {
+        "login": "Sam07Well",
+        "id": 214720721,
+        "node_id": "U_kgDODMxg0Q",
+        "avatar_url": "https://avatars.githubusercontent.com/u/214720721?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/Sam07Well",
+        "html_url": "https://github.com/Sam07Well",
+        "followers_url": "https://api.github.com/users/Sam07Well/followers",
+        "following_url": "https://api.github.com/users/Sam07Well/following{/other_user}",
+        "gists_url": "https://api.github.com/users/Sam07Well/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/Sam07Well/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/Sam07Well/subscriptions",
+        "organizations_url": "https://api.github.com/users/Sam07Well/orgs",
+        "repos_url": "https://api.github.com/users/Sam07Well/repos",
+        "events_url": "https://api.github.com/users/Sam07Well/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/Sam07Well/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-04-09T19:02:47Z",
+      "user": {
+        "login": "rollecode",
+        "id": 1534150,
+        "node_id": "MDQ6VXNlcjE1MzQxNTA=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/1534150?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/rollecode",
+        "html_url": "https://github.com/rollecode",
+        "followers_url": "https://api.github.com/users/rollecode/followers",
+        "following_url": "https://api.github.com/users/rollecode/following{/other_user}",
+        "gists_url": "https://api.github.com/users/rollecode/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/rollecode/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/rollecode/subscriptions",
+        "organizations_url": "https://api.github.com/users/rollecode/orgs",
+        "repos_url": "https://api.github.com/users/rollecode/repos",
+        "events_url": "https://api.github.com/users/rollecode/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/rollecode/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-05-01T03:32:59Z",
+      "user": {
+        "login": "txves",
+        "id": 276174305,
+        "node_id": "U_kgDOEHYV4Q",
+        "avatar_url": "https://avatars.githubusercontent.com/u/276174305?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/txves",
+        "html_url": "https://github.com/txves",
+        "followers_url": "https://api.github.com/users/txves/followers",
+        "following_url": "https://api.github.com/users/txves/following{/other_user}",
+        "gists_url": "https://api.github.com/users/txves/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/txves/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/txves/subscriptions",
+        "organizations_url": "https://api.github.com/users/txves/orgs",
+        "repos_url": "https://api.github.com/users/txves/repos",
+        "events_url": "https://api.github.com/users/txves/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/txves/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-05-08T01:12:52Z",
+      "user": {
+        "login": "OliverGee",
+        "id": 18562395,
+        "node_id": "MDQ6VXNlcjE4NTYyMzk1",
+        "avatar_url": "https://avatars.githubusercontent.com/u/18562395?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/OliverGee",
+        "html_url": "https://github.com/OliverGee",
+        "followers_url": "https://api.github.com/users/OliverGee/followers",
+        "following_url": "https://api.github.com/users/OliverGee/following{/other_user}",
+        "gists_url": "https://api.github.com/users/OliverGee/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/OliverGee/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/OliverGee/subscriptions",
+        "organizations_url": "https://api.github.com/users/OliverGee/orgs",
+        "repos_url": "https://api.github.com/users/OliverGee/repos",
+        "events_url": "https://api.github.com/users/OliverGee/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/OliverGee/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-05-09T21:43:11Z",
+      "user": {
+        "login": "bramthebird",
+        "id": 9132121,
+        "node_id": "MDQ6VXNlcjkxMzIxMjE=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/9132121?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/bramthebird",
+        "html_url": "https://github.com/bramthebird",
+        "followers_url": "https://api.github.com/users/bramthebird/followers",
+        "following_url": "https://api.github.com/users/bramthebird/following{/other_user}",
+        "gists_url": "https://api.github.com/users/bramthebird/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/bramthebird/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/bramthebird/subscriptions",
+        "organizations_url": "https://api.github.com/users/bramthebird/orgs",
+        "repos_url": "https://api.github.com/users/bramthebird/repos",
+        "events_url": "https://api.github.com/users/bramthebird/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/bramthebird/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-05-18T12:50:22Z",
+      "user": {
+        "login": "austinsonger",
+        "id": 26654315,
+        "node_id": "MDQ6VXNlcjI2NjU0MzE1",
+        "avatar_url": "https://avatars.githubusercontent.com/u/26654315?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/austinsonger",
+        "html_url": "https://github.com/austinsonger",
+        "followers_url": "https://api.github.com/users/austinsonger/followers",
+        "following_url": "https://api.github.com/users/austinsonger/following{/other_user}",
+        "gists_url": "https://api.github.com/users/austinsonger/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/austinsonger/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/austinsonger/subscriptions",
+        "organizations_url": "https://api.github.com/users/austinsonger/orgs",
+        "repos_url": "https://api.github.com/users/austinsonger/repos",
+        "events_url": "https://api.github.com/users/austinsonger/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/austinsonger/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-05-31T22:11:21Z",
+      "user": {
+        "login": "shapefuture",
+        "id": 159969400,
+        "node_id": "U_kgDOCYjweA",
+        "avatar_url": "https://avatars.githubusercontent.com/u/159969400?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/shapefuture",
+        "html_url": "https://github.com/shapefuture",
+        "followers_url": "https://api.github.com/users/shapefuture/followers",
+        "following_url": "https://api.github.com/users/shapefuture/following{/other_user}",
+        "gists_url": "https://api.github.com/users/shapefuture/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/shapefuture/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/shapefuture/subscriptions",
+        "organizations_url": "https://api.github.com/users/shapefuture/orgs",
+        "repos_url": "https://api.github.com/users/shapefuture/repos",
+        "events_url": "https://api.github.com/users/shapefuture/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/shapefuture/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-06-07T12:31:56Z",
+      "user": {
+        "login": "savasava034",
+        "id": 202392658,
+        "node_id": "U_kgDODBBEUg",
+        "avatar_url": "https://avatars.githubusercontent.com/u/202392658?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/savasava034",
+        "html_url": "https://github.com/savasava034",
+        "followers_url": "https://api.github.com/users/savasava034/followers",
+        "following_url": "https://api.github.com/users/savasava034/following{/other_user}",
+        "gists_url": "https://api.github.com/users/savasava034/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/savasava034/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/savasava034/subscriptions",
+        "organizations_url": "https://api.github.com/users/savasava034/orgs",
+        "repos_url": "https://api.github.com/users/savasava034/repos",
+        "events_url": "https://api.github.com/users/savasava034/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/savasava034/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-06-13T09:49:52Z",
+      "user": {
+        "login": "psylligent",
+        "id": 33462731,
+        "node_id": "MDQ6VXNlcjMzNDYyNzMx",
+        "avatar_url": "https://avatars.githubusercontent.com/u/33462731?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/psylligent",
+        "html_url": "https://github.com/psylligent",
+        "followers_url": "https://api.github.com/users/psylligent/followers",
+        "following_url": "https://api.github.com/users/psylligent/following{/other_user}",
+        "gists_url": "https://api.github.com/users/psylligent/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/psylligent/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/psylligent/subscriptions",
+        "organizations_url": "https://api.github.com/users/psylligent/orgs",
+        "repos_url": "https://api.github.com/users/psylligent/repos",
+        "events_url": "https://api.github.com/users/psylligent/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/psylligent/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-07-08T07:00:50Z",
+      "user": {
+        "login": "pleaseproject",
+        "id": 5248114,
+        "node_id": "MDQ6VXNlcjUyNDgxMTQ=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/5248114?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/pleaseproject",
+        "html_url": "https://github.com/pleaseproject",
+        "followers_url": "https://api.github.com/users/pleaseproject/followers",
+        "following_url": "https://api.github.com/users/pleaseproject/following{/other_user}",
+        "gists_url": "https://api.github.com/users/pleaseproject/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/pleaseproject/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/pleaseproject/subscriptions",
+        "organizations_url": "https://api.github.com/users/pleaseproject/orgs",
+        "repos_url": "https://api.github.com/users/pleaseproject/repos",
+        "events_url": "https://api.github.com/users/pleaseproject/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/pleaseproject/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-07-13T00:51:44Z",
+      "user": {
+        "login": "realzjc",
+        "id": 37355526,
+        "node_id": "MDQ6VXNlcjM3MzU1NTI2",
+        "avatar_url": "https://avatars.githubusercontent.com/u/37355526?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/realzjc",
+        "html_url": "https://github.com/realzjc",
+        "followers_url": "https://api.github.com/users/realzjc/followers",
+        "following_url": "https://api.github.com/users/realzjc/following{/other_user}",
+        "gists_url": "https://api.github.com/users/realzjc/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/realzjc/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/realzjc/subscriptions",
+        "organizations_url": "https://api.github.com/users/realzjc/orgs",
+        "repos_url": "https://api.github.com/users/realzjc/repos",
+        "events_url": "https://api.github.com/users/realzjc/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/realzjc/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    },
+    {
+      "starred_at": "2026-07-15T03:55:13Z",
+      "user": {
+        "login": "KochoShinobu76",
+        "id": 172152877,
+        "node_id": "U_kgDOCkLYLQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/172152877?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/KochoShinobu76",
+        "html_url": "https://github.com/KochoShinobu76",
+        "followers_url": "https://api.github.com/users/KochoShinobu76/followers",
+        "following_url": "https://api.github.com/users/KochoShinobu76/following{/other_user}",
+        "gists_url": "https://api.github.com/users/KochoShinobu76/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/KochoShinobu76/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/KochoShinobu76/subscriptions",
+        "organizations_url": "https://api.github.com/users/KochoShinobu76/orgs",
+        "repos_url": "https://api.github.com/users/KochoShinobu76/repos",
+        "events_url": "https://api.github.com/users/KochoShinobu76/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/KochoShinobu76/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      }
+    }
+  ],
+  "releases": [
+    {
+      "id": 392139369,
+      "tag_name": "v0.1.11",
+      "name": "v0.1.11",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-09-18T01:35:02Z",
+      "published_at": "2026-09-19T16:55:58Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.11",
+      "assets": [
+        {
+          "id": 575106788,
+          "name": "latest-mac.yml",
+          "download_count": 4,
+          "created_at": "2026-09-19T16:40:24Z",
+          "updated_at": "2026-09-19T16:40:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/latest-mac.yml"
+        },
+        {
+          "id": 575106820,
+          "name": "latest.yml",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:25Z",
+          "updated_at": "2026-09-19T16:40:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/latest.yml"
+        },
+        {
+          "id": 575106283,
+          "name": "PuPu-0.1.11-linux-x64.AppImage",
+          "download_count": 4,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-linux-x64.AppImage"
+        },
+        {
+          "id": 575106280,
+          "name": "PuPu-0.1.11-linux-x64.deb",
+          "download_count": 12,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-linux-x64.deb"
+        },
+        {
+          "id": 575106284,
+          "name": "PuPu-0.1.11-macos-arm64.dmg",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-arm64.dmg"
+        },
+        {
+          "id": 575106281,
+          "name": "PuPu-0.1.11-macos-arm64.zip",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-arm64.zip"
+        },
+        {
+          "id": 575106282,
+          "name": "PuPu-0.1.11-macos-arm64.zip.blockmap",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:10Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-arm64.zip.blockmap"
+        },
+        {
+          "id": 575106479,
+          "name": "PuPu-0.1.11-macos-x64.dmg",
+          "download_count": 7,
+          "created_at": "2026-09-19T16:40:10Z",
+          "updated_at": "2026-09-19T16:40:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-x64.dmg"
+        },
+        {
+          "id": 575106740,
+          "name": "PuPu-0.1.11-macos-x64.zip",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:23Z",
+          "updated_at": "2026-09-19T16:40:35Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-x64.zip"
+        },
+        {
+          "id": 575106745,
+          "name": "PuPu-0.1.11-macos-x64.zip.blockmap",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:23Z",
+          "updated_at": "2026-09-19T16:40:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-macos-x64.zip.blockmap"
+        },
+        {
+          "id": 575106762,
+          "name": "PuPu-0.1.11-windows-x64-setup.exe",
+          "download_count": 5,
+          "created_at": "2026-09-19T16:40:23Z",
+          "updated_at": "2026-09-19T16:40:33Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-windows-x64-setup.exe"
+        },
+        {
+          "id": 575106768,
+          "name": "PuPu-0.1.11-windows-x64-setup.exe.blockmap",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:24Z",
+          "updated_at": "2026-09-19T16:40:24Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/PuPu-0.1.11-windows-x64-setup.exe.blockmap"
+        },
+        {
+          "id": 575106823,
+          "name": "release-assets.v1.json",
+          "download_count": 4,
+          "created_at": "2026-09-19T16:40:25Z",
+          "updated_at": "2026-09-19T16:40:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/release-assets.v1.json"
+        },
+        {
+          "id": 575106829,
+          "name": "release-qa-report.json",
+          "download_count": 4,
+          "created_at": "2026-09-19T16:40:25Z",
+          "updated_at": "2026-09-19T16:40:26Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/release-qa-report.json"
+        },
+        {
+          "id": 575106841,
+          "name": "release-qualification.v1.json",
+          "download_count": 4,
+          "created_at": "2026-09-19T16:40:26Z",
+          "updated_at": "2026-09-19T16:40:26Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/release-qualification.v1.json"
+        },
+        {
+          "id": 575106831,
+          "name": "windows-signing-evidence.v1.json",
+          "download_count": 3,
+          "created_at": "2026-09-19T16:40:25Z",
+          "updated_at": "2026-09-19T16:40:26Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.11/windows-signing-evidence.v1.json"
+        }
+      ]
+    },
+    {
+      "id": 385162846,
+      "tag_name": "v0.1.10",
+      "name": "v0.1.10",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-09-08T05:54:30Z",
+      "published_at": "2026-09-09T02:01:52Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.10",
+      "assets": [
+        {
+          "id": 551715014,
+          "name": "latest-mac.yml",
+          "download_count": 6,
+          "created_at": "2026-09-09T01:22:42Z",
+          "updated_at": "2026-09-09T01:22:42Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/latest-mac.yml"
+        },
+        {
+          "id": 551715027,
+          "name": "latest.yml",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:42Z",
+          "updated_at": "2026-09-09T01:22:43Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/latest.yml"
+        },
+        {
+          "id": 551714229,
+          "name": "PuPu-0.1.10-linux-x64.AppImage",
+          "download_count": 7,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.AppImage"
+        },
+        {
+          "id": 551714226,
+          "name": "PuPu-0.1.10-linux-x64.deb",
+          "download_count": 16,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:35Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-linux-x64.deb"
+        },
+        {
+          "id": 551714228,
+          "name": "PuPu-0.1.10-macos-arm64.dmg",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:49Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-arm64.dmg"
+        },
+        {
+          "id": 551714227,
+          "name": "PuPu-0.1.10-macos-arm64.zip",
+          "download_count": 1,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:49Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-arm64.zip"
+        },
+        {
+          "id": 551714225,
+          "name": "PuPu-0.1.10-macos-arm64.zip.blockmap",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:14Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-arm64.zip.blockmap"
+        },
+        {
+          "id": 551714250,
+          "name": "PuPu-0.1.10-macos-x64.dmg",
+          "download_count": 3,
+          "created_at": "2026-09-09T01:22:14Z",
+          "updated_at": "2026-09-09T01:22:37Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-x64.dmg"
+        },
+        {
+          "id": 551714866,
+          "name": "PuPu-0.1.10-macos-x64.zip",
+          "download_count": 1,
+          "created_at": "2026-09-09T01:22:36Z",
+          "updated_at": "2026-09-09T01:22:53Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-x64.zip"
+        },
+        {
+          "id": 551714898,
+          "name": "PuPu-0.1.10-macos-x64.zip.blockmap",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:37Z",
+          "updated_at": "2026-09-09T01:22:37Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-macos-x64.zip.blockmap"
+        },
+        {
+          "id": 551714913,
+          "name": "PuPu-0.1.10-windows-x64-setup.exe",
+          "download_count": 14,
+          "created_at": "2026-09-09T01:22:38Z",
+          "updated_at": "2026-09-09T01:22:52Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-windows-x64-setup.exe"
+        },
+        {
+          "id": 551715005,
+          "name": "PuPu-0.1.10-windows-x64-setup.exe.blockmap",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:41Z",
+          "updated_at": "2026-09-09T01:22:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/PuPu-0.1.10-windows-x64-setup.exe.blockmap"
+        },
+        {
+          "id": 551715039,
+          "name": "release-assets.v1.json",
+          "download_count": 33,
+          "created_at": "2026-09-09T01:22:43Z",
+          "updated_at": "2026-09-09T01:22:43Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/release-assets.v1.json"
+        },
+        {
+          "id": 551715046,
+          "name": "release-qa-report.json",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:44Z",
+          "updated_at": "2026-09-09T01:22:44Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/release-qa-report.json"
+        },
+        {
+          "id": 551715063,
+          "name": "release-qualification.v1.json",
+          "download_count": 2,
+          "created_at": "2026-09-09T01:22:45Z",
+          "updated_at": "2026-09-09T01:22:45Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/release-qualification.v1.json"
+        },
+        {
+          "id": 551715055,
+          "name": "windows-signing-evidence.v1.json",
+          "download_count": 1,
+          "created_at": "2026-09-09T01:22:44Z",
+          "updated_at": "2026-09-09T01:22:44Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.10/windows-signing-evidence.v1.json"
+        }
+      ]
+    },
+    {
+      "id": 360815622,
+      "tag_name": "v0.1.9",
+      "name": "v0.1.9",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-07-28T05:19:33Z",
+      "published_at": "2026-08-01T05:41:38Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.9",
+      "assets": [
+        {
+          "id": 497328089,
+          "name": "PuPu-0.1.9-arm64.dmg",
+          "download_count": 7,
+          "created_at": "2026-07-31T23:58:31Z",
+          "updated_at": "2026-07-31T23:59:51Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.9/PuPu-0.1.9-arm64.dmg"
+        },
+        {
+          "id": 497469225,
+          "name": "PuPu.Setup.0.1.9.exe",
+          "download_count": 23,
+          "created_at": "2026-08-01T03:00:38Z",
+          "updated_at": "2026-08-01T03:01:14Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.9/PuPu.Setup.0.1.9.exe"
+        },
+        {
+          "id": 497604571,
+          "name": "PuPu_0.1.9.deb",
+          "download_count": 17,
+          "created_at": "2026-08-01T05:40:35Z",
+          "updated_at": "2026-08-01T05:41:10Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.9/PuPu_0.1.9.deb"
+        }
+      ]
+    },
+    {
+      "id": 349258916,
+      "tag_name": "v0.1.8",
+      "name": "v0.1.8",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-07-13T18:43:31Z",
+      "published_at": "2026-07-13T20:55:46Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.8",
+      "assets": [
+        {
+          "id": 475794526,
+          "name": "PuPu-0.1.8-arm64.dmg",
+          "download_count": 7,
+          "created_at": "2026-07-13T18:58:49Z",
+          "updated_at": "2026-07-13T19:00:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.8/PuPu-0.1.8-arm64.dmg"
+        },
+        {
+          "id": 479932941,
+          "name": "PuPu-0.1.8-intel.dmg",
+          "download_count": 4,
+          "created_at": "2026-07-17T03:48:45Z",
+          "updated_at": "2026-07-17T03:49:08Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.8/PuPu-0.1.8-intel.dmg"
+        },
+        {
+          "id": 475881461,
+          "name": "PuPu.Setup.0.1.8.exe",
+          "download_count": 15,
+          "created_at": "2026-07-13T20:41:28Z",
+          "updated_at": "2026-07-13T20:42:07Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.8/PuPu.Setup.0.1.8.exe"
+        },
+        {
+          "id": 475890485,
+          "name": "PuPu_0.1.8.deb",
+          "download_count": 25,
+          "created_at": "2026-07-13T20:52:44Z",
+          "updated_at": "2026-07-13T20:53:17Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.8/PuPu_0.1.8.deb"
+        }
+      ]
+    },
+    {
+      "id": 329188399,
+      "tag_name": "v0.1.7",
+      "name": "v0.1.7",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-06-14T20:34:15Z",
+      "published_at": "2026-06-14T21:43:44Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.7",
+      "assets": [
+        {
+          "id": 447525565,
+          "name": "PuPu-0.1.7-arm64.dmg",
+          "download_count": 17,
+          "created_at": "2026-06-14T19:59:22Z",
+          "updated_at": "2026-06-14T20:00:59Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.7/PuPu-0.1.7-arm64.dmg"
+        },
+        {
+          "id": 447577382,
+          "name": "PuPu.Setup.0.1.7.exe",
+          "download_count": 19,
+          "created_at": "2026-06-14T21:31:46Z",
+          "updated_at": "2026-06-14T21:32:27Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.7/PuPu.Setup.0.1.7.exe"
+        },
+        {
+          "id": 447583842,
+          "name": "PuPu_0.1.7_amd64.deb",
+          "download_count": 23,
+          "created_at": "2026-06-14T21:43:11Z",
+          "updated_at": "2026-06-14T21:43:42Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.7/PuPu_0.1.7_amd64.deb"
+        }
+      ]
+    },
+    {
+      "id": 320028873,
+      "tag_name": "v0.1.6",
+      "name": "v0.1.6",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-05-08T14:25:38Z",
+      "published_at": "2026-05-25T04:19:29Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.6",
+      "assets": [
+        {
+          "id": 428953786,
+          "name": "PuPu-0.1.6-arm64.dmg",
+          "download_count": 25,
+          "created_at": "2026-05-25T01:57:34Z",
+          "updated_at": "2026-05-25T01:59:11Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.6/PuPu-0.1.6-arm64.dmg"
+        },
+        {
+          "id": 429034340,
+          "name": "PuPu.Setup.0.1.6.exe",
+          "download_count": 24,
+          "created_at": "2026-05-25T04:03:57Z",
+          "updated_at": "2026-05-25T04:10:35Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.6/PuPu.Setup.0.1.6.exe"
+        },
+        {
+          "id": 429043394,
+          "name": "PuPu_0.1.6_amd64.deb",
+          "download_count": 22,
+          "created_at": "2026-05-25T04:17:30Z",
+          "updated_at": "2026-05-25T04:18:07Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.6/PuPu_0.1.6_amd64.deb"
+        }
+      ]
+    },
+    {
+      "id": 309666613,
+      "tag_name": "v0.1.5",
+      "name": "v0.1.5",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-04-13T06:03:50Z",
+      "published_at": "2026-04-26T22:02:30Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.5",
+      "assets": [
+        {
+          "id": 405726613,
+          "name": "PuPu-0.1.5-arm64.dmg",
+          "download_count": 41,
+          "created_at": "2026-04-26T05:00:39Z",
+          "updated_at": "2026-04-26T05:02:18Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.5/PuPu-0.1.5-arm64.dmg"
+        },
+        {
+          "id": 406118369,
+          "name": "PuPu.Setup.0.1.5.exe",
+          "download_count": 14,
+          "created_at": "2026-04-26T21:36:33Z",
+          "updated_at": "2026-04-26T21:38:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.5/PuPu.Setup.0.1.5.exe"
+        },
+        {
+          "id": 406127424,
+          "name": "PuPu_0.1.5.deb",
+          "download_count": 23,
+          "created_at": "2026-04-26T22:01:56Z",
+          "updated_at": "2026-04-26T22:02:27Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.5/PuPu_0.1.5.deb"
+        }
+      ]
+    },
+    {
+      "id": 307912077,
+      "tag_name": "v0.1.4",
+      "name": "v0.1.4",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-04-11T20:28:30Z",
+      "published_at": "2026-04-12T00:17:37Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.4",
+      "assets": [
+        {
+          "id": 396708674,
+          "name": "latest-mac.yml",
+          "download_count": 1,
+          "created_at": "2026-04-15T03:29:07Z",
+          "updated_at": "2026-04-15T03:29:07Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/latest-mac.yml"
+        },
+        {
+          "id": 396708675,
+          "name": "PuPu-0.1.4-arm64-mac.zip",
+          "download_count": 2,
+          "created_at": "2026-04-15T03:29:07Z",
+          "updated_at": "2026-04-15T03:37:37Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/PuPu-0.1.4-arm64-mac.zip"
+        },
+        {
+          "id": 394280167,
+          "name": "PuPu-0.1.4-arm64.dmg",
+          "download_count": 23,
+          "created_at": "2026-04-11T21:00:33Z",
+          "updated_at": "2026-04-11T21:01:47Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/PuPu-0.1.4-arm64.dmg"
+        },
+        {
+          "id": 395150120,
+          "name": "PuPu-0.1.4-intel.dmg",
+          "download_count": 14,
+          "created_at": "2026-04-13T05:00:05Z",
+          "updated_at": "2026-04-13T05:01:32Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/PuPu-0.1.4-intel.dmg"
+        },
+        {
+          "id": 394373388,
+          "name": "PuPu.Setup.0.1.4.exe",
+          "download_count": 8,
+          "created_at": "2026-04-12T00:01:25Z",
+          "updated_at": "2026-04-12T00:02:00Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/PuPu.Setup.0.1.4.exe"
+        },
+        {
+          "id": 394379266,
+          "name": "PuPu_0.1.4.deb",
+          "download_count": 20,
+          "created_at": "2026-04-12T00:16:09Z",
+          "updated_at": "2026-04-12T00:16:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.4/PuPu_0.1.4.deb"
+        }
+      ]
+    },
+    {
+      "id": 300394225,
+      "tag_name": "v0.1.3",
+      "name": "v0.1.3",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-04-06T20:09:35Z",
+      "published_at": "2026-04-06T23:27:12Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.3",
+      "assets": [
+        {
+          "id": 390299026,
+          "name": "PuPu-0.1.3-arm64.dmg",
+          "download_count": 6,
+          "created_at": "2026-04-06T20:56:46Z",
+          "updated_at": "2026-04-06T20:57:47Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.3/PuPu-0.1.3-arm64.dmg"
+        },
+        {
+          "id": 390354727,
+          "name": "PuPu.Setup.0.1.3.exe",
+          "download_count": 8,
+          "created_at": "2026-04-06T22:50:48Z",
+          "updated_at": "2026-04-06T22:51:07Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.3/PuPu.Setup.0.1.3.exe"
+        },
+        {
+          "id": 390369055,
+          "name": "PuPu_0.1.3.deb",
+          "download_count": 17,
+          "created_at": "2026-04-06T23:15:21Z",
+          "updated_at": "2026-04-06T23:15:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.3/PuPu_0.1.3.deb"
+        }
+      ]
+    },
+    {
+      "id": 298773428,
+      "tag_name": "v0.1.2",
+      "name": "v0.1.2",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-03-22T21:10:48Z",
+      "published_at": "2026-03-22T21:32:29Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.2",
+      "assets": [
+        {
+          "id": 379290378,
+          "name": "latest-mac.yml",
+          "download_count": 2,
+          "created_at": "2026-03-22T21:35:58Z",
+          "updated_at": "2026-03-22T21:35:58Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.2/latest-mac.yml"
+        },
+        {
+          "id": 379296534,
+          "name": "latest.yml",
+          "download_count": 3,
+          "created_at": "2026-03-22T21:53:40Z",
+          "updated_at": "2026-03-22T21:53:41Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.2/latest.yml"
+        },
+        {
+          "id": 379287823,
+          "name": "PuPu-0.1.2-arm64-mac.zip",
+          "download_count": 5,
+          "created_at": "2026-03-22T21:28:26Z",
+          "updated_at": "2026-03-22T21:29:26Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.2/PuPu-0.1.2-arm64-mac.zip"
+        },
+        {
+          "id": 379285659,
+          "name": "PuPu-0.1.2-arm64.dmg",
+          "download_count": 4,
+          "created_at": "2026-03-22T21:23:06Z",
+          "updated_at": "2026-03-22T21:23:53Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.2/PuPu-0.1.2-arm64.dmg"
+        },
+        {
+          "id": 379296422,
+          "name": "PuPu.Setup.0.1.2.exe",
+          "download_count": 5,
+          "created_at": "2026-03-22T21:53:12Z",
+          "updated_at": "2026-03-22T21:53:38Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.2/PuPu.Setup.0.1.2.exe"
+        }
+      ]
+    },
+    {
+      "id": 297269536,
+      "tag_name": "v0.1.1-republished",
+      "name": "v0.1.1",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-03-16T01:08:15Z",
+      "published_at": "2026-03-16T01:26:57Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.1-republished",
+      "assets": [
+        {
+          "id": 374622443,
+          "name": "PuPu-0.1.1-arm64.dmg",
+          "download_count": 6,
+          "created_at": "2026-03-16T01:26:02Z",
+          "updated_at": "2026-03-16T01:26:50Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.1-republished/PuPu-0.1.1-arm64.dmg"
+        },
+        {
+          "id": 374620995,
+          "name": "PuPu-0.1.1-intel.dmg",
+          "download_count": 3,
+          "created_at": "2026-03-16T01:22:46Z",
+          "updated_at": "2026-03-16T01:23:38Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.1-republished/PuPu-0.1.1-intel.dmg"
+        },
+        {
+          "id": 374622104,
+          "name": "PuPu-0.1.1.AppImage",
+          "download_count": 2,
+          "created_at": "2026-03-16T01:25:09Z",
+          "updated_at": "2026-03-16T01:26:02Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.1-republished/PuPu-0.1.1.AppImage"
+        },
+        {
+          "id": 374621825,
+          "name": "PuPu.Setup.0.1.1.exe",
+          "download_count": 5,
+          "created_at": "2026-03-16T01:24:23Z",
+          "updated_at": "2026-03-16T01:25:09Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.1-republished/PuPu.Setup.0.1.1.exe"
+        },
+        {
+          "id": 374621435,
+          "name": "PuPu_0.1.1.deb",
+          "download_count": 6,
+          "created_at": "2026-03-16T01:23:38Z",
+          "updated_at": "2026-03-16T01:24:23Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.1-republished/PuPu_0.1.1.deb"
+        }
+      ]
+    },
+    {
+      "id": 291651973,
+      "tag_name": "v0.1.0",
+      "name": "v0.1.0",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2026-02-27T21:13:04Z",
+      "published_at": "2026-02-28T18:17:45Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0",
+      "assets": [
+        {
+          "id": 364213943,
+          "name": "PuPu-0.1.0-arm64.dmg",
+          "download_count": 9,
+          "created_at": "2026-02-28T18:16:49Z",
+          "updated_at": "2026-02-28T18:17:42Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.0/PuPu-0.1.0-arm64.dmg"
+        },
+        {
+          "id": 364756652,
+          "name": "PuPu.Setup.0.1.0.exe",
+          "download_count": 3,
+          "created_at": "2026-03-01T17:55:15Z",
+          "updated_at": "2026-03-01T17:55:39Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.1.0/PuPu.Setup.0.1.0.exe"
+        }
+      ]
+    },
+    {
+      "id": 229247171,
+      "tag_name": "v0.0.5",
+      "name": "v0.0.5",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2025-07-01T22:13:05Z",
+      "published_at": "2025-07-01T22:20:06Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.5",
+      "assets": [
+        {
+          "id": 269122410,
+          "name": "PuPu-0.0.5-arm64.dmg",
+          "download_count": 9,
+          "created_at": "2025-07-01T22:15:51Z",
+          "updated_at": "2025-07-01T22:16:10Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.5/PuPu-0.0.5-arm64.dmg"
+        }
+      ]
+    },
+    {
+      "id": 207582611,
+      "tag_name": "v0.0.4",
+      "name": "v0.0.4",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2025-03-22T03:58:30Z",
+      "published_at": "2025-03-22T04:10:56Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.4",
+      "assets": [
+        {
+          "id": 239847644,
+          "name": "PuPu-0.0.4-arm64.dmg",
+          "download_count": 7,
+          "created_at": "2025-03-22T17:39:11Z",
+          "updated_at": "2025-03-22T17:39:32Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.4/PuPu-0.0.4-arm64.dmg"
+        },
+        {
+          "id": 239874704,
+          "name": "PuPu-0.0.4-intel.dmg",
+          "download_count": 4,
+          "created_at": "2025-03-22T20:40:50Z",
+          "updated_at": "2025-03-22T20:41:06Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.4/PuPu-0.0.4-intel.dmg"
+        },
+        {
+          "id": 239865382,
+          "name": "PuPu.Setup.0.0.4.exe",
+          "download_count": 6,
+          "created_at": "2025-03-22T19:39:33Z",
+          "updated_at": "2025-03-22T19:39:44Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.4/PuPu.Setup.0.0.4.exe"
+        }
+      ]
+    },
+    {
+      "id": 203250472,
+      "tag_name": "v0.0.3",
+      "name": "v0.0.3",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2025-03-03T04:37:14Z",
+      "published_at": "2025-03-03T04:48:28Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3",
+      "assets": [
+        {
+          "id": 234052749,
+          "name": "PuPu-0.0.3-arm64.dmg",
+          "download_count": 9,
+          "created_at": "2025-03-03T01:55:29Z",
+          "updated_at": "2025-03-03T01:55:51Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.3/PuPu-0.0.3-arm64.dmg"
+        },
+        {
+          "id": 234081376,
+          "name": "PuPu-0.0.3.AppImage",
+          "download_count": 18,
+          "created_at": "2025-03-03T04:48:10Z",
+          "updated_at": "2025-03-03T04:48:29Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.3/PuPu-0.0.3.AppImage"
+        },
+        {
+          "id": 234050957,
+          "name": "PuPu-0.0.3_intel.dmg",
+          "download_count": 7,
+          "created_at": "2025-03-03T01:49:20Z",
+          "updated_at": "2025-03-03T01:50:06Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.3/PuPu-0.0.3_intel.dmg"
+        },
+        {
+          "id": 234080597,
+          "name": "PuPu.Setup.0.0.3.exe",
+          "download_count": 17,
+          "created_at": "2025-03-03T04:40:27Z",
+          "updated_at": "2025-03-03T04:40:48Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.3/PuPu.Setup.0.0.3.exe"
+        },
+        {
+          "id": 234081381,
+          "name": "pupu_0.0.3_amd64.deb",
+          "download_count": 55,
+          "created_at": "2025-03-03T04:48:12Z",
+          "updated_at": "2025-03-03T04:48:25Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.3/pupu_0.0.3_amd64.deb"
+        }
+      ]
+    },
+    {
+      "id": 201926159,
+      "tag_name": "v0.0.2",
+      "name": "v0.0.2",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2025-02-24T05:16:25Z",
+      "published_at": "2025-02-24T19:51:14Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2",
+      "assets": [
+        {
+          "id": 231947822,
+          "name": "PuPu-0.0.2-arm64.dmg",
+          "download_count": 7,
+          "created_at": "2025-02-24T01:25:43Z",
+          "updated_at": "2025-02-24T01:26:04Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.2/PuPu-0.0.2-arm64.dmg"
+        },
+        {
+          "id": 231898263,
+          "name": "PuPu-0.0.2.AppImage",
+          "download_count": 5,
+          "created_at": "2025-02-23T21:51:23Z",
+          "updated_at": "2025-02-23T21:51:38Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.2/PuPu-0.0.2.AppImage"
+        },
+        {
+          "id": 231952924,
+          "name": "PuPu-0.0.2_intel.dmg",
+          "download_count": 5,
+          "created_at": "2025-02-24T01:36:55Z",
+          "updated_at": "2025-02-24T01:37:02Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.2/PuPu-0.0.2_intel.dmg"
+        },
+        {
+          "id": 232178675,
+          "name": "PuPu.Setup.0.0.2.exe",
+          "download_count": 10,
+          "created_at": "2025-02-24T19:50:55Z",
+          "updated_at": "2025-02-24T19:51:05Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.2/PuPu.Setup.0.0.2.exe"
+        },
+        {
+          "id": 231898252,
+          "name": "pupu_0.0.2_amd64.deb",
+          "download_count": 13,
+          "created_at": "2025-02-23T21:51:20Z",
+          "updated_at": "2025-02-23T21:51:33Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.2/pupu_0.0.2_amd64.deb"
+        }
+      ]
+    },
+    {
+      "id": 200808412,
+      "tag_name": "v0.0.1",
+      "name": "v0.0.1",
+      "draft": false,
+      "prerelease": false,
+      "created_at": "2025-02-13T22:41:26Z",
+      "published_at": "2025-02-18T00:32:34Z",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1",
+      "assets": [
+        {
+          "id": 230060824,
+          "name": "PuPu-0.0.1-arm64.dmg",
+          "download_count": 4,
+          "created_at": "2025-02-18T00:27:52Z",
+          "updated_at": "2025-02-18T00:28:14Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.1/PuPu-0.0.1-arm64.dmg"
+        },
+        {
+          "id": 230060759,
+          "name": "PuPu-0.0.1.dmg",
+          "download_count": 5,
+          "created_at": "2025-02-18T00:27:22Z",
+          "updated_at": "2025-02-18T00:27:45Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.1/PuPu-0.0.1.dmg"
+        },
+        {
+          "id": 230060914,
+          "name": "PuPu.Setup.0.0.1.exe",
+          "download_count": 3,
+          "created_at": "2025-02-18T00:28:21Z",
+          "updated_at": "2025-02-18T00:28:32Z",
+          "browser_download_url": "https://github.com/haoxiang-xu/PuPu/releases/download/v0.0.1/PuPu.Setup.0.0.1.exe"
+        }
+      ]
+    }
+  ],
+  "volumes": {
+    "agent-orchestration": 3606,
+    "agent-workspace": 68,
+    "ai-client": 69,
+    "ai-harness": 142,
+    "anthropic": 24119,
+    "deepseek": 11061,
+    "desktop-agent": 126,
+    "desktop-app": 22471,
+    "electron": 26831,
+    "llm": 137072,
+    "llm-client": 84,
+    "llm-ui": 94,
+    "local-llm": 7015,
+    "mcp": 79706,
+    "mcp-client": 1760,
+    "multi-agent": 16806,
+    "ollama": 24371,
+    "ollama-client": 352,
+    "openai": 45805,
+    "self-hosted": 36607
+  },
+  "volume_collection": {
+    "count": 20,
+    "all_incomplete_results": false,
+    "method": "GitHub Search topic query, per_page=1, 2.5-second pacing. Total repository counts are not keyword search volume."
+  },
+  "installer_downloads": [
+    {
+      "tag": "v0.1.10",
+      "raw": 42,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 37,
+      "verified_successful_readback_run": 34298581702,
+      "asset_ids_and_counts_unchanged": true,
+      "assets": [
+        {
+          "id": 551714229,
+          "name": "PuPu-0.1.10-linux-x64.AppImage",
+          "download_count": 7
+        },
+        {
+          "id": 551714226,
+          "name": "PuPu-0.1.10-linux-x64.deb",
+          "download_count": 16
+        },
+        {
+          "id": 551714228,
+          "name": "PuPu-0.1.10-macos-arm64.dmg",
+          "download_count": 2
+        },
+        {
+          "id": 551714250,
+          "name": "PuPu-0.1.10-macos-x64.dmg",
+          "download_count": 3
+        },
+        {
+          "id": 551714913,
+          "name": "PuPu-0.1.10-windows-x64-setup.exe",
+          "download_count": 14
+        }
+      ],
+      "deduction_evidence": "Reused same-Vancouver-day verified workflow readback from 2026-09-22 baseline; asset identities and counters are unchanged."
+    },
+    {
+      "tag": "v0.1.11",
+      "raw": 31,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 26,
+      "verified_successful_readback_run": 35455547423,
+      "asset_ids_and_counts_unchanged": true,
+      "assets": [
+        {
+          "id": 575106283,
+          "name": "PuPu-0.1.11-linux-x64.AppImage",
+          "download_count": 4
+        },
+        {
+          "id": 575106280,
+          "name": "PuPu-0.1.11-linux-x64.deb",
+          "download_count": 12
+        },
+        {
+          "id": 575106284,
+          "name": "PuPu-0.1.11-macos-arm64.dmg",
+          "download_count": 3
+        },
+        {
+          "id": 575106479,
+          "name": "PuPu-0.1.11-macos-x64.dmg",
+          "download_count": 7
+        },
+        {
+          "id": 575106762,
+          "name": "PuPu-0.1.11-windows-x64-setup.exe",
+          "download_count": 5
+        }
+      ],
+      "deduction_evidence": "Reused same-Vancouver-day verified workflow readback from 2026-09-22 baseline; asset identities and counters are unchanged."
+    }
+  ],
+  "workflow_verification": {
+    "baseline": "2026-09-22-topics-baseline.json",
+    "successful_runs_created_since_baseline": [
+      {
+        "id": 35785263703,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "conclusion": "success",
+        "created_at": "2026-09-22T21:13:09Z",
+        "updated_at": "2026-09-22T21:25:40Z",
+        "run_attempt": 1,
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/35785263703"
+      },
+      {
+        "id": 35785262851,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "conclusion": "success",
+        "created_at": "2026-09-22T21:13:09Z",
+        "updated_at": "2026-09-22T21:13:17Z",
+        "run_attempt": 1,
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/35785262851"
+      }
+    ],
+    "inspected_run": {
+      "id": 35785263703,
+      "conclusion": "success",
+      "release_tag": "340/merge",
+      "release_download_reference_found": false,
+      "actions_artifact_download_reference_found": true,
+      "deduction": 0,
+      "reason": "Successful PR Release QA uses actions/download-artifact and does not re-download v0.1.10 or v0.1.11 release assets.",
+      "relevant_log_lines": [
+        "41:Deterministic QA / Deterministic QA\tUNKNOWN STEP\t2026-09-22T21:13:14.4525192Z   release_tag: 340/merge",
+        "27757:Playwright Electron (ubuntu-latest) / Playwright Electron (ubuntu-latest)\tUNKNOWN STEP\t2026-09-22T21:22:23.8872103Z   release_tag: 340/merge",
+        "28134:Playwright Electron (ubuntu-latest) / Playwright Electron (ubuntu-latest)\tUNKNOWN STEP\t2026-09-22T21:23:02.6833493Z ##[group]Run actions/download-artifact@v4",
+        "29014:Final Release QA Report / Final Release QA Report\tUNKNOWN STEP\t2026-09-22T21:24:56.5660354Z   release_tag: 340/merge",
+        "29409:Final Release QA Report / Final Release QA Report\tUNKNOWN STEP\t2026-09-22T21:25:35.0991261Z ##[group]Run actions/download-artifact@v4"
+      ]
+    }
+  },
+  "errors": [],
+  "assessment": {
+    "status": "PENDING",
+    "review_due": false,
+    "stars_delta_since_baseline": 0,
+    "installer_counter_delta_since_baseline": {
+      "v0.1.10": 0,
+      "v0.1.11": 0
+    },
+    "meaningful_change": false,
+    "notes": [
+      "Both 10-topic groups remain simultaneously live at revision 1.",
+      "Rolling traffic is mixed historical exposure and has not yet refreshed for September 22.",
+      "No causal or per-topic performance verdict is made. No changes to GitHub topics or review dates."
+    ]
+  }
+}
