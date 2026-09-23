@@ -379,6 +379,47 @@
           "descriptionZh": "收集 ponytail 注释并生成技术债清单"
         }
       ]
+    },
+    {
+      "id": "skillpack.doc-coauthoring",
+      "title": "Doc Co-Authoring",
+      "titleZh": "文档协作撰写",
+      "blurb": "Anthropic's three-stage workflow for proposals, decision docs and specs: gather context, build each section by brainstorming and curation, then test the draft on a reader. In PuPu the draft lives in a markdown file in your workspace, written and revised through the write/edit tools with your confirmation; context comes from what you paste or from MCP servers you installed; reader testing is manual — open a new PuPu chat and paste the document. Your selected model does the work at its usual cost. Unverified; instruction only. PuPu does not bundle the skill body; it downloads from upstream when you install. The license for this specific skill is not specified upstream.",
+      "blurbZh": "Anthropic 官方的三阶段文档协作流程：先收集背景，再逐节头脑风暴并筛选成稿，最后让读者试读找盲点。在 PuPu 中草稿保存为工作区的 markdown 文件，通过 write/edit 工具写入和修改并需要你确认；背景来自你粘贴的内容或已安装的 MCP 服务；读者测试需手动在新会话中粘贴文档进行。由你选择的模型执行，按其正常计费。未经验证，仅含指令。PuPu 不捆绑技能正文；安装时才从上游下载。上游未注明此技能的具体许可证。",
+      "gradient": [
+        "#d97757",
+        "#b05730"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "anthropics/skills",
+        "sha": "34040c9c568585f6929bedeaad110ad08f079624",
+        "license": "License not specified for this skill"
+      },
+      "subset": [
+        "skills/doc-coauthoring"
+      ],
+      "manifest": [
+        {
+          "path": "skills/doc-coauthoring/SKILL.md",
+          "sha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-289-doc-coauthoring-content-review",
+        "reviewedAt": "2026-09-20",
+        "reviewers": [
+          "Claude (selected instruction content review)"
+        ],
+        "licenseBasis": "No LICENSE.txt in skills/doc-coauthoring at this revision. The repository README says many skills are Apache-2.0 but does not identify this skill. Membership in the example-skills marketplace plugin is not a license grant; the exact license is not specified upstream."
+      },
+      "commandPreviews": [
+        {
+          "name": "doc-coauthoring",
+          "description": "Guided drafting: context gathering, section-by-section refinement in a workspace file, then a manual reader test in a new chat.",
+          "descriptionZh": "引导式撰写：收集背景、在工作区文件中逐节打磨，最后在新会话中手动做读者测试。"
+        }
+      ]
     }
   ]
 }
