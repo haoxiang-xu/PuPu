@@ -1,0 +1,72 @@
+{
+  "runtime": {
+    "status": "ready",
+    "reason": "",
+    "ready": true,
+    "pid": 53462,
+    "port": 5880,
+    "url": "http://127.0.0.1:5880",
+    "contract": {
+      "capabilities": {
+        "automatic_wake_resume": false,
+        "durable_interactions": true,
+        "durable_jobs": {
+          "available": true,
+          "reason": "",
+          "version": "D4.1"
+        },
+        "exact_cancellation": true,
+        "execution_fencing": true,
+        "runtime_events_v4": true
+      },
+      "reasons": {},
+      "schema": "pupu.runtime-capabilities",
+      "version": 1
+    },
+    "memoryV2": {
+      "configured": true,
+      "ready": true,
+      "status": "ready",
+      "reason": "",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 5,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "sidecarFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "runtimeProtocolDigest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "30715567f98d5463f6e9a08ad8799a20474895efece0371836401b6227607057",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  },
+  "run": {
+    "chat_id": "chat-1790135540075-27678de0534378",
+    "execution_id": "chat-1790135540075-27678de0534378",
+    "attempt_id": "unchain-1790135540137-9fe963adcf8408",
+    "status": "completed",
+    "message_id": "assistant-1790135540134-93645f69dd746",
+    "content": "**Marked AI tells:**\n- \"groundbreaking success\" (sales language, inflated significance)\n- \"stands as a testament to the vibrant community\" (inflation, sales language)\n\n**Draft rewrite:**\nAccording to Ada Chen, the library exchanged 24 books for $400. This shows the community's support.\n\n**Remaining patterns:**\nNone. All inflated phrasing is removed.\n\n**Final rewrite:**\nAccording to Ada Chen, the library exchanged 24 books for $400. This shows the community's support.",
+    "tool_calls": null,
+    "finish_reason": null,
+    "started_at": 1790135540134,
+    "updated_at": 1790135545318,
+    "error": null,
+    "confirmation_debug": {
+      "pending_requests_ref": {},
+      "pending_requests_rendered": {},
+      "ui_state_ref": {},
+      "ui_state_rendered": {},
+      "runtime": null,
+      "trace_frames": []
+    }
+  },
+  "harness": "Dev-only Test API renderer; exact packaged candidate sidecar. Native Store GET after subset fix, no model mock."
+}

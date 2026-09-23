@@ -379,6 +379,48 @@
           "descriptionZh": "收集 ponytail 注释并生成技术债清单"
         }
       ]
+    },
+    {
+      "id": "skillpack.humanizer",
+      "title": "Humanizer",
+      "titleZh": "Humanizer 文字润色",
+      "blurb": "Revise pasted prose for clearer language while keeping facts and the writer’s voice. This independent, third-party instruction skill runs with your selected model and its normal charges; text reaches that provider. No Humanizer account or separate service. English-oriented guidance; multilingual quality and file editing are not qualified. Unverified; it does not determine authorship or guarantee AI-detector results. MIT © 2025 Siqi Chen.",
+      "blurbZh": "润色粘贴的文字，保留事实和作者语气。这是独立第三方指令技能，由你选择的模型执行并按正常方式计费，文字会发送给该模型服务商；不需要 Humanizer 账号或额外服务。指导以英语为主，多语言效果和文件编辑尚未验证。未经安全认证，不用于判断作者身份或保证 AI 检测结果。MIT © 2025 Siqi Chen。",
+      "gradient": [
+        "#536d8c",
+        "#33445b"
+      ],
+      "source": {
+        "provider": "github",
+        "repo": "blader/humanizer",
+        "sha": "9862685f575c65a8247f90369951df1b3416e3d6",
+        "license": "MIT",
+        "licenseNotice": "MIT License\n\nCopyright (c) 2025 Siqi Chen\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+      },
+      "subset": [
+        "humanizer"
+      ],
+      "manifest": [
+        {
+          "path": "SKILL.md",
+          "sha256": "e8269e236bed06ed0fe4824c274112e54950b0cb46b0bafe5e1576ef7c9f93d5"
+        }
+      ],
+      "review": {
+        "recordId": "ticket-329-humanizer-selected-content",
+        "reviewedAt": "2026-09-22",
+        "reviewers": [
+          "Codex (selected instruction content review)"
+        ],
+        "scope": "Pinned SKILL.md only. Maintenance scripts, host packaging and external Wikipedia content are excluded. Preliminary source/prompt review; no full security certification."
+      },
+      "commandPreviews": [
+        {
+          "name": "humanizer",
+          "description": "Revise pasted prose while preserving its facts, citations and the writer’s voice.",
+          "descriptionZh": "润色粘贴的文字，保留事实、引用与作者语气。"
+        }
+      ]
     }
   ]
 }

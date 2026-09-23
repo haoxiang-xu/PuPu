@@ -1,0 +1,13 @@
+{
+  "schema": "pupu.ticket-329.packaged-catalog.v1",
+  "appPath": "/Users/red/Desktop/GITRepo/pupu-329/dist/mac-arm64/PuPu.app",
+  "asarSha256": "sha256:ec3cb2bc657036275fab043b1dcad92b1b9da07f8c6a06f663057f02cb3596c6",
+  "chunkPath": "build/static/js/45.c8a52add.chunk.js",
+  "chunkSha256": "sha256:337d18076a3516a343ddad54804a8113db181dc6853bd0cd25156cde92e9b6d0",
+  "humanizerId": "skillpack.humanizer",
+  "sourceSha": "9862685f575c65a8247f90369951df1b3416e3d6",
+  "manifestSha256": "e8269e236bed06ed0fe4824c274112e54950b0cb46b0bafe5e1576ef7c9f93d5",
+  "licenseNoticeSha256": "4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96",
+  "packagedChunkMatchesBuild": true,
+  "fullLicenseNoticePresent": true
+}

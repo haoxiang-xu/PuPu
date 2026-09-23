@@ -1,0 +1,180 @@
+PUPU
+/humanizer Rewrite this paragraph without adding facts. Return the edited paragraph and a short change summary. Preserve the date, amount and attribution: The Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up. It is important to note that this groundbreaking initiative represents a testament to the community’s unwavering commitment to fostering a vibrant literary landscape.
+Done · 6.8s
+Memory V2 · Unavailable
+detail
+Off
+11,104 in · 102 out · 11,206 total
+
+Edited paragraph:
+The Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up.
+
+Change summary:
+Removed inflated language and sales terms ("groundbreaking initiative," "testament to the community’s unwavering commitment," "fostering a vibrant literary landscape") to keep only the concrete facts: the launch date, budget, volunteer count, and attribution. No facts were added or removed.
+
+Give the revised paragraph alone, keeping the exact facts. Do not repeat the change summary.
+Done · 4.4s
+Memory V2 · Unavailable
+detail
+Off
+12,274 in · 36 out · 12,310 total
+
+The Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up.
+
+Top
+Prev
+Next
+End
+/
+COMMANDS · ↑↓ · ⏎
+ORGANIZE
+gpt-4.1
+1
+1
+AI can make mistakes, please double-check critical information.
+Models
+Plugins
+Workspaces
+CHATS
+Ticket 329 acceptance — disposable
+1m
+Ticket 329 acceptance — disposable
+3m
+New Chat
+5m
+Settings
+PLUGINS
+Discover
+Store
+Installed
+5
+Store
+All
+Toolkits
+MCP
+Skills
+Superpowers Essentials
+/brainstorming
+Five battle-tested software-development methodology skills from obra/superpowers: brainstorm before building, debug by root cause, write step-by-step plans, take code review with rigor, and prove work is done before claiming it.
+GET
+Prompt Master
+/prompt-master
+Turns rough ideas into production-ready prompts — routed and tuned per target AI tool, with a 37-pattern failure diagnostic.
+GET
+Frontend Design
+/frontend-design
+Anthropic's anti-generic UI design methodology — deliberate palette, typography and one justified aesthetic risk.
+GET
+Vercel Web Review
+/web-design-guidelines
+Vercel’s web-design-guidelines skill reviews accessibility, performance and interface quality. It reads your selected files and fetches current official guidelines online; the full React skills collection is not included.
+GET
+Trail of Bits Audit Prep
+/audit-prep-assistant
+Trail of Bits’ audit-prep-assistant helps define review scope, check test coverage and prepare audit documentation. Uses workspace tools; language-specific analyzers are separate dependencies. This is audit preparation, not a security certification.
+GET
+Ponytail
+/ponytail
+Four coding skills for simpler implementations, over-engineering reviews, repository audits and shortcut tracking. Invoke manually; no automatic hooks or MCP server. Complexity reviews do not replace security review.
+GET
+Playwright Browser
+Browser automation through the official Playwright MCP server.
+GET
+Browser Use
+Local agentic browser control via the browser-use CLI MCP…
+Set up
+Chrome DevTools
+Official Chrome DevTools MCP server for browser debugging,…
+GET
+GitHub
+Remote GitHub MCP server for repositories, issues and pull…
+Set up
+Figma
+Official remote Figma MCP server; PuPu connection is pending…
+Coming soon
+Bug Bounty Intelligence
+Third-party smart contract security tools using…
+GET
+Sentry
+Official hosted Sentry MCP service for issues, traces, projects…
+Connect
+Vercel
+Official Vercel remote MCP server; PuPu connection is pending…
+Coming soon
+Grafana
+Official Grafana MCP server for dashboards, datasources, alerts…
+Set up
+Netdata Cloud
+Official Netdata Cloud MCP endpoint for infrastructure metrics,…
+Set up
+Notion
+Hosted remote MCP for Notion pages, databases and search.
+Connect
+Filesystem
+Read and write files within an allowed workspace directory.
+GET
+MarkItDown
+Convert documents, archives and rich files into Markdown…
+GET
+Memory
+Persistent knowledge-graph memory via the reference MCP server.
+GET
+Slack Remote
+Official Slack remote MCP server; PuPu requires a registered…
+Coming soon
+Fetch
+Fetch a URL and convert its contents to Markdown for the agent…
+GET
+SQLite
+Query and manage a local SQLite database file through the…
+GET
+Microsoft Learn
+Official Microsoft Learn MCP service for searching and fetching…
+GET
+Brave Search
+Official Brave Search MCP server for web, news, image and video…
+Set up
+Tavily
+Official Tavily MCP server for web search, extraction,…
+Set up
+Firecrawl
+Official Firecrawl MCP server for web scraping, search and site…
+Set up
+Core
+Default coding-agent toolkit for guarded file reads and edits,…
+OPEN
+Plan
+/plan
+Workspace-backed planning tools for drafting, updating,…
+OPEN
+👁️
+Agent Reach
+Read-only Agent-Reach helpers for status checks, web pages, and…
+OPEN
+Humanizer
+/humanizer
+OPEN
+Humanizer
+built-in
+Third-party · Officially curated
+Unverified
+by skillpack
+Installed
+COMMANDS
+/humanizer
+humanizer
+Rewrite AI-sounding text so it reads like the writer without changing what it says. Use when editing or reviewing prose for AI tells: not-X-but-Y contrasts, one-line closers, staged openers, forced triads, dashes everywhere, inflated claims, sales language, stock AI words, bold labels, or filler. Based on Wikipedia's "Signs of AI writing."
+Try in chat
+ABOUT
+Provider
+skillpack
+Category
+General
+PERMISSION
+Auto Enable
+Automatically enable this plugin for new chats
+Auto Approve
+Automatically approve all actions from this plugin without confirmation
+Delete Plugin
+Remove this plugin from your installation
+Delete Plugin
