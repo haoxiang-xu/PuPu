@@ -152,14 +152,24 @@ const parseArgs = (argv) => {
 const readCredentialFile = (filePath) => {
   if (!filePath) return {};
   const resolved = path.resolve(filePath);
-  const stat = fs.statSync(resolved);
-  if (!stat.isFile()) throw new Error(`credentials path is not a file: ${resolved}`);
-  if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
-    throw new Error(
-      `credentials file must not be group/world accessible; run chmod 600 ${resolved}`,
-    );
+  // The mode check and the read must see one inode. Checking the path and then
+  // reading the path lets a 0600 file pass the guard while the bytes come from
+  // something else — and what this guard protects is provider API keys.
+  const handle = fs.openSync(resolved, "r");
+  let raw;
+  try {
+    const stat = fs.fstatSync(handle);
+    if (!stat.isFile()) throw new Error(`credentials path is not a file: ${resolved}`);
+    if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
+      throw new Error(
+        `credentials file must not be group/world accessible; run chmod 600 ${resolved}`,
+      );
+    }
+    raw = fs.readFileSync(handle, "utf8");
+  } finally {
+    fs.closeSync(handle);
   }
-  const parsed = JSON.parse(fs.readFileSync(resolved, "utf8"));
+  const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("credentials file must contain a JSON object");
   }
