@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-09-23T03:30:49.768Z",
+  "candidateBase": "bd94efe8facb38ed4afa7488a46e68d5e6cbb15a",
+  "boundary": "BC-289-002",
+  "sequence": "SEQ-289-001",
+  "checks": [
+    "AC-289-002"
+  ],
+  "activationBoundary": "BC-289-003",
+  "activationCoverage": "scripted-wiring-only",
+  "record": {
+    "id": "skillpack.doc-coauthoring",
+    "source": {
+      "provider": "github",
+      "repo": "anthropics/skills",
+      "sha": "34040c9c568585f6929bedeaad110ad08f079624",
+      "license": "License not specified for this skill"
+    },
+    "manifest": [
+      {
+        "path": "skills/doc-coauthoring/SKILL.md",
+        "sha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4"
+      }
+    ],
+    "downloadedFileSha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4",
+    "downloadedFileBytes": 15815,
+    "command": {
+      "name": "doc-coauthoring",
+      "bodyBytes": 15341,
+      "bodySha256": "cdc0afd5dccbe0731d74ef86ff60c3e79b9b477a37ebc7be375d4cec8aa18046"
+    },
+    "storedSkillKeys": [
+      "aliases",
+      "body",
+      "degraded",
+      "description",
+      "metadata",
+      "model_invocable",
+      "name",
+      "phase",
+      "title",
+      "tools",
+      "user_invocable"
+    ],
+    "inventory": {
+      "revision": "sha256:a4eacf146513e40d5038aa4de9fe62e94dd4ac1ade9ec6642caa342c171feb42",
+      "skill": {
+        "id": "skillpack:skillpack.doc-coauthoring:doc-coauthoring",
+        "name": "doc-coauthoring",
+        "description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+        "source": "skillpack",
+        "source_id": "skillpack.doc-coauthoring",
+        "aliases": [],
+        "model_invocable": true,
+        "user_invocable": true,
+        "reserved": false
+      }
+    },
+    "scriptedAgentActivation": {
+      "status": "PASS",
+      "modelIO": "scripted-only",
+      "identity": "skillpack:skillpack.doc-coauthoring:doc-coauthoring",
+      "bodySha256": "cdc0afd5dccbe0731d74ef86ff60c3e79b9b477a37ebc7be375d4cec8aa18046",
+      "userTextVerbatim": "PASS",
+      "bodyOnce": "PASS",
+      "secondTurnRetained": "PASS",
+      "coldAgentRebuild": "PASS",
+      "activation": "user:1:42b9087187ac4e95"
+    },
+    "runtime": {
+      "python": "/Users/red/Desktop/GITRepo/PuPu/.venv/bin/python",
+      "unchainModule": "/Users/red/Desktop/GITRepo/skills-delivery-evidence-2026-09-21/unchain-0.2.0-py3-none-any.whl/unchain/__init__.py",
+      "unchainVersion": "0.2.0",
+      "directUrl": null,
+      "wheelSha256": "sha256:6544306f55267482c9dfcd7fa346ed218a83ee8e4ec68a3ed761600f7119f194",
+      "manifestDigest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+      "sourceRevision": "fd7f7395ba39c5ce694191e5c160734f477e0957"
+    },
+    "realDownloadScanImport": "PASS",
+    "bodyEqualsUpstreamMinusFrontmatter": "PASS",
+    "duplicateRejected": "PASS",
+    "freshProcessRead": "PASS",
+    "inventoryIdentity": "PASS",
+    "uninstallReinstall": "PASS",
+    "uninstallClearsMenuAndInventory": "PASS",
+    "badHashFailsClosed": "PASS",
+    "liveModelInvocationCurrentPath": "NOT_RUN",
+    "packagedPairQualification": "NOT_RUN"
+  }
+}
