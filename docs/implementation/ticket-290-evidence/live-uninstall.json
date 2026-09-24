@@ -1,0 +1,10 @@
+{
+  "delete": {
+    "ok": true,
+    "toolkitId": "mcp.workspace.zotero-readonly"
+  },
+  "after": {
+    "count": 0,
+    "toolkits": []
+  }
+}

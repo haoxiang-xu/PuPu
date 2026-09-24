@@ -1471,9 +1471,9 @@ def build_mcp_runtime_toolkit(
         # records); source metadata remains the fallback for older macOS
         # records that persisted an absolute downloaded-runtime path.
         logical_runtime_command = (
-            command if command in {"npx", "uvx"} else source_command
+            command if command in {"npx", "uvx", "pupu-zotero-readonly"} else source_command
         )
-        if logical_runtime_command in {"npx", "uvx"}:
+        if logical_runtime_command in {"npx", "uvx", "pupu-zotero-readonly"}:
             try:
                 resolved_runtime = resolve_managed_stdio_runtime(
                     logical_runtime_command,
