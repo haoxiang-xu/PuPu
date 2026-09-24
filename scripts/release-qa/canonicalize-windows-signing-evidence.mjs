@@ -64,12 +64,28 @@ export function canonicalizeWindowsSigningEvidenceFile(evidencePath) {
     throw new Error("evidence path is required");
   }
   const resolvedPath = path.resolve(evidencePath);
-  if (!fs.statSync(resolvedPath, { throwIfNoEntry: false })?.isFile()) {
+  // One handle for the is-a-file check and the read: a path-based statSync
+  // describes whatever the path resolved to then, and this file is release
+  // evidence — it must not be possible for the bytes that get canonicalized to
+  // come from something other than what was checked.
+  let raw;
+  let handle;
+  try {
+    handle = fs.openSync(resolvedPath, "r");
+  } catch {
     throw new Error(`Windows signing evidence is missing: ${resolvedPath}`);
+  }
+  try {
+    if (!fs.fstatSync(handle).isFile()) {
+      throw new Error(`Windows signing evidence is missing: ${resolvedPath}`);
+    }
+    raw = fs.readFileSync(handle, "utf8");
+  } finally {
+    fs.closeSync(handle);
   }
   let evidence;
   try {
-    evidence = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
+    evidence = JSON.parse(raw);
   } catch (error) {
     throw new Error(`unable to read Windows signing evidence: ${error.message}`);
   }

@@ -83,11 +83,23 @@ export function createQualificationFixtureBuildConfig({ sourcePackage, feedUrl }
 export function writeQualificationFixtureBuildConfig({ packageJsonPath, feedUrl, outPath }) {
   const sourcePath = path.resolve(packageJsonPath);
   const output = path.resolve(outPath);
-  if (fs.existsSync(output)) throw new Error("qualification fixture config output must not already exist");
   const sourcePackage = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   const config = createQualificationFixtureBuildConfig({ sourcePackage, feedUrl });
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  try {
+    // "wx" is the existence check: an existsSync followed by a write leaves a
+    // window in which the file appears, and this config decides what the
+    // qualification fixture is built from.
+    fs.writeFileSync(output, `${JSON.stringify(config, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error("qualification fixture config output must not already exist");
+    }
+    throw error;
+  }
   return config;
 }
 

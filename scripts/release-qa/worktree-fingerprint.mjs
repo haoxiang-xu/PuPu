@@ -42,7 +42,16 @@ export const computeWorktreeFingerprint = (root) => {
     if (stat.isSymbolicLink()) {
       hash.update(fs.readlinkSync(absolutePath));
     } else if (stat.isFile()) {
-      hash.update(fs.readFileSync(absolutePath));
+      // Hash the bytes of the file that was stat-ed, not of whatever the path
+      // names by the time the read happens: this digest is the evidence that a
+      // worktree did not change, so a swapped path must not be able to keep it
+      // stable. O_NOFOLLOW also rejects a symlink planted after the lstat.
+      const handle = fs.openSync(absolutePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+      try {
+        hash.update(fs.readFileSync(handle));
+      } finally {
+        fs.closeSync(handle);
+      }
     }
   }
 

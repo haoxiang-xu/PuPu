@@ -636,14 +636,17 @@ const createRuntimeService = ({
         const relPath = path.relative(root, skillAbs).split(path.sep).join("/");
         let content = "";
         try {
-          const stat = fs.statSync(skillAbs);
-          if (stat.size <= SKILL_SCAN_MAX_BYTES) {
-            content = fs.readFileSync(skillAbs, "utf-8");
-          } else {
-            // Oversized SKILL.md — still surface it (empty body) so the importer
-            // reports it rather than the scan silently dropping it.
-            content = fs.readFileSync(skillAbs, "utf-8").slice(0, SKILL_SCAN_MAX_BYTES);
-          }
+          // Read first, bound after. A separate statSync described whatever the
+          // path pointed at then, not what the following read returned, and the
+          // oversized branch read the whole file anyway — so the stat only ever
+          // added a window in which the size check could be made wrong.
+          const raw = fs.readFileSync(skillAbs, "utf-8");
+          content =
+            raw.length <= SKILL_SCAN_MAX_BYTES
+              ? raw
+              : // Oversized SKILL.md — still surface it (truncated body) so the
+                // importer reports it rather than the scan silently dropping it.
+                raw.slice(0, SKILL_SCAN_MAX_BYTES);
         } catch {
           content = "";
         }

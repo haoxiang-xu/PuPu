@@ -252,11 +252,19 @@ const parseJsonBytes = (bytes, target) => {
 };
 
 export const loadStrictJsonFile = async (filePath, target = "json_file") => {
-  const stats = await fs.stat(filePath);
-  if (!stats.isFile() || stats.size <= 0 || stats.size > MAX_JSON_BYTES) {
-    fail("pricing_runtime_invalid", "JSON file is empty or too large", target);
+  // One handle for the bound check and the read: a path-based stat describes
+  // whatever the path resolved to then, so the size limit this enforces would
+  // otherwise say nothing about the bytes actually parsed.
+  const handle = await fs.open(filePath, "r");
+  try {
+    const stats = await handle.stat();
+    if (!stats.isFile() || stats.size <= 0 || stats.size > MAX_JSON_BYTES) {
+      fail("pricing_runtime_invalid", "JSON file is empty or too large", target);
+    }
+    return parseJsonBytes(await handle.readFile(), target);
+  } finally {
+    await handle.close();
   }
-  return parseJsonBytes(await fs.readFile(filePath), target);
 };
 
 export const classifyOfficialPricingSource = (sourceUrl) => {
@@ -744,11 +752,19 @@ export const loadOfficialSourceCapture = async ({ manifestPath }) => {
     fail("pricing_source_capture_invalid", "capture manifest digest changed", "capture.manifest");
   }
   const bodyPath = path.join(path.dirname(path.resolve(manifestPath)), manifest.body_file);
-  const bodyStats = await fs.stat(bodyPath);
-  if (!bodyStats.isFile() || bodyStats.size !== manifest.body_bytes) {
-    fail("pricing_source_capture_invalid", "source body size changed", "capture.body");
+  // Same handle for the size check and the read, so the digest below attests
+  // the bytes that were measured rather than whatever the path named later.
+  const bodyHandle = await fs.open(bodyPath, "r");
+  let body;
+  try {
+    const bodyStats = await bodyHandle.stat();
+    if (!bodyStats.isFile() || bodyStats.size !== manifest.body_bytes) {
+      fail("pricing_source_capture_invalid", "source body size changed", "capture.body");
+    }
+    body = await bodyHandle.readFile();
+  } finally {
+    await bodyHandle.close();
   }
-  const body = await fs.readFile(bodyPath);
   if (sha256(body) !== bodySha256) {
     fail("pricing_source_capture_invalid", "source body digest changed", "capture.body");
   }
