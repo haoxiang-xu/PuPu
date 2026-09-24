@@ -1,6 +1,11 @@
+import logging
+
 from flask import Response, jsonify, request
 
 from route_blueprint import api_blueprint
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _root():
@@ -82,11 +87,15 @@ def replace_memory_session() -> Response:
                     }
                 }
             ), status_code
+        # Everything coded and statused above is a deliberate contract; this is
+        # the fallback for an arbitrary internal failure, whose text must not
+        # reach the renderer and be persisted with the chat.
+        _logger.exception("[route_memory] memory_replace_failed")
         return jsonify(
             {
                 "error": {
                     "code": "memory_replace_failed",
-                    "message": str(exc),
+                    "message": "Failed to replace the session memory.",
                 }
             }
         ), 500

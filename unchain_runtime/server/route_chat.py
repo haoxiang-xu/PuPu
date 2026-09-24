@@ -160,6 +160,19 @@ def _is_invalid_api_key_error(exc: Exception) -> bool:
     )
 
 
+_LOG_UNSAFE_PATTERN = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _log_safe(value: object, *, limit: int = 200) -> str:
+    """Bound a request-supplied value before it reaches a log line.
+
+    Identifiers arrive from the client, and a newline inside one forges a
+    second log entry in every consumer that reads the log as lines.
+    """
+
+    return _LOG_UNSAFE_PATTERN.sub("_", str(value or ""))[:limit]
+
+
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     message = str(stream_error)
     explicit_code = getattr(stream_error, "code", "")
@@ -588,8 +601,8 @@ def chat_tool_confirmation() -> Response:
     except Exception:
         logging.getLogger(__name__).exception(
             "interaction_resolution_persistence_failed session_id=%s interaction_id=%s",
-            session_id,
-            confirmation_id,
+            _log_safe(session_id),
+            _log_safe(confirmation_id),
         )
         return root._json_error(
             "interaction_resolution_persistence_failed",

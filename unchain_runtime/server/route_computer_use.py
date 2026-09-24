@@ -111,7 +111,7 @@ def get_computer_use_status():
 
     try:
         capabilities = get_capabilities()
-    except Exception as exc:  # never 500 on a status probe
+    except Exception:  # never 500 on a status probe
         return jsonify(
             {
                 "enabled": is_enabled(),
@@ -125,7 +125,9 @@ def get_computer_use_status():
                 },
                 "supported_model_prefixes": supported_model_prefixes,
                 "reason": reason,
-                "error": f"capability_probe_failed: {exc}",
+                # The probe runs provider code; its exception text is an
+                # internal detail, so the status payload carries the code only.
+                "error": "capability_probe_failed",
             }
         )
 

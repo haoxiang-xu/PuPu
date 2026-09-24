@@ -30,9 +30,9 @@ def list_agent_recipes():
         from recipe_loader import list_recipes
         recipes = list_recipes()
         return jsonify({"recipes": recipes, "count": len(recipes)})
-    except Exception as exc:
+    except Exception:
         _logger.exception("[route_recipes] list failed")
-        return jsonify({"error": {"code": "recipe_list_failed", "message": str(exc)}}), 500
+        return jsonify({"error": {"code": "recipe_list_failed", "message": "Failed to list recipes."}}), 500
 
 
 @api_blueprint.get("/agent_recipes/subagent_refs")
@@ -44,9 +44,9 @@ def list_agent_recipe_subagent_refs():
         from recipe_loader import list_subagent_refs
         refs = list_subagent_refs()
         return jsonify({"refs": refs, "count": len(refs)})
-    except Exception as exc:
+    except Exception:
         _logger.exception("[route_recipes] subagent_refs failed")
-        return jsonify({"error": {"code": "subagent_refs_failed", "message": str(exc)}}), 500
+        return jsonify({"error": {"code": "subagent_refs_failed", "message": "Failed to list subagent references."}}), 500
 
 
 @api_blueprint.get("/agent_recipes/<name>")
@@ -61,9 +61,9 @@ def get_agent_recipe(name: str):
             return root._json_error("not_found", "Recipe not found", 404)
         path = recipes_dir() / f"{name}.recipe"
         return jsonify(json.loads(path.read_text(encoding="utf-8")))
-    except Exception as exc:
+    except Exception:
         _logger.exception("[route_recipes] get failed")
-        return jsonify({"error": {"code": "recipe_get_failed", "message": str(exc)}}), 500
+        return jsonify({"error": {"code": "recipe_get_failed", "message": "Failed to load the recipe."}}), 500
 
 
 @api_blueprint.post("/agent_recipes")
@@ -78,9 +78,9 @@ def save_agent_recipe():
         return jsonify({"ok": True, "name": payload.get("name")})
     except ValueError as exc:
         return jsonify({"error": {"code": "recipe_invalid", "message": str(exc)}}), 400
-    except Exception as exc:
+    except Exception:
         _logger.exception("[route_recipes] save failed")
-        return jsonify({"error": {"code": "recipe_save_failed", "message": str(exc)}}), 500
+        return jsonify({"error": {"code": "recipe_save_failed", "message": "Failed to save the recipe."}}), 500
 
 
 @api_blueprint.delete("/agent_recipes/<name>")
@@ -94,6 +94,6 @@ def delete_agent_recipe(name: str):
         return jsonify({"ok": True})
     except ValueError as exc:
         return jsonify({"error": {"code": "recipe_delete_refused", "message": str(exc)}}), 400
-    except Exception as exc:
+    except Exception:
         _logger.exception("[route_recipes] delete failed")
-        return jsonify({"error": {"code": "recipe_delete_failed", "message": str(exc)}}), 500
+        return jsonify({"error": {"code": "recipe_delete_failed", "message": "Failed to delete the recipe."}}), 500

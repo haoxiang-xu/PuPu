@@ -18,6 +18,10 @@ paths-ignore:
   - "**/tests/**"
   - "**/__tests__/**"
   - "**/fixtures/**"
+  # Captured third-party pages and other recorded inputs. They are data the
+  # tests replay, not code this project ships, and they carry whatever markup
+  # the upstream site happened to serve.
+  - "**/__fixtures__/**"
   - node_modules/**
   - build/**
   - dist/**
