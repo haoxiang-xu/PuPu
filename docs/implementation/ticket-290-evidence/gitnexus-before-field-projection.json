@@ -1,0 +1,186 @@
+{
+  "summary": {
+    "changed_count": 25,
+    "affected_count": 0,
+    "changed_files": 6,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Function:unchain_runtime/server/mcp_managed_runtime.py:resolve_managed_stdio_runtime",
+      "name": "resolve_managed_stdio_runtime",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/mcp_managed_runtime.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/mcp_toolkits.py:build_mcp_runtime_toolkit",
+      "name": "build_mcp_runtime_toolkit",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/mcp_toolkits.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/mcp_zotero_profile.py:COMMAND",
+      "name": "COMMAND",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/mcp_zotero_profile.py:PROFILE",
+      "name": "PROFILE",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/mcp_zotero_profile.py:CUTOFF",
+      "name": "CUTOFF",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/mcp_zotero_profile.py:PACKAGE_VERSION",
+      "name": "PACKAGE_VERSION",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/mcp_zotero_profile.py:SERVER_SOURCE",
+      "name": "SERVER_SOURCE",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/mcp_zotero_profile.py:profile_args",
+      "name": "profile_args",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/mcp_zotero_profile.py:source_digest",
+      "name": "source_digest",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_mcp_zotero_profile.py:SERVER_ROOT",
+      "name": "SERVER_ROOT",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroProfileRecipeTests",
+      "name": "ZoteroProfileRecipeTests",
+      "type": "Class",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroProfileRecipeTests.test_logical_profile_resolves_via_bundled_runtime_without_script_path#0",
+      "name": "test_logical_profile_resolves_via_bundled_runtime_without_script_path",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests",
+      "name": "ZoteroReadBoundaryTests",
+      "type": "Class",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.setUpClass#0",
+      "name": "setUpClass",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.setUp#0",
+      "name": "setUp",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.setUp.receive@57:8#1",
+      "name": "receive",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_only_two_read_tools_are_registered#0",
+      "name": "test_only_two_read_tools_are_registered",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_network_guard_rejects_before_send#0",
+      "name": "test_network_guard_rejects_before_send",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_canonical_destination_and_credentials_are_stripped#0",
+      "name": "test_canonical_destination_and_credentials_are_stripped",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_canonical_destination_and_credentials_are_stripped.response@86:8",
+      "name": "response",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_redirect_and_oversized_response_fail_closed#0",
+      "name": "test_redirect_and_oversized_response_fail_closed",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_compressed_response_is_rejected_before_decode#0",
+      "name": "test_compressed_response_is_rejected_before_decode",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_bad_arguments_never_open_a_client#0",
+      "name": "test_bad_arguments_never_open_a_client",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_real_pyzotero_reads_fixture_without_interpreting_document_instructions#0",
+      "name": "test_real_pyzotero_reads_fixture_without_interpreting_document_instructions",
+      "type": "Method",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_mcp_zotero_profile.py:ZoteroReadBoundaryTests.test_real_pyzotero_reads_fixture_without_interpreting_document_instructions.local@124:8#0",
+      "name": "local",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_mcp_zotero_profile.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

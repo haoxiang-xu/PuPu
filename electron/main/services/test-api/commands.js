@@ -1,16 +1,24 @@
+/* Every literal run between `:params` is escaped as a whole — escaping only
+   `/` left backslashes and other regex metacharacters to be reinterpreted,
+   so a pattern could silently compile to a different matcher than it reads. */
+const PATH_PARAM_PATTERN = /:([A-Za-z_]\w*)/g;
+const escapeRegExpLiteral = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
 const compilePath = (pattern) => {
   const keys = [];
-  const regex = new RegExp(
-    "^" +
-      pattern
-        .replace(/\//g, "\\/")
-        .replace(/:([A-Za-z_]\w*)/g, (_, k) => {
-          keys.push(k);
-          return "([^/]+)";
-        }) +
-      "$",
-  );
-  return { regex, keys };
+  let source = "";
+  let lastIndex = 0;
+  PATH_PARAM_PATTERN.lastIndex = 0;
+  let match;
+  while ((match = PATH_PARAM_PATTERN.exec(pattern)) !== null) {
+    source += escapeRegExpLiteral(pattern.slice(lastIndex, match.index));
+    keys.push(match[1]);
+    source += "([^/]+)";
+    lastIndex = match.index + match[0].length;
+  }
+  source += escapeRegExpLiteral(pattern.slice(lastIndex));
+  return { regex: new RegExp(`^${source}$`), keys };
 };
 
 const codeToStatus = (code) => {

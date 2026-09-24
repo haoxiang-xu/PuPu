@@ -13,6 +13,11 @@ on:
       - "src/SERVICEs/mcp_toolkit_registry.json"
       - "src/SERVICEs/mcp_toolkit_registry.schema.json"
 
+# Read-only: this workflow only validates catalog files, so the job token must
+# not carry the repository's default write scopes.
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest

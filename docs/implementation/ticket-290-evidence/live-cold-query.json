@@ -1,0 +1,11 @@
+{
+  "message_id": "assistant-1790135912578-c4af1fb03ed6",
+  "role": "assistant",
+  "content": "The DOI for the Zotero item with key ABCDEFGH is: 10.0000/pupu-fixture\n\nThis is synthetic test data.",
+  "tool_calls": null,
+  "finish_reason": "stop",
+  "latency_ms": 9213,
+  "chat_id": "chat-1790135772413-8cf34fdb6fc208",
+  "execution_id": "chat-1790135772413-8cf34fdb6fc208",
+  "attempt_id": "unchain-1790135912585-bb89352b536a48"
+}

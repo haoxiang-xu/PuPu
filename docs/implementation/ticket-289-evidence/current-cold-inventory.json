@@ -1,0 +1,22 @@
+{
+  "runtimeManifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "inventory": {
+    "diagnostics": [],
+    "revision": "sha256:a4eacf146513e40d5038aa4de9fe62e94dd4ac1ade9ec6642caa342c171feb42",
+    "schema": "pupu.skill_inventory.v1",
+    "skills": [
+      {
+        "aliases": [],
+        "description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+        "id": "skillpack:skillpack.doc-coauthoring:doc-coauthoring",
+        "model_invocable": true,
+        "name": "doc-coauthoring",
+        "reserved": false,
+        "source": "skillpack",
+        "source_id": "skillpack.doc-coauthoring",
+        "user_invocable": true
+      }
+    ]
+  },
+  "sidecar": "exact candidate sidecar shared byte-for-byte between 289 and 329"
+}

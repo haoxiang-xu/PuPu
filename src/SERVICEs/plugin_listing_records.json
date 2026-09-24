@@ -1,5 +1,11 @@
 [
   {
+    "toolkitId": "mcp.workspace.zotero-readonly",
+    "source": "mcp",
+    "sourceRepo": "https://github.com/54yyyu/zotero-mcp",
+    "listing": "officially_curated"
+  },
+  {
     "toolkitId": "mcp.browser.playwright",
     "source": "mcp",
     "sourceRepo": "https://github.com/microsoft/playwright-mcp",
@@ -181,6 +187,12 @@
     "toolkitId": "skillpack.ponytail",
     "source": "skillpack",
     "sourceRepo": "https://github.com/DietrichGebert/ponytail",
+    "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.doc-coauthoring",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/anthropics/skills",
     "listing": "officially_curated"
   },
   {

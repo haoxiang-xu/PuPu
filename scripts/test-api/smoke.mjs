@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { client } from "./client.mjs";
 
 const log = (...a) => console.log("[smoke]", ...a);
@@ -46,8 +48,12 @@ const fail = (msg) => {
 
   log("taking screenshot...");
   const png = await client.request("GET", "/debug/screenshot");
-  fs.writeFileSync("/tmp/pupu-smoke.png", Buffer.from(png));
-  log("screenshot -> /tmp/pupu-smoke.png");
+  // mkdtemp, not a fixed /tmp name: a predictable path in the shared temp dir
+  // lets any local user pre-create it and capture the screenshot.
+  const shotDir = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-smoke-"));
+  const shotPath = path.join(shotDir, "screenshot.png");
+  fs.writeFileSync(shotPath, Buffer.from(png));
+  log("screenshot ->", shotPath);
 
   log("snapshot:");
   const state = await client.GET("/debug/state");

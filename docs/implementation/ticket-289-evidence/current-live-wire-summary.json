@@ -1,0 +1,65 @@
+{
+  "bodySha256": "cdc0afd5dccbe0731d74ef86ff60c3e79b9b477a37ebc7be375d4cec8aa18046",
+  "requests": [
+    {
+      "wireObjectSha256": "c97689273dbb5977be3923c20f5c53d3ad7622f554d21fa366e41a90b7942bc1",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "81b083fd32d3e248023f2fc4e60ffa27a56b9ce3e975418a476994dd07b396e7",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "d7e6d201763bb5df02f07f6e8d1a6823e2be9997b37fa50a7b50fda82e53bf98",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "4ae015f56a88acffefd6a21b04d1c84d2813026108c87c8daf0c166f7d01ad07",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "0ca8c9f7a3979afefa1ae0f2414a57a06f8f8b3fdd74a9feb3847c70bc1221ca",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "9376e7aa6088c20da91dc67da4f64b8346cc24b9279c6debf9dec82e3ca5e2e2",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "16e52781dfb5e8c0e505e971b274e3251cfa91920967256523cd3322df1ab8eb",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "53037ebd9052cb7b498ee5e9f6e7e7cc8d009a3270542f502e67fa9ad62d0c72",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "c7338dc9bae9765532b434a8a6c215db3cbed92ab28e0f2b0570bc9f57cf8f92",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "416d2ecfa88c5fb944b6f6b90fa1011b706c42b929a491befa498b4baabf3bee",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "d46063c7043f9166fe5c2e5971b724433ade0ac24c536beb465e5454dc4eec65",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    },
+    {
+      "wireObjectSha256": "1d9800232f32723d743439360a3b98526deb73d6e1d431a9189271fd089e6922",
+      "exactBodyOccurrences": 1,
+      "identityPresent": true
+    }
+  ]
+}

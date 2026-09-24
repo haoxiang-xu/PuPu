@@ -1,0 +1,10 @@
+{
+  "verdict": "PASS",
+  "adapterSha256": "59c5c84957d6952a0895e9405ffdb12ca1a0095b2287f29c2afe1e2b6e8bc34c",
+  "installDiscovery": "strict consumer of actual producer args",
+  "persistentCommand": "pupu-zotero-readonly",
+  "persistentArgs": [],
+  "coldRebindAfterRelocation": "PASS",
+  "uninstall": "PASS",
+  "network": "not performed; see independent actual stdio evidence"
+}
