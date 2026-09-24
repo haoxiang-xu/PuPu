@@ -1,0 +1,24 @@
+name: PuPu CodeQL configuration
+
+# security-and-quality = the default security queries plus the code-quality
+# suite, which is the closest CodeQL gets to a SonarQube-style review. Drop to
+# `security-extended` (or remove the block) if the quality alerts prove noisy.
+queries:
+  - uses: security-and-quality
+
+# Product code only. Docs hold HTML mockups and one-off scripts, public/ is the
+# static shell, and test files would flood the quality suite with fixture code.
+paths-ignore:
+  - docs/**
+  - public/**
+  - e2e/**
+  - "**/*.test.js"
+  - "**/*.test.cjs"
+  - "**/*.test.mjs"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/fixtures/**"
+  - node_modules/**
+  - build/**
+  - dist/**
+  - coverage/**
