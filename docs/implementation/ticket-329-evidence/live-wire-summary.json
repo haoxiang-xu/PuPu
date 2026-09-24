@@ -1,0 +1,16 @@
+[
+  {
+    "turn": 1,
+    "bodySha256": "7498275c66217edf9a9b410467276d9fc670e9da0ca91a60eefd5b8d69f9cc5f",
+    "exactBodyOccurrences": 1,
+    "identityPresent": true,
+    "model": "gpt-4.1"
+  },
+  {
+    "turn": 2,
+    "bodySha256": "7498275c66217edf9a9b410467276d9fc670e9da0ca91a60eefd5b8d69f9cc5f",
+    "exactBodyOccurrences": 1,
+    "identityPresent": true,
+    "model": "gpt-4.1"
+  }
+]

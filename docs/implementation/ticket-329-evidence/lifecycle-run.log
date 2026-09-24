@@ -1,0 +1,35 @@
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{
+  "checkedAt": "2026-09-23T03:42:47.794Z",
+  "candidateBase": "bd94efe8facb38ed4afa7488a46e68d5e6cbb15a",
+  "id": "skillpack.humanizer",
+  "sourceSha": "9862685f575c65a8247f90369951df1b3416e3d6",
+  "sourceBytes": 28728,
+  "sourceSha256": "e8269e236bed06ed0fe4824c274112e54950b0cb46b0bafe5e1576ef7c9f93d5",
+  "licenseSha256": "4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96",
+  "unchainWheelSha256": "6544306f55267482c9dfcd7fa346ed218a83ee8e4ec68a3ed761600f7119f194",
+  "skillBodyBytes": 28295,
+  "skillBodySha256": "7498275c66217edf9a9b410467276d9fc670e9da0ca91a60eefd5b8d69f9cc5f",
+  "checks": {
+    "pinnedSourceAndLicense": "PASS",
+    "listingAndGateIdentity": "PASS",
+    "storeRowCommandDisplay": "PASS",
+    "realDownloadScanImport": "PASS",
+    "strictProducerAndStoreRows": "PASS",
+    "descriptionBodyMetadata": "PASS",
+    "manifestOnlyFile": "PASS",
+    "duplicate409": "PASS",
+    "repeatAndColdRead": "PASS",
+    "coldInventory": "PASS",
+    "uninstallReinstall": "PASS",
+    "duplicateManifestRejected": "PASS",
+    "invalidStoreIdentityRejected": "PASS",
+    "tamperedHashNoPartial": "PASS",
+    "scriptedFirstAndSecondActivation": "PASS",
+    "coldAgentRebuildActivation": "PASS",
+    "liveModel": "NOT_RUN",
+    "packagedArtifactPair": "NOT_RUN"
+  }
+}

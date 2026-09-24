@@ -194,5 +194,11 @@
     "source": "skillpack",
     "sourceRepo": "https://github.com/anthropics/skills",
     "listing": "officially_curated"
+  },
+  {
+    "toolkitId": "skillpack.humanizer",
+    "source": "skillpack",
+    "sourceRepo": "https://github.com/blader/humanizer",
+    "listing": "officially_curated"
   }
 ]
