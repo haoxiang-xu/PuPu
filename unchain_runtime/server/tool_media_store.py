@@ -100,13 +100,20 @@ def _safe_session_component(session_id: str) -> str:
 def _session_dir(session_id: str) -> Path:
     root = _media_root()
     candidate = root / _safe_session_component(session_id)
+    # Defence in depth: one containment check on the realpath means a later
+    # change to the component sanitizer cannot silently reopen the escape
+    # above. The separator matters — without it a sibling directory whose name
+    # merely starts with the root's name would pass.
     try:
-        candidate.resolve().relative_to(root.resolve())
-    except (OSError, ValueError):
-        # Defence in depth: one containment check means a later change to the
-        # component sanitizer cannot silently reopen the escape above.
+        root_real = os.path.realpath(root)
+        candidate_real = os.path.realpath(candidate)
+    except OSError:
         return root / _NO_SESSION
-    return candidate
+    if candidate_real != root_real and not candidate_real.startswith(
+        root_real + os.sep
+    ):
+        return root / _NO_SESSION
+    return Path(candidate_real)
 
 
 def _ext_for_media_type(media_type: str) -> str:
