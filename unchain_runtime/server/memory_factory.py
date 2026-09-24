@@ -25,6 +25,7 @@ from types import MethodType, SimpleNamespace
 from typing import Any, Callable
 
 from net_tls import get_outbound_ssl_context
+from ollama_endpoint import resolve_ollama_base_url
 
 _QDRANT_AVAILABLE = importlib.util.find_spec("qdrant_client") is not None
 
@@ -630,10 +631,17 @@ def _api_key_from_options(options: dict[str, Any]) -> str:
 
 
 def _ollama_base_url(options: dict[str, Any]) -> str:
-    val = options.get("ollama_base_url")
-    if isinstance(val, str) and val.strip():
-        return val.strip().rstrip("/")
-    return os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    """Resolve the Ollama endpoint from operator configuration only.
+
+    Mirrors memory_embeddings._ollama_base_url, which replaces this definition
+    at import time. `options` arrives from the chat request, so honouring an
+    `ollama_base_url` key there would let a caller choose which host the
+    sidecar fetches — and the embedding call POSTs the text being embedded to
+    that host.
+    """
+
+    del options
+    return resolve_ollama_base_url()
 
 
 def _ollama_reachable(base_url: str) -> bool:

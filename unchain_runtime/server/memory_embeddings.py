@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from types import SimpleNamespace
 from typing import Any, Callable
 
 from net_tls import get_outbound_ssl_context
+from ollama_endpoint import resolve_ollama_base_url
 
 
 def _root():
@@ -37,10 +37,16 @@ def _api_key_from_options(options: dict[str, Any]) -> str:
 
 
 def _ollama_base_url(options: dict[str, Any]) -> str:
-    val = options.get("ollama_base_url")
-    if isinstance(val, str) and val.strip():
-        return val.strip().rstrip("/")
-    return os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    """Resolve the Ollama endpoint from operator configuration only.
+
+    `options` arrives from the chat request, so an `ollama_base_url` key there
+    used to let a caller choose which host the sidecar fetches — and the
+    embedding call POSTs the text being embedded to that host. No client in the
+    repository ever set it; the endpoint now comes from OLLAMA_HOST, validated.
+    """
+
+    del options
+    return resolve_ollama_base_url()
 
 
 def _ollama_reachable(base_url: str) -> bool:
