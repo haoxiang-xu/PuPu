@@ -170,7 +170,10 @@ def _log_safe(value: object, *, limit: int = 200) -> str:
     second log entry in every consumer that reads the log as lines.
     """
 
-    return _LOG_UNSAFE_PATTERN.sub("_", str(value or ""))[:limit]
+    # The explicit newline removal is the part that stops entry forging; the
+    # character class then takes the remaining control characters.
+    text = str(value or "").replace("\r", "").replace("\n", "")
+    return _LOG_UNSAFE_PATTERN.sub("_", text)[:limit]
 
 
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:

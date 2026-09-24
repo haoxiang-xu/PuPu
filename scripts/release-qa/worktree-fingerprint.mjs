@@ -37,21 +37,31 @@ export const computeWorktreeFingerprint = (root) => {
 
   for (const relativePath of untrackedPaths) {
     const absolutePath = path.join(root, relativePath);
-    const stat = fs.lstatSync(absolutePath);
-    hash.update(`untracked\0${relativePath}\0${stat.mode}\0${stat.size}\0`);
-    if (stat.isSymbolicLink()) {
+    // Open first, then describe the descriptor. This digest is the evidence
+    // that a worktree did not change, so the bytes hashed have to be the bytes
+    // that were measured — an lstat followed by a read by path can be handed
+    // two different inodes. O_NOFOLLOW makes a symlink fail the open, which is
+    // how a symlink is detected here rather than by a prior stat.
+    let handle = null;
+    try {
+      handle = fs.openSync(absolutePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    } catch (error) {
+      if (error?.code !== "ELOOP" && error?.code !== "EMLINK") throw error;
+    }
+    if (handle === null) {
+      const linkStat = fs.lstatSync(absolutePath);
+      hash.update(`untracked\0${relativePath}\0${linkStat.mode}\0${linkStat.size}\0`);
       hash.update(fs.readlinkSync(absolutePath));
-    } else if (stat.isFile()) {
-      // Hash the bytes of the file that was stat-ed, not of whatever the path
-      // names by the time the read happens: this digest is the evidence that a
-      // worktree did not change, so a swapped path must not be able to keep it
-      // stable. O_NOFOLLOW also rejects a symlink planted after the lstat.
-      const handle = fs.openSync(absolutePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-      try {
+      continue;
+    }
+    try {
+      const stat = fs.fstatSync(handle);
+      hash.update(`untracked\0${relativePath}\0${stat.mode}\0${stat.size}\0`);
+      if (stat.isFile()) {
         hash.update(fs.readFileSync(handle));
-      } finally {
-        fs.closeSync(handle);
       }
+    } finally {
+      fs.closeSync(handle);
     }
   }
 
