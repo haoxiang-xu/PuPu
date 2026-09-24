@@ -9,8 +9,13 @@ const SKIP_ENV_KEY = "PUPU_VERSION_PREPARED";
 const VERSION_ENV_KEY = "PUPU_BUILD_VERSION";
 const PACKAGE_JSON_PATH = path.resolve(__dirname, "..", "package.json");
 
+// The official semver.org pattern. Its prerelease identifier alternatives are
+// disjoint (`\d*[A-Za-z-]…` must contain a non-digit), so a long prerelease
+// string cannot backtrack exponentially. Keeping the looser
+// `[0-9A-Za-z-][0-9A-Za-z-]*` form would also accept leading-zero numeric
+// identifiers that semver forbids.
 const SEMVER_REGEX =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 const USAGE = [
   "Usage:",

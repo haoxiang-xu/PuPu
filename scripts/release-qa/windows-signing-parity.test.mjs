@@ -46,7 +46,7 @@ const assertSharedActionContract = (action) => {
     "Windows signing evidence must be canonicalized only after the producer writes it",
   );
   assert.equal(
-    count(action, /uses: azure\/artifact-signing-action@v2/g),
+    count(action, /uses: azure\/artifact-signing-action@[0-9a-f]{40} # v2/g),
     3,
     "the shared action must sign dependencies, the resealed launcher, and installer separately",
   );

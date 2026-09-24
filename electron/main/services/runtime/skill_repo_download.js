@@ -346,7 +346,11 @@ const createSkillRepoDownloader = (deps = {}) => {
       `pupu-skillpack-${generateUuid()}`,
     );
     try {
-      await fs.promises.mkdir(root, { recursive: true });
+      /* Exclusive create with 0700: `mkdir --recursive` succeeds on a path an
+         attacker pre-created in the world-writable temp dir, which would hand
+         them the extracted skill files. The `pupu-skillpack-` prefix stays —
+         the stale-directory sweep below keys off it. */
+      await fs.promises.mkdir(root, { mode: 0o700 });
       for (const [relPath, buffer] of retained) {
         const segments = relPath.split("/").filter(Boolean);
         const dest = path.join(root, ...segments);
