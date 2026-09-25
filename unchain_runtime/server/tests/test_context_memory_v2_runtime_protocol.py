@@ -219,6 +219,22 @@ def test_missing_graph_lineage_preflight_feature_fails_closed() -> None:
     assert verdict.reason == "unchain_runtime_protocol_required_feature_missing"
 
 
+def test_missing_ollama_reasoning_preview_feature_fails_closed() -> None:
+    manifest = _producer_manifest()
+    ownership = _protocol(manifest, "provider_turn_ownership")
+    present = capability_gate.verify_context_memory_v2_capability(
+        manifest=manifest, requested_mode="active"
+    )
+    assert present.ready is True
+
+    ownership["features"].remove("ollama_reasoning_preview_v1")
+    missing = capability_gate.verify_context_memory_v2_capability(
+        manifest=_resign(manifest), requested_mode="active"
+    )
+    assert missing.ready is False
+    assert missing.reason == "unchain_runtime_protocol_required_feature_missing"
+
+
 def test_missing_interaction_resolution_atomic_acceptance_feature_fails_closed() -> None:
     manifest = _producer_manifest()
     durable = _protocol(manifest, "durable_interaction")

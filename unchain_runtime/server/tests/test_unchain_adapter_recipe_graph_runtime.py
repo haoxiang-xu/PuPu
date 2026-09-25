@@ -704,6 +704,62 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
         step_finals = [event for event in events if event.get("type") == "workflow_step_final"]
         self.assertEqual(step_finals[0]["content"], "first Hello")
 
+    def test_stream_recipe_graph_forwards_exact_ollama_preview_before_final(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+
+        class PreviewAgent(FakeAgent):
+            def run(self, *, callback=None, run_id=None, **_kwargs):
+                raw = {
+                    "type": "reasoning", "run_id": run_id, "iteration": 0,
+                    "provider": "ollama", "delta": "draft",
+                }
+                callback.emit_provisional_reasoning(raw, "a" * 32)
+                callback.discard_provisional_reasoning(
+                    preview_id="a" * 32, run_id=run_id, iteration=0,
+                )
+                accepted = {**raw, "delta": "accepted"}
+                callback.emit_provisional_reasoning(accepted, "b" * 32)
+                callback.commit_provisional_reasoning(accepted)
+                callback({
+                    "type": "final_message", "run_id": run_id,
+                    "iteration": 0, "content": self.instructions,
+                })
+                return SimpleNamespace(messages=[
+                    {"role": "assistant", "content": self.instructions},
+                ])
+
+        def fake_build(**kwargs):
+            return PreviewAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            events = list(ua._stream_recipe_graph_events(
+                recipe=recipe, message="Hello", history=[], attachments=[],
+                options={"modelId": "ollama:test"}, session_id="s",
+            ))
+
+        provisional = [
+            event for event in events
+            if "provisional_reasoning_id" in event
+        ]
+        self.assertEqual(
+            [event["type"] for event in provisional],
+            ["reasoning", "reasoning_preview_discarded", "reasoning"] * 2,
+        )
+        for event in provisional:
+            self.assertTrue(ua._is_ollama_reasoning_preview_event(event))
+        final_run_id = next(
+            event["run_id"] for event in events
+            if event["type"] == "final_message"
+        )
+        self.assertEqual(
+            {event["run_id"] for event in provisional}, {final_run_id},
+        )
+
     def test_stream_recipe_graph_unions_every_canonical_step_receipt(self):
         self._legacy_owner_patch.stop()
         import unchain_adapter as ua

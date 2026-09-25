@@ -41,6 +41,7 @@ import {
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
+import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -262,6 +263,45 @@ describe("Memory V2 P0 payload seams", () => {
     setChatMessages(chatId, priorMessages, { source: "test" });
     return priorMessages;
   };
+
+  test("a v4 reset removes only its failed live reasoning from the assistant message", async () => {
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      streamHandlers = handlers;
+      return { cancel: jest.fn(), requestId: "preview-request", attemptId: "ticket-274-run-1" };
+    });
+    renderChat();
+    await waitForReady();
+    sendText("think aloud");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    const preview = ollamaPreviewFixture.live_events[0];
+    const reset = ollamaPreviewFixture.live_events[1];
+    const accepted = ollamaPreviewFixture.live_events[2];
+    const runStarted = {
+      ...preview,
+      event_id: "preview-run-started",
+      type: "run.started",
+      seq: 0,
+      payload: {},
+      metadata: {},
+    };
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(runStarted);
+      streamHandlers.onRuntimeEvent(preview);
+    });
+    await waitFor(() => expect(lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant",
+    )?.traceFrames?.some((frame) => frame.payload?.reasoning === "discard this")).toBe(true));
+
+    await act(async () => streamHandlers.onRuntimeEvent(reset));
+    await act(async () => streamHandlers.onRuntimeEvent(accepted));
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(assistant.traceFrames.some((frame) => frame.payload?.reasoning === "discard this")).toBe(false);
+      expect(assistant.traceFrames.some((frame) => frame.payload?.reasoning === "accepted plan")).toBe(true);
+      expect(assistant.traceFrames.some((frame) => frame.type === "run_started")).toBe(true);
+    });
+  });
 
   test.each(["none", "awaiting_response"])("a fresh chat can send before a late %s recovery lookup", async (status) => {
     const chatId = getChatsStore().activeChatId;
