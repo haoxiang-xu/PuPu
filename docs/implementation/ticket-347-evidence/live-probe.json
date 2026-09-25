@@ -1,0 +1,101 @@
+{
+  "candidateDigest": "sha256:d42f8e13812e3dfc78ee6dfab23e142d82b9ffc387e3f1a584b185dfafd6ff86",
+  "before": {
+    "active_chat_id": "chat-1790357570974-ea4166ec2b1f28",
+    "active_chat": {
+      "id": "chat-1790357570974-ea4166ec2b1f28",
+      "title": "New Chat",
+      "model": "custom.deepseek:deepseek-v4-pro",
+      "message_count": 0,
+      "last_message_role": null
+    },
+    "inspected_chat_id": "chat-1790357570974-ea4166ec2b1f28",
+    "inspected_chat": {
+      "id": "chat-1790357570974-ea4166ec2b1f28",
+      "title": "New Chat",
+      "model": "custom.deepseek:deepseek-v4-pro",
+      "message_count": 0,
+      "last_message_role": null
+    },
+    "current_model": "custom.deepseek:deepseek-v4-pro",
+    "toolkits_active": [
+      "core"
+    ],
+    "character_id": null,
+    "modal_open": [],
+    "is_streaming": false,
+    "route": "",
+    "window_state": {
+      "width": 1280,
+      "height": 820,
+      "isDark": false,
+      "locale": "en"
+    },
+    "catalog_loaded": {
+      "models": 25,
+      "toolkits": 3,
+      "characters": 2
+    }
+  },
+  "chat": {
+    "chat_id": "chat-1790357972342-73196d09bb1e7",
+    "created_at": 1790357972343
+  },
+  "reply": {
+    "message_id": "assistant-1790357972372-ed35b8cf3c7358",
+    "role": "assistant",
+    "content": "AUDIT_OK",
+    "tool_calls": null,
+    "finish_reason": "stop",
+    "latency_ms": 3809,
+    "chat_id": "chat-1790357972342-73196d09bb1e7",
+    "execution_id": "chat-1790357972342-73196d09bb1e7",
+    "attempt_id": "unchain-1790357972374-74441debf71e38"
+  },
+  "state": {
+    "active_chat_id": "chat-1790357972342-73196d09bb1e7",
+    "active_chat": {
+      "id": "chat-1790357972342-73196d09bb1e7",
+      "title": "Audit #347 live reply",
+      "model": "openai:gpt-4.1",
+      "message_count": 2,
+      "last_message_role": "assistant"
+    },
+    "inspected_chat_id": "chat-1790357972342-73196d09bb1e7",
+    "inspected_chat": {
+      "id": "chat-1790357972342-73196d09bb1e7",
+      "title": "Audit #347 live reply",
+      "model": "openai:gpt-4.1",
+      "message_count": 2,
+      "last_message_role": "assistant"
+    },
+    "current_model": "openai:gpt-4.1",
+    "toolkits_active": [],
+    "character_id": null,
+    "modal_open": [],
+    "is_streaming": false,
+    "route": "",
+    "window_state": {
+      "width": 1280,
+      "height": 820,
+      "isDark": false,
+      "locale": "en"
+    },
+    "catalog_loaded": {
+      "models": 25,
+      "toolkits": 3,
+      "characters": 2
+    }
+  },
+  "dom": {
+    "ok": true,
+    "value": {
+      "replyVisible": true,
+      "origin": "http://localhost:2947",
+      "theme": null
+    }
+  },
+  "cleanup": {
+    "ok": true
+  }
+}

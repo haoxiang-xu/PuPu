@@ -1,0 +1,14 @@
+
+> PuPu@0.1.11 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/BUILTIN_COMPONENTs/select/select.shipped_provider_identity.test.js src/BUILTIN_COMPONENTs/select/select.custom_group_badge_toggle.test.js src/COMPONENTs/chat-input/utils/build_model_options.test.js src/COMPONENTs/chat-input/hooks/use_chat_input_models.test.js
+
+PASS src/BUILTIN_COMPONENTs/select/select.shipped_provider_identity.test.js
+PASS src/COMPONENTs/chat-input/hooks/use_chat_input_models.test.js
+PASS src/BUILTIN_COMPONENTs/select/select.custom_group_badge_toggle.test.js
+PASS src/COMPONENTs/chat-input/utils/build_model_options.test.js
+
+Test Suites: 4 passed, 4 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        0.479 s, estimated 1 s
+Ran all test suites within paths "src/BUILTIN_COMPONENTs/select/select.shipped_provider_identity.test.js", "src/BUILTIN_COMPONENTs/select/select.custom_group_badge_toggle.test.js", "src/COMPONENTs/chat-input/utils/build_model_options.test.js", "src/COMPONENTs/chat-input/hooks/use_chat_input_models.test.js".

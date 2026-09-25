@@ -3,6 +3,7 @@ import json
 import importlib
 import hashlib
 import logging
+import math
 import os
 import base64
 import pkgutil
@@ -7208,7 +7209,9 @@ def _optimizer_float(
         parsed = float(value)
     except (TypeError, ValueError):
         return default
-    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+    # NaN and both infinities in one check. The `parsed == parsed` idiom this
+    # replaced is correct but reads as a tautology, so it invites deletion.
+    if not math.isfinite(parsed):
         return default
     return min(max_value, max(min_value, parsed))
 

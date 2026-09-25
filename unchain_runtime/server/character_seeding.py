@@ -159,9 +159,9 @@ def _ensure_default_characters(data_dir: str, registry: dict[str, Any]) -> dict[
     current_seed_version = int(registry.get("seed_version") or 0)
     target_seed_version = root.character_defaults.DEFAULT_CHARACTER_SEED_VERSION
 
-    changed = False
     builtin_payloads = root.character_defaults.list_builtin_characters()
     if current_seed_version >= target_seed_version:
+        changed = False
         for payload in builtin_payloads:
             safe_id = root._character_api()["CharacterSpec"].coerce(payload).id
             if safe_id not in registry["characters_by_id"]:
@@ -173,12 +173,15 @@ def _ensure_default_characters(data_dir: str, registry: dict[str, Any]) -> dict[
         return registry
 
     for payload in builtin_payloads:
-        if _seed_builtin_character_record(data_dir, registry, payload):
-            changed = True
+        _seed_builtin_character_record(data_dir, registry, payload)
 
+    # The branch above returned for every registry already at the target, so
+    # the bump below is always a real change and the save is unconditional.
+    # The old test was `changed or current_seed_version != target_seed_version`,
+    # whose right half could not be false here — it made the left half, and so
+    # the whole seeding loop's return value, look load-bearing.
     registry["seed_version"] = target_seed_version
-    if changed or current_seed_version != target_seed_version:
-        root._save_registry(data_dir, registry)
+    root._save_registry(data_dir, registry)
     return registry
 
 
