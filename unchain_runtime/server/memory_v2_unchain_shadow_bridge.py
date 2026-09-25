@@ -350,6 +350,55 @@ class PupuUnchainShadowEventBridge:
                 return host_callback(event)
             return persist_local(event)
 
+        def provisional_target(event: dict[str, Any]):
+            try:
+                self.attempt_for_event(event)
+            except PupuUnchainShadowBridgeError:
+                if not self._is_official_forwarded_attempt(event):
+                    raise
+                return host_callback
+            return persist_local
+
+        def emit_provisional_reasoning(event: dict[str, Any], preview_id: str) -> Any:
+            target = provisional_target(event)
+            if target is None:
+                return None
+            method = getattr(target, "emit_provisional_reasoning", None)
+            if not callable(method):
+                raise PupuUnchainShadowBridgeError(
+                    "forwarded preview callback lacks Ollama provisional capability"
+                )
+            return method(event, preview_id)
+
+        def commit_provisional_reasoning(event: dict[str, Any]) -> None:
+            target = provisional_target(event)
+            if target is None:
+                return
+            method = getattr(target, "commit_provisional_reasoning", None)
+            if not callable(method):
+                raise PupuUnchainShadowBridgeError(
+                    "forwarded preview callback lacks Ollama provisional capability"
+                )
+            method(event)
+
+        def discard_provisional_reasoning(
+            *, preview_id: str, run_id: str, iteration: int,
+        ) -> Any:
+            target = provisional_target({"run_id": run_id})
+            if target is None:
+                return None
+            method = getattr(target, "discard_provisional_reasoning", None)
+            if not callable(method):
+                raise PupuUnchainShadowBridgeError(
+                    "forwarded preview callback lacks Ollama provisional capability"
+                )
+            return method(
+                preview_id=preview_id, run_id=run_id, iteration=iteration,
+            )
+
+        persist_or_forward.emit_provisional_reasoning = emit_provisional_reasoning
+        persist_or_forward.commit_provisional_reasoning = commit_provisional_reasoning
+        persist_or_forward.discard_provisional_reasoning = discard_provisional_reasoning
         return persist_or_forward
 
     def persist_then_notify(

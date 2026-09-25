@@ -340,6 +340,7 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
 test("release evidence rejects missing provider-turn and RunBundle features", () => {
   for (const [protocolId, feature] of [
     ["provider_turn_ownership", "atomic_receipt_cas"],
+    ["provider_turn_ownership", "ollama_reasoning_preview_v1"],
     ["run_bundle", "run_bundle_v1"],
   ]) {
     assert.throws(

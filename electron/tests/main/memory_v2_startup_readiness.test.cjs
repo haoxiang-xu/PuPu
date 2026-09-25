@@ -57,6 +57,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "enforce_mode",
       "graph_runs",
       "memory_off",
+      "ollama_reasoning_preview_v1",
       "subagent_runs",
     ]),
     id: "provider_turn_ownership",

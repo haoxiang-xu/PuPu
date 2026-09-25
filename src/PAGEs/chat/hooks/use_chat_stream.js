@@ -19,6 +19,7 @@ import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
 import {
   createIncrementalActivityTreeProjector,
+  removeReasoningPreviewFrames,
   reduceActivityTree,
 } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
@@ -6236,6 +6237,10 @@ export const useChatStream = ({
               handlers.onMeta?.(effect.meta);
               return;
             }
+            if (effect.type === "reasoning_reset") {
+              handlers.onReasoningReset?.(effect);
+              return;
+            }
             if (effect.type === "token") {
               markRequestConsumed();
               handlers.onToken?.(effect.delta);
@@ -7141,6 +7146,40 @@ export const useChatStream = ({
            accepting. onConsumed fires only on the authoritative acceptance
            evidence handled inside these callbacks. */
         const streamCallbacks = {
+            onReasoningReset: (effect) => {
+              if (!isCurrentRun()) return;
+              const refMessages = activeStreamsRef.current.get(targetChatId)?.messages;
+              if (Array.isArray(refMessages) && refMessages.length > 0) {
+                streamMessages = refMessages;
+              }
+              const childFrames = renderRuntime.subagentFramesByRunId.get(effect.runId);
+              if (Array.isArray(childFrames)) {
+                renderRuntime.subagentFramesByRunId.set(
+                  effect.runId,
+                  removeReasoningPreviewFrames(childFrames, effect),
+                );
+                dirtySubagentFrameRunIds.add(effect.runId);
+              }
+              const patchTime = Date.now();
+              const nextStreamMessages = streamMessages.map((message) => {
+                if (message.id !== assistantMessageId) return message;
+                const traceFrames = removeReasoningPreviewFrames(message.traceFrames, effect);
+                const subagentFrames = message.subagentFrames;
+                const savedChildFrames = subagentFrames?.[effect.runId];
+                return {
+                  ...message,
+                  updatedAt: patchTime,
+                  traceFrames,
+                  ...(Array.isArray(savedChildFrames) && {
+                    subagentFrames: {
+                      ...subagentFrames,
+                      [effect.runId]: removeReasoningPreviewFrames(savedChildFrames, effect),
+                    },
+                  }),
+                };
+              });
+              syncStreamMessages(nextStreamMessages);
+            },
             onFrame: (frame) => {
               if (!isCurrentRun()) {
                 return;

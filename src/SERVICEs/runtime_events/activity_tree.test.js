@@ -40,6 +40,92 @@ const reduceEvents = (events) => {
 };
 
 describe("runtime events activity tree", () => {
+  test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
+    const failedId = "a".repeat(32);
+    const acceptedId = "b".repeat(32);
+    const reasoning = (id, seq, delta, previewId = "") => ({
+      ...event({
+        id,
+        type: "step.delta",
+        seq,
+        payload: { step_type: "model_response", kind: "reasoning", delta },
+      }),
+      metadata: {
+        provider: "ollama",
+        ...(previewId ? { provisional_reasoning_id: previewId } : {}),
+      },
+    });
+    const reset = (id, seq, previewId, provider = "ollama") => ({
+      ...event({
+        id,
+        type: "step.delta",
+        seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response",
+          kind: "reasoning_reset",
+          preview_id: previewId,
+        },
+      }),
+      metadata: { provider },
+    });
+    const store = createRuntimeEventStore();
+    const projector = createIncrementalActivityTreeProjector();
+    const events = [
+      event({ id: "run", type: "run.started", seq: 1 }),
+      reasoning("committed", 2, "earlier"),
+      reasoning("failed", 3, "discard me", failedId),
+      reasoning("accepted", 4, "keep me", acceptedId),
+    ];
+    store.appendManyForReduction(events);
+    let state = projector.reduce(store.getReductionSnapshot());
+    expect(state.frames.filter((frame) => frame.type === "reasoning"))
+      .toHaveLength(3);
+
+    store.appendForReduction(reset("wrong-provider", 5, failedId, "openai"));
+    state = projector.reduce(store.getReductionSnapshot());
+    expect(state.frames.filter((frame) => frame.type === "reasoning"))
+      .toHaveLength(3);
+
+    store.appendForReduction({
+      ...reset("wrong-step", 6, failedId),
+      payload: {
+        ...reset("wrong-step", 6, failedId).payload,
+        step_id: "model:another-run:turn-1:response",
+      },
+    });
+    state = projector.reduce(store.getReductionSnapshot());
+    expect(state.frames.filter((frame) => frame.type === "reasoning"))
+      .toHaveLength(3);
+
+    store.appendForReduction({
+      ...reset("wrong-turn", 7, failedId),
+      turn_id: "run-root:turn-2",
+    });
+    state = projector.reduce(store.getReductionSnapshot());
+    expect(state.frames.filter((frame) => frame.type === "reasoning"))
+      .toHaveLength(3);
+
+    store.appendForReduction(reset("reset-failed", 7, failedId));
+    state = projector.reduce(store.getReductionSnapshot());
+    expect(state.frames.filter((frame) => frame.type === "reasoning")
+      .map((frame) => frame.payload.reasoning)).toEqual(["earlier", "keep me"]);
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(state.effects).toEqual([
+      expect.objectContaining({ type: "reasoning_reset", previewId: failedId }),
+    ]);
+
+    const replay = reduceEvents([
+      ...events,
+      reset("wrong-provider", 5, failedId, "openai"),
+      { ...reset("wrong-turn", 6, failedId), turn_id: "run-root:turn-2" },
+      reset("reset-failed", 7, failedId),
+    ]);
+    expect(replay.frames).toEqual(state.frames);
+    expect(replay.modelTextByRunId).toEqual(state.modelTextByRunId);
+  });
+
   test("initial state includes run-level artifact summary bucket", () => {
     const state = createInitialActivityTreeState();
     expect(state.runArtifactSummary).toBeNull();

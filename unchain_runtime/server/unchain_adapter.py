@@ -18,7 +18,7 @@ import unicodedata
 import uuid as _uuid
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List
 
 from skill_rows import normalize_skill_rows
 import mcp_registry
@@ -10544,6 +10544,22 @@ def _stream_recipe_graph_events(
                 ) -> None:
                     if not isinstance(event, dict):
                         return
+                    provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+                    if provisional_reasoning:
+                        outward_event = (
+                            {**event, "run_id": workflow_run_id}
+                            if graph_checkpoint_host is None
+                            and event["run_id"] == _step_run_id
+                            else event
+                        )
+                        if event["type"] == "reasoning_preview_discarded":
+                            event_queue.put(outward_event)
+                        else:
+                            _execution_raise_if_cancelled(execution_token)
+                            if execution_guard is not None:
+                                execution_guard.assert_active()
+                            emit(outward_event)
+                        return
                     _execution_raise_if_cancelled(execution_token)
                     interaction_id_tracker.observe(event)
                     if (
@@ -10607,6 +10623,8 @@ def _stream_recipe_graph_events(
                     if isinstance(iteration, int):
                         output_holder["last_iteration"] = iteration
                     emit(event)
+
+                _enable_ollama_reasoning_preview(step_emit)
 
                 step_active_host_event_boundary = (
                     PupuUnchainHostEventBoundary(
@@ -11339,6 +11357,73 @@ def _public_interject_options(options: Any) -> Dict[str, object]:
     }
 
 
+def _is_ollama_reasoning_preview_event(event: Dict[str, Any]) -> bool:
+    event_type = event.get("type")
+    if "provisional_reasoning_id" not in event:
+        if event_type == "reasoning_preview_discarded":
+            raise ValueError("invalid Ollama provisional reasoning event")
+        return False
+    preview_id = event["provisional_reasoning_id"]
+    expected_keys = (
+        {"type", "run_id", "iteration", "provider", "delta", "provisional_reasoning_id"}
+        if event_type == "reasoning"
+        else {"type", "run_id", "iteration", "provider", "provisional_reasoning_id"}
+    )
+    if (
+        event_type not in {"reasoning", "reasoning_preview_discarded"}
+        or set(event) != expected_keys
+        or event.get("provider") != "ollama"
+        or type(event.get("run_id")) is not str
+        or not event["run_id"]
+        or type(event.get("iteration")) is not int
+        or event["iteration"] < 0
+        or type(preview_id) is not str
+        or re.fullmatch(r"[0-9a-f]{32}", preview_id) is None
+        or (
+            event_type == "reasoning"
+            and (type(event.get("delta")) is not str or not event["delta"])
+        )
+    ):
+        raise ValueError("invalid Ollama provisional reasoning event")
+    return True
+
+
+def _enable_ollama_reasoning_preview(callback: Callable[[Dict[str, Any]], Any]) -> None:
+    """Expose Unchain's host-only preview lane on a PuPu event callback."""
+
+    def emit_provisional_reasoning(event: Dict[str, Any], preview_id: str) -> Any:
+        if type(event) is not dict:
+            raise ValueError("invalid Ollama provisional reasoning event")
+        preview = {**event, "provisional_reasoning_id": preview_id}
+        _is_ollama_reasoning_preview_event(preview)
+        return callback(preview)
+
+    def commit_provisional_reasoning(event: Dict[str, Any]) -> None:
+        if type(event) is not dict:
+            raise ValueError("invalid Ollama provisional reasoning event")
+        _is_ollama_reasoning_preview_event({
+            **event, "provisional_reasoning_id": "0" * 32,
+        })
+        # The exact provider result and, when active, ContextRuntime own durability.
+
+    def discard_provisional_reasoning(
+        *, preview_id: str, run_id: str, iteration: int,
+    ) -> Any:
+        reset = {
+            "type": "reasoning_preview_discarded",
+            "run_id": run_id,
+            "iteration": iteration,
+            "provider": "ollama",
+            "provisional_reasoning_id": preview_id,
+        }
+        _is_ollama_reasoning_preview_event(reset)
+        return callback(reset)
+
+    callback.emit_provisional_reasoning = emit_provisional_reasoning
+    callback.commit_provisional_reasoning = commit_provisional_reasoning
+    callback.discard_provisional_reasoning = discard_provisional_reasoning
+
+
 def stream_chat_events(
     *,
     message: str,
@@ -11674,14 +11759,19 @@ def stream_chat_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
-            _execution_raise_if_cancelled(execution_token)
+            provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+            if not (
+                provisional_reasoning
+                and event.get("type") == "reasoning_preview_discarded"
+            ):
+                _execution_raise_if_cancelled(execution_token)
             interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 _toolkit_meta_by_tool_name,
                 session_id,
             )
-            if active_context_bridge is None:
+            if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
                     event,
@@ -11709,6 +11799,8 @@ def stream_chat_events(
             except Exception:
                 pass
             event_queue.put(event)
+
+        _enable_ollama_reasoning_preview(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
@@ -12611,7 +12703,12 @@ def resume_chat_interaction_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
-            _execution_raise_if_cancelled(execution_token)
+            provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+            if not (
+                provisional_reasoning
+                and event.get("type") == "reasoning_preview_discarded"
+            ):
+                _execution_raise_if_cancelled(execution_token)
             event_type = event.get("type")
             if not isinstance(event_type, str) or not event_type:
                 return
@@ -12621,7 +12718,7 @@ def resume_chat_interaction_events(
                 toolkit_meta_by_tool_name,
                 normalized_session_id,
             )
-            if active_context_bridge is None:
+            if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
                     event,
@@ -12643,6 +12740,8 @@ def resume_chat_interaction_events(
             except Exception:
                 pass
             event_queue.put(event)
+
+        _enable_ollama_reasoning_preview(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
