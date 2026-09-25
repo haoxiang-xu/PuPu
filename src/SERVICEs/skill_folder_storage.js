@@ -89,6 +89,38 @@ const warnPersistFailed = (error) => {
   console.warn("[skill-folder-storage] persist failed:", code);
 };
 
+function writeFallbackRaw(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (_exc) {
+    // noop — a failed write leaves the in-memory state authoritative for
+    // this session, exactly as the agent store behaves.
+  }
+}
+
+/**
+ * Trip the degradation switch after a SQL write the repository rolled back.
+ *
+ * The agent store trips its switch from the legacy-seed failure path; this
+ * store has no seed (deliberate difference 1 above), so before this function
+ * existed nothing could set the flag and a persistent SQL failure left every
+ * later save warning to the console and storing the tree nowhere.
+ *
+ * The write-through matters as much as the flag: this namespace is new, so
+ * localStorage holds nothing to fall back TO. Degrading reads without first
+ * depositing the tree would make the user's folders vanish on the next read
+ * instead of surviving until the next boot, when SQL is retried from scratch.
+ */
+const degradeToFallback = (error, state) => {
+  warnPersistFailed(error);
+  writeFallbackRaw(state);
+  if (sqlDisabledThisSession) return;
+  sqlDisabledThisSession = true;
+  console.warn(
+    "[skill-folder-storage] persist failed; using localStorage for this session",
+  );
+};
+
 const isPlainObject = (value) =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
@@ -154,17 +186,15 @@ function loadRaw() {
 function saveRaw(state) {
   if (isSqlBacked()) {
     // Optimistic snapshot update + queued IPC via the repository. Failures
-    // roll back inside the repository and are only logged here — this writer
-    // never throws to callers (same contract as agent_folder_storage).
-    replaceNamespace(STORAGE_KEY, state).catch(warnPersistFailed);
+    // roll back inside the repository and degrade this store for the session
+    // — this writer never throws to callers (same contract as
+    // agent_folder_storage).
+    replaceNamespace(STORAGE_KEY, state).catch((error) =>
+      degradeToFallback(error, state),
+    );
     return;
   }
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (_exc) {
-    // noop — a failed write leaves the in-memory state authoritative for
-    // this session, exactly as the agent store behaves.
-  }
+  writeFallbackRaw(state);
 }
 
 function defaultState() {

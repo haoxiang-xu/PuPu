@@ -15,6 +15,11 @@ paths-ignore:
   - "**/*.test.js"
   - "**/*.test.cjs"
   - "**/*.test.mjs"
+  # The Jest bootstrap. It is not shipped code, and leaving it in scope made
+  # CodeQL resolve every `new ResizeObserver(callback)` in the app to the
+  # jsdom mock defined here — whose implicit constructor takes no arguments —
+  # reporting 25 real call sites as passing a superfluous argument.
+  - src/setupTests.js
   - "**/tests/**"
   - "**/__tests__/**"
   - "**/fixtures/**"

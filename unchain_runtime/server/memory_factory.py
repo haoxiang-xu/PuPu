@@ -15,6 +15,7 @@ import hashlib
 import inspect
 import importlib.util
 import json
+import math
 import os
 import re
 import sys
@@ -443,17 +444,6 @@ def _characters_dir(data_dir: str) -> str:
     return str(p)
 
 
-def _character_avatars_dir(data_dir: str) -> str:
-    from pathlib import Path
-    p = Path(_characters_dir(data_dir)) / "avatars"
-    p.mkdir(parents=True, exist_ok=True)
-    return str(p)
-
-
-def _character_registry_path(data_dir: str) -> str:
-    return os.path.join(_characters_dir(data_dir), "registry.json")
-
-
 def _qdrant_meta_path(data_dir: str) -> str:
     return os.path.join(_qdrant_path(data_dir), "meta.json")
 
@@ -483,17 +473,6 @@ def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
     except Exception:
         state = {}
     return state if isinstance(state, dict) else {}
-
-
-def _load_long_term_profile(data_dir: str, namespace: str) -> dict[str, Any]:
-    from unchain.memory import JsonFileLongTermProfileStore
-
-    store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
-    try:
-        profile = store.load(str(namespace or ""))
-    except Exception:
-        profile = {}
-    return profile if isinstance(profile, dict) else {}
 
 
 def _safe_long_term_namespace(namespace: str) -> str:
@@ -1242,12 +1221,10 @@ def _normalize_optional_threshold(value: object) -> float | None:
         numeric = float(value)
     except Exception:
         return None
-    if numeric <= 0:
+    if not math.isfinite(numeric) or numeric <= 0:
         return None
     if numeric > 1:
         numeric = 1.0
-    if numeric < 0:
-        numeric = 0.0
     return round(numeric, 4)
 
 
