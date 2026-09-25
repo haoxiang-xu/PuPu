@@ -437,13 +437,6 @@ def _long_term_profiles_dir(data_dir: str) -> str:
     return str(p)
 
 
-def _characters_dir(data_dir: str) -> str:
-    from pathlib import Path
-    p = Path(data_dir) / "characters"
-    p.mkdir(parents=True, exist_ok=True)
-    return str(p)
-
-
 def _qdrant_meta_path(data_dir: str) -> str:
     return os.path.join(_qdrant_path(data_dir), "meta.json")
 
