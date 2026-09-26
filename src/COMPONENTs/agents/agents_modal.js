@@ -9,7 +9,7 @@ import WindowControls, {
   windowControlsInset,
 } from "../../BUILTIN_COMPONENTs/electron/window_controls";
 import usePresentationPlatform from "../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
-import { useTopStripCenter } from "./top_strip";
+import { AGENTS_MODAL_Z, useTopStripCenter } from "./top_strip";
 
 const AgentsModalContent = lazy(() =>
   import("./agents_modal_content").then((m) => ({
@@ -106,7 +106,7 @@ export const AgentsModal = ({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            zIndex: 4,
+            zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
             WebkitAppRegion: "no-drag",
           }}
         >
@@ -136,7 +136,7 @@ export const AgentsModal = ({
               paddingHorizontal: 6,
               borderRadius: 6,
               opacity: 0.45,
-              zIndex: 4,
+              zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
               WebkitAppRegion: "no-drag",
               content: {
                 prefixIconWrap: {
@@ -162,7 +162,7 @@ export const AgentsModal = ({
               paddingHorizontal: 6,
               borderRadius: 6,
               opacity: 0.45,
-              zIndex: 4,
+              zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
               WebkitAppRegion: "no-drag",
               content: {
                 prefixIconWrap: {
