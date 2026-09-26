@@ -256,3 +256,127 @@ describe("FlowEditor reset_token", () => {
     );
   });
 });
+
+describe("FlowEditor right-click reports what was clicked", () => {
+  const nodes = [
+    {
+      id: "a",
+      x: 0,
+      y: 0,
+      deletable: true,
+      ports: [{ id: "out", side: "right", kind: "out" }],
+    },
+    {
+      id: "b",
+      x: 300,
+      y: 0,
+      deletable: true,
+      ports: [{ id: "in", side: "left", kind: "in" }],
+    },
+  ];
+  const edges = [
+    {
+      id: "e_1",
+      source_node_id: "a",
+      source_port_id: "out",
+      target_node_id: "b",
+      target_port_id: "in",
+    },
+  ];
+
+  function setup() {
+    const on_context_menu = jest.fn();
+    const on_select = jest.fn();
+    const { container } = render(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={edges}
+          on_context_menu={on_context_menu}
+          on_select={on_select}
+        />,
+      ),
+    );
+    return { container, on_context_menu, on_select };
+  }
+
+  test("right-clicking empty canvas reports the canvas as the target", () => {
+    const { container, on_context_menu, on_select } = setup();
+    fireEvent.contextMenu(container.firstChild);
+    expect(on_context_menu).toHaveBeenCalledTimes(1);
+    expect(on_context_menu.mock.calls[0][0].target).toEqual({
+      kind: "canvas",
+      id: null,
+    });
+    expect(on_select).not.toHaveBeenCalled();
+  });
+
+  test("right-clicking a node reports that node and selects it", () => {
+    const { container, on_context_menu, on_select } = setup();
+    fireEvent.contextMenu(container.querySelector('[data-flow-node-id="b"]'));
+    expect(on_context_menu.mock.calls[0][0].target).toEqual({
+      kind: "node",
+      id: "b",
+    });
+    expect(on_select).toHaveBeenCalledWith("b");
+  });
+
+  test("right-clicking a connection reports that edge", () => {
+    const { container, on_context_menu, on_select } = setup();
+    fireEvent.contextMenu(container.querySelector('[data-flow-edge-id="e_1"]'));
+    expect(on_context_menu.mock.calls[0][0].target).toEqual({
+      kind: "edge",
+      id: "e_1",
+    });
+    /* An edge is not a node selection. */
+    expect(on_select).not.toHaveBeenCalled();
+  });
+
+  test("a right-click still reports canvas coordinates alongside the target", () => {
+    const { container, on_context_menu } = setup();
+    fireEvent.contextMenu(container.firstChild, { clientX: 120, clientY: 80 });
+    const call = on_context_menu.mock.calls[0][0];
+    expect(typeof call.canvas_x).toBe("number");
+    expect(typeof call.canvas_y).toBe("number");
+    expect(call.client_x).toBe(120);
+    expect(call.client_y).toBe(80);
+  });
+});
+
+describe("FlowEditor select_all_token contract", () => {
+  const nodes = [
+    { id: "start", x: 0, y: 0, deletable: false, ports: [] },
+    { id: "a", x: 200, y: 0, deletable: true, ports: [] },
+    { id: "b", x: 400, y: 0, deletable: true, ports: [] },
+  ];
+
+  test("undefined stays inert: nothing is selected on mount, Delete removes nothing", () => {
+    const on_nodes_change = jest.fn();
+    render(
+      wrap(
+        <FlowEditor nodes={nodes} edges={[]} on_nodes_change={on_nodes_change} />,
+      ),
+    );
+    fireEvent.keyDown(window, { code: "Delete" });
+    expect(on_nodes_change).not.toHaveBeenCalled();
+  });
+
+  test("bumping the token selects every node; Delete still respects deletable", () => {
+    const on_nodes_change = jest.fn();
+    const ui = (token) =>
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          on_nodes_change={on_nodes_change}
+          select_all_token={token}
+        />,
+      );
+    const { rerender } = render(ui(undefined));
+    rerender(ui(1));
+    fireEvent.keyDown(window, { code: "Delete" });
+    expect(on_nodes_change).toHaveBeenCalledTimes(1);
+    const kept = on_nodes_change.mock.calls[0][0].map((n) => n.id);
+    expect(kept).toEqual(["start"]);
+  });
+});
