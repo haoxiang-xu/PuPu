@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import {
   RECIPE_PANEL_LIMITS,
+  clampPanelWidth,
   readRecipePanelWidths,
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
@@ -53,18 +54,61 @@ export default function RecipesPage({
   // the panel re-lays out as the pointer moves; the value is persisted once on
   // release, and the enter/leave transition is suppressed while dragging so
   // the edge follows the pointer without lag.
-  const [panelWidths, setPanelWidths] = useState(readRecipePanelWidths);
+  /* Each panel's ceiling is a share of the canvas, so it has to be measured.
+     jsdom and a first paint report 0, where the window's own width is a better
+     guess than collapsing every panel to its minimum. */
+  const canvasRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(() =>
+    typeof window === "undefined" ? 0 : window.innerWidth,
+  );
+  const [panelWidths, setPanelWidths] = useState(() =>
+    readRecipePanelWidths(
+      typeof window === "undefined" ? undefined : window.innerWidth,
+    ),
+  );
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      const measured = el.getBoundingClientRect().width;
+      setContainerWidth(
+        measured > 0
+          ? measured
+          : typeof window === "undefined"
+            ? 0
+            : window.innerWidth,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /* A window that shrank must pull the panels back inside their new share. */
+  useEffect(() => {
+    setPanelWidths((prev) => {
+      const next = {
+        list: clampPanelWidth("list", prev.list, containerWidth),
+        detail: clampPanelWidth("detail", prev.detail, containerWidth),
+      };
+      return next.list === prev.list && next.detail === prev.detail
+        ? prev
+        : next;
+    });
+  }, [containerWidth]);
   const [resizingPanel, setResizingPanel] = useState(null);
   const resizeStartWidthRef = useRef(0);
+  const containerWidthRef = useRef(containerWidth);
+  useEffect(() => {
+    containerWidthRef.current = containerWidth;
+  }, [containerWidth]);
   const panelWidthsRef = useRef(panelWidths);
   useEffect(() => {
     panelWidthsRef.current = panelWidths;
   }, [panelWidths]);
 
-  const clampPanelWidth = (panel, width) => {
-    const { min, max } = RECIPE_PANEL_LIMITS[panel];
-    return Math.min(max, Math.max(min, Math.round(width)));
-  };
   const beginResize = (panel) => {
     resizeStartWidthRef.current = panelWidthsRef.current[panel];
     setResizingPanel(panel);
@@ -74,13 +118,21 @@ export default function RecipesPage({
   const handleListResize = useCallback((dx) => {
     setPanelWidths((prev) => ({
       ...prev,
-      list: clampPanelWidth("list", resizeStartWidthRef.current + dx),
+      list: clampPanelWidth(
+        "list",
+        resizeStartWidthRef.current + dx,
+        containerWidthRef.current,
+      ),
     }));
   }, []);
   const handleDetailResize = useCallback((dx) => {
     setPanelWidths((prev) => ({
       ...prev,
-      detail: clampPanelWidth("detail", resizeStartWidthRef.current - dx),
+      detail: clampPanelWidth(
+        "detail",
+        resizeStartWidthRef.current - dx,
+        containerWidthRef.current,
+      ),
     }));
   }, []);
   const endResize = useCallback((panel) => {
@@ -188,7 +240,10 @@ export default function RecipesPage({
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+    <div
+      ref={canvasRef}
+      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+    >
       {/* ── Full-bleed node graph canvas ── */}
       <div
         style={{

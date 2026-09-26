@@ -3,6 +3,7 @@ import { render, fireEvent, act, waitFor, screen } from "@testing-library/react"
 import RecipesPage from "./recipes_page";
 import {
   RECIPE_PANEL_LIMITS,
+  panelMaxWidth,
   readRecipePanelWidths,
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
@@ -124,7 +125,7 @@ describe("RecipesPage panel resize", () => {
     expect(readRecipePanelWidths().detail).toBe(360);
   });
 
-  test("widths never go below the minimum or above the maximum", async () => {
+  test("widths never go below the minimum or above the panel's share", async () => {
     await mount("start");
     const list = screen.getByTestId("recipe-list-resize-handle");
     drag(list, 200, 100);
@@ -133,12 +134,13 @@ describe("RecipesPage panel resize", () => {
     );
     release(100);
 
-    drag(list, 200, 2000);
+    const cap = panelMaxWidth("list", window.innerWidth);
+    drag(list, 200, 200 + window.innerWidth * 2);
     expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
-      `${RECIPE_PANEL_LIMITS.list.max}px`,
+      `${cap}px`,
     );
-    release(2000);
-    expect(readRecipePanelWidths().list).toBe(RECIPE_PANEL_LIMITS.list.max);
+    release(200 + window.innerWidth * 2);
+    expect(readRecipePanelWidths(window.innerWidth).list).toBe(cap);
   });
 
   test("the panel does not animate width while dragging", async () => {
@@ -225,5 +227,52 @@ describe("RecipesPage resize pill hover", () => {
 
     fireEvent.mouseLeave(handle);
     expect(pill.style.height).toBe("36px");
+  });
+});
+
+describe("RecipesPage panel widths are capped by share of the canvas", () => {
+  /* jsdom reports 0 for every layout box, so the page's own measurement finds
+     nothing; the component must fall back to the window's width rather than
+     collapsing every panel to its minimum. */
+  const CONTAINER = 1200;
+
+  beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", {
+      value: CONTAINER,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  test("dragging stops at the panel's share of the width", async () => {
+    await mount("start");
+    const handle = screen.getByTestId("recipe-list-resize-handle");
+    drag(handle, 200, 200 + CONTAINER); // far past any sane width
+    const cap = panelMaxWidth("list", CONTAINER);
+    expect(cap).toBe(420); // 35% of 1200
+    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
+      `${cap}px`,
+    );
+    release(200 + CONTAINER);
+  });
+
+  test("the detail panel gets the larger share", async () => {
+    await mount("start");
+    const handle = screen.getByTestId("recipe-detail-resize-handle");
+    drag(handle, 900, 900 - CONTAINER);
+    const cap = panelMaxWidth("detail", CONTAINER);
+    expect(cap).toBe(600); // 50% of 1200
+    expect(screen.getByTestId("recipe-detail-panel-shell").style.width).toBe(
+      `${cap}px`,
+    );
+    release(900 - CONTAINER);
+  });
+
+  test("a width stored when the window was wider comes back clamped", async () => {
+    writeRecipePanelWidth("list", 900);
+    await mount("start");
+    expect(screen.getByTestId("recipe-list-panel-shell").style.width).toBe(
+      `${panelMaxWidth("list", CONTAINER)}px`,
+    );
   });
 });

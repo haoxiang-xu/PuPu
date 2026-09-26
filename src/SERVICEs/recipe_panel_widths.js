@@ -7,6 +7,12 @@
 /*  limits below is clamped on both read and write, so a stale or hand-edited     */
 /*  record can never produce an unusable layout.                                  */
 /*                                                                                */
+/*  A panel's ceiling is a share of the space it sits in, not a fixed width:     */
+/*  the list may take 35% of it and the detail panel 50% (project owner,          */
+/*  2026-09-26), so the same recipe is workable in a small window and on a        */
+/*  large screen. The minimum stays absolute — below it the panel is unusable     */
+/*  whatever the window size — and wins when the share falls under it.            */
+/*                                                                                */
 /*  Shape: { version: 1, list: <px>, detail: <px> }                               */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -14,8 +20,8 @@ const STORAGE_KEY = "recipe_panel_widths";
 const PREFS_VERSION = 1;
 
 export const RECIPE_PANEL_LIMITS = Object.freeze({
-  list: Object.freeze({ min: 200, max: 480 }),
-  detail: Object.freeze({ min: 300, max: 640 }),
+  list: Object.freeze({ min: 200, maxRatio: 0.35 }),
+  detail: Object.freeze({ min: 300, maxRatio: 0.5 }),
 });
 
 const PANEL_KEYS = Object.keys(RECIPE_PANEL_LIMITS);
@@ -23,19 +29,54 @@ const PANEL_KEYS = Object.keys(RECIPE_PANEL_LIMITS);
 const hasLocalStorage = () =>
   typeof window !== "undefined" && !!window.localStorage;
 
-/** Clamp a candidate width for `panel` into its limits; null when unusable. */
+/**
+ * The widest `panel` may get inside a container of `containerWidth`. An
+ * unmeasured container (0, NaN, absent) yields the minimum rather than a
+ * guess, so a panel never renders wider than the space it was measured in.
+ */
+export const panelMaxWidth = (panel, containerWidth) => {
+  const limits = RECIPE_PANEL_LIMITS[panel];
+  if (!limits) return null;
+  if (typeof containerWidth !== "number" || !Number.isFinite(containerWidth)) {
+    return limits.min;
+  }
+  return Math.max(limits.min, Math.round(containerWidth * limits.maxRatio));
+};
+
+/** Hold a width inside `panel`'s minimum and its share of the container. */
+export const clampPanelWidth = (panel, width, containerWidth) => {
+  const limits = RECIPE_PANEL_LIMITS[panel];
+  if (!limits) return null;
+  if (typeof width !== "number" || !Number.isFinite(width)) return null;
+  return Math.min(
+    panelMaxWidth(panel, containerWidth),
+    Math.max(limits.min, Math.round(width)),
+  );
+};
+
+/**
+ * Clamp a candidate width for storage; null when unusable. Without a container
+ * to measure against only the minimum applies — the share is enforced when the
+ * value is read back for a container of a known width.
+ */
 const normalizeWidth = (panel, width) => {
   const limits = RECIPE_PANEL_LIMITS[panel];
   if (!limits) return null;
   if (typeof width !== "number" || !Number.isFinite(width)) return null;
-  return Math.min(limits.max, Math.max(limits.min, Math.round(width)));
+  return Math.max(limits.min, Math.round(width));
 };
 
 const defaults = () =>
   Object.fromEntries(PANEL_KEYS.map((k) => [k, RECIPE_PANEL_LIMITS[k].min]));
 
-/** Read both widths. Anything unusable falls back per panel — never throws. */
-export const readRecipePanelWidths = () => {
+/**
+ * Read both widths, clamped to `containerWidth` when one is given: a window
+ * that shrank since the widths were stored must not hand back a panel wider
+ * than its share of what is now available.
+ *
+ * Anything unusable falls back per panel — never throws.
+ */
+export const readRecipePanelWidths = (containerWidth) => {
   const result = defaults();
   if (!hasLocalStorage()) return result;
   try {
@@ -47,6 +88,11 @@ export const readRecipePanelWidths = () => {
       const width = normalizeWidth(panel, raw[panel]);
       if (width !== null) result[panel] = width;
     });
+    if (containerWidth !== undefined) {
+      PANEL_KEYS.forEach((panel) => {
+        result[panel] = clampPanelWidth(panel, result[panel], containerWidth);
+      });
+    }
   } catch (_error) {
     // corrupted — treated as defaults
   }
