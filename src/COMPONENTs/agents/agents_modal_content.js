@@ -4,6 +4,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SegmentedControl from "../toolkit/components/segmented_control";
 import CharactersPage from "./pages/characters_page";
 import RecipesPage from "./pages/recipes_page";
+import { AGENTS_MODAL_Z, TOP_STRIP_CENTER } from "./top_strip";
 
 export const AGENT_MODAL_SECTIONS = [
   { key: "agents", icon: "bot", label: "Agents" },
@@ -73,6 +74,7 @@ export const AgentsModalContent = ({
   selectedNodeId,
   onSelectNode,
   fullscreen,
+  topStripCenter = TOP_STRIP_CENTER,
   onClose,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -101,6 +103,7 @@ export const AgentsModalContent = ({
           selectedNodeId={selectedNodeId}
           onSelectNode={onSelectNode}
           fullscreen={fullscreen}
+          topStripCenter={topStripCenter}
         />
       ) : (
         <div
@@ -127,10 +130,12 @@ export const AgentsModalContent = ({
       <div
         style={{
           position: "absolute",
-          top: 10,
+          top: topStripCenter,
           left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 5,
+          transform: "translate(-50%, -50%)",
+          /* Behind the workflow list and the detail panel: widening either one
+             should cover the switch. */
+          zIndex: AGENTS_MODAL_Z.SECTION_SWITCH,
           WebkitAppRegion: "no-drag",
         }}
       >

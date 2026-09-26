@@ -1,10 +1,11 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../input/button";
 import { Z } from "../layer/z_layers";
 import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 import usePresentationPlatform from "../mini_react/use_presentation_platform";
+import WindowControls, { windowControlsInset } from "./window_controls";
 
 const TOP_BAR_HEIGHT = 50;
 
@@ -17,23 +18,8 @@ const hasElectronWindowControls = () => {
     windowStateBridge.isActionAvailable(),
   );
 };
-const WINDOWS_CONTROL_ICONS = {
-  close: "windows_close_button",
-  maximize: "windows_maximize_button",
-  minimize: "windows_minimize_button",
-  restore: "windows_restore_button",
-};
-/* GNOME's glyphs; the buttons themselves are Adwaita's round headerbar
-   buttons (24px circles on a faint wash, brighter on hover, no red close) */
-const LINUX_CONTROL_ICONS = {
-  close: "linux_close_button",
-  maximize: "linux_maximize_button",
-  minimize: "linux_minimize_button",
-  restore: "linux_restore_button",
-};
 const TitleBar = () => {
-  const { theme, onFragment, setOnFragment, onThemeMode } = useContext(ConfigContext);
-  const [windowIsMaximized, setWindowIsMaximized] = useState(false);
+  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
 
   const isElectron = hasElectronWindowControls();
   /* the PRESENTED platform (#256): a dev override can make a darwin host
@@ -41,31 +27,10 @@ const TitleBar = () => {
   const platform = usePresentationPlatform();
   const isDarwin = platform === "darwin";
   const isLinux = platform === "linux";
-  const controlIcons = isLinux ? LINUX_CONTROL_ICONS : WINDOWS_CONTROL_ICONS;
-
-  useEffect(() => {
-    if (!isElectron) {
-      return undefined;
-    }
-
-    const cleanup = windowStateBridge.onWindowStateChange(({ isMaximized }) => {
-      setWindowIsMaximized(Boolean(isMaximized));
-    });
-
-    return () => {
-      if (typeof cleanup === "function") {
-        cleanup();
-      }
-    };
-  }, [isElectron]);
 
   if (!isElectron) {
     return null;
   }
-
-  const runWindowAction = (action) => {
-    windowStateBridge.sendWindowAction(action);
-  };
 
   /* Read the live CSS variables, not the JS theme. The title bar's fade sits
      directly over the message list, so a stale value reads as the top of the
@@ -81,89 +46,6 @@ const TitleBar = () => {
   // Create gradient background (solid at top, transparent at bottom)
   const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 32%, transparent 100%)`;
 
-  /* Adwaita: a 24px circle on alpha(currentColor, .1), .15 on hover, .25
-     when pressed; close gets no special colour; 8px between buttons */
-  const linuxControlButtonStyle = () => ({
-    root: {
-      width: 24,
-      height: 24,
-      borderRadius: 999,
-      color: `var(--pupu-text, ${theme?.icon?.color || themeForeground})`,
-      backgroundColor: "rgba(var(--pupu-text-rgb),0.10)",
-      iconSize: 14,
-      paddingVertical: 0,
-      paddingHorizontal: 0,
-      iconOnlyPaddingVertical: 0,
-      iconOnlyPaddingHorizontal: 0,
-      WebkitAppRegion: "no-drag",
-    },
-    background: {
-      hoverBackgroundColor: "rgba(var(--pupu-text-rgb),0.16)",
-      activeBackgroundColor: "rgba(var(--pupu-text-rgb),0.26)",
-    },
-    content: {
-      root: {
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      },
-      icon: { width: 14, height: 14 },
-    },
-  });
-  const controlButtonStyle = (action) => {
-    if (isLinux) return linuxControlButtonStyle();
-    const onCloseButton = action === "close";
-    const isDark = onThemeMode === "dark_mode";
-    const defaultBackgroundColor = isDark
-      ? "transparent"
-      : onCloseButton
-        ? "rgba(255, 255, 255, 0.06)"
-        : "rgba(255, 255, 255, 0.14)";
-    return {
-      root: {
-        width: 40,
-        height: 30,
-        borderRadius: 3,
-        color: `var(--pupu-text, ${theme?.icon?.color || themeForeground})`,
-        backgroundColor: defaultBackgroundColor,
-        iconSize: 13,
-        paddingVertical: 0,
-        paddingHorizontal: 0,
-        iconOnlyPaddingVertical: 0,
-        iconOnlyPaddingHorizontal: 0,
-        WebkitAppRegion: "no-drag",
-      },
-      background: {
-        hoverBackgroundColor: onCloseButton
-          ? "rgba(229, 57, 53, 0.92)"
-          : "rgba(255, 255, 255, 0.18)",
-        activeBackgroundColor: onCloseButton
-          ? "rgba(210, 48, 43, 0.95)"
-          : "rgba(255, 255, 255, 0.24)",
-      },
-      content: {
-        root: {
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        icon: {
-          width: 14,
-          height: 14,
-        },
-      },
-      state: {
-        hover: {
-          root: onCloseButton ? { color: "rgba(255,255,255,0.98)" } : {},
-        },
-        active: {
-          root: onCloseButton ? { color: "rgba(255,255,255,0.98)" } : {},
-        },
-      },
-    };
-  };
 
   return (
     <div
@@ -224,37 +106,14 @@ const TitleBar = () => {
       </div>
 
       {!isDarwin ? (
-        <div
+        <WindowControls
           style={{
             position: "absolute",
             top: "50%",
-            right: isLinux ? 12 : 10,
+            right: windowControlsInset(isLinux),
             transform: "translateY(-50%)",
-            display: "flex",
-            alignItems: "center",
-            gap: isLinux ? 8 : 1,
-            WebkitAppRegion: "no-drag",
           }}
-        >
-          <Button
-            prefix_icon={controlIcons.minimize}
-            ariaLabel="Minimize"
-            style={{ ...controlButtonStyle("minimize"), ...(isLinux ? {} : { borderRadius: "0px" }) }}
-            onClick={() => runWindowAction("minimize")}
-          />
-          <Button
-            prefix_icon={windowIsMaximized ? controlIcons.restore : controlIcons.maximize}
-            ariaLabel={windowIsMaximized ? "Restore" : "Maximize"}
-            style={{ ...controlButtonStyle("maximize"), ...(isLinux ? {} : { borderRadius: "1px" }) }}
-            onClick={() => runWindowAction("maximize")}
-          />
-          <Button
-            prefix_icon={controlIcons.close}
-            ariaLabel="Close"
-            style={{ ...controlButtonStyle("close"), ...(isLinux ? {} : { borderRadius: "1px" }) }}
-            onClick={() => runWindowAction("close")}
-          />
-        </div>
+        />
       ) : null}
     </div>
   );

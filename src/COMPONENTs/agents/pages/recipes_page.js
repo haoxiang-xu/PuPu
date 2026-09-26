@@ -6,8 +6,7 @@ import {
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import usePresentationPlatform from "../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
-import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge";
+import { AGENTS_MODAL_Z, useTopStripCenter } from "../top_strip";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
@@ -27,22 +26,13 @@ export default function RecipesPage({
   onSelectNode,
   fullscreen,
 }) {
-  const isDarwin = usePresentationPlatform() === "darwin";
-  const [appFullscreen, setAppFullscreen] = useState(false);
-
-  useEffect(() => {
-    if (!windowStateBridge.isListenerAvailable()) return undefined;
-    const cleanup = windowStateBridge.onWindowStateChange(({ isMaximized }) => {
-      setAppFullscreen(Boolean(isMaximized));
-    });
-    return () => {
-      if (typeof cleanup === "function") cleanup();
-    };
-  }, []);
-
-  const trafficLightPad = fullscreen && isDarwin && !appFullscreen;
-  const headerTopPad = trafficLightPad ? 28 : 0;
-  const expandTop = trafficLightPad ? 42 : 14;
+  /* One centerline for every control on the modal's top strip (#339). */
+  const {
+    center: topStripCenter,
+    left: topStripLeft,
+    clearsTrafficLights,
+  } = useTopStripCenter(fullscreen);
+  const headerTopPad = clearsTrafficLights ? 28 : 0;
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
   const {
@@ -185,7 +175,7 @@ export default function RecipesPage({
 
   const overlayPanel = {
     position: "absolute",
-    zIndex: 3,
+    zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
     backgroundColor: overlayBg,
     border: overlayBorder,
@@ -274,11 +264,13 @@ export default function RecipesPage({
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
+          ariaLabel="Show workflows"
           style={{
             position: "absolute",
-            top: expandTop,
-            left: 14,
-            zIndex: 4,
+            top: topStripCenter,
+            transform: "translateY(-50%)",
+            left: topStripLeft,
+            zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
             paddingVertical: 6,
             paddingHorizontal: 6,
             borderRadius: 6,
@@ -304,7 +296,7 @@ export default function RecipesPage({
             left: "50%",
             bottom: 62,
             transform: "translateX(-50%)",
-            zIndex: 5,
+            zIndex: AGENTS_MODAL_Z.PANEL_MESSAGE,
             maxWidth: 520,
             padding: "8px 12px",
             borderRadius: 8,
