@@ -79,3 +79,9 @@ Full i18n scan: 815 English keys, ten translated locales, no missing/orphan/mism
 
 AgentPanel impact initially returned UNKNOWN; text search confirmed its JSX caller in detail_panel.js. An incremental index refresh produced duplicate symbol/path corruption and a CRITICAL verdict; the warning was surfaced and a full no-cache rebuild requested. The actual product edit adds seven array entries only; component behavior is unchanged.
 The full no-cache index rebuild completed. Final detect-changes found the three follow-up files and five symbols (including MODEL_OPTIONS), risk LOW, with no partial/truncated flags. This resolves the incremental-index anomaly for final diff analysis; data-only additions retain the separately recorded consumer tests and loader impact evidence.
+
+## CI dependency correction — 2026-09-26
+
+Release QA run 36250894694 installed the workflow's old Unchain source `0dc483c563270e96746735f81f8f7fc41cc7bb51`; all seven native catalog integration cases failed with missing model IDs, while 2,486 other backend tests passed. The local installation used the intended `b26e89d9064b8e09c0863df44e9b0585dde4c1f2`, so the earlier local pass did not verify the workflow-selected pair. This omission is corrected in the workflow dispatch default and all four deterministic/package job fallbacks. No tests are skipped or relaxed.
+
+Unchain #39 is merged and its full Python 3.12 CI passed. The selected immutable commit retains the previous pin in its ancestry. Existing one-build artifact continuity is unchanged: CI builds once from that source and reuses its wheel across tests/packages; the new CI run must establish its own wheel digest. Pre-edit GitNexus artifact-builder impact is LOW on the refreshed clone index. Local checks: eight model integration tests against the intended installed wheel and 14 existing artifact/continuity tests passed.
