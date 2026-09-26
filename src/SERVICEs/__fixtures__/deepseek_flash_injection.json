@@ -1,0 +1,49 @@
+{
+  "id": "deepseek",
+  "display_name": "DeepSeek",
+  "protocol": "anthropic",
+  "base_url": "https://api.deepseek.com/anthropic",
+  "auth": {
+    "mode": "x-api-key",
+    "key_label": "DeepSeek API Key",
+    "key_hint": "Create an API key at platform.deepseek.com."
+  },
+  "timeout_seconds": 600,
+  "default_model": "deepseek-v4-flash",
+  "slug": "deepseek",
+  "models": [
+    {
+      "id": "deepseek-flash",
+      "default_payload": {
+        "max_tokens": 32768,
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "capabilities": {
+        "supports_tools": true,
+        "supports_vision": true,
+        "max_tokens": 384000,
+        "max_context_window_tokens": 1000000
+      }
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "capabilities": {
+        "supports_tools": true,
+        "supports_vision": false,
+        "max_tokens": 65536,
+        "max_context_window_tokens": 1000000
+      }
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "capabilities": {
+        "supports_tools": true,
+        "supports_vision": false,
+        "max_tokens": 65536,
+        "max_context_window_tokens": 1000000
+      }
+    }
+  ]
+}
