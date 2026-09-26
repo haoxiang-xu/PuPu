@@ -10,6 +10,13 @@ import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
+  { value: "openai:gpt-6-sol", label: "openai:gpt-6-sol" },
+  { value: "openai:gpt-6-luna", label: "openai:gpt-6-luna" },
+  { value: "anthropic:claude-opus-5-5", label: "anthropic:claude-opus-5-5" },
+  { value: "anthropic:claude-sonnet-5", label: "anthropic:claude-sonnet-5" },
+  { value: "gemini:gemini-3.7-flash", label: "gemini:gemini-3.7-flash" },
+  { value: "gemini:gemini-3.8-flash", label: "gemini:gemini-3.8-flash" },
+  { value: "gemini:gemini-3.5-flash-lite", label: "gemini:gemini-3.5-flash-lite" },
   { value: "claude-opus-4-7", label: "claude-opus-4-7" },
   { value: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
   { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
