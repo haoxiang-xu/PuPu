@@ -380,3 +380,50 @@ describe("FlowEditor select_all_token contract", () => {
     expect(kept).toEqual(["start"]);
   });
 });
+
+describe("FlowEditor right-click during a gesture", () => {
+  const nodes = [
+    {
+      id: "a",
+      x: 0,
+      y: 0,
+      deletable: true,
+      ports: [{ id: "out", side: "right", kind: "out" }],
+    },
+  ];
+
+  test("a right-click while dragging a node opens no menu", () => {
+    const on_context_menu = jest.fn();
+    const { container } = render(
+      wrap(
+        <FlowEditor nodes={nodes} edges={[]} on_context_menu={on_context_menu} />,
+      ),
+    );
+    const node = container.querySelector('[data-flow-node-id="a"]');
+
+    /* Start a drag, then press the other button mid-gesture. */
+    fireEvent.mouseDown(node, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(window, { clientX: 60, clientY: 40 });
+    fireEvent.contextMenu(node);
+    expect(on_context_menu).not.toHaveBeenCalled();
+
+    /* Once the gesture ends the menu works again. */
+    fireEvent.mouseUp(window, { clientX: 60, clientY: 40 });
+    fireEvent.contextMenu(node);
+    expect(on_context_menu).toHaveBeenCalledTimes(1);
+  });
+
+  test("a right-click while panning the canvas opens no menu", () => {
+    const on_context_menu = jest.fn();
+    const { container } = render(
+      wrap(
+        <FlowEditor nodes={nodes} edges={[]} on_context_menu={on_context_menu} />,
+      ),
+    );
+    const canvas = container.firstChild;
+    fireEvent.mouseDown(canvas, { button: 1, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(window, { clientX: 80, clientY: 80 });
+    fireEvent.contextMenu(canvas);
+    expect(on_context_menu).not.toHaveBeenCalled();
+  });
+});

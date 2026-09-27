@@ -941,6 +941,16 @@ function FlowEditor({
       onContextMenu={(e) => {
         e.preventDefault();
         if (!on_context_menu || !canvas_ref.current) return;
+        /* Mid-gesture right-clicks belong to the gesture. Dragging a node or
+         * panning the canvas and pressing the other button should not leave a
+         * menu behind where the pointer happened to be. */
+        if (
+          drag_ref.current ||
+          pan_ref.current ||
+          connecting_ref.current ||
+          reconnecting_ref.current
+        )
+          return;
         const rect = canvas_ref.current.getBoundingClientRect();
         const vp = viewport_ref.current;
 

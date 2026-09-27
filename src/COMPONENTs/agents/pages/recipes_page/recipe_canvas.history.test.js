@@ -91,3 +91,43 @@ describe("RecipeCanvas Undo/Redo buttons", () => {
     expect(onRedo).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("the detail page never stays pinned to a node that is gone", () => {
+  const withAgent = {
+    ...minimalRecipe,
+    nodes: [...minimalRecipe.nodes, { id: "agent_1", type: "agent", x: 0, y: 0 }],
+  };
+
+  test("removing the selected node closes the detail page", () => {
+    const onSelectNode = jest.fn();
+    const props = { ...baseProps, recipe: withAgent, selectedNodeId: "agent_1", onSelectNode };
+    const { rerender } = render(<RecipeCanvas {...props} />);
+    expect(onSelectNode).not.toHaveBeenCalled();
+
+    /* Whatever removed it — the menu's Delete, the Delete key, an undo — the
+     * canvas sees the node list without it. */
+    rerender(<RecipeCanvas {...props} recipe={minimalRecipe} />);
+    expect(onSelectNode).toHaveBeenCalledWith(null);
+  });
+
+  test("removing a different node leaves the selection alone", () => {
+    const onSelectNode = jest.fn();
+    const props = { ...baseProps, recipe: withAgent, selectedNodeId: "agent_1", onSelectNode };
+    const { rerender } = render(<RecipeCanvas {...props} />);
+    rerender(
+      <RecipeCanvas
+        {...props}
+        recipe={{ ...withAgent, nodes: withAgent.nodes.filter((n) => n.id !== "end") }}
+      />,
+    );
+    expect(onSelectNode).not.toHaveBeenCalled();
+  });
+
+  test("nothing selected means nothing to close", () => {
+    const onSelectNode = jest.fn();
+    const props = { ...baseProps, recipe: withAgent, selectedNodeId: null, onSelectNode };
+    const { rerender } = render(<RecipeCanvas {...props} />);
+    rerender(<RecipeCanvas {...props} recipe={minimalRecipe} />);
+    expect(onSelectNode).not.toHaveBeenCalled();
+  });
+});

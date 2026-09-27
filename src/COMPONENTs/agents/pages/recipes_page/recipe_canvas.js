@@ -94,6 +94,15 @@ export default function RecipeCanvas({
 
   const edges = useMemo(() => recipe?.edges || [], [recipe]);
 
+  /* A detail page pinned to a node that no longer exists would keep editing a
+   * ghost, so closing it is part of deleting. Watching the node list covers
+   * every route — the menu's Delete, the Delete key, and undo/redo. */
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    if (recipe?.nodes?.some((n) => n.id === selectedNodeId)) return;
+    onSelectNode?.(null);
+  }, [recipe, selectedNodeId, onSelectNode]);
+
   const handleNodesChange = useCallback(
     (nextNodes) => {
       const r = recipeRef.current;
@@ -242,22 +251,6 @@ export default function RecipeCanvas({
     [onRecipeChange],
   );
 
-  const duplicate_node = useCallback(
-    (node_id) => {
-      const r = recipeRef.current;
-      const node = r?.nodes.find((n) => n.id === node_id);
-      if (!r || !node) return;
-      const entry = catalog_entry(node.type);
-      if (!entry) return;
-      const id = next_node_id(node.type, new Set(r.nodes.map((n) => n.id)));
-      /* A copy keeps the original's configuration and steps clear of it. */
-      const copy = { ...node, id, x: (node.x || 0) + 40, y: (node.y || 0) + 40 };
-      onRecipeChange({ ...r, nodes: [...r.nodes, copy] });
-      onSelectNode?.(id);
-    },
-    [onRecipeChange, onSelectNode],
-  );
-
   const copy_node = useCallback((node_id) => {
     const r = recipeRef.current;
     const node = r?.nodes.find((n) => n.id === node_id);
@@ -306,7 +299,6 @@ export default function RecipeCanvas({
       /* Node */
       onOpenDetail: () => onSelectNode?.(target.id),
       onCopy: () => copy_node(target.id),
-      onDuplicate: () => duplicate_node(target.id),
       onInsertAfter: () =>
         open_palette(contextMenu.x, contextMenu.y, "insert_after", target.id),
       onDisconnect: () => disconnect_node(target.id),
@@ -323,7 +315,6 @@ export default function RecipeCanvas({
     isMac,
     open_palette,
     onSelectNode,
-    duplicate_node,
     copy_node,
     paste_node,
     canPaste,

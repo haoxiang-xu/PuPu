@@ -7,6 +7,7 @@ import {
   ports_for_type,
   search_nodes,
   NODE_GROUPS,
+  NODE_GROUP_ICONS,
 } from "./recipe_node_catalog";
 import { TOOLKIT_POOL_TYPE, LEGACY_TOOLPOOL_TYPE } from "./recipe_graph";
 import { validate_recipe_connection } from "./recipe_connection_rules";
@@ -24,6 +25,16 @@ describe("recipe node catalog", () => {
       expect(Array.isArray(entry.ports)).toBe(true);
       expect(typeof entry.defaults).toBe("function");
     });
+  });
+
+  test("every group has an icon, and it exists in the manifest", () => {
+    const { UISVGs } = require("../../../../BUILTIN_COMPONENTs/icon/icon_manifest");
+    NODE_GROUPS.forEach((group) => {
+      expect(NODE_GROUP_ICONS[group]).toBeTruthy();
+      expect(NODE_GROUP_ICONS[group] in UISVGs).toBe(true);
+    });
+    expect(NODE_GROUP_ICONS.steps).toBe("route");
+    expect(NODE_GROUP_ICONS.attachments).toBe("puzzle_2");
   });
 
   test("the palette can only offer nodes creation knows how to build", () => {

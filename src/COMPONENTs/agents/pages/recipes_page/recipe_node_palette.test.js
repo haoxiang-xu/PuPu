@@ -153,6 +153,17 @@ describe("node palette", () => {
     ).toBeInTheDocument();
   });
 
+  test("the footer's return key is drawn by Icon, not a text glyph", async () => {
+    open();
+    const box = palette();
+    /* Icon resolves its SVG asynchronously, so assert on what is stable: the
+     * literal ↵ character is gone and the footer hands that slot to Icon. */
+    expect(within(box).queryByText("\u21b5")).not.toBeInTheDocument();
+    expect(box.innerHTML).not.toContain("\u21b5");
+    await screen.findByTestId("recipe-node-palette");
+    expect(box.querySelector(".mini-ui-img-icon, .mini-ui-svg-icon")).toBeTruthy();
+  });
+
   test("it stays on screen when opened at the bottom-right corner", () => {
     open({ x: window.innerWidth - 4, y: window.innerHeight - 4 });
     const box = palette();

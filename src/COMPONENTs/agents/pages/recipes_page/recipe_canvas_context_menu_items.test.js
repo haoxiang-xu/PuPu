@@ -33,16 +33,49 @@ describe("canvas menu", () => {
     ).toBe(false);
   });
 
-  test("shortcuts follow the platform", () => {
-    expect(byId(buildRecipeCanvasContextMenuItems({ isMac: true }), "paste").trail).toBe("⌘V");
-    expect(byId(buildRecipeCanvasContextMenuItems({ isMac: false }), "paste").trail).toBe("Ctrl+V");
+  test("shortcuts follow the platform, with the command glyph on macOS", () => {
+    const mac = byId(buildRecipeCanvasContextMenuItems({ isMac: true }), "paste");
+    expect(mac).toMatchObject({ trail_icon: "command", trail: "V" });
+
+    const win = byId(buildRecipeCanvasContextMenuItems({ isMac: false }), "paste");
+    expect(win.trail).toBe("Ctrl+V");
+    expect(win.trail_icon).toBeUndefined();
   });
 
-  test("reset zoom deliberately carries no icon", () => {
-    const row = byId(buildRecipeCanvasContextMenuItems({}), "reset_zoom");
-    expect(row.icon).toBeUndefined();
-    expect(row.prefix_icon).toBeUndefined();
-    expect(row.trail).toBeTruthy();
+  test("the view actions advertise no shortcut, because nothing binds one", () => {
+    const items = buildRecipeCanvasContextMenuItems({ isMac: true });
+    ["fit_to_view", "reset_zoom"].forEach((id) => {
+      const row = byId(items, id);
+      expect(row.trail).toBeUndefined();
+      expect(row.trail_icon).toBeUndefined();
+    });
+  });
+
+  test("a row that opens another surface is marked as a doorway", () => {
+    expect(byId(buildRecipeCanvasContextMenuItems({}), "add_node").trail_icon).toBe(
+      "arrow_right_s",
+    );
+    expect(
+      byId(buildRecipeNodeContextMenuItems({ node: agent }), "insert_after").trail_icon,
+    ).toBe("arrow_right_s");
+    expect(
+      byId(buildRecipeEdgeContextMenuItems({}), "insert_node_here").trail_icon,
+    ).toBe("arrow_right_s");
+  });
+
+  test("the view rows are bare — no glyph, no shortcut", () => {
+    const items = buildRecipeCanvasContextMenuItems({ isMac: true });
+    ["fit_to_view", "reset_zoom"].forEach((id) => {
+      const row = byId(items, id);
+      expect(row.icon).toBeUndefined();
+      expect(row.prefix_icon).toBeUndefined();
+      expect(row.trail).toBeUndefined();
+      expect(row.trail_icon).toBeUndefined();
+    });
+  });
+
+  test("select all is the one view-adjacent row that keeps a glyph", () => {
+    expect(byId(buildRecipeCanvasContextMenuItems({}), "select_all").icon).toBe("shape");
   });
 });
 
@@ -57,7 +90,7 @@ describe("node menu keeps its shape across kinds", () => {
       onRename: () => {},
     });
     expect(shape(items)).toBe(
-      "open_detail — rename copy duplicate — insert_after disconnect — delete",
+      "open_detail — rename copy — insert_after disconnect — delete",
     );
     items
       .filter((i) => i.type !== "separator")
@@ -67,10 +100,10 @@ describe("node menu keeps its shape across kinds", () => {
   test("start keeps the same rows, greyed, with the reason in the trailing slot", () => {
     const items = buildRecipeNodeContextMenuItems({ node: start, onRename: () => {} });
     expect(shape(items)).toBe(
-      "open_detail — rename copy duplicate — insert_after disconnect — delete",
+      "open_detail — rename copy — insert_after disconnect — delete",
     );
     expect(byId(items, "rename")).toMatchObject({ disabled: true, trail: "fixed" });
-    expect(byId(items, "duplicate")).toMatchObject({ disabled: true, trail: "one only" });
+    expect(byId(items, "copy")).toMatchObject({ disabled: true, trail: "one only" });
     expect(byId(items, "delete")).toMatchObject({ disabled: true, trail: "required" });
   });
 
@@ -95,7 +128,7 @@ describe("node menu keeps its shape across kinds", () => {
     const items = buildRecipeNodeContextMenuItems({ node: pool });
     expect(byId(items, "disconnect").label).toBe("Detach");
     expect(byId(items, "insert_after")).toBeUndefined();
-    expect(byId(items, "duplicate").disabled).toBe(false);
+    expect(byId(items, "copy").disabled).toBe(false);
   });
 
   test("delete is last and alone behind a separator", () => {
@@ -115,10 +148,16 @@ describe("node menu keeps its shape across kinds", () => {
     ).toContain("view_code");
   });
 
-  test("copy and paste are the same capability seen from two sides", () => {
+  test("copy carries the platform shortcut, and Duplicate no longer exists", () => {
     const items = buildRecipeNodeContextMenuItems({ node: agent, isMac: true });
-    expect(byId(items, "copy")).toMatchObject({ disabled: false, trail: "⌘C" });
+    expect(byId(items, "copy")).toMatchObject({
+      disabled: false,
+      trail_icon: "command",
+      trail: "C",
+    });
     expect(byId(buildRecipeNodeContextMenuItems({ node: start }), "copy").disabled).toBe(true);
+    /* Copy + Paste covers it; two rows for one capability was one too many. */
+    expect(byId(items, "duplicate")).toBeUndefined();
   });
 
   test("rename only appears once something can rename, like the other kind-specific rows", () => {
@@ -169,7 +208,7 @@ describe("icons", () => {
       buildRecipeEdgeContextMenuItems({}),
     ];
     menus.flat().forEach((item) => {
-      [item.icon, item.prefix_icon].filter(Boolean).forEach((name) => {
+      [item.icon, item.prefix_icon, item.trail_icon].filter(Boolean).forEach((name) => {
         expect(name in UISVGs).toBe(true);
       });
     });
