@@ -214,18 +214,61 @@ The existing CTX-B01 through CTX-B09 profiles remain applicable where touched; t
 | BC-349-07 | PuPu active/graph admission → first-turn context handoff. The default long-term-recall policy is CLOSED: no recall lookup, candidate creation, reference binding or handoff injection occurs before a model request. Explicit `memory_list`, `memory_search` and `memory_read` remain normal toolkit calls and their durable tool results use BC-349-02. | Bind the bypass to the active admission and preserve the same root/graph entry identity, user-authored instructions and current request bootstrap. An old-memory reference cannot reach the provider payload without an explicit tool call; malformed or foreign references remain rejected by the existing toolkit authorizer. | AC-349-02/04/07; active and graph entry tests assert the recall function is not called, simple provider payloads omit seeded old memory, and explicit read continues through the tool-result path. |
 | BC-349-08 | PuPu's execution-bound checkpoint repository → Unchain context coordinator. The lookup is CLOSED and bounded: newest committed references for the exact owner/session/generation/attempt only; content remains unread until the coordinator asks the same bound repository. Before a new write, the official repository returns the exact deterministic checkpoint reference for the already-materialized operation; this preview is read-only and must equal the later prepared reference. Retained repositories that omit or reject preview are supported through a prepared-ref verification loop: the compiler does not price a fabricated identity, and the coordinator expands only the complete omitted prefix until the actual marker fits. | Reject foreign, deleted, superseded, uncommitted, malformed, oversized, or snapshot/dependency-mismatched candidates before provider dispatch. The coordinator compares the complete canonical payload after rebuilding its source/dependency proof. A selected checkpoint can replace only its exact contiguous prefix; tool pairs crossing the coverage boundary remain whole. Price the official repository's exact future marker before preparation and reject identity drift. For a retained repository without preview, never commit a candidate until the actual prepared marker passes the same budget and consumption proof; if it does not fit, retry at the next complete-turn cutoff. | AC-349-04/07; committed-reuse, cross-scope, changed-dependency, corruption, bounded-list, exact budget-boundary, absent/unsupported/exact-preview, preview-identity, fallback-expansion, and complete-tool-pair tests. |
 
+### Final-audit repair contracts — 2026-09-27
+
+BC-349-07 extension (F1; AC-349-02/07/09): official `MemoryEntry`
+or workspace-capability result → model-facing Memory toolkit projection → PuPu
+reference codec. Internal `unchain.memory_entry.v1` schema and
+`memory_content` `content_ref` are storage metadata and never enter the model
+result. The visible result is OPEN for ordinary entry metadata but CLOSED for
+identity: one canonical `entry_ref` must bind the capability's exact space,
+entry ID and revision. Existing-entry mutations must return the requested entry
+at exactly the next revision; creation must return revision 1. History must stay
+on that entry, be strictly newest-first and not exceed the requested limit.
+Reject malformed or foreign-space refs and any divergent `entry_id`, `space_id`
+or `revision`. Apply the same projection to list, search, upsert, move,
+supersede, archive and history; `memory_read` remains the authorized body-read
+path. Evidence must use a real workspace capability, strict PuPu codec,
+populated save → background apply → list → search → exact read, plus invalid-ref,
+foreign-owner, divergent-identity and invalid-revision negatives.
+
+BC-349-08 extension (F2; AC-349-04/06/07/09): committed checkpoint discovery
+performs bounded ref lookup → exact durable metadata lookup → eligible payload
+read. Automatic reuse is CLOSED to a committed `PreparedCheckpoint` whose bound
+ref is exact and whose operation ID is exactly
+`context-checkpoint.checkpoint-<64 lowercase hex>`. Host and legacy operations,
+including plain-text summaries accepted by the public checkpoint port, are
+skipped before content read or JSON parsing. Adapters without exact metadata
+lookup disable automatic reuse safely. The SQLite lookup binds execution, ref,
+revision and fragment and verifies the operation claim's payload digest, target
+kind and target key in the same transaction. Admitted compiler-owned records
+retain strict schema, request, materialization and operation verification;
+corruption still fails closed.
+
+BC-349-04 extension (F3/F4; AC-349-08/09): immutable completion diagnostics and
+the authenticated OPEN `listJobs` page converge through one renderer merge.
+Consumed identity is CLOSED: bound owner/message, non-empty `job_id`, optional
+`run_id` from either the top level or legacy `payload.trigger.run_id`, positive
+revision and the existing closed status vocabulary. Preserve both job and run
+identity and use `job_id` as the canonical row ID when available. Conflicting
+top-level/nested run IDs, foreign scope and ambiguous matches cannot produce a
+successful state. Initial presentation, discovery, polling and prop updates all
+use the same bounded merge: a lower revision or lower active-state rank cannot
+replace a newer state, and a terminal state is immutable. Pending/leased status
+continues bounded polling case-insensitively; terminal status stops it.
+
 ## Acceptance and sequence tests
 
 | ID | Observable acceptance |
 |---|---|
 | AC-349-01 | Fixed-fixture before/after measurements distinguish cold/warm, first dispatch/token, tool continuation and foreground done. Report 30-run warm median/p95, read/processing counts and auxiliary LLM counts. Optimized targeted segments improve without hiding model wait; investigate any regression before rollout. |
-| AC-349-02 | Ordinary context preparation performs zero auxiliary LLM calls and zero unsolicited older-memory search/injection. One validated view feeds a model turn; warm same-generation tool continuations perform zero full-history snapshot reads. Explicit retrieval remains functional. |
+| AC-349-02 | Ordinary context preparation performs zero auxiliary LLM calls and zero unsolicited older-memory search/injection. One validated view feeds a model turn; warm same-generation tool continuations perform zero full-history snapshot reads. Explicit retrieval remains functional, including populated save/apply/list/search/read with the exact stored body. |
 | AC-349-03 | Every executed tool call/result remains durably recorded with exact identity/order and complete output or verified full-output artifact; next context consumes committed results once. Failed writes cannot be represented as saved or permit a dependent model request. |
-| AC-349-04 | Latest valid compaction/checkpoint and chronological suffix respect the real budget and preserve mandatory inputs and complete tool groups. No arbitrary old-message selection, duplication of covered messages or new LLM grouping. Oversized mandatory state fails explicitly. |
+| AC-349-04 | Latest valid compaction/checkpoint and chronological suffix respect the real budget and preserve mandatory inputs and complete tool groups. No arbitrary old-message selection, duplication of covered messages or new LLM grouping. Oversized mandatory state fails explicitly. Host/legacy plain-text checkpoints do not block compilation; compiler-owned checkpoints retain strict verification. |
 | AC-349-05 | A deliberately blocked/failed background worker does not delay foreground completion or the next message. No-candidate turns launch no Memory Agent. Queue/retry/restart remain durable; stale leases cannot apply changes. |
 | AC-349-06 | Cold/full and incremental canonical model contents agree for the same admitted source state. Retry, resume, restart, reset/rebase, deletion and concurrency never use stale cache state, duplicate tool effects or resurrect deleted memory. |
-| AC-349-07 | Real producer → independently strict consumer tests reject wrong execution/generation/attempt, unknown fields/version, corrupt checkpoint/digest and invalid provider wire. Normal, graph-root and subagent paths preserve their distinct scopes. |
-| AC-349-08 | English/Chinese ordinary labels truthfully reflect preparation, actual retrieval and independent background work; technical version/mode is in details. Pending, empty, failed and unavailable states are distinct. Details/status reads are lazy and bounded. |
+| AC-349-07 | Real producer → independently strict consumer tests reject wrong execution/generation/attempt, unknown fields/version, corrupt checkpoint/digest and invalid provider wire. Real `MemoryEntry` results pass the strict PuPu codec without internal storage refs, and real SQLite checkpoint metadata reaches the coordinator with positive and negative contract coverage. Normal, graph-root and subagent paths preserve their distinct scopes. |
+| AC-349-08 | English/Chinese ordinary labels truthfully reflect preparation, actual retrieval and independent background work; technical version/mode is in details. Pending, empty, failed and unavailable states are distinct. Details/status reads are lazy and bounded. Concurrent discovery/poll results cannot regress revision or a terminal state, and legacy nested run identity retains the canonical job row. |
 | AC-349-09 | The same built wheel SHA-256 and actual imported manifest digest pass the PuPu pair tests and smoke run after sidecar restart. Tests against a mutable sibling alone do not satisfy delivery evidence. |
 | AC-349-10 | One bounded, content-free timing record per v4 request distinguishes pre-run setup, model-request-ready/first visible output, tool continuation and foreground done. Graph compile/preflight/bootstrap/setup/worker-to-first-run timings identify the largest pre-run stage without changing the event wire. Repeated and failed/cancelled runs remain attributable by anonymized identity and outcome. |
 
@@ -235,10 +278,12 @@ The existing CTX-B01 through CTX-B09 profiles remain applicable where touched; t
 | SEQ-349-02 | Tool A call/approval/result → tool B call/approval/result → next model request: unique interactions, complete receipts, ordered incremental append, no A approval reuse for B. | BC-349-01/BC-349-02; AC-349-02/AC-349-03/AC-349-06/AC-349-07 |
 | SEQ-349-03 | Persist pending interaction → stop sidecar → explicit durable resume → terminal; repeat retry before/after durable result acknowledgement: rebuild once, no duplicate external effect, same authority. | BC-349-01/BC-349-02/BC-349-05; AC-349-03/AC-349-06/AC-349-07/AC-349-09 |
 | SEQ-349-04 | Enqueue job → duplicate wake → worker claim → crash/lease expiry → restart/retry → apply: bounded workers and one durable application; foreground remains done throughout. | BC-349-03/BC-349-04; AC-349-05/AC-349-06/AC-349-08 |
-| SEQ-349-05 | Warm cache → checkpoint pressure → next turn → provider/budget/tool-schema change → reset/rebase/delete: correct checkpoint reuse or invalidation, no missing pair or stale authority. Test compatible fallback/rollback without rewriting the journal. | BC-349-01/BC-349-02/BC-349-05/BC-349-08; AC-349-04/AC-349-06/AC-349-07 |
+| SEQ-349-05 | Warm cache → checkpoint pressure → next turn → provider/budget/tool-schema change → reset/rebase/delete: correct checkpoint reuse or invalidation, no missing pair or stale authority. Test compatible fallback/rollback without rewriting the journal. A committed host-authored plain-text checkpoint is skipped without payload read/parse, a later compiler checkpoint remains reusable, and operation-claim or compiler-payload tampering fails closed before dispatch, including after cold restart. | BC-349-01/BC-349-02/BC-349-05/BC-349-08; AC-349-04/AC-349-06/AC-349-07 |
 | SEQ-349-06 | Graph root with two steps/interactions and a subagent handoff → root terminal → enqueue: child completions retain provenance; only authorized root schedules curation. | BC-349-01/BC-349-02/BC-349-03; AC-349-03/AC-349-05/AC-349-06/AC-349-07 |
 | SEQ-349-07 | Load fixed wheel/manifest → positive runtime admission → each supported provider fake → incompatible manifest negative → UI reload of a pending/completed job: exact artifact continuity and truthful status. | BC-349-02/BC-349-04/BC-349-05; AC-349-07/AC-349-08/AC-349-09 |
 | SEQ-349-08 | Fresh v4 request → optional graph setup → run start → provider request/result → optional tool continuation → terminal; repeat for a second turn, cancellation and failure. The same hashed session/attempt keys correlate bounded logs while raw content remains absent. Logging failure cannot change SSE or durable state. | BC-349-06; AC-349-01/AC-349-10 |
+| SEQ-349-09 | Collapsed row makes no request → expansion binds the foreground job/run identity → legacy nested-run discovery and polling overlap → revision 3 terminal arrives before revision 2 active → the late active result is ignored and the canonical job row remains terminal. Collapse, unmount, owner/message change and failure cancel updates; conflicting or foreign identity becomes unavailable. | BC-349-04/BC-349-05; AC-349-08/AC-349-09 |
+| SEQ-349-10 | Authorized turn proposes memory → background job durably applies it → explicit list returns a canonical entry ref → search returns the same entry → read returns the exact body → cold restart repeats retrieval. Invalid, foreign-owner, divergent and invalid-revision refs fail before content disclosure. | BC-349-03/BC-349-05/BC-349-07; AC-349-02/AC-349-07/AC-349-09 |
 
 ### Cache checkpoint closeout — 2026-09-26
 

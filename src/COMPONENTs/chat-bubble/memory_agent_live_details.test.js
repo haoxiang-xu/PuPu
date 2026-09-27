@@ -21,6 +21,33 @@ test("expanded details refresh pending jobs and stop after completion", async ()
   expect(contextV2Bridge.listJobs).toHaveBeenCalledTimes(2);
   expect(onUpdate.mock.calls[1][0]).toMatchObject({ ownerChatId: "chat", messageId: "msg", runs: [{ status: "completed" }] });
 });
+test("a rejected stale lowercase page keeps polling a title-cased pending run", async () => {
+  contextV2Bridge.listJobs
+    .mockResolvedValueOnce(page("pending", 2))
+    .mockResolvedValueOnce(page("completed", 4));
+  const current = [{
+    id: "job",
+    jobId: "job",
+    runId: "run",
+    status: "Pending",
+    jobRevision: 3,
+  }];
+  const view = render(
+    <MemoryAgentLiveDetails
+      runs={current}
+      ownerChatId="chat"
+      messageId="msg"
+    />,
+  );
+
+  await act(async () => {});
+  expect(contextV2Bridge.listJobs).toHaveBeenCalledTimes(1);
+  expect(view.getByText("Pending")).toBeInTheDocument();
+
+  await act(async () => { jest.advanceTimersByTime(2000); });
+  expect(contextV2Bridge.listJobs).toHaveBeenCalledTimes(2);
+  expect(view.getByText("completed")).toBeInTheDocument();
+});
 test("unmount discards a late response and stops polling", async () => {
   let resolve;
   contextV2Bridge.listJobs.mockImplementation(() => new Promise((done) => { resolve = done; }));
@@ -31,6 +58,43 @@ test("unmount discards a late response and stops polling", async () => {
   expect(onUpdate).not.toHaveBeenCalled();
   await act(async () => { jest.advanceTimersByTime(10000); });
   expect(contextV2Bridge.listJobs).toHaveBeenCalledTimes(1);
+});
+test("a stale in-flight page cannot regress newer terminal props", async () => {
+  let resolve;
+  contextV2Bridge.listJobs.mockImplementation(
+    () => new Promise((done) => { resolve = done; }),
+  );
+  const onUpdate = jest.fn();
+  const view = render(
+    <MemoryAgentLiveDetails
+      runs={[{ ...runs[0], jobId: "job", runId: "run", jobRevision: 1 }]}
+      ownerChatId="chat"
+      messageId="msg"
+      onUpdate={onUpdate}
+    />,
+  );
+  view.rerender(
+    <MemoryAgentLiveDetails
+      runs={[
+        {
+          ...runs[0],
+          jobId: "job",
+          runId: "run",
+          status: "completed",
+          jobRevision: 3,
+        },
+      ]}
+      ownerChatId="chat"
+      messageId="msg"
+      onUpdate={onUpdate}
+    />,
+  );
+  await act(async () => { resolve(page("leased", 2)); });
+  expect(view.getByText("completed")).toBeInTheDocument();
+  expect(onUpdate.mock.calls[0][0].runs[0]).toMatchObject({
+    status: "completed",
+    jobRevision: 3,
+  });
 });
 test("failed reads show unavailable and do not retry indefinitely", async () => {
   contextV2Bridge.listJobs.mockRejectedValue(new Error("deleted"));

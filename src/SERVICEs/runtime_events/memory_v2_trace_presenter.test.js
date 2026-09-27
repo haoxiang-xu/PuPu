@@ -3,6 +3,7 @@ import {
   presentMemoryV2Audit,
   sanitizeMemoryV2TraceBundle,
 } from "./memory_v2_trace_presenter";
+import { mergeMemoryJobRuns } from "./memory_activity_labels";
 
 describe("Memory V2 trace presenter", () => {
   const payload = {
@@ -99,6 +100,71 @@ describe("Memory V2 trace presenter", () => {
     expect(serialized).not.toContain("credentials");
     expect(isMemoryV2TraceBundle(payload)).toBe(true);
     expect(isMemoryV2TraceBundle({ unknown: true })).toBe(false);
+  });
+
+  test("preserves canonical job identity and deduplicates legacy lifecycle snapshots", () => {
+    const audit = presentMemoryV2Audit({
+      mode: "active",
+      memory_agent_runs: [
+        {
+          run_id: "attempt-1",
+          job_id: "job-1",
+          status: "pending",
+          lifecycle: "normal",
+        },
+        {
+          run_id: "attempt-1",
+          job_id: "job-1",
+          status: "pending",
+          lifecycle: "resume",
+        },
+      ],
+    });
+
+    expect(audit.agentRuns).toHaveLength(1);
+    expect(audit.agentRuns[0]).toMatchObject({
+      id: "job-1",
+      jobId: "job-1",
+      runId: "attempt-1",
+      status: "Pending",
+    });
+  });
+
+  test("presenter, journal, and durable snapshots converge without changing the effect identity", () => {
+    const presented = presentMemoryV2Audit({
+      mode: "active",
+      memory_agent_run: {
+        run_id: "attempt-1",
+        job_id: "job-1",
+        status: "pending",
+      },
+    }).agentRuns;
+    const journal = {
+      id: "attempt-1",
+      status: "Completed",
+      consumedTokens: 42,
+    };
+    const durable = {
+      id: "job-1",
+      jobId: "job-1",
+      runId: "attempt-1",
+      status: "completed",
+      jobRevision: 4,
+    };
+
+    const converged = mergeMemoryJobRuns(
+      presented,
+      [journal, durable, journal],
+    );
+    expect(converged).toHaveLength(1);
+    expect(converged[0]).toMatchObject({
+      id: "job-1",
+      jobId: "job-1",
+      runId: "attempt-1",
+      status: "Completed",
+      jobRevision: 4,
+      consumedTokens: 42,
+    });
   });
 
   test.each([

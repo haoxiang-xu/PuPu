@@ -1,3 +1,5 @@
+import { mergeMemoryJobRuns } from "./memory_activity_labels";
+
 const MAX_STRING_LENGTH = 8192;
 const MAX_ARRAY_LENGTH = 64;
 const MAX_OBJECT_KEYS = 96;
@@ -324,9 +326,18 @@ const presentAgentRun = (run, index) => {
     tokens.output,
   );
   const costValue = firstFiniteNumber(run.cost_usd, cost.usd, cost.amount);
-  const id = normalizedText(run.run_id || run.job_id || run.operation_id, 240);
+  const jobId = normalizedText(run.job_id, 240);
+  const runId = normalizedText(run.run_id, 240);
+  const id = jobId || runId || normalizedText(run.operation_id, 240);
+  const jobRevision =
+    Number.isSafeInteger(run.revision) && run.revision >= 1
+      ? run.revision
+      : null;
   return {
     id: id || `memory-agent-${index + 1}`,
+    ...(jobId ? { jobId } : {}),
+    ...(runId ? { runId } : {}),
+    ...(jobRevision !== null ? { jobRevision } : {}),
     status: titleCase(run.status) || "Unknown",
     trigger: normalizedText(run.trigger_reason || run.trigger, 1000),
     provider,
@@ -373,7 +384,10 @@ export const presentMemoryV2Audit = (raw, { runStatus = "" } = {}) => {
         eventCount: firstFiniteNumber(safe.source_event_range.event_count),
       }
     : null;
-  const agentRuns = agentRunSources(safe).map(presentAgentRun);
+  const agentRuns = mergeMemoryJobRuns(
+    [],
+    agentRunSources(safe).map(presentAgentRun),
+  );
 
   return {
     schemaVersion: normalizedText(safe.schema_version, 120),

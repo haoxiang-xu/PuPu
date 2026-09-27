@@ -19,7 +19,7 @@ from test_memory_v2_background_worker import _queued, _jobs, _await
 from test_memory_v2_deferred_preparation import _bridge
 from test_memory_v2_unchain_graph_root_completion import _descriptors, _finish_graph, _propose_from_step, _ApplyMemoryAgent
 from unchain.journal import ResourceRef
-from unchain.memory.toolkit import ReferencePurpose
+from unchain.memory.toolkit import MemoryToolkitError, ReferencePurpose
 
 
 def _unavailable(*args, **kwargs):
@@ -197,6 +197,115 @@ def test_real_candidate_proposal_uri_is_lossless_and_replayable(tmp_path):
     # URI support does not turn candidate content into a granted memory read.
     with pytest.raises(Exception):
         toolkit.tools["memory_read"].func(ref=uri)
+
+
+def test_populated_official_memory_tools_disclose_entry_ref_and_keep_content_private(
+    tmp_path,
+):
+    from test_memory_v2_unchain_runtime_factory import (
+        _NeverRunOfficialMemoryAgent,
+        _attachment_request,
+        _context,
+        _factory,
+    )
+
+    host = _factory(
+        tmp_path,
+        owner_chat_id="chat-memory-list-owner-a",
+        root_run_id="attempt-a",
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    host.context_module.runtime.bind_context(
+        _context(
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+            current_input="Remember the violet lighthouse.",
+        )
+    )
+    source = host.attempt(
+        execution_id="execution-a",
+        attempt_id="attempt-a",
+    ).bundle.journal.capture_snapshot().events[0]
+    created = host.workspace.write_markdown(
+        path="/verification/defer-fix.md",
+        description="Exact violet lighthouse marker for retrieval verification",
+        content="violet lighthouse",
+        expected_space_revision=host.workspace.space.revision,
+        source_refs=(ResourceRef("context_event", source.event_id, 1),),
+        operation_id="populate-memory-list-regression",
+    )
+    assert created.content_ref is not None
+    assert created.content_ref.kind == "memory_content"
+    assert created.content_ref.resource_id != created.entry_id
+
+    request = _attachment_request(
+        agent_name="normal",
+        execution_id="execution-a",
+        attempt_id="attempt-a",
+        run_id="attempt-a",
+        completion_authority=True,
+    )
+    attachment = host.normal_attachment_factory.attach(request)
+    toolkit = host.memory_host.build_normal_toolkit(
+        attachment.binding,
+        attachment.capabilities,
+    )
+
+    listing = toolkit.tools["memory_list"].func(path="/", recursive=True, limit=20)
+    assert len(listing["entries"]) == 1
+    visible = listing["entries"][0]
+    assert "content_ref" not in visible
+    entry_ref = visible["entry_ref"]
+    assert entry_ref == host.reference_codec.encode(
+        ResourceRef("memory", created.entry_id, created.revision, created.space_id)
+    )
+    assert created.content_ref.resource_id not in entry_ref
+
+    search = toolkit.tools["memory_search"].func(query="violet lighthouse", limit=20)
+    assert len(search["results"]) == 1
+    assert search["results"][0]["entry"]["entry_ref"] == entry_ref
+    read = toolkit.tools["memory_read"].func(ref=entry_ref, full=True)
+    assert read["text"] == "violet lighthouse"
+
+    with pytest.raises(MemoryToolkitError, match="memory ref|invalid|canonical"):
+        toolkit.tools["memory_read"].func(
+            ref=f"pupu://memory/{created.space_id}/{created.entry_id}@0"
+        )
+
+    foreign_host = _factory(
+        tmp_path,
+        owner_chat_id="chat-memory-list-owner-b",
+        root_run_id="attempt-b",
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    foreign_host.context_module.runtime.bind_context(
+        _context(
+            execution_id="execution-b",
+            generation_id="generation-b",
+            attempt_id="attempt-b",
+        )
+    )
+    foreign_request = _attachment_request(
+        agent_name="normal",
+        execution_id="execution-b",
+        attempt_id="attempt-b",
+        run_id="attempt-b",
+        completion_authority=True,
+    )
+    foreign_attachment = foreign_host.normal_attachment_factory.attach(
+        foreign_request
+    )
+    foreign_toolkit = foreign_host.memory_host.build_normal_toolkit(
+        foreign_attachment.binding,
+        foreign_attachment.capabilities,
+    )
+    with pytest.raises(MemoryToolkitError, match="bound scope|outside"):
+        foreign_toolkit.tools["memory_read"].func(ref=entry_ref)
 
 
 @pytest.mark.parametrize("fragment", ["", "space/other", "space%2Fother"])

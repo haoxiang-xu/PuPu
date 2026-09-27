@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import contextV2Bridge from "../../SERVICEs/bridges/context_v2_bridge";
-import { applyMemoryJobStatuses } from "../../SERVICEs/runtime_events/memory_activity_labels";
+import {
+  applyMemoryJobStatuses,
+  memoryJobRunId,
+} from "../../SERVICEs/runtime_events/memory_activity_labels";
 import { presentMemoryV2Audit } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
@@ -19,8 +22,10 @@ export default function MemoryJobDiscovery({ ownerChatId, messageId, rootRunId, 
         if (page?.owner_chat_id !== ownerChatId || !Array.isArray(page.jobs) || page.jobs.length > 100) {
           throw new Error("Invalid memory job page");
         }
-        const jobs = page.jobs.filter((job) => job?.run_id === rootRunId);
-        const audit = presentMemoryV2Audit({ consolidation_jobs: jobs.map((job) => ({ ...job, run_id: job.job_id })) });
+        const jobs = page.jobs.filter(
+          (job) => memoryJobRunId(job) === rootRunId,
+        );
+        const audit = presentMemoryV2Audit({ consolidation_jobs: jobs });
         const runs = applyMemoryJobStatuses(audit?.agentRuns || [], page, ownerChatId);
         if (!cancelled) onUpdate?.({ ownerChatId, messageId, runs });
       } catch {

@@ -1,4 +1,11 @@
-import { conversationActivity, organizationActivity, applyMemoryJobStatuses } from "./memory_activity_labels";
+import {
+  applyMemoryJobStatuses,
+  conversationActivity,
+  memoryJobRunId,
+  mergeMemoryJobProjection,
+  mergeMemoryJobRuns,
+  organizationActivity,
+} from "./memory_activity_labels";
 import en from "../../locales/en.json";
 import zh from "../../locales/zh-CN.json";
 
@@ -19,7 +26,13 @@ const run = { id: "job-1", status: "Pending" };
 const job = { job_id: "job-1", run_id: "run-1", owner_chat_id: "chat-1", revision: 2, status: "completed" };
 const page = (jobs = [job]) => ({ owner_chat_id: "chat-1", jobs });
 test("job refresh binds owner and exact identity without changing the original run", () => {
-  expect(applyMemoryJobStatuses([run], page(), "chat-1")[0]).toEqual({ ...run, status: "completed", jobRevision: 2 });
+  expect(applyMemoryJobStatuses([run], page(), "chat-1")[0]).toEqual({
+    ...run,
+    jobId: "job-1",
+    runId: "run-1",
+    status: "completed",
+    jobRevision: 2,
+  });
   expect(run.status).toBe("Pending");
   expect(applyMemoryJobStatuses([run], page([]), "chat-1")[0].status).toBe("Unavailable");
   expect(applyMemoryJobStatuses([run], page([job, job]), "chat-1")[0].status).toBe("Unavailable");
@@ -34,5 +47,96 @@ test.each([
   expect(() => applyMemoryJobStatuses([run], value, "chat-1")).toThrow();
 });
 test("a late older revision cannot overwrite newer state", () => {
-  expect(() => applyMemoryJobStatuses([{ ...run, jobRevision: 3 }], page(), "chat-1")).toThrow();
+  expect(
+    applyMemoryJobStatuses(
+      [{ ...run, status: "completed", jobRevision: 3 }],
+      page(),
+      "chat-1",
+    )[0],
+  ).toMatchObject({ status: "completed", jobRevision: 3 });
+});
+
+test("one monotonic merge deduplicates a job and protects revision and terminal state", () => {
+  const current = {
+    id: "job-1",
+    jobId: "job-1",
+    runId: "run-1",
+    status: "completed",
+    jobRevision: 3,
+  };
+  const stale = {
+    ...current,
+    status: "leased",
+    jobRevision: 2,
+  };
+  const impossibleRestart = {
+    ...current,
+    status: "leased",
+    jobRevision: 4,
+  };
+  expect(mergeMemoryJobRuns([current], [stale, impossibleRestart])).toEqual([
+    current,
+  ]);
+  expect(
+    mergeMemoryJobProjection(
+      { ownerChatId: "chat-1", messageId: "msg-1", runs: [current] },
+      {
+        ownerChatId: "chat-1",
+        messageId: "msg-1",
+        runs: [stale, stale],
+      },
+    ).runs,
+  ).toEqual([current]);
+});
+
+test("an opaque journal update keeps the canonical durable job identity", () => {
+  const durable = {
+    id: "job-1",
+    jobId: "job-1",
+    runId: "run-1",
+    status: "Pending",
+  };
+  const journal = {
+    id: "run-1",
+    status: "Completed",
+    consumedTokens: 42,
+  };
+  expect(mergeMemoryJobRuns([durable], [journal])).toEqual([
+    {
+      ...durable,
+      status: "Completed",
+      consumedTokens: 42,
+    },
+  ]);
+});
+
+test("legacy nested trigger identity binds to the canonical job id", () => {
+  const legacyJob = {
+    job_id: "job-legacy",
+    owner_chat_id: "chat-1",
+    payload: { trigger: { run_id: "run-legacy" } },
+    revision: 3,
+    status: "completed",
+  };
+  expect(memoryJobRunId(legacyJob)).toBe("run-legacy");
+  expect(
+    applyMemoryJobStatuses(
+      [
+        {
+          id: "job-legacy",
+          jobId: "job-legacy",
+          runId: "run-legacy",
+          status: "Pending",
+        },
+      ],
+      page([legacyJob]),
+      "chat-1",
+    )[0],
+  ).toMatchObject({
+    id: "job-legacy",
+    jobId: "job-legacy",
+    runId: "run-legacy",
+    status: "completed",
+    jobRevision: 3,
+  });
 });

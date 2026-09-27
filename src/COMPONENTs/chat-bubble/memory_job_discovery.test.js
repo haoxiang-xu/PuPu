@@ -27,6 +27,40 @@ test("another root in the same chat cannot inherit this job", async () => {
   await act(async () => {});
   expect(onUpdate.mock.calls[0][0].runs).toEqual([]);
 });
+test("legacy jobs bind through payload.trigger.run_id and retain canonical job identity", async () => {
+  const legacyPage = {
+    owner_chat_id: "legacy-chat",
+    jobs: [
+      {
+        job_id: "legacy-job",
+        owner_chat_id: "legacy-chat",
+        payload: { trigger: { run_id: "legacy-run" } },
+        status: "completed",
+        revision: 3,
+      },
+    ],
+  };
+  contextV2Bridge.listJobs.mockResolvedValue(legacyPage);
+  const onUpdate = jest.fn();
+  render(
+    <MemoryJobDiscovery
+      ownerChatId="legacy-chat"
+      messageId="legacy-message"
+      rootRunId="legacy-run"
+      onUpdate={onUpdate}
+    />,
+  );
+  await act(async () => {});
+  expect(onUpdate.mock.calls[0][0].runs).toEqual([
+    expect.objectContaining({
+      id: "legacy-job",
+      jobId: "legacy-job",
+      runId: "legacy-run",
+      status: "completed",
+      jobRevision: 3,
+    }),
+  ]);
+});
 test("foreign owner is unavailable and never updates the message", async () => {
   contextV2Bridge.listJobs.mockResolvedValue(page);
   const onUpdate = jest.fn();
