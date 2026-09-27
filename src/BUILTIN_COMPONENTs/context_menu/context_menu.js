@@ -13,7 +13,24 @@ import SlidingHighlight from "../class/sliding_highlight";
 
 const MENU_W = 200;
 const ROW_H = 28;
+/* A separator is a 1px rule with 4px above and below. */
+const SEPARATOR_H = 9;
+/* The panel's own padding, 4px top and bottom. */
+const PANEL_PADDING_Y = 8;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+/* Height the menu will actually occupy.
+ *
+ * This used to be `items.length * 32`, which counted a 9px separator as a 32px
+ * row. Every menu containing separators — the side menu's conversation menu and
+ * the recipe list's, today — therefore overstated its height and flipped upward
+ * earlier and further than it needed to near the bottom of the window. */
+export function measureMenuHeight(items) {
+  const list = items || [];
+  const separators = list.filter((it) => it && it.type === "separator").length;
+  const rows = list.length - separators;
+  return rows * ROW_H + separators * SEPARATOR_H + PANEL_PADDING_Y;
+}
 
 export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
   const ref = useRef(null);
@@ -51,6 +68,11 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
       item && item.type !== "separator" && !item.disabled;
     const onKey = (e) => {
       if (e.key === "Escape") {
+        /* The menu is the topmost surface but not a Modal, so it is not on
+         * the modal stack — without stopping here, the same keypress reaches
+         * the Modal's window listener and closes the whole modal underneath
+         * the menu too. */
+        e.stopPropagation();
         onClose();
         return;
       }
@@ -101,7 +123,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
 
   const screenW = window.innerWidth;
   const screenH = window.innerHeight;
-  const menuH = items.length * 32;
+  const menuH = measureMenuHeight(items);
   const left = Math.min(x, screenW - MENU_W - 8);
   const top = Math.min(y, screenH - menuH - 8);
   /* grow away from the pointer: origin follows which corner we open from */
@@ -242,9 +264,34 @@ function MenuRow({ item, isDark, onClose, entered, delayMs, refCallback, onHover
           style={{ position: "relative", zIndex: 1, width: 14, height: 14 }}
         />
       )}
-      <span style={{ position: "relative", zIndex: 1, flex: 1 }}>
+      <span
+        style={{
+          position: "relative",
+          zIndex: 1,
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {item.label}
       </span>
+      {item.trail && (
+        <span
+          style={{
+            position: "relative",
+            zIndex: 1,
+            flexShrink: 0,
+            marginLeft: 10,
+            fontSize: 11,
+            opacity: 0.55,
+            fontFamily: "ui-monospace, Menlo, monospace",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.trail}
+        </span>
+      )}
     </div>
   );
 }

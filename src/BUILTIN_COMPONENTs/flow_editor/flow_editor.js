@@ -85,6 +85,9 @@ function FlowEditor({
   max_zoom = 3,
   reset_token,
   reset_focus_node_id,
+  fit_token,
+  zoom_reset_token,
+  select_all_token,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -177,6 +180,85 @@ function FlowEditor({
     setViewport(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
+
+  /* ── Fit every node into view ───────────────────────────── */
+  /*  Same token idiom as the home reset: the parent bumps the   */
+  /*  number and the editor reacts once.                         */
+  useEffect(() => {
+    if (fit_token === undefined) return;
+    const list = nodes_ref.current;
+    if (!list.length || !canvas_ref.current) return;
+    const rect = canvas_ref.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    let min_x = Infinity;
+    let min_y = Infinity;
+    let max_x = -Infinity;
+    let max_y = -Infinity;
+    list.forEach((n) => {
+      const dims = node_dimensions_ref.current[n.id] || { width: 180, height: 60 };
+      min_x = Math.min(min_x, n.x);
+      min_y = Math.min(min_y, n.y);
+      max_x = Math.max(max_x, n.x + dims.width);
+      max_y = Math.max(max_y, n.y + dims.height);
+    });
+    if (!Number.isFinite(min_x)) return;
+
+    const pad = 48;
+    const span_x = Math.max(1, max_x - min_x);
+    const span_y = Math.max(1, max_y - min_y);
+    const zoom = Math.max(
+      min_zoom,
+      Math.min(
+        1,
+        max_zoom,
+        (rect.width - pad * 2) / span_x,
+        (rect.height - pad * 2) / span_y,
+      ),
+    );
+    const next = {
+      x: rect.width / 2 - (min_x + span_x / 2) * zoom,
+      y: rect.height / 2 - (min_y + span_y / 2) * zoom,
+      zoom,
+    };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${zoom})`;
+    }
+    setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fit_token]);
+
+  /* ── Back to 1:1, keeping the canvas centre still ───────── */
+  useEffect(() => {
+    if (zoom_reset_token === undefined) return;
+    const vp = viewport_ref.current;
+    if (vp.zoom === 1) return;
+    const rect = canvas_ref.current?.getBoundingClientRect();
+    const cx = rect ? rect.width / 2 : 0;
+    const cy = rect ? rect.height / 2 : 0;
+    const next = {
+      x: cx - ((cx - vp.x) / vp.zoom) * 1,
+      y: cy - ((cy - vp.y) / vp.zoom) * 1,
+      zoom: 1,
+    };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
+    }
+    setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom_reset_token]);
+
+  /* ── Select every node ──────────────────────────────────── */
+  useEffect(() => {
+    if (select_all_token === undefined) return;
+    const ids = nodes_ref.current.map((n) => n.id);
+    if (!ids.length) return;
+    setSelectedEdgeId(null);
+    setSelectedNodeIds(ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [select_all_token]);
 
   /* ═══════════════════════════════════════════════════════════ */
   /*  Registration helpers                                      */
@@ -861,7 +943,31 @@ function FlowEditor({
         if (!on_context_menu || !canvas_ref.current) return;
         const rect = canvas_ref.current.getBoundingClientRect();
         const vp = viewport_ref.current;
+
+        /* What was right-clicked. Nodes already carry data-flow-node-id and the
+         * edges' transparent hit path carries data-flow-edge-id, so the target
+         * is resolvable here and neither needs its own handler. */
+        const node_el = e.target.closest?.("[data-flow-node-id]");
+        const edge_el = node_el ? null : e.target.closest?.("[data-flow-edge-id]");
+        let target = { kind: "canvas", id: null };
+        if (node_el) target = { kind: "node", id: node_el.dataset.flowNodeId };
+        else if (edge_el) target = { kind: "edge", id: edge_el.dataset.flowEdgeId };
+
+        /* Select it first: a menu that acts on something the canvas is not
+         * showing as selected turns Delete into a guess. */
+        if (target.kind === "node") {
+          setSelectedEdgeId(null);
+          if (!selected_ref.current.includes(target.id)) {
+            setSelectedNodeIds([target.id]);
+            on_select?.(target.id);
+          }
+        } else if (target.kind === "edge") {
+          setSelectedNodeIds([]);
+          setSelectedEdgeId(target.id);
+        }
+
         on_context_menu({
+          target,
           canvas_x: (e.clientX - rect.left - vp.x) / vp.zoom,
           canvas_y: (e.clientY - rect.top - vp.y) / vp.zoom,
           client_x: e.clientX,
@@ -893,6 +999,7 @@ function FlowEditor({
             >
               {/* Invisible wider hit-area */}
               <path
+                data-flow-edge-id={ep.id}
                 d={ep.d}
                 fill="none"
                 stroke="transparent"
