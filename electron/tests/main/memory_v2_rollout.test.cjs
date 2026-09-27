@@ -538,6 +538,28 @@ describe("Memory V2 runtime protocol admission", () => {
     });
   });
 
+  test.each([2, 3])("admits migratable/current Unchain schema %s", (version) => {
+    const result = validateMemoryV2Status(statusFor(config, { schema_version: version }), config);
+    expect(result.ok).toBe(true);
+    expect(result.reason).toBe("");
+    expect(result.status.schemaVersion).toBe(version);
+  });
+
+  test.each([0, 1, 4, 99, "3", null, 3.5])("rejects unsupported schema %s", (version) => {
+    const result = validateMemoryV2Status(statusFor(config, { schema_version: version }), config);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("context_v2_schema_incompatible");
+  });
+
+  test.each([2, 3])("schema %s cannot bypass owner/protocol validation", (version) => {
+    expect(validateMemoryV2Status(statusFor(config, {
+      schema_version: version, store_owner: "pupu_legacy",
+    }), config).reason).toBe("context_v2_store_owner_incompatible");
+    expect(validateMemoryV2Status(statusFor(config, {
+      schema_version: version, runtime_protocol_manifest: {},
+    }), config).reason).toBe("context_v2_unchain_protocol_invalid");
+  });
+
   test("still requires matching store, schema, WAL, lexical state, and rollout", () => {
     const status = statusFor(config);
 
@@ -551,7 +573,7 @@ describe("Memory V2 runtime protocol admission", () => {
       reason: "context_v2_store_owner_incompatible",
     });
     expect(
-      validateMemoryV2Status({ ...status, schema_version: 3 }, config),
+      validateMemoryV2Status({ ...status, schema_version: 4 }, config),
     ).toMatchObject({ ok: false, reason: "context_v2_schema_incompatible" });
     expect(
       validateMemoryV2Status({ ...status, journal_mode: "delete" }, config),

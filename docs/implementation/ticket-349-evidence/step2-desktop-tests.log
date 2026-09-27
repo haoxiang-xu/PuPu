@@ -1,0 +1,12 @@
+PASS electron/tests/main/memory_v2_rollout.test.cjs
+PASS electron/tests/main/memory_v2_startup_readiness.test.cjs
+PASS src/electron/tests/main/memory_v2_startup_readiness.test.js
+PASS electron/tests/main/memory_v2_rollout.test.js
+PASS src/electron/tests/main/memory_v2_rollout.test.js
+PASS electron/tests/main/memory_v2_startup_readiness.test.js
+
+Test Suites: 6 passed, 6 total
+Tests:       201 passed, 201 total
+Snapshots:   0 total
+Time:        0.398 s, estimated 1 s
+Ran all test suites.

@@ -1,0 +1,31 @@
+{
+  "graph_stream": {
+    "error": {
+      "type": "PupuUnchainGraphRootCompletionError",
+      "message": "graph_root_completion_capture_failed"
+    },
+    "final_message_count": 1,
+    "stream_summary_count": 1,
+    "durable_root_terminal": [
+      "final_message",
+      "run_completed"
+    ],
+    "failed_bundle_status": "failed"
+  },
+  "normal_official_hook": {
+    "exception": "OperationalError",
+    "message": "audit simulated host registration write failure"
+  },
+  "cold_recovery": {
+    "owner_processing": [
+      "idle"
+    ],
+    "jobs": 0,
+    "candidates": [
+      {
+        "source_agent_run_id": "graph-step-collect",
+        "status": "pending"
+      }
+    ]
+  }
+}

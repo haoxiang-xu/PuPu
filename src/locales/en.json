@@ -867,5 +867,18 @@
     "group_conversation": "Conversation",
     "open_progress": "Open context usage; latest model call {percentage}% full",
     "open_progress_unavailable": "Open context usage; latest model call pressure unavailable"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversation ready",
+    "conversation_incomplete": "Conversation preparation incomplete",
+    "conversation_legacy": "Older conversation record",
+    "conversation_unavailable": "Conversation status unavailable",
+    "organization_failed": "Memory organization failed",
+    "organization_cancelled": "Memory organization cancelled",
+    "organization_unavailable": "Memory organization status unavailable",
+    "organization_running": "Organizing memories…",
+    "organization_queued": "Memory organization queued",
+    "organization_empty": "No memories to organize",
+    "organization_complete": "Memories organized"
   }
 }

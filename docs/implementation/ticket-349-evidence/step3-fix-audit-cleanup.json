@@ -1,0 +1,11 @@
+{
+  "delete": {
+    "ok": true
+  },
+  "diagnostic_pid": 51845,
+  "daily_pid": 65195,
+  "profile_removed": true,
+  "temporary_link_removed": true,
+  "temporary_flag_removed": true,
+  "daily_desktop_running": true
+}

@@ -867,5 +867,18 @@
     "group_conversation": "Unterhaltung",
     "open_progress": "Kontextnutzung öffnen; letzter Modellaufruf zu {percentage}% belegt",
     "open_progress_unavailable": "Kontextnutzung öffnen; Fensterauslastung des letzten Modellaufrufs nicht verfügbar"
+  },
+  "memory_activity": {
+    "conversation_ready": "Unterhaltung bereit",
+    "conversation_incomplete": "Unterhaltungsvorbereitung unvollständig",
+    "conversation_legacy": "Älterer Gesprächsverlauf",
+    "conversation_unavailable": "Gesprächsstatus nicht verfügbar",
+    "organization_failed": "Ordnen der Erinnerungen fehlgeschlagen",
+    "organization_cancelled": "Ordnen der Erinnerungen abgebrochen",
+    "organization_unavailable": "Status der Erinnerungsorganisation nicht verfügbar",
+    "organization_running": "Erinnerungen werden geordnet…",
+    "organization_queued": "Erinnerungen warten auf Organisation",
+    "organization_empty": "Keine Erinnerungen zu ordnen",
+    "organization_complete": "Erinnerungen geordnet"
   }
 }

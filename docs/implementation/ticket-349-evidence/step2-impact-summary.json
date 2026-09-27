@@ -1,0 +1,132 @@
+[
+  {
+    "target": "main.py",
+    "risk": "CRITICAL",
+    "summary": {
+      "direct": 2,
+      "processes_affected": 106,
+      "modules_affected": 20
+    },
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "_finalize_memory_v2_curator",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "test_memory_v2_unchain_graph_root_completion.py",
+    "risk": "UNKNOWN",
+    "summary": {
+      "direct": 0,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": "No callers resolved. Absence of edges is not evidence the symbol is unused: a caller reaching it through a reference class this index does not record \u2014 plain-object property access, a bare-identifier read of a module-scope const \u2014 produces no edge to find. Confirm with a text search before treating the change as safe.",
+    "error": null
+  },
+  {
+    "target": "memory_v2_unchain_agent_selection.py",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "PupuMemoryAgentWorkerModule",
+    "risk": "LOW",
+    "summary": {
+      "direct": 2,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "main",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "memory_v2_unchain_worker.py",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": "Target 'configure' not found"
+  },
+  {
+    "target": "PupuUnchainContextMemoryV2HostFactory",
+    "risk": "LOW",
+    "summary": {
+      "direct": 3,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "test_memory_v2_unchain_agent_selection.py",
+    "risk": "UNKNOWN",
+    "summary": {
+      "direct": 0,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": "No callers resolved. Absence of edges is not evidence the symbol is unused: a caller reaching it through a reference class this index does not record \u2014 plain-object property access, a bare-identifier read of a module-scope const \u2014 produces no edge to find. Confirm with a text search before treating the change as safe.",
+    "error": null
+  },
+  {
+    "target": "test_memory_v2_lifecycle_adapter.py",
+    "risk": "UNKNOWN",
+    "summary": {
+      "direct": 0,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": "No callers resolved. Absence of edges is not evidence the symbol is unused: a caller reaching it through a reference class this index does not record \u2014 plain-object property access, a bare-identifier read of a module-scope const \u2014 produces no edge to find. Confirm with a text search before treating the change as safe.",
+    "error": null
+  },
+  {
+    "target": "test_memory_v2_unchain_worker.py",
+    "risk": "LOW",
+    "summary": {
+      "direct": 1,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "_run_memory_completion",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "PupuOfficialMemoryAgentInvokerFactory",
+    "risk": "LOW",
+    "summary": {
+      "direct": 1,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "risk_note": null,
+    "error": null
+  },
+  {
+    "target": "memory_v2_unchain_runtime_factory.py",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "risk_note": null,
+    "error": "Target '__init__' not found"
+  }
+]

@@ -867,5 +867,18 @@
     "group_conversation": "Conversation",
     "open_progress": "Ouvrir l’utilisation du contexte ; dernier appel de modèle rempli à {percentage}%",
     "open_progress_unavailable": "Ouvrir l’utilisation du contexte ; pression de fenêtre du dernier appel indisponible"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversation prête",
+    "conversation_incomplete": "Préparation de la conversation incomplète",
+    "conversation_legacy": "Ancien historique de conversation",
+    "conversation_unavailable": "État de la conversation indisponible",
+    "organization_failed": "Échec de l’organisation des souvenirs",
+    "organization_cancelled": "Organisation des souvenirs annulée",
+    "organization_unavailable": "État de l’organisation indisponible",
+    "organization_running": "Organisation des souvenirs…",
+    "organization_queued": "Organisation des souvenirs en attente",
+    "organization_empty": "Aucun souvenir à organiser",
+    "organization_complete": "Souvenirs organisés"
   }
 }

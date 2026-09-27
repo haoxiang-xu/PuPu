@@ -1,0 +1,9 @@
+{
+  "pupu_server_snapshot_sha256": "2fc751141bcb120ff0ccfd557186766650cab8f4f6b264957c8616e21e19949b",
+  "file_count": 374,
+  "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44",
+  "verified_installed_files": 347,
+  "actual_runtime_manifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "actual_unchain_module": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-live-timing/installed-wheel/unchain/__init__.py",
+  "actual_server_module": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-defer-fix/server/memory_v2_background_worker.py"
+}

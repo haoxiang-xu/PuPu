@@ -63,7 +63,7 @@ def _create_unchain_database(root: Path) -> Path:
                 version INTEGER PRIMARY KEY,
                 applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-            INSERT INTO context_v2_schema(version) VALUES(1), (2);
+            INSERT INTO context_v2_schema(version) VALUES(1), (2), (3);
             CREATE TABLE executions(execution_id TEXT PRIMARY KEY);
             CREATE TABLE operations(operation_id TEXT PRIMARY KEY);
             CREATE TABLE events(event_id TEXT PRIMARY KEY);

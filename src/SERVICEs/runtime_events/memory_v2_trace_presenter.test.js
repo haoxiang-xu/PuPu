@@ -105,6 +105,7 @@ describe("Memory V2 trace presenter", () => {
     [{ mode: "active", persistence_degraded: true }, "Partial"],
     [{ mode: "legacy", legacy_v1: true }, "Legacy"],
     [{ mode: "off", reason: "memory_v2_runtime_unavailable" }, "Unavailable"],
+    [{ mode: "active", trace_status: "future_state" }, "Unavailable"],
   ])("normalizes the unified trace state", (raw, expected) => {
     expect(presentMemoryV2Audit(raw)?.status).toBe(expected);
   });

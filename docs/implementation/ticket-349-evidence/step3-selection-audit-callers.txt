@@ -1,0 +1,27 @@
+unchain_runtime/server/memory_v2_background_worker.py:312:    def selection_for_claimed_job(self, owner):
+unchain_runtime/server/memory_v2_background_worker.py:450:class _ClaimedJobMemoryInvoker:
+unchain_runtime/server/memory_v2_background_worker.py:458:            selected = self.registry.selection_for_claimed_job(self.owner)
+unchain_runtime/server/memory_v2_background_worker.py:470:def process_owner(registry, row, stopped):
+unchain_runtime/server/memory_v2_background_worker.py:499:        invoker_factory=lambda codec: _ClaimedJobMemoryInvoker(
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:65:    return bg.process_owner(registry, registry.page()[0], threading.Event())
+unchain_runtime/server/tests/test_memory_v2_lifecycle_adapter.py:708:            self.assertEqual(bg.process_owner(registry, row, threading.Event()), "processed")
+unchain_runtime/server/tests/test_memory_v2_lifecycle_adapter.py:709:            self.assertEqual(bg.process_owner(registry, row, threading.Event()), "idle")
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:112:        assert background.process_owner(cold, row, threading.Event()) == "idle"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:124:    assert background.process_owner(cold, cold.page()[0], threading.Event()) == "retry"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:129:    assert background.process_owner(cold, cold.page()[0], threading.Event()) == "idle"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:138:    assert background.process_owner(registry, registry.page()[0], threading.Event()) == "idle"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:227:    assert background.process_owner(registry, registry.page()[0], threading.Event()) == "idle"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:231:    assert background.process_owner(cold, cold.page()[0], threading.Event()) == "processed"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:253:            background.process_owner(registry, registry.page()[0], stopped)
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:307:    assert background.process_owner(registry, dict(row, backend="pupu_legacy"), threading.Event()) == "unavailable"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:309:        background.process_owner(registry, dict(row, owner_chat_id="other-chat"), threading.Event())
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:355:    assert background.process_owner(cold, row, threading.Event()) == "retry"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:372:    assert background.process_owner(registry, row, threading.Event()) == "retry"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:374:    assert background.process_owner(registry, row, threading.Event()) == "processed"
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:391:    assert background.process_owner(registry, registry.page()[0], threading.Event()) == "processed"
+unchain_runtime/server/tests/test_memory_v2_selection_race.py:58:            results.append(background.process_owner(registry, old_row, threading.Event()))
+unchain_runtime/server/tests/test_memory_v2_selection_race.py:114:    result = background.process_owner(registry, registry.page()[0], threading.Event())
+unchain_runtime/server/tests/test_memory_v2_selection_race.py:135:            background.process_owner(registry, registry.page()[0], threading.Event())
+unchain_runtime/server/tests/test_memory_v2_defer_audit_fixes.py:77:        assert background.process_owner(cold, cold.page()[0], threading.Event()) == "idle"
+unchain_runtime/server/tests/test_memory_v2_defer_audit_fixes.py:88:    assert background.process_owner(registry, registry.page()[0], threading.Event()) == "unavailable"
+unchain_runtime/server/tests/test_memory_v2_defer_audit_fixes.py:161:    background.process_owner(registry, registry.page()[0], threading.Event())

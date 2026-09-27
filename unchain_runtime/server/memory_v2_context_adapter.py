@@ -40,6 +40,7 @@ from unchain.context import (
     SourceMessageCursor,
     resolve_context_budget,
 )
+from unchain.context.journal_view_cache import FullJournalSnapshotSource
 from unchain.journal import (
     AttemptRef,
     DurableEventSink,
@@ -704,6 +705,11 @@ def bind_pupu_context_module(
     )
     coordinator = ContextCompileCoordinator(
         journal=execution.journal,
+        # This compatibility journal exposes physical events through read(),
+        # but capture_snapshot() projects logical cursors and portable payloads.
+        # Its physical suffix cannot safely extend a projected snapshot. The
+        # production Unchain-owned journal keeps the default run-local cache.
+        journal_snapshot_source=FullJournalSnapshotSource(execution.journal),
         checkpoint_repository=execution.checkpoints,
         build_repository=execution.context_builds,
         partial_attempt_sink=lambda request, error: mark_partial(

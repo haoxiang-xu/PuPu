@@ -1,0 +1,27 @@
+{
+  "server_sha256": "b334d8934a1c215e2fdadbd369ccbcf3e5187e5fcbfc402683670464cbac2168",
+  "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44",
+  "actual_runtime_manifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "r7_unchanged_files": {
+    "memory_v2_unchain_model_invoker.py": "d838e6c83afd45f2cd658ec5301557559c5291edd15b8680de55bb1baeec46e9",
+    "memory_v2_unchain_agent_factory.py": "d481e81316dace520ff7a75cef047037047758bad3da59b54dab9092943dd551",
+    "memory_v2_background_host.py": "ca34ca841e5966cc2fa3b725f4cb933d8b44504c1b84854a9f764b0dff9ccf27",
+    "memory_v2_background_worker.py": "f4f9fc3385aae49734b88a83fd82c34ea596bb10c22b329a194c8d6215b95aa9"
+  },
+  "reference_codec_unchanged_from_r7": true,
+  "live_probe": {
+    "first_attempt": "invalid kind=note; no candidate",
+    "second_attempt": "empty source_refs rejected; no candidate",
+    "third_attempt": "real persisted event ref supplied; candidate saved but response projection failed; background job failed",
+    "foreground_provider": "openai",
+    "foreground_model": "gpt-4.1",
+    "foreground_total_ms": [
+      6105,
+      6828,
+      7017
+    ],
+    "selected_background_provider": "openai",
+    "selected_background_model": "gpt-5",
+    "background_provider_request_made": false
+  }
+}

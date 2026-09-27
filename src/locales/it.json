@@ -867,5 +867,18 @@
     "group_conversation": "Conversazione",
     "open_progress": "Apri utilizzo del contesto; ultima chiamata al modello al {percentage}%",
     "open_progress_unavailable": "Apri utilizzo del contesto; pressione finestra dell’ultima chiamata non disponibile"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversazione pronta",
+    "conversation_incomplete": "Preparazione della conversazione incompleta",
+    "conversation_legacy": "Registro di conversazione precedente",
+    "conversation_unavailable": "Stato della conversazione non disponibile",
+    "organization_failed": "Organizzazione dei ricordi non riuscita",
+    "organization_cancelled": "Organizzazione dei ricordi annullata",
+    "organization_unavailable": "Stato dell’organizzazione non disponibile",
+    "organization_running": "Organizzazione dei ricordi…",
+    "organization_queued": "Organizzazione dei ricordi in attesa",
+    "organization_empty": "Nessun ricordo da organizzare",
+    "organization_complete": "Ricordi organizzati"
   }
 }

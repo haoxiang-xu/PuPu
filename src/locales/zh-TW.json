@@ -867,5 +867,18 @@
     "group_conversation": "對話",
     "open_progress": "開啟內容脈絡用量；最近一次模型呼叫已使用 {percentage}%",
     "open_progress_unavailable": "開啟內容脈絡用量；最近一次模型呼叫的視窗壓力無法使用"
+  },
+  "memory_activity": {
+    "conversation_ready": "對話已準備好",
+    "conversation_incomplete": "對話準備未完成",
+    "conversation_legacy": "舊版對話記錄",
+    "conversation_unavailable": "無法取得對話狀態",
+    "organization_failed": "記憶整理失敗",
+    "organization_cancelled": "記憶整理已取消",
+    "organization_unavailable": "無法取得記憶整理狀態",
+    "organization_running": "正在整理記憶…",
+    "organization_queued": "等待整理記憶",
+    "organization_empty": "暫無記憶需要整理",
+    "organization_complete": "記憶整理完成"
   }
 }

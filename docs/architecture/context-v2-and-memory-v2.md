@@ -145,3 +145,11 @@ sequenceDiagram
 - [Request Flow & Streaming](request-flow-and-streaming.md) — chat request、SSE、工具确认与前端消费路径。
 - [Memory System](memory-system.md) — 旧版 embedding / Qdrant 语义检索的独立说明。
 - [Memory V2 rollout and legacy retirement roadmap](memory-v2-rollout-and-legacy-retirement-roadmap.md) — 历史 rollout / retirement 计划与验收材料。
+
+## Memory V3 foreground and background work (#349)
+
+The active Unchain context path shares a run-local verified journal view between request construction and compilation. It validates durable identity/revision and appends only an authoritative suffix; invalidation, mutation or restart rehydrates from storage. Tool-call/result persistence remains synchronous before the next dependent provider turn. Context assembly does not call an auxiliary model or inject older memory without an explicit retrieval operation.
+
+Root completion durably enqueues eligible memory work and wakes a supervised worker. Foreground completion does not wait for consolidation. The UI uses localized activity labels; technical context data stays in expandable details. Opening conversation details can discover that exact root run's background job, and expanded pending-job details refresh until terminal/unavailable state or unmount.
+
+The additive legacy Context host uses full snapshots because its physical read() cursor and projected snapshot cursor are not interchangeable. See [ticket #349 closeout](../implementation/ticket-349-evidence/closeout-report-2026-09-27.md) for the exact runtime pair, recovery evidence and bounded performance claims.

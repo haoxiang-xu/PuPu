@@ -383,7 +383,8 @@ def _mounted_worker_module(host, *, completion=None):
     return memory_module, worker_module, completion
 
 
-def test_agent_module_runs_enqueue_then_worker_without_replacing_main_result():
+def test_agent_module_runs_enqueue_then_worker_without_replacing_main_result(monkeypatch):
+    monkeypatch.setattr("memory_v2_background_worker.notify_memory_background", lambda: None)
     events = []
     host = _OfficialHostDouble([_idle_receipt()], events=events)
     memory_module, worker_module, completion = _mounted_worker_module(host)
@@ -403,13 +404,12 @@ def test_agent_module_runs_enqueue_then_worker_without_replacing_main_result():
         if isinstance(replacement, KernelRunResult):
             current = replacement
 
-    assert events == ["enqueue", "worker"]
+    assert events == ["enqueue"]
     assert current is result
     assert current.messages[-1]["content"] == "main answer"
     assert worker_module.last_failure_code == ""
-    assert worker_module.last_receipt is not None
-    assert worker_module.last_receipt.disposition is MemoryAgentWorkerDisposition.IDLE
-    assert worker_module.last_receipt.trigger.job_trigger_key == completion.trigger_key
+    assert worker_module.last_receipt is None
+    assert host.operation_ids == []
 
 
 def test_structural_root_without_completion_grant_cannot_start_worker():
@@ -491,13 +491,16 @@ def test_resume_identity_uses_granted_run_and_preserves_root_run_id():
     for hook in builder.run_hooks:
         hook(result)
 
-    assert events == ["enqueue", "worker"]
-    assert worker_module.last_receipt is not None
-    assert worker_module.last_receipt.trigger.root_run_id == "root-a"
-    assert worker_module.last_receipt.trigger.job_trigger_key == completion.trigger_key
+    assert events == ["enqueue"]
+    assert worker_module.last_receipt is None
+    assert host.completions == [completion]
+    assert host.operation_ids == []
 
 
-def test_agent_module_contains_worker_failures_and_rejects_bad_mounts():
+def test_agent_module_contains_worker_failures_and_rejects_bad_mounts(monkeypatch):
+    def fail_notify():
+        raise RuntimeError("private failure")
+    monkeypatch.setattr("memory_v2_background_worker.notify_memory_background", fail_notify)
     host = _OfficialHostDouble([RuntimeError("provider payload must stay hidden")])
     memory_module, worker_module, _ = _mounted_worker_module(host)
     builder = _Builder()
@@ -555,6 +558,6 @@ def test_agent_module_records_official_pending_or_failed_without_throwing(
     result = KernelRunResult(messages=[], status="completed")
 
     assert builder.run_hooks[-1](result) is None
-    assert worker_module.last_receipt is not None
-    assert worker_module.last_receipt.process_disposition is disposition
-    assert worker_module.last_failure_code == failure_code
+    assert worker_module.last_receipt is None
+    assert worker_module.last_failure_code == ""
+    assert host.operation_ids == []

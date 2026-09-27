@@ -1,0 +1,90 @@
+{
+  "status": "ambiguous",
+  "message": "Found 3 symbols matching 'validateMemoryV2Status'. Blast radius differs per candidate (max 22 impacted at risk LOW). Disambiguate with target_uid (or file_path/kind) for a single authoritative result.",
+  "target": {
+    "name": "validateMemoryV2Status"
+  },
+  "direction": "upstream",
+  "totalCandidates": 3,
+  "impactedCount": null,
+  "risk": "UNKNOWN",
+  "maxImpactedCount": 22,
+  "maxRisk": "LOW",
+  "candidates": [
+    {
+      "uid": "Function:electron/main/services/unchain/memory_v2_rollout.js:validateMemoryV2Status",
+      "name": "validateMemoryV2Status",
+      "kind": "Function",
+      "filePath": "electron/main/services/unchain/memory_v2_rollout.js",
+      "line": 583,
+      "score": 0.56,
+      "impactedCount": 22,
+      "risk": "LOW",
+      "riskSharedAxes": "LOW",
+      "riskScale": {
+        "comparableAcrossKinds": false,
+        "unusedAxes": [
+          {
+            "axis": "processes",
+            "reason": "enrichment-skipped"
+          },
+          {
+            "axis": "modules",
+            "reason": "enrichment-skipped"
+          }
+        ]
+      },
+      "direct": 3
+    },
+    {
+      "uid": "Function:electron/main/services/unchain/memory_v2_rollout.js:validateMemoryV2Status",
+      "name": "validateMemoryV2Status",
+      "kind": "Function",
+      "filePath": "electron/main/services/unchain/memory_v2_rollout.js",
+      "line": 1204,
+      "score": 0.56,
+      "impactedCount": 22,
+      "risk": "LOW",
+      "riskSharedAxes": "LOW",
+      "riskScale": {
+        "comparableAcrossKinds": false,
+        "unusedAxes": [
+          {
+            "axis": "processes",
+            "reason": "enrichment-skipped"
+          },
+          {
+            "axis": "modules",
+            "reason": "enrichment-skipped"
+          }
+        ]
+      },
+      "direct": 3
+    },
+    {
+      "uid": "Function:electron/main/services/unchain/memory_v2_rollout.js:validateMemoryV2Status",
+      "name": "validateMemoryV2Status",
+      "kind": "Function",
+      "filePath": "electron/main/services/unchain/memory_v2_rollout.js",
+      "line": 151,
+      "score": 0.56,
+      "impactedCount": 22,
+      "risk": "LOW",
+      "riskSharedAxes": "LOW",
+      "riskScale": {
+        "comparableAcrossKinds": false,
+        "unusedAxes": [
+          {
+            "axis": "processes",
+            "reason": "enrichment-skipped"
+          },
+          {
+            "axis": "modules",
+            "reason": "enrichment-skipped"
+          }
+        ]
+      },
+      "direct": 3
+    }
+  ]
+}

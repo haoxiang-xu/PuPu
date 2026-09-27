@@ -445,7 +445,7 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
         ), mock.patch.object(
             adapter,
             "_prepare_memory_v2_first_message_recall",
-        ), mock.patch.object(
+        ) as automatic_recall, mock.patch.object(
             adapter,
             "_build_memory_v2_tool_runtime_config",
             return_value={},
@@ -474,6 +474,7 @@ def test_recipe_ref_child_graph_keeps_explicit_lineage_in_one_shadow_journal(
             )
 
     assert result.status == "completed"
+    automatic_recall.assert_not_called()
     assert delegated_payloads == [
         mock.ANY
     ], "the root recipe must receive one recipe-ref result"

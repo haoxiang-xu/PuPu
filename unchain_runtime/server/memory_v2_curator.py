@@ -415,6 +415,7 @@ class MemoryV2Curator:
         provider_default: Mapping[str, Any] | None = None,
         chat_provider: str = "",
         chat_model_id: str = "",
+        background_provider_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             owner = self._normalize_identifier(owner_chat_id, "owner_chat_id")
@@ -618,6 +619,13 @@ class MemoryV2Curator:
             },
             "config_fingerprint": fingerprint,
         }
+        if background_provider_binding is not None:
+            from memory_v2_background_worker import validate_background_provider_binding
+            try:
+                payload["background_provider_binding"] = validate_background_provider_binding(
+                    background_provider_binding, provider=selection["provider"], model_id=selection["model_id"])
+            except (TypeError, ValueError):
+                return {"status": "Failed", "reason": "memory_background_provider_binding_invalid", "job": None}
         operation_id = "memory_curator_enqueue:" + hashlib.sha256(
             f"{owner}:{session}:{attempt}:{run}".encode("utf-8")
         ).hexdigest()

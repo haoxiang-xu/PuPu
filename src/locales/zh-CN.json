@@ -867,5 +867,18 @@
     "group_conversation": "对话",
     "open_progress": "打开上下文用量；最近一次模型调用已占用 {percentage}%",
     "open_progress_unavailable": "打开上下文用量；最近一次模型调用的窗口压力不可用"
+  },
+  "memory_activity": {
+    "conversation_ready": "对话已准备好",
+    "conversation_incomplete": "对话准备未完成",
+    "conversation_legacy": "旧版对话记录",
+    "conversation_unavailable": "无法获取对话状态",
+    "organization_failed": "记忆整理失败",
+    "organization_cancelled": "记忆整理已取消",
+    "organization_unavailable": "无法获取记忆整理状态",
+    "organization_running": "正在整理记忆…",
+    "organization_queued": "等待整理记忆",
+    "organization_empty": "暂无记忆需要整理",
+    "organization_complete": "记忆整理完成"
   }
 }

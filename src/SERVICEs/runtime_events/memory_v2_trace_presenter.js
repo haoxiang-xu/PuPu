@@ -170,6 +170,8 @@ const resolveTraceStatus = (raw, mode, runStatus) => {
   }
   if (explicit === "legacy") return "Legacy";
   if (explicit === "unavailable") return "Unavailable";
+  // A newer producer's unknown state is not evidence of successful preparation.
+  if (explicit) return "Unavailable";
 
   const outer = normalizedText(runStatus, 48).toLowerCase();
   if (["error", "failed", "cancelled", "partial"].includes(outer)) {

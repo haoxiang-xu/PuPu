@@ -33,7 +33,8 @@ _OWNER_SCHEMA = "pupu.context-v2-store-owner.v1"
 _ACTIVE_OWNERS = frozenset({STORE_OWNER_PUPU_LEGACY, STORE_OWNER_UNCHAIN})
 _CONFIGURED_OWNERS = frozenset({STORE_OWNER_OFF, *_ACTIVE_OWNERS})
 _LEGACY_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
-_UNCHAIN_CONTEXT_SCHEMA_VERSIONS = frozenset({1, 2})
+_UNCHAIN_CONTEXT_SCHEMA_VERSIONS = frozenset({1, 2, 3})
+_UNCHAIN_MIGRATABLE_CONTEXT_SCHEMA_VERSIONS = frozenset({1, 2})
 _LEGACY_REQUIRED_TABLES = frozenset(
     {
         "meta",
@@ -155,7 +156,10 @@ def _unchain_schema_matches(
         }
     except (sqlite3.Error, TypeError, ValueError):
         return False
-    return versions == _UNCHAIN_CONTEXT_SCHEMA_VERSIONS
+    return versions in {
+        _UNCHAIN_MIGRATABLE_CONTEXT_SCHEMA_VERSIONS,
+        _UNCHAIN_CONTEXT_SCHEMA_VERSIONS,
+    }
 
 
 def inspect_context_v2_database(

@@ -2,11 +2,15 @@ const { createHash } = require("crypto");
 
 const MEMORY_V2_RELEASE_SCHEMA = "pupu.memory-v2-release.v1";
 const MEMORY_V2_ROLLOUT_SCHEMA = "memory_v2.rollout.v1";
-// Must track Unchain's SQLiteContextV2Store schema exactly. This is an
-// EQUALITY gate, not a floor. PuPu's retired prototype also used the public
-// Context V2 status shape but ended at schema v4, so readiness must verify the
-// canonical store owner as well as Unchain schema v2 before enabling traffic.
-const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 2;
+// Admit only the current Unchain schema and its supported migration source.
+// Read-only startup status may still report v2; opening the runtime migrates
+// it to v3. This is a closed set, not a floor. Owner and protocol checks must
+// also pass so the retired PuPu prototype's v4 cannot become ready.
+const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 3;
+const MEMORY_V2_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([
+  2,
+  MEMORY_V2_REQUIRED_SCHEMA_VERSION,
+]);
 const MEMORY_V2_BUILD_FEATURE_KEY = "enable_memory_v2";
 const MEMORY_V2_RELEASE_FIELD = "_pupu_memory_v2_release";
 const UNCHAIN_RUNTIME_PROTOCOL_SCHEMA = "unchain.runtime_protocol_manifest.v1";
@@ -599,7 +603,7 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
   } else if (!status.available) reason = "context_v2_unavailable";
   else if (status.storeOwner !== "unchain") {
     reason = "context_v2_store_owner_incompatible";
-  } else if (status.schemaVersion !== MEMORY_V2_REQUIRED_SCHEMA_VERSION) {
+  } else if (!MEMORY_V2_SUPPORTED_SCHEMA_VERSIONS.includes(status.schemaVersion)) {
     reason = "context_v2_schema_incompatible";
   } else if (status.journalMode !== "wal") {
     reason = "context_v2_wal_required";

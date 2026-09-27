@@ -450,11 +450,7 @@ def test_active_host_builds_agent_with_only_official_normal_memory_tools(
         assert hook(result) is None
 
     assert host.memory_worker_module.last_failure_code == ""
-    assert host.memory_worker_module.last_receipt is not None
-    assert (
-        host.memory_worker_module.last_receipt.disposition
-        is MemoryAgentWorkerDisposition.IDLE
-    )
+    assert host.memory_worker_module.last_receipt is None
 
 
 def test_active_root_attachment_captures_canonical_terminal_journal(

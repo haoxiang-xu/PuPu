@@ -867,5 +867,18 @@
     "group_conversation": "会話",
     "open_progress": "コンテキスト使用量を開く；最新のモデル呼び出しは {percentage}% 使用中",
     "open_progress_unavailable": "コンテキスト使用量を開く；最新のモデル呼び出しのウィンドウ負荷は利用不可"
+  },
+  "memory_activity": {
+    "conversation_ready": "会話の準備完了",
+    "conversation_incomplete": "会話の準備が未完了",
+    "conversation_legacy": "以前の会話記録",
+    "conversation_unavailable": "会話の状態を取得できません",
+    "organization_failed": "メモリの整理に失敗しました",
+    "organization_cancelled": "メモリの整理をキャンセルしました",
+    "organization_unavailable": "メモリ整理の状態を取得できません",
+    "organization_running": "メモリを整理中…",
+    "organization_queued": "メモリの整理待ち",
+    "organization_empty": "整理するメモリはありません",
+    "organization_complete": "メモリの整理完了"
   }
 }
