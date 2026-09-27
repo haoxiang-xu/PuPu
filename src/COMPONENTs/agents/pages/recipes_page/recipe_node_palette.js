@@ -281,9 +281,11 @@ export default function RecipeNodePalette({
         }}
       >
         <span>{flowOnly ? "Wired in where you right-clicked" : "Added where you right-clicked"}</span>
-        <span style={{ marginLeft: "auto", fontFamily: "ui-monospace, Menlo, monospace" }}>
-          ↵
-        </span>
+        <Icon
+          src="corner_down_left"
+          color={muted}
+          style={{ width: 12, height: 12, marginLeft: "auto", flexShrink: 0 }}
+        />
       </div>
     </div>,
     document.body,

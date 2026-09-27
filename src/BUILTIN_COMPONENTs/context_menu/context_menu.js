@@ -276,19 +276,29 @@ function MenuRow({ item, isDark, onClose, entered, delayMs, refCallback, onHover
       >
         {item.label}
       </span>
-      {item.trail && (
+      {(item.trail || item.trail_icon) && (
         <span
           style={{
             position: "relative",
             zIndex: 1,
             flexShrink: 0,
             marginLeft: 10,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 2,
             fontSize: 11,
             opacity: 0.55,
             fontFamily: "ui-monospace, Menlo, monospace",
             whiteSpace: "nowrap",
           }}
         >
+          {item.trail_icon && (
+            <Icon
+              src={item.trail_icon}
+              color={textColor}
+              style={{ width: 11, height: 11 }}
+            />
+          )}
           {item.trail}
         </span>
       )}

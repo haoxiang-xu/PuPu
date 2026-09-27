@@ -11,9 +11,16 @@ import { catalog_entry, ports_for_type } from "./recipe_node_catalog";
 
 const SEPARATOR = { type: "separator" };
 
+/* A shortcut renders as the command glyph plus its key on macOS, and as plain
+ * text elsewhere — hence a pair rather than a string. */
 export function shortcut(key, is_mac) {
-  return `${is_mac ? "⌘" : "Ctrl+"}${key}`;
+  return is_mac
+    ? { trail_icon: "command", trail: key }
+    : { trail: `Ctrl+${key}` };
 }
+
+/* A row that opens another surface instead of acting straight away. */
+const OPENS_ANOTHER_SURFACE = { trail_icon: "arrow_right_s" };
 
 /* An attach node hangs off a flow node rather than sitting in the chain. */
 function is_attach_only(node_type) {
@@ -39,7 +46,7 @@ export function buildRecipeCanvasContextMenuItems({
       id: "add_node",
       label: "Add node…",
       prefix_icon: "add",
-      trail: "⇥",
+      ...OPENS_ANOTHER_SURFACE,
       onClick: onAddNode,
     },
     SEPARATOR,
@@ -47,30 +54,28 @@ export function buildRecipeCanvasContextMenuItems({
       id: "paste",
       label: "Paste",
       icon: "paste",
-      trail: shortcut("V", isMac),
+      ...shortcut("V", isMac),
       disabled: !canPaste,
       onClick: onPaste,
     },
     {
       id: "select_all",
       label: "Select all",
-      trail: shortcut("A", isMac),
+      ...shortcut("A", isMac),
       onClick: onSelectAll,
     },
     SEPARATOR,
+    /* Fit to view and Reset zoom carry no shortcut: nothing binds one, and a
+     * menu that advertises a key that does nothing is worse than a quiet row. */
     {
       id: "fit_to_view",
       label: "Fit to view",
       icon: "fullscreen",
-      trail: "⇧1",
       onClick: onFitToView,
     },
     {
       id: "reset_zoom",
       label: "Reset zoom",
-      /* Remix has zoom-in and zoom-out but nothing for 1:1, so this row is
-       * carried by its shortcut rather than by an approximate glyph. */
-      trail: shortcut("0", isMac),
       onClick: onResetZoom,
     },
   ];
@@ -83,7 +88,6 @@ export function buildRecipeNodeContextMenuItems({
   onViewCode,
   onRename,
   onCopy,
-  onDuplicate,
   onInsertAfter,
   onDisconnect,
   onDelete,
@@ -120,7 +124,7 @@ export function buildRecipeNodeContextMenuItems({
    * only the agent node renders one today; the rest draw a fixed title until
    * the per-type identity table arrives. So the row appears when a handler is
    * supplied, the same rule group 1 uses, rather than sitting greyed out. */
-  const can_duplicate = Boolean(catalog_entry(type));
+  const can_copy = Boolean(catalog_entry(type));
   items.push(SEPARATOR);
   if (onRename) {
     items.push({
@@ -136,17 +140,9 @@ export function buildRecipeNodeContextMenuItems({
     id: "copy",
     label: "Copy",
     icon: "copy",
-    trail: can_duplicate ? shortcut("C", isMac) : "one only",
-    disabled: !can_duplicate,
+    ...(can_copy ? shortcut("C", isMac) : { trail: "one only" }),
+    disabled: !can_copy,
     onClick: onCopy,
-  });
-  items.push({
-    id: "duplicate",
-    label: "Duplicate",
-    icon: "copy",
-    trail: can_duplicate ? shortcut("D", isMac) : "one only",
-    disabled: !can_duplicate,
-    onClick: onDuplicate,
   });
 
   /* Group 3 — wiring. An attach node has nothing downstream to insert after. */
@@ -156,6 +152,7 @@ export function buildRecipeNodeContextMenuItems({
       id: "insert_after",
       label: "Insert node after…",
       prefix_icon: "add",
+      ...OPENS_ANOTHER_SURFACE,
       onClick: onInsertAfter,
     });
   }
@@ -196,6 +193,7 @@ export function buildRecipeEdgeContextMenuItems({
         id: "insert_node_here",
         label: "Insert node here…",
         prefix_icon: "add",
+        ...OPENS_ANOTHER_SURFACE,
         onClick: onInsertNodeHere,
       },
       SEPARATOR,

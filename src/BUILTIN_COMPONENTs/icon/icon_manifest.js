@@ -1562,12 +1562,31 @@ const TabKey = (props) => (
   </svg>
 );
 
+const ArrowRightS = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M13.1717 12.0007L8.22192 7.05093L9.63614 5.63672L16.0001 12.0007L9.63614 18.3646L8.22192 16.9504L13.1717 12.0007Z"></path>
+  </svg>
+);
+const CornerDownLeft = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M19.0001 13.9999L19.0002 5L17.0002 4.99997L17.0001 11.9999L6.8283 12L10.778 8.05024L9.36382 6.63603L2.99986 13L9.36382 19.364L10.778 17.9497L6.82826 14L19.0001 13.9999Z"></path>
+  </svg>
+);
 const UISVGs = {
   add: Add,
   arrow_down: ArrowDown,
   arrow_left: ArrowLeft,
   arrow_right: ArrowRight,
   arrow_up: ArrowUp,
+  arrow_right_s: ArrowRightS,
   at: At,
   attachment: Attachment,
   bot: Bot,
@@ -1592,6 +1611,7 @@ const UISVGs = {
   list_settings: ListSettings,
   storefront: Storefront,
   bar_chart: BarChart,
+  corner_down_left: CornerDownLeft,
   data: Data,
   delete: Delete,
   delete_input: DeleteInput,
