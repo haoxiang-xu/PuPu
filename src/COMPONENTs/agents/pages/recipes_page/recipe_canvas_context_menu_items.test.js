@@ -63,10 +63,19 @@ describe("canvas menu", () => {
     ).toBe("arrow_right_s");
   });
 
-  test("reset zoom deliberately carries no icon at all", () => {
-    const row = byId(buildRecipeCanvasContextMenuItems({}), "reset_zoom");
-    expect(row.icon).toBeUndefined();
-    expect(row.prefix_icon).toBeUndefined();
+  test("the view rows are bare — no glyph, no shortcut", () => {
+    const items = buildRecipeCanvasContextMenuItems({ isMac: true });
+    ["fit_to_view", "reset_zoom"].forEach((id) => {
+      const row = byId(items, id);
+      expect(row.icon).toBeUndefined();
+      expect(row.prefix_icon).toBeUndefined();
+      expect(row.trail).toBeUndefined();
+      expect(row.trail_icon).toBeUndefined();
+    });
+  });
+
+  test("select all is the one view-adjacent row that keeps a glyph", () => {
+    expect(byId(buildRecipeCanvasContextMenuItems({}), "select_all").icon).toBe("shape");
   });
 });
 

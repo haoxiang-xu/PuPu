@@ -61,16 +61,16 @@ export function buildRecipeCanvasContextMenuItems({
     {
       id: "select_all",
       label: "Select all",
+      icon: "shape",
       ...shortcut("A", isMac),
       onClick: onSelectAll,
     },
     SEPARATOR,
-    /* Fit to view and Reset zoom carry no shortcut: nothing binds one, and a
-     * menu that advertises a key that does nothing is worse than a quiet row. */
+    /* Fit to view and Reset zoom are both bare: no shortcut, and no glyph
+     * either — they are view plumbing, not actions on the graph. */
     {
       id: "fit_to_view",
       label: "Fit to view",
-      icon: "fullscreen",
       onClick: onFitToView,
     },
     {

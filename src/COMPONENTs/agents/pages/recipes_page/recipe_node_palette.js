@@ -4,6 +4,7 @@ import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
 import { Z } from "../../../../BUILTIN_COMPONENTs/layer/z_layers";
 import {
   NODE_GROUPS,
+  NODE_GROUP_ICONS,
   NODE_GROUP_LABELS,
   excluded_nodes,
   search_nodes,
@@ -199,6 +200,9 @@ export default function RecipeNodePalette({
             <div key={group}>
               <div
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                   padding: "7px 10px 3px",
                   fontSize: 10,
                   fontWeight: 600,
@@ -207,6 +211,13 @@ export default function RecipeNodePalette({
                   color: muted,
                 }}
               >
+                {NODE_GROUP_ICONS[group] && (
+                  <Icon
+                    src={NODE_GROUP_ICONS[group]}
+                    color={muted}
+                    style={{ width: 11, height: 11, flexShrink: 0 }}
+                  />
+                )}
                 {NODE_GROUP_LABELS[group] || group}
               </div>
               {entries.map((entry) => {

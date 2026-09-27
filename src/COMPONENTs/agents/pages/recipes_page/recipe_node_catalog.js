@@ -29,6 +29,14 @@ export const NODE_GROUP_LABELS = {
   attachments: "Attachments",
 };
 
+/* Each group carries its own glyph so the palette reads at a glance: a route
+ * for the things that move the flow along, a puzzle piece for the things that
+ * hang off a node. */
+export const NODE_GROUP_ICONS = {
+  steps: "route",
+  attachments: "puzzle_2",
+};
+
 /* `graph_kinds` says which kinds of graph may contain the node. A recipe has no
  * graph kind yet, so everything reads as an Agent graph today; the moment one
  * exists the palette filters without further change. */
