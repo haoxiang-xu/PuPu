@@ -2,6 +2,12 @@
 
 Ticket #349; Release #216. Integrated PuPu dev `8450a98cb841e5c695552c5e3d44819990ab727d`.
 
+> Historical candidate report: this document records the pre-final-audit pair
+> `618e80f5` / `063c8f25` and its timing measurements. The artifact and
+> correctness conclusion is superseded by the
+> [final-audit repair report](final-audit-repair-2026-09-27.md). Do not relabel
+> these measurements as results from the rebuilt repaired wheel.
+
 ## Result and delivered behavior
 
 - Run-local context views reuse a verified durable prefix and read the new suffix. Durable tool calls/results still commit before dependent model calls. No auxiliary LLM is introduced for tool append.
@@ -47,7 +53,7 @@ These cells overlap and must not be summed. The original 18.432-s sample remains
 - Full locale scan: no missing locale keys, orphan keys, placeholder mismatches or new missing English key. Existing dynamic-key blind spots remain.
 - Frozen arm64 sidecar: all 5 package smoke checks pass, source overrides cleared, exact manifest verified.
 - Real isolated Electron + GPT-4.1 after sidecar restart (PID 81736→24328): ordinary reply 3.417 s; explicit memory_propose turn 5.926 s. One actual durable proposal for the new chat was applied by a completed background job. English/dark and Chinese/light UI show prepared conversation and completed organization from those records. These two different prompts are supplementary completion timings, not an A/B benchmark.
-- Earlier final9 live restart/explicit memory_list/tool continuity evidence remains applicable to unchanged core bytes; current full regression rechecks the integrated PuPu pair.
+- The final9 live observations belong to this historical candidate. The repaired-pair report records the later exact-wheel run and its narrower cold-restart evidence boundary.
 
 ## Closeout regression found and repaired
 

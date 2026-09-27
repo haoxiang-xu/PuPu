@@ -1,6 +1,6 @@
 # Ticket #349 — Memory V3 latency and activity wording
 
-Status: Step 1 cache closeout is recorded in the checkpoint evidence. Step 2 background consolidation is implementation-ready with fixed-pair local verification; see [the step 2 decisions and boundary tests](ticket-349-background-memory.md). The overall ticket remains In Progress.
+Status: implementation, exact-pair local verification and corrected-pair Release QA are complete. A fresh feature-audit verdict is still required, so the ticket remains In Progress.
 
 - Ticket: https://github.com/haoxiang-xu/PuPu/issues/349
 - Release: https://github.com/haoxiang-xu/PuPu/issues/216 (v0.1.12)
@@ -87,7 +87,7 @@ leased response → bounded 2-second refresh → terminal response stops refresh
 Collapse, unmount, chat/message change or deleted-chat failure cancels updates;
 a late response cannot update another message. The completed answer stays done.
 Tests cover lifecycle/foreign scope/error/missing/revision cases; final desktop
-verification must bind the integrated candidate and reused final9 wheel.
+verification must bind the integrated candidate and rebuilt final-repair wheel.
 
 Default labels use the existing locale mechanism for all supported locales.
 Context pressure and execution mode remain in details. Unknown states are
@@ -293,10 +293,11 @@ complete. See [the English evidence and contract status](ticket-349-evidence/cac
 and [the Chinese explanation](ticket-349-evidence/cache-checkpoint-closeout-2026-09-26.zh-CN.md).
 This supersedes the prior audit's missing local measurement/differential evidence;
 it does not supersede the outstanding whole-ticket delivery requirements.
-BC-349-05 / AC-349-09 remain INCOMPLETE for official artifacts, packaged smoke
-and a restarted real sidecar. AC-349-01's full host timings remain unmeasured
-for this candidate. Keep #349 In Progress; the next approved implementation
-slice is background memory organization, not additional speculative cache fixes.
+At this checkpoint, BC-349-05 / AC-349-09 were incomplete for official artifacts,
+packaged smoke and a restarted real sidecar. The 2026-09-27 final-audit repair
+evidence supersedes that delivery state; the historical cache measurements remain
+valid only for their recorded candidate. AC-349-01's matched full-app timings remain
+unmeasured, so no whole-turn speedup is inferred from the cache checkpoint.
 
 All acceptance/sequence executions are NOT_RUN at planning time. An unreachable case needs an explicit reason for N/A; a missing test is not N/A. Do not enable a new optimized runtime capability while applicable boundary/recovery evidence is incomplete.
 
@@ -324,10 +325,12 @@ Stop conditions for an implementation worker: a required source identity cannot 
 
 ## Final closeout — 2026-09-27
 
-The owner authorized delivery after updating local PuPu/dev. Integrated base: `8450a98cb841e5c695552c5e3d44819990ab727d`. Companion Unchain delivery: `063c8f25d5ef50ff37054bb52c982a051fd7792c` ([PR #40](https://github.com/haoxiang-xu/unchain/pull/40)); release QA defaults pin that immutable revision under BC-349-05. Final9 wheel bytes are reused, with all 330 runtime source modules matching the committed tree.
+The owner authorized delivery after updating local PuPu/dev. Integrated base: `8450a98cb841e5c695552c5e3d44819990ab727d`. The final product repair is PuPu `8622ad2fe899ec80c266d889e57b348f00c3b28d`, followed by Release QA pin repair `c6a1a4b291cf95fd9549067040631e75eef2f79a` on [PR #361](https://github.com/haoxiang-xu/PuPu/pull/361), paired with Unchain `93e97c0a9239488ea0dc9379335aa8cb73d95815` ([PR #40](https://github.com/haoxiang-xu/unchain/pull/40)). Release QA now pins that immutable Unchain revision under BC-349-05. The rebuilt wheel is `sha256:d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0`; its imported runtime manifest is `sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e`.
 
 BC-349-04 / SEQ-349-09 also cover job discovery: the completion bundle can predate enqueue, so opening conversation details reads the existing job endpoint and accepts only jobs whose run_id equals that message's root_run_id. The discovered job ID becomes the subsequent polling identity. Tests consume a real producer page and reject foreign identity/unknown or stale states. Collapsed rows do no discovery; polling remains limited to expanded pending-job details. No backend status event or sealed bundle is fabricated.
 
 AC-349-04 compatibility repair: legacy PupuExecutionJournal read() and capture_snapshot() have different physical/logical projections. Its additive Context host explicitly uses full snapshots; production Unchain-owned context retains incremental caching. Existing unavailable-build retry was red before the fix and green afterward. No SQL schema change was needed.
 
-Results, caveats, median/p95 and exact artifacts: [final closeout report](ticket-349-evidence/closeout-report-2026-09-27.md). The original six-second pre-run gap remains unattributed and is not claimed as saved. This delivery does not include release rollout, a signed installer, or a matched full-app TTFT A/B result.
+The isolated exact-wheel desktop run completed propose → background apply → fresh list → fresh search → fresh read before restart. After a real desktop-process restart, a fresh list call returned the same canonical entry reference without exposing `content_ref`. The model answered the requested post-restart search/read from durable prior tool history without issuing new calls; the harness rejected those responses, so fresh live post-restart search/read are not claimed. Exact-wheel deterministic restart tests cover persisted FTS search, read/list lifecycle and cold apply replay.
+
+The historical timing tables remain in the [original closeout report](ticket-349-evidence/closeout-report-2026-09-27.md). Final repaired-pair correctness, artifact identity, tests and live-evidence limits are recorded in the [final-audit repair report](ticket-349-evidence/final-audit-repair-2026-09-27.md), which supersedes the earlier final9 artifact conclusion. The original six-second pre-run gap remains unattributed and is not claimed as saved. This delivery does not include release rollout, a signed installer, or a matched full-app TTFT A/B result.

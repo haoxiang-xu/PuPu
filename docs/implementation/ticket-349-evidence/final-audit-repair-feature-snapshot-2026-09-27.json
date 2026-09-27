@@ -1,0 +1,15 @@
+{
+  "enable_memory_v2": true,
+  "_pupu_memory_v2_release": {
+    "schema": "pupu.memory-v2-release.v1",
+    "sidecar_environment": {
+      "PUPU_FEATURE_MEMORY_V2": "all",
+      "PUPU_MEMORY_V2_MODE": "all",
+      "PUPU_MEMORY_V2_CANARY_PERCENT": "100",
+      "PUPU_MEMORY_V2_READ_ONLY_DEGRADED": "0",
+      "PUPU_CONTEXT_V2_STORE_OWNER": "unchain"
+    },
+    "rollout_fingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+    "snapshot_fingerprint": "ec28b85225d4ed2b3588b6bab14fd9053e523b70f9b77b1a49fe087eb205a27c"
+  }
+}

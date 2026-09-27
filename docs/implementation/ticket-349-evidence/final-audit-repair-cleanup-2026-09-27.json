@@ -1,0 +1,11 @@
+{
+  "chat_id": "chat-1790536164171-fc2fc185c146f",
+  "deleted": true,
+  "scoped_counts_after_delete": {
+    "events": 0,
+    "candidates": 0,
+    "jobs": 0,
+    "spaces": 0
+  },
+  "restart_phase_completed": false
+}
