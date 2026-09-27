@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "Conversation context",
+    "automatic_context_desc": "Conversation context is managed automatically. Legacy short-term controls no longer apply.",
+    "legacy_long_term_memory": "Long-term memory (legacy)",
     "title": "Chat Memory",
     "enable_memory": "Enable memory",
     "enable_memory_desc": "Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant.",

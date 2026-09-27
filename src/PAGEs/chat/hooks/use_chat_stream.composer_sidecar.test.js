@@ -1,3 +1,4 @@
+import contextV2Bridge from "../../../SERVICEs/bridges/context_v2_bridge";
 /**
  * Composer sidecar (S1) — write behavior + 禁读方 lock-down + content-rewrite
  * paths (contract 2026-07-18-composer-sidecar-contract.md, v1 FROZEN).
@@ -109,6 +110,11 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
   let streamHandlers;
 
   beforeEach(() => {
+    // Composer-only fixtures model an existing legacy chat with no V2 state.
+    jest.spyOn(contextV2Bridge, "isAvailable").mockReturnValue(true);
+    jest.spyOn(contextV2Bridge, "getSessionHead").mockRejectedValue(
+      new Error("[context_v2_not_found] No canonical session"),
+    );
     window.localStorage.clear();
     lastChatMessagesProps = null;
     lastChatInputProps = null;
@@ -170,6 +176,8 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
   });
 
   afterEach(() => {
+    contextV2Bridge.isAvailable.mockRestore();
+    contextV2Bridge.getSessionHead.mockRestore();
     jest.restoreAllMocks();
     unregisterBySource(PLUGIN_SOURCE);
     delete window.unchainAPI;

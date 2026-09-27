@@ -63,9 +63,9 @@ const setMemoryV2Flag = (enabled, memorySettings = {}) => {
   writeFeatureFlags({ enable_memory_v2: enabled === true });
 };
 
-const LEGACY_NOTE_TITLE = "Legacy Context Memory";
+const LEGACY_NOTE_TITLE = "Conversation context";
 const LEGACY_NOTE_BODY =
-  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
+  "Conversation context is managed automatically. Legacy short-term controls no longer apply.";
 
 describe("MemorySettings OpenAI embedding selector", () => {
   beforeEach(() => {
@@ -179,8 +179,8 @@ describe("MemorySettings OpenAI embedding selector", () => {
 
     renderMemorySettings();
 
-    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
-    expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
+    expect(screen.queryByText("Recall threshold — 0.45")).toBeNull();
     expect(screen.getByText("Long-term top K — 5")).toBeInTheDocument();
     expect(screen.getByText("Long-term threshold — 0.65")).toBeInTheDocument();
   });
@@ -207,19 +207,19 @@ describe("MemorySettings legacy context section under enable_memory_v2", () => {
     jest.clearAllMocks();
   });
 
-  test("flag off keeps the legacy Context Strategy controls untouched", () => {
+  test("retired false flag cannot restore obsolete context controls", () => {
     setMemoryV2Flag(false, { last_n_turns: 8, vector_top_k: 6, vector_min_score: 0.45 });
 
     renderMemorySettings();
 
-    expect(screen.getByText("Context Strategy")).toBeInTheDocument();
-    expect(screen.getByText("Last N turns — 8")).toBeInTheDocument();
-    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
-    expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
+    expect(screen.queryByText("Context Strategy")).toBeNull();
+    expect(screen.queryByText("Last N turns — 8")).toBeNull();
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
+    expect(screen.queryByText("Recall threshold — 0.45")).toBeNull();
 
     // Long-term section keeps its exact untouched title, no "(Legacy)" suffix.
-    expect(screen.getByText("Long-Term Memory")).toBeInTheDocument();
-    expect(screen.queryByText(LEGACY_NOTE_TITLE)).toBeNull();
+    expect(screen.getByText("Long-term memory (legacy)")).toBeInTheDocument();
+    expect(screen.getByText(LEGACY_NOTE_TITLE)).toBeInTheDocument();
   });
 
   test("flag on hides short-term controls and explains why", () => {
@@ -245,7 +245,7 @@ describe("MemorySettings legacy context section under enable_memory_v2", () => {
     expect(screen.getByText("Enable long-term memory")).toBeInTheDocument();
     expect(screen.getByText("Inspect long-term memory")).toBeInTheDocument();
     // Long-term tuning survives, section explicitly marked legacy.
-    expect(screen.getByText("Long-Term Memory (Legacy)")).toBeInTheDocument();
+    expect(screen.getByText("Long-term memory (legacy)")).toBeInTheDocument();
     expect(screen.getByText("Long-term top K — 5")).toBeInTheDocument();
     expect(screen.getByText("Long-term threshold — 0.65")).toBeInTheDocument();
     // Embedding provider controls survive.
@@ -253,11 +253,11 @@ describe("MemorySettings legacy context section under enable_memory_v2", () => {
     expect(screen.getByText("Provider")).toBeInTheDocument();
   });
 
-  test("reacts to a flag change while the settings view stays mounted", () => {
+  test("ignores retired flag changes while the settings view stays mounted", () => {
     setMemoryV2Flag(false, { vector_top_k: 6 });
 
     renderMemorySettings();
-    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
 
     act(() => {
       writeFeatureFlags({ enable_memory_v2: true });
@@ -270,7 +270,7 @@ describe("MemorySettings legacy context section under enable_memory_v2", () => {
       writeFeatureFlags({ enable_memory_v2: false });
     });
 
-    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
-    expect(screen.queryByText(LEGACY_NOTE_TITLE)).toBeNull();
+    expect(screen.queryByText("Recall top K — 6")).toBeNull();
+    expect(screen.getByText(LEGACY_NOTE_TITLE)).toBeInTheDocument();
   });
 });

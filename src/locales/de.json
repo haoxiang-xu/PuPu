@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "Gesprächskontext",
+    "automatic_context_desc": "Der Gesprächskontext wird automatisch verwaltet. Alte Einstellungen für das Kurzzeitgedächtnis gelten nicht mehr.",
+    "legacy_long_term_memory": "Langzeitgedächtnis (alt)",
     "title": "Chat-Speicher",
     "enable_memory": "Speicher aktivieren",
     "enable_memory_desc": "Jeder Chat behält einen Kurzzeitspeicher, während der Langzeitspeicher global geteilt und bei Bedarf automatisch abgerufen wird.",

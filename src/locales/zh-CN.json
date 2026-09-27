@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "对话上下文",
+    "automatic_context_desc": "对话上下文由系统自动管理，旧版的短期记忆设置不再生效。",
+    "legacy_long_term_memory": "长期记忆（旧版）",
     "title": "聊天记忆",
     "enable_memory": "启用记忆",
     "enable_memory_desc": "每个聊天保留短期记忆，长期记忆全局共享并在相关时自动召回。",

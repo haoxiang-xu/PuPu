@@ -11,7 +11,6 @@ const MEMORY_V2_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([
   2,
   MEMORY_V2_REQUIRED_SCHEMA_VERSION,
 ]);
-const MEMORY_V2_BUILD_FEATURE_KEY = "enable_memory_v2";
 const MEMORY_V2_RELEASE_FIELD = "_pupu_memory_v2_release";
 const UNCHAIN_RUNTIME_PROTOCOL_SCHEMA = "unchain.runtime_protocol_manifest.v1";
 const UNCHAIN_RUNTIME_PROTOCOL_DIGEST_DOMAIN =
@@ -295,16 +294,15 @@ const normalizeFeatureFlags = (source = {}) => {
   const payload = isObject(source) ? source : {};
   const featureFlags = Object.fromEntries(
     Object.entries(payload)
-      .filter(([key]) => key.startsWith("enable_"))
+      // Discard the retired experiment flag, including old saved false values.
+      .filter(([key]) => key.startsWith("enable_") && key !== "enable_memory_v2")
       .map(([key, value]) => [key, value === true]),
   );
-  featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] =
-    payload[MEMORY_V2_BUILD_FEATURE_KEY] === true;
   return stableObject(featureFlags);
 };
 
 const buildRolloutConfig = ({
-  featureEnabled,
+  featureEnabled = true,
   sidecarEnvironment = {},
   processEnvironment = {},
   allowProcessOverrides = false,
@@ -321,10 +319,16 @@ const buildRolloutConfig = ({
   };
 
   const featureCeiling = featureEnabled
-    ? normalizeMode(readValue(MEMORY_V2_ENV_KEYS.featureCeiling), "off")
+    ? normalizeMode(
+        String(readValue(MEMORY_V2_ENV_KEYS.featureCeiling) || "").trim() || "all",
+        "off",
+      )
     : "off";
   const configuredMode = featureEnabled
-    ? normalizeMode(readValue(MEMORY_V2_ENV_KEYS.rolloutMode), "off")
+    ? normalizeMode(
+        String(readValue(MEMORY_V2_ENV_KEYS.rolloutMode) || "").trim() || "all",
+        "off",
+      )
     : "off";
   const resolvedRolloutMode = effectiveMode(featureCeiling, configuredMode);
   const canaryPercent = normalizeCanaryPercent(
@@ -373,7 +377,6 @@ const releaseSnapshotFingerprint = ({ featureFlags, release }) =>
 const createBuildFeatureSnapshot = (source = {}, environment = {}) => {
   const featureFlags = normalizeFeatureFlags(source);
   const rollout = buildRolloutConfig({
-    featureEnabled: featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] === true,
     sidecarEnvironment: isObject(source?.[MEMORY_V2_RELEASE_FIELD])
       ? source[MEMORY_V2_RELEASE_FIELD].sidecar_environment
       : {},
@@ -418,15 +421,15 @@ const resolveMemoryV2ReleaseConfig = ({
   }
 
   const featureFlags = normalizeFeatureFlags(source);
-  const featureEnabled = featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] === true;
+  // Memory is a standard capability. Snapshot/protocol admission still applies.
   const release = isObject(source[MEMORY_V2_RELEASE_FIELD])
     ? source[MEMORY_V2_RELEASE_FIELD]
     : null;
-  let snapshotValid = !app.isPackaged || !featureEnabled;
+  let snapshotValid = !app.isPackaged;
   let snapshotErrorCode = "";
   let sidecarEnvironment = release?.sidecar_environment;
 
-  if (app.isPackaged && featureEnabled) {
+  if (app.isPackaged) {
     if (
       release?.schema !== MEMORY_V2_RELEASE_SCHEMA ||
       !isObject(sidecarEnvironment) ||
@@ -447,14 +450,13 @@ const resolveMemoryV2ReleaseConfig = ({
   }
 
   const rollout = buildRolloutConfig({
-    featureEnabled: featureEnabled && snapshotValid,
+    featureEnabled: snapshotValid,
     sidecarEnvironment: isObject(sidecarEnvironment) ? sidecarEnvironment : {},
     processEnvironment: environment,
     allowProcessOverrides: !app.isPackaged,
   });
   if (
     app.isPackaged &&
-    featureEnabled &&
     snapshotValid &&
     rollout.rolloutFingerprint !== release.rollout_fingerprint
   ) {
@@ -466,7 +468,7 @@ const resolveMemoryV2ReleaseConfig = ({
     const disabled = buildRolloutConfig({ featureEnabled: false });
     return Object.freeze({
       ...disabled,
-      buildFeatureEnabled: featureEnabled,
+      buildFeatureEnabled: true,
       snapshotPath,
       snapshotValid: false,
       snapshotErrorCode,
@@ -479,7 +481,7 @@ const resolveMemoryV2ReleaseConfig = ({
 
   return Object.freeze({
     ...rollout,
-    buildFeatureEnabled: featureEnabled,
+    buildFeatureEnabled: true,
     snapshotPath,
     snapshotValid: true,
     snapshotErrorCode: "",
@@ -628,7 +630,6 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
 };
 
 module.exports = {
-  MEMORY_V2_BUILD_FEATURE_KEY,
   MEMORY_V2_ENV_KEYS,
   MEMORY_V2_RELEASE_FIELD,
   MEMORY_V2_RELEASE_SCHEMA,

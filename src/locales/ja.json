@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "会話のコンテキスト",
+    "automatic_context_desc": "会話のコンテキストは自動で管理されます。従来の短期記憶の設定は適用されません。",
+    "legacy_long_term_memory": "長期記憶（従来版）",
     "title": "チャットメモリ",
     "enable_memory": "メモリを有効化",
     "enable_memory_desc": "各チャットは短期メモリを保持し、長期メモリはグローバルに共有され、関連する際に自動的に呼び出されます。",

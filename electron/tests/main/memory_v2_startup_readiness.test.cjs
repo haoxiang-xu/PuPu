@@ -558,7 +558,7 @@ describe("Unchain Memory V2 startup readiness", () => {
   );
 
   test("off rollout preserves legacy health startup and carries explicit off", async () => {
-    const snapshot = createBuildFeatureSnapshot({}, {});
+    const snapshot = createBuildFeatureSnapshot({}, { PUPU_FEATURE_MEMORY_V2: "off", PUPU_MEMORY_V2_MODE: "off" });
     global.fetch = jest.fn().mockResolvedValueOnce(healthResponse());
     const { service, spawn } = buildService(snapshot);
 

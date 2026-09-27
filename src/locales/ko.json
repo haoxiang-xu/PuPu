@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "대화 맥락",
+    "automatic_context_desc": "대화 맥락은 자동으로 관리됩니다. 기존 단기 기억 설정은 더 이상 적용되지 않습니다.",
+    "legacy_long_term_memory": "장기 기억 (이전 버전)",
     "title": "채팅 메모리",
     "enable_memory": "메모리 활성화",
     "enable_memory_desc": "각 채팅은 단기 메모리를 유지하고, 장기 메모리는 전역으로 공유되며 관련 있을 때 자동으로 호출됩니다.",

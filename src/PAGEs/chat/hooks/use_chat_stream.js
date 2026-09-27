@@ -95,7 +95,6 @@ import {
   parseContextV2ErrorCode,
 } from "../../../SERVICEs/bridges/context_v2_bridge";
 import { readMemoryAgentSettings } from "../../../SERVICEs/memory_agent_settings";
-import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 import {
   TURN_MUTATION_ADMISSION_MODES,
   TURN_MUTATION_MEMORY_MODES,
@@ -4292,17 +4291,13 @@ export const useChatStream = ({
      journal exists, and a mutation that rewrites the wrong one cannot be
      undone (the pre-mutation generation is already sealed).
 
-     Exactly two outcomes run the legacy V1 rewrite: the feature flag is off,
-     or the head unambiguously reports no V2 state for this session. Every
-     other shape blocks. See decideTurnMutationMemoryMode for the rules. */
+     Only a head that unambiguously reports no V2 state for this session
+     permits the legacy V1 rewrite. Every other shape blocks.
+     See decideTurnMutationMemoryMode for the rules. */
   const resolveTurnMutationMemoryPlan = useCallback(
     async ({ ownerChatId, sessionId }) => {
-      if (!isFeatureFlagEnabled("enable_memory_v2")) {
-        return decideTurnMutationMemoryMode({ flagEnabled: false });
-      }
       if (!contextV2Bridge.isAvailable()) {
         return decideTurnMutationMemoryMode({
-          flagEnabled: true,
           bridgeAvailable: false,
         });
       }
@@ -4316,7 +4311,6 @@ export const useChatStream = ({
         headErrorCode = parseContextV2ErrorCode(error) || "context_v2_failed";
       }
       return decideTurnMutationMemoryMode({
-        flagEnabled: true,
         bridgeAvailable: true,
         head,
         headErrorCode,
@@ -7016,8 +7010,7 @@ export const useChatStream = ({
            character chats — and is sent unconditionally on both the normal
            and the durable-resume payload (merged via spread; the durable
            helper itself is intentionally untouched).
-           memory_v2_requested + memory_agent_config appear ONLY when the
-           enable_memory_v2 flag is on, and then on BOTH the normal send and
+           memory_v2_requested + memory_agent_config appear on the normal send and
            the durable-resume payload — a resumed interaction is still a
            Memory V2 turn and the sidecar must route it the same way.
            context_v2_history is the one V2 field that stays exclusive to the
@@ -7032,24 +7025,17 @@ export const useChatStream = ({
            provider, modelId}) — explicitly picked so no other settings
            namespace can ever leak into the payload.
            The legacy `history` field keeps its exact existing logic so model
-           input stays byte-equivalent in shadow mode, and with the flag off
-           the payload is unchanged in both branches. */
-        const memoryV2Requested = isFeatureFlagEnabled("enable_memory_v2");
-        const memoryV2CommonFields = memoryV2Requested
-          ? (() => {
-              const memoryAgentSettings = readMemoryAgentSettings();
-              return {
-                memory_v2_requested: true,
-                memory_agent_config: {
-                  displayName: memoryAgentSettings.displayName,
-                  additionalInstructions:
-                    memoryAgentSettings.additionalInstructions,
-                  provider: memoryAgentSettings.provider,
-                  modelId: memoryAgentSettings.modelId,
-                },
-              };
-            })()
-          : {};
+           input stays byte-equivalent in internal shadow mode. */
+        const memoryAgentSettings = readMemoryAgentSettings();
+        const memoryV2CommonFields = {
+          memory_v2_requested: true,
+          memory_agent_config: {
+            displayName: memoryAgentSettings.displayName,
+            additionalInstructions: memoryAgentSettings.additionalInstructions,
+            provider: memoryAgentSettings.provider,
+            modelId: memoryAgentSettings.modelId,
+          },
+        };
         const contextCompositionHint = isDurableResume
           ? null
           : buildContextCompositionHintV2({
@@ -7069,13 +7055,7 @@ export const useChatStream = ({
                 ? { continued_from_run_id: continuedFromRunId }
                 : {}),
               ...memoryV2CommonFields,
-              ...(memoryV2Requested
-                ? {
-                    context_v2_history: buildContextV2History(
-                      normalizedBaseMessages,
-                    ),
-                  }
-                : {}),
+              context_v2_history: buildContextV2History(normalizedBaseMessages),
               ...(turnMutationOperationId
                 ? { attempt_id: turnMutationOperationId }
                 : {}),

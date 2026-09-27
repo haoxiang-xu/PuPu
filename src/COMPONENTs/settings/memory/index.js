@@ -12,19 +12,6 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
-import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../../SERVICEs/feature_flags";
-
-/* Memory V2 copy is intentionally untranslated for now: these strings only
-   render behind the `enable_memory_v2` flag, and adding keys would churn all
-   12 locale files before the Memory V2 wording is frozen. */
-const LEGACY_CONTEXT_SECTION_TITLE = "Legacy Context Memory";
-const LEGACY_CONTEXT_SECTION_BODY =
-  "Short-term context controls (last-N turns, vector top K, and vector threshold) no longer affect Memory V2. Memory V2 runs as an optional Unchain module and is not an Agent Builder node.";
-const LEGACY_SECTION_SUFFIX = " (Legacy)";
-
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto" },
   { value: "openai", label: "OpenAI" },
@@ -59,17 +46,6 @@ export const MemorySettings = ({ onNavigate }) => {
 
   const [settings, setSettings] = useState(() => readMemorySettings());
   const [inspectOpen, setInspectOpen] = useState(false);
-  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
-
-  // The settings view can stay mounted while flags are toggled elsewhere
-  // (e.g. the Dev page), so re-read on mount and subscribe to changes.
-  useEffect(() => {
-    setFeatureFlags(readFeatureFlags());
-    return subscribeFeatureFlags(setFeatureFlags);
-  }, []);
-
-  const memoryV2Enabled = featureFlags.enable_memory_v2 === true;
-
   const update = useCallback((patch) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
@@ -338,76 +314,21 @@ export const MemorySettings = ({ onNavigate }) => {
       </SettingsSection>
 
       {/* ── Context strategy (legacy note under Memory V2) ── */}
-      {memoryV2Enabled ? (
-        <SettingsSection title={LEGACY_CONTEXT_SECTION_TITLE}>
-          <div
-            style={{
-              fontSize: 12,
-              fontFamily: theme?.font?.fontFamily || "inherit",
-              color: "var(--pupu-text-secondary)",
-              padding: "12px 0",
-              lineHeight: 1.5,
-            }}
-          >
-            {LEGACY_CONTEXT_SECTION_BODY}
-          </div>
-        </SettingsSection>
-      ) : (
-      <SettingsSection title={t("memory.context_strategy")}>
-        <SettingsRow
-          label={t("memory.last_n_turns", { count: settings.last_n_turns })}
-          description={t("memory.last_n_turns_desc")}
+      <SettingsSection title={t("memory.automatic_context")}>
+        <div
+          style={{
+            fontSize: 12,
+            fontFamily: theme?.font?.fontFamily || "inherit",
+            color: "var(--pupu-text-secondary)",
+            padding: "12px 0",
+            lineHeight: 1.5,
+          }}
         >
-          <Slider
-            value={settings.last_n_turns}
-            set_value={(val) => update({ last_n_turns: val })}
-            min={2}
-            max={20}
-            step={1}
-            label_format={(v) => `${v}`}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={t("memory.recall_top_k", { count: settings.vector_top_k })}
-          description={t("memory.recall_top_k_desc")}
-        >
-          <Slider
-            value={settings.vector_top_k}
-            set_value={(val) => update({ vector_top_k: val })}
-            min={0}
-            max={10}
-            step={1}
-            label_format={(v) => `${v}`}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={t("memory.recall_threshold", { value: formatThresholdValue(settings.vector_min_score) })}
-          description={t("memory.recall_threshold_desc")}
-        >
-          <Slider
-            value={settings.vector_min_score}
-            set_value={(val) => updateThreshold("vector_min_score", val)}
-            min={0}
-            max={1}
-            step={0.05}
-            label_format={formatThresholdValue}
-            tooltip_format={formatThresholdValue}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
+          {t("memory.automatic_context_desc")}
+        </div>
       </SettingsSection>
-      )}
-
       <SettingsSection
-        title={
-          memoryV2Enabled
-            ? `${t("memory.long_term_memory")}${LEGACY_SECTION_SUFFIX}`
-            : t("memory.long_term_memory")
-        }
+        title={t("memory.legacy_long_term_memory")}
       >
         <SettingsRow
           label={t("memory.extract_every_n", { count: settings.long_term_extract_every_n_turns })}

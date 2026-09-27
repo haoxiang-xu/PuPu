@@ -41,7 +41,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
-      enable_memory_v2: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
@@ -70,7 +69,6 @@ describe("feature_flags service", () => {
         enable_user_access_to_characters: true,
         enable_custom_model_providers: true,
         enable_computer_use: true,
-        enable_memory_v2: true,
       }),
     });
 
@@ -82,7 +80,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
-      enable_memory_v2: true,
     });
   });
 
@@ -96,7 +93,6 @@ describe("feature_flags service", () => {
           enable_user_access_to_characters: false,
           enable_custom_model_providers: false,
           enable_computer_use: false,
-          enable_memory_v2: false,
         },
       }),
     );
@@ -110,7 +106,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
-      enable_memory_v2: false,
     });
   });
 
@@ -161,7 +156,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
-      enable_memory_v2: false,
     });
 
     // Storage shape: sparse (only the patched key) + format sentinel.
@@ -204,7 +198,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_custom_model_providers: false,
       enable_computer_use: true,
-      enable_memory_v2: false,
     });
 
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
@@ -228,7 +221,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: false,
       enable_custom_model_providers: false,
       enable_computer_use: false,
-      enable_memory_v2: false,
     });
 
     writeFeatureFlags({ enable_user_access_to_agents: true });
@@ -263,7 +255,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
-      enable_memory_v2: true,
     });
 
     expect(listener).toHaveBeenCalledWith({
@@ -271,7 +262,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_characters: true,
       enable_custom_model_providers: true,
       enable_computer_use: true,
-      enable_memory_v2: true,
     });
 
     unsubscribe();
@@ -284,3 +274,11 @@ describe("feature_flags service", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
+
+ test.each([true, false])("retired Memory V2 flag %s is ignored in storage and build defaults", (value) => {
+   window.localStorage.setItem("settings", JSON.stringify({feature_flags: {format: 2, flags: {enable_memory_v2: value}}}));
+   const {readFeatureFlags, writeFeatureFlags, FEATURE_FLAG_DEFINITIONS} = loadFeatureFlagsModule({buildFeatureFlagsEnv: JSON.stringify({enable_memory_v2: value})});
+   expect(FEATURE_FLAG_DEFINITIONS).not.toHaveProperty("enable_memory_v2");
+   expect(readFeatureFlags()).not.toHaveProperty("enable_memory_v2");
+   expect(writeFeatureFlags({enable_memory_v2: value})).not.toHaveProperty("enable_memory_v2");
+ });

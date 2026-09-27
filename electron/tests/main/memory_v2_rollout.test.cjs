@@ -149,17 +149,17 @@ const statusFor = (config, overrides = {}) => ({
 });
 
 describe("Memory V2 release rollout snapshot", () => {
-  test("an off build still carries every explicit sidecar setting", () => {
+  test("a default build enables memory without an experiment flag", () => {
     const snapshot = createBuildFeatureSnapshot({}, {});
 
-    expect(snapshot.enable_memory_v2).toBe(false);
+    expect(snapshot).not.toHaveProperty("enable_memory_v2");
     expect(snapshot[MEMORY_V2_RELEASE_FIELD]).toMatchObject({
       sidecar_environment: {
-        [MEMORY_V2_ENV_KEYS.featureCeiling]: "off",
-        [MEMORY_V2_ENV_KEYS.rolloutMode]: "off",
+        [MEMORY_V2_ENV_KEYS.featureCeiling]: "all",
+        [MEMORY_V2_ENV_KEYS.rolloutMode]: "all",
         [MEMORY_V2_ENV_KEYS.canaryPercent]: "5",
         [MEMORY_V2_ENV_KEYS.readOnlyDegraded]: "0",
-        [MEMORY_V2_ENV_KEYS.storeOwner]: "off",
+        [MEMORY_V2_ENV_KEYS.storeOwner]: "unchain",
       },
     });
     expect(snapshot[MEMORY_V2_RELEASE_FIELD].rollout_fingerprint).toMatch(
@@ -207,38 +207,21 @@ describe("Memory V2 release rollout snapshot", () => {
     });
   });
 
-  test("the build ceiling alone never activates a packaged rollout", () => {
-    const buildFlagOnly = packagedConfig(
-      createBuildFeatureSnapshot({ enable_memory_v2: true }, {}),
-    );
-    const missingMode = packagedConfig(
-      createBuildFeatureSnapshot(
-        { enable_memory_v2: true },
-        { PUPU_FEATURE_MEMORY_V2: "all" },
-      ),
-    );
-    const missingCeiling = packagedConfig(
-      createBuildFeatureSnapshot(
-        { enable_memory_v2: true },
-        { PUPU_MEMORY_V2_MODE: "all" },
-      ),
-    );
+  test.each([{}, { enable_memory_v2: false }, { enable_memory_v2: true }])(
+    "default rollout ignores retired build flags %j", (flags) => {
+      const config = packagedConfig(createBuildFeatureSnapshot(flags, {}));
+      expect(config).toMatchObject({snapshotValid: true, featureCeiling: "all", configuredMode: "all", effectiveMode: "all"});
+    },
+  );
 
-    expect(buildFlagOnly).toMatchObject({
-      featureCeiling: "off",
-      configuredMode: "off",
-      effectiveMode: "off",
-    });
-    expect(missingMode).toMatchObject({
-      featureCeiling: "all",
-      configuredMode: "off",
-      effectiveMode: "off",
-    });
-    expect(missingCeiling).toMatchObject({
-      featureCeiling: "off",
-      configuredMode: "all",
-      effectiveMode: "off",
-    });
+  test.each(["off", "shadow", "canary"])("internal %s override remains effective", (mode) => {
+    const config = packagedConfig(createBuildFeatureSnapshot({}, {PUPU_MEMORY_V2_MODE: mode}));
+    expect(config.snapshotValid).toBe(true);
+    expect(config.effectiveMode).toBe(mode);
+  });
+
+  test("missing packaged metadata cannot silently activate memory", () => {
+    expect(packagedConfig({enable_memory_v2: false})).toMatchObject({snapshotValid: false, effectiveMode: "off"});
   });
 
   test("a packaged rollout becomes all only when both controls explicitly allow it", () => {

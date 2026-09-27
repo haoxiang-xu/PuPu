@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "Contesto della conversazione",
+    "automatic_context_desc": "Il contesto della conversazione viene gestito automaticamente. I vecchi controlli della memoria a breve termine non si applicano più.",
+    "legacy_long_term_memory": "Memoria a lungo termine (precedente)",
     "title": "Memoria chat",
     "enable_memory": "Abilita memoria",
     "enable_memory_desc": "Ogni chat mantiene memoria a breve termine, mentre la memoria a lungo termine è condivisa globalmente e richiamata automaticamente quando rilevante.",
