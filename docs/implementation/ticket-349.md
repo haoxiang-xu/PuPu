@@ -1,6 +1,6 @@
 # Ticket #349 — Memory V3 latency and activity wording
 
-Status: implementation, exact-pair local verification and corrected-pair Release QA are complete. A fresh feature-audit verdict is still required, so the ticket remains In Progress.
+Status: implementation, exact-pair local verification, corrected-pair Release QA and the final feature audit are complete with PASS. The ticket is ready for In Review.
 
 - Ticket: https://github.com/haoxiang-xu/PuPu/issues/349
 - Release: https://github.com/haoxiang-xu/PuPu/issues/216 (v0.1.12)

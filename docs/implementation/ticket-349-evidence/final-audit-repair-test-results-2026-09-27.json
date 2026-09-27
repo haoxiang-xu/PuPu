@@ -6,11 +6,11 @@
     "wheel_sha256": "d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0"
   },
   "corrected_pair_ci": {
-    "run_id": 36343756372,
-    "url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36343756372",
-    "pupu_revision": "c6a1a4b291cf95fd9549067040631e75eef2f79a",
+    "run_id": 36344678998,
+    "url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36344678998",
+    "pupu_revision": "70dc122c49cf2022dfa1db1f3ff8932e81eb9d91",
     "unchain_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815",
-    "ci_wheel_sha256": "3f8c667a8874d221db423dcd0e0bc3c87d702f271d0dc3d569a9bd735c37cf2a",
+    "ci_wheel_sha256": "a8e3e93fd34b950f876919b37739b1046bac2cf2558ce86122b104cbc13faa5c",
     "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
     "backend_passed": 2601,
     "backend_skipped": 18,
@@ -20,6 +20,8 @@
     "run_bundle_gate": "passed",
     "electron_playwright": "passed",
     "final_report": "passed",
+    "playwright_release_smoke_passed": 2,
+    "final_report_artifact_archive_sha256": "0308a32369f8cac8749a78d21f0a547d4df926894458a3518e3a0b669c5eeb19",
     "artifact_note": "CI built and reused one Linux wheel. The local fixed-wheel/frozen-sidecar chain uses separately built bytes and is recorded independently."
   },
   "results": [
