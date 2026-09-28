@@ -121,3 +121,20 @@ GitNexus was refreshed in this clone at c999b721 (43,014 nodes / 180,309 edges).
 The edited helper lookups returned UNKNOWN; imports and call sites corroborated
 chat/tree allocation, durable mutation operations, outbound HTTP clients and
 five route error-handler callers. UNKNOWN is not evidence of unused code.
+
+Local CI-repair results: full renderer/Electron run passed 435 suites / 5,296
+tests (5 skipped). Full exact-wheel server run passed 2,606 tests and 3,597
+subtests (17 skipped), with the serializer warning and one background test-thread
+teardown warning after its temporary UNCHAIN_DATA_DIR was removed. The first full
+renderer attempt was stopped: exposing unrelated Web Crypto APIs in global test
+setup caused async migration work to stall; setup now supplies only the real
+getRandomValues method needed by the new ID generator.
+
+The 96e143c2 CodeQL rerun removed the exception disclosure and most insecure-ID
+findings, but still traced one assistant-message ID source and the nullable TLS
+cache to six request sites. The assistant-message fallback now uses the same
+secure generator (BC-353). TLS cache absence is now represented by an empty
+container; only a validated SSLContext can be stored and returned (BC-355).
+Trust order and verification are unchanged. After these refinements, all 35 chat
+hook suites / 499 tests and the 39 TLS/error tests plus 11 subtests passed.
+Current-head CI must still certify the pushed repair before closure.

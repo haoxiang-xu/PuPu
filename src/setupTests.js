@@ -5,11 +5,15 @@
 import '@testing-library/jest-dom';
 
 // This jsdom version predates Web Crypto. Match Chromium with Node's real
-// implementation so durable ID tests exercise secure entropy, not a mock.
+// getRandomValues implementation so durable ID tests exercise secure entropy.
+// Leave unrelated crypto APIs to the suites that explicitly configure them.
 if (!globalThis.crypto?.getRandomValues) {
+  const { webcrypto } = require('crypto');
   Object.defineProperty(globalThis, 'crypto', {
     configurable: true,
-    value: require('crypto').webcrypto,
+    value: {
+      getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
+    },
   });
 }
 

@@ -70,7 +70,7 @@ TRUST_SOURCE_ENV_VAR = "PUPU_TLS_TRUST_SOURCE"
 _VALID_STRATEGIES = ("auto", "env", "truststore", "certifi", "system")
 
 _LOCK = threading.Lock()
-_CACHED_CONTEXT: Optional[ssl.SSLContext] = None
+_CACHED_CONTEXT: Dict[str, ssl.SSLContext] = {}
 _CACHED_INFO: Dict[str, Any] = {}
 
 
@@ -258,19 +258,20 @@ def get_outbound_ssl_context() -> ssl.SSLContext:
     The context is built once and reused. ``ssl.SSLContext`` is safe to share
     across threads and connections.
     """
-    global _CACHED_CONTEXT, _CACHED_INFO
-    context = _CACHED_CONTEXT
-    if context is not None:
-        return context
+    global _CACHED_INFO
+    try:
+        return _CACHED_CONTEXT["context"]
+    except KeyError:
+        pass
     with _LOCK:
-        if _CACHED_CONTEXT is None:
-            _CACHED_CONTEXT, _CACHED_INFO = _resolve()
-        context = _CACHED_CONTEXT
-    # Never let an absent resolver result become httpx's false-y `verify` value.
-    # Keep a local reference so resetting the cache cannot change this return.
-    if context is None:
-        raise RuntimeError("Outbound TLS verification context is unavailable")
-    return context
+        if "context" not in _CACHED_CONTEXT:
+            context, info = _resolve()
+            if not isinstance(context, ssl.SSLContext):
+                raise RuntimeError("Outbound TLS verification context is unavailable")
+            # Cache only real contexts; an empty cache is never a verify value.
+            _CACHED_CONTEXT["context"] = context
+            _CACHED_INFO = info
+        return _CACHED_CONTEXT["context"]
 
 
 def outbound_tls_trust_info() -> Dict[str, Any]:
@@ -281,9 +282,9 @@ def outbound_tls_trust_info() -> Dict[str, Any]:
 
 def reset_outbound_tls_cache() -> None:
     """Drop the cached context. Intended for tests and diagnostics."""
-    global _CACHED_CONTEXT, _CACHED_INFO
+    global _CACHED_INFO
     with _LOCK:
-        _CACHED_CONTEXT = None
+        _CACHED_CONTEXT.clear()
         _CACHED_INFO = {}
 
 

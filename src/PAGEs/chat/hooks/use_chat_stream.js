@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import { secureRandomId } from "../../../SERVICEs/secure_random_id";
 import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
 import { extractCommands } from "../../../SERVICEs/command_registry";
@@ -5054,7 +5055,7 @@ export const useChatStream = ({
         : null;
       const assistantMessageId =
         durableResumeMessages?.ownerMessageId ||
-        `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        `assistant-${Date.now()}-${secureRandomId()}`;
 
       let persistedAttachments = [];
       let payloadAttachments = [];
