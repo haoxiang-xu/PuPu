@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "Contexte de la conversation",
+    "automatic_context_desc": "Le contexte de la conversation est géré automatiquement. Les anciens réglages de mémoire à court terme ne s’appliquent plus.",
+    "legacy_long_term_memory": "Mémoire à long terme (ancienne)",
     "title": "Mémoire de chat",
     "enable_memory": "Activer la mémoire",
     "enable_memory_desc": "Chaque chat conserve une mémoire à court terme, tandis que la mémoire à long terme est partagée globalement et rappelée automatiquement lorsqu'elle est pertinente.",
@@ -867,5 +870,18 @@
     "group_conversation": "Conversation",
     "open_progress": "Ouvrir l’utilisation du contexte ; dernier appel de modèle rempli à {percentage}%",
     "open_progress_unavailable": "Ouvrir l’utilisation du contexte ; pression de fenêtre du dernier appel indisponible"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversation prête",
+    "conversation_incomplete": "Préparation de la conversation incomplète",
+    "conversation_legacy": "Ancien historique de conversation",
+    "conversation_unavailable": "État de la conversation indisponible",
+    "organization_failed": "Échec de l’organisation des souvenirs",
+    "organization_cancelled": "Organisation des souvenirs annulée",
+    "organization_unavailable": "État de l’organisation indisponible",
+    "organization_running": "Organisation des souvenirs…",
+    "organization_queued": "Organisation des souvenirs en attente",
+    "organization_empty": "Aucun souvenir à organiser",
+    "organization_complete": "Souvenirs organisés"
   }
 }

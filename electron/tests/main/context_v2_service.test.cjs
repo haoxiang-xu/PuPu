@@ -1,3 +1,12 @@
+// These isolated transport/legacy fixtures deliberately exercise internal off.
+// Active startup and manifest checks live in memory_v2_startup_readiness.
+const previousMemoryRolloutMode = process.env.PUPU_MEMORY_V2_MODE;
+beforeEach(() => { process.env.PUPU_MEMORY_V2_MODE = "off"; });
+afterEach(() => {
+  if (previousMemoryRolloutMode === undefined) delete process.env.PUPU_MEMORY_V2_MODE;
+  else process.env.PUPU_MEMORY_V2_MODE = previousMemoryRolloutMode;
+});
+
 const path = require("path");
 const { EventEmitter } = require("events");
 const { createUnchainService } = require("../../main/services/unchain/service");

@@ -1,0 +1,54 @@
+{
+  "schema": "pupu.ticket349.final_audit_identity.v1",
+  "pupu": {
+    "product_repair_revision": "8622ad2fe899ec80c266d889e57b348f00c3b28d",
+    "release_qa_pin_revision": "c6a1a4b291cf95fd9549067040631e75eef2f79a",
+    "audited_pr_head": "70dc122c49cf2022dfa1db1f3ff8932e81eb9d91"
+  },
+  "candidate_digest": {
+    "schema": "pupu.ticket349.final-repair-candidate.v1",
+    "sha256": "c2c0e124dfe1fd770a05ce23ccd9f36bde1d85294ca301fe9d9b10838f19583a",
+    "production_file_count": 878,
+    "canonical_payload_file": "final-audit-repair-candidate-payload-2026-09-27.json",
+    "canonical_payload_file_sha256": "97898b34f53948d907f7633a62b2640318754216c662e032d41d969894116433"
+  },
+  "unchain": {
+    "source_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815"
+  },
+  "wheel": {
+    "name": "unchain-0.2.0-py3-none-any.whl",
+    "sha256": "d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0",
+    "artifact_receipt_sha256": "d26888bd1f287bf5b809bc86c6f2bd55b496552e2b612fa4fe17784fd20a7a54",
+    "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e"
+  },
+  "frozen_sidecar": {
+    "target": "macos-arm64",
+    "architecture": "arm64",
+    "size_bytes": 44427024,
+    "sha256": "78c7bf6ab71815fb991f5cdbbe3524a99cab24436b75cbc8c8399095ec1cbf5a",
+    "feature_snapshot_sha256": "788c7f08a2ab56e7d1694877cc9ed85919075467cb45feb0507592a6b8b0d044",
+    "package_smoke_sha256": "e5c74b806b68e86c10c932429a21b206aa588f50eaa468caee4e398ff1841b81",
+    "package_smoke_passed": 5,
+    "build_installed_wheel_sha256": "d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0",
+    "build_installer_direct_url_hash_verified": true,
+    "build_installer_direct_url_receipt_sha256": "a54e7d07da9609a27234f5da5e59092313c07d8eb7e40f253258c18d72a1f2f4",
+    "pupu_runtime_revision": "8622ad2fe899ec80c266d889e57b348f00c3b28d",
+    "unchain_source_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815"
+  },
+  "live_evidence": {
+    "result_sha256": "a420efc5a83d760f10880595ad2fe5381f0d4eb6cc4867e32f57ceedf99a1680",
+    "restart_observation_sha256": "5a38136009488ff897cf52b08dcfd8b30ab9954d3b712f8cb01f2d037c5bc2d6",
+    "cleanup_sha256": "dc0c818f2ff96a553ab0998dd9d30df37e654748d7694faaf4fbdc68511302cb",
+    "provenance": "The live harness records the selected PuPu and Unchain identities. Frozen-sidecar hash, feature snapshot and package smoke are independently bound above; no runtime-status capture was retained from the live process.",
+    "cold_restart_scope": "fresh memory_list only; fresh live memory_search and memory_read were not evidenced",
+    "restart_phase_completed_false_meaning": "The desktop process restarted, but the requested complete post-restart list-search-read phase did not finish with fresh calls."
+  },
+  "hollow_shell_ui_evidence": {
+    "source_result_sha256": "619c15ad910c952fb1649d72c524142fd313c5d153bf5adf672b5339217f5689",
+    "committed_sanitized_result_sha256": "06e8884cf7f8d091974b152487819d4de173be3858e15bcdd6a3c1dbdd993abe",
+    "cleanup_sha256": "41e2d66665b4abb4425b332cfcfbe118e2e649b9d131b39108b1f985d2760fd6",
+    "assertions_passed": 10,
+    "producer_renderer_job_identity_matched": true,
+    "terminal_status_visible_in_dom": true
+  }
+}

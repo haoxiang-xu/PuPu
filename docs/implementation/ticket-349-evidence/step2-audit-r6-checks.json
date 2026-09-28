@@ -1,0 +1,17 @@
+{
+  "verified_candidate_files": 371,
+  "candidate": "02caddf170f4a1aaceaf7496cba5f54ae66eaee47701535e09e570e0eba45f1e",
+  "locale_count": 10,
+  "i18n_missing": 0,
+  "i18n_orphan": 0,
+  "i18n_placeholder_mismatch": 0,
+  "missing_english_keys": 0,
+  "dead_keys": 65,
+  "dynamic_keys": 48,
+  "impact_risk": "LOW",
+  "impact_summary": {
+    "direct": 1,
+    "processes_affected": 0,
+    "modules_affected": 0
+  }
+}

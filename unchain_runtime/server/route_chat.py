@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List
 
 from flask import Response, jsonify, request, stream_with_context
 
+from chat_latency_diagnostics import ChatLatencyTrace
 from context_composition_bundle_projection import (
     project_context_composition_availability,
 )
@@ -249,7 +250,7 @@ def _durable_host_error_response(exc: Exception):
             {
                 "error": {
                     "code": code,
-                    "message": str(exc),
+                    "message": "Unable to complete this conversation action.",
                     "retryable": bool(getattr(exc, "retryable", False)),
                 }
             }
@@ -1180,6 +1181,11 @@ def chat_stream_v4() -> Response:
     )
 
     def stream_events() -> Iterable[str]:
+        latency = ChatLatencyTrace(
+            session_id=thread_id,
+            attempt_id=attempt_id,
+            route="chat_stream_v4",
+        )
         started_at = int(time.time() * 1000)
         final_bundle: Dict[str, object] | None = None
         final_completion_diagnostics: Dict[str, object] | None = None
@@ -1235,6 +1241,7 @@ def chat_stream_v4() -> Response:
             for raw_event in event_source:
                 if not isinstance(raw_event, dict):
                     continue
+                latency.observe(raw_event)
                 if raw_event.get("type") == "stream_summary":
                     final_bundle = _sanitize_v4_completion_bundle(
                         raw_event.get("bundle")
@@ -1286,18 +1293,21 @@ def chat_stream_v4() -> Response:
                 done_payload["completion_diagnostics"] = (
                     final_completion_diagnostics
                 )
+            latency.finish("cancelled" if cancelled else "completed")
             yield _sse_event(
                 "done",
                 done_payload,
             )
         except GeneratorExit:  # pragma: no cover
             cancel_pending_confirmations()
+            latency.finish("cancelled")
             return
         except Exception as stream_error:
             cancel_pending_confirmations()
             if _is_execution_cancelled_error(
                 stream_error
             ) or _execution_attempt_cancelled(thread_id, attempt_id):
+                latency.finish("cancelled")
                 yield _sse_event(
                     "done",
                     {
@@ -1309,6 +1319,7 @@ def chat_stream_v4() -> Response:
                     },
                 )
                 return
+            latency.finish("failed")
             code, normalized_message = _normalize_stream_error(stream_error)
             failure_event = bridge.emit_transport_failure(
                 normalized_message,

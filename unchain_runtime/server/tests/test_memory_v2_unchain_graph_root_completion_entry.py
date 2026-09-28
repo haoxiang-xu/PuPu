@@ -617,10 +617,7 @@ def test_active_root_entry_runs_canonical_root_terminal_and_curator(
     assert receipt.coordinator_attempt_id == root_run_id
     assert receipt.root_run_id == root_run_id
     assert receipt.memory.enqueue_disposition is EnqueueDisposition.NO_OP
-    assert (
-        receipt.memory.worker_receipt.disposition
-        is MemoryAgentWorkerDisposition.IDLE
-    )
+    assert receipt.memory.worker_receipt is None
     assert any(
         event.get("type") == "final_message"
         and event.get("content") == "canonical graph report"

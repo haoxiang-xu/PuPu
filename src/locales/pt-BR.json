@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "Contexto da conversa",
+    "automatic_context_desc": "O contexto da conversa é gerenciado automaticamente. Os controles antigos de memória de curto prazo não se aplicam mais.",
+    "legacy_long_term_memory": "Memória de longo prazo (antiga)",
     "title": "Memória do chat",
     "enable_memory": "Ativar memória",
     "enable_memory_desc": "Cada chat mantém memória de curto prazo, enquanto a memória de longo prazo é compartilhada globalmente e recuperada automaticamente quando relevante.",
@@ -867,5 +870,18 @@
     "group_conversation": "Conversa",
     "open_progress": "Abrir uso do contexto; última chamada do modelo em {percentage}%",
     "open_progress_unavailable": "Abrir uso do contexto; pressão da janela da última chamada indisponível"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversa pronta",
+    "conversation_incomplete": "Preparação da conversa incompleta",
+    "conversation_legacy": "Registro de conversa anterior",
+    "conversation_unavailable": "Status da conversa indisponível",
+    "organization_failed": "Falha ao organizar memórias",
+    "organization_cancelled": "Organização de memórias cancelada",
+    "organization_unavailable": "Status da organização indisponível",
+    "organization_running": "Organizando memórias…",
+    "organization_queued": "Organização de memórias na fila",
+    "organization_empty": "Nenhuma memória para organizar",
+    "organization_complete": "Memórias organizadas"
   }
 }

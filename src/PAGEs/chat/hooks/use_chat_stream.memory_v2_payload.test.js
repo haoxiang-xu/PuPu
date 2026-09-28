@@ -1,20 +1,15 @@
 /**
- * Memory V2 P0 payload seams — owner_chat_id identity + enable_memory_v2
+ * Memory V2 P0 payload seams — owner_chat_id identity + always-on memory
  * lazy-bootstrap fields on the outgoing stream payload.
  *
  * Locks:
  *  - owner_chat_id is ALWAYS the UI chat id (targetChatId) on the normal
  *    payload and on a character-chat payload (where threadId becomes the
  *    character session_id).
- *  - flag OFF → memory_v2_requested / memory_agent_config /
- *    context_v2_history appear NOWHERE on the normal payload.
- *  - flag ON (normal send) → memory_v2_requested: true + memory_agent_config
- *    + context_v2_history built from the chat's settled prior user/assistant
- *    messages (attachments preserved, no streaming placeholder, no trace
- *    residue), while the legacy `history` field stays byte-equivalent to the
- *    flag-off payload.
- *  - a passively observed durable receipt is sealed without a model payload,
- *    regardless of the Memory V2 flag.
+ *  - normal sends always carry memory_v2_requested, memory_agent_config,
+ *    and bootstrap history, even when the retired flag was saved as false.
+ *  - changing the retired flag does not change legacy history bytes.
+ *  - passive durable receipts are sealed without a model payload.
  *  - memory_agent_config carries exactly the normalized Memory Agent surface
  *    ({displayName, additionalInstructions, provider, modelId}) and never
  *    leaks any other settings namespace or extra stored field.
@@ -351,7 +346,7 @@ describe("Memory V2 P0 payload seams", () => {
     await waitForReady();
   });
 
-  test("flag off: owner_chat_id is the UI chat id and no memory-v2 fields exist", async () => {
+  test("default: owner_chat_id and memory fields are sent without opting in", async () => {
     const chatId = getChatsStore().activeChatId;
     seedPriorTurn(chatId);
     renderChat();
@@ -365,13 +360,13 @@ describe("Memory V2 P0 payload seams", () => {
     const payload = window.unchainAPI.startStreamV2.mock.calls[0][0];
     expect(payload.owner_chat_id).toBe(chatId);
     expect(payload.threadId).toBe(chatId);
-    expect(deepHasKey(payload, "memory_v2_requested")).toBe(false);
-    expect(deepHasKey(payload, "context_v2_history")).toBe(false);
-    expect(deepHasKey(payload, "memory_agent_config")).toBe(false);
+    expect(deepHasKey(payload, "memory_v2_requested")).toBe(true);
+    expect(deepHasKey(payload, "context_v2_history")).toBe(true);
+    expect(deepHasKey(payload, "memory_agent_config")).toBe(true);
   });
 
-  test("flag on: bootstrap fields are added while legacy history stays byte-equivalent", async () => {
-    // control run — flag off
+  test("retired flags do not change bootstrap fields or legacy history", async () => {
+    // Control profile has the retired flag disabled.
     const chatId = getChatsStore().activeChatId;
     const priorMessages = seedPriorTurn(chatId);
     const { unmount } = renderChat();
@@ -384,7 +379,7 @@ describe("Memory V2 P0 payload seams", () => {
     const controlHistoryJson = JSON.stringify(controlPayload.history);
     unmount();
 
-    // flagged run — same seeded state, flag on
+    // Same seeded state with the retired flag enabled.
     window.localStorage.clear();
     window.unchainAPI.startStreamV2.mockClear();
     const flaggedChatId = getChatsStore().activeChatId;

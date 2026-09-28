@@ -1,0 +1,73 @@
+FAIL electron/tests/main/memory_v2_rollout.test.cjs
+  Memory V2 release rollout snapshot
+    ✓ an off build still carries every explicit sidecar setting (1 ms)
+    ✓ a packaged canary build resolves only from its frozen snapshot (1 ms)
+    ✓ the build ceiling alone never activates a packaged rollout
+    ✓ a packaged rollout becomes all only when both controls explicitly allow it
+    ✓ tampering with a packaged rollout fails closed
+  Memory V2 runtime protocol admission
+    ✓ accepts the compatible manifest independently of revision telemetry (1 ms)
+    ✓ accepts higher minor, extra optional features, and extra protocols
+    ✓ rejects malformed closed manifests: missing manifest
+    ✓ rejects malformed closed manifests: unknown manifest field
+    ✓ rejects malformed closed manifests: unknown protocol item field
+    ✓ rejects malformed closed manifests: digest mutation
+    ✓ rejects malformed closed manifests: out-of-order protocols with a recomputed digest
+    ✓ rejects malformed closed manifests: duplicate protocol id with a recomputed digest
+    ✓ rejects malformed closed manifests: duplicate feature with a recomputed digest
+    ✓ rejects malformed closed manifests: non-NFC feature with a recomputed digest (1 ms)
+    ✓ rejects malformed closed manifests: unpaired surrogate feature with a recomputed digest
+    ✓ rejects malformed closed manifests: unpaired surrogate protocol id with a recomputed digest
+    ✓ rejects malformed closed manifests: negative minor below the supported floor
+    ✓ rejects malformed closed manifests: boolean major
+    ✓ rejects malformed closed manifests: minor above the cross-language safe integer ceiling
+    ✓ requires incident compatibility feature chat_deletion_sqlite_scope_closure
+    ✓ requires incident compatibility feature generation_rebase_live_interaction_cycles
+    ✓ requires incident compatibility feature interaction_resolution_compat
+    ✓ requires incident compatibility feature tool_output_management_v1
+    ✓ requires incident compatibility feature expected_interaction_id_cas
+    ✓ requires incident compatibility feature graph_interaction_lineage_preflight_v1
+    ✓ requires incident compatibility feature interaction_resolution_atomic_acceptance_v1
+    ✓ requires incident compatibility feature run_bundle_v2
+    ✓ rejects incompatible protocols: missing required protocol
+    ✓ rejects incompatible protocols: wrong major
+    ✓ rejects incompatible protocols: missing existing required feature (1 ms)
+    ✓ rejects an inconsistent sidecar success tuple field runtime_protocol_ready
+    ✓ rejects an inconsistent sidecar success tuple field runtime_protocol_reason
+    ✓ rejects an inconsistent sidecar success tuple field runtime_protocol_verification
+    ✓ rejects an inconsistent sidecar success tuple field runtime_protocol_immutable
+    ✓ admits migratable/current Unchain schema 2
+    ✕ admits migratable/current Unchain schema 3 (1 ms)
+    ✓ rejects unsupported schema 0
+    ✓ rejects unsupported schema 1
+    ✓ rejects unsupported schema 4
+    ✓ rejects unsupported schema 99
+    ✓ rejects unsupported schema 3
+    ✓ rejects unsupported schema null
+    ✓ rejects unsupported schema 3.5
+    ✓ schema 2 cannot bypass owner/protocol validation
+    ✓ schema 3 cannot bypass owner/protocol validation
+    ✓ still requires matching store, schema, WAL, lexical state, and rollout
+
+  ● Memory V2 runtime protocol admission › admits migratable/current Unchain schema 3
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      539 |   test.each([2, 3])("admits migratable/current Unchain schema %s", (version) => {
+      540 |     const result = validateMemoryV2Status(statusFor(config, { schema_version: version }), config);
+    > 541 |     expect(result.ok).toBe(true);
+          |                       ^
+      542 |     expect(result.reason).toBe("");
+      543 |     expect(result.status.schemaVersion).toBe(version);
+      544 |   });
+
+      at electron/tests/main/memory_v2_rollout.test.cjs:541:23
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 46 passed, 47 total
+Snapshots:   0 total
+Time:        0.172 s
+Ran all test suites.

@@ -193,6 +193,9 @@
     }
   },
   "memory": {
+    "automatic_context": "대화 맥락",
+    "automatic_context_desc": "대화 맥락은 자동으로 관리됩니다. 기존 단기 기억 설정은 더 이상 적용되지 않습니다.",
+    "legacy_long_term_memory": "장기 기억 (이전 버전)",
     "title": "채팅 메모리",
     "enable_memory": "메모리 활성화",
     "enable_memory_desc": "각 채팅은 단기 메모리를 유지하고, 장기 메모리는 전역으로 공유되며 관련 있을 때 자동으로 호출됩니다.",
@@ -867,5 +870,18 @@
     "group_conversation": "대화",
     "open_progress": "컨텍스트 사용량 열기 · 최신 모델 호출이 {percentage}% 사용 중",
     "open_progress_unavailable": "컨텍스트 사용량 열기 · 최신 모델 호출의 창 사용량을 알 수 없음"
+  },
+  "memory_activity": {
+    "conversation_ready": "대화 준비 완료",
+    "conversation_incomplete": "대화 준비 미완료",
+    "conversation_legacy": "이전 대화 기록",
+    "conversation_unavailable": "대화 상태를 확인할 수 없음",
+    "organization_failed": "기억 정리 실패",
+    "organization_cancelled": "기억 정리 취소됨",
+    "organization_unavailable": "기억 정리 상태를 확인할 수 없음",
+    "organization_running": "기억 정리 중…",
+    "organization_queued": "기억 정리 대기 중",
+    "organization_empty": "정리할 기억 없음",
+    "organization_complete": "기억 정리 완료"
   }
 }

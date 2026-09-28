@@ -1,0 +1,14 @@
+[
+  {
+    "case": "unknown-field",
+    "rejected_before_claim": true
+  },
+  {
+    "case": "wrong-version",
+    "rejected_before_claim": true
+  },
+  {
+    "case": "wrong-type",
+    "rejected_before_claim": true
+  }
+]

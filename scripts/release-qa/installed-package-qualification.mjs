@@ -282,7 +282,7 @@ const assertSnapshot = (asarPath) => {
   const bytes = Buffer.from(asar.extractFile(asarPath, "build/build_feature_flags.json"));
   const snapshot = JSON.parse(bytes.toString("utf8"));
   const fingerprint = snapshot?._pupu_memory_v2_release?.snapshot_fingerprint;
-  if (snapshot?.enable_memory_v2 !== true ||
+  if (snapshot?._pupu_memory_v2_release?.sidecar_environment?.PUPU_MEMORY_V2_MODE !== "all" ||
       typeof fingerprint !== "string" || !SNAPSHOT_FINGERPRINT.test(fingerprint)) {
     throw new Error("installed app has no valid enabled release build snapshot");
   }

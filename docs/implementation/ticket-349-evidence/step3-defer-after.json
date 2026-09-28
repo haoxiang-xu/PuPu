@@ -1,0 +1,589 @@
+{
+  "mode": "after",
+  "kind": "real SQLite preparation; no model/network/artificial delay",
+  "manifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "candidate": {
+    "pupu_server_snapshot_sha256": "b334d8934a1c215e2fdadbd369ccbcf3e5187e5fcbfc402683670464cbac2168",
+    "file_count": 372,
+    "wheel_path": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-cache-checkpoint/wheels/unchain-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44"
+  },
+  "summary": [
+    {
+      "turn": 1,
+      "samples": 30,
+      "admission_ms": 46.5066,
+      "register_ms": 0.0,
+      "invoker_ms": 0.0,
+      "deferred_ms": 1.2961
+    },
+    {
+      "turn": 2,
+      "samples": 30,
+      "admission_ms": 61.6794,
+      "register_ms": 0.0,
+      "invoker_ms": 0.0,
+      "deferred_ms": 0.0607
+    }
+  ],
+  "samples": [
+    {
+      "repetition": 0,
+      "warmup": true,
+      "turn": 1,
+      "admission_ms": 66.23029196634889,
+      "deferred_ms": 4.467249964363873,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 0,
+      "warmup": true,
+      "turn": 2,
+      "admission_ms": 62.5781660201028,
+      "deferred_ms": 0.08016603533178568,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 1,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 48.897957894951105,
+      "deferred_ms": 1.302708056755364,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 1,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 61.93299998994917,
+      "deferred_ms": 0.06754195783287287,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 2,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 48.26483305078,
+      "deferred_ms": 1.310874940827489,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 2,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 59.98416699003428,
+      "deferred_ms": 0.05791697185486555,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 3,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 49.79770793579519,
+      "deferred_ms": 1.243666047230363,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 3,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 60.95295900013298,
+      "deferred_ms": 0.07874995935708284,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 4,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 48.53920801542699,
+      "deferred_ms": 1.3346250634640455,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 4,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 59.09695802256465,
+      "deferred_ms": 0.05962501745671034,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 5,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 49.703957978636026,
+      "deferred_ms": 1.2857499532401562,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 5,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 62.683916999958456,
+      "deferred_ms": 0.06366695743054152,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 6,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 44.6035829372704,
+      "deferred_ms": 1.2205418897792697,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 6,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 56.131833931431174,
+      "deferred_ms": 0.0576250022277236,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 7,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.16120802145451,
+      "deferred_ms": 1.2243329547345638,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 7,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 63.809416024014354,
+      "deferred_ms": 0.06408302579075098,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 8,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 47.96225007157773,
+      "deferred_ms": 1.2894170358777046,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 8,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 59.00166695937514,
+      "deferred_ms": 0.06558303721249104,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 9,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.09341698233038,
+      "deferred_ms": 1.2373330537229776,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 9,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 61.80591695010662,
+      "deferred_ms": 0.05804200191050768,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 10,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 44.49787503108382,
+      "deferred_ms": 1.2465830659493804,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 10,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 56.63041700609028,
+      "deferred_ms": 0.0801669666543603,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 11,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.67191703245044,
+      "deferred_ms": 1.276874914765358,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 11,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 63.296791980974376,
+      "deferred_ms": 0.059542013332247734,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 12,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.0853329859674,
+      "deferred_ms": 1.419499982148409,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 12,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 58.08145797345787,
+      "deferred_ms": 0.05712499842047691,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 13,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 47.44933301117271,
+      "deferred_ms": 1.3142500538378954,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 13,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 63.930667005479336,
+      "deferred_ms": 0.0600829953327775,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 14,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.08387500047684,
+      "deferred_ms": 1.2119170278310776,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 14,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 57.68670805264264,
+      "deferred_ms": 0.059666926972568035,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 15,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.387874986976385,
+      "deferred_ms": 1.2889159843325615,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 15,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 61.55291700270027,
+      "deferred_ms": 0.05850009620189667,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 16,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 47.450165962800384,
+      "deferred_ms": 1.2772920308634639,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 16,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 165.02054198645055,
+      "deferred_ms": 0.0719169620424509,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 17,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 66.94370904006064,
+      "deferred_ms": 1.2561669573187828,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 17,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 63.444333034567535,
+      "deferred_ms": 0.05862500984221697,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 18,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.095541096292436,
+      "deferred_ms": 1.3540000654757023,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 18,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 58.99320903699845,
+      "deferred_ms": 0.06108300294727087,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 19,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.57724995538592,
+      "deferred_ms": 1.3132920721545815,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 19,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 62.23204208072275,
+      "deferred_ms": 0.05908298771828413,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 20,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 47.78608400374651,
+      "deferred_ms": 1.2633339501917362,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 20,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 58.91079199500382,
+      "deferred_ms": 0.05974993109703064,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 21,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.91654194518924,
+      "deferred_ms": 1.3627920998260379,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 21,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 63.15020797774196,
+      "deferred_ms": 0.06091699469834566,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 22,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.695541008375585,
+      "deferred_ms": 1.2716660276055336,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 22,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 58.5799579275772,
+      "deferred_ms": 0.06274995394051075,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 23,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.36179201770574,
+      "deferred_ms": 1.2765830615535378,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 23,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 71.5714159887284,
+      "deferred_ms": 0.19575003534555435,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 24,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 49.00949995499104,
+      "deferred_ms": 1.532458933070302,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 24,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 71.99754193425179,
+      "deferred_ms": 0.06770796608179808,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 25,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.96158291678876,
+      "deferred_ms": 1.3167919823899865,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 25,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 62.51724995672703,
+      "deferred_ms": 0.07325003389269114,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 26,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.09637497924268,
+      "deferred_ms": 1.318915979936719,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 26,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 57.00483394321054,
+      "deferred_ms": 0.057458062656223774,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 27,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 45.91112490743399,
+      "deferred_ms": 1.3445829972624779,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 27,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 64.51374990865588,
+      "deferred_ms": 0.0765420263633132,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 28,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 49.69716595951468,
+      "deferred_ms": 1.3492089929059148,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 28,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 61.457624891772866,
+      "deferred_ms": 0.06220804061740637,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 29,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 48.299584072083235,
+      "deferred_ms": 1.4436249621212482,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 29,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 64.10462490748614,
+      "deferred_ms": 0.060542020946741104,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 30,
+      "warmup": false,
+      "turn": 1,
+      "admission_ms": 46.62529204506427,
+      "deferred_ms": 1.4110408956184983,
+      "register_ms": 0,
+      "invoker_ms": 0
+    },
+    {
+      "repetition": 30,
+      "warmup": false,
+      "turn": 2,
+      "admission_ms": 58.12225001864135,
+      "deferred_ms": 0.05687493830919266,
+      "register_ms": 0,
+      "invoker_ms": 0
+    }
+  ]
+}

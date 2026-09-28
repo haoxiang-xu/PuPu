@@ -227,6 +227,9 @@ def main(argv: list[str] | None = None) -> int:
         worker_id=f"sidecar-deletion-{os.getpid()}",
     )
 
+    from memory_v2_background_worker import get_memory_background_dispatcher
+    memory_dispatcher = get_memory_background_dispatcher()
+
     shutdown_event = threading.Event()
 
     def request_shutdown(signum, _frame) -> None:
@@ -277,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         deletion_runner.start()
+        if memory_dispatcher is not None:
+            memory_dispatcher.start()
         server.start()
         print(f"[unchain] listening on http://{host}:{port}", flush=True)
         while not shutdown_event.is_set():
@@ -284,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         shutdown_event.set()
     finally:
+        if memory_dispatcher is not None:
+            memory_dispatcher.stop()
         deletion_runner.stop()
         server.stop()
         print("[unchain] server stopped", flush=True)

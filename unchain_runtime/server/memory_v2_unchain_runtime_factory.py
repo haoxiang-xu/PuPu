@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sqlite3
 import threading
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
@@ -134,6 +135,11 @@ _CANDIDATE_URI = re.compile(
     r"^pupu://memory/candidate/"
     r"([A-Za-z0-9][A-Za-z0-9._:-]{0,511})@([1-9][0-9]*)$"
 )
+_CANDIDATE_CONTENT_URI = re.compile(
+    r"^pupu://memory/candidate-content/"
+    r"([A-Za-z0-9][A-Za-z0-9._:-]{0,511})/"
+    r"([A-Za-z0-9][A-Za-z0-9._:-]{0,511})@([1-9][0-9]*)$"
+)
 _REVIEW_URI = re.compile(
     r"^pupu://memory/review/"
     r"([A-Za-z0-9][A-Za-z0-9._:-]{0,511})/"
@@ -203,6 +209,10 @@ class _PupuUnchainReferenceCodec:
                 return f"pupu://context/checkpoint/{ref.resource_id}{suffix}"
         if ref.kind == "memory_candidate" and not ref.fragment:
             return f"pupu://memory/candidate/{ref.resource_id}@{ref.revision}"
+        if ref.kind == "memory_candidate_content":
+            uri = f"pupu://memory/candidate-content/{ref.fragment}/{ref.resource_id}@{ref.revision}"
+            if _CANDIDATE_CONTENT_URI.fullmatch(uri):
+                return uri
         if ref.kind == "memory_review" and ref.fragment:
             return (
                 f"pupu://memory/review/{ref.fragment}/"
@@ -232,6 +242,10 @@ class _PupuUnchainReferenceCodec:
                 int(match.group(3)),
                 match.group(1),
             )
+        match = _CANDIDATE_CONTENT_URI.fullmatch(value)
+        if match is not None:
+            return ResourceRef("memory_candidate_content", match.group(2),
+                               int(match.group(3)), match.group(1))
         match = _MEMORY_URI.fullmatch(value)
         if match is not None:
             return ResourceRef(
@@ -431,6 +445,34 @@ class PupuUnchainAttemptRuntime:
         return notify(receipt)
 
 
+class _DeferredMemoryAgentInvoker:
+    """Construct background-only provider machinery at its first actual use."""
+
+    def __init__(self, factory, reference_codec):
+        self._factory = factory
+        self._reference_codec = reference_codec
+        self._lock = threading.Lock()
+        self._invoker = None
+
+    def run(self, request, *, toolkit, binding):
+        with self._lock:
+            if self._invoker is None:
+                try:
+                    invoker = self._factory(self._reference_codec)
+                except Exception as error:
+                    raise PupuUnchainHostFactoryError(
+                        "Memory Agent invoker factory failed closed"
+                    ) from error
+                if not callable(getattr(invoker, "run", None)):
+                    raise PupuUnchainHostFactoryError(
+                        "Memory Agent invoker factory returned an invalid invoker"
+                    )
+                self._invoker = invoker
+            invoker = self._invoker
+        # Do not serialize provider I/O with construction or foreground work.
+        return invoker.run(request, toolkit=toolkit, binding=binding)
+
+
 class PupuUnchainContextMemoryV2HostFactory:
     """Build official Unchain-owned bundles for one server-bound PuPu chat."""
 
@@ -626,18 +668,12 @@ class PupuUnchainContextMemoryV2HostFactory:
         )
         self.reference_codec = _PupuUnchainReferenceCodec(self.binding_id)
         if memory_agent_model_invoker_factory is not None:
-            try:
-                memory_agent_model_invoker = memory_agent_model_invoker_factory(
-                    self.reference_codec
-                )
-            except Exception as error:
-                raise PupuUnchainHostFactoryError(
-                    "Memory Agent invoker factory failed closed"
-                ) from error
-            if not callable(getattr(memory_agent_model_invoker, "run", None)):
-                raise PupuUnchainHostFactoryError(
-                    "Memory Agent invoker factory returned an invalid invoker"
-                )
+            memory_agent_model_invoker = _DeferredMemoryAgentInvoker(
+                memory_agent_model_invoker_factory, self.reference_codec
+            )
+        self._background_invoker_factory = memory_agent_model_invoker_factory
+        self._background_registration_lock = threading.Lock()
+        self._background_registered = False
         self.context_capability = _PupuUnchainContextCapability(
             binding_id=self.binding_id,
             context_reader_resolver=self._bound_context_reader,
@@ -668,6 +704,7 @@ class PupuUnchainContextMemoryV2HostFactory:
             completion_factory_resolver=(
                 build_pupu_memory_v2_root_completion_resolver(
                     capture_journal=self._capture_root_completion_journal,
+                    before_enqueue=self.prepare_memory_completion,
                 )
             ),
         )
@@ -728,6 +765,28 @@ class PupuUnchainContextMemoryV2HostFactory:
             if isinstance(context_runtime, TaskStateContextRuntime)
             else None
         )
+
+    def prepare_memory_completion(self) -> None:
+        """Register background selection without failing a completed answer.
+
+        This is called after terminal capture, never during context preparation.
+        A registry outage leaves a durable, non-secret registration retry; the
+        official completion hook still persists its consolidation job.
+        """
+        if not self.memory_agent_enabled:
+            return
+        with self._background_registration_lock:
+            if self._background_registered:
+                return
+            from memory_v2_background_worker import register_background_host, defer_background_host
+
+            arguments = dict(database_path=self.database_path,
+                owner_chat_id=self.owner_chat_id, invoker_factory=self._background_invoker_factory)
+            try:
+                register_background_host(**arguments)
+            except (OSError, sqlite3.Error):
+                defer_background_host(**arguments)
+            self._background_registered = True
 
     @property
     def production_enabled(self) -> bool:

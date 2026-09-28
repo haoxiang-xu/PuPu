@@ -259,6 +259,7 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
 
     request: MemoryAttachmentRequest
     capture_journal: PupuMemoryV2JournalCaptureCallback = field(repr=False)
+    before_enqueue: Callable[[], None] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.request, MemoryAttachmentRequest):
@@ -272,6 +273,8 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
             )
         if not callable(self.capture_journal):
             raise TypeError("capture_journal must be callable")
+        if self.before_enqueue is not None and not callable(self.before_enqueue):
+            raise TypeError("before_enqueue must be callable")
 
     def build(self, *, result: KernelRunResult) -> RootRunCompletion | None:
         if not isinstance(result, KernelRunResult):
@@ -283,7 +286,7 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
             capture = self.capture_journal(self.request)
         except Exception:
             capture = None
-        return RootRunCompletion(
+        completion = RootRunCompletion(
             session_id=self.request.session_id,
             attempt_id=self.request.attempt_id,
             run_id=self.request.run_id,
@@ -296,6 +299,13 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
                 run_status=run_status,
             ),
         )
+        if (
+            completion.run_status is SourceRunStatus.COMPLETED
+            and completion.capture_status is RunCaptureStatus.COMPLETE
+            and self.before_enqueue is not None
+        ):
+            self.before_enqueue()
+        return completion
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,10 +313,13 @@ class PupuMemoryV2RootCompletionFactoryResolver:
     """Resolver API that runtime factories can inject into the SQLite host."""
 
     capture_journal: PupuMemoryV2JournalCaptureCallback = field(repr=False)
+    before_enqueue: Callable[[], None] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not callable(self.capture_journal):
             raise TypeError("capture_journal must be callable")
+        if self.before_enqueue is not None and not callable(self.before_enqueue):
+            raise TypeError("before_enqueue must be callable")
 
     def resolve(
         self,
@@ -322,17 +335,20 @@ class PupuMemoryV2RootCompletionFactoryResolver:
         return PupuMemoryV2RootCompletionFactory(
             request=request,
             capture_journal=self.capture_journal,
+            before_enqueue=self.before_enqueue,
         )
 
 
 def build_pupu_memory_v2_root_completion_resolver(
     *,
     capture_journal: PupuMemoryV2JournalCaptureCallback,
+    before_enqueue: Callable[[], None] | None = None,
 ) -> PupuMemoryV2RootCompletionFactoryResolver:
     """Create the host-owned resolver accepted by the official attachment factory."""
 
     return PupuMemoryV2RootCompletionFactoryResolver(
         capture_journal=capture_journal,
+        before_enqueue=before_enqueue,
     )
 
 
