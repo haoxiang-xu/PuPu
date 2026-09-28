@@ -78,3 +78,46 @@ checkout or Unchain repository.
   package, installed-app update or live provider call is claimed here. Restart
   the Python sidecar when deploying these host changes. A new candidate audit is
   required before treating the previous ticket PASS as current.
+
+## PR CI repair (2026-09-27)
+
+The c999b721 candidate failed Release QA: nine ChatInterface tests still assumed
+that the removed feature flag bypassed canonical session admission. Their fixture
+now declares a server-confirmed absent canonical session, as required by the real
+legacy replacement path; production admission remains unchanged. The complete
+ChatInterface suite passed (165 tests).
+
+CodeQL also traced changed durable-ID sinks to three shared Math.random sources,
+a nullable outbound TLS cache return, and exception details in a durable HTTP
+error. Durable IDs now use 128 bits from Web Crypto; no predictable fallback is
+permitted. The TLS accessor fails closed if resolution supplies no context. HTTP
+errors retain code/status/retryable, with a fixed public message. The older jsdom
+test environment now uses Node's real Web Crypto, matching Chromium's capability.
+
+- BC-353: renderer ID producers -> existing chat storage/outbox -> existing IPC
+  and sidecar consumers. OPEN opaque string identity; prefixes and timestamps
+  are preserved, with a 32-hex cryptographic suffix. No schema/version change;
+  existing persisted IDs are not rewritten. Crypto failure aborts creation.
+  AC-353: fixed 128-bit input is fully represented in chat/node/operation IDs;
+  entropy failure cannot fall back; legacy node IDs are preserved; full renderer
+  mutation/outbox tests verify retry/reload against existing IDs.
+- SEQ-353: existing legacy ID -> reload -> create new ID -> persist/retry/resume
+  keeps the stored operation identity. New random generation is only for new
+  identity allocation and node-collision recovery. Reset/rollback can read both
+  string formats; no migration or Unchain representation change (BC-353).
+- BC-354: Flask durable-host error producer -> HTTP JSON -> renderer consumer.
+  CLOSED error envelope and error keys code/message/retryable are unchanged;
+  internal exception text is removed from message. HTTP status and retryability
+  are preserved. AC-354: real Flask response exact-key assertions check custom
+  and default errors and reject private exception text; existing route and
+  interaction suites cover the same installed runtime artifact.
+- BC-355: TLS factory -> httpx/urllib clients. The consumer receives a verifying
+  SSLContext or an exception, never None/False. Trust-source priority and cache
+  behavior remain unchanged. AC-355: missing resolver context fails closed;
+  existing trust-strategy, verification and consumer-wiring tests remain green.
+  No protocol or artifact identity change. Installed-app rollout remains NOT_RUN.
+
+GitNexus was refreshed in this clone at c999b721 (43,014 nodes / 180,309 edges).
+The edited helper lookups returned UNKNOWN; imports and call sites corroborated
+chat/tree allocation, durable mutation operations, outbound HTTP clients and
+five route error-handler callers. UNKNOWN is not evidence of unused code.

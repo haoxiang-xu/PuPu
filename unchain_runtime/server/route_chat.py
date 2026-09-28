@@ -250,7 +250,7 @@ def _durable_host_error_response(exc: Exception):
             {
                 "error": {
                     "code": code,
-                    "message": str(exc),
+                    "message": "Unable to complete this conversation action.",
                     "retryable": bool(getattr(exc, "retryable", False)),
                 }
             }

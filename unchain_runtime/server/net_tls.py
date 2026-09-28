@@ -265,7 +265,12 @@ def get_outbound_ssl_context() -> ssl.SSLContext:
     with _LOCK:
         if _CACHED_CONTEXT is None:
             _CACHED_CONTEXT, _CACHED_INFO = _resolve()
-        return _CACHED_CONTEXT
+        context = _CACHED_CONTEXT
+    # Never let an absent resolver result become httpx's false-y `verify` value.
+    # Keep a local reference so resetting the cache cannot change this return.
+    if context is None:
+        raise RuntimeError("Outbound TLS verification context is unavailable")
+    return context
 
 
 def outbound_tls_trust_info() -> Dict[str, Any]:
