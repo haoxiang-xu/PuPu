@@ -104,7 +104,6 @@ export function buildRecipeNodeContextMenuItems({
       id: "open_detail",
       label: "Open detail",
       icon: "eye_open",
-      trail: "⏎",
       onClick: onOpenDetail,
     },
   ];

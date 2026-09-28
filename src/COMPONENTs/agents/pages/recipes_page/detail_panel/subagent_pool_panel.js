@@ -48,7 +48,7 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
             flexShrink: 0,
           }}
         >
-          <Icon src="shapes" color="#fff" style={{ width: 14, height: 14 }} />
+          <Icon src="subagent_pool" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 600 }}>Subagent Pool</div>
       </div>

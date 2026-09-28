@@ -3,6 +3,8 @@ import { TOP_BAR_HEIGHT } from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import {
   AGENTS_MODAL_Z,
   TOP_STRIP_CENTER,
+  TOP_STRIP_LEADING_ICON,
+  TOP_STRIP_LEADING_PADDING,
   TOP_STRIP_LEFT,
   TOP_STRIP_LEFT_TRAFFIC_LIGHTS,
   useTopStripCenter,
@@ -97,5 +99,23 @@ describe("useTopStripCenter", () => {
     const { result } = renderHook(() => useTopStripCenter(true));
     expect(result.current.center).toBe(TOP_STRIP_CENTER);
     expect(result.current.left).toBe(TOP_STRIP_LEFT_TRAFFIC_LIGHTS);
+  });
+});
+
+describe("the leading control sits the same distance from both edges", () => {
+  test("its left inset is the clearance the centerline leaves above it", () => {
+    /* It used to be 14 from the left while the centerline left 12 above it,
+       which reads as a misplaced button rather than as a 2px number. */
+    const size = TOP_STRIP_LEADING_ICON + TOP_STRIP_LEADING_PADDING * 2;
+    expect(TOP_STRIP_LEFT).toBe(TOP_STRIP_CENTER - size / 2);
+  });
+
+  test("changing the control's box moves both gaps together", () => {
+    /* The inset is derived, so it cannot stay behind when the button grows —
+       the drift this module exists to prevent. */
+    expect(TOP_STRIP_LEFT).not.toBe(14);
+    expect(TOP_STRIP_CENTER - TOP_STRIP_LEFT).toBe(
+      (TOP_STRIP_LEADING_ICON + TOP_STRIP_LEADING_PADDING * 2) / 2,
+    );
   });
 });

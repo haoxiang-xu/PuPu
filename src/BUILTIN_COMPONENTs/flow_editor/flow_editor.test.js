@@ -311,14 +311,16 @@ describe("FlowEditor right-click reports what was clicked", () => {
     expect(on_select).not.toHaveBeenCalled();
   });
 
-  test("right-clicking a node reports that node and selects it", () => {
+  test("right-clicking a node reports it and highlights it, without opening its detail page", () => {
     const { container, on_context_menu, on_select } = setup();
     fireEvent.contextMenu(container.querySelector('[data-flow-node-id="b"]'));
     expect(on_context_menu.mock.calls[0][0].target).toEqual({
       kind: "node",
       id: "b",
     });
-    expect(on_select).toHaveBeenCalledWith("b");
+    /* on_select is what opens the detail page; a right-click asks for a menu,
+     * not for the panel. The canvas still highlights the node itself. */
+    expect(on_select).not.toHaveBeenCalled();
   });
 
   test("right-clicking a connection reports that edge", () => {
@@ -425,5 +427,100 @@ describe("FlowEditor right-click during a gesture", () => {
     fireEvent.mouseMove(window, { clientX: 80, clientY: 80 });
     fireEvent.contextMenu(canvas);
     expect(on_context_menu).not.toHaveBeenCalled();
+  });
+});
+
+describe("dragging a node is not a request to open it", () => {
+  const nodes = [
+    { id: "a", x: 10, y: 20, ports: [] },
+    { id: "b", x: 200, y: 20, ports: [] },
+  ];
+
+  function setup() {
+    const on_select = jest.fn();
+    const on_nodes_change = jest.fn();
+    const { container } = render(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          on_select={on_select}
+          on_nodes_change={on_nodes_change}
+        />,
+      ),
+    );
+    const node = container.querySelector('[data-flow-node-id="a"]');
+    return { container, node, on_select, on_nodes_change };
+  }
+
+  const press = (node, x, y) =>
+    fireEvent.mouseDown(node, { clientX: x, clientY: y, button: 0 });
+  const move = (x, y) =>
+    fireEvent.mouseMove(window, { clientX: x, clientY: y });
+  const release = (x, y) =>
+    fireEvent.mouseUp(window, { clientX: x, clientY: y });
+
+  test("a press alone does not open the detail page", () => {
+    /* `on_select` is what opens it, and at mousedown nobody knows yet whether
+     * this is a click or the start of a drag. */
+    const { node, on_select } = setup();
+    press(node, 0, 0);
+    expect(on_select).not.toHaveBeenCalled();
+  });
+
+  test("a drag opens nothing, and commits the new position", () => {
+    const { node, on_select, on_nodes_change } = setup();
+    press(node, 0, 0);
+    move(60, 40);
+    release(60, 40);
+    expect(on_select).not.toHaveBeenCalled();
+    expect(on_nodes_change).toHaveBeenCalled();
+  });
+
+  test("a click opens the node on release", () => {
+    const { node, on_select } = setup();
+    press(node, 0, 0);
+    release(0, 0);
+    expect(on_select).toHaveBeenCalledWith("a");
+  });
+
+  test("a click writes nothing, so looking at a node is not an edit", () => {
+    /* An unchanged position reported back still marked the graph dirty and
+     * pushed an undo step. */
+    const { node, on_nodes_change } = setup();
+    press(node, 0, 0);
+    release(0, 0);
+    expect(on_nodes_change).not.toHaveBeenCalled();
+  });
+
+  test("a tremor within the threshold is still a click", () => {
+    const { node, on_select, on_nodes_change } = setup();
+    press(node, 0, 0);
+    move(1, 1);
+    move(2, 0);
+    release(2, 0);
+    expect(on_select).toHaveBeenCalledWith("a");
+    expect(on_nodes_change).not.toHaveBeenCalled();
+  });
+
+  test("once past the threshold it stays a drag, even back at the start", () => {
+    /* Returning to where the press began does not turn a drag back into a
+     * click; the node has been moved around in the meantime. */
+    const { node, on_select, on_nodes_change } = setup();
+    press(node, 0, 0);
+    move(80, 0);
+    move(0, 0);
+    release(0, 0);
+    expect(on_select).not.toHaveBeenCalled();
+    expect(on_nodes_change).toHaveBeenCalled();
+  });
+
+  test("the node is highlighted from the press, before anything opens", () => {
+    /* The canvas's own selection is immediate, so the press is visibly on this
+     * node; it is the detail page that waits. */
+    const { node } = setup();
+    press(node, 0, 0);
+    move(60, 40);
+    expect(node.style.cursor).toBe("grabbing");
   });
 });

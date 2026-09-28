@@ -40,6 +40,11 @@ import {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const SNAP_THRESHOLD = 5;
+/* How far the pointer travels before a press on a node becomes a drag.
+   Measured in screen pixels, so what counts as a drag does not change with
+   zoom. Below it nothing moves at all: a nudge that did not commit would
+   otherwise leave the node sitting where no state says it is. */
+const DRAG_THRESHOLD = 3;
 
 const DEFAULT_THEME = {
   canvasBackground: "#f5f5f5",
@@ -433,11 +438,14 @@ function FlowEditor({
     (node_id, e) => {
       const node = nodes_ref.current.find((n) => n.id === node_id);
       if (!node) return;
+      /* Highlight it now, so the press is visibly on this node. Opening the
+         detail page waits for the release: `on_select` is what opens it, and
+         a press that turns into a drag was never a request to open anything. */
       setSelectedNodeIds([node_id]);
       setSelectedEdgeId(null);
-      on_select?.(node_id);
       drag_ref.current = {
         node_id,
+        moved: false,
         start_mx: e.clientX,
         start_my: e.clientY,
         start_nx: node.x,
@@ -448,7 +456,7 @@ function FlowEditor({
       const el = node_elements_ref.current[node_id];
       if (el) el.style.cursor = "grabbing";
     },
-    [on_select],
+    [],
   );
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -577,6 +585,15 @@ function FlowEditor({
       /* ── Node drag ── */
       if (drag_ref.current) {
         const d = drag_ref.current;
+        if (!d.moved) {
+          if (
+            Math.abs(e.clientX - d.start_mx) < DRAG_THRESHOLD &&
+            Math.abs(e.clientY - d.start_my) < DRAG_THRESHOLD
+          ) {
+            return;
+          }
+          d.moved = true;
+        }
         const zoom = viewport_ref.current.zoom;
         const raw_x = d.start_nx + (e.clientX - d.start_mx) / zoom;
         const raw_y = d.start_ny + (e.clientY - d.start_my) / zoom;
@@ -668,12 +685,21 @@ function FlowEditor({
         const d = drag_ref.current;
         const el = node_elements_ref.current[d.node_id];
         if (el) el.style.cursor = "grab";
-        if (on_nodes_change) {
-          on_nodes_change(
-            nodes_ref.current.map((n) =>
-              n.id === d.node_id ? { ...n, x: d.current_x, y: d.current_y } : n,
-            ),
-          );
+        if (d.moved) {
+          if (on_nodes_change) {
+            on_nodes_change(
+              nodes_ref.current.map((n) =>
+                n.id === d.node_id
+                  ? { ...n, x: d.current_x, y: d.current_y }
+                  : n,
+              ),
+            );
+          }
+        } else {
+          /* A press that never moved is a click: it opens the node, and it
+             writes nothing — reporting an unchanged position marked the graph
+             dirty and pushed an undo step for having looked at a node. */
+          on_select?.(d.node_id);
         }
         drag_ref.current = null;
         setSnapGuides([]);
@@ -963,13 +989,14 @@ function FlowEditor({
         if (node_el) target = { kind: "node", id: node_el.dataset.flowNodeId };
         else if (edge_el) target = { kind: "edge", id: edge_el.dataset.flowEdgeId };
 
-        /* Select it first: a menu that acts on something the canvas is not
-         * showing as selected turns Delete into a guess. */
+        /* Highlight it first, so the menu is visibly acting on something and
+         * Delete is not a guess. This is the canvas's own selection only —
+         * `on_select` is what opens the detail page, and a right-click is not
+         * a request to open it. */
         if (target.kind === "node") {
           setSelectedEdgeId(null);
           if (!selected_ref.current.includes(target.id)) {
             setSelectedNodeIds([target.id]);
-            on_select?.(target.id);
           }
         } else if (target.kind === "edge") {
           setSelectedNodeIds([]);

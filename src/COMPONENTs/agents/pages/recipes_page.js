@@ -7,7 +7,12 @@ import {
   writeRecipePanelWidth,
 } from "../../../SERVICEs/recipe_panel_widths";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import { AGENTS_MODAL_Z, useTopStripCenter } from "../top_strip";
+import {
+  AGENTS_MODAL_Z,
+  TOP_STRIP_LEADING_ICON,
+  TOP_STRIP_LEADING_PADDING,
+  useTopStripCenter,
+} from "../top_strip";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
@@ -326,8 +331,8 @@ export default function RecipesPage({
             transform: "translateY(-50%)",
             left: topStripLeft,
             zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
-            paddingVertical: 6,
-            paddingHorizontal: 6,
+            paddingVertical: TOP_STRIP_LEADING_PADDING,
+            paddingHorizontal: TOP_STRIP_LEADING_PADDING,
             borderRadius: 6,
             opacity: 0.55,
             WebkitAppRegion: "no-drag",
@@ -338,7 +343,10 @@ export default function RecipesPage({
                 justifyContent: "center",
                 lineHeight: 0,
               },
-              icon: { width: 14, height: 14 },
+              icon: {
+                width: TOP_STRIP_LEADING_ICON,
+                height: TOP_STRIP_LEADING_ICON,
+              },
             },
           }}
         />

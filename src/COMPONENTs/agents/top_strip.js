@@ -39,8 +39,19 @@ export const AGENTS_MODAL_Z = Object.freeze({
   PANEL_MESSAGE: 5,
 });
 
-/** Left inset for the strip's leading control. */
-export const TOP_STRIP_LEFT = 14;
+/**
+ * Left inset for the strip's leading control.
+ *
+ * The same clearance the centerline leaves above that control, so it sits the
+ * same distance from the top and left edges rather than 12 from one and 14
+ * from the other. Its box is stated here rather than in the page because an
+ * inset picked independently stops matching the moment the padding or the icon
+ * changes — the drift this file exists to prevent.
+ */
+export const TOP_STRIP_LEADING_ICON = 14;
+export const TOP_STRIP_LEADING_PADDING = 6;
+const LEADING_SIZE = TOP_STRIP_LEADING_ICON + TOP_STRIP_LEADING_PADDING * 2;
+export const TOP_STRIP_LEFT = TOP_STRIP_CENTER - LEADING_SIZE / 2;
 
 /**
  * Where that leading control goes when it has to clear macOS's traffic
