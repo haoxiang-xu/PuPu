@@ -1,0 +1,10 @@
+{
+  "available": true,
+  "schemaVersion": 7,
+  "journalMode": "wal",
+  "lexicalBackend": "fts5",
+  "vectorStatus": "degraded",
+  "featureCeiling": "all",
+  "rolloutMode": "canary",
+  "readOnlyDegraded": false
+}
