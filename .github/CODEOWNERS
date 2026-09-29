@@ -1,0 +1,26 @@
+# Code owners
+#
+# A named owner's approval is required before a pull request touching their
+# path can merge, and they may merge inside that path unaided. How someone
+# becomes one: docs/contributing/becoming-a-code-owner.md
+# Design and rationale: docs/plans/2026-09-29-code-owner-path-design.md
+#
+# Later lines override earlier ones, so the fallback stays first and every
+# assigned path is appended below it.
+
+# Fallback: any path with no assigned owner belongs to the project owner.
+*   @haoxiang-xu
+
+# Never delegated, regardless of any line above.
+/.github/workflows/                      @haoxiang-xu
+/.github/CODEOWNERS                      @haoxiang-xu
+/src/SERVICEs/mcp_toolkit_registry.json  @haoxiang-xu
+/LICENSE                                 @haoxiang-xu
+/NOTICE                                  @haoxiang-xu
+/docs/CLA.md                             @haoxiang-xu
+/docs/TRADEMARK_POLICY.md                @haoxiang-xu
+
+# ── Assigned areas ──────────────────────────────────────────────────────
+# One line per approved code owner, scoped to the path they demonstrated
+# work in. Example:
+#   /src/COMPONENTs/chat-input/   @their-github-handle
