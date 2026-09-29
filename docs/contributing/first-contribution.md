@@ -14,7 +14,7 @@ You do not need to apply or be approved to contribute. Nobody has to invite you.
 | Fix a bug, build a feature, improve the UI | keep reading | no |
 | Improve documentation | keep reading — docs changes follow the same PR flow | no |
 | Report a problem without fixing it | [open an issue](https://github.com/haoxiang-xu/PuPu/issues/new/choose) | yes |
-| Ask a question, or say what you would like to work on | [Discussions](https://github.com/haoxiang-xu/PuPu/discussions) | yes |
+| Ask about a task, or say you would like to take it | comment on that issue | yes |
 
 The store submissions are a separate path with their own issue forms and their
 own review. If that is what you came for, follow that guide instead; the rest of
@@ -36,10 +36,9 @@ Two more labels tell you to stay away for now:
 - [`needs-decision`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3Aneeds-decision)
   — waiting on a product decision, not on engineering.
 
-If nothing fits, or you would rather describe what you are good at and be
-pointed somewhere, say so in
-[Discussions](https://github.com/haoxiang-xu/PuPu/discussions/new/choose).
-That is optional. You are equally welcome to just open a pull request.
+If nothing fits today, check back — the list changes. You are also welcome to
+just open a pull request for something you noticed yourself; no issue has to
+exist first.
 
 ## 3. Claim it
 
@@ -107,10 +106,10 @@ asked to get any of the following first:
 
 ## 7. Getting help
 
-- Stuck on the task itself — comment on the issue.
-- Stuck on setup, or unsure whether an idea is wanted —
-  [Discussions](https://github.com/haoxiang-xu/PuPu/discussions).
-- Found a security problem — do not open a public issue or discussion; email
+- Stuck on the task, or unsure how it should behave — comment on that issue.
+  Questions on the issue are welcome and are not a sign you picked wrong.
+- Stuck on setup, or unsure whether an idea is wanted — open an issue and ask.
+- Found a security problem — do not open a public issue; email
   haoxiangxu1998@gmail.com instead.
 
 Everyone here agrees to the [Code of Conduct](../../CODE_OF_CONDUCT.md).
@@ -126,5 +125,5 @@ Keeping this page working takes upkeep rather than documentation:
   this page a dead end.
 - Assign on request, and release assignments that have gone quiet for 14 days
   with a comment rather than silently.
-- Discussions is the intake for "I would like to help". Route concrete work out
-  of it into a labelled issue, so a task always has one canonical home.
+- Interest arrives as a comment on the issue itself, which keeps one canonical
+  home per task and adds no second inbox to watch.

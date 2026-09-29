@@ -142,9 +142,6 @@ Contributions are welcome, and you do not need to be invited or approved first.
   the `base: dev` rule. Open tasks are labelled
   [`good first issue`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
   and [`help wanted`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
-- **Questions, or want to say what you'd like to work on:**
-  [Discussions](https://github.com/haoxiang-xu/PuPu/discussions).
-
 Everyone taking part agrees to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 By intentionally submitting a contribution, you agree to the terms in
@@ -177,5 +174,4 @@ have written permission to use the marks.
 ## Support
 
 - Found a bug or want to request something: [open an issue](https://github.com/haoxiang-xu/PuPu/issues)
-- Have a question or an idea to talk through: [start a discussion](https://github.com/haoxiang-xu/PuPu/discussions)
 - Want the latest downloadable builds: [see releases](https://github.com/haoxiang-xu/PuPu/releases/latest)

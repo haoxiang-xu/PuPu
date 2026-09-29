@@ -5,8 +5,6 @@ or contribute code directly. You do not need to apply or be approved first.
 
 **New here?** [Your first contribution](./docs/contributing/first-contribution.md)
 walks through finding a task, claiming it, setting up, and opening the PR.
-Questions, or want to say what you would like to work on?
-[Discussions](https://github.com/haoxiang-xu/PuPu/discussions).
 
 ## 🧩 Contribute an MCP server, Skill, or Toolkit
 
