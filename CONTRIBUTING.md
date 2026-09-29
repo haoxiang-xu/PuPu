@@ -60,6 +60,11 @@ You never need repository write access, label permissions, or project board
 access to contribute. Details in
 [Your first contribution](./docs/contributing/first-contribution.md).
 
+If you end up working in one area repeatedly, two merged PRs in that path lets
+you apply to review it yourself — see
+[Becoming a code owner](./docs/contributing/becoming-a-code-owner.md). Optional,
+and unrelated to whether your contributions are welcome.
+
 ## Licensing & CLA
 
 By submitting a contribution you agree to the terms in [docs/CLA.md](./docs/CLA.md).
