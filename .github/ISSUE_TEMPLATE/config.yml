@@ -1,5 +1,14 @@
 blank_issues_enabled: true
 contact_links:
+  - name: New contributor? Start here
+    url: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/first-contribution.md
+    about: Find a task, claim it, set up the project, and open your first PR.
+  - name: I'd like to contribute, or need help getting started
+    url: https://github.com/haoxiang-xu/PuPu/discussions/new/choose
+    about: Say what you want to work on, or ask for help. Not a bug report.
+  - name: Question about using PuPu
+    url: https://github.com/haoxiang-xu/PuPu/discussions/new/choose
+    about: Usage questions belong in Discussions, not the issue tracker.
   - name: Community contribution guide
     url: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/community-submissions.md
     about: Choose MCP, Skill, or Toolkit; learn what to include in an issue or PR.
