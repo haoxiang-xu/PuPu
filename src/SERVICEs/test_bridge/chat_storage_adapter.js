@@ -1,4 +1,5 @@
 import * as cs from "../chat_storage";
+import { projectTestApiMessage } from "./tool_call_evidence";
 
 const TEST_API_SOURCE = "test-api";
 
@@ -122,7 +123,7 @@ export const buildChatStorageAdapter = () => ({
       model: unwrapModel(chat.model || chat.selectedModelId),
       character_id: chat.characterId || chat.character_id || null,
       toolkits: chat.selectedToolkits || chat.toolkits || [],
-      messages: cs.getChatMessages(id) || [],
+      messages: (cs.getChatMessages(id) || []).map(projectTestApiMessage),
     };
   },
 

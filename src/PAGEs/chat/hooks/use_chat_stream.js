@@ -10,6 +10,7 @@ import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
 import { RUN_BUNDLE_V2_SCHEMA } from "../../../SERVICEs/run_bundle_v2";
 import { buildContextCompositionHintV2 } from "../../../SERVICEs/context_composition_hint_v2";
 import { createLogger } from "../../../SERVICEs/console_logger";
+import { projectTestApiToolCalls } from "../../../SERVICEs/test_bridge/tool_call_evidence";
 import { createThinkTagParser } from "../think_tag_parser";
 import {
   collectTurnMessageIds,
@@ -11622,7 +11623,7 @@ export const useChatStream = ({
         status,
         message_id: assistantMessage?.id || null,
         content,
-        tool_calls: assistantMessage?.tool_calls || null,
+        tool_calls: projectTestApiToolCalls(assistantMessage),
         finish_reason: assistantMessage?.finish_reason || null,
         started_at: assistantMessage?.createdAt || null,
         updated_at: assistantMessage?.updatedAt || null,
@@ -12076,7 +12077,7 @@ export const useChatStream = ({
                   typeof last.content === "string"
                     ? last.content
                     : JSON.stringify(last.content),
-                tool_calls: last.tool_calls || null,
+                tool_calls: projectTestApiToolCalls(last),
                 finish_reason: last.finish_reason || "stop",
                 latency_ms: Date.now() - startedAt,
                 chat_id: targetChatId,
