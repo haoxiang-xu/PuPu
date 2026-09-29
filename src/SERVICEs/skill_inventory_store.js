@@ -82,11 +82,20 @@ const isValidDiagnosticEntry = (entry) =>
   typeof entry.source_id === "string" &&
   typeof entry.message === "string";
 
+const normalizeToolkitSet = (toolkits) =>
+  Array.isArray(toolkits)
+    ? [...new Set(toolkits.filter((id) => typeof id === "string" && id))].sort()
+    : [];
+
+const normalizeWorkspaceRoot = (workspaceRoot) =>
+  typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
+
 const initialState = () => ({
   revision: "",
   skills: [],
   workspaceRoot: "",
   includeUserDirs: true,
+  toolkits: [],
 });
 
 let state = initialState();
@@ -105,7 +114,7 @@ const reject = (reason) => {
  * @param {*} payload — the raw response, expected shape (CLOSED, exactly
  *   these four top-level keys) `{ schema, revision, skills: [...],
  *   diagnostics: [...] }`.
- * @param {{workspaceRoot?: string, includeUserDirs?: boolean}} context —
+ * @param {{workspaceRoot?: string, includeUserDirs?: boolean, toolkits?: string[]}} context —
  *   the request context the payload was fetched for; recorded alongside the
  *   response so later reads know which workspace/settings produced it.
  * @returns {boolean} true when applied; false (state left untouched, a
@@ -115,7 +124,7 @@ const reject = (reason) => {
  */
 export const applySkillInventory = (
   payload,
-  { workspaceRoot = "", includeUserDirs = true } = {},
+  { workspaceRoot = "", includeUserDirs = true, toolkits = [] } = {},
 ) => {
   if (!isPlainObject(payload)) {
     return reject("payload is not an object");
@@ -144,15 +153,26 @@ export const applySkillInventory = (
   state = {
     revision: payload.revision,
     skills: payload.skills,
-    workspaceRoot: typeof workspaceRoot === "string" ? workspaceRoot : "",
+    workspaceRoot: normalizeWorkspaceRoot(workspaceRoot),
     includeUserDirs: includeUserDirs !== false,
+    toolkits: normalizeToolkitSet(toolkits),
   };
   return true;
 };
 
-/** The last successfully-applied inventory's revision, or "" before any
- *  valid response has been applied. */
-export const getLastSkillInventoryRevision = () => state.revision;
+/** The last successfully-applied revision for a matching context. An omitted
+ *  context preserves the original last-revision read for existing consumers. */
+export const getLastSkillInventoryRevision = (context) => {
+  if (context === undefined) return state.revision;
+  if (!isPlainObject(context)) return "";
+  const toolkits = normalizeToolkitSet(context.toolkits);
+  return normalizeWorkspaceRoot(context.workspaceRoot) === state.workspaceRoot &&
+    (context.includeUserDirs !== false) === state.includeUserDirs &&
+    toolkits.length === state.toolkits.length &&
+    toolkits.every((id, index) => id === state.toolkits[index])
+    ? state.revision
+    : "";
+};
 
 /** The last successfully-applied inventory's `skills[]` rows. */
 export const getSkillInventorySkills = () => state.skills;

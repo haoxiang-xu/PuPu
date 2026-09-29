@@ -279,6 +279,18 @@ describe("skill_inventory_store", () => {
     expect(getSkillInventorySkills()).toEqual([makeEntry({ name: "b" })]);
   });
 
+  test("context reads match toolkit sets and preserve the last good metadata after rejection", () => {
+    const context = { workspaceRoot: " /tmp/a ", includeUserDirs: false, toolkits: ["b", "a"] };
+    applySkillInventory(makePayload(), context);
+
+    expect(getLastSkillInventoryRevision({ workspaceRoot: "/tmp/a", includeUserDirs: false, toolkits: ["a", "b", "a"] })).toBe(REV_GOOD);
+    expect(getLastSkillInventoryRevision({ workspaceRoot: "/tmp/a", includeUserDirs: false, toolkits: ["a"] })).toBe("");
+    expect(getLastSkillInventoryRevision({ workspaceRoot: "/tmp/b", includeUserDirs: false, toolkits: ["a", "b"] })).toBe("");
+    expect(getLastSkillInventoryRevision({ workspaceRoot: "/tmp/a", includeUserDirs: true, toolkits: ["a", "b"] })).toBe("");
+    expect(applySkillInventory({ ...makePayload(), unexpected: true }, { toolkits: ["other"] })).toBe(false);
+    expect(getLastSkillInventoryRevision(context)).toBe(REV_GOOD);
+  });
+
   test("_resetSkillInventoryForTest restores the initial state", () => {
     applySkillInventory(makePayload());
     expect(getLastSkillInventoryRevision()).not.toBe("");
