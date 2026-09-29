@@ -103,8 +103,21 @@ asked to get any of the following first:
   do not go through it.
 - **An accepted proposal before writing code.** A proposal is useful for large
   or uncertain work, and unnecessary for a bug fix.
+- **Code owner status.** That is a way to take review work on, not a permission
+  to contribute. See [Becoming a code owner](./becoming-a-code-owner.md).
 
-## 7. Getting help
+## 7. If you stay
+
+None of the above needs anyone's permission, and most contributors never need
+more. If you end up working in one part of the codebase repeatedly and would
+rather review it than wait for a review, that has a path too: two merged pull
+requests in one path lets you apply to own it. See
+[Becoming a code owner](./becoming-a-code-owner.md).
+
+It is entirely optional. Reviewing other people's code is work, and declining it
+costs you nothing here.
+
+## 8. Getting help
 
 - Stuck on the task, or unsure how it should behave — comment on that issue.
   Questions on the issue are welcome and are not a sign you picked wrong.
