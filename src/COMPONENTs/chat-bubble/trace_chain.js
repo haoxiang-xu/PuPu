@@ -63,6 +63,44 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "clarify_request",
 ]);
 
+/* Anthropic-protocol providers stream thinking as one runtime event per
+   thinking_delta (a single token on DeepSeek), and each becomes its own
+   reasoning frame. Adjacent deltas from the same model turn are one block.
+   Whole reasoning items (Responses API `reasoning_items`) are left as-is. */
+const isReasoningDeltaFrame = (frame) =>
+  frame?.type === "reasoning" &&
+  typeof frame.payload?.reasoning === "string" &&
+  frame.payload?.reasoning_items === undefined;
+
+const sameReasoningTurn = (a, b) =>
+  (a.run_id || "") === (b.run_id || "") &&
+  a.iteration === b.iteration &&
+  (a.payload?.provisional_reasoning_id || "") ===
+    (b.payload?.provisional_reasoning_id || "");
+
+export const coalesceReasoningDeltaFrames = (frames) => {
+  const out = [];
+  for (const frame of frames) {
+    const prev = out[out.length - 1];
+    if (
+      isReasoningDeltaFrame(frame) &&
+      isReasoningDeltaFrame(prev) &&
+      sameReasoningTurn(prev, frame)
+    ) {
+      out[out.length - 1] = {
+        ...prev,
+        payload: {
+          ...prev.payload,
+          reasoning: prev.payload.reasoning + frame.payload.reasoning,
+        },
+      };
+      continue;
+    }
+    out.push(frame);
+  }
+  return out;
+};
+
 const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
   "confirmation",
   "code_diff",
@@ -896,18 +934,20 @@ const TraceChain = ({
 
   const displayFrames = useMemo(
     () =>
-      frames.filter((frame) => {
-        if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
-          return false;
-        }
+      coalesceReasoningDeltaFrames(
+        frames.filter((frame) => {
+          if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
+            return false;
+          }
 
-        if (frame.type !== "final_message") {
-          return true;
-        }
+          if (frame.type !== "final_message") {
+            return true;
+          }
 
-        const seq = Number(frame.seq);
-        return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
-      }),
+          const seq = Number(frame.seq);
+          return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
+        }),
+      ),
     [frames, intermediateFinalMessageSeqs],
   );
   const startFrame = frames.find((f) => f.type === "stream_started");

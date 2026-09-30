@@ -207,6 +207,71 @@ describe("TraceChain final_message draft timeline", () => {
     );
   });
 
+  test("token-level reasoning deltas render as one block per model turn", () => {
+    const delta = (seq, iteration, text) => ({
+      ...frame({ seq, type: "reasoning", payload: { reasoning: text } }),
+      run_id: "run-1",
+      iteration,
+    });
+    const frames = [
+      frame({ seq: 1, type: "stream_started" }),
+      delta(2, 0, "The"),
+      delta(3, 0, " user"),
+      delta(4, 0, " asks"),
+      delta(5, 0, " about"),
+      delta(6, 0, " pricing."),
+      {
+        ...frame({
+          seq: 7,
+          type: "tool_call",
+          payload: { call_id: "c1", tool_name: "web_fetch", arguments: {} },
+        }),
+        run_id: "run-1",
+        iteration: 0,
+      },
+      {
+        ...frame({ seq: 8, type: "tool_result", payload: { call_id: "c1", status: "completed" } }),
+        run_id: "run-1",
+        iteration: 0,
+      },
+      delta(9, 1, "Now"),
+      delta(10, 1, " summarize."),
+      frame({ seq: 11, type: "done" }),
+    ];
+
+    const { container } = renderTraceChain({ frames });
+
+    expect(screen.getAllByText("Reasoning")).toHaveLength(2);
+    expect(container.textContent).toContain("The user asks about pricing.");
+    expect(container.textContent).toContain("Now summarize.");
+    expect(screen.getByText(/Used 3 steps/)).toBeInTheDocument();
+  });
+
+  test("whole reasoning items from the Responses API stay separate blocks", () => {
+    const item = (seq, id, text) => ({
+      ...frame({
+        seq,
+        type: "reasoning",
+        payload: {
+          response_id: "resp_1",
+          reasoning_items: [{ id, type: "reasoning", summary: [{ type: "summary_text", text }] }],
+        },
+      }),
+      run_id: "run-1",
+      iteration: 0,
+    });
+    const frames = [
+      frame({ seq: 1, type: "stream_started" }),
+      item(2, "rs_1", "first summary"),
+      item(3, "rs_2", "second summary"),
+      frame({ seq: 4, type: "done" }),
+    ];
+
+    renderTraceChain({ frames });
+
+    expect(screen.getAllByText("Reasoning")).toHaveLength(2);
+  });
+
   test("in streaming mode, only non-latest final_message appears as draft", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
