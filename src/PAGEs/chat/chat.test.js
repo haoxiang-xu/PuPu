@@ -655,6 +655,56 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("Test API run and blocking reply expose the same V4 tool evidence", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(commandHandlers.has("sendMessage")).toBe(true));
+    const reply = commandHandlers.get("sendMessage")({ id: chatId, text: "read a file" });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    const run = runs[0];
+    const runId = `run-${run.attemptId}`;
+    const baseEvent = {
+      schema_version: "v4", timestamp: "2026-07-21T12:00:00.000Z",
+      session_id: chatId, run_id: runId, agent_id: "developer",
+      turn_id: `${runId}:turn-1`, links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user", metadata: {},
+    };
+    const emit = (seq, type, payload, links = {}) => run.handlers.onRuntimeEvent({
+      ...baseEvent, event_id: `tool-evidence-${seq}`, seq, type, payload, links,
+    });
+    act(() => {
+      emit(1, "run.started", { status: "running" });
+      emit(2, "step.started", {
+        step_id: "tool:call-1", step_type: "tool", tool_name: "read",
+        call_id: "call-1", arguments: { path: "a.txt" },
+      }, { tool_call_id: "call-1" });
+      emit(3, "step.completed", {
+        step_id: "tool:call-1", step_type: "tool", tool_name: "read",
+        call_id: "call-1", status: "completed", result: { text: "hello" },
+      }, { tool_call_id: "call-1" });
+      emit(4, "step.completed", {
+        step_id: "model:response", step_type: "model_response",
+        status: "completed", final_text: "The file says hello",
+      });
+      emit(5, "run.completed", { status: "completed" });
+      run.handlers.onDone({ finished_at: Date.now() });
+    });
+    const expected = [{
+      id: "call-1", run_id: runId, name: "read",
+      arguments: { path: "a.txt" }, status: "completed",
+      result: { text: "hello" },
+    }];
+    await expect(reply).resolves.toMatchObject({ tool_calls: expected });
+    expect(commandHandlers.get("getChatRun")({
+      id: chatId, attempt_id: run.attemptId,
+    }).tool_calls).toEqual(expected);
+  });
+
   test("keeps an exact Test API cancellation terminal when the stream event wins the race", async () => {
     const commandHandlers = installTestCommandBridge();
     const runs = installAddressedV4Runs();

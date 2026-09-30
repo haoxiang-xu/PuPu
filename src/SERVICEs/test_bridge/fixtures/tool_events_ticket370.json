@@ -1,0 +1,226 @@
+{
+  "producer": "unchain.events.RuntimeEventBridge.normalize (installed immutable development wheel)",
+  "wheel_sha256": "4c523037f16f6c6517e52be6dde61932f90c2ed6ce9af7d5eeda1bb0112cf7aa",
+  "manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+  "events": [
+    {
+      "schema_version": "v4",
+      "event_id": "evt-start",
+      "type": "run.started",
+      "timestamp": "2026-09-29T00:00:00Z",
+      "session_id": "ticket370-fixture",
+      "run_id": "root",
+      "agent_id": "developer",
+      "turn_id": "root:turn-0",
+      "seq": 1,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": null,
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "debug",
+        "scope": "run",
+        "group": "debug",
+        "default_state": "hidden",
+        "priority": 1000
+      },
+      "visibility": "debug",
+      "payload": {
+        "status": "running",
+        "provider": "",
+        "model": ""
+      },
+      "metadata": {
+        "raw_type": "run_started"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "evt-call1",
+      "type": "step.started",
+      "timestamp": "2026-09-29T00:00:00Z",
+      "session_id": "ticket370-fixture",
+      "run_id": "root",
+      "agent_id": "developer",
+      "turn_id": "root:turn-0",
+      "seq": 2,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "tool:c1",
+        "tool_call_id": "c1",
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "tool",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "tool:c1",
+        "step_type": "tool",
+        "tool_name": "create_plan",
+        "call_id": "c1",
+        "arguments": {
+          "title": "fixture"
+        }
+      },
+      "metadata": {
+        "raw_type": "tool_call"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "evt-result1",
+      "type": "step.completed",
+      "timestamp": "2026-09-29T00:00:00Z",
+      "session_id": "ticket370-fixture",
+      "run_id": "root",
+      "agent_id": "developer",
+      "turn_id": "root:turn-0",
+      "seq": 3,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "tool:c1",
+        "tool_call_id": "c1",
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "tool",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "tool:c1",
+        "step_type": "tool",
+        "tool_name": "create_plan",
+        "call_id": "c1",
+        "status": "success",
+        "result": {
+          "plan_id": "plan-fixture"
+        }
+      },
+      "metadata": {
+        "raw_type": "tool_result"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "evt-call2",
+      "type": "step.started",
+      "timestamp": "2026-09-29T00:00:00Z",
+      "session_id": "ticket370-fixture",
+      "run_id": "root",
+      "agent_id": "developer",
+      "turn_id": "root:turn-0",
+      "seq": 4,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "tool:c2",
+        "tool_call_id": "c2",
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "tool",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "tool:c2",
+        "step_type": "tool",
+        "tool_name": "read_file",
+        "call_id": "c2",
+        "arguments": {
+          "path": "absent"
+        }
+      },
+      "metadata": {
+        "raw_type": "tool_call"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "evt-result2",
+      "type": "step.completed",
+      "timestamp": "2026-09-29T00:00:00Z",
+      "session_id": "ticket370-fixture",
+      "run_id": "root",
+      "agent_id": "developer",
+      "turn_id": "root:turn-0",
+      "seq": 5,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "tool:c2",
+        "tool_call_id": "c2",
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "tool",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "tool:c2",
+        "step_type": "tool",
+        "tool_name": "read_file",
+        "call_id": "c2",
+        "status": "error",
+        "result": {
+          "error": "missing file",
+          "tool": "read_file"
+        }
+      },
+      "metadata": {
+        "raw_type": "tool_result"
+      }
+    }
+  ]
+}

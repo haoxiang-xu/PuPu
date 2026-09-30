@@ -339,25 +339,41 @@ class PupuUnchainShadowEventBridge:
             )
         )
 
-        def persist_or_forward(event: dict[str, Any]) -> Any:
+        def event_target(
+            event: dict[str, Any],
+        ) -> tuple[Callable[[dict[str, Any]], Any] | None, bool]:
             try:
                 self.attempt_for_event(event)
             except PupuUnchainShadowBridgeError:
                 if not self._is_official_forwarded_attempt(event):
                     raise
-                if host_callback is None:
-                    return None
-                return host_callback(event)
-            return persist_local(event)
+                return host_callback, True
+            return persist_local, False
+
+        def persist_or_forward(event: dict[str, Any]) -> Any:
+            target, _ = event_target(event)
+            if target is None:
+                return None
+            return target(event)
 
         def provisional_target(event: dict[str, Any]):
-            try:
-                self.attempt_for_event(event)
-            except PupuUnchainShadowBridgeError:
-                if not self._is_official_forwarded_attempt(event):
-                    raise
-                return host_callback
-            return persist_local
+            target, _ = event_target(event)
+            return target
+
+        def deliver_persisted_tool_result(event: dict[str, Any]) -> Any:
+            """Forward a receipt completion without persisting it a second time."""
+
+            target, forwarded = event_target(event)
+            if target is None:
+                return None
+            deliver = getattr(target, "deliver_persisted_tool_result", None)
+            if callable(deliver):
+                return deliver(event)
+            if forwarded:
+                return target(event)
+            raise PupuUnchainShadowBridgeError(
+                "local callback lacks durable tool-result delivery capability"
+            )
 
         def emit_provisional_reasoning(event: dict[str, Any], preview_id: str) -> Any:
             target = provisional_target(event)
@@ -399,6 +415,9 @@ class PupuUnchainShadowEventBridge:
         persist_or_forward.emit_provisional_reasoning = emit_provisional_reasoning
         persist_or_forward.commit_provisional_reasoning = commit_provisional_reasoning
         persist_or_forward.discard_provisional_reasoning = discard_provisional_reasoning
+        persist_or_forward.deliver_persisted_tool_result = (
+            deliver_persisted_tool_result
+        )
         return persist_or_forward
 
     def persist_then_notify(

@@ -45,4 +45,16 @@ describe("test bridge installer", () => {
     expect(window.unchainAPI.getToolkitCatalog).not.toHaveBeenCalled();
     expect(window.unchainAPI.listCharacters).not.toHaveBeenCalled();
   });
+
+  test("forwards renderer console evidence even while the sidecar is starting", () => {
+    require("./index");
+    const before = Date.now();
+    console.info("ticket-370-log-probe", { tool: "fixture" });
+    expect(window.__pupuTestBridge.pushLog).toHaveBeenCalledWith({
+      ts: before,
+      level: "info",
+      source: "renderer",
+      msg: 'ticket-370-log-probe {"tool":"fixture"}',
+    });
+  });
 });

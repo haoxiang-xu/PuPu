@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List
 
 from mcp_registry import oauth_recipe_for_entry, oauth_registry_entry, oauth_registry_entries
+from mcp_credential_store import credential_store_lock, read_credential_store, write_credential_store
 
 
 class McpOAuthAppError(RuntimeError):
@@ -35,26 +35,11 @@ def _empty_store() -> Dict[str, Any]:
 
 
 def _read_store(data_dir: str | Path | None = None) -> Dict[str, Any]:
-    path = _store_path(data_dir)
-    if not path.exists():
-        return _empty_store()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return _empty_store()
-    if not isinstance(raw, dict) or not isinstance(raw.get("apps"), dict):
-        return _empty_store()
-    return {"version": 1, "apps": raw["apps"]}
+    return read_credential_store(_store_path(data_dir))
 
 
 def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> None:
-    path = _store_path(data_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
+    write_credential_store(_store_path(data_dir), store)
 
 
 def _client_id_preview(client_id: str) -> str:
@@ -144,17 +129,18 @@ def configure_mcp_oauth_app(
             400,
         )
     now = (now_fn or time.time)()
-    store = _read_store(data_dir)
-    store["apps"][entry["toolkit_id"]] = {
-        "entry_id": entry["entry_id"],
-        "toolkit_id": entry["toolkit_id"],
-        "provider": recipe.get("provider", ""),
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scopes": clean_scopes,
-        "last_updated_at": now,
-    }
-    _write_store(store, data_dir)
+    with credential_store_lock(_store_path(data_dir)):
+        store = _read_store(data_dir)
+        store["apps"][entry["toolkit_id"]] = {
+            "entry_id": entry["entry_id"],
+            "toolkit_id": entry["toolkit_id"],
+            "provider": recipe.get("provider", ""),
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scopes": clean_scopes,
+            "last_updated_at": now,
+        }
+        _write_store(store, data_dir)
     return {"app": _app_status(entry, store["apps"][entry["toolkit_id"]])}
 
 
@@ -206,7 +192,8 @@ def delete_mcp_oauth_app(
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     entry = _validate_user_credentials_entry(toolkit_id)
-    store = _read_store(data_dir)
-    store["apps"].pop(entry["toolkit_id"], None)
-    _write_store(store, data_dir)
+    with credential_store_lock(_store_path(data_dir)):
+        store = _read_store(data_dir)
+        store["apps"].pop(entry["toolkit_id"], None)
+        _write_store(store, data_dir)
     return {"ok": True, "toolkitId": entry["toolkit_id"]}

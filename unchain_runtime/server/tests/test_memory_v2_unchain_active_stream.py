@@ -54,7 +54,7 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
 
         def run(self, **kwargs):
             run_kwargs.update(kwargs)
-            event = {
+            final_event = {
                 "type": "final_message",
                 "run_id": kwargs["run_id"],
                 "iteration": 0,
@@ -62,8 +62,19 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
             }
             # A real Unchain Agent performs this persistence in ContextRuntime
             # before invoking PuPu's host callback.
-            durable_events.append(dict(event))
-            kwargs["callback"](event)
+            durable_events.append(dict(final_event))
+            kwargs["callback"](final_event)
+            tool_result = {
+                "type": "tool_result",
+                "run_id": kwargs["run_id"],
+                "iteration": 0,
+                "tool_name": "plan_read",
+                "call_id": "call-active",
+                "result": {"ok": False, "error": "missing"},
+                "durable_result_outcome": "error",
+            }
+            durable_events.append(dict(tool_result))
+            kwargs["callback"].deliver_persisted_tool_result(tool_result)
             return SimpleNamespace(
                 status="completed",
                 messages=[{"role": "assistant", "content": "done"}],
@@ -129,5 +140,19 @@ def test_active_normal_stream_uses_canonical_host_without_legacy_double_write() 
     assert run_kwargs["messages"] == [
         {"role": "user", "content": "keep the complete task"}
     ]
-    assert [event["type"] for event in durable_events] == ["final_message"]
+    assert [event["type"] for event in durable_events] == [
+        "final_message",
+        "tool_result",
+    ]
     assert sum(event.get("type") == "final_message" for event in events) == 1
+    assert [event for event in events if event.get("type") == "tool_result"] == [
+        {
+            "type": "tool_result",
+            "run_id": "root-run-a",
+            "iteration": 0,
+            "tool_name": "plan_read",
+            "call_id": "call-active",
+            "result": {"ok": False, "error": "missing"},
+            "durable_result_outcome": "error",
+        }
+    ]

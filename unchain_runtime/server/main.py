@@ -198,6 +198,15 @@ def main(argv: list[str] | None = None) -> int:
     _log_outbound_tls_trust()
 
     try:
+        from mcp_credential_store import migrate_mcp_credentials
+
+        migrate_mcp_credentials()
+    except Exception:
+        # Keep non-MCP features available. Credential reads retry the same
+        # fail-closed migration; never expose OS errors or credential contents.
+        print("[unchain] MCP credential migration unavailable", flush=True)
+
+    try:
         from subagent_seeds import ensure_seeds_written
         from pathlib import Path
         ensure_seeds_written(Path.home() / ".pupu" / "subagents")

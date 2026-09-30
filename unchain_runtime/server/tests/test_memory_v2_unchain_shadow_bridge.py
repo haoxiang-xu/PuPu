@@ -239,6 +239,52 @@ def test_shadow_bridge_records_legacy_tool_pair_as_observed_artifact(
     assert "execution_subject" not in result.payload
 
 
+def test_shadow_callback_delivers_persisted_tool_result_without_duplicate_write(
+    tmp_path: Path,
+) -> None:
+    bridge = _bridge(tmp_path)
+    attempt = bridge.preparation.host_factory.attempt(
+        execution_id="execution-a", attempt_id="root-run-a",
+    )
+    bridge.persist(
+        {
+            "type": "tool_call",
+            "run_id": "root-run-a",
+            "iteration": 0,
+            "tool_name": "lookup",
+            "call_id": "call-a",
+            "arguments": {"query": "weather"},
+        }
+    )
+    bridge.persist(
+        {
+            "type": "tool_result",
+            "run_id": "root-run-a",
+            "iteration": 0,
+            "tool_name": "lookup",
+            "call_id": "call-a",
+            "result": {"ok": False, "error": "missing"},
+        }
+    )
+    before = attempt.bundle.journal.capture_snapshot().events
+    observed = []
+    callback = bridge.compose_event_callback(observed.append)
+    receipt_event = {
+        "type": "tool_result",
+        "run_id": "root-run-a",
+        "iteration": 0,
+        "tool_name": "lookup",
+        "call_id": "call-a",
+        "result": {"ok": False, "error": "missing"},
+        "durable_result_outcome": "error",
+    }
+
+    callback.deliver_persisted_tool_result(receipt_event)
+
+    assert attempt.bundle.journal.capture_snapshot().events == before
+    assert observed == [receipt_event]
+
+
 def test_unbound_event_fails_before_host_notification(tmp_path: Path) -> None:
     bridge = _bridge(tmp_path)
     notified = []
@@ -298,6 +344,78 @@ def test_parent_shadow_forwards_official_sibling_attempt_without_duplicate_write
     ).bundle.journal.capture_snapshot().events
     assert after == before
     assert notified == [event]
+
+
+def test_parent_shadow_forwards_persisted_tool_result_without_duplicate_write(
+    tmp_path: Path,
+) -> None:
+    parent = _bridge(tmp_path)
+    child_preparation = build_shadow_host_factory(
+        owner_chat_id="chat-a",
+        session_id="session-a",
+        identity=_identity(
+            run_id="child-run-a",
+            ancestors=("root-run-a",),
+        ),
+        grant=_grant(completion_authority=False),
+        current_input_draft=None,
+        database_path=tmp_path / "context_v2.sqlite3",
+        object_directory=tmp_path / "objects",
+        model_window_fallback=lambda provider, model: 16_384,
+        partial_attempt_sink=lambda value, error: None,
+    )
+    child_preparation.host_factory.context_module.runtime.bind_context(
+        _context(execution_id="execution-a", run_id="child-run-a")
+    )
+    child = PupuUnchainShadowEventBridge(
+        preparation=child_preparation,
+        execution_id="execution-a",
+    )
+    child.persist(
+        {
+            "type": "tool_call",
+            "run_id": "child-run-a",
+            "iteration": 0,
+            "tool_name": "lookup",
+            "call_id": "call-a",
+            "arguments": {"query": "weather"},
+        }
+    )
+    child.persist(
+        {
+            "type": "tool_result",
+            "run_id": "child-run-a",
+            "iteration": 0,
+            "tool_name": "lookup",
+            "call_id": "call-a",
+            "result": {"ok": True},
+        }
+    )
+    before = child_preparation.host_factory.attempt(
+        execution_id="execution-a",
+        attempt_id="child-run-a",
+    ).bundle.journal.capture_snapshot().events
+    notified = []
+    receipt_event = {
+        "type": "tool_result",
+        "run_id": "child-run-a",
+        "iteration": 0,
+        "tool_name": "lookup",
+        "call_id": "call-a",
+        "result": {"ok": True},
+        "durable_result_outcome": "success",
+    }
+
+    parent.compose_event_callback(notified.append).deliver_persisted_tool_result(
+        receipt_event
+    )
+
+    after = child_preparation.host_factory.attempt(
+        execution_id="execution-a",
+        attempt_id="child-run-a",
+    ).bundle.journal.capture_snapshot().events
+    assert after == before
+    assert notified == [receipt_event]
 
 
 def test_dynamic_child_bootstrap_routes_to_same_generation_journal(

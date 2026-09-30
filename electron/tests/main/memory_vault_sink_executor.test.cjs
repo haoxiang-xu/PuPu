@@ -224,7 +224,9 @@ describe("memory vault sink executor", () => {
   test("uses one framed process, stdin-only plaintext, and a minimal worker env", async () => {
     const environmentSource = {
       PATH: process.env.PATH || "/usr/bin:/bin",
+      DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus",
       LANG: "en_US.UTF-8",
+      PYTHON_KEYRING_BACKEND: "must-not-propagate",
       PUPU_VAULT_SINK_BROKER_KEY: "must-not-propagate",
       PUPU_VAULT_SINK_BROKER_URL: "http://127.0.0.1:1",
       UNRELATED_SECRET: SECRET,
@@ -262,9 +264,11 @@ describe("memory vault sink executor", () => {
     expect(first.result.env_keys).not.toContain("PUPU_VAULT_SINK_BROKER_KEY");
     expect(first.result.env_keys).not.toContain("PUPU_VAULT_SINK_BROKER_URL");
     expect(first.result.env_keys).not.toContain("UNRELATED_SECRET");
+    expect(first.result.env_keys).not.toContain("PYTHON_KEYRING_BACKEND");
     const spawnOptions = spawn.mock.calls[0][2];
     expect({ ...spawnOptions.env }).toEqual({
       LANG: "en_US.UTF-8",
+      DBUS_SESSION_BUS_ADDRESS: environmentSource.DBUS_SESSION_BUS_ADDRESS,
       PATH: environmentSource.PATH,
       PUPU_MCP_RUNTIME_DIR: MCP_RUNTIME_DIR,
       UNCHAIN_DATA_DIR: DATA_DIR,

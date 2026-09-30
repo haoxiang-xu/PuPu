@@ -48,10 +48,8 @@ class McpSecretsTests(unittest.TestCase):
         )
 
         raw = json.loads((self.data_dir / "mcp_secrets.json").read_text())
-        self.assertEqual(
-            raw["toolkits"]["mcp.test.stdio-secret"]["FIXTURE_TOKEN_B"],
-            "fixture-b-value",
-        )
+        self.assertEqual(raw["version"], 2)
+        self.assertNotIn("fixture-b-value", json.dumps(raw))
         self.assertEqual(
             (self.data_dir / "mcp_secrets.json").stat().st_mode & 0o777,
             0o600,

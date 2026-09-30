@@ -15,6 +15,8 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
+from mcp_credential_store import read_credential_store
+
 import mcp_oauth as mcp_oauth_module  # noqa: E402
 import mcp_oauth_apps as mcp_oauth_apps_module  # noqa: E402
 import mcp_toolkits as mcp_toolkits_module  # noqa: E402
@@ -627,7 +629,7 @@ class McpOAuthTests(unittest.TestCase):
         self.assertEqual(result["toolkit"]["toolkitId"], "mcp.productivity.notion-remote")
         self.assertEqual(installed[0][0], "productivity.notion-remote")
         self.assertEqual(installed[0][1]["data_dir"], self.data_dir)
-        token_store = json.loads((self.data_dir / "mcp_oauth_tokens.json").read_text())
+        token_store = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")
         token = token_store["toolkits"]["mcp.productivity.notion-remote"]
         self.assertEqual(token["access_token"], "notion-access-token")
         self.assertEqual(token["refresh_token"], "notion-refresh-token")
@@ -667,7 +669,7 @@ class McpOAuthTests(unittest.TestCase):
         self.assertEqual(access_token, "notion-access-refreshed")
         self.assertEqual(http.posts[0]["form"]["grant_type"], "refresh_token")
         self.assertEqual(http.posts[0]["form"]["refresh_token"], "old-refresh")
-        token_store = json.loads((self.data_dir / "mcp_oauth_tokens.json").read_text())
+        token_store = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")
         token = token_store["toolkits"]["mcp.productivity.notion-remote"]
         self.assertEqual(token["access_token"], "notion-access-refreshed")
         self.assertEqual(token["refresh_token"], "notion-refresh-rotated")
@@ -849,9 +851,7 @@ class McpOAuthTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(worker_errors, [])
         self.assertEqual(worker_results, ["callback-wins-token"])
-        token_store = json.loads(
-            (self.data_dir / "mcp_oauth_tokens.json").read_text()
-        )
+        token_store = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")
         token = token_store["toolkits"]["mcp.productivity.notion-remote"]
         self.assertEqual(token["access_token"], "callback-wins-token")
         self.assertEqual(token["refresh_token"], "callback-wins-refresh")
@@ -902,9 +902,7 @@ class McpOAuthTests(unittest.TestCase):
 
         self.assertTrue(all(not worker.is_alive() for worker in workers))
         self.assertEqual(worker_errors, [])
-        token_store = json.loads(
-            (self.data_dir / "mcp_oauth_tokens.json").read_text()
-        )["toolkits"]
+        token_store = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")["toolkits"]
         self.assertEqual(
             token_store["mcp.productivity.notion-remote"]["access_token"],
             "notion-concurrent-token",
@@ -1005,9 +1003,7 @@ class McpOAuthTests(unittest.TestCase):
         self.assertTrue(
             all(result["toolkit"]["status"] == "available" for result in worker_results)
         )
-        token_store = json.loads(
-            (self.data_dir / "mcp_oauth_tokens.json").read_text()
-        )["toolkits"]
+        token_store = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")["toolkits"]
         self.assertEqual(
             token_store["mcp.productivity.notion-remote"]["access_token"],
             "notion-callback-token",
@@ -1134,8 +1130,9 @@ class McpOAuthTests(unittest.TestCase):
         self.assertEqual(result["app"]["clientIdPreview"], "gith...t-id")
         self.assertEqual(result["app"]["scopes"], ["repo", "read:org"])
         self.assertNotIn("clientSecret", result["app"])
-        raw = json.loads((self.data_dir / "mcp_oauth_apps.json").read_text())
+        raw = read_credential_store(self.data_dir / "mcp_oauth_apps.json")
         self.assertEqual(raw["apps"]["mcp.dev.github-remote"]["client_secret"], "github-client-secret")
+        self.assertNotIn("github-client-secret", (self.data_dir / "mcp_oauth_apps.json").read_text())
         self.assertEqual(oct((self.data_dir / "mcp_oauth_apps.json").stat().st_mode & 0o777), "0o600")
 
     def test_list_and_delete_oauth_app_credentials(self):
@@ -1496,7 +1493,7 @@ class McpOAuthTests(unittest.TestCase):
         )
         self.assertIn(
             "existing-connected-token",
-            (self.data_dir / "mcp_oauth_tokens.json").read_text(),
+            json.dumps(read_credential_store(self.data_dir / "mcp_oauth_tokens.json")),
         )
         with self.assertRaises(McpOAuthError) as replay_ctx:
             handle_mcp_oauth_callback(
@@ -1606,7 +1603,10 @@ class McpOAuthTests(unittest.TestCase):
         )
         self.assertNotIn("tool-discovery-sensitive-detail", raw_store)
         self.assertNotIn("notion-access-token", raw_store)
-        self.assertIn("existing-token-before-reconnect", raw_store)
+        self.assertNotIn("existing-token-before-reconnect", raw_store)
+        self.assertIn("existing-token-before-reconnect", json.dumps(
+            read_credential_store(self.data_dir / "mcp_oauth_tokens.json")
+        ))
         self.assertEqual(
             get_mcp_oauth_status(
                 "productivity.notion-remote",
@@ -1659,9 +1659,7 @@ class McpOAuthTests(unittest.TestCase):
         toolkit_store_before = json.loads(
             (self.data_dir / "mcp_toolkits.json").read_text()
         )
-        token_store_before = json.loads(
-            (self.data_dir / "mcp_oauth_tokens.json").read_text()
-        )
+        token_store_before = read_credential_store(self.data_dir / "mcp_oauth_tokens.json")
 
         http = FakeOAuthHttp()
         start_mcp_oauth(
@@ -1702,7 +1700,7 @@ class McpOAuthTests(unittest.TestCase):
             toolkit_store_before,
         )
         self.assertEqual(
-            json.loads((self.data_dir / "mcp_oauth_tokens.json").read_text()),
+            read_credential_store(self.data_dir / "mcp_oauth_tokens.json"),
             token_store_before,
         )
         restored = get_installed_mcp_toolkit(
