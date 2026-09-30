@@ -316,6 +316,8 @@
     "consumed_usage": "消耗用量",
     "consumed_usage_desc": "所選時間段內消耗的總 Token 數。",
     "no_data": "暫無 Token 用量資料",
+    "excluded_note": "已排除 {excluded} / {total} 個請求，其用量不可用",
+    "no_known_usage": "此時間範圍內所有請求的用量均不可用",
     "load_failed": "無法載入 Token 用量資料。已儲存的資料並未變更。",
     "breakdown": "輸入 / 輸出明細",
     "breakdown_desc": "請求和回應的分離 Token 流。",

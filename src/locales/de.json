@@ -316,6 +316,8 @@
     "consumed_usage": "Verbrauchte Nutzung",
     "consumed_usage_desc": "Gesamte verbrauchte Tokens pro ausgewähltem Zeitraum.",
     "no_data": "Noch keine Token-Nutzungsdaten",
+    "excluded_note": "{excluded} von {total} Anfragen ausgeschlossen, da ihr Verbrauch nicht verfügbar ist",
+    "no_known_usage": "Für keine Anfrage in diesem Zeitraum ist der Verbrauch verfügbar",
     "load_failed": "Die Token-Nutzungsdaten konnten nicht geladen werden. Ihre gespeicherten Daten wurden nicht geändert.",
     "breakdown": "Eingabe- / Ausgabe-Aufschlüsselung",
     "breakdown_desc": "Getrennter Token-Fluss für Anfragen und Antworten.",
