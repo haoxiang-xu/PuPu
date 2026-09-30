@@ -395,6 +395,39 @@ describe("TokenUsageSettings — canonical RunBundle mode", () => {
     expectStatCardValue("Requests", "1");
   });
 
+  test("keeps known totals and reports excluded requests when some usage is unavailable", async () => {
+    installRunBundleBridge([
+      buildRunBundleV1({ multiModel: true, unavailable: true }),
+    ]);
+    renderTokenUsageSettings();
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "450"));
+    expectStatCardValue("Input Tokens", "350");
+    expectStatCardValue("Output Tokens", "100");
+    expectStatCardValue("Requests", "2");
+    expectStatCardValue("Avg Consumed / Request", "450");
+    expect(screen.getByTestId("token-usage-excluded-note")).toHaveTextContent(
+      "1 of 2 requests excluded because their usage is unavailable",
+    );
+    expect(
+      lastBarChartProps.data.reduce((sum, item) => sum + item.value, 0),
+    ).toBe(450);
+    expect(lastBarChartProps.emptyMessage).toBe("No token usage data yet");
+  });
+
+  test("reports every request as excluded when no usage in the window is known", async () => {
+    installRunBundleBridge([buildRunBundleV1({ unavailable: true })]);
+    renderTokenUsageSettings();
+
+    await waitFor(() => expectStatCardValue("Consumed Tokens", "—"));
+    expect(screen.getByTestId("token-usage-excluded-note")).toHaveTextContent(
+      "1 of 1 requests excluded because their usage is unavailable",
+    );
+    const message = "Usage is unavailable for every request in this range";
+    expect(lastBarChartProps.emptyMessage).toBe(message);
+    expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(1);
+  });
+
   test("shows an explicit unavailable state and retries a failed canonical query", async () => {
     setTokenUsageRecords([
       {
@@ -441,6 +474,8 @@ describe("TokenUsageSettings — canonical RunBundle mode", () => {
     expect(screen.queryByTestId("token-usage-query-error")).not.toBeInTheDocument();
     expect(screen.getByTestId("token-usage-overview-grid")).toBeInTheDocument();
     expectStatCardValue("Requests", "0");
+    expectStatCardValue("Consumed Tokens", "0");
+    expect(screen.queryByTestId("token-usage-excluded-note")).not.toBeInTheDocument();
     expect(lastBarChartProps.emptyMessage).toBe("No token usage data yet");
   });
 

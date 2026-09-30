@@ -224,9 +224,10 @@ const useTokenUsageData = ({
     let totalConsumedTokens = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
-    let hasUnknownConsumedTokens = false;
-    let hasUnknownInputTokens = false;
-    let hasUnknownOutputTokens = false;
+    let knownConsumedCount = 0;
+    let knownInputCount = 0;
+    let knownOutputCount = 0;
+    const isKnown = (v) => typeof v === "number" && Number.isFinite(v);
 
     for (const r of filtered) {
       const k = keyFn(r.timestamp);
@@ -235,37 +236,35 @@ const useTokenUsageData = ({
         input: 0,
         output: 0,
       };
-      if (typeof r.consumed_tokens === "number") {
+      if (isKnown(r.consumed_tokens)) {
         bucket.consumed += r.consumed_tokens;
         totalConsumedTokens += r.consumed_tokens;
-      } else {
-        hasUnknownConsumedTokens = true;
+        knownConsumedCount += 1;
       }
-      if (typeof r.input_tokens === "number") {
+      if (isKnown(r.input_tokens)) {
         bucket.input += r.input_tokens;
         totalInputTokens += r.input_tokens;
-      } else {
-        hasUnknownInputTokens = true;
+        knownInputCount += 1;
       }
-      if (typeof r.output_tokens === "number") {
+      if (isKnown(r.output_tokens)) {
         bucket.output += r.output_tokens;
         totalOutputTokens += r.output_tokens;
-      } else {
-        hasUnknownOutputTokens = true;
+        knownOutputCount += 1;
       }
       bucketMap.set(k, bucket);
     }
 
     // Sort buckets chronologically
     const sortedKeys = [...bucketMap.keys()].sort();
-    const chartData = hasUnknownConsumedTokens
-      ? []
-      : sortedKeys.map((k) => ({
-          label: formatBucketLabel(k, granularity),
-          value: bucketMap.get(k)?.consumed || 0,
-        }));
+    const chartData =
+      knownConsumedCount === 0
+        ? []
+        : sortedKeys.map((k) => ({
+            label: formatBucketLabel(k, granularity),
+            value: bucketMap.get(k)?.consumed || 0,
+          }));
     const breakdownChartData =
-      hasUnknownInputTokens || hasUnknownOutputTokens
+      knownInputCount === 0 && knownOutputCount === 0
         ? []
         : sortedKeys.map((k) => ({
             label: formatBucketLabel(k, granularity),
@@ -275,12 +274,13 @@ const useTokenUsageData = ({
 
     // Stats
     const requestCount = filtered.length;
+    const excludedRequestCount = requestCount - knownConsumedCount;
     const avgConsumedTokens =
-      hasUnknownConsumedTokens
-        ? null
-        : requestCount > 0
-          ? Math.round(totalConsumedTokens / requestCount)
-          : 0;
+      requestCount === 0
+        ? 0
+        : knownConsumedCount === 0
+          ? null
+          : Math.round(totalConsumedTokens / knownConsumedCount);
 
     // Most used model
     const modelCounts = new Map();
@@ -299,10 +299,16 @@ const useTokenUsageData = ({
     return {
       chartData,
       breakdownChartData,
-      totalConsumedTokens: hasUnknownConsumedTokens ? null : totalConsumedTokens,
-      totalInputTokens: hasUnknownInputTokens ? null : totalInputTokens,
-      totalOutputTokens: hasUnknownOutputTokens ? null : totalOutputTokens,
+      totalConsumedTokens:
+        requestCount > 0 && knownConsumedCount === 0
+          ? null
+          : totalConsumedTokens,
+      totalInputTokens:
+        requestCount > 0 && knownInputCount === 0 ? null : totalInputTokens,
+      totalOutputTokens:
+        requestCount > 0 && knownOutputCount === 0 ? null : totalOutputTokens,
       requestCount,
+      excludedRequestCount,
       avgConsumedTokens,
       topModel,
     };
@@ -872,9 +878,15 @@ export const TokenUsageSettings = () => {
     totalInputTokens,
     totalOutputTokens,
     requestCount,
+    excludedRequestCount,
     avgConsumedTokens,
     topModel,
   } = useTokenUsageData({ provider, model, range, granularity, records });
+
+  const chartEmptyMessage =
+    requestCount > 0 && excludedRequestCount === requestCount
+      ? t("token_usage.no_known_usage")
+      : t("token_usage.no_data");
 
   // Clear data
   const handleClear = useCallback(() => {
@@ -1000,6 +1012,24 @@ export const TokenUsageSettings = () => {
             fontFamily={fontFamily}
           />
         </div>
+        {excludedRequestCount > 0 ? (
+          <div
+            data-testid="token-usage-excluded-note"
+            role="note"
+            style={{
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: "var(--pupu-text-faint)",
+              fontFamily,
+              padding: "0 0 14px",
+            }}
+          >
+            {t("token_usage.excluded_note", {
+              excluded: excludedRequestCount.toLocaleString(),
+              total: requestCount.toLocaleString(),
+            })}
+          </div>
+        ) : null}
       </SettingsSection>
 
       {/* ── Chart + inline filters ─────────────────────────────────────── */}
@@ -1091,7 +1121,7 @@ export const TokenUsageSettings = () => {
             <BarChart
               data={chartData}
               height={220}
-              emptyMessage={t("token_usage.no_data")}
+              emptyMessage={chartEmptyMessage}
               minBarWidth={chartData.length > 30 ? DENSE_CHART_MIN_BAR_WIDTH : 0}
             />
           </div>
@@ -1117,7 +1147,7 @@ export const TokenUsageSettings = () => {
               data={breakdownChartData}
               isDark={isDark}
               fontFamily={fontFamily}
-              emptyMessage={t("token_usage.no_data")}
+              emptyMessage={chartEmptyMessage}
               series={breakdownSeries}
             />
           </div>
