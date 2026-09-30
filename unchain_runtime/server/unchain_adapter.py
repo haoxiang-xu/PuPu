@@ -3,6 +3,7 @@ import json
 import importlib
 import hashlib
 import logging
+import math
 import os
 import base64
 import pkgutil
@@ -17,7 +18,7 @@ import unicodedata
 import uuid as _uuid
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List
 
 from skill_rows import normalize_skill_rows
 import mcp_registry
@@ -42,6 +43,7 @@ from custom_provider import (
 )
 from durable_job_runtime import get_durable_jobs_runtime
 from secret_scrub_registry import register_secret_values
+from chat_latency_diagnostics import emit_latency_phase
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 _computer_use_logger = logging.getLogger(__name__ + ".computer_use")
@@ -65,12 +67,17 @@ from net_tls import get_outbound_ssl_context
 def _ensure_unchain_on_path() -> None:
     _source = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
     if _source:
+        # An explicit source wins outright: when it names a directory that is
+        # already importable (e.g. a venv's site-packages holding the exact
+        # tested wheel) the sibling checkout must NOT be injected in front of it.
         _src_dir = os.path.join(_source, "src")
-        if os.path.isdir(_src_dir) and _src_dir not in sys.path:
-            sys.path.insert(0, _src_dir)
+        if os.path.isdir(_src_dir):
+            if _src_dir not in sys.path:
+                sys.path.insert(0, _src_dir)
             return
-        if os.path.isdir(_source) and _source not in sys.path:
-            sys.path.insert(0, _source)
+        if os.path.isdir(_source):
+            if _source not in sys.path:
+                sys.path.insert(0, _source)
             return
     _project_root = str(Path(__file__).resolve().parents[2])
     _sibling = os.path.join(os.path.dirname(_project_root), "unchain", "src")
@@ -910,6 +917,22 @@ def _memory_v2_curator_audit_fields(event: Any) -> Dict[str, Any]:
     return projected
 
 
+def _memory_v2_persist_curator_summary(admission, event_type, *, run_id, fields):
+    # The legacy store generates a fresh event ID when none is supplied. A
+    # repeated completion must instead replay the same content-bound receipt.
+    identity = {
+        "owner_chat_id": admission.owner_chat_id, "session_id": admission.session_id,
+        "attempt_id": admission.attempt_id, "event_type": event_type,
+        "run_id": str(run_id or ""), "fields": fields,
+    }
+    event_id = "memory_curator_audit_" + hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return _memory_v2_persist_audit_event(
+        admission, event_type, run_id=run_id, fields={**fields, "event_id": event_id},
+    )
+
+
 def _finalize_memory_v2_curator(
     admission: Any,
     options: Any,
@@ -917,7 +940,7 @@ def _finalize_memory_v2_curator(
     run_id: str,
     lifecycle: str,
 ) -> Dict[str, Any] | None:
-    """Enqueue and inline-run an eligible root Memory Curator job."""
+    """Persist an eligible root Memory Curator job and wake the sidecar worker."""
 
     if admission is None or not getattr(admission, "is_active", False):
         return None
@@ -955,7 +978,7 @@ def _finalize_memory_v2_curator(
             "model": {},
             "worker_status": "NotScheduled",
         }
-        _memory_v2_persist_audit_event(
+        _memory_v2_persist_curator_summary(
             admission,
             "memory.curator.isolated",
             run_id=run_id,
@@ -970,6 +993,20 @@ def _finalize_memory_v2_curator(
 
     from memory_v2_curator import MemoryV2Curator
 
+    from memory_v2_background_worker import (
+        register_background_host, notify_memory_background, background_provider_binding_from_factory,
+    )
+    from memory_v2_unchain_agent_selection import select_pupu_memory_agent_invoker
+    selection = select_pupu_memory_agent_invoker(
+        options=safe_options, chat_provider=admission.provider,
+        chat_model_id=admission.model, provider_default_resolver=_memory_v2_provider_default,
+    )
+    invoker_factory = selection.host_invoker_factory()
+    register_background_host(
+        database_path=runtime.root_dir / "context_v2.sqlite3",
+        owner_chat_id=admission.owner_chat_id,
+        invoker_factory=invoker_factory, backend="pupu_legacy",
+    )
     enqueue_curator = MemoryV2Curator(
         runtime,
         namespace=_MEMORY_V2_LONG_TERM_NAMESPACE,
@@ -986,6 +1023,7 @@ def _finalize_memory_v2_curator(
         provider_default=_memory_v2_provider_default(admission.provider),
         chat_provider=admission.provider,
         chat_model_id=admission.model,
+        background_provider_binding=background_provider_binding_from_factory(invoker_factory),
     )
     job = result.get("job") if isinstance(result.get("job"), dict) else {}
     payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
@@ -1026,73 +1064,15 @@ def _finalize_memory_v2_curator(
                 "cost": 0,
             }
         else:
-            job_id = str(job.get("job_id") or "").strip()
-            worker_id = "memory_curator_inline_" + hashlib.sha256(
-                f"{admission.owner_chat_id}:{admission.attempt_id}:{job_id}".encode(
-                    "utf-8"
-                )
-            ).hexdigest()[:24]
-            claim_operation_id = "memory_curator_claim:" + hashlib.sha256(
-                f"{job_id}:{worker_id}".encode("utf-8")
-            ).hexdigest()
             try:
-                claim = runtime.claim_specific_consolidation_job(
-                    owner_chat_id=admission.owner_chat_id,
-                    job_id=job_id,
-                    expected_revision=int(job.get("revision") or 0),
-                    worker_id=worker_id,
-                    operation_id=claim_operation_id,
-                    lease_ms=10 * 60 * 1000,
-                )
-                claimed_job = (
-                    claim.get("job")
-                    if isinstance(claim, dict) and isinstance(claim.get("job"), dict)
-                    else None
-                )
-                if claimed_job is None:
-                    raise _MemoryV2CuratorAgentError("curator_specific_claim_failed")
-
-                def persist_audit(event: Dict[str, Any]) -> None:
-                    event_type = str(event.get("type") or "").strip()
-                    _memory_v2_persist_audit_event(
-                        admission,
-                        event_type or "memory.curator.audit",
-                        run_id=str(event.get("run_id") or run_id or ""),
-                        fields=_memory_v2_curator_audit_fields(event),
-                    )
-
-                worker_curator = MemoryV2Curator(
-                    runtime,
-                    agent_factory=_memory_v2_curator_agent_factory(safe_options),
-                    event_callback=persist_audit,
-                    namespace=_MEMORY_V2_LONG_TERM_NAMESPACE,
-                )
-                worker_result = worker_curator.run_job(
-                    job=claimed_job,
-                    memory_agent_config=safe_options.get(
-                        "_memory_v2_memory_agent_config"
-                    ),
-                    worker_id=worker_id,
-                )
-            except Exception as exc:
-                reason = _memory_v2_safe_error_code(
-                    exc,
-                    "curator_inline_worker_failed",
-                )
-                worker_result = {
-                    "status": (
-                        "Pending"
-                        if reason in {
-                            "context_v2_job_not_claimable",
-                            "context_v2_job_not_ready",
-                        }
-                        else "Failed"
-                    ),
-                    "reason": reason,
-                    "job_id": job_id,
-                    "token_usage": 0,
-                    "cost": 0,
-                }
+                notify_memory_background()
+                reason = "memory_background_queued"
+            except Exception:
+                reason = "memory_background_notification_unavailable"
+            worker_result = {
+                "status": "Pending", "reason": reason,
+                "job_id": str(job.get("job_id") or ""), "token_usage": 0, "cost": 0,
+            }
 
     final_status = (
         str(worker_result.get("status") or "Failed")
@@ -1148,7 +1128,7 @@ def _finalize_memory_v2_curator(
         "Completed": "memory.curator.completed",
         "AlreadyCompleted": "memory.curator.completed",
     }.get(final_status, "memory.curator.failed")
-    _memory_v2_persist_audit_event(
+    _memory_v2_persist_curator_summary(
         admission,
         event_type,
         run_id=run_id,
@@ -6039,6 +6019,24 @@ def _build_builtin_toolkit(
     return None
 
 
+
+def _attach_embedded_skills_for(toolkit_instance: Any, toolkit_name: str, cache: dict) -> None:
+    """Ticket #291: the run's toolkit-embedded skills use the same identity
+    (`source="toolkit"`, `source_id=<requested catalog id>`) the inventory
+    route and the stale check publish, so menu and execution never diverge."""
+    try:
+        from skills_inventory import attach_embedded_skills, catalog_skill_rows_by_toolkit
+    except ImportError:  # pragma: no cover
+        return
+    if "rows" not in cache:
+        try:
+            cache["rows"] = catalog_skill_rows_by_toolkit()
+        except Exception as exc:  # noqa: BLE001 - never fail a run over the catalog
+            _subagent_logger.warning("[skills] toolkit catalog unavailable for embedded skills: %s", exc)
+            cache["rows"] = {}
+    attach_embedded_skills(toolkit_instance, toolkit_name, cache["rows"])
+
+
 def _build_selected_toolkits(
     options: Dict[str, object] | None = None,
     *,
@@ -6055,6 +6053,7 @@ def _build_selected_toolkits(
     workspace_root = resolved_roots[0] if resolved_roots else None
     result: list = []
     generic_toolkit_names: list[str] = []
+    _skill_rows_cache: dict = {}  # lazily filled catalog rows (ticket #291)
 
     builtin_runtime_config = get_runtime_config(options)
     # F9: recipe-subagent runs have no confirmation callback, so confirmable
@@ -6085,6 +6084,7 @@ def _build_selected_toolkits(
                 toolkit_id=toolkit_name,
                 toolkit_name=_display_toolkit_name_for_class(builtin_instance.__class__),
             )
+            _attach_embedded_skills_for(builtin_instance, toolkit_name, _skill_rows_cache)
             result.append(builtin_instance)
             continue
         if toolkit_name.startswith("mcp."):
@@ -6109,6 +6109,7 @@ def _build_selected_toolkits(
                 toolkit_id=toolkit_name,
                 toolkit_name=toolkit_name,
             )
+            _attach_embedded_skills_for(toolkit_instance, toolkit_name, _skill_rows_cache)
             result.append(toolkit_instance)
             continue
         generic_toolkit_names.append(toolkit_name)
@@ -6155,6 +6156,7 @@ def _build_selected_toolkits(
             toolkit_id=_canonical_runtime_toolkit_id(class_name),
             toolkit_name=_display_toolkit_name_for_class(toolkit_class),
         )
+        _attach_embedded_skills_for(toolkit_instance, toolkit_name, _skill_rows_cache)
         result.append(toolkit_instance)
 
     return result
@@ -7181,7 +7183,9 @@ def _optimizer_float(
         parsed = float(value)
     except (TypeError, ValueError):
         return default
-    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+    # NaN and both infinities in one check. The `parsed == parsed` idiom this
+    # replaced is correct but reads as a tautology, so it invites deletion.
+    if not math.isfinite(parsed):
         return default
     return min(max_value, max(min_value, parsed))
 
@@ -7943,6 +7947,32 @@ def _toolkits_include_computer(toolkits: Any) -> bool:
     return False
 
 
+
+def _build_skills_module(options: Dict[str, object] | None) -> Any:
+    """`SkillsModule` for a developer-chat run, or ``None`` when the loaded
+    Unchain runtime has no skills support (protocol admission already fails
+    closed on such wheels; this is a defensive fallback)."""
+    try:
+        from unchain.agent import SkillsModule
+    except ImportError:  # pragma: no cover - admission rejects such wheels first
+        return None
+    from skills_inventory import (
+        build_skills_config,
+        installed_pack_skill_descriptors,
+        skills_options,
+    )
+
+    include_user_dirs, _revision = skills_options(options)
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+    config = build_skills_config(
+        workspace_root=workspace_root,
+        include_user_dirs=include_user_dirs,
+        extra_skills=tuple(installed_pack_skill_descriptors()),
+    )
+    return SkillsModule(config)
+
+
 def _build_developer_agent(
     *,
     UnchainAgent,
@@ -8022,6 +8052,15 @@ def _build_developer_agent(
         else:
             modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+    # Ticket #291: developer chat gets the Unchain skills runtime (catalog,
+    # `skill` tool, `/name` activation). Installed pack skills reach the
+    # registry as `SkillsConfig.extra_skills`; selected executable toolkits'
+    # embedded skills arrive through `builder.toolkit.skills`. Recipe-subagent
+    # runs are excluded for this ticket.
+    if not (isinstance(options, dict) and options.get("_recipe_subagent_run")):
+        skills_module = _build_skills_module(options)
+        if skills_module is not None:
+            modules.append(skills_module)
     composition_options = options if isinstance(options, dict) else {}
     composition_private_hint = composition_options.get(
         "_context_composition_hint_v1"
@@ -8484,14 +8523,9 @@ def _create_agent(
             memory_v2_admission,
             options.get("_memory_v2_bootstrap_history"),
         )
-        memory_v2_bootstrap_receipt = _bootstrap_memory_v2_current_request(
+        _bootstrap_memory_v2_current_request(
             memory_v2_admission,
             options.get("_memory_v2_current_user_message"),
-        )
-        _prepare_memory_v2_first_message_recall(
-            memory_v2_admission,
-            options.get("_memory_v2_current_user_message"),
-            memory_v2_bootstrap_receipt,
         )
         _memory_v2_bind_recalled_refs(memory_v2_admission, options)
     context_safe_options = dict(options)
@@ -9148,6 +9182,7 @@ def _stream_recipe_graph_events(
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
+    graph_setup_started_ns = time.perf_counter_ns()
     options = dict(options)
     graph_prepared_subagent_input = options.pop(
         "_memory_v2_prepared_subagent_input",
@@ -9162,7 +9197,14 @@ def _stream_recipe_graph_events(
         dict,
     ):
         raise RuntimeError("graph resume context must be an object")
+    graph_compile_started_ns = time.perf_counter_ns()
     compiled = _compile_recipe_graph_for_runtime(recipe)
+    emit_latency_phase(
+        "graph_compile",
+        started_ns=graph_compile_started_ns,
+        session_id=session_id,
+        attempt_id=run_id_override,
+    )
     graph_recipe_identity = _memory_v2_graph_recipe_identity(recipe, compiled)
     if (
         graph_resume_context is not None
@@ -9444,6 +9486,7 @@ def _stream_recipe_graph_events(
                 chat_model_id=selected_config["model"],
                 provider_default_resolver=_memory_v2_provider_default,
             )
+            graph_preflight_started_ns = time.perf_counter_ns()
             graph_active_preflight = preflight_pupu_unchain_active_host(
                 owner_chat_id=graph_owner_chat_id,
                 run=graph_context_run,
@@ -9458,6 +9501,12 @@ def _stream_recipe_graph_events(
                 memory_agent_model_invoker_factory=(
                     graph_agent_selection.host_invoker_factory()
                 ),
+            )
+            emit_latency_phase(
+                "graph_active_preflight",
+                started_ns=graph_preflight_started_ns,
+                session_id=graph_execution_id,
+                attempt_id=workflow_run_id,
             )
             if graph_active_preflight is None:
                 raise RuntimeError(
@@ -9532,11 +9581,19 @@ def _stream_recipe_graph_events(
         for pool in pools
     )
     try:
+        graph_toolkits_started_ns = time.perf_counter_ns()
         user_toolkits = (
             _build_requested_toolkits(options, session_id=session_id)
             if wants_user_toolkits
             else []
         )
+        if wants_user_toolkits:
+            emit_latency_phase(
+                "graph_user_toolkits",
+                started_ns=graph_toolkits_started_ns,
+                session_id=graph_execution_id,
+                attempt_id=workflow_run_id,
+            )
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
     runtime_toolkits_to_disconnect = list(user_toolkits)
@@ -9600,9 +9657,16 @@ def _stream_recipe_graph_events(
                     "active Context V2 graph admission did not bind an Unchain host"
                 )
             if graph_completion_authorized:
+                graph_bootstrap_started_ns = time.perf_counter_ns()
                 graph_bootstrap_receipt = bootstrap_pupu_unchain_active_chat(
                     preflight=graph_active_preflight,
                     admission=graph_memory_v2_admission,
+                )
+                emit_latency_phase(
+                    "graph_active_bootstrap",
+                    started_ns=graph_bootstrap_started_ns,
+                    session_id=graph_execution_id,
+                    attempt_id=workflow_run_id,
                 )
                 graph_bootstrap_admission = graph_bootstrap_receipt.get(
                     "admission"
@@ -9663,14 +9727,9 @@ def _stream_recipe_graph_events(
             graph_memory_v2_admission,
             options.get("_memory_v2_bootstrap_history"),
         )
-        graph_memory_v2_bootstrap_receipt = _bootstrap_memory_v2_current_request(
+        _bootstrap_memory_v2_current_request(
             graph_memory_v2_admission,
             options.get("_memory_v2_current_user_message"),
-        )
-        _prepare_memory_v2_first_message_recall(
-            graph_memory_v2_admission,
-            options.get("_memory_v2_current_user_message"),
-            graph_memory_v2_bootstrap_receipt,
         )
         _memory_v2_bind_recalled_refs(graph_memory_v2_admission, options)
     options = dict(options)
@@ -9722,7 +9781,21 @@ def _stream_recipe_graph_events(
             daemon=True,
         ).start()
 
+    first_step_logged = threading.Event()
+    graph_worker_started_ns = 0
+
     def emit(event: Dict[str, Any]) -> None:
+        if (
+            event.get("type") == "run_started"
+            and not first_step_logged.is_set()
+        ):
+            first_step_logged.set()
+            emit_latency_phase(
+                "graph_worker_to_first_run",
+                started_ns=graph_worker_started_ns,
+                session_id=graph_execution_id,
+                attempt_id=workflow_run_id,
+            )
         if not _execution_is_cancelled(execution_token):
             event_queue.put(event)
 
@@ -10479,6 +10552,22 @@ def _stream_recipe_graph_events(
                 ) -> None:
                     if not isinstance(event, dict):
                         return
+                    provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+                    if provisional_reasoning:
+                        outward_event = (
+                            {**event, "run_id": workflow_run_id}
+                            if graph_checkpoint_host is None
+                            and event["run_id"] == _step_run_id
+                            else event
+                        )
+                        if event["type"] == "reasoning_preview_discarded":
+                            event_queue.put(outward_event)
+                        else:
+                            _execution_raise_if_cancelled(execution_token)
+                            if execution_guard is not None:
+                                execution_guard.assert_active()
+                            emit(outward_event)
+                        return
                     _execution_raise_if_cancelled(execution_token)
                     interaction_id_tracker.observe(event)
                     if (
@@ -10542,6 +10631,8 @@ def _stream_recipe_graph_events(
                     if isinstance(iteration, int):
                         output_holder["last_iteration"] = iteration
                     emit(event)
+
+                _enable_ollama_reasoning_preview(step_emit)
 
                 step_active_host_event_boundary = (
                     PupuUnchainHostEventBoundary(
@@ -11020,6 +11111,13 @@ def _stream_recipe_graph_events(
             run_done_event.set()
             event_queue.put(done_marker)
 
+    emit_latency_phase(
+        "graph_setup",
+        started_ns=graph_setup_started_ns,
+        session_id=graph_execution_id,
+        attempt_id=workflow_run_id,
+    )
+    graph_worker_started_ns = time.perf_counter_ns()
     threading.Thread(
         target=run_workflow,
         name="unchain-workflow-runner-events",
@@ -11274,6 +11372,73 @@ def _public_interject_options(options: Any) -> Dict[str, object]:
     }
 
 
+def _is_ollama_reasoning_preview_event(event: Dict[str, Any]) -> bool:
+    event_type = event.get("type")
+    if "provisional_reasoning_id" not in event:
+        if event_type == "reasoning_preview_discarded":
+            raise ValueError("invalid Ollama provisional reasoning event")
+        return False
+    preview_id = event["provisional_reasoning_id"]
+    expected_keys = (
+        {"type", "run_id", "iteration", "provider", "delta", "provisional_reasoning_id"}
+        if event_type == "reasoning"
+        else {"type", "run_id", "iteration", "provider", "provisional_reasoning_id"}
+    )
+    if (
+        event_type not in {"reasoning", "reasoning_preview_discarded"}
+        or set(event) != expected_keys
+        or event.get("provider") != "ollama"
+        or type(event.get("run_id")) is not str
+        or not event["run_id"]
+        or type(event.get("iteration")) is not int
+        or event["iteration"] < 0
+        or type(preview_id) is not str
+        or re.fullmatch(r"[0-9a-f]{32}", preview_id) is None
+        or (
+            event_type == "reasoning"
+            and (type(event.get("delta")) is not str or not event["delta"])
+        )
+    ):
+        raise ValueError("invalid Ollama provisional reasoning event")
+    return True
+
+
+def _enable_ollama_reasoning_preview(callback: Callable[[Dict[str, Any]], Any]) -> None:
+    """Expose Unchain's host-only preview lane on a PuPu event callback."""
+
+    def emit_provisional_reasoning(event: Dict[str, Any], preview_id: str) -> Any:
+        if type(event) is not dict:
+            raise ValueError("invalid Ollama provisional reasoning event")
+        preview = {**event, "provisional_reasoning_id": preview_id}
+        _is_ollama_reasoning_preview_event(preview)
+        return callback(preview)
+
+    def commit_provisional_reasoning(event: Dict[str, Any]) -> None:
+        if type(event) is not dict:
+            raise ValueError("invalid Ollama provisional reasoning event")
+        _is_ollama_reasoning_preview_event({
+            **event, "provisional_reasoning_id": "0" * 32,
+        })
+        # The exact provider result and, when active, ContextRuntime own durability.
+
+    def discard_provisional_reasoning(
+        *, preview_id: str, run_id: str, iteration: int,
+    ) -> Any:
+        reset = {
+            "type": "reasoning_preview_discarded",
+            "run_id": run_id,
+            "iteration": iteration,
+            "provider": "ollama",
+            "provisional_reasoning_id": preview_id,
+        }
+        _is_ollama_reasoning_preview_event(reset)
+        return callback(reset)
+
+    callback.emit_provisional_reasoning = emit_provisional_reasoning
+    callback.commit_provisional_reasoning = commit_provisional_reasoning
+    callback.discard_provisional_reasoning = discard_provisional_reasoning
+
+
 def stream_chat_events(
     *,
     message: str,
@@ -11487,11 +11652,18 @@ def stream_chat_events(
         execution_owner.defer_cleanup()
     agent = None
     try:
+        agent_setup_started_ns = time.perf_counter_ns()
         agent = _create_agent(
             options,
             session_id=session_id,
             fyi_channel=interject_channels.fyi,
             memory_v2_shadow_run=memory_v2_shadow_run,
+        )
+        emit_latency_phase(
+            "normal_agent_setup",
+            started_ns=agent_setup_started_ns,
+            session_id=normalized_session_id,
+            attempt_id=execution_run_id,
         )
         memory_v2_admission = getattr(agent, "_memory_v2_admission", None)
         messages = _normalize_messages(
@@ -11609,14 +11781,19 @@ def stream_chat_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
-            _execution_raise_if_cancelled(execution_token)
+            provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+            if not (
+                provisional_reasoning
+                and event.get("type") == "reasoning_preview_discarded"
+            ):
+                _execution_raise_if_cancelled(execution_token)
             interaction_id_tracker.observe(event)
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 _toolkit_meta_by_tool_name,
                 session_id,
             )
-            if active_context_bridge is None:
+            if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
                     event,
@@ -11644,6 +11821,8 @@ def stream_chat_events(
             except Exception:
                 pass
             event_queue.put(event)
+
+        _enable_ollama_reasoning_preview(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
@@ -12546,7 +12725,12 @@ def resume_chat_interaction_events(
         def on_event(event: Dict[str, Any]) -> None:
             if not isinstance(event, dict):
                 return
-            _execution_raise_if_cancelled(execution_token)
+            provisional_reasoning = _is_ollama_reasoning_preview_event(event)
+            if not (
+                provisional_reasoning
+                and event.get("type") == "reasoning_preview_discarded"
+            ):
+                _execution_raise_if_cancelled(execution_token)
             event_type = event.get("type")
             if not isinstance(event_type, str) or not event_type:
                 return
@@ -12556,7 +12740,7 @@ def resume_chat_interaction_events(
                 toolkit_meta_by_tool_name,
                 normalized_session_id,
             )
-            if active_context_bridge is None:
+            if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
                     event,
@@ -12578,6 +12762,8 @@ def resume_chat_interaction_events(
             except Exception:
                 pass
             event_queue.put(event)
+
+        _enable_ollama_reasoning_preview(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)

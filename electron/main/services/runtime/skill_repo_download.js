@@ -341,12 +341,16 @@ const createSkillRepoDownloader = (deps = {}) => {
 
   /* ── write verified files under a fresh temp dir ─────────────────────── */
   const writeRetained = async (retained) => {
-    const root = path.join(
-      resolveTempDir(),
-      `pupu-skillpack-${generateUuid()}`,
+    /* mkdtemp, not join + mkdir --recursive: recursive mkdir succeeds on a
+       path an attacker pre-created in the world-writable temp dir, handing
+       them the extracted skill files. mkdtemp creates the directory itself,
+       exclusively and 0700, with no window between naming and creating it.
+       The `pupu-skillpack-` prefix stays — the stale-directory sweep below
+       keys off it. */
+    const root = await fs.promises.mkdtemp(
+      path.join(resolveTempDir(), `pupu-skillpack-${generateUuid()}-`),
     );
     try {
-      await fs.promises.mkdir(root, { recursive: true });
       for (const [relPath, buffer] of retained) {
         const segments = relPath.split("/").filter(Boolean);
         const dest = path.join(root, ...segments);

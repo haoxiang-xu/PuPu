@@ -1,0 +1,190 @@
+{
+  "schema": "pupu.ticket-290.diagnostic-candidate.v1",
+  "recorded_at": "2026-09-23T03:33:53.338338+00:00",
+  "classification": "unsigned diagnostic macOS arm64 candidate; not release-qualified",
+  "source_head": "bd94efe8facb38ed4afa7488a46e68d5e6cbb15a",
+  "source_branch": "codex/ticket-290-zotero-read-only",
+  "candidate": {
+    "path": "/Users/red/Desktop/GITRepo/pupu-290/dist/PuPu-ticket-290-diagnostic-macos-arm64.zip",
+    "sha256": "4ef64bef6f8865781837eee788c777084d3005072854a5d0a806aa1f97900b5d"
+  },
+  "app_path": "/Users/red/Desktop/GITRepo/pupu-290/dist/mac-arm64/PuPu.app",
+  "app_asar_sha256": "b4cd2ae183b0d120631aec7383fd9d3678c973299ef72f813ca462434612763b",
+  "wheel": {
+    "path": "/Users/red/Desktop/GITRepo/skills-delivery-evidence-2026-09-21/unchain-0.2.0-py3-none-any.whl",
+    "sha256": "6544306f55267482c9dfcd7fa346ed218a83ee8e4ec68a3ed761600f7119f194"
+  },
+  "runtime_manifest": {
+    "manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "build_feature_snapshot": {
+    "enable_memory_v2": true,
+    "_pupu_memory_v2_release": {
+      "schema": "pupu.memory-v2-release.v1",
+      "sidecar_environment": {
+        "PUPU_FEATURE_MEMORY_V2": "all",
+        "PUPU_MEMORY_V2_MODE": "all",
+        "PUPU_MEMORY_V2_CANARY_PERCENT": "5",
+        "PUPU_MEMORY_V2_READ_ONLY_DEGRADED": "0",
+        "PUPU_CONTEXT_V2_STORE_OWNER": "unchain"
+      },
+      "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "snapshot_fingerprint": "30715567f98d5463f6e9a08ad8799a20474895efece0371836401b6227607057"
+    }
+  },
+  "packaged_integrity": {
+    "exact_frozen_adapter": true,
+    "adapter_source_sha256": "1ae6eb7cea9756011f7fd4bdfb9e00f9c99e048d60736e38687d6570b7ca8128",
+    "exact_frozen_registry": true,
+    "registry_sha256": "048d746e9c17eaf43c29078f880d215f2652bcbf4dbf816ce481cceb61f992ce",
+    "frozen_sidecar_sha256": "3d6a94778a6fc285dd55f1a9ed03795dc65f6ea603861425cd4d510696a44eb7"
+  },
+  "packaged_sidecar_smoke": {
+    "schema": "pupu.release.packaged-sidecar-smoke.v1",
+    "started": true,
+    "unauthenticated_rejected": true,
+    "authenticated_health": true,
+    "authenticated_context_status": true,
+    "runtime_manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+    "snapshot_fingerprint": "30715567f98d5463f6e9a08ad8799a20474895efece0371836401b6227607057",
+    "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+    "executed_tests": 5
+  },
+  "mcp_runtime": {
+    "schema_version": 1,
+    "target": "darwin-arm64",
+    "pins_sha256": "4be58878afb0d2f2dfcfe4d19196f6bc990d4cc5bf7c6f679e3bd38554a99461",
+    "runtimes": {
+      "node": {
+        "version": "v24.11.1",
+        "command": "node/bin/node",
+        "args_prefix": [
+          "node/lib/node_modules/npm/bin/npx-cli.js"
+        ],
+        "bin_dir": "node/bin",
+        "source_url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-darwin-arm64.tar.gz",
+        "archive_sha256": "b05aa3a66efe680023f930bd5af3fdbbd542794da5644ca2ad711d68cbd4dc35",
+        "staged_tree_sha256": "1d1999137e1f4d2b4639ee222a4c91de1ec17054570a6e2f2a9d48c90fa52225"
+      },
+      "uv": {
+        "version": "0.11.32",
+        "command": "uv/uvx",
+        "args_prefix": [],
+        "bin_dir": "uv",
+        "source_url": "https://github.com/astral-sh/uv/releases/download/0.11.32/uv-aarch64-apple-darwin.tar.gz",
+        "archive_sha256": "ed336d0ba49db8ef89b2b41fffa372ce63bd032f22a56f001c265891aec32829",
+        "staged_tree_sha256": "bc0e9bbcbcad5f6ad5711ffed6dc6bfddaa5da1324351d35ccae1b6d37fb3d3a"
+      },
+      "python": {
+        "version": "3.12.13+20260718",
+        "command": "python/bin/python3",
+        "args_prefix": [],
+        "bin_dir": "python/bin",
+        "source_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.12.13+20260718-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "archive_sha256": "9a1e9e06175c10efd8378b904b07fa21bd791ab3345d7cdffeb4a76c9ff55903",
+        "staged_tree_sha256": "69c1f461c5cc7c2e24fa7bc961e0ad8348aabb007ba36d6b16184bc3429e982e",
+        "bootstrap_dir": "python_bootstrap",
+        "bootstrap_tree_sha256": "09e9616bc2a370a4d45778e99bc47f289ab723e5283a2cfed2167095f4c6cdb7"
+      }
+    }
+  },
+  "checks": {
+    "web_build": "PASS",
+    "new_pyinstaller_sidecar_build": "PASS",
+    "pinned_wheel_installed_identity": "PASS",
+    "license_gate": "PASS after runtime staging",
+    "packaged_native_mcp_runtime_smoke": "PASS",
+    "exact_frozen_profile_and_registry": "PASS",
+    "renderer_zotero_entry_and_snapshot": "PASS",
+    "electron_ui": "NOT_RUN by candidate worker",
+    "zotero_real_library": "NOT_RUN",
+    "clean_lockfile_release_build": "NOT_RUN",
+    "signed_notarized_release": "NOT_RUN"
+  },
+  "limitations": [
+    "Copied node_modules is not an npm-ci clean graph; electron-builder reported ELSPROBLEMS invalid shell-quote/react/react-dom/yaml/websocket-driver versions and completed packaging.",
+    "Copied build venv contains cached dependency versions; exact Unchain wheel installed and verified before fresh sidecar build.",
+    "App package version remains repository value 0.1.11; this is a local diagnostic candidate for sprint 0.1.12 work.",
+    "No user application launched, no personal Zotero library accessed."
+  ],
+  "superseded": true,
+  "superseded_reason": "Replaced after review found unprojected note/attachment metadata and lost HTTP timeout extensions; use r2 for final feature qualification."
+}

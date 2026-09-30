@@ -1,0 +1,197 @@
+{
+  "chat_id": "chat-1790528065360-7a365cc6de489",
+  "foreground_model": "openai:gpt-4.1",
+  "responses": [
+    {
+      "content": "READY",
+      "latency_ms": 3417,
+      "finish_reason": "stop"
+    },
+    {
+      "content": "memory_propose was called exactly once as instructed. Outcome: a memory candidate was successfully proposed with the specified marker and parameters. No errors occurred.",
+      "latency_ms": 5926,
+      "finish_reason": "stop"
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "curation-job-eb899fd52d73273139f6fb076445435b",
+      "status": "completed",
+      "job_json": {
+        "attempt_count": 1,
+        "candidates": [
+          {
+            "binding_revision": 3,
+            "byte_length": 53,
+            "candidate_ref": {
+              "fragment": "",
+              "id": "candidate-419207ae5422c11d2396bde0a187bad7",
+              "kind": "memory_candidate",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "confidence": 1.0,
+            "content_ref": {
+              "fragment": "space-chat-c6c73a814bc1bdef4bf254f4d36988ba1c9021fd",
+              "id": "candidate-419207ae5422c11d2396bde0a187bad7",
+              "kind": "memory_candidate_content",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "content_sha256": "5309618a91fae78c4feb306172ceb3b766be054e0c8083fc00ad30a3e4d61c4e",
+            "description": "Synthetic verification marker",
+            "error_code": "",
+            "kind": "file",
+            "link_url": "",
+            "media_type": "text/markdown",
+            "name": "defer-fix.md",
+            "origin": "agent_proposal",
+            "outcome": "applied",
+            "payload_sha256": "09364057f7b7e4156daf3c73e1f91e784dcf068267964388b47693e9638bed01",
+            "rationale": "Isolated synthetic verification",
+            "result_ref": {
+              "fragment": "space-chat-c6c73a814bc1bdef4bf254f4d36988ba1c9021fd",
+              "id": "memory-56aacb2c1262959d6a540516982a83fd",
+              "kind": "memory",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "review_diff": {},
+            "sensitivity": "normal",
+            "source_agent_run_id": "graph-step-048abe50237eb57df527118d47983710b16f07aa4d6b007d9db780293f8e906f",
+            "source_refs": [
+              {
+                "fragment": "",
+                "id": "event-68fe846ac3087c3a2161e19708e45f677891ec9a5153ffadc22f5e27e116f213",
+                "kind": "context_event",
+                "revision": 1,
+                "schema": "unchain.resource_ref.v1"
+              }
+            ],
+            "source_tool_call_id": "",
+            "target_path": "/verification/defer-fix.md",
+            "target_space_id": "space-chat-c6c73a814bc1bdef4bf254f4d36988ba1c9021fd"
+          }
+        ],
+        "created_at_ms": 1790527203008,
+        "job_id": "curation-job-eb899fd52d73273139f6fb076445435b",
+        "last_error_code": "",
+        "lease": null,
+        "next_attempt_at_ms": 0,
+        "operation_id": "curator.enqueue.bab1ffe1fbbf85cd7e02fd768cd65fef0fcb505cf5775b734ca015f9fb6c2cd0",
+        "revision": 3,
+        "schema": "unchain.consolidation_job.v2",
+        "status": "completed",
+        "trigger": {
+          "attempt_id": "unchain-1790527197235-2fdb922327f39",
+          "capture_status": "complete",
+          "is_root_run": true,
+          "run_id": "unchain-1790527197235-2fdb922327f39",
+          "run_status": "completed",
+          "session_id": "chat-1790527192724-cc624cd988cdb",
+          "trigger_key": "completed_root_run:c754b3491671b10182369f93ceed7207f094f285361d3f8c7472b0ce290ec58b"
+        },
+        "updated_at_ms": 1790527211941
+      }
+    },
+    {
+      "job_id": "curation-job-3023cce16325d71bce49dd1dc1283d8d",
+      "status": "completed",
+      "job_json": {
+        "attempt_count": 1,
+        "candidates": [
+          {
+            "binding_revision": 3,
+            "byte_length": 53,
+            "candidate_ref": {
+              "fragment": "",
+              "id": "candidate-4ccbb2fdc034785cecd4a2b56fe03b63",
+              "kind": "memory_candidate",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "confidence": 1.0,
+            "content_ref": {
+              "fragment": "space-chat-6b9be10dc947fea0d889991add0abae146a82bc9",
+              "id": "candidate-4ccbb2fdc034785cecd4a2b56fe03b63",
+              "kind": "memory_candidate_content",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "content_sha256": "5309618a91fae78c4feb306172ceb3b766be054e0c8083fc00ad30a3e4d61c4e",
+            "description": "Synthetic verification marker",
+            "error_code": "",
+            "kind": "file",
+            "link_url": "",
+            "media_type": "text/markdown",
+            "name": "defer-fix.md",
+            "origin": "agent_proposal",
+            "outcome": "applied",
+            "payload_sha256": "18bce0ab930799e8a00a23ee3d1e3d2200cf7e6757b8e00b01b85037dba8616b",
+            "rationale": "Isolated synthetic verification",
+            "result_ref": {
+              "fragment": "space-chat-6b9be10dc947fea0d889991add0abae146a82bc9",
+              "id": "memory-c43d02a634384f3a8928f42b74f8bc74",
+              "kind": "memory",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "review_diff": {},
+            "sensitivity": "normal",
+            "source_agent_run_id": "graph-step-d6d76fa7cb008a6074cf76885b31ca9764e98ce303429daf3dfa4056553c64e4",
+            "source_refs": [
+              {
+                "fragment": "",
+                "id": "event-7eaeb891e1968e17396ffa353d81479e8a46a3d7df9b495eb28f1d2ca85cc052",
+                "kind": "context_event",
+                "revision": 1,
+                "schema": "unchain.resource_ref.v1"
+              }
+            ],
+            "source_tool_call_id": "",
+            "target_path": "/verification/defer-fix.md",
+            "target_space_id": "space-chat-6b9be10dc947fea0d889991add0abae146a82bc9"
+          }
+        ],
+        "created_at_ms": 1790528074693,
+        "job_id": "curation-job-3023cce16325d71bce49dd1dc1283d8d",
+        "last_error_code": "",
+        "lease": null,
+        "next_attempt_at_ms": 0,
+        "operation_id": "curator.enqueue.7fa8b8f9077f60748d5b777ebd40dc2255ecf7786eb4a8fc3b367b29f3f13462",
+        "revision": 3,
+        "schema": "unchain.consolidation_job.v2",
+        "status": "completed",
+        "trigger": {
+          "attempt_id": "unchain-1790528068859-fe26c8c0333ba",
+          "capture_status": "complete",
+          "is_root_run": true,
+          "run_id": "unchain-1790528068859-fe26c8c0333ba",
+          "run_status": "completed",
+          "session_id": "chat-1790528065360-7a365cc6de489",
+          "trigger_key": "completed_root_run:3da0977c54f15a626af80ea21b4d180947c01d4a189639ac1cc1f94984f1b561"
+        },
+        "updated_at_ms": 1790528081793
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "candidate-4ccbb2fdc034785cecd4a2b56fe03b63",
+      "status": "applied"
+    },
+    {
+      "candidate_id": "candidate-419207ae5422c11d2396bde0a187bad7",
+      "status": "applied"
+    }
+  ],
+  "entry_tables": [
+    "entries",
+    "workspace_entries_fts",
+    "workspace_entries_fts_data",
+    "workspace_entries_fts_idx",
+    "workspace_entries_fts_content",
+    "workspace_entries_fts_docsize",
+    "workspace_entries_fts_config"
+  ]
+}

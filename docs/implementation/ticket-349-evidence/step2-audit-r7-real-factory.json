@@ -1,0 +1,13 @@
+{
+  "payload": {
+    "reasoning": {
+      "effort": "low"
+    }
+  },
+  "raw_agent_class": "unchain.agent.agent.Agent",
+  "constructor_mocked": false,
+  "model_run": false,
+  "outbound_requests": 0,
+  "candidate_digest": "176faa3e22f2ad42fcf3580654d35b1ba326e425789917aede12b16c094c7100",
+  "runtime_manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c"
+}

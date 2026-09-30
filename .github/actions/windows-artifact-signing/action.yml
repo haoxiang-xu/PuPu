@@ -181,14 +181,14 @@ runs:
         "identity_receipt=$identityReceipt" >> $env:GITHUB_OUTPUT
 
     - name: Azure login for Windows Artifact Signing
-      uses: azure/login@v3
+      uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
       with:
         client-id: ${{ inputs.azure-client-id }}
         tenant-id: ${{ inputs.azure-tenant-id }}
         subscription-id: ${{ inputs.azure-subscription-id }}
 
     - name: Sign Windows dependencies with Artifact Signing
-      uses: azure/artifact-signing-action@v2
+      uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
       with:
         endpoint: ${{ inputs.azure-endpoint }}
         signing-account-name: ${{ inputs.azure-signing-account-name }}
@@ -225,7 +225,7 @@ runs:
         if ($LASTEXITCODE -ne 0) { throw "Windows signed Sidecar identity resealing failed" }
 
     - name: Sign resealed Windows launcher with Artifact Signing
-      uses: azure/artifact-signing-action@v2
+      uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
       with:
         endpoint: ${{ inputs.azure-endpoint }}
         signing-account-name: ${{ inputs.azure-signing-account-name }}
@@ -264,7 +264,7 @@ runs:
         }
 
     - name: Sign Windows installer with Artifact Signing
-      uses: azure/artifact-signing-action@v2
+      uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
       with:
         endpoint: ${{ inputs.azure-endpoint }}
         signing-account-name: ${{ inputs.azure-signing-account-name }}

@@ -1,0 +1,24 @@
+{
+  "mode": "after",
+  "chat_id": "chat-1790447049255-23ac34bf030c2",
+  "rows": [
+    {
+      "mode": "after",
+      "round": 1,
+      "http_wall_ms": 3728.67,
+      "reported_latency_ms": 3707,
+      "finish_reason": "stop",
+      "reply_chars": 2,
+      "nonempty": true
+    },
+    {
+      "mode": "after",
+      "round": 2,
+      "http_wall_ms": 5106.0,
+      "reported_latency_ms": 5104,
+      "finish_reason": "stop",
+      "reply_chars": 2,
+      "nonempty": true
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "chat-1790134463586-3bf4167cd15f48",
+  "title": "Ticket 329 acceptance — disposable",
+  "model": "openai:gpt-4.1",
+  "character_id": null,
+  "toolkits": [
+    "core"
+  ],
+  "messages": [
+    {
+      "id": "user-1790134463605",
+      "role": "user",
+      "content": "/humanizer Rewrite this paragraph without adding facts. Return the edited paragraph and a short change summary. Preserve the date, amount and attribution: The Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up. It is important to note that this groundbreaking initiative represents a testament to the community’s unwavering commitment to fostering a vibrant literary landscape.",
+      "createdAt": 1790134463605,
+      "updatedAt": 1790134463605
+    },
+    {
+      "id": "assistant-1790134463605-fdd67afe610a78",
+      "role": "assistant",
+      "content": "**Edited paragraph:**  \nThe Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up.\n\n**Change summary:**  \nRemoved inflated language and sales terms (\"groundbreaking initiative,\" \"testament to the community’s unwavering commitment,\" \"fostering a vibrant literary landscape\") to keep only the concrete facts: the launch date, budget, volunteer count, and attribution. No facts were added or removed.",
+      "createdAt": 1790134463605,
+      "updatedAt": 1790134470453,
+      "status": "done"
+    },
+    {
+      "id": "user-1790134545195",
+      "role": "user",
+      "content": "Give the revised paragraph alone, keeping the exact facts. Do not repeat the change summary.",
+      "createdAt": 1790134545195,
+      "updatedAt": 1790134545195
+    },
+    {
+      "id": "assistant-1790134545195-e8f30cb621d02",
+      "role": "assistant",
+      "content": "The Aurora Library pilot launched on 14 September 2026 with a budget of $12,500. According to project lead Ada Chen, 37 volunteers signed up.",
+      "createdAt": 1790134545195,
+      "updatedAt": 1790134549621,
+      "status": "done"
+    }
+  ],
+  "fullLocalEvidence": {
+    "path": "/Users/red/Desktop/GITRepo/pupu-329-artifacts/live-chat-full.json",
+    "sha256": "1cf76e4b2753965d872dc92938f1d330c279f500fabee149e599a6d37d1d0ffc"
+  }
+}

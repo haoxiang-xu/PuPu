@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import { secureRandomId } from "../../../SERVICEs/secure_random_id";
+import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
-import { expandCommands, extractCommands } from "../../../SERVICEs/command_registry";
+import { extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { admitDoneRunAccountingV1 } from "../../../SERVICEs/run_bundle_storage";
 import { RUN_BUNDLE_V1_SCHEMA } from "../../../SERVICEs/run_bundle_v1";
@@ -18,6 +20,7 @@ import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
 import {
   createIncrementalActivityTreeProjector,
+  removeReasoningPreviewFrames,
   reduceActivityTree,
 } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
@@ -93,7 +96,6 @@ import {
   parseContextV2ErrorCode,
 } from "../../../SERVICEs/bridges/context_v2_bridge";
 import { readMemoryAgentSettings } from "../../../SERVICEs/memory_agent_settings";
-import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 import {
   TURN_MUTATION_ADMISSION_MODES,
   TURN_MUTATION_MEMORY_MODES,
@@ -388,36 +390,39 @@ const isValidComposerForContent = (composer, contentLength) =>
       composer.templateLength <= contentLength,
   );
 
-/* Build the outgoing (expanded) text, the ephemeral per-run toolkit selection,
- * and the composer sidecar for a composer/edit send. `composer` is null unless
- * ≥1 command expanded (contract §2 write condition — a zero-template command
- * still counts, it contributes a chip). rawText is stored verbatim (pre-expand,
- * contract §1.2); commands are projected to {name, sourceToolkitId} preserving
- * token order and duplicates (§1.3). */
-const buildComposerSend = (rawText, selectedToolkits) => {
-  const expansion = expandCommands(rawText, {
+/* Build the outgoing text (VERBATIM — no client-side expansion; the Unchain
+ * runtime now resolves `/name` tokens itself and never rewrites the user's
+ * accepted message, contract §1.2/P-D5), the ephemeral per-run toolkit
+ * selection, and the composer sidecar for a composer/edit send.
+ * `extractCommands` is used ONLY to detect command tokens for routing and
+ * per-run pack selection — it never touches `outgoingText`, which is always
+ * exactly `rawText`. `composer` is null unless ≥1 command token was found
+ * (contract §2 write condition — a zero-template command still counts, it
+ * contributes a chip); its `templateLength` is always 0 now that expansion
+ * moved to the runtime (§1.4). commands are projected to
+ * {name, sourceToolkitId} preserving token order and duplicates (§1.3). */
+export const buildComposerSend = (rawText, selectedToolkits) => {
+  const outgoingText = typeof rawText === "string" ? rawText : "";
+  const { commands } = extractCommands(outgoingText, {
     isStreaming: false,
     selectedToolkits: Array.isArray(selectedToolkits) ? selectedToolkits : [],
   });
-  const outgoingText = (expansion.body || "").trim();
   const extraToolkits = [
-    ...new Set(
-      expansion.commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean),
-    ),
+    ...new Set(commands.map((cmd) => cmd.sourceToolkitId).filter(Boolean)),
   ];
   const composer =
-    expansion.commands.length > 0
+    commands.length > 0
       ? {
           v: COMPOSER_SIDECAR_VERSION,
-          rawText,
-          commands: expansion.commands.map((cmd) => ({
+          rawText: outgoingText,
+          commands: commands.map((cmd) => ({
             name: cmd.name,
             sourceToolkitId:
               typeof cmd.sourceToolkitId === "string"
                 ? cmd.sourceToolkitId
                 : "",
           })),
-          templateLength: expansion.templateLength,
+          templateLength: 0,
         }
       : null;
   return { outgoingText, extraToolkits, composer };
@@ -446,6 +451,28 @@ const CUSTOM_PROVIDER_SEND_ERROR_KEYS = Object.freeze({
     description: "chat.custom_provider_error.disabled.description",
   },
 });
+
+/**
+ * Ticket #291 (BC-005): the sidecar refuses a send whose
+ * `options.skill_inventory_revision` no longer matches its inventory with
+ * `409 skill_inventory_stale`. Refresh the renderer's inventory (so the next
+ * send carries the current revision) and tell the user to resend — never
+ * silently resolve `/name` against a different source. Returns true when
+ * the error was this code.
+ */
+export const handleSkillInventoryStaleError = (error, translate) => {
+  const code = typeof error?.code === "string" ? error.code : "";
+  if (code !== "skill_inventory_stale") {
+    return false;
+  }
+  const t = typeof translate === "function" ? translate : (key) => key;
+  void resyncSkillInventory();
+  toast.error(t("chat.skill_inventory_stale.title"), {
+    description: t("chat.skill_inventory_stale.description"),
+    dedupeKey: "skill_inventory_stale",
+  });
+  return true;
+};
 
 /**
  * Fire an actionable toast for a custom-provider send-time error. No-op when
@@ -4265,17 +4292,13 @@ export const useChatStream = ({
      journal exists, and a mutation that rewrites the wrong one cannot be
      undone (the pre-mutation generation is already sealed).
 
-     Exactly two outcomes run the legacy V1 rewrite: the feature flag is off,
-     or the head unambiguously reports no V2 state for this session. Every
-     other shape blocks. See decideTurnMutationMemoryMode for the rules. */
+     Only a head that unambiguously reports no V2 state for this session
+     permits the legacy V1 rewrite. Every other shape blocks.
+     See decideTurnMutationMemoryMode for the rules. */
   const resolveTurnMutationMemoryPlan = useCallback(
     async ({ ownerChatId, sessionId }) => {
-      if (!isFeatureFlagEnabled("enable_memory_v2")) {
-        return decideTurnMutationMemoryMode({ flagEnabled: false });
-      }
       if (!contextV2Bridge.isAvailable()) {
         return decideTurnMutationMemoryMode({
-          flagEnabled: true,
           bridgeAvailable: false,
         });
       }
@@ -4289,7 +4312,6 @@ export const useChatStream = ({
         headErrorCode = parseContextV2ErrorCode(error) || "context_v2_failed";
       }
       return decideTurnMutationMemoryMode({
-        flagEnabled: true,
         bridgeAvailable: true,
         head,
         headErrorCode,
@@ -4723,13 +4745,16 @@ export const useChatStream = ({
          strictly before this call. Nothing is stored or redacted here; the
          only job is to prove the user reviewed this send.
 
-         The subject of the check is the PRE-EXPANSION text the user actually
-         saw (`secretGateText`), not `promptText`. Composer plugin-skill
-         expansion runs AFTER the gate and splices in app-authored content, so
-         scanning the expanded body here would fail closed on a skill's own
-         example credentials even though the user's own text was clean and
-         reviewed. Callers that pass no gated text fall back to promptText, so
-         an ungated programmatic path is refused rather than exempted. */
+         The subject of the check is `secretGateText` — the exact text the
+         user reviewed in the modal — not `promptText`. Composer sends no
+         longer diverge from what the user reviewed: buildComposerSend sends
+         the accepted text VERBATIM (no client-side command expansion; the
+         Unchain runtime resolves `/name` tokens itself), so on the
+         compose/edit paths `secretGateText` and `promptText` are now the
+         same string. The parameter stays separate because it is still the
+         exact binding the one-time token proves, and callers that pass no
+         gated text fall back to promptText, so an ungated programmatic path
+         is refused rather than exempted. */
       if (!isDurableResume && !secretGateSettled) {
         const gatedText =
           typeof secretGateText === "string" && secretGateText
@@ -5030,7 +5055,7 @@ export const useChatStream = ({
         : null;
       const assistantMessageId =
         durableResumeMessages?.ownerMessageId ||
-        `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        `assistant-${Date.now()}-${secureRandomId()}`;
 
       let persistedAttachments = [];
       let payloadAttachments = [];
@@ -6207,6 +6232,10 @@ export const useChatStream = ({
               handlers.onMeta?.(effect.meta);
               return;
             }
+            if (effect.type === "reasoning_reset") {
+              handlers.onReasoningReset?.(effect);
+              return;
+            }
             if (effect.type === "token") {
               markRequestConsumed();
               handlers.onToken?.(effect.delta);
@@ -6982,8 +7011,7 @@ export const useChatStream = ({
            character chats — and is sent unconditionally on both the normal
            and the durable-resume payload (merged via spread; the durable
            helper itself is intentionally untouched).
-           memory_v2_requested + memory_agent_config appear ONLY when the
-           enable_memory_v2 flag is on, and then on BOTH the normal send and
+           memory_v2_requested + memory_agent_config appear on the normal send and
            the durable-resume payload — a resumed interaction is still a
            Memory V2 turn and the sidecar must route it the same way.
            context_v2_history is the one V2 field that stays exclusive to the
@@ -6998,24 +7026,17 @@ export const useChatStream = ({
            provider, modelId}) — explicitly picked so no other settings
            namespace can ever leak into the payload.
            The legacy `history` field keeps its exact existing logic so model
-           input stays byte-equivalent in shadow mode, and with the flag off
-           the payload is unchanged in both branches. */
-        const memoryV2Requested = isFeatureFlagEnabled("enable_memory_v2");
-        const memoryV2CommonFields = memoryV2Requested
-          ? (() => {
-              const memoryAgentSettings = readMemoryAgentSettings();
-              return {
-                memory_v2_requested: true,
-                memory_agent_config: {
-                  displayName: memoryAgentSettings.displayName,
-                  additionalInstructions:
-                    memoryAgentSettings.additionalInstructions,
-                  provider: memoryAgentSettings.provider,
-                  modelId: memoryAgentSettings.modelId,
-                },
-              };
-            })()
-          : {};
+           input stays byte-equivalent in internal shadow mode. */
+        const memoryAgentSettings = readMemoryAgentSettings();
+        const memoryV2CommonFields = {
+          memory_v2_requested: true,
+          memory_agent_config: {
+            displayName: memoryAgentSettings.displayName,
+            additionalInstructions: memoryAgentSettings.additionalInstructions,
+            provider: memoryAgentSettings.provider,
+            modelId: memoryAgentSettings.modelId,
+          },
+        };
         const contextCompositionHint = isDurableResume
           ? null
           : buildContextCompositionHintV2({
@@ -7035,13 +7056,7 @@ export const useChatStream = ({
                 ? { continued_from_run_id: continuedFromRunId }
                 : {}),
               ...memoryV2CommonFields,
-              ...(memoryV2Requested
-                ? {
-                    context_v2_history: buildContextV2History(
-                      normalizedBaseMessages,
-                    ),
-                  }
-                : {}),
+              context_v2_history: buildContextV2History(normalizedBaseMessages),
               ...(turnMutationOperationId
                 ? { attempt_id: turnMutationOperationId }
                 : {}),
@@ -7112,6 +7127,40 @@ export const useChatStream = ({
            accepting. onConsumed fires only on the authoritative acceptance
            evidence handled inside these callbacks. */
         const streamCallbacks = {
+            onReasoningReset: (effect) => {
+              if (!isCurrentRun()) return;
+              const refMessages = activeStreamsRef.current.get(targetChatId)?.messages;
+              if (Array.isArray(refMessages) && refMessages.length > 0) {
+                streamMessages = refMessages;
+              }
+              const childFrames = renderRuntime.subagentFramesByRunId.get(effect.runId);
+              if (Array.isArray(childFrames)) {
+                renderRuntime.subagentFramesByRunId.set(
+                  effect.runId,
+                  removeReasoningPreviewFrames(childFrames, effect),
+                );
+                dirtySubagentFrameRunIds.add(effect.runId);
+              }
+              const patchTime = Date.now();
+              const nextStreamMessages = streamMessages.map((message) => {
+                if (message.id !== assistantMessageId) return message;
+                const traceFrames = removeReasoningPreviewFrames(message.traceFrames, effect);
+                const subagentFrames = message.subagentFrames;
+                const savedChildFrames = subagentFrames?.[effect.runId];
+                return {
+                  ...message,
+                  updatedAt: patchTime,
+                  traceFrames,
+                  ...(Array.isArray(savedChildFrames) && {
+                    subagentFrames: {
+                      ...subagentFrames,
+                      [effect.runId]: removeReasoningPreviewFrames(savedChildFrames, effect),
+                    },
+                  }),
+                };
+              });
+              syncStreamMessages(nextStreamMessages);
+            },
             onFrame: (frame) => {
               if (!isCurrentRun()) {
                 return;
@@ -8327,6 +8376,7 @@ export const useChatStream = ({
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
+              handleSkillInventoryStaleError(error, tRef.current);
               const hasAdmittedRunAccounting =
                 error?.[ADMITTED_RUN_ACCOUNTING_ERROR] === true;
               const admittedBundle =
@@ -8721,6 +8771,7 @@ export const useChatStream = ({
         // Surface an actionable toast instead of letting it fall into the
         // generic error bubble with no way forward.
         emitCustomProviderSendErrorToast(error, tRef.current);
+        handleSkillInventoryStaleError(error, tRef.current);
         if (scheduleDurableResumeRetry(error, nextMessages)) {
           cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);
@@ -12290,18 +12341,23 @@ export const useChatStream = ({
         return;
       }
 
-      // Composer plugin-skill expansion: only for text actually typed into
-      // the composer. Programmatic sends (interject new_run fallback / queue
-      // relay) already carry a resolved body — expanding them again would
-      // re-run command tokens that were already handled upstream, so they
-      // never carry a composer sidecar either.
+      // Composer command detection: only for text actually typed into the
+      // composer. buildComposerSend sends the accepted text VERBATIM — there
+      // is no client-side expansion any more; the Unchain runtime resolves
+      // `/name` tokens itself — and only uses detected command tokens to
+      // compute the ephemeral per-run toolkit selection and the composer
+      // sidecar. Programmatic sends (interject new_run fallback / queue
+      // relay) skip this entirely: their body is already resolved upstream,
+      // and re-scanning it here would just re-detect tokens already handled,
+      // so they never carry a composer sidecar either.
       let outgoingText = outgoingSource;
       let commandToolkits = [];
       let composer = null;
       if (!isProgrammaticSend) {
-        // buildComposerSend: expanded body + ephemeral per-run toolkit
-        // selection (using a plugin's command selects that plugin for THIS run
-        // only — never persisted to the session) + the presentation sidecar.
+        // buildComposerSend: verbatim outgoing text + ephemeral per-run
+        // toolkit selection (using a plugin's command selects that plugin for
+        // THIS run only — never persisted to the session) + the presentation
+        // sidecar (templateLength always 0 — expansion moved to the runtime).
         const built = buildComposerSend(
           outgoingSource,
           selectedToolkitsRef.current,
@@ -12311,7 +12367,11 @@ export const useChatStream = ({
         composer = built.composer;
       }
 
-      if (!outgoingText && !hasAttachments) {
+      // outgoingText is rawText verbatim now (contract §1.2, no trim), so a
+      // whitespace-only submission must be checked explicitly here instead of
+      // relying on falsy "".
+      const hasText = outgoingText.trim().length > 0;
+      if (!hasText && !hasAttachments) {
         return;
       }
 
@@ -13593,10 +13653,15 @@ export const useChatStream = ({
           );
         }
 
-        // The expanded edit and its sidecar are persisted in the outbox so a
-        // remount resumes the exact same operation, not a newly-resolved one.
+        // The edit's verbatim text and its sidecar are persisted in the
+        // outbox so a remount resumes the exact same operation, not a
+        // newly-resolved one.
         const built = buildComposerSend(editText, targetSelectedToolkits);
-        if (!built.outgoingText && originalAttachments.length === 0) {
+        // built.outgoingText is rawText verbatim (contract §1.2, no trim), so
+        // check for whitespace-only text explicitly, same as the compose
+        // path above.
+        const hasEditText = built.outgoingText.trim().length > 0;
+        if (!hasEditText && originalAttachments.length === 0) {
           setStreamErrorForChat(
             currentChatId,
             "This edit does not contain any text or usable attachments.",

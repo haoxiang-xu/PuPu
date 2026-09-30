@@ -70,7 +70,7 @@ const extractInstalledMainRuntime = ({ installedApp, targetRoot }) => {
   const snapshot = JSON.parse(snapshotBytes.toString("utf8"));
   const releaseMetadata = snapshot?._pupu_memory_v2_release;
   if (
-    snapshot?.enable_memory_v2 !== true ||
+    snapshot?._pupu_memory_v2_release?.sidecar_environment?.PUPU_MEMORY_V2_MODE !== "all" ||
     releaseMetadata?.schema !== "pupu.memory-v2-release.v1" ||
     typeof releaseMetadata?.snapshot_fingerprint !== "string" ||
     !releaseMetadata.snapshot_fingerprint
@@ -344,7 +344,7 @@ const runMatrix = async ({
       fs.mkdirSync(path.join(appRoot, ".local"), { recursive: true });
       fs.writeFileSync(
         path.join(appRoot, ".local", "build_feature_flags.snapshot.json"),
-        `${JSON.stringify({ enable_memory_v2: true })}\n`,
+        `${JSON.stringify({})}\n`,
         "utf8",
       );
       // Do not symlink this directory. The server's Python bootstrap resolves

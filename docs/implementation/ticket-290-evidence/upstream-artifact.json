@@ -1,0 +1,10 @@
+{
+  "package": "zotero-mcp-server",
+  "version": "0.12.0",
+  "filename": "zotero_mcp_server-0.12.0-py3-none-any.whl",
+  "url": "https://files.pythonhosted.org/packages/9b/45/3eb4d001f4ec57618924f9dc0474ae24f296c0fc113841d492ff5e175b99/zotero_mcp_server-0.12.0-py3-none-any.whl",
+  "uploadTime": "2026-09-14T03:48:10.751875Z",
+  "pypiDeclaredSha256": "e5eab1b19ba2653ab3508013da17fc3a137708938a12bb8ef8e1aa5b88a46cd6",
+  "downloadedSha256": "e5eab1b19ba2653ab3508013da17fc3a137708938a12bb8ef8e1aa5b88a46cd6",
+  "bytes": 508014
+}

@@ -1,3 +1,5 @@
+import { secureRandomId } from "./secure_random_id";
+
 const STORAGE_KEY = "pupu.turn_mutation_outbox.v1";
 const MAX_ENTRIES = 32;
 
@@ -233,9 +235,7 @@ export const fingerprintTurnMutationMessages = (messages) =>
   );
 
 export const createTurnMutationOperationId = (chatId) =>
-  `turn-${normalizedString(chatId) || "chat"}-${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
+  `turn-${normalizedString(chatId) || "chat"}-${Date.now()}-${secureRandomId()}`;
 
 export const normalizeTurnMutationOutboxEntry = (value) => {
   const operationId = normalizedString(value?.operationId || value?.operation_id);

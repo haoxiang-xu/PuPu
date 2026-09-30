@@ -62,7 +62,9 @@ const PluginTrustBadge = ({ entry, isDark = false }) => {
   const generatedId = useId();
   const detailsId = `plugin-trust-details-${generatedId.replace(/:/g, "")}`;
 
-  const resolved = resolvePluginTrust(entry) || {};
+  // resolvePluginTrust returns a complete projection on every path, a
+  // rejected entry included, so there is no falsy case to guard.
+  const resolved = resolvePluginTrust(entry);
   const origin = Object.prototype.hasOwnProperty.call(
     ORIGIN_KEYS,
     resolved.origin,

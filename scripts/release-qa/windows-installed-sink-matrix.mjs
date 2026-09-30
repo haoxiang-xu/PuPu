@@ -48,6 +48,7 @@ import {
   secretVariantsFor,
 } from "./windows-installed-sink-matrix-lib.mjs";
 import { loadExpectedIdentity, verifyInstalledSinkEvidence } from "./verify-windows-installed-sink-evidence.mjs";
+import { readBoundedFile } from "./read-bounded-file.mjs";
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -882,7 +883,7 @@ const recordCell = (cell, run) => {
 };
 
 try {
-  let page = await launch("initial");
+  const page = await launch("initial");
   await installFakeMcp(page);
   // Warm the provider once so the advertised tool names (including the MCP
   // tool's exact name) are known before the MCP cells run.
@@ -923,7 +924,8 @@ try {
     if (cell.id === "env.cold_restart_then_success") {
       const closed = await closeApp({ graceful: true });
       log(`graceful exit before cold restart: ${closed.graceful}`);
-      page = await launch("cold-restart");
+      // launch() republishes app.page, and that is the handle runCell reads.
+      await launch("cold-restart");
     }
     const run = await runCell(cell);
     if (cell.id === "env.cold_restart_then_success" && !run.observed.receiptRowsBefore && run.observed.receiptRowsBefore !== 0) {
@@ -1010,9 +1012,8 @@ try {
   const texts = {};
   const addFile = (label, file, limit = 8 * 1024 * 1024) => {
     try {
-      const stat = fs.statSync(file);
-      if (!stat.isFile() || stat.size > limit) return;
-      texts[label] = fs.readFileSync(file, "latin1");
+      const text = readBoundedFile(file, limit);
+      if (text !== null) texts[label] = text;
     } catch (_error) {
       // unreadable files are skipped; they are listed by name below
     }

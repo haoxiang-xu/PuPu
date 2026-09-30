@@ -11,7 +11,15 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
-UNCHAIN_SRC = SERVER_ROOT.parents[2] / "unchain" / "src"
+# An explicit UNCHAIN_SOURCE_PATH (e.g. a venv holding the exact tested wheel)
+# wins over the sibling source checkout (ticket #291: never test against a
+# sibling checkout when an artifact is pinned).
+_EXPLICIT_UNCHAIN = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
+UNCHAIN_SRC = (
+    Path(_EXPLICIT_UNCHAIN)
+    if _EXPLICIT_UNCHAIN
+    else SERVER_ROOT.parents[2] / "unchain" / "src"
+)
 if UNCHAIN_SRC.exists() and str(UNCHAIN_SRC) not in sys.path:
     sys.path.insert(0, str(UNCHAIN_SRC))
 

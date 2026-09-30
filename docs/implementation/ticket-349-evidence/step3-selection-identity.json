@@ -1,0 +1,8 @@
+{
+  "pupu_server_snapshot_sha256": "ea0cebe2a686955dc331b770ede8fd393efc9fc66f1e21fbaaf539ba578bc448",
+  "file_count": 375,
+  "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44",
+  "verified_installed_files": 347,
+  "actual_server_module": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-selection-fix/server/memory_v2_background_worker.py",
+  "actual_runtime_manifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c"
+}

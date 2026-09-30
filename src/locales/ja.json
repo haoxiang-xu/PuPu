@@ -188,10 +188,34 @@
     "settings": {
       "ready": "準備完了",
       "open_in_models": "モデルページで開く",
+      "open_models_page": "モデルページを開く",
       "ollama_hint": "インストール済みモデルとライブラリはモデルページにあります。"
     }
   },
   "memory": {
+    "automatic_context": "会話のコンテキスト",
+    "automatic_context_desc": "会話のコンテキストは自動で管理されます。従来の短期記憶の設定は適用されません。",
+    "legacy_long_term_memory": "長期記憶（従来版）",
+    "current_memory": "メモリ",
+    "current_memory_status": "状態",
+    "current_memory_scope": "PuPu は会話のコンテキストを自動で管理します。この状態は新しい会話での利用可否を示します。既存の会話では別のモードを使用している場合があります。",
+    "current_memory_refresh": "更新",
+    "status_checking": "メモリの状態を確認中…",
+    "status_all": "新しい会話で利用できます",
+    "status_canary": "一部の新しい会話で利用できます",
+    "status_shadow": "新しい会話の回答では有効になりません",
+    "status_off": "新しい会話では有効になりません",
+    "status_read_only": "メモリは読み取り専用です",
+    "status_unavailable": "メモリの状態を取得できません",
+    "legacy_memory": "従来のメモリ",
+    "legacy_memory_desc": "これらの設定は従来のメモリシステムに適用されます。現在のメモリシステムのオンとオフは切り替えません。",
+    "show_legacy_settings": "従来の設定を表示",
+    "hide_legacy_settings": "従来の設定を隠す",
+    "legacy_memory_settings": "従来のメモリ設定",
+    "legacy_enable_memory_desc": "従来のメモリシステムをオンまたはオフにします。",
+    "legacy_enable_long_term_desc": "従来の長期メモリを制御します。",
+    "inspect_legacy_memory": "従来のメモリを確認",
+    "inspect_legacy_memory_desc": "従来のシステムが保存したベクトルを表示します。",
     "title": "チャットメモリ",
     "enable_memory": "メモリを有効化",
     "enable_memory_desc": "各チャットは短期メモリを保持し、長期メモリはグローバルに共有され、関連する際に自動的に呼び出されます。",
@@ -579,6 +603,10 @@
       "context_usage": "コンテキスト使用量",
       "done": "完了",
       "drop_here": "ここにドロップして格納"
+    },
+    "skill_inventory_stale": {
+      "title": "スキルが変更されました",
+      "description": "このチャットを開いてから、利用可能なスキルが更新されました。一覧を更新しましたので、メッセージをもう一度送信してください。"
     }
   },
   "toolkit": {
@@ -862,5 +890,18 @@
     "group_conversation": "会話",
     "open_progress": "コンテキスト使用量を開く；最新のモデル呼び出しは {percentage}% 使用中",
     "open_progress_unavailable": "コンテキスト使用量を開く；最新のモデル呼び出しのウィンドウ負荷は利用不可"
+  },
+  "memory_activity": {
+    "conversation_ready": "会話の準備完了",
+    "conversation_incomplete": "会話の準備が未完了",
+    "conversation_legacy": "以前の会話記録",
+    "conversation_unavailable": "会話の状態を取得できません",
+    "organization_failed": "メモリの整理に失敗しました",
+    "organization_cancelled": "メモリの整理をキャンセルしました",
+    "organization_unavailable": "メモリ整理の状態を取得できません",
+    "organization_running": "メモリを整理中…",
+    "organization_queued": "メモリの整理待ち",
+    "organization_empty": "整理するメモリはありません",
+    "organization_complete": "メモリの整理完了"
   }
 }

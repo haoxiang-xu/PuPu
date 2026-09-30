@@ -1,0 +1,510 @@
+{
+  "qualification": "deterministic installed-wheel candidate; no model inference",
+  "source_dirty": false,
+  "wheel_sha256": "sha256:196bd8c328bf9cafd736788ecb50886b548f15ea8fb816226b92ed70aa547fd5",
+  "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+  "host_raw": [
+    {
+      "type": "reasoning",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "discard this",
+      "provisional_reasoning_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "type": "reasoning_preview_discarded",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "provisional_reasoning_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "type": "reasoning",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "accepted plan",
+      "provisional_reasoning_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "type": "token_delta",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "first"
+    },
+    {
+      "type": "reasoning",
+      "run_id": "ticket-274-run-2",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "second plan",
+      "provisional_reasoning_id": "cccccccccccccccccccccccccccccccc"
+    },
+    {
+      "type": "token_delta",
+      "run_id": "ticket-274-run-2",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "second"
+    }
+  ],
+  "durable_raw": [
+    {
+      "type": "reasoning",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "accepted plan"
+    },
+    {
+      "type": "token_delta",
+      "run_id": "ticket-274-run-1",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "first"
+    },
+    {
+      "type": "reasoning",
+      "run_id": "ticket-274-run-2",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "second plan"
+    },
+    {
+      "type": "token_delta",
+      "run_id": "ticket-274-run-2",
+      "iteration": 1,
+      "provider": "ollama",
+      "delta": "second"
+    }
+  ],
+  "live_events": [
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-1",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 1,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning",
+        "delta": "discard this"
+      },
+      "metadata": {
+        "raw_type": "reasoning",
+        "provider": "ollama",
+        "provisional_reasoning_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-2",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 2,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning_reset",
+        "preview_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "metadata": {
+        "raw_type": "reasoning_preview_discarded",
+        "provider": "ollama"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-3",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 3,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning",
+        "delta": "accepted plan"
+      },
+      "metadata": {
+        "raw_type": "reasoning",
+        "provider": "ollama",
+        "provisional_reasoning_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-4",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 4,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "text",
+        "delta": "first"
+      },
+      "metadata": {
+        "raw_type": "token_delta",
+        "provider": "ollama"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-5",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-2",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-2:turn-1",
+      "seq": 5,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning",
+        "delta": "second plan"
+      },
+      "metadata": {
+        "raw_type": "reasoning",
+        "provider": "ollama",
+        "provisional_reasoning_id": "cccccccccccccccccccccccccccccccc"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "preview-evt-6",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-2",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-2:turn-1",
+      "seq": 6,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "step_type": "model_response",
+        "kind": "text",
+        "delta": "second"
+      },
+      "metadata": {
+        "raw_type": "token_delta",
+        "provider": "ollama"
+      }
+    }
+  ],
+  "cold_events": [
+    {
+      "schema_version": "v4",
+      "event_id": "cold-evt-1",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 1,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning",
+        "delta": "accepted plan"
+      },
+      "metadata": {
+        "raw_type": "reasoning",
+        "provider": "ollama"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "cold-evt-2",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-1",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-1:turn-1",
+      "seq": 2,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-1:turn-1:response",
+        "step_type": "model_response",
+        "kind": "text",
+        "delta": "first"
+      },
+      "metadata": {
+        "raw_type": "token_delta",
+        "provider": "ollama"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "cold-evt-3",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-2",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-2:turn-1",
+      "seq": 3,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "step_type": "model_response",
+        "kind": "reasoning",
+        "delta": "second plan"
+      },
+      "metadata": {
+        "raw_type": "reasoning",
+        "provider": "ollama"
+      }
+    },
+    {
+      "schema_version": "v4",
+      "event_id": "cold-evt-4",
+      "type": "step.delta",
+      "timestamp": "2026-09-25T00:00:00Z",
+      "session_id": "ticket-274-live",
+      "run_id": "ticket-274-run-2",
+      "agent_id": "developer",
+      "turn_id": "ticket-274-run-2:turn-1",
+      "seq": 4,
+      "links": {
+        "parent_run_id": null,
+        "parent_event_id": null,
+        "caused_by_event_id": null,
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "tool_call_id": null,
+        "interaction_id": null,
+        "artifact_id": null,
+        "workspace_change_set_id": null,
+        "plan_id": null,
+        "channel_id": null,
+        "team_id": null
+      },
+      "surface": {
+        "slot": "trace_inline",
+        "scope": "turn",
+        "group": "model",
+        "default_state": "collapsed",
+        "priority": 100
+      },
+      "visibility": "user",
+      "payload": {
+        "step_id": "model:ticket-274-run-2:turn-1:response",
+        "step_type": "model_response",
+        "kind": "text",
+        "delta": "second"
+      },
+      "metadata": {
+        "raw_type": "token_delta",
+        "provider": "ollama"
+      }
+    }
+  ]
+}

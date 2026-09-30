@@ -781,7 +781,7 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
       callOrder = [];
       setMemoryEnabled(true);
       setMemoryV2Flag(shadow);
-      installContextV2({ head: SHADOW_HEAD });
+      installContextV2(shadow ? { head: SHADOW_HEAD } : { headError: codedError("context_v2_not_found") });
       window.unchainAPI.replaceSessionMemory = jest.fn(async () => ({
         applied: true,
       }));
@@ -912,22 +912,14 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
     expect(window.unchainAPI.getSessionMemoryExport).toHaveBeenCalled();
   });
 
-  test("flag off keeps the exact legacy V1 path", async () => {
+  test("retired false flag cannot bypass canonical rebase", async () => {
     setMemoryV2Flag(false);
     installContextV2();
-    const chatId = await seedChat();
-
+    await seedChat();
     await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
-
-    await waitFor(() =>
-      expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1),
-    );
-    // The Context V2 bridge is never consulted at all with the flag off.
-    expect(headCalls).toHaveLength(0);
-    expect(rebaseCalls).toHaveLength(0);
-    expect(
-      readTurnMutationOutbox().filter((item) => item.chatId === chatId),
-    ).toEqual([]);
+    await waitFor(() => expect(rebaseCalls).toHaveLength(1));
+    expect(headCalls.length).toBeGreaterThan(0);
+    expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
   });
 
   // ── ack contract ────────────────────────────────────────────────────────

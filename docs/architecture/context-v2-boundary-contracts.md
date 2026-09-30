@@ -92,6 +92,15 @@
 - **兼容准入**：运行时必须声明 interaction-resolution compatibility feature；Git revision 只作诊断 telemetry，不得作为 allowlist。feature manifest 迁移及 exact deployed-pair 证据完成前，active rollout 判定为 `INCOMPLETE`。
 - **证据锚点**：Unchain `tests/context_v2/test_interaction_resolution_compat.py`、compiler/graph/rebase exact-pair tests，以及 PuPu `test_cold_cancel_supersedes_historical_malformed_generic_resolution` 与 fresh-preflight poison regression。
 
+### CTX-B09 · Unchain skill activation block → canonical journal / provider wire
+
+- **Producer**：Unchain `SkillActivationHarness` 写入 transcript 的 `<active_skills>` system message（`before_model` 与 `after_tool_batch` 两个 phase 都可能重渲染该 block）。
+- **Consumer**：Context V2 compiler/projection 与各 provider adapter。
+- **Policy**：`CLOSED` 纯文本 system message；不引入新的 block type，走既有 system message 通道。
+- **义务**：compiler 对 system message 无条件整体复制，使该 block 在 compaction 后仍然存续；block 的 revision 权威只来自这份已落盘的 message 本身——replay 时不重新读取 skill 来源（pack/workspace/user 目录），只解析已写入 transcript 的文本。
+- **失败语义**：`parse_active_skills_block` 是严格逆解析器；遇到不受支持的 `# unchain generated active skills v*` header（版本号不是当前实现识别的版本）一律 fail closed（`ActiveSkillsParseError`），不得静默忽略或退化成空 block。
+- **证据锚点**：Unchain `tests/test_skills_module.py`；PuPu `unchain_runtime/server/tests/test_adapter_skills_real_run.py`。
+
 ## 三、State-sequence profile
 
 | Profile | 必须观察的顺序 | 关键不变量 | 主要证据 |

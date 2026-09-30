@@ -66,6 +66,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
+  CHANNELS.UNCHAIN.GET_SKILL_INVENTORY,
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
   CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
@@ -310,6 +311,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG, async () =>
     unchainService.getMisoToolModalCatalogPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.GET_SKILL_INVENTORY,
+    async (_event, payload = {}) =>
+      unchainService.getMisoSkillInventoryPayload(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,

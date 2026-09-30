@@ -54,6 +54,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "enforce_mode",
       "graph_runs",
       "memory_off",
+      "ollama_reasoning_preview_v1",
       "subagent_runs",
     ]),
   }),
@@ -70,6 +71,19 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "provider_call_usage_v1",
       "run_bundle_v1",
       "run_bundle_v2",
+    ]),
+  }),
+  Object.freeze({
+    id: "skills",
+    major: 1,
+    minor: 0,
+    features: Object.freeze([
+      "active_skills_snapshot_v1",
+      "catalog_v1",
+      "skill_md_registry_v1",
+      "skill_tool_v1",
+      "toolkit_embedded_skills_v1",
+      "user_invocation_v1",
     ]),
   }),
 ]);
@@ -135,17 +149,17 @@ const statusFor = (config, overrides = {}) => ({
 });
 
 describe("Memory V2 release rollout snapshot", () => {
-  test("an off build still carries every explicit sidecar setting", () => {
+  test("a default build enables memory without an experiment flag", () => {
     const snapshot = createBuildFeatureSnapshot({}, {});
 
-    expect(snapshot.enable_memory_v2).toBe(false);
+    expect(snapshot).not.toHaveProperty("enable_memory_v2");
     expect(snapshot[MEMORY_V2_RELEASE_FIELD]).toMatchObject({
       sidecar_environment: {
-        [MEMORY_V2_ENV_KEYS.featureCeiling]: "off",
-        [MEMORY_V2_ENV_KEYS.rolloutMode]: "off",
+        [MEMORY_V2_ENV_KEYS.featureCeiling]: "all",
+        [MEMORY_V2_ENV_KEYS.rolloutMode]: "all",
         [MEMORY_V2_ENV_KEYS.canaryPercent]: "5",
         [MEMORY_V2_ENV_KEYS.readOnlyDegraded]: "0",
-        [MEMORY_V2_ENV_KEYS.storeOwner]: "off",
+        [MEMORY_V2_ENV_KEYS.storeOwner]: "unchain",
       },
     });
     expect(snapshot[MEMORY_V2_RELEASE_FIELD].rollout_fingerprint).toMatch(
@@ -193,38 +207,21 @@ describe("Memory V2 release rollout snapshot", () => {
     });
   });
 
-  test("the build ceiling alone never activates a packaged rollout", () => {
-    const buildFlagOnly = packagedConfig(
-      createBuildFeatureSnapshot({ enable_memory_v2: true }, {}),
-    );
-    const missingMode = packagedConfig(
-      createBuildFeatureSnapshot(
-        { enable_memory_v2: true },
-        { PUPU_FEATURE_MEMORY_V2: "all" },
-      ),
-    );
-    const missingCeiling = packagedConfig(
-      createBuildFeatureSnapshot(
-        { enable_memory_v2: true },
-        { PUPU_MEMORY_V2_MODE: "all" },
-      ),
-    );
+  test.each([{}, { enable_memory_v2: false }, { enable_memory_v2: true }])(
+    "default rollout ignores retired build flags %j", (flags) => {
+      const config = packagedConfig(createBuildFeatureSnapshot(flags, {}));
+      expect(config).toMatchObject({snapshotValid: true, featureCeiling: "all", configuredMode: "all", effectiveMode: "all"});
+    },
+  );
 
-    expect(buildFlagOnly).toMatchObject({
-      featureCeiling: "off",
-      configuredMode: "off",
-      effectiveMode: "off",
-    });
-    expect(missingMode).toMatchObject({
-      featureCeiling: "all",
-      configuredMode: "off",
-      effectiveMode: "off",
-    });
-    expect(missingCeiling).toMatchObject({
-      featureCeiling: "off",
-      configuredMode: "all",
-      effectiveMode: "off",
-    });
+  test.each(["off", "shadow", "canary"])("internal %s override remains effective", (mode) => {
+    const config = packagedConfig(createBuildFeatureSnapshot({}, {PUPU_MEMORY_V2_MODE: mode}));
+    expect(config.snapshotValid).toBe(true);
+    expect(config.effectiveMode).toBe(mode);
+  });
+
+  test("missing packaged metadata cannot silently activate memory", () => {
+    expect(packagedConfig({enable_memory_v2: false})).toMatchObject({snapshotValid: false, effectiveMode: "off"});
   });
 
   test("a packaged rollout becomes all only when both controls explicitly allow it", () => {
@@ -452,6 +449,7 @@ describe("Memory V2 runtime protocol admission", () => {
     ["expected_interaction_id_cas", "durable_interaction"],
     ["graph_interaction_lineage_preflight_v1", "durable_interaction"],
     ["interaction_resolution_atomic_acceptance_v1", "durable_interaction"],
+    ["ollama_reasoning_preview_v1", "provider_turn_ownership"],
     ["run_bundle_v2", "run_bundle"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {
     const protocols = cloneProtocols();
@@ -523,6 +521,28 @@ describe("Memory V2 runtime protocol admission", () => {
     });
   });
 
+  test.each([2, 3])("admits migratable/current Unchain schema %s", (version) => {
+    const result = validateMemoryV2Status(statusFor(config, { schema_version: version }), config);
+    expect(result.ok).toBe(true);
+    expect(result.reason).toBe("");
+    expect(result.status.schemaVersion).toBe(version);
+  });
+
+  test.each([0, 1, 4, 99, "3", null, 3.5])("rejects unsupported schema %s", (version) => {
+    const result = validateMemoryV2Status(statusFor(config, { schema_version: version }), config);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("context_v2_schema_incompatible");
+  });
+
+  test.each([2, 3])("schema %s cannot bypass owner/protocol validation", (version) => {
+    expect(validateMemoryV2Status(statusFor(config, {
+      schema_version: version, store_owner: "pupu_legacy",
+    }), config).reason).toBe("context_v2_store_owner_incompatible");
+    expect(validateMemoryV2Status(statusFor(config, {
+      schema_version: version, runtime_protocol_manifest: {},
+    }), config).reason).toBe("context_v2_unchain_protocol_invalid");
+  });
+
   test("still requires matching store, schema, WAL, lexical state, and rollout", () => {
     const status = statusFor(config);
 
@@ -536,7 +556,7 @@ describe("Memory V2 runtime protocol admission", () => {
       reason: "context_v2_store_owner_incompatible",
     });
     expect(
-      validateMemoryV2Status({ ...status, schema_version: 3 }, config),
+      validateMemoryV2Status({ ...status, schema_version: 4 }, config),
     ).toMatchObject({ ok: false, reason: "context_v2_schema_incompatible" });
     expect(
       validateMemoryV2Status({ ...status, journal_mode: "delete" }, config),

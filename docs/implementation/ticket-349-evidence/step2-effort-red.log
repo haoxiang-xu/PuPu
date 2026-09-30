@@ -1,0 +1,139 @@
+FFFFFFFFFFFFFFF......                                                    [100%]
+=================================== FAILURES ===================================
+_ test_effort_survives_selection_registry_and_resolution[low-low-openai-responses-openai-reasoning] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'reasoning':...fort': 'low'}}
+E
+E     Right contains 1 more item:
+E     {'reasoning': {'effort': 'low'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[low-low-anthropic-hyperspace-output_config] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'output_conf...fort': 'low'}}
+E
+E     Right contains 1 more item:
+E     {'output_config': {'effort': 'low'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[low-low-ollama-ollama-None] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[high-high-openai-responses-openai-reasoning] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'reasoning':...ort': 'high'}}
+E
+E     Right contains 1 more item:
+E     {'reasoning': {'effort': 'high'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[high-high-anthropic-hyperspace-output_config] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'output_conf...ort': 'high'}}
+E
+E     Right contains 1 more item:
+E     {'output_config': {'effort': 'high'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[high-high-ollama-ollama-None] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[ LOW -low-openai-responses-openai-reasoning] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'reasoning':...fort': 'low'}}
+E
+E     Right contains 1 more item:
+E     {'reasoning': {'effort': 'low'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[ LOW -low-anthropic-hyperspace-output_config] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'output_conf...fort': 'low'}}
+E
+E     Right contains 1 more item:
+E     {'output_config': {'effort': 'low'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[ LOW -low-ollama-ollama-None] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[minimal-minimal-openai-responses-openai-reasoning] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:63: in test_effort_survives_selection_registry_and_resolution
+    assert payload(registry) == expected
+E   AssertionError: assert {} == {'reasoning':...': 'minimal'}}
+E
+E     Right contains 1 more item:
+E     {'reasoning': {'effort': 'minimal'}}
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[minimal-minimal-anthropic-hyperspace-output_config] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[minimal-minimal-ollama-ollama-None] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[invalid-None-openai-responses-openai-reasoning] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[invalid-None-anthropic-hyperspace-output_config] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+_ test_effort_survives_selection_registry_and_resolution[invalid-None-ollama-ollama-None] _
+../../unchain_runtime/server/tests/test_memory_v2_background_effort.py:64: in test_effort_survives_selection_registry_and_resolution
+    assert set(cached) == ({"custom_provider", "reasoningEffort"}
+E   AssertionError: assert {'custom_provider'} == {'custom_prov...soningEffort'}
+E
+E     Extra items in the right set:
+E     'reasoningEffort'
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[low-low-openai-responses-openai-reasoning]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[low-low-anthropic-hyperspace-output_config]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[low-low-ollama-ollama-None]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[high-high-openai-responses-openai-reasoning]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[high-high-anthropic-hyperspace-output_config]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[high-high-ollama-ollama-None]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[ LOW -low-openai-responses-openai-reasoning]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[ LOW -low-anthropic-hyperspace-output_config]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[ LOW -low-ollama-ollama-None]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[minimal-minimal-openai-responses-openai-reasoning]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[minimal-minimal-anthropic-hyperspace-output_config]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[minimal-minimal-ollama-ollama-None]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[invalid-None-openai-responses-openai-reasoning]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[invalid-None-anthropic-hyperspace-output_config]
+FAILED ../../unchain_runtime/server/tests/test_memory_v2_background_effort.py::test_effort_survives_selection_registry_and_resolution[invalid-None-ollama-ollama-None]
+15 failed, 6 passed in 1.16s

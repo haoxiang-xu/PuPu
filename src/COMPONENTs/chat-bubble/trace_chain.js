@@ -7,6 +7,14 @@ import {
   useRef,
 } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import {
+  conversationActivity,
+  mergeMemoryJobProjection,
+  mergeMemoryJobRuns,
+  organizationActivity,
+} from "../../SERVICEs/runtime_events/memory_activity_labels";
+import MemoryAgentLiveDetails from "./memory_agent_live_details";
 import {
   colorWithAlpha,
   themeHighlightColor,
@@ -34,7 +42,6 @@ import {
 } from "../../PAGEs/chat/utils/message_finality";
 import { presentMemoryV2Audit } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
 import {
-  MemoryAgentAudit,
   MemoryV2ContextAudit,
 } from "./memory_v2_trace_audit";
 import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
@@ -704,6 +711,22 @@ const TraceChain = ({
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
+  const { t } = useTranslation();
+  const [memoryJobProjection, setMemoryJobProjection] = useState(null);
+  const handleMemoryJobProjection = useCallback(
+    (projection) => {
+      if (
+        projection?.ownerChatId !== chatId ||
+        projection?.messageId !== messageId
+      ) {
+        return;
+      }
+      setMemoryJobProjection((current) =>
+        mergeMemoryJobProjection(current, projection),
+      );
+    },
+    [chatId, messageId],
+  );
   // Subscribe only to the boolean "has (non-whitespace) live text" — this flips
   // ~once per tool turn, so per-chunk commits no longer re-render TraceChain or
   // rebuild timelineItems. The per-chunk text upload is consumed inside the
@@ -1977,17 +2000,17 @@ const TraceChain = ({
         : null,
     );
     if (memoryV2Audit) {
+      const currentJobs = memoryJobProjection?.ownerChatId === chatId &&
+        memoryJobProjection?.messageId === messageId ? memoryJobProjection.runs : [];
+      const runs = mergeMemoryJobRuns(memoryV2Audit.agentRuns, currentJobs);
       grouped.push({
         key: "__memory_v2_audit__",
         title: (
           <span data-testid="memory-v2-trace-title">
-            Memory V2 · {memoryV2Audit.status}
+            {conversationActivity(memoryV2Audit, t)}
           </span>
         ),
-        span:
-          memoryV2Audit.pressure.percent !== null
-            ? `${memoryV2Audit.pressure.percent}% context`
-            : memoryV2Audit.modeLabel,
+        span: "",
         status:
           memoryV2Audit.status === "Unavailable" ? "pending" : "done",
         unmountDetailsWhenClosed: true,
@@ -1997,34 +2020,32 @@ const TraceChain = ({
             ownerChatId={chatId}
             isDark={isDark}
             onJournalProjection={handleMemoryV2JournalProjection}
+            messageId={messageId}
+            rootRunId={bundle?.identity?.root_run_id}
+            onMemoryJobs={handleMemoryJobProjection}
           />
         ),
       });
 
-      if (memoryV2Audit.agentRuns.length > 0) {
-        const memoryAgentActive = memoryV2Audit.agentRuns.some((run) =>
-          ["Pending", "Running", "Leased"].includes(run.status),
-        );
+      if (runs.length > 0) {
         grouped.push({
           key: "__memory_agent_audit__",
           title: (
             <span data-testid="memory-agent-trace-title">
-              Memory Agent · {memoryV2Audit.agentRuns.length === 1
-                ? memoryV2Audit.agentRuns[0].status
-                : `${memoryV2Audit.agentRuns.length} runs`}
+              {organizationActivity(runs, t)}
             </span>
           ),
-          span:
-            memoryV2Audit.agentRuns.length === 1
-              ? memoryV2Audit.agentRuns[0].model ||
-                memoryV2Audit.agentRuns[0].provider ||
-                ""
-              : "",
-          status: memoryAgentActive ? "active" : "done",
+          span: "",
+          // Background work must not animate or reopen the finished answer.
+          status: "done",
+          unmountDetailsWhenClosed: true,
           details: (
-            <MemoryAgentAudit
-              runs={memoryV2Audit.agentRuns}
+            <MemoryAgentLiveDetails
+              key={`${chatId}:${messageId}`}
+              runs={runs}
               ownerChatId={chatId}
+              messageId={messageId}
+              onUpdate={handleMemoryJobProjection}
               isDark={isDark}
             />
           ),
@@ -2079,6 +2100,9 @@ const TraceChain = ({
     bundle,
     completionDiagnostics,
     memoryV2JournalProjection,
+    memoryJobProjection,
+    handleMemoryJobProjection,
+    t,
     handleMemoryV2JournalProjection,
     compact,
     hideTrack,

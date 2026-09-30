@@ -88,11 +88,32 @@ def _safe_session_component(session_id: str) -> str:
     if not cleaned:
         return _NO_SESSION
     safe = re.sub(r"[^0-9A-Za-z._-]", "_", cleaned)[:128]
-    return safe or _NO_SESSION
+    # "." and ".." pass the character allowlist but are traversal, not names.
+    # `media_root / ".."` is the data directory itself, and _sweep_dir deletes
+    # every file older than the TTL in whatever directory it is handed — so a
+    # session id of ".." would reclaim chats.db and settings.db.
+    if not safe.strip("."):
+        return _NO_SESSION
+    return safe
 
 
 def _session_dir(session_id: str) -> Path:
-    return _media_root() / _safe_session_component(session_id)
+    root = _media_root()
+    candidate = root / _safe_session_component(session_id)
+    # Defence in depth: one containment check on the realpath means a later
+    # change to the component sanitizer cannot silently reopen the escape
+    # above. The separator matters — without it a sibling directory whose name
+    # merely starts with the root's name would pass.
+    try:
+        root_real = os.path.realpath(root)
+        candidate_real = os.path.realpath(candidate)
+    except OSError:
+        return root / _NO_SESSION
+    if candidate_real != root_real and not candidate_real.startswith(
+        root_real + os.sep
+    ):
+        return root / _NO_SESSION
+    return Path(candidate_real)
 
 
 def _ext_for_media_type(media_type: str) -> str:

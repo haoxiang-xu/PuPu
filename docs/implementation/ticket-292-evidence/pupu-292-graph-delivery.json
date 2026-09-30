@@ -1,0 +1,102 @@
+{
+  "summary": {
+    "changed_count": 13,
+    "affected_count": 0,
+    "changed_files": 16,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L1:Ticket #292 — Kimi K2.7 Code thinking replay",
+      "name": "Ticket #292 — Kimi K2.7 Code thinking replay",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L12:Research and settled repair",
+      "name": "Research and settled repair",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L41:Files and verification",
+      "name": "Files and verification",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L60:Formal model assessment and checkpoints",
+      "name": "Formal model assessment and checkpoints",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L71:BC / SEQ / AC",
+      "name": "BC / SEQ / AC",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L111:Risk and limits",
+      "name": "Risk and limits",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/implementation/ticket-292.md:L127:Review checkpoint — 2026-09-20",
+      "name": "Review checkpoint — 2026-09-20",
+      "type": "Section",
+      "filePath": "docs/implementation/ticket-292.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:SERVER",
+      "name": "SERVER",
+      "type": "Variable",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:_providers",
+      "name": "_providers",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:test_shipped_factory_selects_only_k27_code_replay_profile",
+      "name": "test_shipped_factory_selects_only_k27_code_replay_profile",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:test_custom_endpoint_cannot_inherit_kimi_profile_by_model_name",
+      "name": "test_custom_endpoint_cannot_inherit_kimi_profile_by_model_name",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:test_pinned_sdk_stream_and_final_message_replay",
+      "name": "test_pinned_sdk_stream_and_final_message_replay",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:unchain_runtime/server/tests/test_kimi_replay_wire_contract.py:test_pinned_sdk_stream_and_final_message_replay.factory@85:4",
+      "name": "factory",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/tests/test_kimi_replay_wire_contract.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

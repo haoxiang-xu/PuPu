@@ -1,0 +1,752 @@
+{
+  "scope": "Step 4 diagnostic desktop and frozen sidecar verification; not a signed desktop installer or full-ticket completion",
+  "source_candidate_digest": "sha256:1049090eb0472fda65be4b6908ff6ce504ac071e04c1a457fbb4e7035e609da8",
+  "source_files_verified": 854,
+  "installed_wheel_members_verified": 330,
+  "wheel_sha256": "5df9bd1b6b2b4d084acb199bbc342cad8819be758910e1fbbffa95831d65f52f",
+  "frozen_sidecar_sha256": "6ac8748bdcb89dfe7f3e217691cffcf24a4bfc262a678c3546c79e6069efd326",
+  "diagnostic_bundle_sha256": "6713b0b529d0d59b8ba8d1e983e959ba2c1c2d542e3e43b27d032afc60538482",
+  "diagnostic_bundle_path": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-final9-desktop/candidate-diagnostic.tar.gz",
+  "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+  "sidecar_pids": [
+    6702,
+    19860
+  ],
+  "package_smoke": {
+    "schema": "pupu.release.packaged-sidecar-smoke.v1",
+    "started": true,
+    "unauthenticated_rejected": true,
+    "authenticated_health": true,
+    "authenticated_context_status": true,
+    "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+    "snapshot_fingerprint": "30715567f98d5463f6e9a08ad8799a20474895efece0371836401b6227607057",
+    "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+    "executed_tests": 5
+  },
+  "turns": [
+    {
+      "elapsed_s": 3.7262460000347346,
+      "response": {
+        "message_id": "assistant-1790525474902-360eb92197b3c8",
+        "role": "assistant",
+        "content": "READY",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 3706,
+        "chat_id": "chat-1790525474833-2be1f1d013873",
+        "execution_id": "chat-1790525474833-2be1f1d013873",
+        "attempt_id": "unchain-1790525474905-6c80e910a2ebe8"
+      }
+    },
+    {
+      "elapsed_s": 2.542027666931972,
+      "response": {
+        "message_id": "assistant-1790525510563-9d699132de50e8",
+        "role": "assistant",
+        "content": "violet lighthouse 349",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 2521,
+        "chat_id": "chat-1790525474833-2be1f1d013873",
+        "execution_id": "chat-1790525474833-2be1f1d013873",
+        "attempt_id": "unchain-1790525510566-fa1c561da71ef8"
+      }
+    },
+    {
+      "elapsed_s": 5.530271416995674,
+      "response": {
+        "message_id": "assistant-1790525545066-3a8708889cfec",
+        "role": "assistant",
+        "content": "memory_list shows no saved memory entries. Only a chat space is present.",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 5510,
+        "chat_id": "chat-1790525474833-2be1f1d013873",
+        "execution_id": "chat-1790525474833-2be1f1d013873",
+        "attempt_id": "unchain-1790525545069-0dc97f0d501258"
+      }
+    },
+    {
+      "elapsed_s": 3.7181969170924276,
+      "response": {
+        "message_id": "assistant-1790525615983-5eb6da074429c",
+        "role": "assistant",
+        "content": "The marker is violet lighthouse 349, and the previous memory_list call found no saved memory entries, only a chat space.",
+        "tool_calls": null,
+        "finish_reason": "stop",
+        "latency_ms": 3714,
+        "chat_id": "chat-1790525474833-2be1f1d013873",
+        "execution_id": "chat-1790525474833-2be1f1d013873",
+        "attempt_id": "unchain-1790525615988-f3cd714b407938"
+      }
+    }
+  ],
+  "context_builds": [
+    {
+      "artifact_refs": [],
+      "attempt_id": "graph-step-99ec52facfda465c279d0bfa85a62ac8259af992762644ea9b7880a7b7be6923",
+      "budget": {
+        "available_input_tokens": 1035288,
+        "context_window_tokens": 1047576,
+        "output_reserve_tokens": 8192,
+        "pressure_threshold_tokens": 931759,
+        "schema": "unchain.context_budget.v1",
+        "transport_margin_tokens": 4096
+      },
+      "build_id": "context-build-25774980c3383a15abc0ec33e6e58c5b773cf16e90782f0def06b5935bc5caba",
+      "checkpoint_refs": [],
+      "estimated_input_tokens": 3914,
+      "execution_id": "chat-1790525474833-2be1f1d013873",
+      "generation_id": "pupu-bootstrap-generation-5c02a6c571452b0a77297fd0581e6443fba17d6cbba5658de51a28c286ec2117",
+      "included_ranges": [
+        {
+          "end": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          }
+        }
+      ],
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema": "unchain.context_build_envelope.v1",
+      "source_range": {
+        "end": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        },
+        "schema": "unchain.event_range.v1",
+        "start": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        }
+      },
+      "status": "complete",
+      "transformed_ranges": []
+    },
+    {
+      "artifact_refs": [],
+      "attempt_id": "graph-step-ff3c6b551472f965148ffa73a6836c2a4e6de8ecd431fd6bdd6a73fc7aaba34b",
+      "budget": {
+        "available_input_tokens": 1035288,
+        "context_window_tokens": 1047576,
+        "output_reserve_tokens": 8192,
+        "pressure_threshold_tokens": 931759,
+        "schema": "unchain.context_budget.v1",
+        "transport_margin_tokens": 4096
+      },
+      "build_id": "context-build-a01c3d7ebd5e253c9e738328a99d0a19a35dda21bb609153d6d05e60f895cdc5",
+      "checkpoint_refs": [],
+      "estimated_input_tokens": 3957,
+      "execution_id": "chat-1790525474833-2be1f1d013873",
+      "generation_id": "pupu-bootstrap-generation-5c02a6c571452b0a77297fd0581e6443fba17d6cbba5658de51a28c286ec2117",
+      "included_ranges": [
+        {
+          "end": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          }
+        }
+      ],
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema": "unchain.context_build_envelope.v1",
+      "source_range": {
+        "end": {
+          "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 20
+        },
+        "schema": "unchain.event_range.v1",
+        "start": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        }
+      },
+      "status": "complete",
+      "transformed_ranges": [
+        {
+          "end": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          }
+        }
+      ]
+    },
+    {
+      "artifact_refs": [],
+      "attempt_id": "graph-step-504c6341bf1c96117ea8e4549e08d44afe11179190f0aa55c6ac03186ec335e0",
+      "budget": {
+        "available_input_tokens": 1035288,
+        "context_window_tokens": 1047576,
+        "output_reserve_tokens": 8192,
+        "pressure_threshold_tokens": 931759,
+        "schema": "unchain.context_budget.v1",
+        "transport_margin_tokens": 4096
+      },
+      "build_id": "context-build-2a1cf2337ceb03058b86c4f1e44430031fc29b222b97b425ab7137865850db00",
+      "checkpoint_refs": [],
+      "estimated_input_tokens": 4027,
+      "execution_id": "chat-1790525474833-2be1f1d013873",
+      "generation_id": "pupu-bootstrap-generation-5c02a6c571452b0a77297fd0581e6443fba17d6cbba5658de51a28c286ec2117",
+      "included_ranges": [
+        {
+          "end": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          }
+        }
+      ],
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema": "unchain.context_build_envelope.v1",
+      "source_range": {
+        "end": {
+          "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 38
+        },
+        "schema": "unchain.event_range.v1",
+        "start": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        }
+      },
+      "status": "complete",
+      "transformed_ranges": [
+        {
+          "end": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          }
+        }
+      ]
+    },
+    {
+      "artifact_refs": [
+        {
+          "fragment": "",
+          "id": "artifact-8c7289893420b7ee173a578bc229424240b2a5ec43687acd29c3987c635dc0ea",
+          "kind": "artifact",
+          "revision": 1,
+          "schema": "unchain.resource_ref.v1"
+        },
+        {
+          "fragment": "",
+          "id": "artifact-f2702d27ecb177f80b71b5d46f90fe1db39e02854111b0ba564ecb37c1375299",
+          "kind": "artifact",
+          "revision": 1,
+          "schema": "unchain.resource_ref.v1"
+        }
+      ],
+      "attempt_id": "graph-step-504c6341bf1c96117ea8e4549e08d44afe11179190f0aa55c6ac03186ec335e0",
+      "budget": {
+        "available_input_tokens": 1035288,
+        "context_window_tokens": 1047576,
+        "output_reserve_tokens": 8192,
+        "pressure_threshold_tokens": 931759,
+        "schema": "unchain.context_budget.v1",
+        "transport_margin_tokens": 4096
+      },
+      "build_id": "context-build-263535d7cf40e74a868b949511de37743442c5d20ba050a5a3f7f57440ee2940",
+      "checkpoint_refs": [],
+      "estimated_input_tokens": 4356,
+      "execution_id": "chat-1790525474833-2be1f1d013873",
+      "generation_id": "pupu-bootstrap-generation-5c02a6c571452b0a77297fd0581e6443fba17d6cbba5658de51a28c286ec2117",
+      "included_ranges": [
+        {
+          "end": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          }
+        }
+      ],
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema": "unchain.context_build_envelope.v1",
+      "source_range": {
+        "end": {
+          "event_id": "event-0b13db49b565ddfe467d6bc9460c0b86b7942042097a91efc394d4d0c07bc224",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 52
+        },
+        "schema": "unchain.event_range.v1",
+        "start": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        }
+      },
+      "status": "complete",
+      "transformed_ranges": [
+        {
+          "end": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-5f7b90cd26dd5d3b6cb7d8359c578a70be37d04e3ee5f053834e1292d5ce4138",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 49
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-5f7b90cd26dd5d3b6cb7d8359c578a70be37d04e3ee5f053834e1292d5ce4138",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 49
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-0b13db49b565ddfe467d6bc9460c0b86b7942042097a91efc394d4d0c07bc224",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 52
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-0b13db49b565ddfe467d6bc9460c0b86b7942042097a91efc394d4d0c07bc224",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 52
+          }
+        }
+      ]
+    },
+    {
+      "artifact_refs": [
+        {
+          "fragment": "",
+          "id": "artifact-8c7289893420b7ee173a578bc229424240b2a5ec43687acd29c3987c635dc0ea",
+          "kind": "artifact",
+          "revision": 1,
+          "schema": "unchain.resource_ref.v1"
+        },
+        {
+          "fragment": "",
+          "id": "artifact-f2702d27ecb177f80b71b5d46f90fe1db39e02854111b0ba564ecb37c1375299",
+          "kind": "artifact",
+          "revision": 1,
+          "schema": "unchain.resource_ref.v1"
+        }
+      ],
+      "attempt_id": "graph-step-819cf2d8b4b10400fb491163ac2d5318515f6268ac1a96a1031ac6cf932e6289",
+      "budget": {
+        "available_input_tokens": 1035288,
+        "context_window_tokens": 1047576,
+        "output_reserve_tokens": 8192,
+        "pressure_threshold_tokens": 931759,
+        "schema": "unchain.context_budget.v1",
+        "transport_margin_tokens": 4096
+      },
+      "build_id": "context-build-4656e9c4b23aee53e16dacb179295a69877cda36bc9093b3b43c9b52ce79ee1c",
+      "checkpoint_refs": [],
+      "estimated_input_tokens": 4344,
+      "execution_id": "chat-1790525474833-2be1f1d013873",
+      "generation_id": "pupu-bootstrap-generation-5c02a6c571452b0a77297fd0581e6443fba17d6cbba5658de51a28c286ec2117",
+      "included_ranges": [
+        {
+          "end": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 2
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-497067e15775c3d3a6bf5e7ff737ab643a0c01b84406143f90bb3365fdcc9df8",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 18
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-b23aca1f5b50b38e7da0201b36e24a901bb22f02649331fae042f4cad5a88f3b",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 20
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-cb1750e94335f3c20b49a50db3b43c9e5d3409aabd535241d0fd61ec0b5f2e85",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 36
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-ccd58e3e5ccebecd8603e3cea70fba815cce0032e3110c487ecd063c9f5b4822",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 38
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-0f64c9f878487fb10d519d9c49376431787b2bcce59348a064c9c847c97e89c6",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 65
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-0f64c9f878487fb10d519d9c49376431787b2bcce59348a064c9c847c97e89c6",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 65
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-67519893cc5bf1e6e7d0b421d0dfc09c9d9d26faaf5e658e7d113bfa945a6137",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 67
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-67519893cc5bf1e6e7d0b421d0dfc09c9d9d26faaf5e658e7d113bfa945a6137",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 67
+          }
+        }
+      ],
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema": "unchain.context_build_envelope.v1",
+      "source_range": {
+        "end": {
+          "event_id": "event-67519893cc5bf1e6e7d0b421d0dfc09c9d9d26faaf5e658e7d113bfa945a6137",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 67
+        },
+        "schema": "unchain.event_range.v1",
+        "start": {
+          "event_id": "event-44988df600a5cb1f58dfcf62c18f8ff3d2fb08c8b4e70520acbcead0b53ae043",
+          "schema": "unchain.event_cursor.v1",
+          "store_seq": 2
+        }
+      },
+      "status": "complete",
+      "transformed_ranges": [
+        {
+          "end": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-672a07e03ede18e0a0f927f6f71d331f3b473289551ec84d00abadade87d7b4c",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 19
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-f0f4abfdf1ab6c118cab465585df9bf81121e370fdfb2c20c1653c05fe6b9669",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 37
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-5f7b90cd26dd5d3b6cb7d8359c578a70be37d04e3ee5f053834e1292d5ce4138",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 49
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-5f7b90cd26dd5d3b6cb7d8359c578a70be37d04e3ee5f053834e1292d5ce4138",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 49
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-0b13db49b565ddfe467d6bc9460c0b86b7942042097a91efc394d4d0c07bc224",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 52
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-0b13db49b565ddfe467d6bc9460c0b86b7942042097a91efc394d4d0c07bc224",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 52
+          }
+        },
+        {
+          "end": {
+            "event_id": "event-2aa180247288cfba855d02ee2b4b417a2b8ced3383b86cd570a37df8778b257f",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 66
+          },
+          "schema": "unchain.event_range.v1",
+          "start": {
+            "event_id": "event-2aa180247288cfba855d02ee2b4b417a2b8ced3383b86cd570a37df8778b257f",
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 66
+          }
+        }
+      ]
+    }
+  ],
+  "wire_checks": {
+    "provider_requests": 5,
+    "first_two_have_no_tool_calls": true,
+    "tool_pair_once_in_continuation": true,
+    "restart_preserves_full_tool_exchange": true,
+    "wire_artifact_hashes_verified": true,
+    "source_empty_memory_cannot_prove_seeded_old_memory_exclusion": true
+  },
+  "wire_artifact_sha256": [
+    "332844a0c55b55c382d03aea935ec27ce95eec9bd54f2da89875136330f98ca0",
+    "a7efc5c5e6954ecfef43a62558724d06d33e41dc1ae57896b29b27c69d537406",
+    "73154918e9eba3207b78834c7991909fe0422741ce12c9b09d485d30950010fe",
+    "823b194e8a087291295d49b325d792775ed9ec1f5b3b024616040cece1653bf4",
+    "67127b2ef20830f7cab0d08b7d6e22912d7b6e010a99c534862663d29e44204a"
+  ],
+  "durable_tool_calls": 1,
+  "durable_tool_results": 1,
+  "consolidation_jobs": 0
+}

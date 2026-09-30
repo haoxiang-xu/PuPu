@@ -35,6 +35,7 @@ const exactKeys = (value, keys) =>
   keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 
 const RELEASE_PROFILE_FEATURE_KEYS = Object.freeze({
+  "pupu.memory-v2-release-profile.v2": Object.freeze([]),
   "pupu.memory-v2-release-profile.v1": Object.freeze([
     "enable_memory_v2",
   ]),
@@ -51,7 +52,8 @@ if (profilePath) {
       !exactKeys(profile, ["feature_flags", "schema", "sidecar_environment"]) ||
       !featureKeys ||
       !exactKeys(profile.feature_flags, featureKeys) ||
-      profile.feature_flags.enable_memory_v2 !== true ||
+      (profile.schema === "pupu.memory-v2-release-profile.v1" &&
+        profile.feature_flags.enable_memory_v2 !== true) ||
       !featureKeys.every(
         (key) => typeof profile.feature_flags[key] === "boolean",
       ) ||

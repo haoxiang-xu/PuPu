@@ -64,18 +64,35 @@ export function canonicalizeWindowsSigningEvidenceFile(evidencePath) {
     throw new Error("evidence path is required");
   }
   const resolvedPath = path.resolve(evidencePath);
-  if (!fs.statSync(resolvedPath, { throwIfNoEntry: false })?.isFile()) {
+  // One handle for the is-a-file check, the read and the write-back. This file
+  // is release evidence: with a path-based stat, read and write, the bytes that
+  // get canonicalized — and the file the canonical form lands in — need not be
+  // the thing that was checked.
+  let handle;
+  try {
+    handle = fs.openSync(resolvedPath, "r+");
+  } catch {
     throw new Error(`Windows signing evidence is missing: ${resolvedPath}`);
   }
-  let evidence;
   try {
-    evidence = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
-  } catch (error) {
-    throw new Error(`unable to read Windows signing evidence: ${error.message}`);
+    if (!fs.fstatSync(handle).isFile()) {
+      throw new Error(`Windows signing evidence is missing: ${resolvedPath}`);
+    }
+    const raw = fs.readFileSync(handle, "utf8");
+    let evidence;
+    try {
+      evidence = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(`unable to read Windows signing evidence: ${error.message}`);
+    }
+    const canonical = canonicalizeWindowsSigningEvidence(evidence);
+    const serialized = `${JSON.stringify(canonical, null, 2)}\n`;
+    fs.ftruncateSync(handle, 0);
+    fs.writeSync(handle, serialized, 0, "utf8");
+    return canonical;
+  } finally {
+    fs.closeSync(handle);
   }
-  const canonical = canonicalizeWindowsSigningEvidence(evidence);
-  fs.writeFileSync(resolvedPath, `${JSON.stringify(canonical, null, 2)}\n`, "utf8");
-  return canonical;
 }
 
 const parseArgs = (argv) => {

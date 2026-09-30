@@ -156,12 +156,13 @@ npm run build:electron:linux       # Linux
 | Document | Covers |
 |----------|--------|
 | **[Architecture](architecture/)** | |
-| [PuPu / Unchain Protocol Atlas](architecture/pupu-unchain-protocols.md) | Current registry for PuPu-internal, PuPu↔Unchain, and Unchain-internal contracts, versions, compatibility paths, and known drift |
-| [Request Flow & Streaming](architecture/request-flow-and-streaming.md) | End-to-end chat streaming, V2/V3 stream paths |
+| [PuPu / Unchain Protocol Atlas](architecture/pupu-unchain-protocols.md) | Current registry for PuPu-internal, PuPu↔Unchain, and Unchain-internal contracts, versions, compatibility paths, and known drift, including skill inventory/activation (CROSS-018) |
+| [Request Flow & Streaming](architecture/request-flow-and-streaming.md) | End-to-end chat streaming, V2/V3 stream paths, and the skill-options payload injection (`injectSkillsOptionsIntoPayload`) |
 | [Runtime Events V3](architecture/runtime-events-v3.md) | Typed runtime event store, ActivityTree reducer, TraceChain adapter |
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
 | [System Prompt V2](architecture/system-prompt-v2.md) | 3-layer prompt override architecture |
 | [Context V2 & Memory V2](architecture/context-v2-and-memory-v2.md) | Canonical durable context, Memory V2 admission, execution recovery, and legacy-memory boundary |
+| [Context V2 Boundary Contracts](architecture/context-v2-boundary-contracts.md) | CTX-B01…B09 producer/consumer boundary profiles, including the Unchain skill activation block → canonical journal / provider wire (CTX-B09) |
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
 | [Storage Model](architecture/storage-model.md) | Chat persistence, and App Settings authoritative in `settings.db` (SQLite) with a `localStorage` fallback |
 | [App Settings → SQLite Migration](architecture/settings-sqlite-migration-plan.md) | Settings SQLite architecture, migration state machine, secret storage boundary |
@@ -178,7 +179,7 @@ npm run build:electron:linux       # Linux
 | [Frontend API Facades](api-reference/frontend-api-facades.md) | `api.unchain.js`, `api.ollama.js`, `api.system.js` |
 | **[Features](features/)** | |
 | [Character System](features/character-system.md) | Personas, schedules, avatars, seeding, import/export |
-| [Toolkit & Tool Catalog](features/toolkit-and-tool-catalog.md) | Toolkit discovery, TOML format, tool metadata, auto-approval |
+| [Toolkit & Tool Catalog](features/toolkit-and-tool-catalog.md) | Toolkit discovery, TOML format, tool metadata, auto-approval, and skills (inventory, sources, activation) |
 | [Workspace System](features/workspace-system.md) | Named workspaces, per-chat selection, path resolution |
 | [Agent Orchestration](features/agent-orchestration.md) | Sub-agent delegation, child-run routing, prompt sections |
 | [Attach Panel Layout](features/attach-panel-layout.md) | Movable composer widgets, the "…" overflow menu, arrange mode, persisted order |
@@ -213,3 +214,4 @@ npm run build:electron:linux       # Linux
 - **Storage writes** - always go through SERVICEs helpers, never direct localStorage from components; App Settings go through the settings repository (SQLite-authoritative), secrets only through the secret adapter, and reset uses a SQL transaction (never `localStorage.clear()`)
 - **Toolkit IDs** - use canonical `toolkitId` values (e.g. `core`), not legacy aliases such as `workspace_toolkit`
 - **Workspace paths** - never store raw paths in chat sessions; use IDs resolved at stream time
+- **Unchain runtime tests** - set `UNCHAIN_SOURCE_PATH` to the pinned wheel's site-packages (e.g. `.venv/lib/python3.12/site-packages`) before running any sidecar test that needs the real Unchain runtime; otherwise `_ensure_unchain_on_path` falls back to the sibling `../unchain/src` checkout, which is never release evidence

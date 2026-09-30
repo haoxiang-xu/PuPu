@@ -1,0 +1,14 @@
+PASS src/COMPONENTs/chat-bubble/trace_chain.memory_v2.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/COMPONENTs/chat-bubble/memory_agent_live_details.test.js
+PASS src/SERVICEs/runtime_events/ollama_live_preview_contract.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.live_subscription.test.js
+PASS src/SERVICEs/runtime_events/memory_activity_labels.test.js
+PASS src/COMPONENTs/chat-bubble/memory_job_discovery.test.js
+PASS src/SERVICEs/runtime_events/memory_v2_trace_presenter.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       85 passed, 85 total
+Snapshots:   0 total
+Time:        2.385 s
+Ran all test suites within paths "src/SERVICEs/runtime_events/memory_activity_labels.test.js", "src/COMPONENTs/chat-bubble/memory_agent_live_details.test.js", "src/COMPONENTs/chat-bubble/memory_job_discovery.test.js", "src/COMPONENTs/chat-bubble/trace_chain.memory_v2.test.js", "src/COMPONENTs/chat-bubble/trace_chain.live_subscription.test.js", "src/COMPONENTs/chat-bubble/trace_chain.test.js", "src/SERVICEs/runtime_events/memory_v2_trace_presenter.test.js", "src/SERVICEs/runtime_events/ollama_live_preview_contract.test.js".

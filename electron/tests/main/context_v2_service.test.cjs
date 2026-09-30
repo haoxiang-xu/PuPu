@@ -1,6 +1,18 @@
+// These isolated transport/legacy fixtures deliberately exercise internal off.
+// Active startup and manifest checks live in memory_v2_startup_readiness.
+const previousMemoryRolloutMode = process.env.PUPU_MEMORY_V2_MODE;
+beforeEach(() => { process.env.PUPU_MEMORY_V2_MODE = "off"; });
+afterEach(() => {
+  if (previousMemoryRolloutMode === undefined) delete process.env.PUPU_MEMORY_V2_MODE;
+  else process.env.PUPU_MEMORY_V2_MODE = previousMemoryRolloutMode;
+});
+
 const path = require("path");
 const { EventEmitter } = require("events");
 const { createUnchainService } = require("../../main/services/unchain/service");
+const serviceStatusFixture = require(
+  "../../../src/COMPONENTs/settings/memory/__fixtures__/service_status.json"
+);
 
 // Focused suite for the Memory / Context V2 (P0) controlled main-process
 // bridge. It locks the three properties the surface exists to guarantee:
@@ -233,16 +245,7 @@ describe("context v2 controlled bridge — reads", () => {
 
     const status = await service.getContextV2Status();
 
-    expect(status).toEqual({
-      available: true,
-      schemaVersion: 7,
-      journalMode: "wal",
-      lexicalBackend: "fts5",
-      vectorStatus: "degraded",
-      featureCeiling: "all",
-      rolloutMode: "canary",
-      readOnlyDegraded: false,
-    });
+    expect(status).toEqual(serviceStatusFixture);
     expect(Object.keys(status)).not.toContain("counts");
     expect(JSON.stringify(status)).not.toContain(AUTH_TOKEN);
     expect(JSON.stringify(status)).not.toContain("5879");

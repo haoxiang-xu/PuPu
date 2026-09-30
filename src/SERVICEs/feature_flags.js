@@ -40,11 +40,6 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Ship the Computer toolkit and allow its separate consented user toggle to take effect. Requires an app restart after changing this build flag.",
     defaultValue: false,
   },
-  enable_memory_v2: {
-    description:
-      "Enable Memory V2 admission and its optional Unchain module. This does not add an Agent Builder node.",
-    defaultValue: false,
-  },
 };
 
 const listeners = new Set();

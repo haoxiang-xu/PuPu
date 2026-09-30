@@ -91,7 +91,7 @@ jobs:
         run: node release-tools/scripts/update-readme-links.cjs --manifest release-assets/release-assets.v1.json --readme README.md
 
       - name: Create documentation pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           token: ${{ github.token }}
           branch: auto/update-readme-downloads-${{ inputs.release_tag }}

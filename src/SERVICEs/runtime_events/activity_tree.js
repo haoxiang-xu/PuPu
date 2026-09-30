@@ -72,6 +72,17 @@ const iterationFromTurnId = (turnId) => {
   return Number.isFinite(value) ? value : null;
 };
 
+export const removeReasoningPreviewFrames = (frames, { runId, iteration, previewId }) => {
+  if (!Array.isArray(frames)) return frames;
+  return frames.filter(
+    (frame) =>
+      frame?.type !== "reasoning" ||
+      frame.run_id !== runId ||
+      frame.iteration !== iteration ||
+      frame.payload?.provisional_reasoning_id !== previewId,
+  );
+};
+
 const payloadOf = (event) => (isObject(event?.payload) ? event.payload : {});
 const linksOf = (event) => (isObject(event?.links) ? event.links : {});
 const surfaceOf = (event) => (isObject(event?.surface) ? event.surface : {});
@@ -651,11 +662,50 @@ const applyEvent = (state, event) => {
   if (eventType === "model.delta") {
     const kind = stringValue(payload.kind, "text");
     const delta = rawStringValue(payload.delta);
+    if (kind === "reasoning_reset") {
+      const previewId = stringValue(payload.preview_id);
+      const iteration = iterationFromTurnId(event.turn_id);
+      const expectedStepId = `model:${event.turn_id}:response`;
+      if (
+        !/^[0-9a-f]{32}$/.test(previewId) ||
+        iteration === null ||
+        stringValue(payload.step_type) !== "model_response" ||
+        stringValue(payload.step_id) !== expectedStepId ||
+        stringValue(event?.links?.step_id) !== expectedStepId ||
+        stringValue(event?.metadata?.provider) !== "ollama"
+      ) {
+        return;
+      }
+      const reset = { runId, iteration, previewId };
+      state.frames = removeReasoningPreviewFrames(state.frames, reset);
+      if (Array.isArray(state.framesByRunId[runId])) {
+        state.framesByRunId[runId] = removeReasoningPreviewFrames(
+          state.framesByRunId[runId], reset,
+        );
+      }
+      state.effects.push({
+        type: "reasoning_reset",
+        eventId: stringValue(event.event_id),
+        runId,
+        iteration,
+        previewId,
+      });
+      return;
+    }
     if (kind === "reasoning") {
+      const candidatePreviewId = stringValue(event?.metadata?.provisional_reasoning_id);
+      const previewId =
+        stringValue(event?.metadata?.provider) === "ollama" &&
+        /^[0-9a-f]{32}$/.test(candidatePreviewId)
+          ? candidatePreviewId
+          : "";
       routeFrame(
         state,
         event,
-        createFrame(state, event, "reasoning", { reasoning: delta }),
+        createFrame(state, event, "reasoning", {
+          reasoning: delta,
+          ...(previewId ? { provisional_reasoning_id: previewId } : {}),
+        }),
       );
       return;
     }

@@ -200,9 +200,20 @@ const parseArgs = (argv) => {
 
 const writeNewJson = (outputPath, value, label) => {
   const output = path.resolve(outputPath);
-  if (fs.existsSync(output)) throw new Error(`${label} output must not already exist`);
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  try {
+    // "wx" is the existence check: testing first and writing after leaves a
+    // window in which the file appears between the two calls.
+    fs.writeFileSync(output, `${JSON.stringify(value, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error(`${label} output must not already exist`);
+    }
+    throw error;
+  }
 };
 
 const waitForShutdown = () => new Promise((resolve) => {

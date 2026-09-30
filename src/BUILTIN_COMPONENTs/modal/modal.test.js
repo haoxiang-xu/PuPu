@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import Modal from "./modal";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -68,5 +68,34 @@ describe("Modal stacking", () => {
     );
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Modal fullscreen", () => {
+  const themed = { theme: { modal: { border: "1px solid rgba(0, 0, 0, 0.08)" } }, onThemeMode: "light_mode" };
+
+  test("keeps the theme border when windowed", () => {
+    render(
+      <ConfigContext.Provider value={themed}>
+        <Modal open onClose={() => {}}>
+          <div>body</div>
+        </Modal>
+      </ConfigContext.Provider>,
+    );
+    const panel = screen.getByText("body").parentElement;
+    expect(panel.style.border).toBe("1px solid rgba(0, 0, 0, 0.08)");
+  });
+
+  test("drops the border when fullscreen so no hairline hugs the window edge", () => {
+    render(
+      <ConfigContext.Provider value={themed}>
+        <Modal open fullscreen onClose={() => {}}>
+          <div>body</div>
+        </Modal>
+      </ConfigContext.Provider>,
+    );
+    const panel = screen.getByText("body").parentElement;
+    expect(panel.style.border).toBe("");
+    expect(panel.style.borderRadius).toBe("0");
   });
 });

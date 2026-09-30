@@ -619,6 +619,58 @@ describe("ipc channel parity", () => {
     expect(runtimeService.downloadSkillRepo).toHaveBeenCalledWith(payload);
   });
 
+  test("skill inventory channel is classified and its invoke delegates to the unchain service (ticket #291 P4/BC-007)", async () => {
+    expect(IPC_HANDLE_CHANNELS).toContain(CHANNELS.UNCHAIN.GET_SKILL_INVENTORY);
+
+    const registeredHandlers = new Map();
+    const ipcMain = {
+      handle: jest.fn((channel, handler) => {
+        registeredHandlers.set(channel, handler);
+      }),
+      on: jest.fn(),
+    };
+    const inventoryPayload = {
+      schema: "pupu.skill_inventory.v1",
+      revision: "sha256:rev1",
+      skills: [],
+      diagnostics: [],
+    };
+    const unchainService = {
+      getMisoSkillInventoryPayload: jest.fn().mockResolvedValue(inventoryPayload),
+    };
+
+    registerIpcHandlers({
+      ipcMain,
+      app: {},
+      services: {
+        windowService: {},
+        updateService: {},
+        ollamaService: {},
+        unchainService,
+        runtimeService: {},
+        screenshotService: {},
+        chatStorageService: {},
+        settingsStorageService: {},
+        memoryVaultService: {},
+      },
+    });
+
+    const handler = registeredHandlers.get(CHANNELS.UNCHAIN.GET_SKILL_INVENTORY);
+    const requestPayload = { workspaceRoot: "/tmp/project", includeUserDirs: false };
+
+    await expect(handler({}, requestPayload)).resolves.toEqual(inventoryPayload);
+    expect(unchainService.getMisoSkillInventoryPayload).toHaveBeenCalledWith(
+      requestPayload,
+    );
+
+    // the handler defaults payload to {} when invoked with none (matches the
+    // LIST_TOOL_MODAL_CATALOG/DOWNLOAD_SKILL_REPO handlers' pattern)
+    await handler({}, undefined);
+    expect(unchainService.getMisoSkillInventoryPayload).toHaveBeenLastCalledWith(
+      {},
+    );
+  });
+
   test("semantic cancel invoke delegates to the unchain service", async () => {
     const registeredHandlers = new Map();
     const ipcMain = {

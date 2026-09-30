@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 from pathlib import Path
 from typing import Any, Dict, List
@@ -6,6 +7,8 @@ from typing import Any, Dict, List
 from flask import Response, jsonify, request
 
 from route_blueprint import api_blueprint
+
+_logger = logging.getLogger(__name__)
 
 _MEMORY_PROJECTION_MAX_POINTS = 10000
 _MEMORY_PROJECTION_PAGE_SIZE = 512
@@ -450,7 +453,10 @@ def memory_projection() -> Response:
     except Exception as exc:
         if _is_projection_collection_missing_error(exc):
             return jsonify(_empty_projection_payload())
-        return jsonify({"error": str(exc)}), 500
+        # The vector store raises with internal detail (collection names, driver
+        # errors); log it here rather than returning it to the renderer.
+        _logger.exception("[route_projection] vector projection failed")
+        return jsonify({"error": "memory_projection_failed"}), 500
 
 
 @api_blueprint.get("/memory/long-term/projection")
@@ -493,4 +499,5 @@ def long_term_memory_projection() -> Response:
             payload = _empty_projection_payload()
             payload.update(_load_long_term_profiles_payload(""))
             return jsonify(payload)
-        return jsonify({"error": str(exc)}), 500
+        _logger.exception("[route_projection] long-term projection failed")
+        return jsonify({"error": "memory_projection_failed"}), 500

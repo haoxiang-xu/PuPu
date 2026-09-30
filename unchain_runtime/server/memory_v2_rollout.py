@@ -64,7 +64,7 @@ def _mode_value(
 ) -> tuple[str, bool]:
     raw = environment.get(key)
     if raw is None or str(raw).strip() == "":
-        return "off", True
+        return "all", True
     normalized = normalize_rollout_mode(raw, "")
     return (normalized or "off"), bool(normalized)
 

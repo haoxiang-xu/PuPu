@@ -1,0 +1,1079 @@
+
+> PuPu@0.1.11 test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/COMPONENTs/agents/pages/recipes_page/recipe_roundtrip.test.js src/COMPONENTs/agents/pages/recipes_page/recipe_save_payload.test.js src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.test.js
+
+PASS src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.test.js
+  ● Console
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+    console.error
+      An update to Icon inside a test was not wrapped in act(...).
+      
+      When testing, code that causes React state updates should be wrapped into act(...):
+      
+      act(() => {
+        /* fire events that update state */
+      });
+      /* assert on the output */
+      
+      This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+      24 |       if (src in UISVGs) {
+      25 |         const SVG = await UISVGs[src];
+    > 26 |         setComponent(
+         |         ^
+      27 |           <SVG
+      28 |             className="mini-ui-svg-icon"
+      29 |             fill={color ? color : theme?.icon?.color}
+
+      at ../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18758:19
+      at runWithFiberInDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at warnIfUpdatesNotWrappedWithActDEV (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:18757:9)
+      at scheduleUpdateOnFiber (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:16409:11)
+      at dispatchSetStateInternal (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9170:13)
+      at setComponent (../PuPu/node_modules/react-dom/cjs/react-dom-client.development.js:9127:7)
+      at src/BUILTIN_COMPONENTs/icon/icon.js:26:9
+
+PASS src/COMPONENTs/agents/pages/recipes_page/recipe_save_payload.test.js
+PASS src/COMPONENTs/agents/pages/recipes_page/recipe_roundtrip.test.js
+
+Test Suites: 3 passed, 3 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        1.551 s
+Ran all test suites within paths "src/COMPONENTs/agents/pages/recipes_page/recipe_roundtrip.test.js", "src/COMPONENTs/agents/pages/recipes_page/recipe_save_payload.test.js", "src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.test.js".

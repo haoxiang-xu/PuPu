@@ -163,7 +163,10 @@ export const ToolkitIconFrame = ({
     );
   }
 
-  const backgroundColor = getToolkitIconBackground(icon, isDark);
+  // A builtin icon's plate colour comes off the icon manifest, which has no
+  // dark variant, so the theme argument this call used to pass was dropped on
+  // the floor by the callee. `isDark` stays an accepted prop: callers pass it.
+  const backgroundColor = getToolkitIconBackground(icon);
   const effectiveIconSize =
     hasTransparentToolkitIconBackground(backgroundColor) && transparentIconSize
       ? transparentIconSize

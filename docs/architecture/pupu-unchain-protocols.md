@@ -14,10 +14,10 @@
 
 | 范围 | 顶层协议族 | 说明 |
 |---|---:|---|
-| PuPu 内部 | 22 | Renderer、preload、Electron main、本地数据库、outbox、系统能力和测试桥 |
-| PuPu ↔ Unchain | 17 | 子进程、HTTP/SSE、鉴权、流式事件、恢复、Context/Memory、Vault 和域 API |
+| PuPu 内部 | 23 | Renderer、preload、Electron main、本地数据库、outbox、系统能力和测试桥 |
+| PuPu ↔ Unchain | 18 | 子进程、HTTP/SSE、鉴权、流式事件、恢复、Context/Memory、Vault 和域 API |
 | Unchain 内部 | 19 | Agent/Kernel、journal、Context、tool/provider authority、graph/subagent、jobs 等 |
-| **合计** | **58** | 这是本文件采用的“协议族”粒度，不等于 schema 或 endpoint 数量 |
+| **合计** | **60** | 这是本文件采用的“协议族”粒度，不等于 schema 或 endpoint 数量 |
 
 同时存在这些更细的、可机械核对的表面数量：
 
@@ -25,7 +25,7 @@
 |---|---:|---|
 | Electron 共享 IPC channel 常量 | 174 | 14 个 namespace；其中生产实际使用 168 个 distinct channel |
 | 生产 `window.*` global | 16 | 其中 14 个 API bridge；另有条件启用的 test bridge |
-| Flask 显式 HTTP 路由 | 94 | 12 个 route module；GET 41、POST 42、DELETE 10、PATCH 1 |
+| Flask 显式 HTTP 路由 | 95 | 13 个 route module；GET 42、POST 42、DELETE 10、PATCH 1 |
 | Chat stream route | 3 | V4 默认、V2 fallback、V1 固定拒绝；V3 为 0 |
 | RuntimeEvent V4 类型 | 14 | 旧文档写 13，漏了 `interaction.fyi_injected` |
 | Context V2 HTTP 路由 | 30 | 18 个 renderer capability、1 个 main-only delete、11 个 internal/worker capability |
@@ -73,7 +73,7 @@ Manifest 顶层是 CLOSED shape：`{manifest_digest, protocols, runtime, schema}
 |---|---:|---|
 | `context_memory` | `1.0+` | `artifact_handoff`, `canonical_journal`, `context_compiler`, `interaction_resolution_compat`, `long_term_promotion`, `memory_curator`, `memory_toolkit`, `memory_workspace` |
 | `durable_interaction` | `1.0+` | `cancel_pending`, `expected_interaction_id_cas`, `fresh_run_lineage`, `host_controlled_resume` |
-| `provider_turn_ownership` | `1.0+` | `atomic_receipt_cas`, `auxiliary_calls`, `enforce_mode`, `graph_runs`, `memory_off`, `subagent_runs` |
+| `provider_turn_ownership` | `1.0+` | `atomic_receipt_cas`, `auxiliary_calls`, `enforce_mode`, `graph_runs`, `memory_off`, `ollama_reasoning_preview_v1`, `subagent_runs` |
 | `run_bundle` | `1.0+` | `canonical_metrics`, `completion_diagnostics_ref`, `continuation_claim`, `immutable_pricing_snapshot`, `provider_call_set_union`, `provider_call_usage_v1`, `run_bundle_v1`, `run_bundle_v2` |
 
 Sidecar 内部 status wire 固定使用：`runtime_protocol_ready`、`runtime_protocol_reason`、`runtime_protocol_verification`、`runtime_protocol_immutable`、`runtime_protocol_manifest`、`unchain_revision`、`unchain_runtime_source`。成功态是 `true / unchain_runtime_protocol_compatible / runtime_protocol / true / <full manifest>`；off 态是 `true / protocol_not_required / not_required / false / null`。Electron 在 main 内独立重算并消费完整 manifest，对 renderer 的一般状态投影只披露 digest/verification，不披露 source path 或完整 manifest。revision/source 两项在所有状态都只是遥测；consumer 不能从它们推导 ready。
@@ -100,7 +100,7 @@ flowchart LR
 
 边界责任不是对称的：Renderer 只持 UI 能力；Electron main 持有 OS、数据库、sidecar 进程和 provider secret；Flask host 把 PuPu payload 投影成 Core 能接受的 typed input；Core 持有 agent、execution、journal、tool/provider authority；provider wire 不能倒灌回 canonical journal。
 
-## 4. PuPu 内部协议族（22）
+## 4. PuPu 内部协议族（23）
 
 | ID | 协议族 | 状态 | 核心契约 | 权威入口 |
 |---|---|---|---|---|
@@ -126,6 +126,7 @@ flowchart LR
 | `PUPU-020` | Main startup / shutdown sequence | ACTIVE | DB、Vault worker/broker、Ollama、sidecar、readiness、deletion runner 按固定顺序启动；退出按固定反序关闭和 kill | `electron/main/index.js` |
 | `PUPU-021` | Dev / E2E test API | TEST-ONLY | localhost ephemeral HTTP ↔ main ↔ renderer RPC；30s 默认 timeout，send-message 5m；日志有界；quit 还需 `PUPU_E2E=1` | `electron/main/services/test-api/`, `test_bridge_preload.js` |
 | `PUPU-022` | Removed / dead / reserved surfaces | MIXED | `VALIDATE_API_KEY` 仅常量；`test-bridge:event` 无 consumer；V3 removed；V1 legacy-exposed；whole-store import 仅 migration/compat | shared channel 和 parity tests |
+| `PUPU-023` | Skill inventory IPC（ticket #291 BC-007） | ACTIVE | 单一具名 invoke `unchain:get-skill-inventory`：preload `unchainAPI.getSkillInventory({workspaceRoot, includeUserDirs})` → main 在 handler 内校验类型（`workspaceRoot` 非 string 时回退 `""`，`includeUserDirs` 非 boolean 时回退 `true`，其余字段丢弃）→ `unchainService.getMisoSkillInventoryPayload` 转发 sidecar `GET /skills/inventory` 的 `pupu.skill_inventory.v1` 响应，原样透传不改写字段 | `electron/shared/channels.js`, `electron/preload/bridges/unchain_bridge.js`, `electron/main/ipc/register_handlers.js`, `electron/main/services/unchain/service.js::getMisoSkillInventoryPayload` |
 
 ### 4.1 IPC 精确快照
 
@@ -166,7 +167,7 @@ flowchart LR
 | Attachments | IndexedDB `pupu_attachment_payloads/payloads` v1 | `{payload,name,createdAt}`；7 天 lazy expiry；失败退内存 |
 | Renderer outboxes | localStorage | queued turn、turn mutation、exact cancel；都有有界容量和 identity 去重 |
 
-## 5. PuPu ↔ Unchain 跨边界协议族（17）
+## 5. PuPu ↔ Unchain 跨边界协议族（18）
 
 | ID | 协议族 | 状态 | 核心契约 | 权威入口 |
 |---|---|---|---|---|
@@ -177,7 +178,7 @@ flowchart LR
 | `CROSS-005` | Health / capability admission | ACTIVE | `pupu.runtime-capabilities` v1；要求 V4、execution fencing、durable interactions、exact cancellation；durable jobs `D4.1` available；`automatic_wake_resume=false` | `route_catalog.py`, Electron health validator |
 | `CROSS-006` | HTTP media / error profiles | ACTIVE | 常规 JSON error 多为 `{error:{code,message}}`，但不是全局统一：Context/durable 可加 retryable/revision；projection 为 `{error:string}`；provider probe 可 HTTP 200+`ok:false`；OAuth HTML；avatar/tool-media binary；stream SSE | `route_*.py`, Electron response readers |
 | `CROSS-007` | Chat V4 request / explicit resume | ACTIVE default | fresh：`attempt_id` + message/attachments；resume：`mode=resume_interaction` + thread/session + interaction + source attempt + 新 attempt；`continued_from_run_id` 只允许 fresh | `route_chat.py`, `use_chat_stream.js` |
-| `CROSS-008` | SSE RuntimeEvent V4 | ACTIVE | `event: runtime_event` 承载 v4 event；终止 `event: done`；取消是 `done.cancelled=true`；14 种 event type | Core `src/unchain/events/`, `route_chat.py` |
+| `CROSS-008` | SSE RuntimeEvent V4 | ACTIVE | `event: runtime_event` 承载 v4 event；Ollama live reasoning preview/reset 用现有 `step.delta`，preview ID 限定撤销范围且不进入原始 durable journal；终止 `event: done`；取消是 `done.cancelled=true`；14 种 event type | Core `src/unchain/events/`, `route_chat.py` |
 | `CROSS-009` | SSE → IPC relay / attach / replay | ACTIVE, process-local | envelope `{requestId,event,data,streamSeq?}`；attach identity 包含 request/execution/attempt/attachment/afterSeq；100k events、32MiB、30m；gap fail closed；main 重启后 buffer 丢失 | Electron Unchain service + stream client |
 | `CROSS-010` | Stream compatibility matrix | MIXED | V4 默认；V2 `event: frame` fallback；V1 route 固定 426 `run_bundle_protocol_required`；V3 endpoint/channel/API 为 0 | `route_chat.py`, shared channels, negative tests |
 | `CROSS-011` | Durable interaction / recovery | ACTIVE | request/receipt/application exactly-once；pending=`none/awaiting_response/receipt_recorded`；tool approval/human input/max budget；sidecar 能 explicit resume，但 PuPu idle cold reload 不自动 wake model | `durable_interaction_host.py`, Core interaction modules, renderer recovery hook |
@@ -186,7 +187,8 @@ flowchart LR
 | `CROSS-014` | Provider secret descriptor injection | ACTIVE | renderer 发非敏感 descriptor；main strip 后从 safeStorage 解密并注入固定 provider 字段；未知 descriptor/secret unavailable fail closed；steady state 不向 renderer 回传 raw secret | `api.unchain.js`, Electron Unchain/settings services |
 | `CROSS-015` | Vault sink broker / one-shot worker | ACTIVE-GATED | broker `pupu.vault-sink-broker` v1、HMAC、nonce、30s skew、64KiB；worker 4-byte BE frame + JSON、1MiB request/32KiB response；plaintext 只在最后一跳出现 | `electron/main/services/memory_vault/`, worker entrypoint |
 | `CROSS-016` | Context / Memory V2 | ACTIVE-GATED | rollout config + runtime protocol manifest；PuPu input → host-resolved event → canonical journal → model projection → provider wire；CAS revision、operation id、generation、deletion tombstone；30 路由但分权暴露 | Context V2 routes/adapters + Core context/persistence |
-| `CROSS-017` | Named domain APIs | ACTIVE / REGISTERED | 94 路由覆盖 catalog、MCP/OAuth/store、characters、recipes、skill packs、legacy memory、computer use、provider probe；注册不等于 rollout/feature 已启用 | `unchain_runtime/server/route_*.py` |
+| `CROSS-017` | Named domain APIs | ACTIVE / REGISTERED | 95 路由覆盖 catalog、MCP/OAuth/store、characters、recipes、skill packs、legacy memory、computer use、provider probe；注册不等于 rollout/feature 已启用 | `unchain_runtime/server/route_*.py` |
+| `CROSS-018` | Skill inventory / activation（ticket #291） | ACTIVE | 必需 runtime protocol `skills` 1.0（features `active_skills_snapshot_v1`、`catalog_v1`、`skill_md_registry_v1`、`skill_tool_v1`、`toolkit_embedded_skills_v1`、`user_invocation_v1`）；`GET /skills/inventory?workspace_root=&include_user_dirs=&toolkits=<id,id>` 返回 CLOSED `pupu.skill_inventory.v1`（`toolkits` 为聊天当前选中的可执行 toolkit id，其内嵌 `[[skills]]` 以 `source="toolkit"`/`source_id=<catalog id>` 进入同一份 effective inventory；renderer 命令菜单只从该接口注册，toolkit catalog 不再注册 skill 命令；revision 绑定 effective alias→identity 映射与保留命令集）：entry 精确字段集 `id/name/description/source/source_id/aliases/model_invocable/user_invocable/reserved`，diagnostics 精确字段集 `kind/name/source/source_id/message`；V4 send 携带 `options.skills.include_user_dirs` 与 `options.skill_inventory_revision`——只有带 revision 的新鲜（非 resume）send 才比对，不匹配时在开流前以 `409 {"error":{"code":"skill_inventory_stale"}}` 拒绝，未带 revision 的程序化 send 跳过该检查；模型可见契约完全由 Unchain 拥有并写入 transcript：`<available_skills>` 系统目录块、`skill` 工具及其 `<skill_loaded name revision status>` 结果 envelope、`/name` grammar `/[A-Za-z0-9_-]+`（匹配最新真实用户消息中任意位置的 token）、durable `<active_skills>` 系统块（activation 落盘后跨 compaction/resume/restart 存续，重放不重读来源） | `unchain_runtime/server/skills_inventory.py`, `route_skills.py`, `route_chat.py::_skill_inventory_stale_response`, `context_memory_v2_capability.py`；Core `src/unchain/skills/{registry,harness,activation,rendering}.py` |
 
 ### 5.1 HTTP 路由表面
 
@@ -204,9 +206,10 @@ flowchart LR
 | `route_providers.py` | 1 | custom-provider probe |
 | `route_recipes.py` | 5 | recipe CRUD + subagent refs |
 | `route_skillpacks.py` | 3 | skill-pack list/install/delete |
-| **总计** | **94** | 88 JSON、2 SSE、3 binary、1 HTML response media |
+| `route_skills.py` | 1 | skill inventory |
+| **总计** | **95** | 89 JSON、2 SSE、3 binary、1 HTML response media |
 
-所有 94 路由都先过 loopback gate。除 OAuth callback 的 state-based流程外，业务 handler通常还调用 bearer auth；流、binary 和 HTML endpoint 不适用统一 JSON error envelope。
+所有 95 路由都先过 loopback gate。除 OAuth callback 的 state-based流程外，业务 handler通常还调用 bearer auth；流、binary 和 HTML endpoint 不适用统一 JSON error envelope。
 
 ### 5.2 V4 wire contract
 
@@ -306,7 +309,7 @@ sequenceDiagram
 | `UNCHAIN-005` | Canonical journal / semantic event | ACTIVE-GATED | typed refs/cursors/ranges/attempt/operation；append-only；operation + payload SHA；monotonic read；ephemeral thinking/token delta 不落 durable journal | `src/unchain/journal/`, Context V2 tests |
 | `UNCHAIN-006` | Context ingress / compile / projection / checkpoint | ACTIVE-GATED | host-resolved input先 durable；两遍 compiler；checkpoint v2 才能授权模型输入，v1 仅 legacy audit；journal → neutral model context → provider projection，禁止反向倒灌 | `src/unchain/context/{ingress,compiler,coordinator,checkpoints,model_projection}.py` |
 | `UNCHAIN-007` | Durable tool catalog / permit / execution | ACTIVE-GATED | catalog/exposure/handler digest；intent→started claim→side effect→sealed/result→model-visible；started 无 terminal=`uncertain`，禁止盲重试；approval与 provider/model/schema/call/attempt绑定 | `src/unchain/context/tool_*`, `src/unchain/tools/` |
-| `UNCHAIN-008` | Prepared provider turn / wire authority | ACTIVE | closed provider message schemas；issuer-only prepared turn；provider/model/adapter/route/tool catalog digest-bound；durable result先落盘再释放 events；ambiguous send=`uncertain` | `src/unchain/providers/`, `context/provider_execution.py`, `journal/provider_*` |
+| `UNCHAIN-008` | Prepared provider turn / wire authority | ACTIVE | closed provider message schemas；issuer-only prepared turn；provider/model/adapter/route/tool catalog digest-bound；普通 events 在 durable result 落盘后释放；Ollama reasoning 可先临时预览，失败撤销、成功后才提交原始事件；ambiguous send=`uncertain` | `src/unchain/providers/`, `context/provider_execution.py`, `journal/provider_*` |
 | `UNCHAIN-009` | Recipe graph / graph checkpoint | ACTIVE / GATED | node=`start/agent/end/toolkit_pool/subagent_pool`；linear/no cycle；plan/step identity；`uncertain/suspended/resume_ready/resuming/terminal`；terminal immutable | `src/unchain/context/{graph_checkpoint,graph_harness}.py`, host recipe adapter |
 | `UNCHAIN-010` | Subagent orchestration / communication | ACTIVE when mounted | delegate/handoff/worker；thread/mailbox/board/batch/return stack；reserved tools由 plugin截获；PuPu override depth6/children10/total50/parallel4 | `src/unchain/subagents/`, host agent builder |
 | `UNCHAIN-011` | Memory workspace / curator / review / promotion | ACTIVE-GATED | path-free revisioned refs；space/entry/candidate/job/review/proposal；CAS+operation id；proposal不会直接写 long-term，promotion需要显式用户确认 | `src/unchain/memory/workspace/`, `memory/curator/`, persistence adapters |
@@ -409,7 +412,7 @@ flowchart LR
 | 中 | `idempotency_key` 在 cancel route边界被接受但未形成独立语义 | exact attempt cancel本身幂等；字段当前不应被描述成已端到端生效 |
 | 中 | 多 workspace root 校验不对称 | main主要严格规范化单root，sidecar再做多root exists/is_dir；两层错误/权限模型不一致 |
 | 中 | Interject payload较宽 | main对部分对象采用透传/展开，尚无完整 closed-key策略 |
-| 中 | 94 routes没有同一等级的 deployed-artifact证据 | 有 mocked bridge/test-client和部分真实process recovery，但不是统一的 same-wheel matrix |
+| 中 | 95 routes没有同一等级的 deployed-artifact证据 | 有 mocked bridge/test-client和部分真实process recovery，但不是统一的 same-wheel matrix |
 
 ## 10. 协议变更规则
 

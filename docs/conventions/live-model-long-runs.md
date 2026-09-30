@@ -174,6 +174,11 @@ time scale has a floor so FYI and confirmation controls remain observable.
 
 ## Reports and qualification
 
+For Codex/Claude review of an existing run, use the shared
+[`test-evaluate-long-run` skill](../../.agents/skills/test-evaluate-long-run/SKILL.md).
+It keeps the raw harness result separate from evidence integrity and task
+quality. Reviewing a report does not launch paid tests or add a release gate.
+
 Reports are written below `test-results/live-long-runs/<timestamp>/`:
 
 - `matrix-report.json` contains the aggregate status and per-cell sleep guard.

@@ -1428,7 +1428,9 @@ export const useMessageWindowScroll = ({
     }
 
     if (isAtBottom) {
-      scrollToBottom(is_streaming ? "auto" : "smooth");
+      // Streaming returned at the top of this effect, so this is always the
+      // idle path. Streaming's own bottom-follow is scheduled there.
+      scrollToBottom("smooth");
     }
   }, [
     clearScheduledStreamingBottomFollow,

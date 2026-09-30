@@ -540,7 +540,6 @@ const CustomProviderEditor = ({
       return;
     }
     const provider = result.provider;
-    let savedSlug = provider.id;
 
     setSaving(true);
     try {
@@ -552,7 +551,7 @@ const CustomProviderEditor = ({
         ? updateCustomProvider(slug, disabledProvider)
         : addCustomProvider(disabledProvider);
       await awaitDefinitionPersistence(definitionResult);
-      savedSlug = isEdit ? slug : provider.id;
+      const savedSlug = isEdit ? slug : provider.id;
 
       // auth:none performs an explicit delete so a re-created slug cannot
       // inherit a credential left by an older build.

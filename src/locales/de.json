@@ -188,10 +188,34 @@
     "settings": {
       "ready": "Bereit",
       "open_in_models": "In Modelle öffnen",
+      "open_models_page": "Modelle-Seite öffnen",
       "ollama_hint": "Installierte Modelle und die Bibliothek befinden sich auf der Seite Modelle."
     }
   },
   "memory": {
+    "automatic_context": "Gesprächskontext",
+    "automatic_context_desc": "Der Gesprächskontext wird automatisch verwaltet. Alte Einstellungen für das Kurzzeitgedächtnis gelten nicht mehr.",
+    "legacy_long_term_memory": "Langzeitgedächtnis (alt)",
+    "current_memory": "Speicher",
+    "current_memory_status": "Status",
+    "current_memory_scope": "PuPu verwaltet den Gesprächskontext automatisch. Dieser Status gilt für neue Chats; bestehende Chats können einen anderen Modus verwenden.",
+    "current_memory_refresh": "Aktualisieren",
+    "status_checking": "Speicherstatus wird geprüft…",
+    "status_all": "Für neue Chats verfügbar",
+    "status_canary": "Für einige neue Chats verfügbar",
+    "status_shadow": "In Antworten neuer Chats nicht aktiv",
+    "status_off": "Für neue Chats nicht aktiv",
+    "status_read_only": "Speicher ist schreibgeschützt",
+    "status_unavailable": "Speicherstatus nicht verfügbar",
+    "legacy_memory": "Alter Speicher",
+    "legacy_memory_desc": "Diese Einstellungen gelten für das ältere Speichersystem. Sie schalten das aktuelle Speichersystem nicht ein oder aus.",
+    "show_legacy_settings": "Alte Einstellungen anzeigen",
+    "hide_legacy_settings": "Alte Einstellungen ausblenden",
+    "legacy_memory_settings": "Alte Speichereinstellungen",
+    "legacy_enable_memory_desc": "Schaltet das ältere Speichersystem ein oder aus.",
+    "legacy_enable_long_term_desc": "Steuert den älteren Langzeitspeicher.",
+    "inspect_legacy_memory": "Alten Speicher prüfen",
+    "inspect_legacy_memory_desc": "Vektoren des älteren Speichersystems ansehen.",
     "title": "Chat-Speicher",
     "enable_memory": "Speicher aktivieren",
     "enable_memory_desc": "Jeder Chat behält einen Kurzzeitspeicher, während der Langzeitspeicher global geteilt und bei Bedarf automatisch abgerufen wird.",
@@ -579,6 +603,10 @@
       "context_usage": "Kontextauslastung",
       "done": "Fertig",
       "drop_here": "Hier ablegen zum Verstauen"
+    },
+    "skill_inventory_stale": {
+      "title": "Skills geändert",
+      "description": "Die verfügbaren Skills wurden seit dem Öffnen dieses Chats aktualisiert. Die Liste wurde aktualisiert. Bitte senden Sie Ihre Nachricht erneut."
     }
   },
   "toolkit": {
@@ -862,5 +890,18 @@
     "group_conversation": "Unterhaltung",
     "open_progress": "Kontextnutzung öffnen; letzter Modellaufruf zu {percentage}% belegt",
     "open_progress_unavailable": "Kontextnutzung öffnen; Fensterauslastung des letzten Modellaufrufs nicht verfügbar"
+  },
+  "memory_activity": {
+    "conversation_ready": "Unterhaltung bereit",
+    "conversation_incomplete": "Unterhaltungsvorbereitung unvollständig",
+    "conversation_legacy": "Älterer Gesprächsverlauf",
+    "conversation_unavailable": "Gesprächsstatus nicht verfügbar",
+    "organization_failed": "Ordnen der Erinnerungen fehlgeschlagen",
+    "organization_cancelled": "Ordnen der Erinnerungen abgebrochen",
+    "organization_unavailable": "Status der Erinnerungsorganisation nicht verfügbar",
+    "organization_running": "Erinnerungen werden geordnet…",
+    "organization_queued": "Erinnerungen warten auf Organisation",
+    "organization_empty": "Keine Erinnerungen zu ordnen",
+    "organization_complete": "Erinnerungen geordnet"
   }
 }

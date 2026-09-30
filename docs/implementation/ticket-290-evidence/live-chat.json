@@ -1,0 +1,26 @@
+{
+  "id": "chat-1790135772413-8cf34fdb6fc208",
+  "title": "Ticket 290 synthetic library — disposable",
+  "model": "openai:gpt-4.1",
+  "character_id": null,
+  "toolkits": [
+    "mcp.workspace.zotero-readonly"
+  ],
+  "messages": [
+    {
+      "id": "user-1790135815102",
+      "role": "user",
+      "content": "Use the selected Zotero tools to search my synthetic local library for \"weekend book exchanges\", then retrieve the matching item metadata. Report title, author, DOI and the abstract’s budget/book count. This is only a test fixture; do not describe it as real research. Do not use any other tools or external services.",
+      "createdAt": 1790135815102,
+      "updatedAt": 1790135815102
+    },
+    {
+      "id": "assistant-1790135815102-80ebdd3511b61",
+      "role": "assistant",
+      "content": "Here are the details from your synthetic (test fixture) Zotero library result for \"weekend book exchanges\":\n\n- Title: A synthetic study of weekend book exchanges\n- Author: Ada Example\n- DOI: 10.0000/pupu-fixture\n- Abstract (budget/book count): The abstract reports a $400 budget and 24 books exchanged.\n\nNote: This is a synthetic test fixture and not real research or a real publication.",
+      "createdAt": 1790135815102,
+      "updatedAt": 1790135828435,
+      "status": "done"
+    }
+  ]
+}

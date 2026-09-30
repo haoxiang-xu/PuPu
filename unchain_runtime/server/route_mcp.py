@@ -1,3 +1,4 @@
+import logging
 from html import escape
 
 from flask import Response, jsonify, request
@@ -9,6 +10,9 @@ def _root():
     import routes as routes_module
 
     return routes_module
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _mcp_error_response(root, exc):
@@ -196,7 +200,12 @@ def mcp_oauth_callback_route() -> Response:
         )
     except Exception as exc:
         status = int(getattr(exc, "status", 400) or 400)
-        message = escape(str(exc) or "OAuth callback failed")
+        # This page renders in the user's default browser. `str(exc)` here can
+        # carry the MCP server's own stderr (see issue #249), so the page shows
+        # the stable code and the detail goes to the server log.
+        _logger.exception("[route_mcp] OAuth callback failed")
+        code = str(getattr(exc, "code", "") or "").strip() or "oauth_callback_failed"
+        message = escape(code)
         return Response(
             "<!doctype html><title>PuPu MCP</title><h1>MCP connection failed</h1>"
             f"<p>{message}</p>",

@@ -64,6 +64,20 @@
       "default_model": "deepseek-v4-flash",
       "models": [
         {
+          "id": "deepseek-flash",
+          "display_name": "DeepSeek V4.1 Flash",
+          "default_payload": {
+            "max_tokens": 32768,
+            "thinking": { "type": "disabled" }
+          },
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": true,
+            "max_tokens": 384000,
+            "max_context_window_tokens": 1000000
+          }
+        },
+        {
           "id": "deepseek-v4-pro",
           "display_name": "DeepSeek V4 Pro",
           "capabilities": {

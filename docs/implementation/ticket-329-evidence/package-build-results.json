@@ -1,0 +1,35 @@
+{
+  "schema": "pupu.ticket-329.diagnostic-candidate.v1",
+  "createdAt": "2026-09-23T03:43:43.525Z",
+  "baseCommit": "bd94efe8facb38ed4afa7488a46e68d5e6cbb15a",
+  "candidate": {
+    "path": "/Users/red/Desktop/GITRepo/pupu-329-artifacts/PuPu-humanizer-macos-arm64-r2.zip",
+    "bytes": 463881223,
+    "sha256": "sha256:cc846981b52023c5c389ec9ee64fd6201776feb52f9cfa40faf13d0487d08076",
+    "signed": false,
+    "format": "macos-arm64-zip",
+    "zipIntegrity": "PASS",
+    "packagedAsarSha256": "sha256:ec3cb2bc657036275fab043b1dcad92b1b9da07f8c6a06f663057f02cb3596c6",
+    "packagedSidecarSha256": "sha256:ffc8aada968f1d012a94f2ff88f82690d9452da548a2f88bd8ac034cb7ca9619"
+  },
+  "unchain": {
+    "wheelPath": "/Users/red/Desktop/GITRepo/skills-delivery-evidence-2026-09-21/unchain-0.2.0-py3-none-any.whl",
+    "wheelSha256": "sha256:6544306f55267482c9dfcd7fa346ed218a83ee8e4ec68a3ed761600f7119f194",
+    "runtimeManifestDigest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+    "sidecarSmokeChecks": 5
+  },
+  "web": {
+    "chunkPath": "build/static/js/45.c8a52add.chunk.js",
+    "chunkSha256": "sha256:337d18076a3516a343ddad54804a8113db181dc6853bd0cd25156cde92e9b6d0",
+    "humanizerCatalogAndFullMitNotice": "PASS",
+    "humanizerStoreRowCommand": "/humanizer"
+  },
+  "mcpRuntime": {
+    "afterPackPinnedStageAndNativeSmoke": "PASS"
+  },
+  "limitations": {
+    "fullBuildAndNoticesGate": "INCOMPLETE: full build chain not run; standalone notices:check failed because clone lacked build venv and staged runtime at that time. Direct diagnostic packaging reused accepted sidecar.",
+    "realAppAndModel": "NOT_RUN by packaging worker",
+    "releaseQualification": "NOT_RUN"
+  }
+}

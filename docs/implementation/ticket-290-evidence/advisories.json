@@ -1,0 +1,797 @@
+[
+  {
+    "id": "GHSA-w8v5-vhqr-4h9v",
+    "summary": "DiskCache has unsafe pickle deserialization",
+    "affected": [
+      {
+        "package": {
+          "name": "diskcache",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/diskcache"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "last_affected": "5.6.3"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.1.0",
+          "0.1.2",
+          "0.1.3",
+          "0.1.4",
+          "0.1.5",
+          "0.1.6",
+          "0.1.7",
+          "0.1.8",
+          "0.2.0",
+          "0.2.1",
+          "0.2.10",
+          "0.2.2",
+          "0.2.3",
+          "0.2.4",
+          "0.2.6",
+          "0.2.7",
+          "0.2.8",
+          "0.2.9",
+          "0.3.0",
+          "0.3.1",
+          "0.4.0",
+          "0.5.0",
+          "0.6.0",
+          "0.7.0",
+          "0.7.1",
+          "0.9.0",
+          "1.0.0",
+          "1.1.0",
+          "1.2.0",
+          "1.3.1",
+          "1.3.3",
+          "1.3.4",
+          "1.3.5",
+          "1.4.0",
+          "1.5.0",
+          "1.5.2",
+          "1.5.3",
+          "1.6.0",
+          "1.6.1",
+          "1.6.2",
+          "1.6.3",
+          "1.6.4",
+          "1.6.5",
+          "1.6.6",
+          "1.6.7",
+          "1.7.0",
+          "2.0.2",
+          "2.1.0",
+          "2.2.0",
+          "2.3.0",
+          "2.3.1",
+          "2.4.0",
+          "2.4.1",
+          "2.5.1",
+          "2.5.2",
+          "2.6.0",
+          "2.6.4",
+          "2.6.5",
+          "2.7.0",
+          "2.8.2",
+          "2.8.3",
+          "2.9.0",
+          "3.0.0",
+          "3.0.1",
+          "3.0.3",
+          "3.0.4",
+          "3.0.5",
+          "3.0.6",
+          "3.1.0",
+          "3.1.1",
+          "4.0.0",
+          "4.1.0",
+          "5.0.0",
+          "5.0.1",
+          "5.0.2",
+          "5.0.3",
+          "5.1.0",
+          "5.2.1",
+          "5.3.0",
+          "5.4.0",
+          "5.5.1",
+          "5.6.0",
+          "5.6.1",
+          "5.6.3"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/02/GHSA-w8v5-vhqr-4h9v/GHSA-w8v5-vhqr-4h9v.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69872"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/EthanKim88/ethan-cve-disclosures/blob/main/CVE-2025-69872-DiskCache-Pickle-Deserialization.md"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/grantjenks/python-diskcache"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-5h2m-4q8j-pqpj",
+    "summary": "FastMCP OAuth Proxy token reuse across MCP servers",
+    "affected": [
+      {
+        "package": {
+          "name": "fastmcp",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/fastmcp"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "2.14.2"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.1.0",
+          "0.2.0",
+          "0.3.0",
+          "0.3.1",
+          "0.3.2",
+          "0.3.3",
+          "0.3.4",
+          "0.3.5",
+          "0.4.0",
+          "0.4.1",
+          "1.0",
+          "2.0.0",
+          "2.1.0",
+          "2.1.1",
+          "2.1.2",
+          "2.10.0",
+          "2.10.1",
+          "2.10.2",
+          "2.10.3",
+          "2.10.4",
+          "2.10.5",
+          "2.10.6",
+          "2.11.0",
+          "2.11.1",
+          "2.11.2",
+          "2.11.3",
+          "2.12.0",
+          "2.12.0rc1",
+          "2.12.1",
+          "2.12.2",
+          "2.12.3",
+          "2.12.4",
+          "2.12.5",
+          "2.13.0",
+          "2.13.0.1",
+          "2.13.0.2",
+          "2.13.0rc1",
+          "2.13.0rc2",
+          "2.13.0rc3",
+          "2.13.1",
+          "2.13.2",
+          "2.13.3",
+          "2.14.0",
+          "2.14.1",
+          "2.2.0",
+          "2.2.1",
+          "2.2.10",
+          "2.2.2",
+          "2.2.3",
+          "2.2.4",
+          "2.2.5",
+          "2.2.6",
+          "2.2.7",
+          "2.2.8",
+          "2.2.9",
+          "2.3.0",
+          "2.3.0rc1",
+          "2.3.1",
+          "2.3.2",
+          "2.3.3",
+          "2.3.4",
+          "2.3.5",
+          "2.4.0",
+          "2.5.0",
+          "2.5.1",
+          "2.5.2",
+          "2.6.0",
+          "2.6.1",
+          "2.7.0",
+          "2.7.1",
+          "2.8.0",
+          "2.8.1",
+          "2.9.0",
+          "2.9.1",
+          "2.9.2"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/03/GHSA-5h2m-4q8j-pqpj/GHSA-5h2m-4q8j-pqpj.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-5h2m-4q8j-pqpj"
+      },
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-69196"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/PrefectHQ/fastmcp"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-m8x7-r2rg-vh5g",
+    "summary": "FastMCP has a Command Injection vulnerability - Gemini CLI",
+    "affected": [
+      {
+        "package": {
+          "name": "fastmcp",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/fastmcp"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.2.0"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.1.0",
+          "0.2.0",
+          "0.3.0",
+          "0.3.1",
+          "0.3.2",
+          "0.3.3",
+          "0.3.4",
+          "0.3.5",
+          "0.4.0",
+          "0.4.1",
+          "1.0",
+          "2.0.0",
+          "2.1.0",
+          "2.1.1",
+          "2.1.2",
+          "2.10.0",
+          "2.10.1",
+          "2.10.2",
+          "2.10.3",
+          "2.10.4",
+          "2.10.5",
+          "2.10.6",
+          "2.11.0",
+          "2.11.1",
+          "2.11.2",
+          "2.11.3",
+          "2.12.0",
+          "2.12.0rc1",
+          "2.12.1",
+          "2.12.2",
+          "2.12.3",
+          "2.12.4",
+          "2.12.5",
+          "2.13.0",
+          "2.13.0.1",
+          "2.13.0.2",
+          "2.13.0rc1",
+          "2.13.0rc2",
+          "2.13.0rc3",
+          "2.13.1",
+          "2.13.2",
+          "2.13.3",
+          "2.14.0",
+          "2.14.1",
+          "2.14.2",
+          "2.14.3",
+          "2.14.4",
+          "2.14.5",
+          "2.14.6",
+          "2.14.7",
+          "2.2.0",
+          "2.2.1",
+          "2.2.10",
+          "2.2.2",
+          "2.2.3",
+          "2.2.4",
+          "2.2.5",
+          "2.2.6",
+          "2.2.7",
+          "2.2.8",
+          "2.2.9",
+          "2.3.0",
+          "2.3.0rc1",
+          "2.3.1",
+          "2.3.2",
+          "2.3.3",
+          "2.3.4",
+          "2.3.5",
+          "2.4.0",
+          "2.5.0",
+          "2.5.1",
+          "2.5.2",
+          "2.6.0",
+          "2.6.1",
+          "2.7.0",
+          "2.7.1",
+          "2.8.0",
+          "2.8.1",
+          "2.9.0",
+          "2.9.1",
+          "2.9.2",
+          "3.0.0",
+          "3.0.0b1",
+          "3.0.0b2",
+          "3.0.0rc1",
+          "3.0.0rc2",
+          "3.0.0rc3",
+          "3.0.1",
+          "3.0.2",
+          "3.1.0",
+          "3.1.1"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/03/GHSA-m8x7-r2rg-vh5g/GHSA-m8x7-r2rg-vh5g.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-m8x7-r2rg-vh5g"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/jlowin/fastmcp/security/advisories/GHSA-m8x7-r2rg-vh5g"
+      },
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-64340"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/pull/3522"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/PrefectHQ/fastmcp"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-rww4-4w9c-7733",
+    "summary": "FastMCP: Missing Consent Verification in OAuth Proxy Callback Facilitates Confused Deputy Vulnerabilities",
+    "affected": [
+      {
+        "package": {
+          "name": "fastmcp",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/fastmcp"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.2.0"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.1.0",
+          "0.2.0",
+          "0.3.0",
+          "0.3.1",
+          "0.3.2",
+          "0.3.3",
+          "0.3.4",
+          "0.3.5",
+          "0.4.0",
+          "0.4.1",
+          "1.0",
+          "2.0.0",
+          "2.1.0",
+          "2.1.1",
+          "2.1.2",
+          "2.10.0",
+          "2.10.1",
+          "2.10.2",
+          "2.10.3",
+          "2.10.4",
+          "2.10.5",
+          "2.10.6",
+          "2.11.0",
+          "2.11.1",
+          "2.11.2",
+          "2.11.3",
+          "2.12.0",
+          "2.12.0rc1",
+          "2.12.1",
+          "2.12.2",
+          "2.12.3",
+          "2.12.4",
+          "2.12.5",
+          "2.13.0",
+          "2.13.0.1",
+          "2.13.0.2",
+          "2.13.0rc1",
+          "2.13.0rc2",
+          "2.13.0rc3",
+          "2.13.1",
+          "2.13.2",
+          "2.13.3",
+          "2.14.0",
+          "2.14.1",
+          "2.14.2",
+          "2.14.3",
+          "2.14.4",
+          "2.14.5",
+          "2.14.6",
+          "2.14.7",
+          "2.2.0",
+          "2.2.1",
+          "2.2.10",
+          "2.2.2",
+          "2.2.3",
+          "2.2.4",
+          "2.2.5",
+          "2.2.6",
+          "2.2.7",
+          "2.2.8",
+          "2.2.9",
+          "2.3.0",
+          "2.3.0rc1",
+          "2.3.1",
+          "2.3.2",
+          "2.3.3",
+          "2.3.4",
+          "2.3.5",
+          "2.4.0",
+          "2.5.0",
+          "2.5.1",
+          "2.5.2",
+          "2.6.0",
+          "2.6.1",
+          "2.7.0",
+          "2.7.1",
+          "2.8.0",
+          "2.8.1",
+          "2.9.0",
+          "2.9.1",
+          "2.9.2",
+          "3.0.0",
+          "3.0.0b1",
+          "3.0.0b2",
+          "3.0.0rc1",
+          "3.0.0rc2",
+          "3.0.0rc3",
+          "3.0.1",
+          "3.0.2",
+          "3.1.0",
+          "3.1.1"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/03/GHSA-rww4-4w9c-7733/GHSA-rww4-4w9c-7733.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-rww4-4w9c-7733"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/jlowin/fastmcp/security/advisories/GHSA-rww4-4w9c-7733"
+      },
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-27124"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/PrefectHQ/fastmcp"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-vv7q-7jx5-f767",
+    "summary": "FastMCP OpenAPI Provider has an SSRF & Path Traversal Vulnerability",
+    "affected": [
+      {
+        "package": {
+          "name": "fastmcp",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/fastmcp"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.2.0"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.1.0",
+          "0.2.0",
+          "0.3.0",
+          "0.3.1",
+          "0.3.2",
+          "0.3.3",
+          "0.3.4",
+          "0.3.5",
+          "0.4.0",
+          "0.4.1",
+          "1.0",
+          "2.0.0",
+          "2.1.0",
+          "2.1.1",
+          "2.1.2",
+          "2.10.0",
+          "2.10.1",
+          "2.10.2",
+          "2.10.3",
+          "2.10.4",
+          "2.10.5",
+          "2.10.6",
+          "2.11.0",
+          "2.11.1",
+          "2.11.2",
+          "2.11.3",
+          "2.12.0",
+          "2.12.0rc1",
+          "2.12.1",
+          "2.12.2",
+          "2.12.3",
+          "2.12.4",
+          "2.12.5",
+          "2.13.0",
+          "2.13.0.1",
+          "2.13.0.2",
+          "2.13.0rc1",
+          "2.13.0rc2",
+          "2.13.0rc3",
+          "2.13.1",
+          "2.13.2",
+          "2.13.3",
+          "2.14.0",
+          "2.14.1",
+          "2.14.2",
+          "2.14.3",
+          "2.14.4",
+          "2.14.5",
+          "2.14.6",
+          "2.14.7",
+          "2.2.0",
+          "2.2.1",
+          "2.2.10",
+          "2.2.2",
+          "2.2.3",
+          "2.2.4",
+          "2.2.5",
+          "2.2.6",
+          "2.2.7",
+          "2.2.8",
+          "2.2.9",
+          "2.3.0",
+          "2.3.0rc1",
+          "2.3.1",
+          "2.3.2",
+          "2.3.3",
+          "2.3.4",
+          "2.3.5",
+          "2.4.0",
+          "2.5.0",
+          "2.5.1",
+          "2.5.2",
+          "2.6.0",
+          "2.6.1",
+          "2.7.0",
+          "2.7.1",
+          "2.8.0",
+          "2.8.1",
+          "2.9.0",
+          "2.9.1",
+          "2.9.2",
+          "3.0.0",
+          "3.0.0b1",
+          "3.0.0b2",
+          "3.0.0rc1",
+          "3.0.0rc2",
+          "3.0.0rc3",
+          "3.0.1",
+          "3.0.2",
+          "3.1.0",
+          "3.1.1"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/03/GHSA-vv7q-7jx5-f767/GHSA-vv7q-7jx5-f767.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-vv7q-7jx5-f767"
+      },
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-32871"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/pull/3507"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/commit/40bdfb6b1de0ce30609ee9ba5bb95ecd04a9fb71"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/PrefectHQ/fastmcp"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/PrefectHQ/fastmcp/releases/tag/v3.2.0"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-vj7q-gjh5-988w",
+    "summary": "MCP Python SDK: WebSocket server transport does not support Host/Origin validation",
+    "affected": [
+      {
+        "package": {
+          "name": "mcp",
+          "ecosystem": "PyPI",
+          "purl": "pkg:pypi/mcp"
+        },
+        "ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.28.1"
+              }
+            ]
+          }
+        ],
+        "versions": [
+          "0.9.1",
+          "1.0.0",
+          "1.1.0",
+          "1.1.1",
+          "1.1.2",
+          "1.1.3",
+          "1.10.0",
+          "1.10.1",
+          "1.11.0",
+          "1.12.0",
+          "1.12.1",
+          "1.12.2",
+          "1.12.3",
+          "1.12.4",
+          "1.13.0",
+          "1.13.1",
+          "1.14.0",
+          "1.14.1",
+          "1.15.0",
+          "1.16.0",
+          "1.17.0",
+          "1.18.0",
+          "1.19.0",
+          "1.2.0",
+          "1.2.0rc1",
+          "1.2.1",
+          "1.20.0",
+          "1.21.0",
+          "1.21.1",
+          "1.21.2",
+          "1.22.0",
+          "1.23.0",
+          "1.23.1",
+          "1.23.2",
+          "1.23.3",
+          "1.24.0",
+          "1.25.0",
+          "1.26.0",
+          "1.27.0",
+          "1.27.1",
+          "1.27.2",
+          "1.28.0",
+          "1.3.0",
+          "1.3.0rc1",
+          "1.4.0",
+          "1.4.1",
+          "1.5.0",
+          "1.6.0",
+          "1.7.0",
+          "1.7.1",
+          "1.8.0",
+          "1.8.1",
+          "1.9.0",
+          "1.9.1",
+          "1.9.2",
+          "1.9.3",
+          "1.9.4"
+        ],
+        "database_specific": {
+          "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/07/GHSA-vj7q-gjh5-988w/GHSA-vj7q-gjh5-988w.json"
+        }
+      }
+    ],
+    "references": [
+      {
+        "type": "WEB",
+        "url": "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-vj7q-gjh5-988w"
+      },
+      {
+        "type": "ADVISORY",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-59950"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/modelcontextprotocol/python-sdk/pull/2992"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/modelcontextprotocol/python-sdk/commit/777b8d06710c140e3606b0d4598e2aa48546c266"
+      },
+      {
+        "type": "PACKAGE",
+        "url": "https://github.com/modelcontextprotocol/python-sdk"
+      },
+      {
+        "type": "WEB",
+        "url": "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.28.1"
+      }
+    ]
+  }
+]

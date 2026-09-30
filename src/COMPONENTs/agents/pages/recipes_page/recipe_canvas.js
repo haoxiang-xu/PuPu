@@ -8,44 +8,28 @@ import StartNode from "./nodes/start_node";
 import EndNode from "./nodes/end_node";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
-import { buildRecipeCanvasContextMenuItems } from "./recipe_canvas_context_menu_items";
+import { buildRecipeContextMenuItems } from "./recipe_canvas_context_menu_items";
+import RecipeNodePalette from "./recipe_node_palette";
+import {
+  edge_is_attach,
+  insert_node_after,
+  insert_node_into_edge,
+} from "./recipe_graph_edits";
 import { migrate_recipe, is_legacy_recipe } from "./recipe_migration";
 import { validate_recipe_connection } from "./recipe_connection_rules";
-import { TOOLKIT_POOL_TYPE, is_toolkit_pool_type } from "./recipe_graph";
+import { is_toolkit_pool_type } from "./recipe_graph";
+import {
+  build_node,
+  catalog_entry,
+  next_node_id,
+  ports_for_type,
+} from "./recipe_node_catalog";
 
-const WORKFLOW_PORTS = [
-  { id: "in", side: "left", kind: "in" },
-  { id: "out", side: "right", kind: "out" },
-  { id: "attach_top", side: "top", kind: "attach" },
-  { id: "attach_bot", side: "bottom", kind: "attach" },
-];
-const START_PORTS = [{ id: "out", side: "right", kind: "out" }];
-const END_PORTS = [{ id: "in", side: "left", kind: "in" }];
-const PLUGIN_PORTS = [
-  { id: "attach_top", side: "top", kind: "attach" },
-  { id: "attach_bot", side: "bottom", kind: "attach" },
-];
-
-function ports_for(node_type) {
-  if (is_toolkit_pool_type(node_type)) return PLUGIN_PORTS;
-  switch (node_type) {
-    case "start":
-      return START_PORTS;
-    case "end":
-      return END_PORTS;
-    case "agent":
-      return WORKFLOW_PORTS;
-    case "subagent_pool":
-      return PLUGIN_PORTS;
-    default:
-      return [];
-  }
-}
-
-function new_id(prefix, existing_ids) {
+/* Node ids come from the catalog; edge ids are the canvas's own. */
+function next_edge_id(existing_ids) {
   let i = 1;
-  while (existing_ids.has(`${prefix}_${i}`)) i += 1;
-  return `${prefix}_${i}`;
+  while (existing_ids.has(`e_${i}`)) i += 1;
+  return `e_${i}`;
 }
 
 export default function RecipeCanvas({
@@ -63,6 +47,23 @@ export default function RecipeCanvas({
   canRedo,
 }) {
   const [resetToken, setResetToken] = useState(0);
+  const [palette, setPalette] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    mode: "add",
+    refId: null,
+  });
+  /* undefined = never asked, so the editor's token effects stay inert on
+   * mount — 0 would fire them once (and select-all on mount would arm the
+   * Delete key against the whole graph). */
+  const [fitToken, setFitToken] = useState(undefined);
+  const [zoomResetToken, setZoomResetToken] = useState(undefined);
+  const [selectAllToken, setSelectAllToken] = useState(undefined);
+  /* A copied node lives for the life of the canvas, not the OS clipboard: a
+   * recipe node is not something another application can paste. */
+  const clipboardRef = useRef(null);
+  const [canPaste, setCanPaste] = useState(false);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -87,11 +88,20 @@ export default function RecipeCanvas({
     if (!recipe?.nodes) return [];
     return recipe.nodes.map((n) => ({
       ...n,
-      ports: ports_for(n.type),
+      ports: ports_for_type(n.type),
     }));
   }, [recipe]);
 
   const edges = useMemo(() => recipe?.edges || [], [recipe]);
+
+  /* A detail page pinned to a node that no longer exists would keep editing a
+   * ghost, so closing it is part of deleting. Watching the node list covers
+   * every route — the menu's Delete, the Delete key, and undo/redo. */
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    if (recipe?.nodes?.some((n) => n.id === selectedNodeId)) return;
+    onSelectNode?.(null);
+  }, [recipe, selectedNodeId, onSelectNode]);
 
   const handleNodesChange = useCallback(
     (nextNodes) => {
@@ -128,7 +138,7 @@ export default function RecipeCanvas({
     (edge) => {
       if (!recipe) return;
       const existing_ids = new Set(recipe.edges.map((e) => e.id));
-      const id = new_id("e", existing_ids);
+      const id = next_edge_id(existing_ids);
       const src = recipe.nodes.find((n) => n.id === edge.source_node_id);
       const tgt = recipe.nodes.find((n) => n.id === edge.target_node_id);
       const kind =
@@ -150,64 +160,168 @@ export default function RecipeCanvas({
   function add_node(type) {
     if (!recipe) return;
     const existing_ids = new Set(recipe.nodes.map((n) => n.id));
-    const prefix =
-      type === "agent" ? "agent" : is_toolkit_pool_type(type) ? "tp" : "sp";
-    const id = new_id(prefix, existing_ids);
-    const fallback = {
-      agent: { x: 400, y: 300 },
-      [TOOLKIT_POOL_TYPE]: { x: 400, y: 100 },
-      subagent_pool: { x: 400, y: 500 },
-    };
+    const id = next_node_id(type, existing_ids);
     const pos = menuPosRef.current;
-    const x = pos ? Math.round(pos.x) : fallback[type].x;
-    const y = pos ? Math.round(pos.y) : fallback[type].y;
-    const base_defaults = {
-      agent: {
-        id,
-        type: "agent",
-        kind: "workflow",
-        deletable: true,
-        override: { model: "", prompt: "" },
-        outputs: [{ name: "output", type: "string" }],
-        x,
-        y,
-      },
-      [TOOLKIT_POOL_TYPE]: {
-        id,
-        type: TOOLKIT_POOL_TYPE,
-        kind: "plugin",
-        deletable: true,
-        toolkits: [],
-        merge_with_user_selected: false,
-        x,
-        y,
-      },
-      subagent_pool: {
-        id,
-        type: "subagent_pool",
-        kind: "plugin",
-        deletable: true,
-        subagents: [],
-        x,
-        y,
-      },
-    };
+    const node = build_node(type, { id, x: pos?.x, y: pos?.y });
+    if (!node) return;
     onRecipeChange({
       ...recipe,
-      nodes: [...recipe.nodes, base_defaults[type]],
+      nodes: [...recipe.nodes, node],
     });
   }
 
-  const contextMenuItems = useMemo(
-    () =>
-      buildRecipeCanvasContextMenuItems({
-        onAddAgent: () => add_node("agent"),
-        onAddToolPool: () => add_node(TOOLKIT_POOL_TYPE),
-        onAddSubagentPool: () => add_node("subagent_pool"),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recipe],
+  /* The palette's pick lands differently depending on why it was opened: a
+   * plain add drops the node at the right-click, the two insert modes also
+   * wire it into the flow — that is the promise their menu rows make. */
+  function place_from_palette(type) {
+    if (!recipe) return;
+    const { mode, refId } = palette;
+    if (mode === "add" || !refId) {
+      add_node(type);
+      return;
+    }
+    const id = next_node_id(type, new Set(recipe.nodes.map((n) => n.id)));
+    if (mode === "insert_after") {
+      const anchor = recipe.nodes.find((n) => n.id === refId);
+      if (!anchor) return;
+      const node = build_node(type, {
+        id,
+        x: (anchor.x || 0) + 240,
+        y: anchor.y || 0,
+      });
+      const next = node && insert_node_after(recipe, refId, node);
+      if (next) {
+        onRecipeChange(next);
+        onSelectNode?.(id);
+      }
+      return;
+    }
+    if (mode === "insert_edge") {
+      const pos = menuPosRef.current;
+      const node = build_node(type, { id, x: pos?.x, y: pos?.y });
+      const next = node && insert_node_into_edge(recipe, refId, node);
+      if (next) {
+        onRecipeChange(next);
+        onSelectNode?.(id);
+      }
+    }
+  }
+
+  const isMac = usePresentationPlatform() === "darwin";
+
+  /* Actions the menus drive. Deleting a node or an edge already lives in the
+   * editor's Delete key, so these reuse the same recipe-level changes rather
+   * than a second removal path. */
+
+  const remove_node = useCallback(
+    (node_id) => {
+      const r = recipeRef.current;
+      const node = r?.nodes.find((n) => n.id === node_id);
+      if (!r || !node || node.deletable === false) return;
+      onRecipeChange({
+        ...r,
+        nodes: r.nodes.filter((n) => n.id !== node_id),
+        edges: r.edges.filter(
+          (e) => e.source_node_id !== node_id && e.target_node_id !== node_id,
+        ),
+      });
+    },
+    [onRecipeChange],
   );
+
+  const disconnect_node = useCallback(
+    (node_id) => {
+      const r = recipeRef.current;
+      if (!r) return;
+      const next_edges = r.edges.filter(
+        (e) => e.source_node_id !== node_id && e.target_node_id !== node_id,
+      );
+      if (next_edges.length === r.edges.length) return;
+      onRecipeChange({ ...r, edges: next_edges });
+    },
+    [onRecipeChange],
+  );
+
+  const remove_edge = useCallback(
+    (edge_id) => {
+      const r = recipeRef.current;
+      if (!r) return;
+      onRecipeChange({ ...r, edges: r.edges.filter((e) => e.id !== edge_id) });
+    },
+    [onRecipeChange],
+  );
+
+  const copy_node = useCallback((node_id) => {
+    const r = recipeRef.current;
+    const node = r?.nodes.find((n) => n.id === node_id);
+    if (!node || !catalog_entry(node.type)) return;
+    clipboardRef.current = node;
+    setCanPaste(true);
+  }, []);
+
+  const paste_node = useCallback(() => {
+    const r = recipeRef.current;
+    const source = clipboardRef.current;
+    if (!r || !source) return;
+    const id = next_node_id(source.type, new Set(r.nodes.map((n) => n.id)));
+    const pos = menuPosRef.current;
+    const at = pos
+      ? { x: Math.round(pos.x), y: Math.round(pos.y) }
+      : { x: (source.x || 0) + 40, y: (source.y || 0) + 40 };
+    onRecipeChange({ ...r, nodes: [...r.nodes, { ...source, id, ...at }] });
+    onSelectNode?.(id);
+  }, [onRecipeChange, onSelectNode]);
+
+  const open_palette = useCallback((client_x, client_y, mode = "add", refId = null) => {
+    setPalette({ visible: true, x: client_x, y: client_y, mode, refId });
+  }, []);
+
+  const contextMenuItems = useMemo(() => {
+    const target = contextMenu.target || { kind: "canvas", id: null };
+    const node =
+      target.kind === "node"
+        ? recipe?.nodes.find((n) => n.id === target.id) || null
+        : null;
+    const edge =
+      target.kind === "edge"
+        ? recipe?.edges.find((e) => e.id === target.id) || null
+        : null;
+    return buildRecipeContextMenuItems(target, {
+      isMac,
+      node,
+      /* Canvas */
+      onAddNode: () => open_palette(contextMenu.x, contextMenu.y),
+      canPaste,
+      onPaste: paste_node,
+      onSelectAll: () => setSelectAllToken((t) => (t || 0) + 1),
+      onFitToView: () => setFitToken((t) => (t || 0) + 1),
+      onResetZoom: () => setZoomResetToken((t) => (t || 0) + 1),
+      /* Node */
+      onOpenDetail: () => onSelectNode?.(target.id),
+      onCopy: () => copy_node(target.id),
+      onInsertAfter: () =>
+        open_palette(contextMenu.x, contextMenu.y, "insert_after", target.id),
+      onDisconnect: () => disconnect_node(target.id),
+      onDelete: () => remove_node(target.id),
+      /* Edge */
+      edgeIsAttach: edge ? edge_is_attach(recipe, edge) : false,
+      onInsertNodeHere: () =>
+        open_palette(contextMenu.x, contextMenu.y, "insert_edge", target.id),
+      onDeleteConnection: () => remove_edge(target.id),
+    });
+  }, [
+    contextMenu,
+    recipe,
+    isMac,
+    open_palette,
+    onSelectNode,
+    copy_node,
+    paste_node,
+    canPaste,
+    disconnect_node,
+    remove_node,
+    remove_edge,
+  ]);
 
   const renderNode = (node) => {
     if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
@@ -220,7 +334,6 @@ export default function RecipeCanvas({
     return null;
   };
 
-  const isMac = usePresentationPlatform() === "darwin";
   const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
   const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
 
@@ -263,11 +376,20 @@ export default function RecipeCanvas({
           on_edges_change={handleEdgesChange}
           validate_connection={validate}
           render_node={renderNode}
-          on_context_menu={({ canvas_x, canvas_y, client_x, client_y }) => {
+          on_context_menu={({ target, canvas_x, canvas_y, client_x, client_y }) => {
             menuPosRef.current = { x: canvas_x, y: canvas_y };
-            setContextMenu({ visible: true, x: client_x, y: client_y });
+            setContextMenu({
+              visible: true,
+              x: client_x,
+              y: client_y,
+              target: target || { kind: "canvas", id: null },
+            });
           }}
           reset_token={resetToken}
+          fit_token={fitToken}
+          zoom_reset_token={zoomResetToken}
+          select_all_token={selectAllToken}
+          reset_focus_node_id="start"
         />
 
         <div
@@ -350,6 +472,20 @@ export default function RecipeCanvas({
             }}
           />
         </div>
+
+        <RecipeNodePalette
+          visible={palette.visible}
+          x={palette.x}
+          y={palette.y}
+          graphKind={recipe?.kind}
+          isDark={isDark}
+          flowOnly={palette.mode !== "add"}
+          onPick={(type) => {
+            place_from_palette(type);
+            setPalette((p) => ({ ...p, visible: false }));
+          }}
+          onClose={() => setPalette((p) => ({ ...p, visible: false }))}
+        />
 
         <ContextMenu
           visible={contextMenu.visible}

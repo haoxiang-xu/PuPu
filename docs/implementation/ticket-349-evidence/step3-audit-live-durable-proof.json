@@ -1,0 +1,16 @@
+{
+  "job_id": "curation-job-ec192337d8aab41f8518fab48d6934d5",
+  "status": "failed",
+  "last_error_code": "memory_agent_toolkit_scope_invalid",
+  "attempt_count": 1,
+  "candidate_outcomes": [
+    "isolated"
+  ],
+  "candidate_content_ref": {
+    "fragment": "space-chat-deb481da2967808d17059909c3ebf3a1baff410c",
+    "id": "candidate-eb1e168df5dfdcd6ed1700167ce1607d",
+    "kind": "memory_candidate_content",
+    "revision": 1,
+    "schema": "unchain.resource_ref.v1"
+  }
+}

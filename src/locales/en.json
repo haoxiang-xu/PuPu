@@ -188,10 +188,34 @@
     "settings": {
       "ready": "Ready",
       "open_in_models": "Open in Models",
+      "open_models_page": "Open Models page",
       "ollama_hint": "Installed models and the library live in the Models page."
     }
   },
   "memory": {
+    "automatic_context": "Conversation context",
+    "automatic_context_desc": "Conversation context is managed automatically. Legacy short-term controls no longer apply.",
+    "legacy_long_term_memory": "Long-term memory (legacy)",
+    "current_memory": "Memory",
+    "current_memory_status": "Status",
+    "current_memory_scope": "PuPu manages conversation context automatically. This status describes availability for new conversations; existing conversations may use a different mode.",
+    "current_memory_refresh": "Refresh",
+    "status_checking": "Checking memory status…",
+    "status_all": "Available for new conversations",
+    "status_canary": "Available for some new conversations",
+    "status_shadow": "Not active in answers for new conversations",
+    "status_off": "Not active for new conversations",
+    "status_read_only": "Memory is in read-only mode",
+    "status_unavailable": "Memory status unavailable",
+    "legacy_memory": "Legacy memory",
+    "legacy_memory_desc": "These settings apply to the older memory system. They do not turn the current memory system on or off.",
+    "show_legacy_settings": "Show legacy settings",
+    "hide_legacy_settings": "Hide legacy settings",
+    "legacy_memory_settings": "Legacy memory settings",
+    "legacy_enable_memory_desc": "Turns the older memory system on or off. It does not change the current memory service.",
+    "legacy_enable_long_term_desc": "Controls older long-term memory. It does not change the current memory service.",
+    "inspect_legacy_memory": "Inspect legacy memory",
+    "inspect_legacy_memory_desc": "View vectors saved by the older memory system.",
     "title": "Chat Memory",
     "enable_memory": "Enable memory",
     "enable_memory_desc": "Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant.",
@@ -579,6 +603,10 @@
       "context_usage": "Context usage",
       "done": "Done",
       "drop_here": "Drop here to tuck away"
+    },
+    "skill_inventory_stale": {
+      "title": "Skills changed",
+      "description": "The available skills were updated since you opened this chat. The list has been refreshed — please send your message again."
     }
   },
   "toolkit": {
@@ -862,5 +890,18 @@
     "group_conversation": "Conversation",
     "open_progress": "Open context usage; latest model call {percentage}% full",
     "open_progress_unavailable": "Open context usage; latest model call pressure unavailable"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversation ready",
+    "conversation_incomplete": "Conversation preparation incomplete",
+    "conversation_legacy": "Older conversation record",
+    "conversation_unavailable": "Conversation status unavailable",
+    "organization_failed": "Memory organization failed",
+    "organization_cancelled": "Memory organization cancelled",
+    "organization_unavailable": "Memory organization status unavailable",
+    "organization_running": "Organizing memories…",
+    "organization_queued": "Memory organization queued",
+    "organization_empty": "No memories to organize",
+    "organization_complete": "Memories organized"
   }
 }

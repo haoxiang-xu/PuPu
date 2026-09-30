@@ -1,13 +1,30 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import {
+  RECIPE_PANEL_LIMITS,
+  clampPanelWidth,
+  readRecipePanelWidths,
+  writeRecipePanelWidth,
+} from "../../../SERVICEs/recipe_panel_widths";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import usePresentationPlatform from "../../../BUILTIN_COMPONENTs/mini_react/use_presentation_platform";
-import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge";
+import {
+  AGENTS_MODAL_Z,
+  TOP_STRIP_LEADING_ICON,
+  TOP_STRIP_LEADING_PADDING,
+  useTopStripCenter,
+} from "../top_strip";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import PanelResizeHandle from "./recipes_page/panel_resize_handle";
 import { to_save_payload } from "./recipes_page/recipe_save_payload";
 import useRecipeHistory from "./recipes_page/use_recipe_history";
+
+// Floating panels sit PANEL_INSET px from the page edge; each resize pill's
+// hit area starts HANDLE_GAP px past the panel's inner edge (the pill itself
+// is centered inside that hit area, so it clears the panel visibly).
+const PANEL_INSET = 6;
+const HANDLE_GAP = 2;
 
 export default function RecipesPage({
   isDark,
@@ -15,22 +32,13 @@ export default function RecipesPage({
   onSelectNode,
   fullscreen,
 }) {
-  const isDarwin = usePresentationPlatform() === "darwin";
-  const [appFullscreen, setAppFullscreen] = useState(false);
-
-  useEffect(() => {
-    if (!windowStateBridge.isListenerAvailable()) return undefined;
-    const cleanup = windowStateBridge.onWindowStateChange(({ isMaximized }) => {
-      setAppFullscreen(Boolean(isMaximized));
-    });
-    return () => {
-      if (typeof cleanup === "function") cleanup();
-    };
-  }, []);
-
-  const trafficLightPad = fullscreen && isDarwin && !appFullscreen;
-  const headerTopPad = trafficLightPad ? 28 : 0;
-  const expandTop = trafficLightPad ? 42 : 14;
+  /* One centerline for every control on the modal's top strip (#339). */
+  const {
+    center: topStripCenter,
+    left: topStripLeft,
+    clearsTrafficLights,
+  } = useTopStripCenter(fullscreen);
+  const headerTopPad = clearsTrafficLights ? 28 : 0;
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
   const {
@@ -45,6 +53,97 @@ export default function RecipesPage({
   const [dirty, setDirty] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  // Panel widths: the original fixed 200 / 300 are now the minimums; the user
+  // drags the inner edge to widen either panel. Live width is React state so
+  // the panel re-lays out as the pointer moves; the value is persisted once on
+  // release, and the enter/leave transition is suppressed while dragging so
+  // the edge follows the pointer without lag.
+  /* Each panel's ceiling is a share of the canvas, so it has to be measured.
+     jsdom and a first paint report 0, where the window's own width is a better
+     guess than collapsing every panel to its minimum. */
+  const canvasRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(() =>
+    typeof window === "undefined" ? 0 : window.innerWidth,
+  );
+  const [panelWidths, setPanelWidths] = useState(() =>
+    readRecipePanelWidths(
+      typeof window === "undefined" ? undefined : window.innerWidth,
+    ),
+  );
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      const measured = el.getBoundingClientRect().width;
+      setContainerWidth(
+        measured > 0
+          ? measured
+          : typeof window === "undefined"
+            ? 0
+            : window.innerWidth,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /* A window that shrank must pull the panels back inside their new share. */
+  useEffect(() => {
+    setPanelWidths((prev) => {
+      const next = {
+        list: clampPanelWidth("list", prev.list, containerWidth),
+        detail: clampPanelWidth("detail", prev.detail, containerWidth),
+      };
+      return next.list === prev.list && next.detail === prev.detail
+        ? prev
+        : next;
+    });
+  }, [containerWidth]);
+  const [resizingPanel, setResizingPanel] = useState(null);
+  const resizeStartWidthRef = useRef(0);
+  const containerWidthRef = useRef(containerWidth);
+  useEffect(() => {
+    containerWidthRef.current = containerWidth;
+  }, [containerWidth]);
+  const panelWidthsRef = useRef(panelWidths);
+  useEffect(() => {
+    panelWidthsRef.current = panelWidths;
+  }, [panelWidths]);
+
+  const beginResize = (panel) => {
+    resizeStartWidthRef.current = panelWidthsRef.current[panel];
+    setResizingPanel(panel);
+  };
+  // The list is anchored left, so dragging right (+dx) widens it; the detail
+  // panel is anchored right, so dragging left (−dx) widens it.
+  const handleListResize = useCallback((dx) => {
+    setPanelWidths((prev) => ({
+      ...prev,
+      list: clampPanelWidth(
+        "list",
+        resizeStartWidthRef.current + dx,
+        containerWidthRef.current,
+      ),
+    }));
+  }, []);
+  const handleDetailResize = useCallback((dx) => {
+    setPanelWidths((prev) => ({
+      ...prev,
+      detail: clampPanelWidth(
+        "detail",
+        resizeStartWidthRef.current - dx,
+        containerWidthRef.current,
+      ),
+    }));
+  }, []);
+  const endResize = useCallback((panel) => {
+    setResizingPanel(null);
+    writeRecipePanelWidth(panel, panelWidthsRef.current[panel]);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -133,7 +232,7 @@ export default function RecipesPage({
 
   const overlayPanel = {
     position: "absolute",
-    zIndex: 3,
+    zIndex: AGENTS_MODAL_Z.PANEL,
     borderRadius: 10,
     backgroundColor: overlayBg,
     border: overlayBorder,
@@ -146,7 +245,10 @@ export default function RecipesPage({
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+    <div
+      ref={canvasRef}
+      style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+    >
       {/* ── Full-bleed node graph canvas ── */}
       <div
         style={{
@@ -173,16 +275,20 @@ export default function RecipesPage({
 
       {/* ── Floating recipe list (left side menu) ── */}
       <div
+        data-testid="recipe-list-panel-shell"
         style={{
           ...overlayPanel,
-          top: 6,
-          left: 6,
-          bottom: 6,
-          width: 200,
+          top: PANEL_INSET,
+          left: PANEL_INSET,
+          bottom: PANEL_INSET,
+          width: panelWidths.list,
+          minWidth: RECIPE_PANEL_LIMITS.list.min,
           opacity: listCollapsed ? 0 : 1,
           transform: listCollapsed ? "translateX(-12px)" : "translateX(0)",
           transition:
-            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+            resizingPanel === "list"
+              ? "none"
+              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
           pointerEvents: listCollapsed ? "none" : "auto",
         }}
       >
@@ -197,18 +303,36 @@ export default function RecipesPage({
         />
       </div>
 
+      {/* ── List resize pill (floats just outside the list's right edge) ── */}
+      <PanelResizeHandle
+        testId="recipe-list-resize-handle"
+        isDark={isDark}
+        pillTestId="recipe-list-resize-pill"
+        visible={!listCollapsed}
+        style={{
+          top: PANEL_INSET,
+          bottom: PANEL_INSET,
+          left: PANEL_INSET + panelWidths.list + HANDLE_GAP,
+        }}
+        onDragStart={() => beginResize("list")}
+        onDrag={handleListResize}
+        onDragEnd={() => endResize("list")}
+      />
+
       {/* ── Expand button (only when list is collapsed) ── */}
       {listCollapsed && (
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}
+          ariaLabel="Show workflows"
           style={{
             position: "absolute",
-            top: expandTop,
-            left: 14,
-            zIndex: 4,
-            paddingVertical: 6,
-            paddingHorizontal: 6,
+            top: topStripCenter,
+            transform: "translateY(-50%)",
+            left: topStripLeft,
+            zIndex: AGENTS_MODAL_Z.PANEL_CONTROL,
+            paddingVertical: TOP_STRIP_LEADING_PADDING,
+            paddingHorizontal: TOP_STRIP_LEADING_PADDING,
             borderRadius: 6,
             opacity: 0.55,
             WebkitAppRegion: "no-drag",
@@ -219,7 +343,10 @@ export default function RecipesPage({
                 justifyContent: "center",
                 lineHeight: 0,
               },
-              icon: { width: 14, height: 14 },
+              icon: {
+                width: TOP_STRIP_LEADING_ICON,
+                height: TOP_STRIP_LEADING_ICON,
+              },
             },
           }}
         />
@@ -232,7 +359,7 @@ export default function RecipesPage({
             left: "50%",
             bottom: 62,
             transform: "translateX(-50%)",
-            zIndex: 5,
+            zIndex: AGENTS_MODAL_Z.PANEL_MESSAGE,
             maxWidth: 520,
             padding: "8px 12px",
             borderRadius: 8,
@@ -251,26 +378,46 @@ export default function RecipesPage({
 
       {/* ── Floating inspector (right detail panel) ── */}
       <div
-          style={{
-            ...overlayPanel,
-            top: 6,
-            right: 6,
-            bottom: 6,
-            width: 300,
-            opacity: selectedNodeId ? 1 : 0,
-            transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
-            transition:
-              "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-            pointerEvents: selectedNodeId ? "auto" : "none",
-          }}
-        >
-          <DetailPanel
-            recipe={activeRecipe}
-            selectedNodeId={selectedNodeId}
-            onChange={handleRecipeChange}
-            onChangeSilent={handleRecipeChangeSilent}
-          />
+        data-testid="recipe-detail-panel-shell"
+        style={{
+          ...overlayPanel,
+          top: PANEL_INSET,
+          right: PANEL_INSET,
+          bottom: PANEL_INSET,
+          width: panelWidths.detail,
+          minWidth: RECIPE_PANEL_LIMITS.detail.min,
+          opacity: selectedNodeId ? 1 : 0,
+          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
+          transition:
+            resizingPanel === "detail"
+              ? "none"
+              : "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+          pointerEvents: selectedNodeId ? "auto" : "none",
+        }}
+      >
+        <DetailPanel
+          recipe={activeRecipe}
+          selectedNodeId={selectedNodeId}
+          onChange={handleRecipeChange}
+          onChangeSilent={handleRecipeChangeSilent}
+        />
       </div>
+
+      {/* ── Detail resize pill (floats just outside the panel's left edge) ── */}
+      <PanelResizeHandle
+        testId="recipe-detail-resize-handle"
+        isDark={isDark}
+        pillTestId="recipe-detail-resize-pill"
+        visible={Boolean(selectedNodeId)}
+        style={{
+          top: PANEL_INSET,
+          bottom: PANEL_INSET,
+          right: PANEL_INSET + panelWidths.detail + HANDLE_GAP,
+        }}
+        onDragStart={() => beginResize("detail")}
+        onDrag={handleDetailResize}
+        onDragEnd={() => endResize("detail")}
+      />
     </div>
   );
 }

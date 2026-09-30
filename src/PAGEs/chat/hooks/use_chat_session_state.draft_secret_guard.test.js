@@ -8,14 +8,14 @@
  * would durably persist it — bypassing the send-path fail-closed guarantee.
  *
  * Contract locked here:
- *  - flag ON  → any draft text with explicit {{secret:...}} syntax, a known
+ *  - all profiles → any draft text with explicit {{secret:...}} syntax, a known
  *               credential token prefix, or a conservative password/token/
  *               api-key assignment persists as "" (attachments untouched);
  *  - the in-memory composer is NEVER rewritten — typing/editing/sending are
  *    unaffected, only the durable copy is emptied;
  *  - an already-stored matching draft is proactively scrubbed on mount and on
  *    chat switch;
- *  - flag OFF → byte-for-byte identical to the pre-guard behavior.
+ *  - retired false flags cannot disable protection.
  *
  * The last describe block is a DRIFT SENTINEL: the predicate in
  * use_chat_session_state.js is a deliberate local copy of the secret_capture
@@ -228,7 +228,7 @@ describe("useChatSessionState draft secret guard", () => {
     });
   });
 
-  describe("flag OFF is byte-for-byte the pre-guard behavior", () => {
+  describe("retired false flag cannot disable draft protection", () => {
     beforeEach(() => {
       setMemoryV2Flag(false);
     });
@@ -238,7 +238,7 @@ describe("useChatSessionState draft secret guard", () => {
       ["a recognized token prefix", TOKEN_PREFIX_TEXT],
       ["a conservative credential assignment", ASSIGNMENT_TEXT],
       ["ordinary prose", INNOCENT_TEXT],
-    ])("debounced persist writes %s verbatim", (_label, text) => {
+    ])("debounced persist protects %s", (_label, text) => {
       const { result } = setup();
       const chatId = result.current.activeChatIdRef.current;
 
@@ -249,10 +249,10 @@ describe("useChatSessionState draft secret guard", () => {
         jest.advanceTimersByTime(250);
       });
 
-      expect(draftOf(chatId)?.text).toBe(text);
+      expect(draftOf(chatId)?.text).toBe(text === INNOCENT_TEXT ? text : "");
     });
 
-    test("does not scrub an already-stored secret draft on mount", () => {
+    test("scrubs an already-stored secret draft on mount", () => {
       const seeded = bootstrapChatsStore();
       const chatId = seeded.activeChat.id;
       markChatStarted(chatId, { source: "test" });
@@ -260,10 +260,10 @@ describe("useChatSessionState draft secret guard", () => {
 
       setup();
 
-      expect(draftOf(chatId)?.text).toBe(WRAPPED_SECRET);
+      expect(draftOf(chatId)?.text).toBe("");
     });
 
-    test("beforeunload tail flush writes the text verbatim", () => {
+    test("beforeunload tail flush protects secret text", () => {
       const { result } = setup();
       const chatId = result.current.activeChatIdRef.current;
 
@@ -276,7 +276,7 @@ describe("useChatSessionState draft secret guard", () => {
         );
       });
 
-      expect(draftOf(chatId)?.text).toBe(TOKEN_PREFIX_TEXT);
+      expect(draftOf(chatId)?.text).toBe("");
     });
   });
 });

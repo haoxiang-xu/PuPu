@@ -17,11 +17,9 @@
  * journal), the journal is the record of truth. Silently rewriting V1 short-term
  * memory instead would leave the journal describing a conversation that no
  * longer exists — a divergence that no later phase can repair, because the
- * pre-mutation generation is already sealed. So the ONLY two paths that may run
- * the legacy V1 rewrite are:
- *   1. the enable_memory_v2 feature flag is OFF, or
- *   2. the session head says, unambiguously, that this chat has no V2 state at
- *      all (HTTP 404 `context_v2_not_found`, or an all-empty admission).
+ * pre-mutation generation is already sealed. The legacy V1 rewrite is allowed
+ * only when the session head unambiguously reports no V2 state at all
+ * (HTTP 404 `context_v2_not_found`, or an all-empty admission).
  * Every other shape — bootstrap pending/failed, bridge unavailable, read-only
  * degraded, a head we cannot fully parse — BLOCKS the mutation with a static
  * error and leaves local history untouched.
@@ -155,7 +153,6 @@ export const buildRebaseReplacementHistory = (messages) =>
 /**
  * Decide which memory path a turn mutation must take.
  *
- * @param flagEnabled    enable_memory_v2
  * @param bridgeAvailable contextV2Bridge.isAvailable()
  * @param head           the getSessionHead result (main-normalized), or null
  * @param headErrorCode  the parsed error code when getSessionHead rejected
@@ -170,7 +167,6 @@ export const buildRebaseReplacementHistory = (messages) =>
  * come from this single head read and never be re-derived later.
  */
 export const decideTurnMutationMemoryMode = ({
-  flagEnabled = false,
   bridgeAvailable = false,
   head = null,
   headErrorCode = "",
@@ -183,7 +179,6 @@ export const decideTurnMutationMemoryMode = ({
   });
   const legacy = (reason) => ({ mode: TURN_MUTATION_ADMISSION.LEGACY, reason });
 
-  if (flagEnabled !== true) return legacy("flag_off");
   if (bridgeAvailable !== true) return blocked("bridge_unavailable");
 
   const errorCode = readString(headErrorCode);

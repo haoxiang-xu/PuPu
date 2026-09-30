@@ -5,6 +5,7 @@ import {
   ThemeContext,
 } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
+import contextV2Bridge from "../../SERVICEs/bridges/context_v2_bridge";
 import { resolveQueueRelaySessionOwner } from "./hooks/use_chat_stream";
 import {
   createChatInSelectedContext,
@@ -139,6 +140,12 @@ describe("ChatInterface stop flow", () => {
   let streamV4Handlers;
 
   beforeEach(() => {
+    // These legacy replacement tests require a server-confirmed absent V2
+    // session; the retired feature flag no longer bypasses canonical admission.
+    jest.spyOn(contextV2Bridge, "isAvailable").mockReturnValue(true);
+    jest.spyOn(contextV2Bridge, "getSessionHead").mockRejectedValue(
+      new Error("[context_v2_not_found] No canonical session"),
+    );
     window.localStorage.clear();
     lastChatMessagesProps = null;
     lastChatInputProps = null;

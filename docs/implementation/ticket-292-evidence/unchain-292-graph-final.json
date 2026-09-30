@@ -1,0 +1,328 @@
+{
+  "summary": {
+    "changed_count": 40,
+    "affected_count": 3,
+    "changed_files": 8,
+    "risk_level": "medium"
+  },
+  "changed_symbols": [
+    {
+      "id": "Section:docs/en/guides/hyperspace-provider.md:L1:SAP Hyperspace Provider",
+      "name": "SAP Hyperspace Provider",
+      "type": "Section",
+      "filePath": "docs/en/guides/hyperspace-provider.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Section:docs/en/guides/hyperspace-provider.md:L82:Tests",
+      "name": "Tests",
+      "type": "Section",
+      "filePath": "docs/en/guides/hyperspace-provider.md",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:src/unchain/kernel/loop.py:KernelLoop",
+      "name": "KernelLoop",
+      "type": "Class",
+      "filePath": "src/unchain/kernel/loop.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/kernel/loop.py:KernelLoop.step_once#16",
+      "name": "step_once",
+      "type": "Method",
+      "filePath": "src/unchain/kernel/loop.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:src/unchain/providers/anthropic.py:AnthropicModelIO",
+      "name": "AnthropicModelIO",
+      "type": "Class",
+      "filePath": "src/unchain/providers/anthropic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/anthropic.py:provider_replay_profile",
+      "name": "provider_replay_profile",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/anthropic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/providers/anthropic.py:AnthropicModelIO._fetch_turn_streaming#3",
+      "name": "_fetch_turn_streaming",
+      "type": "Method",
+      "filePath": "src/unchain/providers/anthropic.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/context_assembler.py:_anthropic_semantic_assistant",
+      "name": "_anthropic_semantic_assistant",
+      "type": "Function",
+      "filePath": "src/unchain/providers/context_assembler.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/context_assembler.py:_anthropic_segments",
+      "name": "_anthropic_segments",
+      "type": "Function",
+      "filePath": "src/unchain/providers/context_assembler.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/context_assembler.py:_segments_for",
+      "name": "_segments_for",
+      "type": "Function",
+      "filePath": "src/unchain/providers/context_assembler.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:src/unchain/providers/context_assembler.py:ProviderContextAssembler",
+      "name": "ProviderContextAssembler",
+      "type": "Class",
+      "filePath": "src/unchain/providers/context_assembler.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/providers/context_assembler.py:ProviderContextAssembler.assemble#3",
+      "name": "assemble",
+      "type": "Method",
+      "filePath": "src/unchain/providers/context_assembler.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/hyperspace.py:DEFAULT_HYPERSPACE_BASE_URL",
+      "name": "DEFAULT_HYPERSPACE_BASE_URL",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/hyperspace.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Class:src/unchain/providers/hyperspace.py:HyperspaceModelIO",
+      "name": "HyperspaceModelIO",
+      "type": "Class",
+      "filePath": "src/unchain/providers/hyperspace.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/hyperspace.py:provider",
+      "name": "provider",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/hyperspace.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/hyperspace.py:_ANTHROPIC_TIMEOUT",
+      "name": "_ANTHROPIC_TIMEOUT",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/hyperspace.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/providers/hyperspace.py:HyperspaceModelIO.__init__#6",
+      "name": "__init__",
+      "type": "Method",
+      "filePath": "src/unchain/providers/hyperspace.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/model_turn_runtime.py:build_model_turn_request",
+      "name": "build_model_turn_request",
+      "type": "Function",
+      "filePath": "src/unchain/providers/model_turn_runtime.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/model_turn_runtime.py:fetch_model_turn",
+      "name": "fetch_model_turn",
+      "type": "Function",
+      "filePath": "src/unchain/providers/model_turn_runtime.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/replay_profile.py:_KIMI_ENDPOINTS",
+      "name": "_KIMI_ENDPOINTS",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/replay_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/replay_profile.py:_KIMI_MODEL",
+      "name": "_KIMI_MODEL",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/replay_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/replay_profile.py:_PROFILE",
+      "name": "_PROFILE",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/replay_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/replay_profile.py:kimi_replay_profile",
+      "name": "kimi_replay_profile",
+      "type": "Function",
+      "filePath": "src/unchain/providers/replay_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/replay_profile.py:validate_replay_profile",
+      "name": "validate_replay_profile",
+      "type": "Function",
+      "filePath": "src/unchain/providers/replay_profile.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_kimi_replay.py:MODEL",
+      "name": "MODEL",
+      "type": "Variable",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_kimi_replay.py:ENDPOINT",
+      "name": "ENDPOINT",
+      "type": "Variable",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:_io",
+      "name": "_io",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:_tool_events",
+      "name": "_tool_events",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:_done_events",
+      "name": "_done_events",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:_assert_wire_thinking",
+      "name": "_assert_wire_thinking",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_unsigned_thinking_tool_capture",
+      "name": "test_kimi_unsigned_thinking_tool_capture",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_other_routes_keep_signature_requirement",
+      "name": "test_other_routes_keep_signature_requirement",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_repeated_tools_and_second_user_turn",
+      "name": "test_kimi_repeated_tools_and_second_user_turn",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_repeated_tools_and_second_user_turn.demo_tool@88:4",
+      "name": "demo_tool",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool",
+      "name": "test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool.demo_tool@108:4",
+      "name": "demo_tool",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_cold_restart_preserves_replay_and_does_not_repeat_tool.make_agent@112:4",
+      "name": "make_agent",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_profile_mismatch_rejected_before_provider_request",
+      "name": "test_profile_mismatch_rejected_before_provider_request",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_actual_wire_model_must_match_profile",
+      "name": "test_kimi_actual_wire_model_must_match_profile",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_kimi_replay.py:test_kimi_official_context_boundary_cold_approval_resume",
+      "name": "test_kimi_official_context_boundary_cold_approval_resume",
+      "type": "Function",
+      "filePath": "tests/test_kimi_replay.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": [
+    {
+      "id": "proc_558_assemble",
+      "name": "Assemble → Strict_json_copy",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "assemble",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_679_assemble",
+      "name": "Assemble → _deepcopy_messages",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "assemble",
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "proc_680_assemble",
+      "name": "Assemble → Get_version",
+      "process_type": "cross_community",
+      "step_count": 4,
+      "changed_steps": [
+        {
+          "symbol": "assemble",
+          "step": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: New contributor? Start here
+    url: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/first-contribution.md
+    about: Find a task, claim it, set up the project, and open your first PR.
   - name: Community contribution guide
     url: https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/community-submissions.md
     about: Choose MCP, Skill, or Toolkit; learn what to include in an issue or PR.

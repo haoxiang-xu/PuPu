@@ -1,0 +1,164 @@
+FFFFFFFFFF...                                                            [100%]
+=================================== FAILURES ===================================
+___ test_kimi_rejects_malformed_stream_delta_before_coercion[signature-123] ____
+
+field = 'signature', value = 123
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+__ test_kimi_rejects_malformed_stream_delta_before_coercion[signature-False] ___
+
+field = 'signature', value = False
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+__ test_kimi_rejects_malformed_stream_delta_before_coercion[signature-value2] __
+
+field = 'signature', value = []
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+__ test_kimi_rejects_malformed_stream_delta_before_coercion[signature-value3] __
+
+field = 'signature', value = {'x': 1}
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+___ test_kimi_rejects_malformed_stream_delta_before_coercion[signature-None] ___
+
+field = 'signature', value = None
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+____ test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-123] ____
+
+field = 'thinking', value = 123
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+___ test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-False] ___
+
+field = 'thinking', value = False
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+__ test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-value2] ___
+
+field = 'thinking', value = []
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+__ test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-value3] ___
+
+field = 'thinking', value = {'x': 1}
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+___ test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-None] ____
+
+field = 'thinking', value = None
+
+    @pytest.mark.parametrize("value", [123, False, [], {"x": 1}, None])
+    @pytest.mark.parametrize("field", ["signature", "thinking"])
+    def test_kimi_rejects_malformed_stream_delta_before_coercion(field, value):
+        events = _tool_events()
+        delta = events[2 if field == "signature" else 1].delta
+        setattr(delta, field, value)
+>       with pytest.raises(ProviderReplayFrameError, match=field):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ProviderReplayFrameError
+
+tests/test_kimi_replay.py:180: Failed
+=========================== short test summary info ============================
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[signature-123]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[signature-False]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[signature-value2]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[signature-value3]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[signature-None]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-123]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-False]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-value2]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-value3]
+FAILED tests/test_kimi_replay.py::test_kimi_rejects_malformed_stream_delta_before_coercion[thinking-None]
+10 failed, 3 passed, 22 deselected in 0.89s

@@ -188,10 +188,34 @@
     "settings": {
       "ready": "Prêt",
       "open_in_models": "Ouvrir dans Modèles",
+      "open_models_page": "Ouvrir la page Modèles",
       "ollama_hint": "Les modèles installés et la bibliothèque se trouvent dans la page Modèles."
     }
   },
   "memory": {
+    "automatic_context": "Contexte de la conversation",
+    "automatic_context_desc": "Le contexte de la conversation est géré automatiquement. Les anciens réglages de mémoire à court terme ne s’appliquent plus.",
+    "legacy_long_term_memory": "Mémoire à long terme (ancienne)",
+    "current_memory": "Mémoire",
+    "current_memory_status": "État",
+    "current_memory_scope": "PuPu gère automatiquement le contexte de la conversation. Cet état concerne les nouvelles conversations ; les existantes peuvent utiliser un autre mode.",
+    "current_memory_refresh": "Actualiser",
+    "status_checking": "Vérification de l’état de la mémoire…",
+    "status_all": "Disponible pour les nouvelles conversations",
+    "status_canary": "Disponible pour certaines nouvelles conversations",
+    "status_shadow": "Inactive dans les réponses des nouvelles conversations",
+    "status_off": "Inactive pour les nouvelles conversations",
+    "status_read_only": "La mémoire est en lecture seule",
+    "status_unavailable": "État de la mémoire indisponible",
+    "legacy_memory": "Ancienne mémoire",
+    "legacy_memory_desc": "Ces réglages concernent l’ancien système de mémoire. Ils n’activent ni ne désactivent le système actuel.",
+    "show_legacy_settings": "Afficher les anciens réglages",
+    "hide_legacy_settings": "Masquer les anciens réglages",
+    "legacy_memory_settings": "Réglages de l’ancienne mémoire",
+    "legacy_enable_memory_desc": "Active ou désactive l’ancien système de mémoire.",
+    "legacy_enable_long_term_desc": "Contrôle l’ancienne mémoire à long terme.",
+    "inspect_legacy_memory": "Inspecter l’ancienne mémoire",
+    "inspect_legacy_memory_desc": "Voir les vecteurs enregistrés par l’ancien système.",
     "title": "Mémoire de chat",
     "enable_memory": "Activer la mémoire",
     "enable_memory_desc": "Chaque chat conserve une mémoire à court terme, tandis que la mémoire à long terme est partagée globalement et rappelée automatiquement lorsqu'elle est pertinente.",
@@ -579,6 +603,10 @@
       "context_usage": "Utilisation du contexte",
       "done": "Terminé",
       "drop_here": "Déposer ici pour ranger"
+    },
+    "skill_inventory_stale": {
+      "title": "Les compétences ont changé",
+      "description": "Les compétences disponibles ont été mises à jour depuis l’ouverture de cette conversation. La liste a été actualisée. Veuillez renvoyer votre message."
     }
   },
   "toolkit": {
@@ -862,5 +890,18 @@
     "group_conversation": "Conversation",
     "open_progress": "Ouvrir l’utilisation du contexte ; dernier appel de modèle rempli à {percentage}%",
     "open_progress_unavailable": "Ouvrir l’utilisation du contexte ; pression de fenêtre du dernier appel indisponible"
+  },
+  "memory_activity": {
+    "conversation_ready": "Conversation prête",
+    "conversation_incomplete": "Préparation de la conversation incomplète",
+    "conversation_legacy": "Ancien historique de conversation",
+    "conversation_unavailable": "État de la conversation indisponible",
+    "organization_failed": "Échec de l’organisation des souvenirs",
+    "organization_cancelled": "Organisation des souvenirs annulée",
+    "organization_unavailable": "État de l’organisation indisponible",
+    "organization_running": "Organisation des souvenirs…",
+    "organization_queued": "Organisation des souvenirs en attente",
+    "organization_empty": "Aucun souvenir à organiser",
+    "organization_complete": "Souvenirs organisés"
   }
 }

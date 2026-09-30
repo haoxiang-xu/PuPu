@@ -1,0 +1,51 @@
+FFFFF.                                                                   [100%]
+=================================== FAILURES ===================================
+___ test_new_root_between_discovery_and_claim_never_uses_old_model[deferred] ___
+.local/ticket-349-selection-fix/red/test_selection_race.py:77: in test_new_root_between_discovery_and_claim_never_uses_old_model
+    assert selections == []  # No provider construction for stale selection.
+    ^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: assert [('memory-model', {})] == []
+E
+E     Left contains one more item: ('memory-model', {})
+E     Use -v to get more diff
+------------------------------ Captured log call -------------------------------
+WARNING  memory_v2_background_worker:memory_v2_background_worker.py:179 [memory-background] registration deferred; completed answer retained
+__ test_new_root_between_discovery_and_claim_never_uses_old_model[registered] __
+.local/ticket-349-selection-fix/red/test_selection_race.py:92: in test_new_root_between_discovery_and_claim_never_uses_old_model
+    assert selections == [("new-model", {"api_key": "new-key"})]
+E   AssertionError: assert [('memory-model', {})] == [('new-model'...: 'new-key'})]
+E
+E     At index 0 diff: ('memory-model', {}) != ('new-model', {'api_key': 'new-key'})
+E     Use -v to get more diff
+___ test_new_root_between_discovery_and_claim_never_uses_old_model[restored] ___
+.local/ticket-349-selection-fix/red/test_selection_race.py:92: in test_new_root_between_discovery_and_claim_never_uses_old_model
+    assert selections == [("new-model", {"api_key": "new-key"})]
+E   AssertionError: assert [('memory-model', {})] == [('new-model'...: 'new-key'})]
+E
+E     At index 0 diff: ('memory-model', {}) != ('new-model', {'api_key': 'new-key'})
+E     Use -v to get more diff
+------------------------------ Captured log call -------------------------------
+WARNING  memory_v2_background_worker:memory_v2_background_worker.py:179 [memory-background] registration deferred; completed answer retained
+__________ test_selection_change_after_host_build_before_claim[True] ___________
+.local/ticket-349-selection-fix/red/test_selection_race.py:115: in test_selection_change_after_host_build_before_claim
+    assert result == ("retry" if pending else "processed")
+E   AssertionError: assert 'processed' == 'retry'
+E
+E     - retry
+E     + processed
+------------------------------ Captured log call -------------------------------
+WARNING  memory_v2_background_worker:memory_v2_background_worker.py:179 [memory-background] registration deferred; completed answer retained
+__________ test_selection_change_after_host_build_before_claim[False] __________
+.local/ticket-349-selection-fix/red/test_selection_race.py:116: in test_selection_change_after_host_build_before_claim
+    assert selections == ([] if pending else [("new-model", {"api_key": "new-key"})])
+E   AssertionError: assert [('memory-mod...ist-secret'})] == [('new-model'...: 'new-key'})]
+E
+E     At index 0 diff: ('memory-model', {'api_key': 'never-persist-secret'}) != ('new-model', {'api_key': 'new-key'})
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED .local/ticket-349-selection-fix/red/test_selection_race.py::test_new_root_between_discovery_and_claim_never_uses_old_model[deferred]
+FAILED .local/ticket-349-selection-fix/red/test_selection_race.py::test_new_root_between_discovery_and_claim_never_uses_old_model[registered]
+FAILED .local/ticket-349-selection-fix/red/test_selection_race.py::test_new_root_between_discovery_and_claim_never_uses_old_model[restored]
+FAILED .local/ticket-349-selection-fix/red/test_selection_race.py::test_selection_change_after_host_build_before_claim[True]
+FAILED .local/ticket-349-selection-fix/red/test_selection_race.py::test_selection_change_after_host_build_before_claim[False]
+5 failed, 1 passed in 5.45s

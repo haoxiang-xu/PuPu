@@ -188,10 +188,34 @@
     "settings": {
       "ready": "就緒",
       "open_in_models": "在模型頁面中開啟",
+      "open_models_page": "開啟模型頁面",
       "ollama_hint": "已安裝的模型與模型庫都在模型頁面。"
     }
   },
   "memory": {
+    "automatic_context": "對話上下文",
+    "automatic_context_desc": "對話上下文由系統自動管理，舊版的短期記憶設定不再生效。",
+    "legacy_long_term_memory": "長期記憶（舊版）",
+    "current_memory": "記憶",
+    "current_memory_status": "狀態",
+    "current_memory_scope": "PuPu 會自動管理對話上下文。此狀態說明新對話是否可用；現有對話可能使用不同模式。",
+    "current_memory_refresh": "重新整理",
+    "status_checking": "正在檢查記憶狀態…",
+    "status_all": "可用於新對話",
+    "status_canary": "可用於部分新對話",
+    "status_shadow": "不會在新對話的回答中啟用",
+    "status_off": "未對新對話啟用",
+    "status_read_only": "記憶目前為唯讀模式",
+    "status_unavailable": "無法取得記憶狀態",
+    "legacy_memory": "舊版記憶",
+    "legacy_memory_desc": "這些設定只適用於舊版記憶系統，不會開啟或關閉目前記憶系統。",
+    "show_legacy_settings": "顯示舊版設定",
+    "hide_legacy_settings": "隱藏舊版設定",
+    "legacy_memory_settings": "舊版記憶設定",
+    "legacy_enable_memory_desc": "開啟或關閉舊版記憶系統，不會改變目前記憶服務。",
+    "legacy_enable_long_term_desc": "控制舊版長期記憶，不會改變目前記憶服務。",
+    "inspect_legacy_memory": "檢視舊版記憶",
+    "inspect_legacy_memory_desc": "檢視由舊版記憶系統儲存的向量。",
     "title": "聊天記憶",
     "enable_memory": "啟用記憶",
     "enable_memory_desc": "每個聊天保留短期記憶，長期記憶全域共享並在相關時自動召回。",
@@ -579,6 +603,10 @@
       "context_usage": "上下文用量",
       "done": "完成",
       "drop_here": "拖到這裡收起"
+    },
+    "skill_inventory_stale": {
+      "title": "技能已變更",
+      "description": "開啟此聊天後，可用技能已更新。清單已重新整理，請再次傳送訊息。"
     }
   },
   "toolkit": {
@@ -862,5 +890,18 @@
     "group_conversation": "對話",
     "open_progress": "開啟內容脈絡用量；最近一次模型呼叫已使用 {percentage}%",
     "open_progress_unavailable": "開啟內容脈絡用量；最近一次模型呼叫的視窗壓力無法使用"
+  },
+  "memory_activity": {
+    "conversation_ready": "對話已準備好",
+    "conversation_incomplete": "對話準備未完成",
+    "conversation_legacy": "舊版對話記錄",
+    "conversation_unavailable": "無法取得對話狀態",
+    "organization_failed": "記憶整理失敗",
+    "organization_cancelled": "記憶整理已取消",
+    "organization_unavailable": "無法取得記憶整理狀態",
+    "organization_running": "正在整理記憶…",
+    "organization_queued": "等待整理記憶",
+    "organization_empty": "暫無記憶需要整理",
+    "organization_complete": "記憶整理完成"
   }
 }

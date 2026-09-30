@@ -165,6 +165,38 @@ def test_ephemeral_event_is_not_stored_but_is_still_notified(tmp_path: Path) -> 
     assert notified == ["x"]
 
 
+def test_shadow_callback_previews_ollama_reasoning_without_duplicate_host_event(
+    tmp_path: Path,
+) -> None:
+    bridge = _bridge(tmp_path)
+    attempt = bridge.preparation.host_factory.attempt(
+        execution_id="execution-a", attempt_id="root-run-a",
+    )
+    before = attempt.bundle.journal.capture_snapshot().events
+    observed = []
+    callback = bridge.compose_event_callback(observed.append)
+    raw = {
+        "type": "reasoning", "run_id": "root-run-a", "iteration": 0,
+        "provider": "ollama", "delta": "thinking",
+    }
+
+    callback.emit_provisional_reasoning(raw, "a" * 32)
+    assert attempt.bundle.journal.capture_snapshot().events == before
+    assert observed == [{**raw, "provisional_reasoning_id": "a" * 32}]
+
+    callback.discard_provisional_reasoning(
+        preview_id="a" * 32, run_id="root-run-a", iteration=0,
+    )
+    assert attempt.bundle.journal.capture_snapshot().events == before
+    assert observed[-1]["type"] == "reasoning_preview_discarded"
+
+    callback.emit_provisional_reasoning(raw, "b" * 32)
+    callback.commit_provisional_reasoning(raw)
+    after = attempt.bundle.journal.capture_snapshot().events
+    assert after == before
+    assert observed[-1] == {**raw, "provisional_reasoning_id": "b" * 32}
+
+
 def test_shadow_bridge_records_legacy_tool_pair_as_observed_artifact(
     tmp_path: Path,
 ) -> None:

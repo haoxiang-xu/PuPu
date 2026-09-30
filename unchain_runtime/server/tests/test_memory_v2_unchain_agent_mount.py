@@ -216,6 +216,8 @@ def test_create_agent_mounts_prepared_official_shadow_modules() -> None:
     ), mock.patch.object(
         adapter, "_bootstrap_memory_v2_current_request"
     ), mock.patch.object(
+        adapter, "_prepare_memory_v2_first_message_recall"
+    ) as automatic_recall, mock.patch.object(
         adapter, "_options_with_memory_v2_admission", return_value={}
     ), mock.patch.object(
         adapter, "_build_developer_agent", side_effect=fake_build
@@ -231,6 +233,7 @@ def test_create_agent_mounts_prepared_official_shadow_modules() -> None:
 
     assert prepare.call_args.kwargs["admission"] is admission
     assert prepare.call_args.kwargs["run"] is run
+    automatic_recall.assert_not_called()
     assert built["context_memory_v2_modules"] == (shadow_module,)
     assert built["official_context_v2_active"] is False
     assert agent._memory_v2_unchain_shadow_bridge is bridge

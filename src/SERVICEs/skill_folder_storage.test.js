@@ -490,6 +490,58 @@ describe("persistence", () => {
     );
   });
 
+  test("a rolled-back SQL write leaves the tree readable, not lost", async () => {
+    installBridge({
+      setNamespace: jest.fn(() =>
+        Promise.reject(Object.assign(new Error("nope"), { code: "disk_full" })),
+      ),
+    });
+
+    setSkillFolderState(sampleTree());
+    await flushSettingsWrites();
+
+    // The repository rolled its namespace back, so the SQL snapshot no longer
+    // holds the tree. Without the degradation write-through the organization
+    // the user just made would be gone from every store at once.
+    expect(getSkillFolderState()).toEqual(sampleTree());
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY))).toEqual(
+      sampleTree(),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[skill-folder-storage] persist failed; using localStorage for this session",
+    );
+  });
+
+  test("once degraded the session stops writing through SQL", async () => {
+    const api = installBridge({
+      setNamespace: jest.fn(() =>
+        Promise.reject(Object.assign(new Error("nope"), { code: "disk_full" })),
+      ),
+    });
+
+    setSkillFolderState(sampleTree());
+    await flushSettingsWrites();
+    expect(api.setNamespace).toHaveBeenCalledTimes(1);
+
+    const next = sampleTree();
+    next.folders[WRITING].name = "Renamed";
+    setSkillFolderState(next);
+    await flushSettingsWrites();
+
+    // Stay on localStorage until the next boot rather than half-adopting:
+    // no second attempt at the write path already known bad this session.
+    expect(api.setNamespace).toHaveBeenCalledTimes(1);
+    expect(getSkillFolderState()).toEqual(next);
+    // ...and the degradation notice is not repeated on every later save.
+    expect(
+      warnSpy.mock.calls.filter(
+        ([message]) =>
+          message ===
+          "[skill-folder-storage] persist failed; using localStorage for this session",
+      ),
+    ).toHaveLength(1);
+  });
+
   test("fallback mode stores the tree under its own key", () => {
     // no bridge installed — repository stays in localStorage mode
     setSkillFolderState(sampleTree());

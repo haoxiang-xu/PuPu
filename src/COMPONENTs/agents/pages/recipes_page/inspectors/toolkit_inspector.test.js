@@ -4,8 +4,12 @@ import { api } from "../../../../../SERVICEs/api";
 
 jest.mock("../../../../../BUILTIN_COMPONENTs/input/switch", () => ({
   __esModule: true,
-  default: ({ on, set_on }) => (
-    <button data-testid="switch" onClick={() => set_on(!on)}>
+  default: ({ on, set_on, style }) => (
+    <button
+      data-testid="switch"
+      data-size={`${style?.width}x${style?.height}`}
+      onClick={() => set_on(!on)}
+    >
       {String(on)}
     </button>
   ),
@@ -45,6 +49,10 @@ describe("ToolkitInspector MCP", () => {
     );
 
     await screen.findByText("Memory");
+    // switches take the builder's shared size (80% of the theme default)
+    screen.getAllByTestId("switch").forEach((el) => {
+      expect(el.getAttribute("data-size")).toBe("52x26");
+    });
     fireEvent.click(screen.getAllByTestId("switch")[0]);
 
     expect(onRecipeChange).toHaveBeenCalledWith(

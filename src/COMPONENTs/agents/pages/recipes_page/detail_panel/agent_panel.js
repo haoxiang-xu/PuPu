@@ -4,11 +4,19 @@ import { compute_variable_scope } from "../variable_scope";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
+  { value: "openai:gpt-6-sol", label: "openai:gpt-6-sol" },
+  { value: "openai:gpt-6-luna", label: "openai:gpt-6-luna" },
+  { value: "anthropic:claude-opus-5-5", label: "anthropic:claude-opus-5-5" },
+  { value: "anthropic:claude-sonnet-5", label: "anthropic:claude-sonnet-5" },
+  { value: "gemini:gemini-3.7-flash", label: "gemini:gemini-3.7-flash" },
+  { value: "gemini:gemini-3.8-flash", label: "gemini:gemini-3.8-flash" },
+  { value: "gemini:gemini-3.5-flash-lite", label: "gemini:gemini-3.5-flash-lite" },
   { value: "claude-opus-4-7", label: "claude-opus-4-7" },
   { value: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
   { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
@@ -284,7 +292,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             <Switch
               on={optimizer_enabled}
               set_on={set_optimizer_enabled}
-              style={{ width: 32, height: 18 }}
+              style={BUILDER_SWITCH_SIZE}
             />
           </div>
         </div>
@@ -434,7 +442,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                     hash_payloads: !!on,
                   })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
               <span>Context usage</span>
               <Switch
@@ -442,7 +450,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 set_on={(on) =>
                   update_custom_optimizer("context_usage", { enabled: !!on })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
               <span>Pair safety</span>
               <Switch
@@ -450,7 +458,7 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                 set_on={(on) =>
                   update_custom_optimizer("tool_pair_safety", { enabled: !!on })
                 }
-                style={{ width: 30, height: 17 }}
+                style={BUILDER_SWITCH_SIZE}
               />
             </div>
           </div>

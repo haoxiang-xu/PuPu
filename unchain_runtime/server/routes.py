@@ -4,6 +4,8 @@ from route_auth import _is_authorized, _json_error
 from route_blueprint import api_blueprint
 from route_projection import _kmeans_2d_numpy
 from unchain_adapter import (
+    _extract_workspace_roots_from_options,
+    _resolve_workspace_roots,
     cancel_tool_confirmations,
     get_capability_catalog,
     get_default_model_capabilities,
@@ -77,6 +79,7 @@ import route_memory_v2  # noqa: F401
 import route_recipes  # noqa: F401
 import route_mcp  # noqa: F401
 import route_skillpacks  # noqa: F401
+import route_skills  # noqa: F401
 import route_interject  # noqa: F401
 import route_computer_use  # noqa: F401
 import route_providers  # noqa: F401

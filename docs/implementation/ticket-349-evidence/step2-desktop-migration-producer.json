@@ -1,0 +1,337 @@
+[
+  {
+    "preserved_events": 1,
+    "stage": "before_open",
+    "payload": {
+      "available": true,
+      "canary_percent": 5,
+      "configured_mode": "all",
+      "feature_ceiling": "all",
+      "journal_mode": "wal",
+      "lexical_backend": "fts5",
+      "read_only_degraded": false,
+      "rollout_config_error_code": "",
+      "rollout_config_valid": true,
+      "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rollout_mode": "all",
+      "runtime_protocol_immutable": true,
+      "runtime_protocol_manifest": {
+        "manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_contribution_manifest_v1",
+              "generation_rebase_live_interaction_cycles",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "runtime_protocol_ready": true,
+      "runtime_protocol_reason": "unchain_runtime_protocol_compatible",
+      "runtime_protocol_verification": "runtime_protocol",
+      "schema_version": 2,
+      "store_owner": "unchain",
+      "unchain_revision": "",
+      "unchain_runtime_source": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-live-timing/installed-wheel/unchain/runtime/runtime_protocol.py",
+      "vector_status": "disabled"
+    },
+    "versions": [
+      1,
+      2
+    ]
+  },
+  {
+    "preserved_events": 1,
+    "stage": "after_migration",
+    "payload": {
+      "available": true,
+      "canary_percent": 5,
+      "configured_mode": "all",
+      "feature_ceiling": "all",
+      "journal_mode": "wal",
+      "lexical_backend": "fts5",
+      "read_only_degraded": false,
+      "rollout_config_error_code": "",
+      "rollout_config_valid": true,
+      "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rollout_mode": "all",
+      "runtime_protocol_immutable": true,
+      "runtime_protocol_manifest": {
+        "manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_contribution_manifest_v1",
+              "generation_rebase_live_interaction_cycles",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "runtime_protocol_ready": true,
+      "runtime_protocol_reason": "unchain_runtime_protocol_compatible",
+      "runtime_protocol_verification": "runtime_protocol",
+      "schema_version": 3,
+      "store_owner": "unchain",
+      "unchain_revision": "",
+      "unchain_runtime_source": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-live-timing/installed-wheel/unchain/runtime/runtime_protocol.py",
+      "vector_status": "disabled"
+    },
+    "versions": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "preserved_events": 1,
+    "stage": "reopen",
+    "payload": {
+      "available": true,
+      "canary_percent": 5,
+      "configured_mode": "all",
+      "feature_ceiling": "all",
+      "journal_mode": "wal",
+      "lexical_backend": "fts5",
+      "read_only_degraded": false,
+      "rollout_config_error_code": "",
+      "rollout_config_valid": true,
+      "rollout_fingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rollout_mode": "all",
+      "runtime_protocol_immutable": true,
+      "runtime_protocol_manifest": {
+        "manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+        "protocols": [
+          {
+            "features": [
+              "artifact_handoff",
+              "canonical_journal",
+              "chat_deletion_sqlite_scope_closure",
+              "context_compiler",
+              "context_contribution_manifest_v1",
+              "generation_rebase_live_interaction_cycles",
+              "interaction_resolution_compat",
+              "long_term_promotion",
+              "memory_curator",
+              "memory_toolkit",
+              "memory_workspace",
+              "tool_output_management_v1"
+            ],
+            "id": "context_memory",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "cancel_pending",
+              "expected_interaction_id_cas",
+              "fresh_run_lineage",
+              "graph_interaction_lineage_preflight_v1",
+              "host_controlled_resume",
+              "interaction_resolution_atomic_acceptance_v1"
+            ],
+            "id": "durable_interaction",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "atomic_receipt_cas",
+              "auxiliary_calls",
+              "enforce_mode",
+              "graph_runs",
+              "memory_off",
+              "subagent_runs"
+            ],
+            "id": "provider_turn_ownership",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "canonical_metrics",
+              "completion_diagnostics_ref",
+              "context_composition_ref_v1",
+              "continuation_claim",
+              "immutable_pricing_snapshot",
+              "provider_call_set_union",
+              "provider_call_usage_v1",
+              "run_bundle_v1",
+              "run_bundle_v2"
+            ],
+            "id": "run_bundle",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "features": [
+              "active_skills_snapshot_v1",
+              "catalog_v1",
+              "skill_md_registry_v1",
+              "skill_tool_v1",
+              "toolkit_embedded_skills_v1",
+              "user_invocation_v1"
+            ],
+            "id": "skills",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "runtime": "unchain",
+        "schema": "unchain.runtime_protocol_manifest.v1"
+      },
+      "runtime_protocol_ready": true,
+      "runtime_protocol_reason": "unchain_runtime_protocol_compatible",
+      "runtime_protocol_verification": "runtime_protocol",
+      "schema_version": 3,
+      "store_owner": "unchain",
+      "unchain_revision": "",
+      "unchain_runtime_source": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-live-timing/installed-wheel/unchain/runtime/runtime_protocol.py",
+      "vector_status": "disabled"
+    },
+    "versions": [
+      1,
+      2,
+      3
+    ]
+  }
+]

@@ -3,6 +3,7 @@ import {
   CUSTOM_MODEL_PREFIX,
   MODEL_GROUPS,
 } from "../constants";
+import { findShippedProviderBySlug } from "../../../SERVICEs/shipped_provider_registry";
 
 /**
  * Builds grouped model options for the chat model selector.
@@ -86,10 +87,10 @@ export const build_model_options = ({
     });
   }
 
-  // ── Custom (user-defined) provider groups ──
-  // One group per gated custom provider. default_model is ordered first.
-  // The group value prefix is "custom.<slug>:" and each group carries a
-  // "Custom" badge marker so the UI can distinguish user providers (§4.1).
+  // ── Custom-transport provider groups ──
+  // One group per gated user provider or shipped provider. default_model is
+  // ordered first. Both use the "custom.<slug>:" group value prefix, while
+  // only user-defined providers carry the generic icon and "Custom" badge.
   const customGroups = Array.isArray(custom_provider_groups)
     ? custom_provider_groups
     : [];
@@ -133,13 +134,13 @@ export const build_model_options = ({
       typeof provider.display_name === "string" && provider.display_name
         ? provider.display_name
         : provider.slug;
+    const shippedProvider = findShippedProviderBySlug(provider.slug);
 
     groups.push({
       group: groupName,
       group_key: providerKey,
-      icon: CUSTOM_MODEL_GROUP_ICON,
-      is_custom: true,
-      badge: "Custom",
+      icon: shippedProvider?.icon || CUSTOM_MODEL_GROUP_ICON,
+      ...(!shippedProvider && { is_custom: true, badge: "Custom" }),
       collapsed: Boolean(
         collapsed_groups?.[providerKey] ?? collapsed_groups?.[groupName],
       ),

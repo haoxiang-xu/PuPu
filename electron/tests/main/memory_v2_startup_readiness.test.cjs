@@ -57,6 +57,7 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "enforce_mode",
       "graph_runs",
       "memory_off",
+      "ollama_reasoning_preview_v1",
       "subagent_runs",
     ]),
     id: "provider_turn_ownership",
@@ -75,6 +76,19 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "run_bundle_v2",
     ]),
     id: "run_bundle",
+    major: 1,
+    minor: 0,
+  }),
+  Object.freeze({
+    features: Object.freeze([
+      "active_skills_snapshot_v1",
+      "catalog_v1",
+      "skill_md_registry_v1",
+      "skill_tool_v1",
+      "toolkit_embedded_skills_v1",
+      "user_invocation_v1",
+    ]),
+    id: "skills",
     major: 1,
     minor: 0,
   }),
@@ -544,7 +558,7 @@ describe("Unchain Memory V2 startup readiness", () => {
   );
 
   test("off rollout preserves legacy health startup and carries explicit off", async () => {
-    const snapshot = createBuildFeatureSnapshot({}, {});
+    const snapshot = createBuildFeatureSnapshot({}, { PUPU_FEATURE_MEMORY_V2: "off", PUPU_MEMORY_V2_MODE: "off" });
     global.fetch = jest.fn().mockResolvedValueOnce(healthResponse());
     const { service, spawn } = buildService(snapshot);
 

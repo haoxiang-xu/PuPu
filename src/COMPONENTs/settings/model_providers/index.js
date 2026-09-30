@@ -1,10 +1,11 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import useReducedMotion from "../../../BUILTIN_COMPONENTs/mini_react/use_reduced_motion";
 import ModelCard from "./components/model_card";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
@@ -224,8 +225,18 @@ const rowStatusKey = (entry, ollamaStatus) => {
   return entry.configured ? "model_providers.settings.ready" : "model_providers.custom.key_unset";
 };
 
+/* Expand / collapse animate with the grid-rows trick the app already uses
+   (turn_mutation_quarantine, the palette footer): 0fr ↔ 1fr on the wrapper,
+   overflow hidden on the inner box, so the height tweens without measuring.
+   The body mounts on first open and stays mounted so the collapse can play
+   (and a half-typed key survives a fold). Chevron turns 90° in step. */
+const ACCORDION_CURVE = "cubic-bezier(0.32, 0.72, 0, 1)";
+
 const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, children }) => {
   const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
+  const mountedRef = useRef(open);
+  if (open) mountedRef.current = true;
   return (
     <div>
       <div
@@ -245,6 +256,9 @@ const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, chi
           alignItems: "center",
           gap: 8,
           height: 38,
+          /* Breathing room at both ends: the dot no longer starts at the
+             content edge and the hover wash has an inset (owner). */
+          padding: "0 12px",
           cursor: "pointer",
           userSelect: "none",
           borderRadius: 6,
@@ -297,11 +311,36 @@ const AccordionRow = ({ entry, label, open, onToggle, statusKey, fontFamily, chi
           </span>
         )}
         <Icon
-          src={open ? "arrow_down" : "arrow_right"}
-          style={{ width: 10, height: 10, opacity: 0.45, flexShrink: 0 }}
+          src="arrow_right"
+          style={{
+            width: 10,
+            height: 10,
+            opacity: 0.45,
+            flexShrink: 0,
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: reducedMotion ? "none" : `transform 0.22s ${ACCORDION_CURVE}`,
+          }}
         />
       </div>
-      {open && <div style={{ padding: "2px 0 14px 20px" }}>{children}</div>}
+      <div
+        data-testid={`model-providers-settings-body-${entry.id}`}
+        data-open={open ? "true" : "false"}
+        aria-hidden={!open}
+        style={{
+          display: "grid",
+          gridTemplateRows: open ? "1fr" : "0fr",
+          opacity: open ? 1 : 0,
+          transition: reducedMotion
+            ? "none"
+            : `grid-template-rows 0.26s ${ACCORDION_CURVE}, opacity 0.2s ease`,
+        }}
+      >
+        <div style={{ overflow: "hidden", minHeight: 0 }}>
+          {mountedRef.current && (
+            <div style={{ padding: "2px 12px 14px 32px" }}>{children}</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -590,7 +629,7 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
   };
 
   return (
-    <div data-testid="model-providers-settings">
+    <div data-testid="model-providers-settings" style={{ paddingBottom: 48 }}>
       <div style={{ borderTop: "1px solid var(--pupu-border)", margin: "0 0 8px" }} />
 
       {providers.map((entry) => (
@@ -641,6 +680,32 @@ export const ModelProvidersSettings = ({ onOpenModelProviders }) => {
           ))}
         </>
       )}
+
+      {/* Pinned to the pane's bottom-right corner, the same 12 px off both
+          edges as the close button in the top-right (project owner): the pane
+          is the nearest positioned ancestor, so this floats outside the
+          scroll body instead of trailing the list. The root's bottom padding
+          keeps the last row clear of it when the list scrolls. Opens the
+          Models layer on its default selection — the whole page, not one
+          provider. */}
+      <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 1 }}>
+        <Button
+          prefix_icon="pentagon"
+          label={t("model_providers.settings.open_models_page")}
+          ariaLabel={t("model_providers.settings.open_models_page")}
+          onClick={() => onOpenModelProviders?.()}
+          style={{
+            fontSize: 12,
+            fontFamily,
+            paddingVertical: 5,
+            paddingHorizontal: 10,
+            borderRadius: 6,
+            color: "var(--pupu-text-secondary)",
+            hoverBackgroundColor: "var(--pupu-overlay-hover)",
+            content: { icon: { width: 14, height: 14 } },
+          }}
+        />
+      </div>
     </div>
   );
 };

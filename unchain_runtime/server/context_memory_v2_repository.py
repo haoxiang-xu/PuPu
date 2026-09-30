@@ -1350,6 +1350,62 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
             )
         return record
 
+    def list_committed_refs(self, *, limit: int = 32) -> tuple[ResourceRef, ...]:
+        """Return this generation's newest committed checkpoint references.
+
+        Discovery stays inside the host-bound repository: the compiler never
+        reads PuPu's storage tables directly, and every returned reference is
+        still re-read and proven against the current journal snapshot.
+        """
+
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= 64:
+            raise ValueError("limit must be between 1 and 64")
+        self.require_current_attempt()
+        try:
+            with self._store._read() as connection:
+                rows = connection.execute(
+                    "SELECT checkpoints.checkpoint_id FROM checkpoints "
+                    "JOIN sessions ON sessions.session_key=checkpoints.session_key "
+                    "WHERE checkpoints.owner_chat_id=? "
+                    "AND checkpoints.session_id=? "
+                    "AND checkpoints.generation_id=? "
+                    "AND sessions.current_generation_id=checkpoints.generation_id "
+                    "AND sessions.deleted_at_ms IS NULL "
+                    "ORDER BY checkpoints.coverage_end_store_seq DESC, "
+                    "checkpoints.created_at_ms DESC, checkpoints.checkpoint_id DESC "
+                    "LIMIT ?",
+                    (
+                        self._scope.owner_chat_id,
+                        self._scope.session_id,
+                        self._scope.generation_id,
+                        limit,
+                    ),
+                ).fetchall()
+        except MemoryV2Error as exc:
+            _context_failure(exc)
+        except sqlite3.Error as exc:
+            raise ContextRepositoryError(
+                "checkpoint discovery failed"
+            ) from exc
+        return tuple(
+            PupuRefCodec.decode(
+                f"pupu://context/checkpoint/{str(row['checkpoint_id'])}"
+            )
+            for row in rows
+        )
+
+    def checkpoint_ref_for(self, *, operation: OperationRef) -> ResourceRef:
+        """Preview the exact deterministic ref used by ``prepare``."""
+
+        if not isinstance(operation, OperationRef):
+            operation = OperationRef.from_dict(operation)
+        commit_operation_id = self._commit_operation_id(operation)
+        return ResourceRef(
+            "checkpoint",
+            self._checkpoint_id(commit_operation_id),
+            1,
+        )
+
     def prepare(
         self,
         *,
@@ -1394,7 +1450,8 @@ class PupuCheckpointRepository(_ExecutionBinding, BoundCheckpointRepository):
             "refs": encoded_refs,
         }
         commit_operation_id = self._commit_operation_id(operation)
-        checkpoint_id = self._checkpoint_id(commit_operation_id)
+        checkpoint_ref = self.checkpoint_ref_for(operation=operation)
+        checkpoint_id = checkpoint_ref.resource_id
         preparation_id = "ctx_checkpoint_preparation_" + hashlib.sha256(
             operation.operation_id.encode("utf-8")
         ).hexdigest()[:40]

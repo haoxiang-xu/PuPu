@@ -40,6 +40,11 @@ import {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const SNAP_THRESHOLD = 5;
+/* How far the pointer travels before a press on a node becomes a drag.
+   Measured in screen pixels, so what counts as a drag does not change with
+   zoom. Below it nothing moves at all: a nudge that did not commit would
+   otherwise leave the node sitting where no state says it is. */
+const DRAG_THRESHOLD = 3;
 
 const DEFAULT_THEME = {
   canvasBackground: "#f5f5f5",
@@ -84,6 +89,10 @@ function FlowEditor({
   min_zoom = 0.1,
   max_zoom = 3,
   reset_token,
+  reset_focus_node_id,
+  fit_token,
+  zoom_reset_token,
+  select_all_token,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -146,15 +155,115 @@ function FlowEditor({
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
 
+  /* ── Reset viewport (home button) ───────────────────────── */
+  /*  With `reset_focus_node_id` the named node is centered in   */
+  /*  the canvas at zoom 1; otherwise (or if the node is not     */
+  /*  mounted) the viewport snaps back to the origin.            */
   useEffect(() => {
     if (reset_token === undefined) return;
-    const next = { x: 0, y: 0, zoom: 1 };
+    let next = { x: 0, y: 0, zoom: 1 };
+    const focus = reset_focus_node_id
+      ? nodes_ref.current.find((n) => n.id === reset_focus_node_id)
+      : null;
+    const focus_el = focus ? node_elements_ref.current[focus.id] : null;
+    if (focus && focus_el && canvas_ref.current) {
+      const rect = canvas_ref.current.getBoundingClientRect();
+      const dims = node_dimensions_ref.current[focus.id] || {
+        width: focus_el.offsetWidth,
+        height: focus_el.offsetHeight,
+      };
+      next = {
+        x: rect.width / 2 - (focus.x + dims.width / 2),
+        y: rect.height / 2 - (focus.y + dims.height / 2),
+        zoom: 1,
+      };
+    }
     viewport_ref.current = next;
     if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(0px, 0px) scale(1)`;
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
     }
     setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
+
+  /* ── Fit every node into view ───────────────────────────── */
+  /*  Same token idiom as the home reset: the parent bumps the   */
+  /*  number and the editor reacts once.                         */
+  useEffect(() => {
+    if (fit_token === undefined) return;
+    const list = nodes_ref.current;
+    if (!list.length || !canvas_ref.current) return;
+    const rect = canvas_ref.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    let min_x = Infinity;
+    let min_y = Infinity;
+    let max_x = -Infinity;
+    let max_y = -Infinity;
+    list.forEach((n) => {
+      const dims = node_dimensions_ref.current[n.id] || { width: 180, height: 60 };
+      min_x = Math.min(min_x, n.x);
+      min_y = Math.min(min_y, n.y);
+      max_x = Math.max(max_x, n.x + dims.width);
+      max_y = Math.max(max_y, n.y + dims.height);
+    });
+    if (!Number.isFinite(min_x)) return;
+
+    const pad = 48;
+    const span_x = Math.max(1, max_x - min_x);
+    const span_y = Math.max(1, max_y - min_y);
+    const zoom = Math.max(
+      min_zoom,
+      Math.min(
+        1,
+        max_zoom,
+        (rect.width - pad * 2) / span_x,
+        (rect.height - pad * 2) / span_y,
+      ),
+    );
+    const next = {
+      x: rect.width / 2 - (min_x + span_x / 2) * zoom,
+      y: rect.height / 2 - (min_y + span_y / 2) * zoom,
+      zoom,
+    };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${zoom})`;
+    }
+    setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fit_token]);
+
+  /* ── Back to 1:1, keeping the canvas centre still ───────── */
+  useEffect(() => {
+    if (zoom_reset_token === undefined) return;
+    const vp = viewport_ref.current;
+    if (vp.zoom === 1) return;
+    const rect = canvas_ref.current?.getBoundingClientRect();
+    const cx = rect ? rect.width / 2 : 0;
+    const cy = rect ? rect.height / 2 : 0;
+    const next = {
+      x: cx - ((cx - vp.x) / vp.zoom) * 1,
+      y: cy - ((cy - vp.y) / vp.zoom) * 1,
+      zoom: 1,
+    };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
+    }
+    setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom_reset_token]);
+
+  /* ── Select every node ──────────────────────────────────── */
+  useEffect(() => {
+    if (select_all_token === undefined) return;
+    const ids = nodes_ref.current.map((n) => n.id);
+    if (!ids.length) return;
+    setSelectedEdgeId(null);
+    setSelectedNodeIds(ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [select_all_token]);
 
   /* ═══════════════════════════════════════════════════════════ */
   /*  Registration helpers                                      */
@@ -329,11 +438,14 @@ function FlowEditor({
     (node_id, e) => {
       const node = nodes_ref.current.find((n) => n.id === node_id);
       if (!node) return;
+      /* Highlight it now, so the press is visibly on this node. Opening the
+         detail page waits for the release: `on_select` is what opens it, and
+         a press that turns into a drag was never a request to open anything. */
       setSelectedNodeIds([node_id]);
       setSelectedEdgeId(null);
-      on_select?.(node_id);
       drag_ref.current = {
         node_id,
+        moved: false,
         start_mx: e.clientX,
         start_my: e.clientY,
         start_nx: node.x,
@@ -344,7 +456,7 @@ function FlowEditor({
       const el = node_elements_ref.current[node_id];
       if (el) el.style.cursor = "grabbing";
     },
-    [on_select],
+    [],
   );
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -473,6 +585,15 @@ function FlowEditor({
       /* ── Node drag ── */
       if (drag_ref.current) {
         const d = drag_ref.current;
+        if (!d.moved) {
+          if (
+            Math.abs(e.clientX - d.start_mx) < DRAG_THRESHOLD &&
+            Math.abs(e.clientY - d.start_my) < DRAG_THRESHOLD
+          ) {
+            return;
+          }
+          d.moved = true;
+        }
         const zoom = viewport_ref.current.zoom;
         const raw_x = d.start_nx + (e.clientX - d.start_mx) / zoom;
         const raw_y = d.start_ny + (e.clientY - d.start_my) / zoom;
@@ -564,12 +685,21 @@ function FlowEditor({
         const d = drag_ref.current;
         const el = node_elements_ref.current[d.node_id];
         if (el) el.style.cursor = "grab";
-        if (on_nodes_change) {
-          on_nodes_change(
-            nodes_ref.current.map((n) =>
-              n.id === d.node_id ? { ...n, x: d.current_x, y: d.current_y } : n,
-            ),
-          );
+        if (d.moved) {
+          if (on_nodes_change) {
+            on_nodes_change(
+              nodes_ref.current.map((n) =>
+                n.id === d.node_id
+                  ? { ...n, x: d.current_x, y: d.current_y }
+                  : n,
+              ),
+            );
+          }
+        } else {
+          /* A press that never moved is a click: it opens the node, and it
+             writes nothing — reporting an unchanged position marked the graph
+             dirty and pushed an undo step for having looked at a node. */
+          on_select?.(d.node_id);
         }
         drag_ref.current = null;
         setSnapGuides([]);
@@ -837,9 +967,44 @@ function FlowEditor({
       onContextMenu={(e) => {
         e.preventDefault();
         if (!on_context_menu || !canvas_ref.current) return;
+        /* Mid-gesture right-clicks belong to the gesture. Dragging a node or
+         * panning the canvas and pressing the other button should not leave a
+         * menu behind where the pointer happened to be. */
+        if (
+          drag_ref.current ||
+          pan_ref.current ||
+          connecting_ref.current ||
+          reconnecting_ref.current
+        )
+          return;
         const rect = canvas_ref.current.getBoundingClientRect();
         const vp = viewport_ref.current;
+
+        /* What was right-clicked. Nodes already carry data-flow-node-id and the
+         * edges' transparent hit path carries data-flow-edge-id, so the target
+         * is resolvable here and neither needs its own handler. */
+        const node_el = e.target.closest?.("[data-flow-node-id]");
+        const edge_el = node_el ? null : e.target.closest?.("[data-flow-edge-id]");
+        let target = { kind: "canvas", id: null };
+        if (node_el) target = { kind: "node", id: node_el.dataset.flowNodeId };
+        else if (edge_el) target = { kind: "edge", id: edge_el.dataset.flowEdgeId };
+
+        /* Highlight it first, so the menu is visibly acting on something and
+         * Delete is not a guess. This is the canvas's own selection only —
+         * `on_select` is what opens the detail page, and a right-click is not
+         * a request to open it. */
+        if (target.kind === "node") {
+          setSelectedEdgeId(null);
+          if (!selected_ref.current.includes(target.id)) {
+            setSelectedNodeIds([target.id]);
+          }
+        } else if (target.kind === "edge") {
+          setSelectedNodeIds([]);
+          setSelectedEdgeId(target.id);
+        }
+
         on_context_menu({
+          target,
           canvas_x: (e.clientX - rect.left - vp.x) / vp.zoom,
           canvas_y: (e.clientY - rect.top - vp.y) / vp.zoom,
           client_x: e.clientX,
@@ -871,6 +1036,7 @@ function FlowEditor({
             >
               {/* Invisible wider hit-area */}
               <path
+                data-flow-edge-id={ep.id}
                 d={ep.d}
                 fill="none"
                 stroke="transparent"

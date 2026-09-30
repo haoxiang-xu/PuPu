@@ -663,9 +663,42 @@ const SideMenu = () => {
           }}
         />
         <Button
+          prefix_icon="pentagon"
+          label={t("side_menu.models")}
+          onClick={() => {
+            setModelProvidersInitialEntry(null);
+            setModelProvidersOpen(true);
+          }}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
+        <Button
           prefix_icon="tool"
           label={t("side_menu.tools")}
           onClick={() => setToolkitOpen(true)}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
+        <Button
+          prefix_icon="folder_2"
+          label={t("side_menu.workspaces")}
+          onClick={() => setWorkspaceModalOpen(true)}
           style={{
             width: "100%",
             justifyContent: "flex-start",
@@ -694,39 +727,6 @@ const SideMenu = () => {
             }}
           />
         )}
-        <Button
-          prefix_icon="folder_2"
-          label={t("side_menu.workspaces")}
-          onClick={() => setWorkspaceModalOpen(true)}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
-        <Button
-          prefix_icon="pentagon"
-          label={t("side_menu.models")}
-          onClick={() => {
-            setModelProvidersInitialEntry(null);
-            setModelProvidersOpen(true);
-          }}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
         <div
           style={{
             padding: "4px 4px 6px",

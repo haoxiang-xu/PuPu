@@ -1,0 +1,33 @@
+name: PuPu CodeQL configuration
+
+# security-and-quality = the default security queries plus the code-quality
+# suite, which is the closest CodeQL gets to a SonarQube-style review. Drop to
+# `security-extended` (or remove the block) if the quality alerts prove noisy.
+queries:
+  - uses: security-and-quality
+
+# Product code only. Docs hold HTML mockups and one-off scripts, public/ is the
+# static shell, and test files would flood the quality suite with fixture code.
+paths-ignore:
+  - docs/**
+  - public/**
+  - e2e/**
+  - "**/*.test.js"
+  - "**/*.test.cjs"
+  - "**/*.test.mjs"
+  # The Jest bootstrap. It is not shipped code, and leaving it in scope made
+  # CodeQL resolve every `new ResizeObserver(callback)` in the app to the
+  # jsdom mock defined here — whose implicit constructor takes no arguments —
+  # reporting 25 real call sites as passing a superfluous argument.
+  - src/setupTests.js
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/fixtures/**"
+  # Captured third-party pages and other recorded inputs. They are data the
+  # tests replay, not code this project ships, and they carry whatever markup
+  # the upstream site happened to serve.
+  - "**/__fixtures__/**"
+  - node_modules/**
+  - build/**
+  - dist/**
+  - coverage/**

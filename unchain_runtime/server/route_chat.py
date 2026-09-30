@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List
 
 from flask import Response, jsonify, request, stream_with_context
 
+from chat_latency_diagnostics import ChatLatencyTrace
 from context_composition_bundle_projection import (
     project_context_composition_availability,
 )
@@ -160,6 +161,22 @@ def _is_invalid_api_key_error(exc: Exception) -> bool:
     )
 
 
+_LOG_UNSAFE_PATTERN = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _log_safe(value: object, *, limit: int = 200) -> str:
+    """Bound a request-supplied value before it reaches a log line.
+
+    Identifiers arrive from the client, and a newline inside one forges a
+    second log entry in every consumer that reads the log as lines.
+    """
+
+    # The explicit newline removal is the part that stops entry forging; the
+    # character class then takes the remaining control characters.
+    text = str(value or "").replace("\r", "").replace("\n", "")
+    return _LOG_UNSAFE_PATTERN.sub("_", text)[:limit]
+
+
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     message = str(stream_error)
     explicit_code = getattr(stream_error, "code", "")
@@ -233,7 +250,7 @@ def _durable_host_error_response(exc: Exception):
             {
                 "error": {
                     "code": code,
-                    "message": str(exc),
+                    "message": "Unable to complete this conversation action.",
                     "retryable": bool(getattr(exc, "retryable", False)),
                 }
             }
@@ -588,8 +605,8 @@ def chat_tool_confirmation() -> Response:
     except Exception:
         logging.getLogger(__name__).exception(
             "interaction_resolution_persistence_failed session_id=%s interaction_id=%s",
-            session_id,
-            confirmation_id,
+            _log_safe(session_id),
+            _log_safe(confirmation_id),
         )
         return root._json_error(
             "interaction_resolution_persistence_failed",
@@ -942,6 +959,42 @@ def chat_stream_v2() -> Response:
     )
 
 
+
+def _skill_inventory_stale_response(root, options: Dict[str, Any]):
+    """Ticket #291 BC-005: a send made against an outdated skill inventory is
+    refused (409 `skill_inventory_stale`) so the renderer refreshes and
+    re-sends, instead of a `/name` token silently resolving to another source.
+    Programmatic sends carry no revision and skip the check."""
+    from skills_inventory import resolve_skill_inventory, skills_options
+
+    include_user_dirs, expected_revision = skills_options(options)
+    if expected_revision is None:
+        return None
+    roots = root._resolve_workspace_roots(
+        root._extract_workspace_roots_from_options(options)
+    )
+    selected = options.get("toolkits")
+    inventory = resolve_skill_inventory(
+        workspace_root=roots[0] if roots else None,
+        include_user_dirs=include_user_dirs,
+        selected_toolkit_ids=[t for t in selected if isinstance(t, str)] if isinstance(selected, list) else (),
+    )
+    if inventory.revision == expected_revision:
+        return None
+    response = jsonify(
+        {
+            "error": {
+                "code": "skill_inventory_stale",
+                "message": "The skill inventory changed since it was loaded; refresh and resend.",
+                "expected_revision": expected_revision,
+                "current_revision": inventory.revision,
+            }
+        }
+    )
+    response.status_code = 409
+    return response
+
+
 @api_blueprint.post("/chat/stream/v4")
 def chat_stream_v4() -> Response:
     root = _root()
@@ -1062,6 +1115,11 @@ def chat_stream_v4() -> Response:
     if continued_from_run_id:
         options["_run_bundle_continued_from_run_id"] = continued_from_run_id
 
+    if not resume_interaction:
+        stale_response = _skill_inventory_stale_response(root, options)
+        if stale_response is not None:
+            return stale_response
+
     memory_v2_requested_raw = payload.get("memory_v2_requested", False)
     if not isinstance(memory_v2_requested_raw, bool):
         return root._json_error(
@@ -1123,6 +1181,11 @@ def chat_stream_v4() -> Response:
     )
 
     def stream_events() -> Iterable[str]:
+        latency = ChatLatencyTrace(
+            session_id=thread_id,
+            attempt_id=attempt_id,
+            route="chat_stream_v4",
+        )
         started_at = int(time.time() * 1000)
         final_bundle: Dict[str, object] | None = None
         final_completion_diagnostics: Dict[str, object] | None = None
@@ -1178,6 +1241,7 @@ def chat_stream_v4() -> Response:
             for raw_event in event_source:
                 if not isinstance(raw_event, dict):
                     continue
+                latency.observe(raw_event)
                 if raw_event.get("type") == "stream_summary":
                     final_bundle = _sanitize_v4_completion_bundle(
                         raw_event.get("bundle")
@@ -1229,18 +1293,21 @@ def chat_stream_v4() -> Response:
                 done_payload["completion_diagnostics"] = (
                     final_completion_diagnostics
                 )
+            latency.finish("cancelled" if cancelled else "completed")
             yield _sse_event(
                 "done",
                 done_payload,
             )
         except GeneratorExit:  # pragma: no cover
             cancel_pending_confirmations()
+            latency.finish("cancelled")
             return
         except Exception as stream_error:
             cancel_pending_confirmations()
             if _is_execution_cancelled_error(
                 stream_error
             ) or _execution_attempt_cancelled(thread_id, attempt_id):
+                latency.finish("cancelled")
                 yield _sse_event(
                     "done",
                     {
@@ -1252,6 +1319,7 @@ def chat_stream_v4() -> Response:
                     },
                 )
                 return
+            latency.finish("failed")
             code, normalized_message = _normalize_stream_error(stream_error)
             failure_event = bridge.emit_transport_failure(
                 normalized_message,

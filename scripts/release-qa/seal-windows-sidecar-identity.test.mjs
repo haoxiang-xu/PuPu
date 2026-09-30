@@ -179,7 +179,8 @@ test("Windows shared action enforces dependency → reseal → launcher → inst
   const pack = named("Build installer from Azure-signed Windows payload");
   const installer = named("Sign Windows installer with Artifact Signing");
   assert.ok(prepare >= 0 && prepare < dependencies && dependencies < seal && seal < launcher && launcher < pack && pack < installer);
-  assert.equal(steps.filter(s => s.uses === "azure/artifact-signing-action@v2").length, 3);
+  // Parsed YAML drops the trailing `# v2` comment, so match the pinned SHA form.
+  assert.equal(steps.filter(s => /^azure\/artifact-signing-action@[0-9a-f]{40}$/.test(s.uses || "")).length, 3);
   assert.match(steps[prepare].run, /seal-windows-sidecar-identity\.mjs prepare/);
   assert.match(steps[prepare].run, /\$dependencyFiles = .*\$signableFiles.*\$_.FullName -ne \$launcherPath/);
   assert.match(steps[prepare].run, /\$dependencyFiles \| ForEach-Object/);

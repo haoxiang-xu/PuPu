@@ -116,6 +116,30 @@ Supported remote providers: `openai`, `anthropic`, `gemini`, plus custom provide
 > cross-version rollback; deleting them is a separate N+1 change and is **not**
 > done in this phase.
 
+### 5. Skill Options Injection (`injectSkillsOptionsIntoPayload`)
+
+> **Since ticket #291** the composer no longer expands a `/name` skill token
+> into a template before the message leaves the renderer: `message === stored
+> content === accepted rawText` (`buildComposerSend` in
+> `src/PAGEs/chat/hooks/use_chat_stream.js`). The composer sidecar's
+> `templateLength` is always `0`, and no `context_composition_hint` is minted
+> for skills — `buildContextCompositionHintV2` mints nothing when
+> `templateLength <= 0`. Unchain itself resolves `/name` tokens and renders the
+> skill catalog; see [Toolkit & Tool Catalog → Skills](../features/toolkit-and-tool-catalog.md#skills).
+
+`injectSkillsOptionsIntoPayload` reads the renderer's cached skill inventory
+(`src/SERVICEs/skill_inventory_store.js`) and the `skills` runtime setting,
+and injects two option keys into every V4 send:
+- `options.skills.include_user_dirs`: boolean, forwarded to the sidecar's
+  `build_skills_config` so it can decide whether to scan
+  `~/.unchain/skills` / `~/.agents/skills`.
+- `options.skill_inventory_revision`: the last inventory revision the
+  renderer fetched, unless the caller already set one explicitly. `route_chat`
+  compares it against a freshly resolved inventory for the same
+  workspace/settings and refuses the send with `409 skill_inventory_stale`
+  when they differ — fresh sends only; a send with no revision (a
+  programmatic send) skips the check.
+
 ---
 
 ## Stream Protocols

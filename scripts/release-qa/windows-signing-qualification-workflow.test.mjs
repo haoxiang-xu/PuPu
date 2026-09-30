@@ -37,7 +37,7 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /python -m pip install -r unchain_runtime\/server\/requirements\.txt/);
   assert.match(workflow, /Create controlled Memory V2 build snapshot/);
   assert.match(workflow, /write-build-feature-snapshot\.cjs/);
-  assert.match(workflow, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v1\.json/);
+  assert.match(workflow, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(workflow, /PUPU_BUILD_FEATURE_SNAPSHOT_PATH=\$snapshotPath/);
   assert.match(workflow, /uses: \.\/\.github\/actions\/windows-artifact-signing/);
   assert.doesNotMatch(workflow, /uses: azure\/(?:login|artifact-signing-action)/);
@@ -49,8 +49,15 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /evidence-schema: pupu\.windows-signing-qualification\.v1/);
   assert.match(workflow, /evidence-output: windows-signing-qualification\.v1\.json/);
   assert.doesNotMatch(workflow, /Get-AuthenticodeSignature/);
-  assert.equal((signingAction.match(/azure\/artifact-signing-action@v2/g) || []).length, 3);
-  assert.match(signingAction, /azure\/login@v3/);
+  /* Still exactly the same two Azure actions, but pinned to a commit SHA: a
+     moved tag would hand the signing credentials to unreviewed code. */
+  assert.equal(
+    (signingAction.match(/azure\/artifact-signing-action@[0-9a-f]{40} # v2/g) || [])
+      .length,
+    3,
+  );
+  assert.match(signingAction, /azure\/login@[0-9a-f]{40} # v3/);
+  assert.doesNotMatch(signingAction, /uses: azure\/[\w-]+@(?!\w*[0-9a-f]{40})/);
   assert.match(signingAction, /\$signableFiles \| ForEach-Object \{ \$_\.IsReadOnly = \$false \}/);
   assert.match(signingAction, /contains read-only \.exe or \.dll files/);
   assert.match(signingAction, /resources\\mcp_runtime\\python\\DLLs\\tcl86t\.dll/);

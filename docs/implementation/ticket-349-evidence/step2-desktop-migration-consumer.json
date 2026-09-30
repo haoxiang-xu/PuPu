@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "stage": "before_open",
+      "schema": 2,
+      "ok": true,
+      "reason": "",
+      "preservedEvents": 1
+    },
+    {
+      "stage": "after_migration",
+      "schema": 3,
+      "ok": true,
+      "reason": "",
+      "preservedEvents": 1
+    },
+    {
+      "stage": "reopen",
+      "schema": 3,
+      "ok": true,
+      "reason": "",
+      "preservedEvents": 1
+    }
+  ],
+  "unsupportedSchemasRejected": [
+    1,
+    4,
+    99,
+    "3",
+    null
+  ]
+}

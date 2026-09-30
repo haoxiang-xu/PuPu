@@ -1,0 +1,29 @@
+{
+  "schema": "ticket349.live_restart_observation.v1",
+  "chat_id": "chat-1790536164171-fc2fc185c146f",
+  "entry_ref": "pupu://memory/space-chat-81121f0523a4948fec0a18604b4577c9383be627/memory-95182ca840e169d4c8d11513b12b4346@1",
+  "desktop_process_restarted": true,
+  "fresh_memory_list_tool_result_after_restart": true,
+  "fresh_memory_list_store_seq": 112,
+  "same_canonical_entry_ref": true,
+  "content_ref_hidden": true,
+  "fresh_search_tool_result_after_restart": false,
+  "fresh_read_tool_result_after_restart": false,
+  "excluded_model_behavior": "The model answered the follow-up search from prior durable tool history without issuing a new tool call; the harness rejected it and does not count it as live search/read evidence.",
+  "deterministic_exact_wheel_restart_coverage": [
+    "tests/memory_v2/test_sqlite_memory_host_v2.py::test_apply_new_cold_retry_reuses_exact_workspace_effect_across_lease_revision",
+    "tests/memory_v2/test_sqlite_memory_v2.py::test_sqlite_workspace_fts_exact_and_description_search_survive_restart",
+    "tests/memory_v2/test_sqlite_memory_v2.py::test_sqlite_workspace_create_update_move_archive_history_and_restart"
+  ],
+  "cleanup": {
+    "chat_id": "chat-1790536164171-fc2fc185c146f",
+    "deleted": true,
+    "scoped_counts_after_delete": {
+      "events": 0,
+      "candidates": 0,
+      "jobs": 0,
+      "spaces": 0
+    },
+    "restart_phase_completed": false
+  }
+}

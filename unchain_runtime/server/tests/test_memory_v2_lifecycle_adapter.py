@@ -13,7 +13,13 @@ from types import SimpleNamespace
 from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
-UNCHAIN_SRC = Path(__file__).resolve().parents[4] / "unchain" / "src"
+# Explicit UNCHAIN_SOURCE_PATH (pinned wheel) wins over the sibling checkout (#291).
+_EXPLICIT_UNCHAIN = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
+UNCHAIN_SRC = (
+    Path(_EXPLICIT_UNCHAIN)
+    if _EXPLICIT_UNCHAIN
+    else Path(__file__).resolve().parents[4] / "unchain" / "src"
+)
 for candidate in (SERVER_ROOT, UNCHAIN_SRC):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
@@ -68,6 +74,9 @@ from memory_v2_toolkit import (  # noqa: E402
 
 class MemoryV2LifecycleAdapterTests(unittest.TestCase):
     def setUp(self):
+        self.background_patch = mock.patch("memory_v2_background_worker._DISPATCHER", None)
+        self.background_patch.start()
+        self.addCleanup(self.background_patch.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.temp.name)
         self.root_dir = self.data_dir / "memory_v2"
@@ -577,19 +586,19 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
                 run_id="attempt_complete",
                 lifecycle="resume",
             )
-        self.assertEqual(first["status"], "Completed")
-        self.assertEqual(first["worker_status"], "Completed")
-        self.assertEqual(first["reason"], "curation_completed")
-        self.assertEqual(first["token_usage"], 23)
-        self.assertEqual(len(factory_calls), 1)
+        self.assertEqual(first["status"], "Pending")
+        self.assertEqual(first["worker_status"], "Pending")
+        self.assertEqual(first["reason"], "memory_background_queued")
+        self.assertEqual(first["token_usage"], 0)
+        self.assertEqual(len(factory_calls), 0)
         self.assertEqual(second["job_id"], first["job_id"])
-        self.assertEqual(second["status"], "AlreadyCompleted")
+        self.assertEqual(second["status"], "Pending")
         bundle = {"memory_v2": {"context_marker": "preserved"}}
         ua._refresh_memory_v2_bundle(bundle, admission)
         self.assertEqual(bundle["memory_v2"]["context_marker"], "preserved")
         self.assertEqual(
             bundle["memory_v2"]["memory_curator"]["status"],
-            "AlreadyCompleted",
+            "Pending",
         )
         self.assertEqual(
             bundle["memory_v2"]["memory_curator"]["input_refs"][0]["candidate_id"],
@@ -600,7 +609,7 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
             limit=100,
         )["jobs"]
         self.assertEqual(len(jobs), 1)
-        self.assertEqual(jobs[0]["status"], "completed")
+        self.assertEqual(jobs[0]["status"], "pending")
         self.assertEqual(jobs[0]["payload"]["model"]["provider"], "openai")
 
         partial = self.admission("attempt_partial")
@@ -672,6 +681,87 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
         ua._refresh_memory_v2_bundle(bundle, admission)
 
         self.assertEqual(bundle, expected)
+
+    def test_background_legacy_worker_applies_pending_job_without_mutating_foreground(self):
+        import threading
+        import memory_v2_background_worker as bg
+        self.test_completed_root_enqueues_one_pending_job_and_partial_or_child_does_not()
+        registry = bg._DISPATCHER.registry
+        row = registry.page()[0]
+        options = registry.options(row)
+        options["api_key"] = "test-background-key"
+        registry.register(row["owner_chat_id"], row["backend"], json.loads(row["config_json"]), options)
+        calls = []
+        class Agent:
+            def __init__(self, toolkit):
+                self.toolkit = toolkit
+            def run(self, request):
+                calls.append(request)
+                candidate = request["candidates"][0]
+                self.toolkit._pupu_memory_v2_callables["memory_candidate_apply_new"](
+                    candidate_ref=candidate["candidate_ref"],
+                    expected_binding_revision=candidate["binding_revision"], expected_space_revision=1)
+                return {"status": "completed"}
+        with mock.patch("memory_v2_runtime.get_memory_v2_runtime", return_value=self.runtime), mock.patch.object(
+            ua, "_memory_v2_curator_agent_factory", return_value=lambda **kwargs: Agent(kwargs["toolkit"])
+        ), mock.patch.dict(os.environ, {"PUPU_CONTEXT_V2_STORE_OWNER": "pupu_legacy"}):
+            self.assertEqual(bg.process_owner(registry, row, threading.Event()), "processed")
+            self.assertEqual(bg.process_owner(registry, row, threading.Event()), "idle")
+        jobs = self.runtime.list_consolidation_jobs(owner_chat_id="chat_a")["jobs"]
+        self.assertEqual(jobs[0]["status"], "completed")
+        self.assertEqual(len(calls), 1)
+
+    def test_background_legacy_shutdown_leaves_a_retryable_job(self):
+        import threading
+        import memory_v2_background_worker as bg
+        from memory_v2_curator import MemoryV2Curator
+        self.test_completed_root_enqueues_one_pending_job_and_partial_or_child_does_not()
+        job = self.store.claim_consolidation_job(worker_id="worker-stop",
+            operation_id="claim-stop", lease_ms=10000, owner_chat_id="chat_a")["job"]
+        stopped = threading.Event()
+        stopped.set()
+        runtime = bg._LegacyBackgroundRuntime(self.runtime, job, stopped)
+        options = bg._DISPATCHER.registry.options(bg._DISPATCHER.registry.page()[0])
+        class LateAgent:
+            def __init__(self, toolkit):
+                self.toolkit = toolkit
+            def run(self, request):
+                candidate = request["candidates"][0]
+                self.toolkit._pupu_memory_v2_callables["memory_candidate_apply_new"](
+                    candidate_ref=candidate["candidate_ref"],
+                    expected_binding_revision=candidate["binding_revision"], expected_space_revision=1)
+        MemoryV2Curator(runtime, agent_factory=lambda **kwargs: LateAgent(kwargs["toolkit"])).run_job(
+            job=job, worker_id="worker-stop", memory_agent_config=options.get("_memory_v2_memory_agent_config"))
+        durable = self.runtime.list_consolidation_jobs(owner_chat_id="chat_a")["jobs"][0]
+        self.assertEqual(durable["status"], "pending")
+        self.assertEqual(durable["last_error_code"], "memory_background_stopping")
+        self.assertGreater(durable["next_attempt_at_ms"], int(time.time() * 1000))
+
+    def test_background_legacy_fence_refuses_expired_reclaimed_and_deleted_job(self):
+        import threading
+        import memory_v2_background_worker as bg
+        self.test_completed_root_enqueues_one_pending_job_and_partial_or_child_does_not()
+        job = self.store.claim_consolidation_job(worker_id="worker-before-restart",
+            operation_id="claim-before-restart", lease_ms=1000, owner_chat_id="chat_a")["job"]
+        old = bg._LegacyBackgroundRuntime(self.runtime, job, threading.Event())
+        candidate_ref = job["payload"]["candidates"][0]["candidate_ref"]
+        args = dict(owner_chat_id="chat_a", job_id=job["job_id"], candidate_ref=candidate_ref,
+            expected_binding_revision=2, expected_space_revision=1, operation_id="stale-background-effect")
+        for fence in ({**old._fence, "unknown": True}, {**old._fence, "revision": True}):
+            with self.assertRaisesRegex(Exception, "Invalid background fence"):
+                self.store.apply_job_candidate_new(**args, background_fence=fence)
+        time.sleep(1.05)
+        with self.assertRaisesRegex(Exception, "Background source or lease"):
+            old.apply_job_candidate_new(**args)
+        reclaimed = self.store.claim_consolidation_job(worker_id="worker-after-restart",
+            operation_id="claim-after-restart", lease_ms=10000, owner_chat_id="chat_a")["job"]
+        self.assertNotEqual(reclaimed["lease_token"], job["lease_token"])
+        with self.assertRaisesRegex(Exception, "Background source or lease"):
+            old.apply_job_candidate_new(**args)
+        self.store.delete_chat(owner_chat_id="chat_a", operation_id="delete-background-owner")
+        self.assertEqual(bg._DISPATCHER.registry.page(), ())
+        with self.assertRaisesRegex(Exception, "Background source or lease"):
+            bg._LegacyBackgroundRuntime(self.runtime, reclaimed, threading.Event()).apply_job_candidate_new(**args)
 
     def test_curator_finalizer_exposes_content_free_memory_agent_trace_run(self):
         admission = self.admission("attempt_trace")
@@ -750,13 +840,13 @@ class MemoryV2LifecycleAdapterTests(unittest.TestCase):
         bundle = {}
         ua._refresh_memory_v2_bundle(bundle, admission)
 
-        self.assertEqual(summary["status"], "Completed")
+        self.assertEqual(summary["status"], "Pending")
         trace_runs = bundle["memory_v2"]["memory_agent_runs"]
         self.assertEqual(len(trace_runs), 1)
-        self.assertEqual(trace_runs[0]["status"], "Completed")
+        self.assertEqual(trace_runs[0]["status"], "Pending")
         self.assertEqual(trace_runs[0]["provider"], "openai")
         self.assertTrue(trace_runs[0]["model_id"])
-        self.assertEqual(trace_runs[0]["consumed_tokens"], 11)
+        self.assertEqual(trace_runs[0]["consumed_tokens"], 0)
         self.assertEqual(
             trace_runs[0]["input_refs"],
             [{"candidate_id": summary["input_refs"][0]["candidate_id"], "revision": 1}],

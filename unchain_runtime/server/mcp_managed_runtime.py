@@ -754,6 +754,21 @@ def resolve_managed_stdio_runtime(
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     clean_command = str(command or "").strip()
+    # A curated profile resolves through the same bundled uv/Python path at
+    # discovery and every cold runtime construction. Persist the logical name,
+    # never a machine-specific executable or extracted script path.
+    from mcp_zotero_profile import COMMAND as ZOTERO_COMMAND, profile_args
+
+    if clean_command == ZOTERO_COMMAND:
+        resolved = resolve_managed_stdio_runtime("uvx", env, data_dir=data_dir)
+        return {
+            **resolved,
+            "args_prefix": [*resolved.get("args_prefix", []), *profile_args()],
+            "managed_runtime": {
+                **resolved.get("managed_runtime", {}),
+                "source_command": ZOTERO_COMMAND,
+            },
+        }
     base_env = {
         str(key): str(value)
         for key, value in (env or {}).items()

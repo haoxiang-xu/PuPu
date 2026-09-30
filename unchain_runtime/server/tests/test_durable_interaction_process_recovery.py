@@ -17,8 +17,11 @@ from urllib.parse import quote
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SERVER_ROOT.parents[1]
-UNCHAIN_ROOT = PROJECT_ROOT.parent / "unchain"
-UNCHAIN_SOURCE_ROOT = UNCHAIN_ROOT / "src"
+# Explicit UNCHAIN_SOURCE_PATH (pinned wheel) wins over the sibling checkout for
+# both this process and the spawned sidecars (#291).
+_EXPLICIT_UNCHAIN = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
+UNCHAIN_ROOT = Path(_EXPLICIT_UNCHAIN) if _EXPLICIT_UNCHAIN else PROJECT_ROOT.parent / "unchain"
+UNCHAIN_SOURCE_ROOT = UNCHAIN_ROOT if _EXPLICIT_UNCHAIN else UNCHAIN_ROOT / "src"
 if str(UNCHAIN_SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(UNCHAIN_SOURCE_ROOT))
 

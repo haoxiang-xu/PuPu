@@ -1,0 +1,23 @@
+{
+  "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44",
+  "pupu_server_snapshot_sha256": "16a4ab3f4f3d4a81f0b8e8c9ffb91e50ad793ebe4c03ed23520113c3d7e54514",
+  "runtime_manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "processes": [
+    {
+      "start": 1,
+      "health": "ok",
+      "job_status": "pending",
+      "job_error": "memory_background_credentials_unavailable",
+      "attempt_count": 1,
+      "exit_code": 0
+    },
+    {
+      "start": 2,
+      "health": "ok",
+      "job_status": "pending",
+      "job_error": "memory_background_credentials_unavailable",
+      "attempt_count": 1,
+      "exit_code": 0
+    }
+  ]
+}

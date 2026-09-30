@@ -92,6 +92,10 @@ const FEATURE_FLAG_TRUE_VALUES = new Set([
 ]);
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
+// Ticket #291 P4 (BC-005/BC-007): backend-authoritative skill inventory
+// (packs + workspace/user skill directories) behind the renderer's
+// GET_SKILL_INVENTORY IPC channel.
+const UNCHAIN_SKILL_INVENTORY_ENDPOINT = "/skills/inventory";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
 const UNCHAIN_MCP_TOOLKITS_ENDPOINT = "/mcp/toolkits";
 const UNCHAIN_MCP_TOOLKIT_INSTALL_ENDPOINT = "/mcp/toolkits/install";
@@ -2983,6 +2987,88 @@ const createUnchainService = ({
       "Miso tool modal catalog request failed",
       {},
       "Invalid Miso tool modal catalog response",
+    );
+  };
+
+  // Ticket #291 P5 audit fix: this boundary used to silently DEFAULT a
+  // mistyped/unknown request field (permissive admission) instead of
+  // rejecting it. It is now CLOSED — the request must be exactly
+  // { workspaceRoot: string, includeUserDirs: boolean, toolkits: string[]
+  // (non-empty strings) } with no other keys, or the call throws rather than
+  // shaping the query string from untrusted/malformed input.
+  const SKILL_INVENTORY_REQUEST_KEYS = new Set([
+    "workspaceRoot",
+    "includeUserDirs",
+    "toolkits",
+  ]);
+
+  const assertValidSkillInventoryRequest = (payload) => {
+    const isPlainObject =
+      payload != null && typeof payload === "object" && !Array.isArray(payload);
+    if (!isPlainObject) {
+      throw new Error("invalid skill inventory request: payload must be an object");
+    }
+    const unknownKeys = Object.keys(payload).filter(
+      (key) => !SKILL_INVENTORY_REQUEST_KEYS.has(key),
+    );
+    if (unknownKeys.length > 0) {
+      throw new Error(
+        `invalid skill inventory request: unknown key(s) ${unknownKeys.join(", ")}`,
+      );
+    }
+    if (typeof payload.workspaceRoot !== "string") {
+      throw new Error("invalid skill inventory request: workspaceRoot must be a string");
+    }
+    if (typeof payload.includeUserDirs !== "boolean") {
+      throw new Error(
+        "invalid skill inventory request: includeUserDirs must be a boolean",
+      );
+    }
+    if (
+      !Array.isArray(payload.toolkits) ||
+      !payload.toolkits.every((id) => typeof id === "string" && id.length > 0)
+    ) {
+      throw new Error(
+        "invalid skill inventory request: toolkits must be an array of non-empty strings",
+      );
+    }
+  };
+
+  // Ticket #291 P4/P5 (BC-005/BC-007): validates the renderer's request shape
+  // at the main-process boundary and passes the sidecar's
+  // pupu.skill_inventory.v1 response through unchanged.
+  const getMisoSkillInventoryPayload = async (payload = {}) => {
+    assertValidSkillInventoryRequest(payload);
+    ensureMisoReady();
+
+    const { workspaceRoot, includeUserDirs, toolkits } = payload;
+    const trimmedWorkspaceRoot = workspaceRoot.trim();
+
+    const params = new URLSearchParams();
+    if (trimmedWorkspaceRoot) {
+      params.set("workspace_root", trimmedWorkspaceRoot);
+    }
+    params.set("include_user_dirs", String(includeUserDirs));
+    if (toolkits.length > 0) {
+      params.set("toolkits", toolkits.join(","));
+    }
+    const query = params.toString();
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_SKILL_INVENTORY_ENDPOINT}${
+        query ? `?${query}` : ""
+      }`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso skill inventory request failed",
+      {},
+      "Invalid Miso skill inventory response",
     );
   };
 
@@ -6550,6 +6636,7 @@ const createUnchainService = ({
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
     getMisoToolModalCatalogPayload,
+    getMisoSkillInventoryPayload,
     getMisoToolkitDetailPayload,
     listMisoMcpToolkits,
     installMisoMcpToolkit,
