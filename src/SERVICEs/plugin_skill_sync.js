@@ -377,7 +377,7 @@ export const fetchAndSyncSkillInventory = async ({
     );
     return;
   }
-  if (!applySkillInventory(payload, { workspaceRoot, includeUserDirs })) {
+  if (!applySkillInventory(payload, { workspaceRoot, includeUserDirs, toolkits: requestToolkits })) {
     logger.warn(
       "skill_inventory_invalid_payload",
       "Skill inventory response failed schema validation; keeping existing registrations",

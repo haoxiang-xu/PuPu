@@ -242,6 +242,104 @@ describe("api.unchain.startStreamV2 skill options injection", () => {
     expect(payload.options.skill_inventory_revision).toBe(REV_CACHED);
   });
 
+  test("does not attach toolkit A's revision to a send selecting toolkit B before refresh", () => {
+    applySkillInventory({
+      schema: "pupu.skill_inventory.v1",
+      revision: REV_CACHED,
+      skills: [],
+      diagnostics: [],
+    }, { workspaceRoot: "/tmp/project", includeUserDirs: true, toolkits: ["toolkit-a"] });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: { modelId: "openai:gpt-5", workspaceRoot: "/tmp/project", toolkits: ["toolkit-b"] },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.skill_inventory_revision).toBeUndefined();
+  });
+
+  test("uses the first workspace_roots entry and toolkit set for the cache match", () => {
+    applySkillInventory({
+      schema: "pupu.skill_inventory.v1",
+      revision: REV_CACHED,
+      skills: [],
+      diagnostics: [],
+    }, { workspaceRoot: "/tmp/first", includeUserDirs: true, toolkits: ["a", "b"] });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        workspace_roots: ["/tmp/first", "/tmp/second"],
+        workspaceRoot: "/tmp/second",
+        toolkits: ["b", "a", "a"],
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.skill_inventory_revision).toBe(REV_CACHED);
+  });
+
+  test("does not attach a revision from different workspace or user-dir settings", () => {
+    applySkillInventory({
+      schema: "pupu.skill_inventory.v1",
+      revision: REV_CACHED,
+      skills: [],
+      diagnostics: [],
+    }, { workspaceRoot: "/tmp/project", includeUserDirs: true, toolkits: ["a"] });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: { modelId: "openai:gpt-5", workspace_roots: ["/tmp/other", "/tmp/project"], toolkits: ["a"] },
+    });
+    let [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.skill_inventory_revision).toBeUndefined();
+
+    writeSettings({ runtime: { skills: { include_user_dirs: false } } });
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: { modelId: "openai:gpt-5", workspaceRoot: "/tmp/project", toolkits: ["a"] },
+    });
+    [payload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(payload.options.skills).toEqual({ include_user_dirs: false });
+    expect(payload.options.skill_inventory_revision).toBeUndefined();
+  });
+
+  test("an explicit nonblank revision survives a different cached context", () => {
+    applySkillInventory({
+      schema: "pupu.skill_inventory.v1",
+      revision: REV_CACHED,
+      skills: [],
+      diagnostics: [],
+    }, { toolkits: ["a"] });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: { modelId: "openai:gpt-5", toolkits: ["b"], skill_inventory_revision: REV_EXPLICIT },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.skill_inventory_revision).toBe(REV_EXPLICIT);
+  });
+
+  test("a blank caller revision does not leave a revision on an unmatched send", () => {
+    applySkillInventory({
+      schema: "pupu.skill_inventory.v1",
+      revision: REV_CACHED,
+      skills: [],
+      diagnostics: [],
+    }, { toolkits: ["a"] });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: { modelId: "openai:gpt-5", toolkits: ["b"], skill_inventory_revision: "   " },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(Object.prototype.hasOwnProperty.call(payload.options, "skill_inventory_revision")).toBe(false);
+  });
+
   test("never overwrites an explicitly provided skill_inventory_revision", () => {
     applySkillInventory({
       schema: "pupu.skill_inventory.v1",

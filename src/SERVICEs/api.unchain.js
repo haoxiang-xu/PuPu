@@ -638,7 +638,23 @@ const injectSkillsOptionsIntoPayload = (payload) => {
     typeof currentOptions.skill_inventory_revision === "string" &&
     currentOptions.skill_inventory_revision.trim().length > 0;
   if (!hasExplicitRevision) {
-    const revision = getLastSkillInventoryRevision();
+    delete nextOptions.skill_inventory_revision;
+    const workspaceRoots = Array.isArray(currentOptions.workspace_roots)
+      ? currentOptions.workspace_roots
+      : [];
+    const firstWorkspaceRoot = workspaceRoots.find(
+      (root) => typeof root === "string" && root.trim(),
+    );
+    const workspaceRoot = [
+      firstWorkspaceRoot,
+      currentOptions.workspaceRoot,
+      currentOptions.workspace_root,
+    ].find((root) => typeof root === "string" && root.trim()) || "";
+    const revision = getLastSkillInventoryRevision({
+      workspaceRoot,
+      includeUserDirs,
+      toolkits: currentOptions.toolkits,
+    });
     if (typeof revision === "string" && SKILL_INVENTORY_REVISION_PATTERN.test(revision)) {
       nextOptions.skill_inventory_revision = revision;
     }
