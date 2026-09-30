@@ -10633,6 +10633,8 @@ def _stream_recipe_graph_events(
                     emit(event)
 
                 _enable_ollama_reasoning_preview(step_emit)
+                if graph_active_bridge is not None:
+                    _enable_active_durable_tool_result_delivery(step_emit)
 
                 step_active_host_event_boundary = (
                     PupuUnchainHostEventBoundary(
@@ -11439,6 +11441,24 @@ def _enable_ollama_reasoning_preview(callback: Callable[[Dict[str, Any]], Any]) 
     callback.discard_provisional_reasoning = discard_provisional_reasoning
 
 
+def _enable_active_durable_tool_result_delivery(
+    callback: Callable[[Dict[str, Any]], Any],
+) -> None:
+    """Expose Unchain's receipt delivery lane for an active Context V2 host.
+
+    ContextRuntime has already appended and verified the receipt before it
+    invokes this capability. Re-entering the ordinary callback composer would
+    duplicate that write, so the active PuPu host only projects the event.
+    """
+
+    def deliver_persisted_tool_result(event: Dict[str, Any]) -> Any:
+        if type(event) is not dict:
+            raise ValueError("persisted tool result event must be a dict")
+        return callback(event)
+
+    callback.deliver_persisted_tool_result = deliver_persisted_tool_result
+
+
 def stream_chat_events(
     *,
     message: str,
@@ -11823,6 +11843,8 @@ def stream_chat_events(
             event_queue.put(event)
 
         _enable_ollama_reasoning_preview(on_event)
+        if active_context_bridge is not None:
+            _enable_active_durable_tool_result_delivery(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
@@ -12764,6 +12786,8 @@ def resume_chat_interaction_events(
             event_queue.put(event)
 
         _enable_ollama_reasoning_preview(on_event)
+        if active_context_bridge is not None:
+            _enable_active_durable_tool_result_delivery(on_event)
 
         def emit_if_active(event: Dict[str, Any]) -> None:
             _execution_raise_if_cancelled(execution_token)
