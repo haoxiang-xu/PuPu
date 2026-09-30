@@ -114,3 +114,10 @@ curl -s $BASE/debug/dom?selector=.chat-input | jq
 ```
 
 Returns `{"html": null}` if no element matches.
+
+### Log lifetime
+
+The debug log endpoint reads an in-memory, per-source console buffer (up to 2,000
+entries). It captures output after Test API startup; a new app/service instance
+starts with empty buffers. Activity without console output need not add entries.
+Use chat/run `tool_calls` evidence for tool execution, not log counts.
