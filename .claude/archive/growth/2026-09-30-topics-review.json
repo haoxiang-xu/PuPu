@@ -1,0 +1,670 @@
+{
+  "schema_version": 1,
+  "review_id": "2026-09-30-B-1",
+  "status": "completed",
+  "prepared_at": "2026-09-30T01:31:41.451Z",
+  "repo": "haoxiang-xu/PuPu",
+  "due_group": "B",
+  "scheduled_due_utc": "2026-09-30T00:00:00Z",
+  "old_revisions": {
+    "A": 1,
+    "B": 1
+  },
+  "proposed_revisions": {
+    "A": 1,
+    "B": 2
+  },
+  "old_complete_topics": [
+    "agent-orchestration",
+    "agent-workspace",
+    "ai-client",
+    "ai-harness",
+    "anthropic",
+    "deepseek",
+    "desktop-agent",
+    "desktop-app",
+    "electron",
+    "llm",
+    "llm-client",
+    "llm-ui",
+    "local-llm",
+    "mcp",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
+  ],
+  "proposed_complete_topics": [
+    "agent-workspace",
+    "ai-client",
+    "ai-harness",
+    "anthropic",
+    "deepseek",
+    "desktop-agent",
+    "desktop-app",
+    "desktop-assistant",
+    "electron",
+    "llm",
+    "llm-client",
+    "llm-ui",
+    "local-llm",
+    "mcp",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
+  ],
+  "old_group_topics": [
+    "agent-orchestration",
+    "anthropic",
+    "deepseek",
+    "llm-client",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
+  ],
+  "proposed_group_topics": [
+    "desktop-assistant",
+    "anthropic",
+    "deepseek",
+    "llm-client",
+    "mcp-client",
+    "multi-agent",
+    "ollama",
+    "ollama-client",
+    "openai",
+    "self-hosted"
+  ],
+  "unchanged_group": {
+    "name": "A",
+    "revision": 1,
+    "topics": [
+      "agent-workspace",
+      "ai-client",
+      "ai-harness",
+      "desktop-agent",
+      "desktop-app",
+      "electron",
+      "llm",
+      "llm-ui",
+      "local-llm",
+      "mcp"
+    ]
+  },
+  "changed_subset": {
+    "removed": [
+      "agent-orchestration"
+    ],
+    "added": [
+      "desktop-assistant"
+    ]
+  },
+  "member_decisions": {
+    "agent-orchestration": {
+      "decision": "replace",
+      "replacement": "desktop-assistant",
+      "reason": "Broad orchestration/framework intent is less direct than the shipped desktop assistant use case. PuPu is below the first 100 star-sorted results; use one slot for a 337-repository niche projecting rank 13–14. Keep multi-agent association elsewhere. This is product-fit/visibility strategy, not measured conversion failure."
+    },
+    "anthropic": {
+      "decision": "retain",
+      "reason": "Explicit native cloud-provider support in current README. Preserve provider association despite >100 star-sort visibility; no isolated conversion evidence warrants another swap."
+    },
+    "deepseek": {
+      "decision": "retain",
+      "reason": "v0.1.11 publicly ships a first-class DeepSeek provider; two sampled leading clients also use this association. Competition is high, but direct shipped fit remains."
+    },
+    "llm-client": {
+      "decision": "retain",
+      "reason": "Exact client-category fit and star-sort rank 9–11 in 86 repositories. Retention is based on fit/visibility, not proven conversions."
+    },
+    "mcp-client": {
+      "decision": "retain",
+      "reason": "Current README documents built-in MCP tools/store. Accurate client capability remains useful despite broad competition."
+    },
+    "multi-agent": {
+      "decision": "retain",
+      "reason": "Existing handoff behavior is evidenced by the v0.1.11 handoff-context fix. Retain the broad agent association for this cycle without implying that the roadmap Agent Builder/Teams product is fully launched."
+    },
+    "ollama": {
+      "decision": "retain",
+      "reason": "Native local-model integration is a central shipped use case; preserve the main ecosystem association."
+    },
+    "ollama-client": {
+      "decision": "retain",
+      "reason": "Direct local-client intent; rank 31–33 in the sampled star sort, with all higher/tied repositories covered."
+    },
+    "openai": {
+      "decision": "retain",
+      "reason": "Explicit supported cloud-provider integration, also used by Chatbox/Open WebUI/LobeHub. Retain one widely recognized provider association, not a claim of proven traffic."
+    },
+    "self-hosted": {
+      "decision": "retain",
+      "reason": "Local/user-controlled model operation fits the association; Jan also uses this tag for a desktop product. This does not promise that PuPu ships an independently deployable server."
+    }
+  },
+  "star_sort_evidence": [
+    {
+      "topic": "agent-orchestration",
+      "total_count": 3770,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "anthropic",
+      "total_count": 24717,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "deepseek",
+      "total_count": 11530,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "llm-client",
+      "total_count": 86,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 8,
+        "tied_in_sample": 3,
+        "pupu_present": true,
+        "complete_above_and_ties": true,
+        "range": [
+          9,
+          11
+        ],
+        "lower_bound": 9,
+        "sample_size": 86,
+        "truncated": false,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "mcp-client",
+      "total_count": 1792,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "multi-agent",
+      "total_count": 17490,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "ollama",
+      "total_count": 25256,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "ollama-client",
+      "total_count": 363,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 30,
+        "tied_in_sample": 3,
+        "pupu_present": true,
+        "complete_above_and_ties": true,
+        "range": [
+          31,
+          33
+        ],
+        "lower_bound": 31,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "openai",
+      "total_count": 46535,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "self-hosted",
+      "total_count": 38566,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    }
+  ],
+  "candidate_star_sort_evidence": [
+    {
+      "topic": "desktop-assistant",
+      "total_count": 337,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 12,
+        "tied_in_sample": 1,
+        "pupu_present": false,
+        "complete_above_and_ties": true,
+        "range": [
+          13,
+          14
+        ],
+        "lower_bound": 13,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "ai-workspace",
+      "total_count": 189,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 23,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": true,
+        "range": [
+          24,
+          24
+        ],
+        "lower_bound": 24,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "ollama-ui",
+      "total_count": 91,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 15,
+        "tied_in_sample": 1,
+        "pupu_present": false,
+        "complete_above_and_ties": true,
+        "range": [
+          16,
+          17
+        ],
+        "lower_bound": 16,
+        "sample_size": 91,
+        "truncated": false,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "ollama-gui",
+      "total_count": 188,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 22,
+        "tied_in_sample": 1,
+        "pupu_present": false,
+        "complete_above_and_ties": true,
+        "range": [
+          23,
+          24
+        ],
+        "lower_bound": 23,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    },
+    {
+      "topic": "agent-harness",
+      "total_count": 1347,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 100,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": false,
+        "range": null,
+        "lower_bound": 101,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Only top 100 inspected; PuPu would rank below this sample. No exact rank claim."
+      }
+    },
+    {
+      "topic": "agent-collaboration",
+      "total_count": 139,
+      "rank": {
+        "stars": 36,
+        "above_in_sample": 24,
+        "tied_in_sample": 0,
+        "pupu_present": false,
+        "complete_above_and_ties": true,
+        "range": [
+          25,
+          25
+        ],
+        "lower_bound": 25,
+        "sample_size": 100,
+        "truncated": true,
+        "note": "Tie-bounded star-sort projection, not search placement or search volume."
+      }
+    }
+  ],
+  "exposure_check": {
+    "outgoing_known_present_by": "2026-09-08",
+    "at_least_fourteen_days": true,
+    "unchanged_A_members_protected": true,
+    "new_member_hold_days": 14
+  },
+  "data_snapshot": "2026-09-30-topics-snapshot.json",
+  "change_record": "2026-09-30-topics-change.md",
+  "mutation": {
+    "source": "gh api --method PUT repos/haoxiang-xu/PuPu/topics --input -",
+    "started_at": "2026-09-30T01:34:18.883Z",
+    "response_received_at": "2026-09-30T01:34:19.753Z",
+    "exit_code": 0,
+    "response": {
+      "names": [
+        "self-hosted",
+        "multi-agent",
+        "anthropic",
+        "deepseek",
+        "desktop-app",
+        "electron",
+        "llm",
+        "local-llm",
+        "mcp",
+        "mcp-client",
+        "ollama",
+        "openai",
+        "llm-client",
+        "ollama-client",
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "llm-ui",
+        "desktop-assistant"
+      ]
+    }
+  },
+  "readback": {
+    "source": "gh api repos/haoxiang-xu/PuPu/topics",
+    "started_at": "2026-09-30T01:34:47.989Z",
+    "collected_at": "2026-09-30T01:34:48.682Z",
+    "data": {
+      "names": [
+        "self-hosted",
+        "multi-agent",
+        "anthropic",
+        "deepseek",
+        "desktop-app",
+        "electron",
+        "llm",
+        "local-llm",
+        "mcp",
+        "mcp-client",
+        "ollama",
+        "openai",
+        "llm-client",
+        "ollama-client",
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "llm-ui",
+        "desktop-assistant"
+      ]
+    },
+    "count": 20,
+    "matched": true
+  },
+  "review_completed": true,
+  "causal_claim": false,
+  "preflight_snapshot": "2026-09-30-topics-preflight.json",
+  "preflight_completed_at": "2026-09-30T01:32:46.739Z",
+  "completed_at": "2026-09-30T01:34:48.682Z",
+  "applied_at": "2026-09-30T01:34:19.753Z",
+  "actual_revisions": {
+    "A": 1,
+    "B": 2
+  },
+  "next_reviews": {
+    "A": "2026-10-07T00:00:00Z",
+    "B": "2026-10-14T00:00:00Z"
+  },
+  "new_member_protection": {
+    "topic": "desktop-assistant",
+    "protected_until": "2026-10-14T01:34:19.753Z",
+    "nominal_review_before_protection_expiry": "Do not replace this member before protected_until; other retained B members remain eligible at the nominal review."
+  },
+  "latest_outgoing_installer_accounting": [
+    {
+      "tag": "v0.1.11",
+      "release_id": 392139369,
+      "draft": false,
+      "collected_at": "2026-09-30T01:32:46.636Z",
+      "raw": 64,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 59,
+      "verified_successful_readback_run": 35455547423,
+      "assets": [
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 6,
+          "id": 575106283,
+          "name": "PuPu-0.1.11-linux-x64.AppImage",
+          "updated_at": "2026-09-19T16:40:25Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 21,
+          "id": 575106280,
+          "name": "PuPu-0.1.11-linux-x64.deb",
+          "updated_at": "2026-09-19T16:40:25Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 6,
+          "id": 575106284,
+          "name": "PuPu-0.1.11-macos-arm64.dmg",
+          "updated_at": "2026-09-19T16:40:23Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 8,
+          "id": 575106479,
+          "name": "PuPu-0.1.11-macos-x64.dmg",
+          "updated_at": "2026-09-19T16:40:23Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:23Z",
+          "download_count": 23,
+          "id": 575106762,
+          "name": "PuPu-0.1.11-windows-x64-setup.exe",
+          "updated_at": "2026-09-19T16:40:33Z"
+        }
+      ],
+      "delta_since_initial_measurement": 9,
+      "adjusted_delta_since_september_22": 33
+    },
+    {
+      "tag": "v0.1.12",
+      "release_id": 399562397,
+      "draft": true,
+      "collected_at": "2026-09-30T01:32:46.704Z",
+      "raw": 5,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 0,
+      "verified_successful_readback_run": 36637050905,
+      "assets": [
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335070,
+          "name": "PuPu-0.1.12-linux-x64.AppImage",
+          "updated_at": "2026-09-29T22:05:37Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335077,
+          "name": "PuPu-0.1.12-linux-x64.deb",
+          "updated_at": "2026-09-29T22:05:34Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335065,
+          "name": "PuPu-0.1.12-macos-arm64.dmg",
+          "updated_at": "2026-09-29T22:05:35Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:11Z",
+          "download_count": 1,
+          "id": 599335103,
+          "name": "PuPu-0.1.12-macos-x64.dmg",
+          "updated_at": "2026-09-29T22:05:25Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:34Z",
+          "download_count": 1,
+          "id": 599335938,
+          "name": "PuPu-0.1.12-windows-x64-setup.exe",
+          "updated_at": "2026-09-29T22:05:49Z"
+        }
+      ],
+      "delta_since_initial_measurement": 0,
+      "adjusted_delta_since_september_22": null
+    },
+    {
+      "tag": "v0.1.10",
+      "release_id": 385162846,
+      "draft": false,
+      "collected_at": "2026-09-30T01:32:46.739Z",
+      "raw": 42,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 37,
+      "verified_successful_readback_run": 34298581702,
+      "assets": [
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 7,
+          "id": 551714229,
+          "name": "PuPu-0.1.10-linux-x64.AppImage",
+          "updated_at": "2026-09-09T01:22:41Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 16,
+          "id": 551714226,
+          "name": "PuPu-0.1.10-linux-x64.deb",
+          "updated_at": "2026-09-09T01:22:35Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 2,
+          "id": 551714228,
+          "name": "PuPu-0.1.10-macos-arm64.dmg",
+          "updated_at": "2026-09-09T01:22:49Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 3,
+          "id": 551714250,
+          "name": "PuPu-0.1.10-macos-x64.dmg",
+          "updated_at": "2026-09-09T01:22:37Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:38Z",
+          "download_count": 14,
+          "id": 551714913,
+          "name": "PuPu-0.1.10-windows-x64-setup.exe",
+          "updated_at": "2026-09-09T01:22:52Z"
+        }
+      ],
+      "delta_since_initial_measurement": 0,
+      "adjusted_delta_since_september_22": 0
+    }
+  ]
+}

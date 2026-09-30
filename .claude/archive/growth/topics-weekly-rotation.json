@@ -85,9 +85,9 @@
       }
     },
     "B": {
-      "revision": 1,
+      "revision": 2,
       "topics": [
-        "agent-orchestration",
+        "desktop-assistant",
         "anthropic",
         "deepseek",
         "llm-client",
@@ -99,16 +99,11 @@
         "self-hosted"
       ],
       "cohort_registered_at": "2026-09-22T21:27:30Z",
-      "historical_exposure_note": "All ten tags were already in the recorded September 8 applied set and subsequent snapshots; first review September 30 does not reduce their historical exposure to seven days. Group membership is bookkeeping introduced today, not a new GitHub application.",
-      "next_review_due_utc": "2026-09-30T00:00:00Z",
-      "last_review_at": null,
-      "completed_reviews": 0,
+      "historical_exposure_note": "The initial B1 ten topics were documented by September 8. The September 30 review retained nine of those members and introduced desktop-assistant as B2; retained exposure timestamps are unchanged.",
+      "next_review_due_utc": "2026-10-14T00:00:00Z",
+      "last_review_at": "2026-09-30T01:34:48.682Z",
+      "completed_reviews": 1,
       "member_exposure": {
-        "agent-orchestration": {
-          "known_present_by_date": "2026-09-08",
-          "exact_added_at": null,
-          "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
-        },
         "anthropic": {
           "known_present_by_date": "2026-09-08",
           "exact_added_at": null,
@@ -153,12 +148,29 @@
           "known_present_by_date": "2026-09-08",
           "exact_added_at": null,
           "evidence": "2026-09-08-topics-change.md; topics-history.ndjson"
+        },
+        "desktop-assistant": {
+          "added_at": "2026-09-30T01:34:19.753Z",
+          "addition_request_started_at": "2026-09-30T01:34:18.883Z",
+          "protected_until": "2026-10-14T01:34:19.753Z",
+          "evidence": "2026-09-30-topics-review.json; independent topics GET readback"
         }
-      }
+      },
+      "latest_member_added_at": "2026-09-30T01:34:19.753Z",
+      "retired_member_exposure": [
+        {
+          "topic": "agent-orchestration",
+          "known_present_by_date": "2026-09-08",
+          "exact_added_at": null,
+          "evidence": "2026-09-30-topics-review.json",
+          "removed_at": "2026-09-30T01:34:19.753Z",
+          "revision_last_live": 1
+        }
+      ],
+      "minimum_exposure_note": "At each scheduled review, newly introduced members remain ineligible for removal until their exact protected_until timestamp even if the nominal UTC review starts earlier. Retained older members may be reviewed; keep the weekly schedule, do not compress holds."
     }
   },
   "live_topics": [
-    "agent-orchestration",
     "agent-workspace",
     "ai-client",
     "ai-harness",
@@ -166,6 +178,7 @@
     "deepseek",
     "desktop-agent",
     "desktop-app",
+    "desktop-assistant",
     "electron",
     "llm",
     "llm-client",
@@ -179,11 +192,11 @@
     "openai",
     "self-hosted"
   ],
-  "live_topics_last_applied_at": "2026-09-22T21:09:08Z",
-  "next_review_group": "B",
-  "next_review_due_utc": "2026-09-30T00:00:00Z",
-  "completed_reviews": 0,
-  "completed_topic_updates": 0,
+  "live_topics_last_applied_at": "2026-09-30T01:34:19.753Z",
+  "next_review_group": "A",
+  "next_review_due_utc": "2026-10-07T00:00:00Z",
+  "completed_reviews": 1,
+  "completed_topic_updates": 1,
   "scheduler": {
     "automation_id": "pupu-topics-cleanup-checkpoints",
     "timezone": "America/Vancouver",
@@ -191,11 +204,6 @@
     "notes": "Daily 17:00 local corresponds to UTC midnight during daylight time. Scheduled reviews use the stored UTC due dates; preserve actual times, protect two-week topic exposure, and record delay or daylight-saving effects."
   },
   "planned_reviews": [
-    {
-      "group": "B",
-      "utc": "2026-09-30T00:00:00Z",
-      "vancouver_local": "2026-09-29 17:00"
-    },
     {
       "group": "A",
       "utc": "2026-10-07T00:00:00Z",
@@ -210,6 +218,11 @@
       "group": "A",
       "utc": "2026-10-21T00:00:00Z",
       "vancouver_local": "2026-10-20 17:00"
+    },
+    {
+      "group": "B",
+      "utc": "2026-10-28T00:00:00Z",
+      "vancouver_local": "2026-10-27 17:00"
     }
   ],
   "baseline_snapshot": "2026-09-22-topics-baseline.json",
@@ -234,5 +247,14 @@
     },
     "usage": "Research candidates only, not a predefined future B set. Remeasure and validate fit at a due review; select only justified replacements for that group."
   },
-  "measurement_note": "Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations."
+  "measurement_note": "Both groups are always live. The other cohort changes halfway through a group's 14-day exposure. Label results with both group revisions; do not claim isolated per-topic or per-group traffic from GitHub aggregate metrics. Planned staggered changes are the experiment design, while unexpected edits or releases/promotions need separate annotations.",
+  "last_completed_review": {
+    "group": "B",
+    "completed_at": "2026-09-30T01:34:48.682Z",
+    "review_id": "2026-09-30-B-1",
+    "old_revision": 1,
+    "new_revision": 2,
+    "replacements": 1,
+    "report": "2026-09-30-topics-review.json"
+  }
 }

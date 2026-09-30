@@ -1,0 +1,1584 @@
+{
+  "started_at": "2026-09-30T01:32:45.439Z",
+  "source_note": "Fresh pre-mutation reconciliation after extended execution; preserve earlier valid same-day evidence and original timestamps.",
+  "referrers": {
+    "data": [
+      {
+        "referrer": "github.com",
+        "count": 23,
+        "uniques": 13
+      },
+      {
+        "referrer": "Bing",
+        "count": 17,
+        "uniques": 16
+      },
+      {
+        "referrer": "yandex.com",
+        "count": 14,
+        "uniques": 14
+      },
+      {
+        "referrer": "Google",
+        "count": 11,
+        "uniques": 9
+      },
+      {
+        "referrer": "chatgpt.com",
+        "count": 2,
+        "uniques": 2
+      },
+      {
+        "referrer": "DuckDuckGo",
+        "count": 1,
+        "uniques": 1
+      },
+      {
+        "referrer": "es.beruby.com",
+        "count": 1,
+        "uniques": 1
+      }
+    ],
+    "source": "gh api repos/haoxiang-xu/PuPu/traffic/popular/referrers",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.090Z"
+  },
+  "views": {
+    "data": {
+      "count": 870,
+      "uniques": 109,
+      "views": [
+        {
+          "timestamp": "2026-09-15T00:00:00Z",
+          "count": 138,
+          "uniques": 10
+        },
+        {
+          "timestamp": "2026-09-16T00:00:00Z",
+          "count": 44,
+          "uniques": 8
+        },
+        {
+          "timestamp": "2026-09-17T00:00:00Z",
+          "count": 79,
+          "uniques": 16
+        },
+        {
+          "timestamp": "2026-09-18T00:00:00Z",
+          "count": 56,
+          "uniques": 9
+        },
+        {
+          "timestamp": "2026-09-19T00:00:00Z",
+          "count": 158,
+          "uniques": 9
+        },
+        {
+          "timestamp": "2026-09-20T00:00:00Z",
+          "count": 29,
+          "uniques": 8
+        },
+        {
+          "timestamp": "2026-09-21T00:00:00Z",
+          "count": 63,
+          "uniques": 10
+        },
+        {
+          "timestamp": "2026-09-22T00:00:00Z",
+          "count": 54,
+          "uniques": 7
+        },
+        {
+          "timestamp": "2026-09-23T00:00:00Z",
+          "count": 30,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-09-24T00:00:00Z",
+          "count": 49,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-09-25T00:00:00Z",
+          "count": 35,
+          "uniques": 12
+        },
+        {
+          "timestamp": "2026-09-26T00:00:00Z",
+          "count": 45,
+          "uniques": 9
+        },
+        {
+          "timestamp": "2026-09-27T00:00:00Z",
+          "count": 33,
+          "uniques": 11
+        },
+        {
+          "timestamp": "2026-09-28T00:00:00Z",
+          "count": 57,
+          "uniques": 12
+        }
+      ]
+    },
+    "source": "gh api repos/haoxiang-xu/PuPu/traffic/views",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.095Z"
+  },
+  "paths": {
+    "data": [
+      {
+        "path": "/haoxiang-xu/PuPu",
+        "title": "Overview",
+        "count": 221,
+        "uniques": 77
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/pulls",
+        "title": "/pulls",
+        "count": 84,
+        "uniques": 10
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/actions",
+        "title": "/actions",
+        "count": 58,
+        "uniques": 1
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/releases",
+        "title": "/releases",
+        "count": 52,
+        "uniques": 3
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/issues",
+        "title": "/issues",
+        "count": 34,
+        "uniques": 5
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/actions/workflows/release-qa.yml",
+        "title": "/actions/workflows/release-qa.yml",
+        "count": 33,
+        "uniques": 1
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/graphs/traffic",
+        "title": "/graphs/traffic",
+        "count": 29,
+        "uniques": 1
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/releases/tag/v0.1.11",
+        "title": "/releases/tag/v0.1.11",
+        "count": 21,
+        "uniques": 8
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/pulse",
+        "title": "/pulse",
+        "count": 13,
+        "uniques": 1
+      },
+      {
+        "path": "/haoxiang-xu/PuPu/actions/runs/35427567513",
+        "title": "/actions/runs/35427567513",
+        "count": 9,
+        "uniques": 1
+      }
+    ],
+    "source": "gh api repos/haoxiang-xu/PuPu/traffic/popular/paths",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.114Z"
+  },
+  "clones": {
+    "data": {
+      "count": 3003,
+      "uniques": 374,
+      "clones": [
+        {
+          "timestamp": "2026-09-15T00:00:00Z",
+          "count": 297,
+          "uniques": 36
+        },
+        {
+          "timestamp": "2026-09-16T00:00:00Z",
+          "count": 135,
+          "uniques": 25
+        },
+        {
+          "timestamp": "2026-09-17T00:00:00Z",
+          "count": 83,
+          "uniques": 12
+        },
+        {
+          "timestamp": "2026-09-18T00:00:00Z",
+          "count": 1030,
+          "uniques": 36
+        },
+        {
+          "timestamp": "2026-09-19T00:00:00Z",
+          "count": 234,
+          "uniques": 51
+        },
+        {
+          "timestamp": "2026-09-20T00:00:00Z",
+          "count": 168,
+          "uniques": 39
+        },
+        {
+          "timestamp": "2026-09-21T00:00:00Z",
+          "count": 127,
+          "uniques": 57
+        },
+        {
+          "timestamp": "2026-09-22T00:00:00Z",
+          "count": 101,
+          "uniques": 29
+        },
+        {
+          "timestamp": "2026-09-23T00:00:00Z",
+          "count": 137,
+          "uniques": 16
+        },
+        {
+          "timestamp": "2026-09-24T00:00:00Z",
+          "count": 159,
+          "uniques": 49
+        },
+        {
+          "timestamp": "2026-09-25T00:00:00Z",
+          "count": 63,
+          "uniques": 16
+        },
+        {
+          "timestamp": "2026-09-26T00:00:00Z",
+          "count": 153,
+          "uniques": 33
+        },
+        {
+          "timestamp": "2026-09-27T00:00:00Z",
+          "count": 163,
+          "uniques": 36
+        },
+        {
+          "timestamp": "2026-09-28T00:00:00Z",
+          "count": 153,
+          "uniques": 53
+        }
+      ]
+    },
+    "source": "gh api repos/haoxiang-xu/PuPu/traffic/clones",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.125Z"
+  },
+  "overview": {
+    "data": {
+      "forks_count": 7,
+      "full_name": "haoxiang-xu/PuPu",
+      "pushed_at": "2026-09-30T00:00:22Z",
+      "stargazers_count": 36,
+      "subscribers_count": 0,
+      "topics": [
+        "agent-orchestration",
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "anthropic",
+        "deepseek",
+        "desktop-agent",
+        "desktop-app",
+        "electron",
+        "llm",
+        "llm-client",
+        "llm-ui",
+        "local-llm",
+        "mcp",
+        "mcp-client",
+        "multi-agent",
+        "ollama",
+        "ollama-client",
+        "openai",
+        "self-hosted"
+      ],
+      "updated_at": "2026-09-25T14:05:56Z"
+    },
+    "source": "gh api repos/haoxiang-xu/PuPu --jq '{full_name,topics,stargazers_count,forks_count,subscribers_count,updated_at,pushed_at}'",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.175Z"
+  },
+  "topics": {
+    "data": {
+      "names": [
+        "self-hosted",
+        "agent-orchestration",
+        "multi-agent",
+        "anthropic",
+        "deepseek",
+        "desktop-app",
+        "electron",
+        "llm",
+        "local-llm",
+        "mcp",
+        "mcp-client",
+        "ollama",
+        "openai",
+        "llm-client",
+        "ollama-client",
+        "agent-workspace",
+        "ai-client",
+        "ai-harness",
+        "desktop-agent",
+        "llm-ui"
+      ]
+    },
+    "source": "gh api repos/haoxiang-xu/PuPu/topics",
+    "started_at": "2026-09-30T01:32:45.439Z",
+    "collected_at": "2026-09-30T01:32:46.183Z"
+  },
+  "releases": [
+    {
+      "data": {
+        "assets": [
+          {
+            "created_at": "2026-09-19T16:40:24Z",
+            "download_count": 10,
+            "id": 575106788,
+            "name": "latest-mac.yml",
+            "updated_at": "2026-09-19T16:40:25Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:25Z",
+            "download_count": 3,
+            "id": 575106820,
+            "name": "latest.yml",
+            "updated_at": "2026-09-19T16:40:25Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 6,
+            "id": 575106283,
+            "name": "PuPu-0.1.11-linux-x64.AppImage",
+            "updated_at": "2026-09-19T16:40:25Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 21,
+            "id": 575106280,
+            "name": "PuPu-0.1.11-linux-x64.deb",
+            "updated_at": "2026-09-19T16:40:25Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 6,
+            "id": 575106284,
+            "name": "PuPu-0.1.11-macos-arm64.dmg",
+            "updated_at": "2026-09-19T16:40:23Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 3,
+            "id": 575106281,
+            "name": "PuPu-0.1.11-macos-arm64.zip",
+            "updated_at": "2026-09-19T16:40:23Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 3,
+            "id": 575106282,
+            "name": "PuPu-0.1.11-macos-arm64.zip.blockmap",
+            "updated_at": "2026-09-19T16:40:10Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:10Z",
+            "download_count": 8,
+            "id": 575106479,
+            "name": "PuPu-0.1.11-macos-x64.dmg",
+            "updated_at": "2026-09-19T16:40:23Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:23Z",
+            "download_count": 3,
+            "id": 575106740,
+            "name": "PuPu-0.1.11-macos-x64.zip",
+            "updated_at": "2026-09-19T16:40:35Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:23Z",
+            "download_count": 3,
+            "id": 575106745,
+            "name": "PuPu-0.1.11-macos-x64.zip.blockmap",
+            "updated_at": "2026-09-19T16:40:23Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:23Z",
+            "download_count": 23,
+            "id": 575106762,
+            "name": "PuPu-0.1.11-windows-x64-setup.exe",
+            "updated_at": "2026-09-19T16:40:33Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:24Z",
+            "download_count": 3,
+            "id": 575106768,
+            "name": "PuPu-0.1.11-windows-x64-setup.exe.blockmap",
+            "updated_at": "2026-09-19T16:40:24Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:25Z",
+            "download_count": 7,
+            "id": 575106823,
+            "name": "release-assets.v1.json",
+            "updated_at": "2026-09-19T16:40:25Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:25Z",
+            "download_count": 4,
+            "id": 575106829,
+            "name": "release-qa-report.json",
+            "updated_at": "2026-09-19T16:40:26Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:26Z",
+            "download_count": 4,
+            "id": 575106841,
+            "name": "release-qualification.v1.json",
+            "updated_at": "2026-09-19T16:40:26Z"
+          },
+          {
+            "created_at": "2026-09-19T16:40:25Z",
+            "download_count": 3,
+            "id": 575106831,
+            "name": "windows-signing-evidence.v1.json",
+            "updated_at": "2026-09-19T16:40:26Z"
+          }
+        ],
+        "draft": false,
+        "id": 392139369,
+        "prerelease": false,
+        "published_at": "2026-09-19T16:55:58Z",
+        "tag_name": "v0.1.11",
+        "updated_at": "2026-09-21T22:07:29Z"
+      },
+      "source": "gh api repos/haoxiang-xu/PuPu/releases/392139369 --jq '{id,tag_name,draft,prerelease,published_at,updated_at,assets:[.assets[] | {id,name,created_at,updated_at,download_count}]}'",
+      "started_at": "2026-09-30T01:32:46.184Z",
+      "collected_at": "2026-09-30T01:32:46.636Z",
+      "pagination_note": "Counter/status recheck of same release IDs. Each has 16 assets; complete assets paginated earlier today."
+    },
+    {
+      "data": {
+        "assets": [
+          {
+            "created_at": "2026-09-29T22:05:35Z",
+            "download_count": 1,
+            "id": 599335985,
+            "name": "latest-mac.yml",
+            "updated_at": "2026-09-29T22:05:35Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:36Z",
+            "download_count": 1,
+            "id": 599336013,
+            "name": "latest.yml",
+            "updated_at": "2026-09-29T22:05:36Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:10Z",
+            "download_count": 1,
+            "id": 599335070,
+            "name": "PuPu-0.1.12-linux-x64.AppImage",
+            "updated_at": "2026-09-29T22:05:37Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:10Z",
+            "download_count": 1,
+            "id": 599335077,
+            "name": "PuPu-0.1.12-linux-x64.deb",
+            "updated_at": "2026-09-29T22:05:34Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:10Z",
+            "download_count": 1,
+            "id": 599335065,
+            "name": "PuPu-0.1.12-macos-arm64.dmg",
+            "updated_at": "2026-09-29T22:05:35Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:10Z",
+            "download_count": 1,
+            "id": 599335085,
+            "name": "PuPu-0.1.12-macos-arm64.zip",
+            "updated_at": "2026-09-29T22:05:33Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:10Z",
+            "download_count": 1,
+            "id": 599335067,
+            "name": "PuPu-0.1.12-macos-arm64.zip.blockmap",
+            "updated_at": "2026-09-29T22:05:10Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:11Z",
+            "download_count": 1,
+            "id": 599335103,
+            "name": "PuPu-0.1.12-macos-x64.dmg",
+            "updated_at": "2026-09-29T22:05:25Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:26Z",
+            "download_count": 1,
+            "id": 599335568,
+            "name": "PuPu-0.1.12-macos-x64.zip",
+            "updated_at": "2026-09-29T22:05:41Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:34Z",
+            "download_count": 1,
+            "id": 599335927,
+            "name": "PuPu-0.1.12-macos-x64.zip.blockmap",
+            "updated_at": "2026-09-29T22:05:34Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:34Z",
+            "download_count": 1,
+            "id": 599335938,
+            "name": "PuPu-0.1.12-windows-x64-setup.exe",
+            "updated_at": "2026-09-29T22:05:49Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:34Z",
+            "download_count": 1,
+            "id": 599335957,
+            "name": "PuPu-0.1.12-windows-x64-setup.exe.blockmap",
+            "updated_at": "2026-09-29T22:05:35Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:36Z",
+            "download_count": 1,
+            "id": 599336018,
+            "name": "release-assets.v1.json",
+            "updated_at": "2026-09-29T22:05:36Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:36Z",
+            "download_count": 1,
+            "id": 599336043,
+            "name": "release-qa-report.json",
+            "updated_at": "2026-09-29T22:05:37Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:37Z",
+            "download_count": 1,
+            "id": 599336069,
+            "name": "release-qualification.v1.json",
+            "updated_at": "2026-09-29T22:05:37Z"
+          },
+          {
+            "created_at": "2026-09-29T22:05:36Z",
+            "download_count": 1,
+            "id": 599336044,
+            "name": "windows-signing-evidence.v1.json",
+            "updated_at": "2026-09-29T22:05:37Z"
+          }
+        ],
+        "draft": true,
+        "id": 399562397,
+        "prerelease": false,
+        "published_at": "2026-09-29T22:07:44Z",
+        "tag_name": "v0.1.12",
+        "updated_at": "2026-09-29T22:13:31Z"
+      },
+      "source": "gh api repos/haoxiang-xu/PuPu/releases/399562397 --jq '{id,tag_name,draft,prerelease,published_at,updated_at,assets:[.assets[] | {id,name,created_at,updated_at,download_count}]}'",
+      "started_at": "2026-09-30T01:32:46.184Z",
+      "collected_at": "2026-09-30T01:32:46.704Z",
+      "pagination_note": "Counter/status recheck of same release IDs. Each has 16 assets; complete assets paginated earlier today."
+    },
+    {
+      "data": {
+        "assets": [
+          {
+            "created_at": "2026-09-09T01:22:42Z",
+            "download_count": 6,
+            "id": 551715014,
+            "name": "latest-mac.yml",
+            "updated_at": "2026-09-09T01:22:42Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:42Z",
+            "download_count": 2,
+            "id": 551715027,
+            "name": "latest.yml",
+            "updated_at": "2026-09-09T01:22:43Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 7,
+            "id": 551714229,
+            "name": "PuPu-0.1.10-linux-x64.AppImage",
+            "updated_at": "2026-09-09T01:22:41Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 16,
+            "id": 551714226,
+            "name": "PuPu-0.1.10-linux-x64.deb",
+            "updated_at": "2026-09-09T01:22:35Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 2,
+            "id": 551714228,
+            "name": "PuPu-0.1.10-macos-arm64.dmg",
+            "updated_at": "2026-09-09T01:22:49Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 1,
+            "id": 551714227,
+            "name": "PuPu-0.1.10-macos-arm64.zip",
+            "updated_at": "2026-09-09T01:22:49Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 2,
+            "id": 551714225,
+            "name": "PuPu-0.1.10-macos-arm64.zip.blockmap",
+            "updated_at": "2026-09-09T01:22:14Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:14Z",
+            "download_count": 3,
+            "id": 551714250,
+            "name": "PuPu-0.1.10-macos-x64.dmg",
+            "updated_at": "2026-09-09T01:22:37Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:36Z",
+            "download_count": 1,
+            "id": 551714866,
+            "name": "PuPu-0.1.10-macos-x64.zip",
+            "updated_at": "2026-09-09T01:22:53Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:37Z",
+            "download_count": 2,
+            "id": 551714898,
+            "name": "PuPu-0.1.10-macos-x64.zip.blockmap",
+            "updated_at": "2026-09-09T01:22:37Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:38Z",
+            "download_count": 14,
+            "id": 551714913,
+            "name": "PuPu-0.1.10-windows-x64-setup.exe",
+            "updated_at": "2026-09-09T01:22:52Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:41Z",
+            "download_count": 2,
+            "id": 551715005,
+            "name": "PuPu-0.1.10-windows-x64-setup.exe.blockmap",
+            "updated_at": "2026-09-09T01:22:41Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:43Z",
+            "download_count": 33,
+            "id": 551715039,
+            "name": "release-assets.v1.json",
+            "updated_at": "2026-09-09T01:22:43Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:44Z",
+            "download_count": 2,
+            "id": 551715046,
+            "name": "release-qa-report.json",
+            "updated_at": "2026-09-09T01:22:44Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:45Z",
+            "download_count": 2,
+            "id": 551715063,
+            "name": "release-qualification.v1.json",
+            "updated_at": "2026-09-09T01:22:45Z"
+          },
+          {
+            "created_at": "2026-09-09T01:22:44Z",
+            "download_count": 1,
+            "id": 551715055,
+            "name": "windows-signing-evidence.v1.json",
+            "updated_at": "2026-09-09T01:22:44Z"
+          }
+        ],
+        "draft": false,
+        "id": 385162846,
+        "prerelease": false,
+        "published_at": "2026-09-09T02:01:52Z",
+        "tag_name": "v0.1.10",
+        "updated_at": "2026-09-09T02:05:30Z"
+      },
+      "source": "gh api repos/haoxiang-xu/PuPu/releases/385162846 --jq '{id,tag_name,draft,prerelease,published_at,updated_at,assets:[.assets[] | {id,name,created_at,updated_at,download_count}]}'",
+      "started_at": "2026-09-30T01:32:46.184Z",
+      "collected_at": "2026-09-30T01:32:46.739Z",
+      "pagination_note": "Counter/status recheck of same release IDs. Each has 16 assets; complete assets paginated earlier today."
+    }
+  ],
+  "completed_at": "2026-09-30T01:32:46.739Z",
+  "workflow_audit": {
+    "source": "set -o pipefail\ngh api --paginate --slurp 'repos/haoxiang-xu/PuPu/actions/runs?status=success&created=%3E%3D2026-09-29T00%3A00%3A00Z&per_page=100' | jq -c '[.[] | .workflow_runs[] | {id,name,path,run_attempt,created_at,updated_at,conclusion,status,head_sha,html_url}]'",
+    "started_at": "2026-09-30T01:33:12.150Z",
+    "collected_at": "2026-09-30T01:33:13.898Z",
+    "data": [
+      {
+        "id": 36648123090,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-30T00:00:29Z",
+        "updated_at": "2026-09-30T00:13:52Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648123090"
+      },
+      {
+        "id": 36648122851,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 2,
+        "created_at": "2026-09-30T00:00:28Z",
+        "updated_at": "2026-09-30T00:06:40Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648122851"
+      },
+      {
+        "id": 36648122841,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-30T00:00:28Z",
+        "updated_at": "2026-09-30T00:00:35Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648122841"
+      },
+      {
+        "id": 36648122827,
+        "name": "Validate MCP Registry",
+        "path": ".github/workflows/validate-mcp-registry.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-30T00:00:28Z",
+        "updated_at": "2026-09-30T00:01:16Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648122827"
+      },
+      {
+        "id": 36648117012,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-30T00:00:25Z",
+        "updated_at": "2026-09-30T00:02:36Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648117012"
+      },
+      {
+        "id": 36646886066,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 2,
+        "created_at": "2026-09-29T23:45:36Z",
+        "updated_at": "2026-09-29T23:55:54Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8913140b3d3c3acb448cee38000a2aba8b46b391",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646886066"
+      },
+      {
+        "id": 36646886242,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:45:36Z",
+        "updated_at": "2026-09-29T23:58:42Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8913140b3d3c3acb448cee38000a2aba8b46b391",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646886242"
+      },
+      {
+        "id": 36646886034,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:45:36Z",
+        "updated_at": "2026-09-29T23:45:41Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8913140b3d3c3acb448cee38000a2aba8b46b391",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646886034"
+      },
+      {
+        "id": 36646885967,
+        "name": "Validate MCP Registry",
+        "path": ".github/workflows/validate-mcp-registry.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:45:36Z",
+        "updated_at": "2026-09-29T23:46:28Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8913140b3d3c3acb448cee38000a2aba8b46b391",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646885967"
+      },
+      {
+        "id": 36646880588,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:45:32Z",
+        "updated_at": "2026-09-29T23:47:51Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8913140b3d3c3acb448cee38000a2aba8b46b391",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646880588"
+      },
+      {
+        "id": 36646060800,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:35:56Z",
+        "updated_at": "2026-09-29T23:36:01Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "eea38c345c64715f400c4df172880144c92956d4",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646060800"
+      },
+      {
+        "id": 36646061050,
+        "name": "Validate MCP Registry",
+        "path": ".github/workflows/validate-mcp-registry.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:35:56Z",
+        "updated_at": "2026-09-29T23:36:54Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "eea38c345c64715f400c4df172880144c92956d4",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646061050"
+      },
+      {
+        "id": 36646060914,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:35:56Z",
+        "updated_at": "2026-09-29T23:38:11Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "eea38c345c64715f400c4df172880144c92956d4",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646060914"
+      },
+      {
+        "id": 36646061155,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:35:56Z",
+        "updated_at": "2026-09-29T23:46:30Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "eea38c345c64715f400c4df172880144c92956d4",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646061155"
+      },
+      {
+        "id": 36646054686,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T23:35:51Z",
+        "updated_at": "2026-09-29T23:38:09Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "eea38c345c64715f400c4df172880144c92956d4",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36646054686"
+      },
+      {
+        "id": 36637788266,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:08:42Z",
+        "updated_at": "2026-09-29T22:21:33Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637788266"
+      },
+      {
+        "id": 36637787537,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:08:41Z",
+        "updated_at": "2026-09-29T22:08:49Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637787537"
+      },
+      {
+        "id": 36637787535,
+        "name": "Validate MCP Registry",
+        "path": ".github/workflows/validate-mcp-registry.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:08:41Z",
+        "updated_at": "2026-09-29T22:09:35Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637787535"
+      },
+      {
+        "id": 36637787551,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:08:41Z",
+        "updated_at": "2026-09-29T22:10:56Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637787551"
+      },
+      {
+        "id": 36637652846,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:07:22Z",
+        "updated_at": "2026-09-29T22:07:28Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "76db819c9af7955d742aee3abc1a9e41e8c777b9",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637652846"
+      },
+      {
+        "id": 36637647396,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:07:18Z",
+        "updated_at": "2026-09-29T22:07:26Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "fc920007a8d0f0367488e01c3a1483680708da04",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637647396"
+      },
+      {
+        "id": 36637642810,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:07:16Z",
+        "updated_at": "2026-09-29T22:07:22Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "a9dcd53b4bc3e86f850573ad2b9ae79a79880a30",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637642810"
+      },
+      {
+        "id": 36637050905,
+        "name": "Stage Verified Release Candidate",
+        "path": ".github/workflows/release-stage.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T22:01:39Z",
+        "updated_at": "2026-09-29T22:06:21Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36637050905"
+      },
+      {
+        "id": 36629950626,
+        "name": "Qualify Installed Release Candidate",
+        "path": ".github/workflows/release-qualification.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T20:57:04Z",
+        "updated_at": "2026-09-29T21:58:22Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36629950626"
+      },
+      {
+        "id": 36622317638,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:52:34Z",
+        "updated_at": "2026-09-29T20:42:43Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36622317638"
+      },
+      {
+        "id": 36619685841,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:30:09Z",
+        "updated_at": "2026-09-29T19:41:11Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "76db819c9af7955d742aee3abc1a9e41e8c777b9",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619685841"
+      },
+      {
+        "id": 36619685294,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:30:08Z",
+        "updated_at": "2026-09-29T19:30:15Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "76db819c9af7955d742aee3abc1a9e41e8c777b9",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619685294"
+      },
+      {
+        "id": 36619685323,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:30:08Z",
+        "updated_at": "2026-09-29T19:32:10Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "76db819c9af7955d742aee3abc1a9e41e8c777b9",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619685323"
+      },
+      {
+        "id": 36619485627,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:26Z",
+        "updated_at": "2026-09-29T19:41:59Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "fc920007a8d0f0367488e01c3a1483680708da04",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619485627"
+      },
+      {
+        "id": 36619484877,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:26Z",
+        "updated_at": "2026-09-29T19:28:34Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "fc920007a8d0f0367488e01c3a1483680708da04",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619484877"
+      },
+      {
+        "id": 36619484804,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:25Z",
+        "updated_at": "2026-09-29T19:30:31Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "fc920007a8d0f0367488e01c3a1483680708da04",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619484804"
+      },
+      {
+        "id": 36619470617,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:18Z",
+        "updated_at": "2026-09-29T19:41:51Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "a9dcd53b4bc3e86f850573ad2b9ae79a79880a30",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619470617"
+      },
+      {
+        "id": 36619470058,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:18Z",
+        "updated_at": "2026-09-29T19:30:15Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "a9dcd53b4bc3e86f850573ad2b9ae79a79880a30",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619470058"
+      },
+      {
+        "id": 36619470194,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T19:28:18Z",
+        "updated_at": "2026-09-29T19:28:24Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "a9dcd53b4bc3e86f850573ad2b9ae79a79880a30",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36619470194"
+      },
+      {
+        "id": 36614343127,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:45:31Z",
+        "updated_at": "2026-09-29T19:19:59Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36614343127"
+      },
+      {
+        "id": 36613152778,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:35:36Z",
+        "updated_at": "2026-09-29T18:37:52Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8753e9e41df35f2241a4e35233f0c5d2c9f00b84",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36613152778"
+      },
+      {
+        "id": 36610581927,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:13:58Z",
+        "updated_at": "2026-09-29T18:14:04Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0ef09677b76e6da2f62481c17d3b7f33f07af9f7",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36610581927"
+      },
+      {
+        "id": 36610582077,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:13:58Z",
+        "updated_at": "2026-09-29T18:15:56Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0ef09677b76e6da2f62481c17d3b7f33f07af9f7",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36610582077"
+      },
+      {
+        "id": 36610582387,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:13:58Z",
+        "updated_at": "2026-09-29T18:30:18Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0ef09677b76e6da2f62481c17d3b7f33f07af9f7",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36610582387"
+      },
+      {
+        "id": 36610332788,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T18:11:55Z",
+        "updated_at": "2026-09-29T18:14:20Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "e712c85880ed5677ed37c454350b06d9fa6f0907",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36610332788"
+      },
+      {
+        "id": 36606803660,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T17:42:09Z",
+        "updated_at": "2026-09-29T17:44:11Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "21d42a658220c8a441768b6a9519df5c76e19caa",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36606803660"
+      },
+      {
+        "id": 36598556946,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:33:15Z",
+        "updated_at": "2026-09-29T16:47:01Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0a5f791892be741e32ed48721df2cd97ff82faa5",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36598556946"
+      },
+      {
+        "id": 36598556375,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:33:14Z",
+        "updated_at": "2026-09-29T16:33:20Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0a5f791892be741e32ed48721df2cd97ff82faa5",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36598556375"
+      },
+      {
+        "id": 36598556239,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:33:14Z",
+        "updated_at": "2026-09-29T16:35:16Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0a5f791892be741e32ed48721df2cd97ff82faa5",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36598556239"
+      },
+      {
+        "id": 36598397439,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:31:56Z",
+        "updated_at": "2026-09-29T16:35:34Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0bcb116333c1aa4ecdbb75e4f53da6b4a7e15ba1",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36598397439"
+      },
+      {
+        "id": 36595903472,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:11:34Z",
+        "updated_at": "2026-09-29T16:11:42Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8a95b1614d3df63ae5c81967fc9815b9a4ce3fa2",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36595903472"
+      },
+      {
+        "id": 36595903445,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:11:34Z",
+        "updated_at": "2026-09-29T16:13:26Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8a95b1614d3df63ae5c81967fc9815b9a4ce3fa2",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36595903445"
+      },
+      {
+        "id": 36595904019,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T16:11:34Z",
+        "updated_at": "2026-09-29T16:25:21Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "8a95b1614d3df63ae5c81967fc9815b9a4ce3fa2",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36595904019"
+      },
+      {
+        "id": 36526541510,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:31:05Z",
+        "updated_at": "2026-09-29T05:31:13Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "5c6ec1ee0ccb49c3ae2a2c5cf119f057826ff59a",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36526541510"
+      },
+      {
+        "id": 36526507480,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:30:40Z",
+        "updated_at": "2026-09-29T05:30:45Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "5c6ec1ee0ccb49c3ae2a2c5cf119f057826ff59a",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36526507480"
+      },
+      {
+        "id": 36526507469,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:30:40Z",
+        "updated_at": "2026-09-29T05:32:37Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "5c6ec1ee0ccb49c3ae2a2c5cf119f057826ff59a",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36526507469"
+      },
+      {
+        "id": 36526507726,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:30:40Z",
+        "updated_at": "2026-09-29T05:44:19Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "5c6ec1ee0ccb49c3ae2a2c5cf119f057826ff59a",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36526507726"
+      },
+      {
+        "id": 36524801021,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:08:51Z",
+        "updated_at": "2026-09-29T05:22:34Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0c2674b4c7603ed441fb8ebe2d40243c35c87bf3",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36524801021"
+      },
+      {
+        "id": 36524800651,
+        "name": "Enforce Merge Source",
+        "path": ".github/workflows/enforce-merge-source.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:08:51Z",
+        "updated_at": "2026-09-29T05:08:57Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0c2674b4c7603ed441fb8ebe2d40243c35c87bf3",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36524800651"
+      },
+      {
+        "id": 36524800713,
+        "name": "CodeQL",
+        "path": ".github/workflows/codeql.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-29T05:08:51Z",
+        "updated_at": "2026-09-29T05:11:10Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "0c2674b4c7603ed441fb8ebe2d40243c35c87bf3",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36524800713"
+      }
+    ],
+    "unaudited": [
+      {
+        "id": 36648123090,
+        "name": "Release QA",
+        "path": ".github/workflows/release-qa.yml",
+        "run_attempt": 1,
+        "created_at": "2026-09-30T00:00:29Z",
+        "updated_at": "2026-09-30T00:13:52Z",
+        "conclusion": "success",
+        "status": "completed",
+        "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+        "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648123090"
+      }
+    ]
+  },
+  "successful_new_log": {
+    "run": {
+      "id": 36648123090,
+      "name": "Release QA",
+      "path": ".github/workflows/release-qa.yml",
+      "run_attempt": 1,
+      "created_at": "2026-09-30T00:00:29Z",
+      "updated_at": "2026-09-30T00:13:52Z",
+      "conclusion": "success",
+      "status": "completed",
+      "head_sha": "9d88d8df4e1995fd0a2d0738e3421776ea0403f6",
+      "html_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36648123090"
+    },
+    "started_at": "2026-09-30T01:33:39.342Z",
+    "collected_at": "2026-09-30T01:33:44.815Z",
+    "total_log_lines": 34044,
+    "release_download_lines": [],
+    "actions_artifact_lines": [
+      "Playwright Electron (ubuntu-latest) / Playwright Electron (ubuntu-latest)\tUNKNOWN STEP\t2026-09-30T00:11:18.7650938Z ##[group]Run actions/download-artifact@v4",
+      "Final Release QA Report / Final Release QA Report\tUNKNOWN STEP\t2026-09-30T00:13:45.0805856Z ##[group]Run actions/download-artifact@v4"
+    ],
+    "tag_context": [
+      "Deterministic QA / Deterministic QA\tUNKNOWN STEP\t2026-09-30T00:00:33.2026459Z   release_tag: 376/merge",
+      "Deterministic QA / Deterministic QA\tUNKNOWN STEP\t2026-09-30T00:00:33.3159626Z   RELEASE_TAG: 376/merge",
+      "Deterministic QA / Deterministic QA\tUNKNOWN STEP\t2026-09-30T00:00:33.3567894Z   RELEASE_TAG: 376/merge",
+      "Deterministic QA / Deterministic QA\tUNKNOWN STEP\t2026-09-30T00:00:40.0421841Z   RELEASE_TAG: 376/merge"
+    ]
+  },
+  "installer_downloads": [
+    {
+      "tag": "v0.1.11",
+      "release_id": 392139369,
+      "draft": false,
+      "collected_at": "2026-09-30T01:32:46.636Z",
+      "raw": 64,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 59,
+      "verified_successful_readback_run": 35455547423,
+      "assets": [
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 6,
+          "id": 575106283,
+          "name": "PuPu-0.1.11-linux-x64.AppImage",
+          "updated_at": "2026-09-19T16:40:25Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 21,
+          "id": 575106280,
+          "name": "PuPu-0.1.11-linux-x64.deb",
+          "updated_at": "2026-09-19T16:40:25Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 6,
+          "id": 575106284,
+          "name": "PuPu-0.1.11-macos-arm64.dmg",
+          "updated_at": "2026-09-19T16:40:23Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:10Z",
+          "download_count": 8,
+          "id": 575106479,
+          "name": "PuPu-0.1.11-macos-x64.dmg",
+          "updated_at": "2026-09-19T16:40:23Z"
+        },
+        {
+          "created_at": "2026-09-19T16:40:23Z",
+          "download_count": 23,
+          "id": 575106762,
+          "name": "PuPu-0.1.11-windows-x64-setup.exe",
+          "updated_at": "2026-09-19T16:40:33Z"
+        }
+      ],
+      "delta_since_initial_measurement": 9,
+      "adjusted_delta_since_september_22": 33
+    },
+    {
+      "tag": "v0.1.12",
+      "release_id": 399562397,
+      "draft": true,
+      "collected_at": "2026-09-30T01:32:46.704Z",
+      "raw": 5,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 0,
+      "verified_successful_readback_run": 36637050905,
+      "assets": [
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335070,
+          "name": "PuPu-0.1.12-linux-x64.AppImage",
+          "updated_at": "2026-09-29T22:05:37Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335077,
+          "name": "PuPu-0.1.12-linux-x64.deb",
+          "updated_at": "2026-09-29T22:05:34Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:10Z",
+          "download_count": 1,
+          "id": 599335065,
+          "name": "PuPu-0.1.12-macos-arm64.dmg",
+          "updated_at": "2026-09-29T22:05:35Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:11Z",
+          "download_count": 1,
+          "id": 599335103,
+          "name": "PuPu-0.1.12-macos-x64.dmg",
+          "updated_at": "2026-09-29T22:05:25Z"
+        },
+        {
+          "created_at": "2026-09-29T22:05:34Z",
+          "download_count": 1,
+          "id": 599335938,
+          "name": "PuPu-0.1.12-windows-x64-setup.exe",
+          "updated_at": "2026-09-29T22:05:49Z"
+        }
+      ],
+      "delta_since_initial_measurement": 0,
+      "adjusted_delta_since_september_22": null
+    },
+    {
+      "tag": "v0.1.10",
+      "release_id": 385162846,
+      "draft": false,
+      "collected_at": "2026-09-30T01:32:46.739Z",
+      "raw": 42,
+      "pipeline_deduction": 5,
+      "adjusted_estimate": 37,
+      "verified_successful_readback_run": 34298581702,
+      "assets": [
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 7,
+          "id": 551714229,
+          "name": "PuPu-0.1.10-linux-x64.AppImage",
+          "updated_at": "2026-09-09T01:22:41Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 16,
+          "id": 551714226,
+          "name": "PuPu-0.1.10-linux-x64.deb",
+          "updated_at": "2026-09-09T01:22:35Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 2,
+          "id": 551714228,
+          "name": "PuPu-0.1.10-macos-arm64.dmg",
+          "updated_at": "2026-09-09T01:22:49Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:14Z",
+          "download_count": 3,
+          "id": 551714250,
+          "name": "PuPu-0.1.10-macos-x64.dmg",
+          "updated_at": "2026-09-09T01:22:37Z"
+        },
+        {
+          "created_at": "2026-09-09T01:22:38Z",
+          "download_count": 14,
+          "id": 551714913,
+          "name": "PuPu-0.1.10-windows-x64-setup.exe",
+          "updated_at": "2026-09-09T01:22:52Z"
+        }
+      ],
+      "delta_since_initial_measurement": 0,
+      "adjusted_delta_since_september_22": 0
+    }
+  ]
+}
