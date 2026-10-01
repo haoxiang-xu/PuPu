@@ -33,8 +33,9 @@ on:
       unchain_ref:
         description: "Unchain source ref selected once for the immutable release artifact (release-candidate requires a full 40-character revision)"
         type: string
-        # Bounded context paging and read recovery, including prior provider repairs.
-        default: 83a0964505f5c453e11d198c3923c5d1e5a99ff3
+        # Gemini 5xx retry, closed provider failure wording and retry waits (Unchain PR #46),
+        # including bounded context paging and prior provider repairs.
+        default: 1ec49ddfc28d3b42ba035debada5e3db759dad1b
 
 permissions:
   contents: read
@@ -49,7 +50,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '83a0964505f5c453e11d198c3923c5d1e5a99ff3' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '1ec49ddfc28d3b42ba035debada5e3db759dad1b' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -123,7 +124,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '83a0964505f5c453e11d198c3923c5d1e5a99ff3' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '1ec49ddfc28d3b42ba035debada5e3db759dad1b' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -144,7 +145,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '83a0964505f5c453e11d198c3923c5d1e5a99ff3' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '1ec49ddfc28d3b42ba035debada5e3db759dad1b' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -165,7 +166,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '83a0964505f5c453e11d198c3923c5d1e5a99ff3' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '1ec49ddfc28d3b42ba035debada5e3db759dad1b' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
