@@ -655,6 +655,66 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("a provider retry wait is kept on the stored assistant message (#386)", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(commandHandlers.has("sendMessage")).toBe(true));
+    const reply = commandHandlers.get("sendMessage")({ id: chatId, text: "hello" });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    const run = runs[0];
+    const runId = `run-${run.attemptId}`;
+    const stepId = `model:${runId}:turn-1:response`;
+    const base = {
+      schema_version: "v4", timestamp: new Date().toISOString(),
+      session_id: chatId, run_id: runId, agent_id: "developer",
+      turn_id: `${runId}:turn-1`, links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user", metadata: {},
+    };
+    act(() => {
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-start", seq: 1, type: "run.started",
+        payload: { status: "running" },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-wait", seq: 2, type: "step.delta",
+        links: { step_id: stepId },
+        payload: {
+          step_id: stepId, step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+          delay_ms: 1000, remaining_ms: 1000, http_status: 503,
+          provider_status: "UNAVAILABLE",
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-final", seq: 3, type: "step.completed",
+        links: { step_id: stepId },
+        payload: {
+          step_id: stepId, step_type: "model_response", status: "completed",
+          final_text: "answer after a retry",
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-done", seq: 4, type: "run.completed",
+        payload: { status: "completed" },
+      });
+      run.handlers.onDone({ finished_at: Date.now() });
+    });
+    await expect(reply).resolves.toMatchObject({ content: "answer after a retry" });
+    await waitFor(() => {
+      const assistant = getChatsStore().chatsById[chatId].messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect((assistant.traceFrames || []).map((frame) => frame.type)).toContain(
+        "provider_retry",
+      );
+    });
+  });
+
   test("Test API run and blocking reply expose the same V4 tool evidence", async () => {
     const commandHandlers = installTestCommandBridge();
     const runs = installAddressedV4Runs();
