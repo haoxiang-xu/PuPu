@@ -1,15 +1,15 @@
 # Ticket 382 — Context content pagination implementation handoff
 
-Ticket: https://github.com/haoxiang-xu/PuPu/issues/382  
-Release: #216 / v0.1.12  
+Ticket: https://github.com/haoxiang-xu/PuPu/issues/382
+Release: #216 / v0.1.12
 Status: Manual live acceptance FAILED — reader argument recovery repairs required; rollout INCOMPLETE
 
-PuPu workspace: `/Users/red/Desktop/GITRepo/pupu-382`  
-Branch: `codex/ticket-382-tool-content-read`  
+PuPu workspace: `/Users/red/Desktop/GITRepo/pupu-382`
+Branch: `codex/ticket-382-tool-content-read`
 Base: `dev @ 202a8cdf69de40d0481aea17454bd598f32efa11`
 
-Unchain workspace: `/Users/red/Desktop/GITRepo/unchain-382`  
-Branch: `codex/ticket-382-tool-content-read`  
+Unchain workspace: `/Users/red/Desktop/GITRepo/unchain-382`
+Branch: `codex/ticket-382-tool-content-read`
 Base: `dev @ 663d051291a7e6f1681d332206141291d2be9597`
 
 ## Goal
