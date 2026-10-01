@@ -34,6 +34,21 @@ const runtimeManifest = ({
   };
 };
 
+test("paging without read-recovery is rejected before release admission", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "context_content_read_recovery_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.context_content_read_recovery_v1/,
+  );
+});
+
 test("one immutable wheel records artifact, protocol, and source provenance", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-unchain-artifact-"));
   const artifactPath = path.join(root, "unchain-1.2.3-py3-none-any.whl");
@@ -257,6 +272,12 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
     true,
   );
   assert.equal(
+    REQUIRED_RUNTIME_PROTOCOLS.context_memory.includes(
+      "context_content_paging_v1",
+    ),
+    true,
+  );
+  assert.equal(
     REQUIRED_RUNTIME_PROTOCOLS.durable_interaction.includes(
       "graph_interaction_lineage_preflight_v1",
     ),
@@ -289,6 +310,17 @@ test("release evidence requires the cold-reconcile and exact-cancel protocol fea
       },
     })),
     /context_memory\.interaction_resolution_compat/,
+  );
+  assert.throws(
+    () => validateRuntimeManifestForRelease(runtimeManifest({
+      protocolFeatures: {
+        ...REQUIRED_RUNTIME_PROTOCOLS,
+        context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+          (feature) => feature !== "context_content_paging_v1",
+        ),
+      },
+    })),
+    /context_memory\.context_content_paging_v1/,
   );
   assert.throws(
     () => validateRuntimeManifestForRelease(runtimeManifest({

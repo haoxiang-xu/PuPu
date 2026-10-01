@@ -22,6 +22,8 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "canonical_journal",
       "chat_deletion_sqlite_scope_closure",
       "context_compiler",
+      "context_content_paging_v1",
+      "context_content_read_recovery_v1",
       "generation_rebase_live_interaction_cycles",
       "interaction_resolution_compat",
       "long_term_promotion",
@@ -443,6 +445,8 @@ describe("Memory V2 runtime protocol admission", () => {
 
   test.each([
     ["chat_deletion_sqlite_scope_closure", "context_memory"],
+    ["context_content_paging_v1", "context_memory"],
+    ["context_content_read_recovery_v1", "context_memory"],
     ["generation_rebase_live_interaction_cycles", "context_memory"],
     ["interaction_resolution_compat", "context_memory"],
     ["tool_output_management_v1", "context_memory"],

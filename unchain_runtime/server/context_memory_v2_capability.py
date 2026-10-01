@@ -44,6 +44,8 @@ _REQUIRED_PROTOCOLS = (
                 "artifact_handoff",
                 "canonical_journal",
                 "chat_deletion_sqlite_scope_closure",
+                "context_content_paging_v1",
+                "context_content_read_recovery_v1",
                 "context_compiler",
                 "generation_rebase_live_interaction_cycles",
                 "interaction_resolution_compat",
