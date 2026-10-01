@@ -16,6 +16,7 @@ from unchain.agent import AgentBuilder, AgentCallContext, AgentSpec, AgentState
 from unchain.agent.model_io import ModelIOFactoryRegistry
 from unchain.agent.modules import ContextModule, ContextShadowModule
 from unchain.memory import (
+    InMemorySessionStore,
     MEMORY_EXECUTION_COMPLETE,
     MEMORY_V2_CAPABILITIES,
     MEMORY_V2_MODULE_KEY,
@@ -26,12 +27,18 @@ from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
 )
 from unchain.context import (
+    ContextCompileRequest,
+    ContextCompiler,
     ContextExecutionBundle,
     ContextRuntime,
+    DurableToolCompletionEnvelope,
+    DurableToolExecutionSubject,
     DurableContextRuntimeFactory,
     HostResolvedCurrentInput,
     SemanticEventProjectionMode,
+    resolve_context_budget,
 )
+from unchain.context_content import encode_context_content_locator
 from unchain.context.projector import CanonicalSemanticEventProjector
 from unchain.context.request_factory import JournalContextRequestFactory
 from unchain.context.tool_boundary import DurableToolBoundary
@@ -41,15 +48,19 @@ from unchain.journal import (
     EventRange,
     GenerationRef,
     ResourceRef,
+    journal_event_to_semantic_event,
 )
 from unchain.journal.runtime import build_operation_ref
+from unchain.execution import ExecutionFence, ExecutionRuntime
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
 from unchain.kernel.types import KernelRunResult
 from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
+from unchain.memory.toolkit.models import MemoryToolkitError
 from unchain.memory.curator.host import MemoryAgentWorkerDisposition
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents.types import SubagentResult
+from unchain.providers import OpenAIModelIO
 from unchain.tools.tool import Tool
 from unchain.tools.toolkit import Toolkit
 from unchain.tools.runtime import ToolRuntimeOutcome
@@ -76,6 +87,18 @@ def _identity_artifact(content: bytes, media_type: str) -> bytes:
 def _identity_payload(event_type: str, payload: dict) -> dict:
     del event_type
     return payload
+
+
+def _canonical_digest(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _memory_grant(*, completion_authority: bool) -> ModuleGrant:
@@ -162,6 +185,164 @@ class _NeverRunModelIO:
         raise AssertionError("agent preparation must not invoke the provider")
 
 
+class _OpenAIResponseStream:
+    def __init__(self, response) -> None:
+        self._response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def __iter__(self):
+        yield SimpleNamespace(type="response.completed", response=self._response)
+
+
+def _large_search_then_final_model_io(provider_requests: list[dict]):
+    outputs_by_turn = [
+        [
+            {
+                "type": "function_call",
+                "call_id": "ticket-382-provider-call",
+                "name": "large_search",
+                "arguments": "{}",
+            }
+        ],
+        [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "done"}],
+            }
+        ],
+    ]
+
+    class _Responses:
+        def create(self, **kwargs):
+            provider_requests.append(json.loads(json.dumps(kwargs)))
+            response = SimpleNamespace(
+                id=f"ticket-382-response-{len(provider_requests)}",
+                output=outputs_by_turn.pop(0),
+                usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+            )
+            return _OpenAIResponseStream(response)
+
+    responses = _Responses()
+
+    class _Client:
+        def __init__(self, **_kwargs) -> None:
+            self.responses = responses
+
+    return OpenAIModelIO(
+        model="gpt-test",
+        api_key="test-key",
+        client_factory=lambda **_kwargs: _Client(),
+        default_payloads={},
+        model_capabilities={},
+    )
+
+
+def _context_read_failure_then_final_model_io(
+    provider_requests: list[dict],
+    *,
+    ref: str,
+):
+    """Make the next provider turn prove a rejected read stays recoverable."""
+    outputs_by_turn = [
+        [
+            {
+                "type": "function_call",
+                "call_id": "ticket-382-invalid-read",
+                "name": "context_content_read",
+                "arguments": json.dumps({"ref": ref}),
+            }
+        ],
+        [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "recovered"}],
+            }
+        ],
+    ]
+
+    class _Responses:
+        def create(self, **kwargs):
+            provider_requests.append(json.loads(json.dumps(kwargs)))
+            response = SimpleNamespace(
+                id=f"ticket-382-invalid-read-{len(provider_requests)}",
+                output=outputs_by_turn.pop(0),
+                usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+            )
+            return _OpenAIResponseStream(response)
+
+    responses = _Responses()
+
+    class _Client:
+        def __init__(self, **_kwargs) -> None:
+            self.responses = responses
+
+    return OpenAIModelIO(
+        model="gpt-test",
+        api_key="test-key",
+        client_factory=lambda **_kwargs: _Client(),
+        default_payloads={},
+        model_capabilities={},
+    )
+
+
+def _repeated_context_read_failure_then_final_model_io(
+    provider_requests: list[dict],
+    *,
+    ref: str,
+):
+    """Expose the official reader's third identical failure to the next turn."""
+    outputs_by_turn = [
+        [
+            {
+                "type": "function_call",
+                "call_id": f"ticket-382-repeat-read-{index}",
+                "name": "context_content_read",
+                "arguments": json.dumps({"ref": ref}),
+            }
+        ]
+        for index in range(1, 4)
+    ] + [
+        [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "stopped"}],
+            }
+        ]
+    ]
+
+    class _Responses:
+        def create(self, **kwargs):
+            provider_requests.append(json.loads(json.dumps(kwargs)))
+            response = SimpleNamespace(
+                id=f"ticket-382-repeat-read-{len(provider_requests)}",
+                output=outputs_by_turn.pop(0),
+                usage={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+            )
+            return _OpenAIResponseStream(response)
+
+    responses = _Responses()
+
+    class _Client:
+        def __init__(self, **_kwargs) -> None:
+            self.responses = responses
+
+    return OpenAIModelIO(
+        model="gpt-test",
+        api_key="test-key",
+        client_factory=lambda **_kwargs: _Client(),
+        default_payloads={},
+        model_capabilities={},
+    )
+
+
 def _context(
     *,
     execution_id: str,
@@ -194,14 +375,16 @@ def _factory(
     production_enabled: bool = False,
     memory_agent_enabled: bool = False,
     memory_agent_model_invoker=None,
+    generation_resolver=None,
+    current_input_resolver=None,
 ) -> PupuUnchainContextMemoryV2HostFactory:
     return PupuUnchainContextMemoryV2HostFactory(
         owner_chat_id=owner_chat_id,
         root_run_id=root_run_id,
         database_path=root / "context_v2.sqlite3",
         object_directory=root / "objects",
-        generation_resolver=_generation,
-        current_input_resolver=_current_input,
+        generation_resolver=generation_resolver or _generation,
+        current_input_resolver=current_input_resolver or _current_input,
         artifact_sanitizer=artifact_sanitizer,
         event_payload_sanitizer=_identity_payload,
         model_window_fallback=lambda provider, model: 16_384,
@@ -761,6 +944,737 @@ def test_full_tool_payload_is_durable_before_host_notification(tmp_path: Path) -
 
     assert observed
     assert visible["full_output_ref"]["kind"] == "artifact"
+
+
+def test_raw_durable_tool_output_ref_does_not_grant_reader_access(
+    tmp_path: Path,
+) -> None:
+    """A durable raw ref remains non-authorizing outside its model projection."""
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    host.context_module.runtime.bind_context(
+        _context(
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+        )
+    )
+    attempt = host.attempt(execution_id="execution-a", attempt_id="attempt-a")
+    visible = attempt.persist_tool_outcome_then_notify(
+        ToolRuntimeOutcome(tool_result={"sentinel": "x" * 20_000}),
+        operation_id="ticket-382-large-tool-output",
+        notify=lambda artifactization: artifactization.visible_result,
+    )
+
+    builder = AgentBuilder(
+        agent=SimpleNamespace(name="normal-agent"),
+        spec=AgentSpec(
+            name="normal-agent",
+            provider="openai",
+            model="gpt-test",
+        ),
+        state=AgentState(),
+        call_context=AgentCallContext(
+            mode="run",
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="root-run-a",
+            ),
+        ),
+        model_io_registry=ModelIOFactoryRegistry(),
+    )
+    builder.set_model_io(_NeverRunModelIO())
+    for module in host.modules_for_active():
+        module.configure(builder)
+    prepared = builder.build()
+
+    assert visible["full_output_ref"]["kind"] == "artifact"
+    with pytest.raises(MemoryToolkitError, match="ref must be text"):
+        prepared.toolkit.tools["context_content_read"].func(
+            ref=visible["full_output_ref"],
+            offset=0,
+            limit=1024,
+        )
+
+
+def _persist_large_prepared_tool_result_via_active_runtime(
+    host,
+    context,
+    *,
+    output_policy="default",
+    tool_result=None,
+):
+    """Exercise the durable envelope, output manager, and compiler input path."""
+    tool_result = tool_result or {
+        "sentinel": "ticket-382-sentinel-" + ("x" * 20_000)
+    }
+    context.event["toolkit"] = Toolkit(
+        {
+            "large_search": Tool(
+                name="large_search",
+                description="search",
+                func=lambda: tool_result,
+                output_policy=output_policy,
+            ),
+            "context_content_read": Tool(
+                name="context_content_read",
+                description="read disclosed context content",
+                func=lambda **_arguments: (_ for _ in ()).throw(
+                    AssertionError("the prepared official reader must serve the page")
+                ),
+                output_policy="context_page",
+            ),
+        }
+    )
+    runtime = host.context_module.runtime
+    runtime.bind_context(context)
+    runtime.bind_execution_toolkit(context)
+    attempt = host.attempt(execution_id="execution-a", attempt_id="attempt-a")
+    boundary = attempt.bundle.tool_boundary
+    intent = boundary.sink(
+        {
+            "type": "tool_call",
+            "run_id": "attempt-a",
+            "iteration": 0,
+            "tool_name": "large_search",
+            "call_id": "ticket-382-call",
+            "arguments": {},
+        }
+    )
+    subject = DurableToolExecutionSubject(
+        intent_cursor=intent.cursor,
+        original_arguments_sha256=_canonical_digest({}),
+        effective_arguments_sha256=_canonical_digest({}),
+        approval_state="not_required",
+        approval_request_sha256="",
+        approval_receipt_sha256="",
+        route_kind="normal",
+        route_manifest_sha256="1" * 64,
+        terminal_handler_manifest_sha256="2" * 64,
+        execution_fence=ExecutionFence("execution-a", "ticket-382", 1),
+    )
+    authorization = boundary.authorize_execution(
+        tool_name="large_search",
+        call_id="ticket-382-call",
+        iteration=0,
+        subject=subject,
+    )
+    artifactization = attempt.bundle.artifacts.artifactize_tool_result(
+        tool_result,
+        operation_id="ticket-382-prepared-result",
+    )
+    completion = DurableToolCompletionEnvelope(
+        attempt=attempt.bundle.attempt,
+        tool_name="large_search",
+        call_id="ticket-382-call",
+        iteration=0,
+        execution_subject=subject,
+        execution_subject_sha256=subject.sha256,
+        result_artifact=artifactization.artifact,
+        visible_result=artifactization.visible_result,
+        should_observe=False,
+    )
+    completion_artifactization = attempt.bundle.artifacts.artifactize_tool_completion(
+        completion.to_dict(),
+        operation_id="ticket-382-prepared-completion",
+    )
+    receipt = boundary.persist_prepared_result(
+        authorization,
+        artifactization=artifactization,
+        completion_artifactization=completion_artifactization,
+        tool_result_policy=output_policy,
+    )
+    events = tuple(
+        journal_event_to_semantic_event(event)
+        for event in attempt.bundle.journal.capture_snapshot().events
+    )
+    return attempt, receipt, events
+
+
+def _prepared_context_reader(host):
+    builder = AgentBuilder(
+        agent=SimpleNamespace(name="normal-agent"),
+        spec=AgentSpec(name="normal-agent", provider="openai", model="gpt-test"),
+        state=AgentState(),
+        call_context=AgentCallContext(
+            mode="run",
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="root-run-a",
+            ),
+        ),
+        model_io_registry=ModelIOFactoryRegistry(),
+    )
+    builder.set_model_io(_NeverRunModelIO())
+    for module in host.modules_for_active():
+        module.configure(builder)
+    return builder.build().toolkit.tools["context_content_read"].func
+
+
+@pytest.mark.parametrize("output_policy", ("default", "head_tail", "artifact_only"))
+def test_large_durable_result_reaches_native_model_view_with_a_readable_locator(
+    tmp_path: Path,
+    output_policy: str,
+) -> None:
+    """The ref emitted in the second provider request must be directly readable."""
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+        generation_resolver=lambda _context, _execution_id: "generation-a",
+        current_input_resolver=lambda _context, attempt: HostResolvedCurrentInput(
+            attempt=attempt,
+            content="search",
+        ),
+    )
+    provider_requests: list[dict] = []
+    model_io = _large_search_then_final_model_io(provider_requests)
+    toolkit = Toolkit(
+        {
+            "large_search": Tool(
+                name="large_search",
+                description="search",
+                func=lambda: {
+                    "sentinel": "ticket-382-native-sentinel-" + ("x" * 20_000)
+                },
+                output_policy=output_policy,
+            )
+        }
+    )
+    builder = AgentBuilder(
+        agent=SimpleNamespace(name="normal-agent"),
+        spec=AgentSpec(name="normal-agent", provider="openai", model="gpt-test"),
+        state=AgentState(),
+        call_context=AgentCallContext(
+            mode="run",
+            input_messages=[{"role": "user", "content": "search"}],
+            session_id="execution-a",
+            run_id="attempt-a",
+            max_iterations=2,
+            max_context_window_tokens=16_384,
+            execution_guard=ExecutionRuntime(InMemorySessionStore()).acquire(
+                "execution-a"
+            ),
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="attempt-a",
+            ),
+        ),
+        model_io_registry=ModelIOFactoryRegistry(),
+        toolkit=toolkit,
+    )
+    builder.set_model_io(model_io)
+    for module in host.modules_for_active():
+        module.configure(builder)
+    prepared = builder.build()
+    result = prepared.run()
+
+    assert result.status == "completed"
+    assert len(provider_requests) == 2
+
+    def find_full_output_ref(value):
+        if isinstance(value, dict):
+            if "full_output_ref" in value:
+                return value["full_output_ref"]
+            for nested in value.values():
+                found = find_full_output_ref(nested)
+                if found is not None:
+                    return found
+        if isinstance(value, list):
+            for nested in value:
+                found = find_full_output_ref(nested)
+                if found is not None:
+                    return found
+        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+            try:
+                return find_full_output_ref(json.loads(value))
+            except json.JSONDecodeError:
+                return None
+        return None
+
+    ref = find_full_output_ref(provider_requests[1])
+    assert ref is not None
+    assert isinstance(ref, str)
+    page = prepared.toolkit.tools["context_content_read"].func(
+        ref=ref,
+        offset=0,
+        limit=1024,
+    )
+    assert "ticket-382-native-sentinel" in page["content"]["text"]
+
+
+@pytest.mark.parametrize("output_policy", ("default", "head_tail", "artifact_only"))
+def test_large_durable_result_reaches_neutral_model_view_with_a_readable_locator(
+    tmp_path: Path,
+    output_policy: str,
+) -> None:
+    """#382: each fresh neutral policy must expose an exact readable request."""
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    context = _context(
+        execution_id="execution-a",
+        generation_id="generation-a",
+        attempt_id="attempt-a",
+    )
+    attempt, receipt, events = _persist_large_prepared_tool_result_via_active_runtime(
+        host,
+        context,
+        output_policy=output_policy,
+    )
+    events_before_compile = json.dumps(events, sort_keys=True)
+    result_event = next(event for event in events if event["type"] == "tool_result")
+    compiled = ContextCompiler().compile(
+        ContextCompileRequest(
+            case="ticket-382",
+            source_messages=({"role": "user", "content": "search"},),
+            current_generation="generation-a",
+            semantic_events=events,
+            pending_task_inputs=(
+                {
+                    "event_id": result_event["event_id"],
+                    "store_seq": result_event["store_seq"],
+                    "type": "tool_result",
+                    "preview": "large durable result",
+                    "preview_truncated": True,
+                    "content_ref": result_event["full_output_ref"],
+                    "content_bytes": result_event["result_bytes"],
+                    "content_sha256": result_event["result_sha256"],
+                },
+            ),
+            budget=resolve_context_budget(context_window_tokens=16_384),
+            provider="openai",
+            model="gpt-test",
+            build_id="ticket-382-build",
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+        )
+    )
+
+    history_message = next(
+        message["content"]
+        for message in compiled.to_dict()["messages"]
+        if "MEMORY_V2_UNTRUSTED_HISTORY" in str(message.get("content") or "")
+    )
+    history = json.loads(history_message.split("\n", 2)[2])
+    exchange = history["tool_exchanges"][0]
+    ref = exchange["full_output_ref"]
+    assert isinstance(ref, str)
+    read_request = exchange["result"]["read_request"]
+    expected_projection = {
+        "default": "paged",
+        "head_tail": "head_tail",
+        "artifact_only": "artifact_only",
+    }[output_policy]
+    assert exchange["result"]["projection"] == expected_projection
+    assert read_request == {
+        "tool": "context_content_read",
+        "arguments": {"ref": ref, "offset": 0, "limit": 8192},
+    }
+    page = _prepared_context_reader(host)(**read_request["arguments"])
+    assert "ticket-382-sentinel" in page["content"]["text"]
+    assert result_event["full_output_ref"]["kind"] == "artifact"
+    assert json.dumps(events, sort_keys=True) == events_before_compile
+    assert attempt.bundle.tool_output_manager.active is True
+
+
+def test_default_output_between_source_and_presentation_limits_keeps_read_request(
+    tmp_path: Path,
+) -> None:
+    """#382: bounded neutral fallback keeps its initial durable read operation."""
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    context = _context(
+        execution_id="execution-a",
+        generation_id="generation-a",
+        attempt_id="attempt-a",
+    )
+    source = {"sentinel": "ticket-382-boundary-" + ("x" * 13_000)}
+    attempt, receipt, events = _persist_large_prepared_tool_result_via_active_runtime(
+        host,
+        context,
+        tool_result=source,
+    )
+    result_event = next(event for event in events if event["type"] == "tool_result")
+    compiled = ContextCompiler().compile(
+        ContextCompileRequest(
+            case="ticket-382-boundary",
+            source_messages=({"role": "user", "content": "search"},),
+            current_generation="generation-a",
+            semantic_events=events,
+            pending_task_inputs=(
+                {
+                    "event_id": result_event["event_id"],
+                    "store_seq": result_event["store_seq"],
+                    "type": "tool_result",
+                    "preview": "large durable result",
+                    "preview_truncated": True,
+                    "content_ref": result_event["full_output_ref"],
+                    "content_bytes": result_event["result_bytes"],
+                    "content_sha256": result_event["result_sha256"],
+                },
+            ),
+            budget=resolve_context_budget(context_window_tokens=16_384),
+            provider="openai",
+            model="gpt-test",
+            build_id="ticket-382-build",
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+        )
+    )
+
+    history_message = next(
+        message["content"]
+        for message in compiled.to_dict()["messages"]
+        if "MEMORY_V2_UNTRUSTED_HISTORY" in str(message.get("content") or "")
+    )
+    exchange = json.loads(history_message.split("\n", 2)[2])["tool_exchanges"][0]
+    ref = exchange["full_output_ref"]
+    assert exchange["result"]["projection"] == "default"
+    assert exchange["result"]["inline"] is False
+    assert exchange["result"]["truncated"] is True
+    assert exchange["result"]["read_request"] == {
+        "tool": "context_content_read",
+        "arguments": {"ref": ref, "offset": 0, "limit": 8192},
+    }
+    page = _prepared_context_reader(host)(**exchange["result"]["read_request"]["arguments"])
+    serialized_source = json.dumps(
+        source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    assert page["content"]["text"] == serialized_source[: page["page_bytes"]]
+    assert page["total_bytes"] == len(serialized_source.encode("utf-8"))
+    assert page["eof"] is False
+    assert page["next_read"]["arguments"]["offset"] == page["page_bytes"]
+    assert ref == encode_context_content_locator(receipt.artifact.ref)
+
+
+@pytest.mark.parametrize(
+    "ref",
+    (
+        "bare-id",
+        encode_context_content_locator(
+            ResourceRef("artifact", "ticket-382-undisclosed", 1)
+        ),
+    ),
+)
+def test_context_content_read_failure_reaches_the_next_provider_request(
+    tmp_path: Path,
+    ref: str,
+) -> None:
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+        generation_resolver=lambda _context, _execution_id: "generation-a",
+        current_input_resolver=lambda _context, attempt: HostResolvedCurrentInput(
+            attempt=attempt,
+            content="read",
+        ),
+    )
+    provider_requests: list[dict] = []
+    builder = AgentBuilder(
+        agent=SimpleNamespace(name="normal-agent"),
+        spec=AgentSpec(name="normal-agent", provider="openai", model="gpt-test"),
+        state=AgentState(),
+        call_context=AgentCallContext(
+            mode="run",
+            input_messages=[{"role": "user", "content": "read"}],
+            session_id="execution-a",
+            run_id="attempt-a",
+            max_iterations=2,
+            max_context_window_tokens=16_384,
+            execution_guard=ExecutionRuntime(InMemorySessionStore()).acquire(
+                "execution-a"
+            ),
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="attempt-a",
+            ),
+        ),
+        model_io_registry=ModelIOFactoryRegistry(),
+    )
+    builder.set_model_io(_context_read_failure_then_final_model_io(provider_requests, ref=ref))
+    for module in host.modules_for_active():
+        module.configure(builder)
+    result = builder.build().run()
+
+    assert result.status == "completed"
+    assert len(provider_requests) == 2
+    response_output = next(
+        item["output"]
+        for item in provider_requests[1]["input"]
+        if item.get("type") == "function_call_output"
+    )
+    assert json.loads(response_output) == {
+        "schema_version": "unchain.context_content_error.v1",
+        "trust": "UNTRUSTED_DATA",
+        "code": "CONTEXT_CONTENT_READ_FAILED",
+    }
+
+
+def test_context_content_read_no_progress_reaches_the_next_provider_request(
+    tmp_path: Path,
+) -> None:
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+        generation_resolver=lambda _context, _execution_id: "generation-a",
+        current_input_resolver=lambda _context, attempt: HostResolvedCurrentInput(
+            attempt=attempt,
+            content="read",
+        ),
+    )
+    provider_requests: list[dict] = []
+    builder = AgentBuilder(
+        agent=SimpleNamespace(name="normal-agent"),
+        spec=AgentSpec(name="normal-agent", provider="openai", model="gpt-test"),
+        state=AgentState(),
+        call_context=AgentCallContext(
+            mode="run",
+            input_messages=[{"role": "user", "content": "read"}],
+            session_id="execution-a",
+            run_id="attempt-a",
+            max_iterations=4,
+            max_context_window_tokens=16_384,
+            execution_guard=ExecutionRuntime(InMemorySessionStore()).acquire(
+                "execution-a"
+            ),
+            runtime_context=_runtime_context(
+                execution_id="execution-a",
+                attempt_id="attempt-a",
+                run_id="attempt-a",
+            ),
+        ),
+        model_io_registry=ModelIOFactoryRegistry(),
+    )
+    builder.set_model_io(
+        _repeated_context_read_failure_then_final_model_io(
+            provider_requests,
+            ref=encode_context_content_locator(
+                ResourceRef("artifact", "ticket-382-undisclosed", 1)
+            ),
+        )
+    )
+    for module in host.modules_for_active():
+        module.configure(builder)
+
+    result = builder.build().run()
+
+    assert result.status == "completed"
+    assert len(provider_requests) == 4
+    response_output = next(
+        item["output"]
+        for item in provider_requests[3]["input"]
+        if item.get("type") == "function_call_output"
+    )
+    assert json.loads(response_output) == {
+        "schema_version": "unchain.context_content_error.v1",
+        "trust": "UNTRUSTED_DATA",
+        "code": "CONTEXT_READ_NO_PROGRESS",
+    }
+
+
+def test_large_context_read_page_survives_next_compiled_model_request(
+    tmp_path: Path,
+) -> None:
+    """#382 baseline: a successful read must not become another retrieval hop."""
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    context = _context(
+        execution_id="execution-a",
+        generation_id="generation-a",
+        attempt_id="attempt-a",
+    )
+    attempt, receipt, _events = _persist_large_prepared_tool_result_via_active_runtime(
+        host,
+        context,
+    )
+    page = _prepared_context_reader(host)(
+        ref=host.reference_codec.encode(receipt.artifact.ref),
+        offset=0,
+        limit=8 * 1024,
+    )
+    assert "ticket-382-sentinel" in page["content"]["text"]
+
+    boundary = attempt.bundle.tool_boundary
+    intent = boundary.sink(
+        {
+            "type": "tool_call",
+            "run_id": "attempt-a",
+            "iteration": 1,
+            "tool_name": "context_content_read",
+            "call_id": "ticket-382-read-call",
+            "arguments": {
+                "ref": page["ref"],
+                "offset": 0,
+                "limit": 8 * 1024,
+            },
+        }
+    )
+    subject = DurableToolExecutionSubject(
+        intent_cursor=intent.cursor,
+        original_arguments_sha256=_canonical_digest(
+            {"ref": page["ref"], "offset": 0, "limit": 8 * 1024}
+        ),
+        effective_arguments_sha256=_canonical_digest(
+            {"ref": page["ref"], "offset": 0, "limit": 8 * 1024}
+        ),
+        approval_state="not_required",
+        approval_request_sha256="",
+        approval_receipt_sha256="",
+        route_kind="normal",
+        route_manifest_sha256="3" * 64,
+        terminal_handler_manifest_sha256="4" * 64,
+        execution_fence=ExecutionFence("execution-a", "ticket-382-read", 1),
+    )
+    authorization = boundary.authorize_execution(
+        tool_name="context_content_read",
+        call_id="ticket-382-read-call",
+        iteration=1,
+        subject=subject,
+    )
+    artifactization = attempt.bundle.artifacts.artifactize_tool_result(
+        page,
+        operation_id="ticket-382-read-page-result",
+    )
+    completion = DurableToolCompletionEnvelope(
+        attempt=attempt.bundle.attempt,
+        tool_name="context_content_read",
+        call_id="ticket-382-read-call",
+        iteration=1,
+        execution_subject=subject,
+        execution_subject_sha256=subject.sha256,
+        result_artifact=artifactization.artifact,
+        visible_result=artifactization.visible_result,
+        should_observe=False,
+    )
+    completion_artifactization = attempt.bundle.artifacts.artifactize_tool_completion(
+        completion.to_dict(),
+        operation_id="ticket-382-read-page-completion",
+    )
+    read_receipt = boundary.persist_prepared_result(
+        authorization,
+        artifactization=artifactization,
+        completion_artifactization=completion_artifactization,
+        tool_result_policy="context_page",
+    )
+    model_view = host.context_module.runtime.project_tool_result_for_model(
+        context,
+        read_receipt,
+    )
+    assert model_view == page
+    assert "ticket-382-sentinel" in model_view["content"]["text"]
+    assert "full_output_ref" not in model_view
+
+    events = tuple(
+        journal_event_to_semantic_event(event)
+        for event in attempt.bundle.journal.capture_snapshot().events
+    )
+    read_event = next(
+        event
+        for event in events
+        if event["type"] == "tool_result"
+        and event["call_id"] == "ticket-382-read-call"
+    )
+    compiled = ContextCompiler().compile(
+        ContextCompileRequest(
+            case="ticket-382-read-page",
+            source_messages=({"role": "user", "content": "read"},),
+            current_generation="generation-a",
+            semantic_events=events,
+            pending_task_inputs=(
+                {
+                    "event_id": read_event["event_id"],
+                    "store_seq": read_event["store_seq"],
+                    "type": "tool_result",
+                    "preview": "context content page",
+                    "preview_truncated": True,
+                    "content_ref": read_event["full_output_ref"],
+                    "content_bytes": read_event["result_bytes"],
+                    "content_sha256": read_event["result_sha256"],
+                },
+            ),
+            budget=resolve_context_budget(context_window_tokens=16_384),
+            provider="openai",
+            model="gpt-test",
+            build_id="ticket-382-read-page-build",
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+        )
+    )
+    history_message = next(
+        message["content"]
+        for message in compiled.to_dict()["messages"]
+        if "MEMORY_V2_UNTRUSTED_HISTORY" in str(message.get("content") or "")
+    )
+    history = json.loads(history_message.split("\n", 2)[2])
+    read_exchange = next(
+        exchange
+        for exchange in history["tool_exchanges"]
+        if exchange["call_id"] == "ticket-382-read-call"
+    )
+    assert read_exchange["result"] == page
+    assert "full_output_ref" not in read_exchange
+    assert isinstance(read_event["full_output_ref"], dict)
+
+
+def test_small_context_content_page_is_directly_readable_and_keeps_its_body(
+    tmp_path: Path,
+) -> None:
+    host = _factory(
+        tmp_path,
+        production_enabled=True,
+        memory_agent_enabled=True,
+        memory_agent_model_invoker=_NeverRunOfficialMemoryAgent(),
+    )
+    host.context_module.runtime.bind_context(
+        _context(
+            execution_id="execution-a",
+            generation_id="generation-a",
+            attempt_id="attempt-a",
+        )
+    )
+    attempt = host.attempt(execution_id="execution-a", attempt_id="attempt-a")
+    artifact = attempt.bundle.artifacts.persist(
+        b"ticket-382-small",
+        media_type="text/plain",
+        operation_id="ticket-382-small-context-content",
+    )
+
+    page = _prepared_context_reader(host)(
+        ref=host.reference_codec.encode(artifact.ref),
+        offset=0,
+        limit=1024,
+    )
+
+    assert page["content"]["encoding"] == "utf-8"
+    assert "ticket-382-small" in page["content"]["text"]
 
 
 def test_full_subagent_output_and_parent_receipt_precede_notification(
