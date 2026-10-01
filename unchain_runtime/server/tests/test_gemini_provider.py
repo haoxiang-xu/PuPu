@@ -56,3 +56,29 @@ def test_recipe_model_list_only_offers_gemini_models_the_catalog_exports():
         catalog = set(adapter.get_capability_catalog()['gemini'])
     assert offered
     assert offered <= catalog, sorted(offered - catalog)
+
+
+@pytest.mark.parametrize("retired", ["gemini-2.5-flash", "gemini-2.5-pro"])
+def test_a_retired_gemini_model_gets_the_family_window_so_google_can_name_its_replacement(retired):
+    """#386: an old chat or recipe that still names a removed 2.5 model must
+    reach Google, whose 404 names the replacement (closed diagnostic, D2),
+    instead of failing locally on an unknown 8K context window."""
+
+    family = {
+        adapter._catalog_model_context_window("gemini", model)
+        for model in adapter.get_capability_catalog()["gemini"]
+    }
+    assert len(family) == 1
+    window = family.pop()
+    assert window >= 1_000_000
+    assert adapter._catalog_model_context_window("gemini", retired) == 0
+    assert adapter.get_max_context_window_tokens("gemini", retired) == window
+
+
+def test_known_models_and_other_providers_keep_their_windows():
+    assert adapter.get_max_context_window_tokens(
+        "gemini", "gemini-3.5-flash"
+    ) == adapter._catalog_model_context_window("gemini", "gemini-3.5-flash")
+    # Unknown models of other providers are unchanged by the Gemini fallback.
+    assert adapter.get_max_context_window_tokens("openai", "not-a-real-model") == 0
+    assert adapter.get_max_context_window_tokens("anthropic", "not-a-real-model") == 0
