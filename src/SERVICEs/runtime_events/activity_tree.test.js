@@ -1221,4 +1221,79 @@ describe("runtime events activity tree", () => {
       ).toHaveLength(50);
     });
   });
+
+  describe("provider retry waits (#386 BC-386-6)", () => {
+    const retry = (id, seq, remaining, extra = {}) =>
+      event({
+        id,
+        type: "step.delta",
+        seq,
+        turnId: "run-root:turn-0",
+        links: { step_id: "model:run-root:turn-0:response" },
+        payload: {
+          step_id: "model:run-root:turn-0:response",
+          step_type: "model_response",
+          kind: "provider_retry",
+          provider: "gemini",
+          attempt_failed: 1,
+          next_attempt: 2,
+          max_attempts: 11,
+          delay_ms: 4000,
+          remaining_ms: remaining,
+          http_status: 503,
+          provider_status: "UNAVAILABLE",
+          ...extra,
+        },
+      });
+
+    test("the start of a wait becomes one provider_retry frame; heartbeats add nothing", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000),
+        retry("r2", 2, 3000),
+        retry("r3", 3, 2000),
+      ]);
+      const frames = state.frames.filter((frame) => frame.type === "provider_retry");
+      expect(frames).toHaveLength(1);
+      expect(frames[0]).toMatchObject({
+        type: "provider_retry",
+        run_id: "run-root",
+        iteration: 0,
+        ts: Date.parse("2026-05-26T12:00:00.000Z"),
+        payload: {
+          provider: "gemini",
+          attempt_failed: 1,
+          next_attempt: 2,
+          max_attempts: 11,
+          delay_ms: 4000,
+          http_status: 503,
+          provider_status: "UNAVAILABLE",
+          runtime_event_id: "r1",
+        },
+      });
+      expect(state.frames.filter((frame) => frame.type === "token_delta")).toHaveLength(0);
+      expect(state.modelTextByRunId["run-root"] || "").toBe("");
+      expect(state.effects.filter((effect) => effect.type === "token")).toHaveLength(0);
+    });
+
+    test("each new wait in the same turn adds its own frame", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000),
+        retry("r2", 2, 8000, { attempt_failed: 2, next_attempt: 3, delay_ms: 8000 }),
+      ]);
+      expect(
+        state.frames
+          .filter((frame) => frame.type === "provider_retry")
+          .map((frame) => frame.payload.next_attempt),
+      ).toEqual([2, 3]);
+    });
+
+    test("a malformed retry delta is dropped instead of becoming text", () => {
+      const state = reduceEvents([
+        retry("r1", 1, 4000, { max_attempts: "11" }),
+        retry("r2", 2, 4000, { next_attempt: 12 }),
+      ]);
+      expect(state.frames).toHaveLength(0);
+      expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    });
+  });
 });

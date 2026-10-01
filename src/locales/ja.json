@@ -905,5 +905,26 @@
     "organization_queued": "メモリの整理待ち",
     "organization_empty": "整理するメモリはありません",
     "organization_complete": "メモリの整理完了"
+  },
+  "provider_retry": {
+    "waiting": "{provider} を待機中",
+    "retrying_header": "再試行中…",
+    "next_try_in": "{seconds} 秒後に再試行",
+    "trying_again": "再試行中（{max} 回中 {attempt} 回目）",
+    "stopped": "再試行中に停止しました",
+    "retried": "{count} 回再試行",
+    "legend_failed": "失敗 {count} 回",
+    "legend_current": "{attempt} 回目",
+    "legend_left": "残り {count} 回",
+    "stop": "停止",
+    "stopped_by_you": "ユーザーが停止",
+    "bar_label": "使用した試行回数（全 {max} 回）",
+    "reason_overloaded": "過負荷（HTTP {status}）",
+    "reason_rate_limited": "レートまたはクォータの上限（HTTP {status}）",
+    "reason_gateway": "ゲートウェイエラー（HTTP {status}）",
+    "reason_http": "一時的な障害（HTTP {status}）",
+    "reason_unknown": "一時的な障害",
+    "provider_fallback": "プロバイダー",
+    "usage_partial": "{total} 件中 {excluded} 件の呼び出しは使用量なし"
   }
 }

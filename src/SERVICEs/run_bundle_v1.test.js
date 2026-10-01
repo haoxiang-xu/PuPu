@@ -171,6 +171,75 @@ describe("canonical RunBundle usage selector", () => {
     });
   });
 
+  test("a retried turn sums the usage it knows and says how many calls had none (#386)", () => {
+    // A 503 then a successful retry: the failed call has no usage, so the
+    // aggregate is unknown; the answered call's usage is still shown.
+    const bundle = buildRunBundleV1({ multiModel: true });
+    const unknown = usage({
+      uncached: null,
+      cacheRead: null,
+      cacheWrite: null,
+      cacheWrite5m: null,
+      cacheWrite1h: null,
+      input: null,
+      visible: null,
+      reasoning: null,
+      output: null,
+      total: null,
+      source: "unavailable",
+    });
+    const failed = bundle.provider_calls.find(
+      (receipt) => receipt.provider.name === "anthropic",
+    );
+    failed.status = "failed";
+    failed.usage = unknown;
+    failed.raw_usage_sha256 = null;
+    bundle.metrics.events
+      .filter((event) => event.subject_id === failed.provider_call_id)
+      .forEach((event) => {
+        event.outcome = "failed";
+      });
+    bundle.usage_slices = bundle.usage_slices.filter(
+      (slice) => slice.provider !== "anthropic",
+    );
+    bundle.aggregation.direct_usage = unknown;
+    bundle.aggregation.all_usage = unknown;
+    bundle.coverage = {
+      status: "partial",
+      receipt_count: 2,
+      observed_usage_count: 1,
+      missing_usage_count: 1,
+      uncertain_call_count: 0,
+      missing_usage_call_ids: [failed.provider_call_id],
+    };
+    expect(() => normalizeRendererRunBundleV1(bundle)).not.toThrow();
+
+    const selected = selectRunBundleUsage(bundle);
+    expect(selected).toMatchObject({
+      input: 1000,
+      output: 200,
+      total: 1200,
+      cacheRead: 600,
+      reasoning: 50,
+      partial: true,
+      coverage: "partial",
+      callCount: 2,
+      callsWithoutUsage: 1,
+    });
+  });
+
+  test("a turn whose calls all lack usage stays unknown, not zero", () => {
+    const bundle = buildRunBundleV1({ unavailable: true });
+    const selected = selectRunBundleUsage(bundle);
+    expect(selected).toMatchObject({
+      input: null,
+      output: null,
+      total: null,
+      callCount: 1,
+      callsWithoutUsage: 1,
+    });
+  });
+
   test("legacy cached input is annotated but never added again", () => {
     expect(
       selectRunBundleUsage({

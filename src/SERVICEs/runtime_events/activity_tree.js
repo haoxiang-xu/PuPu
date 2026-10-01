@@ -123,6 +123,44 @@ const cloneDiagnostics = (diagnostics) => ({
     : [],
 });
 
+const exactInt = (value, minimum) =>
+  Number.isInteger(value) && value >= minimum ? value : null;
+
+// Closed fields of a provider retry wait (BC-386-6); anything else is ignored.
+const providerRetryFields = (payload) => {
+  const attemptFailed = exactInt(payload.attempt_failed, 1);
+  const nextAttempt = exactInt(payload.next_attempt, 2);
+  const maxAttempts = exactInt(payload.max_attempts, 2);
+  const delayMs = exactInt(payload.delay_ms, 0);
+  const remainingMs = exactInt(payload.remaining_ms, 0);
+  const httpStatus = payload.http_status;
+  if (
+    attemptFailed === null ||
+    nextAttempt === null ||
+    maxAttempts === null ||
+    delayMs === null ||
+    remainingMs === null ||
+    nextAttempt !== attemptFailed + 1 ||
+    nextAttempt > maxAttempts ||
+    remainingMs > delayMs ||
+    !(httpStatus === null || (Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599)) ||
+    typeof payload.provider_status !== "string" ||
+    typeof payload.provider !== "string"
+  ) {
+    return null;
+  }
+  return {
+    provider: payload.provider,
+    attempt_failed: attemptFailed,
+    next_attempt: nextAttempt,
+    max_attempts: maxAttempts,
+    delay_ms: delayMs,
+    remaining_ms: remainingMs,
+    http_status: httpStatus,
+    provider_status: payload.provider_status,
+  };
+};
+
 const createFrame = (state, event, type, payload = {}) => {
   const nextSeq = Number(state.seq) + 1;
   state.seq = nextSeq;
@@ -661,6 +699,15 @@ const applyEvent = (state, event) => {
 
   if (eventType === "model.delta") {
     const kind = stringValue(payload.kind, "text");
+    if (kind === "provider_retry") {
+      // One frame per wait. Heartbeats only keep the wait interruptible on the
+      // backend; the countdown is drawn from the frame's own time.
+      const retry = providerRetryFields(payload);
+      if (retry && retry.remaining_ms === retry.delay_ms) {
+        routeFrame(state, event, createFrame(state, event, "provider_retry", retry));
+      }
+      return;
+    }
     const delta = rawStringValue(payload.delta);
     if (kind === "reasoning_reset") {
       const previewId = stringValue(payload.preview_id);

@@ -905,5 +905,26 @@
     "organization_queued": "기억 정리 대기 중",
     "organization_empty": "정리할 기억 없음",
     "organization_complete": "기억 정리 완료"
+  },
+  "provider_retry": {
+    "waiting": "{provider} 대기 중",
+    "retrying_header": "재시도 중…",
+    "next_try_in": "{seconds}초 후 재시도",
+    "trying_again": "재시도 중 ({max}회 중 {attempt}회째)",
+    "stopped": "재시도 중 중지됨",
+    "retried": "{count}회 재시도함",
+    "legend_failed": "{count}회 실패",
+    "legend_current": "{attempt}회째",
+    "legend_left": "{count}회 남음",
+    "stop": "중지",
+    "stopped_by_you": "사용자가 중지함",
+    "bar_label": "사용한 시도 횟수 (총 {max}회)",
+    "reason_overloaded": "과부하 (HTTP {status})",
+    "reason_rate_limited": "속도 또는 할당량 한도 도달 (HTTP {status})",
+    "reason_gateway": "게이트웨이 오류 (HTTP {status})",
+    "reason_http": "일시적 오류 (HTTP {status})",
+    "reason_unknown": "일시적 오류",
+    "provider_fallback": "제공자",
+    "usage_partial": "{total}개 호출 중 {excluded}개는 사용량 없음"
   }
 }

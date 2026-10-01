@@ -905,5 +905,26 @@
     "organization_queued": "Erinnerungen warten auf Organisation",
     "organization_empty": "Keine Erinnerungen zu ordnen",
     "organization_complete": "Erinnerungen geordnet"
+  },
+  "provider_retry": {
+    "waiting": "Warte auf {provider}",
+    "retrying_header": "Neuer Versuch…",
+    "next_try_in": "nächster Versuch in {seconds} s",
+    "trying_again": "neuer Versuch (Versuch {attempt} von {max})",
+    "stopped": "Während der Wiederholung gestoppt",
+    "retried": "{count}× wiederholt",
+    "legend_failed": "{count} fehlgeschlagen",
+    "legend_current": "Versuch {attempt}",
+    "legend_left": "{count} übrig",
+    "stop": "Stopp",
+    "stopped_by_you": "von dir gestoppt",
+    "bar_label": "Genutzte Versuche von {max}",
+    "reason_overloaded": "Überlastet (HTTP {status})",
+    "reason_rate_limited": "Raten- oder Kontingentlimit (HTTP {status})",
+    "reason_gateway": "Gateway-Fehler (HTTP {status})",
+    "reason_http": "Vorübergehender Fehler (HTTP {status})",
+    "reason_unknown": "Vorübergehender Fehler",
+    "provider_fallback": "Anbieter",
+    "usage_partial": "{excluded} von {total} Aufrufen ohne Nutzungsdaten"
   }
 }

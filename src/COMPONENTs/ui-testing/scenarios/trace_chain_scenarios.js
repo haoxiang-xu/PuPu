@@ -896,6 +896,120 @@ const RUNTIME_EVENTS_SCENARIO = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Provider retry (#386, design A2)
+   provider_retry waits as the runtime streams them: one step.delta per wait
+   on the model response step. `liveTimestamps` stamps each event when it is
+   played so the countdown is real; `gapsMs[i]` holds item i until the
+   previous wait has run down; `stoppable` wires the row's Stop button.
+   ═══════════════════════════════════════════════════════════════════════ */
+const RETRY_RUN_ID = "run-retry-root";
+const RETRY_TURN_ID = `${RETRY_RUN_ID}:turn-1`;
+const RETRY_STEP_ID = `model:${RETRY_TURN_ID}:response`;
+
+const retryEvent = (id, type, seq, payload = {}, links = {}) =>
+  runtimeEvent({
+    id,
+    type,
+    seq,
+    runId: RETRY_RUN_ID,
+    turnId: RETRY_TURN_ID,
+    links,
+    payload,
+  });
+
+const retryWait = (id, seq, { failed, max, delayMs, status, providerStatus }) =>
+  retryEvent(
+    id,
+    "step.delta",
+    seq,
+    {
+      step_id: RETRY_STEP_ID,
+      step_type: "model_response",
+      kind: "provider_retry",
+      provider: "gemini",
+      attempt_failed: failed,
+      next_attempt: failed + 1,
+      max_attempts: max,
+      delay_ms: delayMs,
+      remaining_ms: delayMs,
+      http_status: status,
+      provider_status: providerStatus,
+    },
+    { step_id: RETRY_STEP_ID },
+  );
+
+const retryStart = (prefix) => [
+  retryEvent(`${prefix}-run`, "run.started", 1, {
+    provider: "gemini",
+    model: "gemini-3.7-flash",
+  }),
+];
+
+const PROVIDER_RETRY_ANSWERED = {
+  name: "Provider Retry (answered)",
+  description: "Two retry-safe failures (503, 429), then the answer",
+  liveTimestamps: true,
+  gapsMs: { 2: 3300, 3: 4300 },
+  events: [
+    ...retryStart("retry-ok"),
+    retryWait("retry-ok-1", 2, {
+      failed: 1, max: 11, delayMs: 3000, status: 503, providerStatus: "UNAVAILABLE",
+    }),
+    retryWait("retry-ok-2", 3, {
+      failed: 2, max: 11, delayMs: 4000, status: 429, providerStatus: "RESOURCE_EXHAUSTED",
+    }),
+    retryEvent("retry-ok-final", "step.completed", 4, {
+      step_id: RETRY_STEP_ID,
+      step_type: "model_response",
+      status: "completed",
+      final_text: "李白和杜甫是唐代最有名的两位诗人。",
+    }),
+    retryEvent("retry-ok-complete", "run.completed", 5, { status: "completed" }),
+  ],
+};
+
+const PROVIDER_RETRY_GAVE_UP = {
+  name: "Provider Retry (gave up)",
+  description: "Every try fails with 429 until the budget is spent",
+  liveTimestamps: true,
+  gapsMs: { 2: 2300, 3: 2300, 4: 2300 },
+  events: [
+    ...retryStart("retry-fail"),
+    ...[1, 2, 3].map((failed) =>
+      retryWait(`retry-fail-${failed}`, failed + 1, {
+        failed, max: 4, delayMs: 2000, status: 429, providerStatus: "RESOURCE_EXHAUSTED",
+      }),
+    ),
+    retryEvent("retry-fail-failed", "run.failed", 5, {
+      status: "failed",
+      error: {
+        code: "retries_exhausted",
+        message:
+          "retries_exhausted; Provider rate or quota limit reached (HTTP 429, status=RESOURCE_EXHAUSTED) after 3 retries",
+      },
+      recoverable: false,
+    }),
+  ],
+};
+
+const PROVIDER_RETRY_STOP = {
+  name: "Provider Retry (Stop)",
+  description: "A long wait; press Stop on the row to see the stopped state",
+  liveTimestamps: true,
+  stoppable: true,
+  gapsMs: { 2: 1600 },
+  events: [
+    ...retryStart("retry-stop"),
+    retryWait("retry-stop-1", 2, {
+      failed: 1, max: 11, delayMs: 1500, status: 503, providerStatus: "UNAVAILABLE",
+    }),
+    retryWait("retry-stop-2", 3, {
+      failed: 2, max: 11, delayMs: 30000, status: 503, providerStatus: "UNAVAILABLE",
+    }),
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
    Export all scenarios
    ═══════════════════════════════════════════════════════════════════════ */
 const TRACE_CHAIN_SCENARIOS = [
@@ -908,6 +1022,9 @@ const TRACE_CHAIN_SCENARIOS = [
   WORKER_BATCH,
   ERROR_SCENARIO,
   CODE_DIFF_SCENARIO,
+  PROVIDER_RETRY_ANSWERED,
+  PROVIDER_RETRY_GAVE_UP,
+  PROVIDER_RETRY_STOP,
 ];
 
 export default TRACE_CHAIN_SCENARIOS;
