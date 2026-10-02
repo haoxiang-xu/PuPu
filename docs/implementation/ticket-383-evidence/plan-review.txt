@@ -1,0 +1,1 @@
+Independent GPT-6.1 plan review: core design suitable after preserving output title/span/body/details and updating to exactly two intermediate 5.6 reviews. Both corrections incorporated. Original incident remains unverified; concrete canonical observation-adjacency mechanism reproduced. Exact-wheel producer evidence belongs to parity slice/final acceptance.
