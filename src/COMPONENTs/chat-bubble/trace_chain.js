@@ -814,9 +814,10 @@ const TraceChain = ({
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
+  const timelineExpansionScope = JSON.stringify([chatId || "", messageId || ""]);
   const [bodyOpen, setBodyOpen] = useState(true);
-  const [expandedTimelineKeys, setExpandedTimelineKeys] = useState(
-    () => new Set(),
+  const [expandedTimelineState, setExpandedTimelineState] = useState(
+    () => ({ scope: timelineExpansionScope, keys: new Set() }),
   );
   const [memoryV2JournalProjection, setMemoryV2JournalProjection] =
     useState(null);
@@ -2251,23 +2252,28 @@ const TraceChain = ({
   ]);
 
   const expandedTimelineIndices = useMemo(() => {
+    const expandedKeys =
+      expandedTimelineState.scope === timelineExpansionScope
+        ? expandedTimelineState.keys
+        : new Set();
     const indices = [];
     timelineItems.forEach((item, index) => {
-      if (expandedTimelineKeys.has(item.key)) indices.push(index);
+      if (expandedKeys.has(item.key)) indices.push(index);
     });
     return indices;
-  }, [expandedTimelineKeys, timelineItems]);
+  }, [expandedTimelineState, timelineExpansionScope, timelineItems]);
   const handleTimelineExpandChange = useCallback(
     (indices) => {
-      setExpandedTimelineKeys(
-        new Set(
+      setExpandedTimelineState({
+        scope: timelineExpansionScope,
+        keys: new Set(
           indices
             .map((index) => timelineItems[index]?.key)
             .filter((key) => typeof key === "string" && key.length > 0),
         ),
-      );
+      });
     },
-    [timelineItems],
+    [timelineExpansionScope, timelineItems],
   );
 
   if (timelineItems.length === 0) return null;
