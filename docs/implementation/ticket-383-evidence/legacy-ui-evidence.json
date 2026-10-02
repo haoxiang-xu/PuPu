@@ -1,0 +1,34 @@
+{
+  "counterpart": "b6654c22fb437ebb672d0b92db5a5918fa956843",
+  "fixtureKind": "EXECUTED_REAL_PINNED_PRODUCER_REAL_PUPU_V2_ROUTE_REAL_TRACECHAIN",
+  "results": [
+    {
+      "case": "silent-batch",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 stepsread_file×2detailtook0msargspathfixture-1.txttook0msargspathfixture-2.txt"
+    },
+    {
+      "case": "content-batch",
+      "toolCalls": 2,
+      "observationFrames": 0,
+      "groupedCount": 1,
+      "text": "Used 2 stepsread_file×2detailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txttook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txt"
+    },
+    {
+      "case": "observed-batch",
+      "toolCalls": 2,
+      "observationFrames": 1,
+      "groupedCount": 1,
+      "text": "Used 2 stepsread_file×2detailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txttook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txtObservationdetailFixture output reviewed safely"
+    },
+    {
+      "case": "observed-sequential",
+      "toolCalls": 2,
+      "observationFrames": 2,
+      "groupedCount": 0,
+      "text": "Used 2 stepsread_filedetailtook0msargspathfixture-1.txtresultcontentfixture contents for fixture-1.txtObservationdetailFixture output reviewed safelyread_filedetailtook0msargspathfixture-2.txtresultcontentfixture contents for fixture-2.txtObservationdetailFixture output reviewed safely"
+    }
+  ]
+}

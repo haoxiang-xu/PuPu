@@ -38,8 +38,11 @@ it does not by itself produce the synthetic per-tool step.delta. Preserve this
 negative result and qualify actual host event paths in integration. Actual pinned KernelLoop -> PuPu metadata enrichment/Flask V4 route -> actual
 projector/TraceChain passed all five controls (four real sequences and duplicate
 replay), with no observation frame reaching this UI path. These are integration
-negative controls; own tool delta remains synthetic contract coverage. Do not alter
-Unchain or its bridge to manufacture the regression.
+negative controls; own tool delta remains synthetic contract coverage. The exact
+legacy V2 path DOES preserve batch observation frames and reproduces the split:
+one read_file call per turn with observe=True remains separate, while silent/content
+and batched-observation controls group. Four factual legacy assertions pass. Do not
+alter Unchain or its bridge to manufacture the regression.
 
 ## Selected minimal design
 
@@ -59,8 +62,13 @@ upstream identity or status repair.
 Consecutive means no semantic barrier in the original sequence. Reasoning,
 assistant text (including bubble-owned/filtered text), retry/error, user injection,
 confirmation/selection and subagent steps are barriers. Tool-result metadata is
-transparent. Only output/truncation descriptors owned by already-started CURRENT
-group calls are transparent. Unknown/unowned or earlier-group output is a barrier.
+transparent. Output/truncation descriptors owned by already-started CURRENT group calls are
+transparent. Legacy batch observations have a second, explicitly bounded association:
+exact run_id + finite iteration must match a preceding completed tool batch, all
+batch calls/results must have known identities and share the current grouping key,
+and no semantic barrier may intervene. Preserve this as batch association, not a
+fabricated per-call owner. Mixed/incomplete batches, missing/ambiguous identity,
+mismatched/late observations and all other unowned output remain barriers.
 Groups consume contiguous original subsequences; no late output is pulled backward
 across a barrier. Original arrays and payloads are not mutated or rewritten.
 
@@ -158,8 +166,8 @@ negative checks use existing admission behavior, not a new parallel validator.
 SEQ-383-01: start, first call/output/result, second same-tool call/output/result,
 stop/settle, repeat identical events, serialized reopen, second message. At every
 prefix, count unique calls and retain chronological descriptor order. Late output
-across a barrier remains at its arrival position. Missing output identity remains
-separate. Applicable normal/subagent/retry/interaction paths preserve their barriers.
+across a barrier remains at its arrival position. Missing output identity remains separate unless the documented exact completed
+legacy batch association is established. Applicable normal/subagent/retry/interaction paths preserve their barriers.
 
 AC-383-01: silent and output-bearing same-tool sequences group with correct counts;
 alias collisions/different canonical tools, semantic barriers and unowned output
