@@ -223,7 +223,7 @@ const collectPolicyEvidence = (frames) => {
   const resultOwners = new Map();
   const validApprovedProofs = new Set();
   callRecords.forEach((record) => {
-    const { identity, frame, index } = record;
+    const { identity, index } = record;
     if (record.feedback) {
       feedbackCallKeys.add(groupingIdentityKey(identity));
     }

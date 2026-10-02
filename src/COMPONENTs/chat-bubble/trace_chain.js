@@ -2587,6 +2587,7 @@ const TraceChain = ({
     store,
     chatId,
     startFrame,
+    toolCallFrames,
     toolResultByCallScope,
     confirmationStatusByCallScope,
     confirmationUserResponseByCallScope,
