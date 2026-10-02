@@ -36,6 +36,135 @@ const observation = (sourceFrame) => ({
 const groupAt = (items, index = 0) => items[index]?._toolGroup;
 
 describe("Trace tool grouping", () => {
+  test("applies the four feedback policies across none, approved, pending, rejected, and answered states", () => {
+    const expected = {
+      never: [false, false, false, false, false],
+      no_feedback: [true, false, false, false, false],
+      approved: [true, true, false, false, false],
+      always: [true, true, true, true, true],
+    };
+    const states = ["none", "approved", "pending", "rejected", "answered"];
+
+    Object.entries(expected).forEach(([policy, outcomes]) => {
+      states.forEach((state, stateIndex) => {
+        const first = frame(1, "tool_call", {
+          call_id: `${policy}-${state}-1`,
+          tool_name: "web_fetch",
+          toolkit_id: "core",
+          timeline_merge_policy: policy,
+          ...(state === "none"
+            ? {}
+            : {
+                confirmation_id: `confirm-${policy}-${state}-1`,
+                requires_confirmation: true,
+                interact_type: state === "answered" ? "selection" : "confirmation",
+              }),
+        });
+        const second = frame(4, "tool_call", {
+          ...first.payload,
+          call_id: `${policy}-${state}-2`,
+          confirmation_id:
+            state === "none" ? undefined : `confirm-${policy}-${state}-2`,
+        });
+        const feedback = (source, suffix) =>
+          frame(source.seq + 1, state === "rejected" ? "tool_denied" : "tool_confirmed", {
+            call_id: source.payload.call_id,
+            tool_name: "web_fetch",
+            confirmation_id: source.payload.confirmation_id,
+            ...(state === "answered" ? { response: ["choice"] } : {}),
+          });
+        const completed = state === "approved" || state === "none";
+        const firstResult = completed
+          ? frame(3, "tool_result", {
+              call_id: first.payload.call_id,
+              tool_name: "web_fetch",
+              toolkit_id: "core",
+            })
+          : null;
+        const secondResult = completed
+          ? frame(6, "tool_result", {
+              call_id: second.payload.call_id,
+              tool_name: "web_fetch",
+              toolkit_id: "core",
+            })
+          : null;
+        const firstFeedback =
+          state === "none" || state === "pending" ? null : feedback(first, "1");
+        const secondFeedback =
+          state === "none" || state === "pending" ? null : feedback(second, "2");
+        const frames = [
+          first,
+          ...(firstFeedback ? [firstFeedback] : []),
+          ...(firstResult ? [firstResult] : []),
+          second,
+          ...(secondFeedback ? [secondFeedback] : []),
+          ...(secondResult ? [secondResult] : []),
+        ];
+        const grouped = groupToolTimelineItems([call(first), call(second)], frames);
+
+        expect(Boolean(groupAt(grouped))).toBe(outcomes[stateIndex]);
+      });
+    });
+  });
+
+  test("groups the sanitized representative approved web_fetch sequence without dropping call metadata", () => {
+    // Reconstructed representative frontend frames from the sanitized canonical events fixture;
+    // these are not the original renderer packets from the screenshot capture.
+    const calls = [1, 2, 3].map((index) =>
+      frame(index * 4, "tool_call", {
+        call_id: `call-${index}`,
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        timeline_merge_policy: "approved",
+        confirmation_id: `confirm-call-${index}`,
+        requires_confirmation: true,
+        interact_type: "confirmation",
+        arguments: { url: `https://example.invalid/call-${index}` },
+      }),
+    );
+    const frames = calls.flatMap((entry, index) => [
+      entry,
+      frame(entry.seq + 1, "tool_confirmed", {
+        call_id: entry.payload.call_id,
+        tool_name: "web_fetch",
+        confirmation_id: entry.payload.confirmation_id,
+      }),
+      frame(entry.seq + 2, "tool_result", {
+        call_id: entry.payload.call_id,
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        result: { status_code: index === 2 ? 200 : 301 },
+      }),
+    ]);
+    const items = calls.map((entry, index) => ({
+      ...call(entry),
+      body: "Approved",
+      _sections: [
+        { heading: "args", pairs: [{ key: "url", value: entry.payload.arguments.url }] },
+        { heading: "result", pairs: [{ key: "status_code", value: index === 2 ? 200 : 301 }] },
+      ],
+    }));
+
+    const grouped = groupToolTimelineItems(items, frames);
+
+    expect(groupAt(grouped).calls).toEqual(items);
+    expect(groupAt(grouped).calls.map((item) => item._sourceFrame.payload.arguments.url)).toEqual([
+      "https://example.invalid/call-1",
+      "https://example.invalid/call-2",
+      "https://example.invalid/call-3",
+    ]);
+    expect(groupAt(grouped).memberItems.map((item) => item.body)).toEqual([
+      "Approved",
+      "Approved",
+      "Approved",
+    ]);
+    expect(groupAt(grouped).memberItems.map((item) => item._sections[1].pairs[0].value)).toEqual([
+      301,
+      301,
+      200,
+    ]);
+  });
+
   test("groups equal canonical tools despite different arguments and display aliases", () => {
     const first = frame(1, "tool_call", {
       call_id: "call-1",
@@ -91,6 +220,71 @@ describe("Trace tool grouping", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  test("requires run, toolkit, call, and confirmation ownership for approved feedback", () => {
+    const mismatches = [
+      { label: "call", payload: { call_id: "other" } },
+      { label: "run", runId: "other-run" },
+      { label: "toolkit", payload: { toolkit_id: "other-toolkit" } },
+      { label: "confirmation", payload: { confirmation_id: "other-confirmation" } },
+    ];
+
+    mismatches.forEach(({ label, runId, payload = {} }) => {
+      const first = frame(1, "tool_call", {
+        call_id: "call-a",
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        timeline_merge_policy: "approved",
+        confirmation_id: "confirm-a",
+        requires_confirmation: true,
+        interact_type: "confirmation",
+      });
+      const badApproval = frame(
+        2,
+        "tool_confirmed",
+        {
+          call_id: "call-a",
+          tool_name: "web_fetch",
+          confirmation_id: "confirm-a",
+          ...payload,
+        },
+        runId || "run-a",
+      );
+      const result = frame(3, "tool_result", {
+        call_id: "call-a",
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+      });
+      const second = frame(4, "tool_call", {
+        call_id: "call-b",
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        timeline_merge_policy: "approved",
+        confirmation_id: "confirm-b",
+        requires_confirmation: true,
+        interact_type: "confirmation",
+      });
+      const secondApproval = frame(5, "tool_confirmed", {
+        call_id: "call-b",
+        tool_name: "web_fetch",
+        confirmation_id: "confirm-b",
+      });
+      const secondResult = frame(6, "tool_result", {
+        call_id: "call-b",
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+      });
+      const frames = [first, badApproval, result, second, secondApproval, secondResult];
+      const grouped = groupToolTimelineItems(
+        [call(first), call(second)],
+        frames,
+      );
+
+      expect(grouped.some((item) => item._toolGroup)).toBe(false);
+      expect(grouped).toHaveLength(2);
+      expect(label).toBeTruthy();
+    });
   });
 
   test("treats missing toolkit and run IDs as trace-local legacy scopes", () => {

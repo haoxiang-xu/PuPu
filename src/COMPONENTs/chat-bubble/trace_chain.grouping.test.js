@@ -159,6 +159,83 @@ describe("TraceChain consecutive tool grouping", () => {
     expect(screen.getByText("two.txt")).toBeInTheDocument();
   });
 
+  test("always mode groups pending confirmations with every member control visible and callable", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "pending-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-a",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Fetch alpha",
+    });
+    const callB = testFrame(2, "tool_call", {
+      ...callA.payload,
+      call_id: "pending-b",
+      confirmation_id: "confirm-b",
+      description: "Fetch beta",
+    });
+    const onDecision = jest.fn();
+
+    renderTraceChain([callA, callB], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-a": { status: "idle" },
+        "confirm-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    const allowButtons = screen.getAllByRole("button", { name: "Allow once" });
+    expect(allowButtons).toHaveLength(2);
+    fireEvent.click(allowButtons[1]);
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-b",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("always mode preserves visible answered-question controls for explicit selection opt-in", () => {
+    const selectionCall = (seq, callId) =>
+      testFrame(seq, "tool_call", {
+        call_id: callId,
+        tool_name: "ask_user_question",
+        timeline_merge_policy: "always",
+        confirmation_id: `confirm-${callId}`,
+        requires_confirmation: true,
+        interact_type: "single",
+        interact_config: {
+          question: "Pick one thing",
+          options: [{ label: "Option A", value: "a" }],
+        },
+      });
+
+    const onDecision = jest.fn();
+    renderTraceChain([selectionCall(1, "question-a"), selectionCall(2, "question-b")], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-question-a": { status: "idle" },
+        "confirm-question-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getAllByText("Pick one thing")).toHaveLength(2);
+    const options = screen.getAllByText("Option A");
+    expect(options).toHaveLength(2);
+    fireEvent.click(options[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-question-a",
+      approved: true,
+      userResponse: { value: "a" },
+      scope: "once",
+    });
+  });
+
   test("does not transfer expanded observation state to a shifted error row", () => {
     const callA = testFrame(1, "tool_call", {
       call_id: "call-a",

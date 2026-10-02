@@ -40,6 +40,103 @@ const reduceEvents = (events) => {
 };
 
 describe("runtime events activity tree", () => {
+  test("interaction projection retains the original scoped tool merge policy", () => {
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      event({
+        id: "tool-start",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:fetch-1", tool_call_id: "fetch-1" },
+        payload: {
+          step_id: "tool:fetch-1",
+          step_type: "tool",
+          call_id: "fetch-1",
+          tool_name: "web_fetch",
+          toolkit_id: "core",
+          timeline_merge_policy: "always",
+        },
+      }),
+      event({
+        id: "interaction-request",
+        type: "interaction.requested",
+        seq: 3,
+        links: {
+          tool_call_id: "fetch-1",
+          interaction_id: "confirm-fetch-1",
+        },
+        payload: {
+          interaction_id: "confirm-fetch-1",
+          kind: "tool_approval",
+          target: {
+            tool_call_id: "fetch-1",
+            tool_name: "web_fetch",
+            toolkit_id: "core",
+          },
+        },
+      }),
+    ]);
+
+    const projectedInteraction = state.frames.find(
+      (frame) => frame.seq === 3 && frame.type === "tool_call",
+    );
+    expect(projectedInteraction.payload.timeline_merge_policy).toBe("always");
+  });
+
+  test("preserves historical absence and uses only cold target metadata when no call exists", () => {
+    const legacy = reduceEvents([
+      event({ id: "legacy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy", tool_call_id: "legacy" },
+        payload: {
+          step_id: "tool:legacy",
+          step_type: "tool",
+          call_id: "legacy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy", interaction_id: "legacy-confirm" },
+        payload: {
+          interaction_id: "legacy-confirm",
+          target: {
+            tool_call_id: "legacy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "always",
+          },
+        },
+      }),
+    ]);
+    const legacyInteraction = legacy.frames.find((frame) => frame.seq === 3);
+    expect(legacyInteraction.payload).not.toHaveProperty("timeline_merge_policy");
+
+    const cold = reduceEvents([
+      event({ id: "cold-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold", interaction_id: "cold-confirm" },
+        payload: {
+          interaction_id: "cold-confirm",
+          target: {
+            tool_call_id: "cold",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+  });
+
   test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
     const failedId = "a".repeat(32);
     const acceptedId = "b".repeat(32);

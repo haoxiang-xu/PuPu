@@ -2000,6 +2000,7 @@ _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
 _RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
+_TIMELINE_MERGE_POLICIES = frozenset({"never", "no_feedback", "approved", "always"})
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 
@@ -4270,6 +4271,12 @@ def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, An
                 "toolkit_name": toolkit_name or toolkit_id,
                 "vault_routed": toolkit_vault_routed
                 or getattr(tool_obj, "_pupu_vault_plugin", None) is not None,
+                **(
+                    {"timeline_merge_policy": tool_obj.timeline_merge_policy}
+                    if getattr(tool_obj, "timeline_merge_policy", None)
+                    in _TIMELINE_MERGE_POLICIES
+                    else {}
+                ),
             }
     return index
 
@@ -4466,6 +4473,16 @@ def _enrich_tool_event_with_toolkit_metadata(
 
     if not toolkit_meta:
         return enriched
+
+    if (
+        event_type == "tool_call"
+        and "timeline_merge_policy" not in enriched
+        and toolkit_meta.get("timeline_merge_policy")
+        in _TIMELINE_MERGE_POLICIES
+    ):
+        enriched["timeline_merge_policy"] = toolkit_meta[
+            "timeline_merge_policy"
+        ]
 
     if not str(enriched.get("toolkit_id", "") or "").strip():
         enriched["toolkit_id"] = toolkit_meta.get("toolkit_id", "")

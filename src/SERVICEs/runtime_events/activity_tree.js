@@ -1027,7 +1027,76 @@ const stepEventToProjected = (event) => {
   return null;
 };
 
-const interactionRequestedToProjected = (event) => {
+const declaredToolPolicyKey = (runId, callId, toolkitId, toolName) =>
+  JSON.stringify([runId, callId, toolkitId, toolName]);
+
+const isToolStartEvent = (event) => {
+  const type = stringValue(event?.type);
+  const payload = payloadOf(event);
+  return (
+    type === "tool.started" ||
+    type === "tool_call" ||
+    (type === "step.started" && stringValue(payload.step_type) === "tool")
+  );
+};
+
+const collectDeclaredToolPolicies = (eventIds, eventsById) => {
+  const policies = new Map();
+  eventIds.forEach((eventId) => {
+    const event = eventsById[eventId];
+    if (!isToolStartEvent(event)) return;
+    const payload = payloadOf(event);
+    const links = linksOf(event);
+    const callId = stringValue(links.tool_call_id, stringValue(payload.call_id));
+    const toolName = stringValue(payload.tool_name);
+    if (!callId || !toolName) return;
+    const key = declaredToolPolicyKey(
+      stringValue(event.run_id),
+      callId,
+      stringValue(payload.toolkit_id),
+      toolName,
+    );
+    if (policies.has(key)) return;
+    policies.set(key, {
+      declared: Object.prototype.hasOwnProperty.call(
+        payload,
+        "timeline_merge_policy",
+      ),
+      value: payload.timeline_merge_policy,
+    });
+  });
+  return policies;
+};
+
+const policyFromOriginalToolCall = (event, policies) => {
+  const payload = payloadOf(event);
+  const target = isObject(payload.target) ? payload.target : {};
+  const links = linksOf(event);
+  const callId = stringValue(
+    links.tool_call_id,
+    stringValue(target.tool_call_id, stringValue(payload.interaction_id)),
+  );
+  const runId = stringValue(event?.run_id);
+  const toolkitId = stringValue(target.toolkit_id);
+  const toolName = stringValue(target.tool_name);
+  const exact = policies.get(
+    declaredToolPolicyKey(runId, callId, toolkitId, toolName),
+  );
+  if (exact) return exact;
+  const matches = [...policies.entries()].filter(([key]) => {
+    const [candidateRun, candidateCall, candidateToolkit, candidateTool] =
+      JSON.parse(key);
+    return (
+      candidateRun === runId &&
+      candidateCall === callId &&
+      (!toolkitId || candidateToolkit === toolkitId) &&
+      (!toolName || candidateTool === toolName)
+    );
+  });
+  return matches.length === 1 ? matches[0][1] : null;
+};
+
+const interactionRequestedToProjected = (event, originalPolicy) => {
   const payload = payloadOf(event);
   const links = linksOf(event);
   const target = isObject(payload.target) ? payload.target : {};
@@ -1058,6 +1127,13 @@ const interactionRequestedToProjected = (event) => {
     ...(payload.min_selected !== undefined ? { min_selected: payload.min_selected } : {}),
     ...(payload.max_selected !== undefined ? { max_selected: payload.max_selected } : {}),
   };
+  const declaredPolicy = originalPolicy
+    ? originalPolicy.declared
+      ? { timeline_merge_policy: originalPolicy.value }
+      : {}
+    : Object.prototype.hasOwnProperty.call(target, "timeline_merge_policy")
+      ? { timeline_merge_policy: target.timeline_merge_policy }
+      : {};
 
   return baseProjectedEvent(
     event,
@@ -1082,6 +1158,7 @@ const interactionRequestedToProjected = (event) => {
             },
       interact_type: renderer,
       interact_config: interactConfig,
+      ...declaredPolicy,
     },
     {
       ...links,
@@ -1126,7 +1203,7 @@ const isRunSummaryArtifactEvent = (event) => {
   return surface.scope === "run" || surface.slot === "run_summary";
 };
 
-const toProjectedEvent = (event) => {
+const toProjectedEvent = (event, declaredToolPolicies) => {
   const type = stringValue(event?.type);
   if (
     type === "session.started" ||
@@ -1145,7 +1222,10 @@ const toProjectedEvent = (event) => {
   }
 
   if (type === "interaction.requested") {
-    return interactionRequestedToProjected(event);
+    return interactionRequestedToProjected(
+      event,
+      policyFromOriginalToolCall(event, declaredToolPolicies || new Map()),
+    );
   }
 
   if (type === "interaction.resolved") {
@@ -1171,9 +1251,13 @@ const projectedSnapshotFromRuntimeEvents = (eventStoreSnapshot = {}) => {
     : {};
   const projectedEventsById = {};
   const orderedProjectedEventIds = [];
+  const declaredToolPolicies = collectDeclaredToolPolicies(eventIds, eventsById);
 
   eventIds.forEach((eventId) => {
-    const projectedEvent = toProjectedEvent(eventsById[eventId]);
+    const projectedEvent = toProjectedEvent(
+      eventsById[eventId],
+      declaredToolPolicies,
+    );
     if (!projectedEvent || !projectedEvent.event_id) {
       return;
     }
@@ -1751,6 +1835,7 @@ const reduceActivityTreeIncrementally = (
   let latestRunSummaryInput = null;
   let settleInput = null;
   let promotedIndexDirty = false;
+  const declaredToolPolicies = collectDeclaredToolPolicies(eventIds, eventsById);
 
   // Effects are a dispatch queue, not durable tree state. Returning only the
   // newly produced effects keeps the stream flush O(batch); frames and all
@@ -1763,7 +1848,7 @@ const reduceActivityTreeIncrementally = (
     if (!isObject(event)) continue;
     const inputKind = runSummaryInputKind(previousState, event);
     updateExplicitRunSummary(nextMeta, event, inputKind);
-    const projectedEvent = toProjectedEvent(event);
+    const projectedEvent = toProjectedEvent(event, declaredToolPolicies);
     if (projectedEvent) {
       applyEvent(previousState, projectedEvent);
     }

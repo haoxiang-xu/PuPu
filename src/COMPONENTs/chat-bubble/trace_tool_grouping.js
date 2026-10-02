@@ -27,6 +27,33 @@ const normalizedToolName = (frame) => {
   return typeof name === "string" ? name.trim() : "";
 };
 
+const TIMELINE_MERGE_POLICIES = new Set([
+  "never",
+  "no_feedback",
+  "approved",
+  "always",
+]);
+
+const timelineMergePolicyForFrame = (frame) => {
+  const payload = frame?.payload;
+  const toolName = normalizedToolName(frame);
+  if (Object.prototype.hasOwnProperty.call(payload || {}, "timeline_merge_policy")) {
+    return TIMELINE_MERGE_POLICIES.has(payload.timeline_merge_policy)
+      ? payload.timeline_merge_policy
+      : "never";
+  }
+  if (
+    toolName === "ask_user_question" ||
+    toolName === "__continuation__" ||
+    SUBAGENT_TOOLS.has(toolName) ||
+    (hasTextIdentity(payload?.interact_type) &&
+      payload.interact_type !== "confirmation")
+  ) {
+    return "never";
+  }
+  return "approved";
+};
+
 const isInlineInteraction = (payload) =>
   payload?.requires_confirmation === true ||
   hasTextIdentity(payload?.confirmation_id) ||
@@ -41,11 +68,13 @@ export const getToolGroupingIdentity = (frame) => {
     !toolName ||
     toolName === "__continuation__" ||
     !hasTextIdentity(callId) ||
-    isInlineInteraction(payload) ||
     SUBAGENT_TOOLS.has(toolName)
   ) {
     return null;
   }
+
+  const policy = timelineMergePolicyForFrame(frame);
+  if (policy === "never") return null;
 
   const toolkit = scopePart(payload?.toolkit_id);
   const run = scopePart(frame?.run_id);
@@ -56,6 +85,14 @@ export const getToolGroupingIdentity = (frame) => {
     toolkitId: toolkit.value,
     runPresent: run.present,
     runId: run.value,
+    policy,
+    hasFeedback: isInlineInteraction(payload),
+    confirmationId: hasTextIdentity(payload?.confirmation_id)
+      ? payload.confirmation_id.trim()
+      : "",
+    interactType: hasTextIdentity(payload?.interact_type)
+      ? payload.interact_type.trim()
+      : "confirmation",
   };
 };
 
@@ -67,8 +104,153 @@ const sameGroupingIdentity = (left, right) =>
       left.toolkitPresent === right.toolkitPresent &&
       left.toolkitId === right.toolkitId &&
       left.runPresent === right.runPresent &&
-      left.runId === right.runId,
+      left.runId === right.runId &&
+      left.policy === right.policy,
   );
+
+const groupingIdentityKey = (identity) =>
+  identity
+    ? JSON.stringify([
+        identity.callId,
+        identity.toolName,
+        identity.toolkitPresent,
+        identity.toolkitId,
+        identity.runPresent,
+        identity.runId,
+        identity.policy,
+      ])
+    : "";
+
+const frameMatchesIdentityScope = (frame, identity) => {
+  const payload = frame?.payload;
+  if (!identity || payload?.call_id !== identity.callId) return false;
+  const run = scopePart(frame?.run_id);
+  if (identity.runPresent !== run.present || identity.runId !== run.value) {
+    return false;
+  }
+  const toolName = normalizedToolName(frame);
+  if (toolName && toolName !== identity.toolName) return false;
+  const toolkit = scopePart(payload?.toolkit_id);
+  if (
+    toolkit.present &&
+    (!identity.toolkitPresent || toolkit.value !== identity.toolkitId)
+  ) {
+    return false;
+  }
+  return true;
+};
+
+const resolveCallForFeedback = (frame, callRecords) => {
+  const confirmationId = frame?.payload?.confirmation_id;
+  if (!hasTextIdentity(confirmationId)) return null;
+  const matches = callRecords.filter(({ identity }) =>
+    frameMatchesIdentityScope(frame, identity) &&
+    identity.confirmationId === confirmationId.trim(),
+  );
+  return matches.length === 1 ? matches[0] : null;
+};
+
+const collectPolicyEvidence = (frames) => {
+  const callRecordsByKey = new Map();
+  frames.forEach((frame, index) => {
+    if (frame?.type !== "tool_call") return;
+    const identity = getToolGroupingIdentity(frame);
+    if (!identity) return;
+    const key = groupingIdentityKey(identity);
+    const existing = callRecordsByKey.get(key);
+    if (!existing) {
+      callRecordsByKey.set(key, {
+        identity,
+        frame,
+        index,
+        approvalIndex: -1,
+        resultIndex: -1,
+      });
+    } else if (!existing.identity.hasFeedback && identity.hasFeedback) {
+      existing.identity = identity;
+      existing.frame = frame;
+      existing.index = index;
+    }
+  });
+  const callRecords = [...callRecordsByKey.values()];
+
+  const feedbackOwners = new Map();
+  const outputOwners = new Map();
+  callRecords.forEach((record) => {
+    if (record.identity.hasFeedback) record.feedback = true;
+  });
+
+  frames.forEach((frame, index) => {
+    if (frame?.type === "tool_confirmed" || frame?.type === "tool_denied") {
+      const owner = resolveCallForFeedback(frame, callRecords);
+      if (!owner) return;
+      owner.feedback = true;
+      owner.feedbackType =
+        typeof owner.frame?.payload?.interact_type === "string"
+          ? owner.frame.payload.interact_type
+          : "confirmation";
+      owner.feedbackStatus = frame.type;
+      owner.approvalIndex = index;
+      feedbackOwners.set(frame, owner);
+      return;
+    }
+    if (frame?.type !== "tool_result" && frame?.type !== "observation") return;
+    const matches = callRecords.filter(({ identity }) =>
+      frameMatchesIdentityScope(frame, identity),
+    );
+    if (matches.length === 1) {
+      outputOwners.set(frame, matches[0]);
+      if (frame.type === "tool_result") matches[0].resultIndex = index;
+    }
+  });
+
+  const eligible = new Set();
+  const resultOwners = new Map();
+  callRecords.forEach((record) => {
+    const { identity, frame, index } = record;
+    let allowed = false;
+    if (identity.policy === "always") {
+      allowed = true;
+    } else if (identity.policy === "no_feedback") {
+      allowed = !record.feedback;
+    } else if (identity.policy === "approved") {
+      allowed = !record.feedback || (
+        record.feedbackStatus === "tool_confirmed" &&
+        record.feedbackType === "confirmation" &&
+        record.approvalIndex > index &&
+        record.resultIndex > record.approvalIndex
+      );
+    }
+    if (allowed) eligible.add(groupingIdentityKey(identity));
+    if (record.resultIndex >= 0) {
+      const resultFrame = frames[record.resultIndex];
+      resultOwners.set(resultFrame, record);
+    }
+  });
+
+  const transparentFeedback = new Set();
+  feedbackOwners.forEach((record, feedbackFrame) => {
+    if (record.identity.policy === "always") {
+      transparentFeedback.add(feedbackFrame);
+    } else if (
+      record.identity.policy === "approved" &&
+      record.feedbackStatus === "tool_confirmed" &&
+      record.feedbackType === "confirmation" &&
+      record.approvalIndex >= 0 &&
+      record.resultIndex > record.approvalIndex
+    ) {
+      transparentFeedback.add(feedbackFrame);
+    }
+  });
+
+  return {
+    eligible,
+    resultOwners,
+    outputOwners,
+    feedbackOwners,
+    transparentFeedback,
+  };
+};
 
 const hasNumericIteration = (frame) =>
   typeof frame?.iteration === "number" && Number.isFinite(frame.iteration);
@@ -240,7 +422,7 @@ const collectLegacyObservationOwners = (frames) => {
 
 const sourceFrameOf = (item) => item?._sourceFrame;
 
-const outputOwnerForItem = (item, callIdentitiesById, legacyOwners) => {
+const outputOwnerForItem = (item, callIdentities, legacyOwners) => {
   if (!item?._toolOutput && item?._outputCallId === undefined) return null;
 
   const sourceFrame = item?._outputFrame || sourceFrameOf(item);
@@ -250,21 +432,19 @@ const outputOwnerForItem = (item, callIdentitiesById, legacyOwners) => {
       ? sourceFrame.payload.call_id
       : "";
   if (explicitCallId) {
-    const identity = callIdentitiesById.get(explicitCallId);
-    if (!identity) return null;
     const outputRun = scopePart(sourceFrame?.run_id);
     const outputTool = normalizedToolName(sourceFrame);
     const outputToolkit = scopePart(sourceFrame?.payload?.toolkit_id);
-    if (
-      (outputRun.present &&
-        (!identity.runPresent || outputRun.value !== identity.runId)) ||
-      (outputTool && outputTool !== identity.toolName) ||
-      (outputToolkit.present &&
-        (!identity.toolkitPresent || outputToolkit.value !== identity.toolkitId))
-    ) {
-      return null;
-    }
-    return { identity, callIds: [explicitCallId] };
+    const matches = callIdentities.filter((identity) =>
+      identity.callId === explicitCallId &&
+      identity.runPresent === outputRun.present &&
+      identity.runId === outputRun.value &&
+      (!outputTool || outputTool === identity.toolName) &&
+      (!outputToolkit.present ||
+        (identity.toolkitPresent && outputToolkit.value === identity.toolkitId)),
+    );
+    if (matches.length !== 1) return null;
+    return { identity: matches[0], callIds: [explicitCallId] };
   }
 
   return legacyOwners.get(sourceFrame) || null;
@@ -285,26 +465,46 @@ const isTransparentBetweenCalls = (
   candidateCalls,
   candidateCallIds,
   legacyOwners,
+  policyEvidence,
 ) => {
   const type = frame?.type;
-  if (TRANSPARENT_METADATA_TYPES.has(type) || type === "tool_result") return true;
+  if (TRANSPARENT_METADATA_TYPES.has(type)) return true;
+
+  if (type === "tool_result") {
+    const owner = policyEvidence.resultOwners.get(frame);
+    return Boolean(
+      owner &&
+        sameGroupingIdentity(owner.identity, candidateCalls[0]?._toolGrouping) &&
+        candidateCallIds.has(owner.identity.callId),
+    );
+  }
+
+  if (type === "tool_confirmed" || type === "tool_denied") {
+    const owner = policyEvidence.feedbackOwners?.get(frame);
+    return Boolean(
+      policyEvidence.transparentFeedback.has(frame) &&
+        owner &&
+        sameGroupingIdentity(owner.identity, candidateCalls[0]?._toolGrouping) &&
+        candidateCallIds.has(owner.identity.callId),
+    );
+  }
 
   if (type === "tool_call") {
     const identity = getToolGroupingIdentity(frame);
     return Boolean(
       identity &&
+        policyEvidence.eligible.has(groupingIdentityKey(identity)) &&
         sameGroupingIdentity(identity, candidateCalls[0]?._toolGrouping),
     );
   }
 
   if (type === "observation") {
-    const owner = hasTextIdentity(frame?.payload?.call_id)
-      ? { callIds: [frame.payload.call_id], identity: null }
-      : legacyOwners.get(frame);
+    const explicitOwner = policyEvidence.outputOwners.get(frame);
+    const legacyOwner = legacyOwners.get(frame);
+    const owner = explicitOwner
+      ? { identity: explicitOwner.identity, callIds: [explicitOwner.identity.callId] }
+      : legacyOwner;
     if (!owner) return false;
-    if (!owner.identity) {
-      return owner.callIds.every((id) => candidateCallIds.has(id));
-    }
     return (
       sameGroupingIdentity(owner.identity, candidateCalls[0]?._toolGrouping) &&
       owner.callIds.every((id) => candidateCallIds.has(id))
@@ -321,6 +521,7 @@ const hasSemanticBarrierBetween = (
   candidateCallIds,
   frames,
   legacyOwners,
+  policyEvidence,
 ) => {
   if (
     previousIndex === undefined ||
@@ -337,6 +538,7 @@ const hasSemanticBarrierBetween = (
         candidateCalls,
         candidateCallIds,
         legacyOwners,
+        policyEvidence,
       )
     ) {
       return true;
@@ -348,18 +550,24 @@ const hasSemanticBarrierBetween = (
 export const groupToolTimelineItems = (items, frames = []) => {
   const frameIndex = new Map(frames.map((frame, index) => [frame, index]));
   const legacyOwners = collectLegacyObservationOwners(frames);
-  const callIdentitiesById = new Map();
+  const policyEvidence = collectPolicyEvidence(frames);
+  const callIdentitiesByKey = new Map();
   for (const frame of frames) {
     if (frame?.type !== "tool_call") continue;
     const identity = getToolGroupingIdentity(frame);
-    if (identity) callIdentitiesById.set(identity.callId, identity);
+    if (identity) callIdentitiesByKey.set(groupingIdentityKey(identity), identity);
   }
+  const callIdentities = [...callIdentitiesByKey.values()];
 
   const output = [];
   let index = 0;
   while (index < items.length) {
     const first = items[index];
-    if (!first?._toolGrouping || !sourceFrameOf(first)) {
+    if (
+      !first?._toolGrouping ||
+      !policyEvidence.eligible.has(groupingIdentityKey(first._toolGrouping)) ||
+      !sourceFrameOf(first)
+    ) {
       output.push(first);
       index += 1;
       continue;
@@ -375,7 +583,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
     while (cursor < items.length) {
       const next = items[cursor];
       if (isOutputDescriptor(next)) {
-        const owner = outputOwnerForItem(next, callIdentitiesById, legacyOwners);
+        const owner = outputOwnerForItem(next, callIdentities, legacyOwners);
         const nextFrameIndex = frameIndex.get(sourceFrameOf(next));
         if (
           !isOwnedByCurrentCalls(owner, calls, candidateCallIds) ||
@@ -386,6 +594,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
             candidateCallIds,
             frames,
             legacyOwners,
+            policyEvidence,
           )
         ) {
           break;
@@ -400,6 +609,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
       const nextFrameIndex = frameIndex.get(sourceFrameOf(next));
       if (
         next?._toolGrouping &&
+        policyEvidence.eligible.has(groupingIdentityKey(next._toolGrouping)) &&
         sourceFrameOf(next) &&
         sameGroupingIdentity(first._toolGrouping, next._toolGrouping) &&
         !hasSemanticBarrierBetween(
@@ -409,6 +619,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
           candidateCallIds,
           frames,
           legacyOwners,
+          policyEvidence,
         )
       ) {
         calls.push(next);
@@ -435,6 +646,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
         calls,
         outputs,
         memberItems,
+        hasFeedback: calls.some((call) => call._toolGrouping?.hasFeedback),
       },
     });
     index = cursor;

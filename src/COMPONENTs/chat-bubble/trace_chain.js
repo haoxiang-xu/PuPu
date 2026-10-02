@@ -1918,12 +1918,10 @@ const TraceChain = ({
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
             ) : undefined,
-          _toolName: isInlineInteraction ? undefined : toolName,
-          _sections: isInlineInteraction ? undefined : sections,
+          _toolName: toolName,
+          _sections: sections,
           _sourceFrame: frame,
-          _toolGrouping: isInlineInteraction
-            ? null
-            : getToolGroupingIdentity(frame),
+          _toolGrouping: getToolGroupingIdentity(frame),
         });
       } else if (frame.type === "provider_retry") {
         const group = providerRetryGroups.get(Number(frame.seq));
@@ -2126,15 +2124,19 @@ const TraceChain = ({
 
       const firstCall = group.calls[0];
       const allSections = group.calls.flatMap((call) => call._sections || []);
-      const details =
-        group.outputs.length > 0 ? (
-          <ToolGroupTimeline
-            key={`tool-group:${timelineExpansionScope}:${firstCall.key}`}
-            items={group.memberItems}
-            compact
-            hideTrack
-            style={{ fontSize: compact ? 11 : 12 }}
-          />
+      const memberTimeline = (
+        <ToolGroupTimeline
+          key={`tool-group:${timelineExpansionScope}:${firstCall.key}`}
+          items={group.memberItems}
+          compact
+          hideTrack
+          style={{ fontSize: compact ? 11 : 12 }}
+        />
+      );
+      const details = group.hasFeedback
+        ? undefined
+        : group.outputs.length > 0 ? (
+          memberTimeline
         ) : allSections.length > 0 ? (
           <KVPanel sections={allSections} isDark={isDark} color={color} />
         ) : undefined;
@@ -2154,6 +2156,7 @@ const TraceChain = ({
         span: group.calls[group.calls.length - 1].span,
         status: "done",
         point: <HammerPoint isDark={isDark} />,
+        ...(group.hasFeedback ? { body: memberTimeline } : {}),
         details,
       };
     });
