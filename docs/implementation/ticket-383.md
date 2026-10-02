@@ -64,9 +64,11 @@ assistant text (including bubble-owned/filtered text), retry/error, user injecti
 confirmation/selection and subagent steps are barriers. Tool-result metadata is
 transparent. Output/truncation descriptors owned by already-started CURRENT group calls are
 transparent. Legacy batch observations have a second, explicitly bounded association:
-exact run_id + finite iteration must match a preceding completed tool batch, all
-batch calls/results must have known identities and share the current grouping key,
-and no semantic barrier may intervene. Preserve this as batch association, not a
+exact run_id + a genuinely numeric finite iteration must match the IMMEDIATELY
+PRECEDING contiguous completed tool batch. Do not coerce null/empty/missing iteration
+to 0, search backward for an older matching batch, or look ahead to future results.
+All batch calls/results must have known identities and share the current grouping
+key, and no semantic barrier may intervene. Preserve this as batch association, not a
 fabricated per-call owner. Mixed/incomplete batches, missing/ambiguous identity,
 mismatched/late observations and all other unowned output remain barriers.
 Groups consume contiguous original subsequences; no late output is pulled backward
