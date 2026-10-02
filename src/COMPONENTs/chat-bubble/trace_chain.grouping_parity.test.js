@@ -450,4 +450,81 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
     expect(detailControls()[0]).toBe("hide");
     expect(detailControls()[2]).toBe("detail");
   });
+
+  test("late earlier-call truncation keeps nested expansion on the same output row", () => {
+    const frame = (seq, type, payload) => ({
+      seq,
+      ts: seq * 100,
+      run_id: "run-a",
+      iteration: 0,
+      type,
+      payload,
+    });
+    const detailControls = () =>
+      screen
+        .getAllByRole("button")
+        .filter((button) => ["detail", "hide"].includes(button.textContent.trim()));
+    const controlLabels = () =>
+      detailControls().map((button) => button.textContent.trim());
+    const callA = frame(1, "tool_call", {
+      call_id: "a",
+      tool_name: "read_file",
+      arguments: { path: "a.txt" },
+    });
+    const outputA = frame(2, "observation", {
+      call_id: "a",
+      content: "output A",
+    });
+    const callB = frame(3, "tool_call", {
+      call_id: "b",
+      tool_name: "read_file",
+      arguments: { path: "b.txt" },
+    });
+    const outputB = frame(4, "observation", {
+      call_id: "b",
+      content: "output B",
+    });
+    const view = renderTrace([callA, outputA, callB, outputB], {
+      messageId: "late-truncation",
+      status: "streaming",
+    });
+
+    fireEvent.click(detailControls()[0]);
+    expect(controlLabels()).toEqual(["hide", "detail", "detail", "detail", "detail"]);
+    fireEvent.click(detailControls()[4]);
+    expect(controlLabels()).toEqual(["hide", "detail", "detail", "detail", "hide"]);
+
+    const lateResultA = frame(5, "tool_result", {
+      call_id: "a",
+      tool_name: "read_file",
+      result: "A",
+      observation_omitted: 7,
+      observation_tail: [],
+    });
+    view.rerender(
+      <ConfigContext.Provider
+        value={{
+          theme: { color: "#222", font: { fontFamily: "sans-serif" } },
+          onThemeMode: "light_mode",
+        }}
+      >
+        <StreamingMessageStoreContext.Provider
+          value={{
+            chatId: "chat-a",
+            store: null,
+            notifyStreamingContentCommitted: jest.fn(),
+          }}
+        >
+          <TraceChain
+            frames={[callA, outputA, callB, outputB, lateResultA]}
+            status="streaming"
+            messageId="late-truncation"
+          />
+        </StreamingMessageStoreContext.Provider>
+      </ConfigContext.Provider>,
+    );
+
+    expect(screen.getByText("+7 more output lines coalesced")).toBeInTheDocument();
+    expect(controlLabels()).toEqual(["hide", "detail", "detail", "detail", "hide"]);
+  });
 });

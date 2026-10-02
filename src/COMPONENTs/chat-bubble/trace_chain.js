@@ -747,6 +747,51 @@ const TokenSummary = ({ usage, isDark, bundle, partialNote = null }) => {
 
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
+// Group detail rows can be inserted when a late tool_result adds a truncation
+// summary. Timeline's uncontrolled indices would then follow the old position
+// instead of the observation row the user expanded. Keep that nested state by
+// the existing stable member key while leaving the shared Timeline unchanged.
+const ToolGroupTimeline = ({
+  items = [],
+  compact,
+  hideTrack,
+  style,
+}) => {
+  const [expandedItemKeys, setExpandedItemKeys] = useState(() => new Set());
+  const expandedIndices = useMemo(() => {
+    const indices = [];
+    items.forEach((item, index) => {
+      if (typeof item?.key === "string" && expandedItemKeys.has(item.key)) {
+        indices.push(index);
+      }
+    });
+    return indices;
+  }, [expandedItemKeys, items]);
+  const handleExpandChange = useCallback(
+    (indices) => {
+      setExpandedItemKeys(
+        new Set(
+          indices
+            .map((index) => items[index]?.key)
+            .filter((key) => typeof key === "string" && key.length > 0),
+        ),
+      );
+    },
+    [items],
+  );
+
+  return (
+    <Timeline
+      items={items}
+      expanded_indices={expandedIndices}
+      on_expand_change={handleExpandChange}
+      compact={compact}
+      hideTrack={hideTrack}
+      style={style}
+    />
+  );
+};
+
 const TraceChain = ({
   frames = [],
   status,
@@ -2083,7 +2128,7 @@ const TraceChain = ({
       const allSections = group.calls.flatMap((call) => call._sections || []);
       const details =
         group.outputs.length > 0 ? (
-          <Timeline
+          <ToolGroupTimeline
             key={`tool-group:${timelineExpansionScope}:${firstCall.key}`}
             items={group.memberItems}
             compact
