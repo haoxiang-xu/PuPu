@@ -1,0 +1,18 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/utils/chat_turn_utils.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js src/SERVICEs/chat_storage.interrupted_trace_persistence.test.js
+
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js
+PASS src/SERVICEs/chat_storage.interrupted_trace_persistence.test.js
+PASS src/PAGEs/chat/utils/chat_turn_utils.test.js
+
+Test Suites: 6 passed, 6 total
+Tests:       109 passed, 109 total
+Snapshots:   0 total
+Time:        2.972 s, estimated 3 s
+Ran all test suites matching /src\/PAGEs\/chat\/utils\/chat_turn_utils.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.composer_sidecar.test.js|src\/PAGEs\/chat\/hooks\/use_chat_session_state.straggler_settle.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.memory_v2_payload.test.js|src\/SERVICEs\/chat_storage.interrupted_trace_persistence.test.js/i.

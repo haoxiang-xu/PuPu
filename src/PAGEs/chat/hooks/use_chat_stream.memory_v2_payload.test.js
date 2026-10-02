@@ -335,6 +335,186 @@ describe("Memory V2 P0 payload seams", () => {
     ]);
   });
 
+  test("#384: stop drains a result and the in-flight root call admitted in the same stack", async () => {
+    startRuntimeV4("attempt-same-stack-result-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-same-stack-complete-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-same-stack-result-384",
+          callIds: {
+            ...callIds,
+            "observed-batch-call-2": "call-same-stack-running-384",
+          },
+        }));
+      });
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-same-stack-complete-384",
+      "call-same-stack-complete-384",
+      "call-same-stack-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-same-stack-complete-384",
+    )?.payload.result).toEqual({ content: "fixture contents for fixture-1.txt" });
+  });
+
+  test("#384: repeated stop and callbacks from a finished V4 run cannot mutate its successor", async () => {
+    const handlersByRun = [];
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      handlersByRun.push(handlers);
+      streamHandlers = handlers;
+      const index = handlersByRun.length;
+      return {
+        cancel: jest.fn(),
+        requestId: `request-stale-${index}`,
+        attemptId: `attempt-stale-${index}`,
+      };
+    });
+    renderChat();
+    await waitForReady();
+    sendText("first attempt");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const firstHandlers = streamHandlers;
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-1": "call-stale-first" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+    const firstSnapshot = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(firstSnapshot.status).toBe("cancelled");
+
+    await act(async () => lastChatInputProps.onStop());
+    await act(async () => firstHandlers.onRuntimeEvent(observedBatchEvent(3, {
+      chatId,
+      runId: "attempt-stale-first",
+      callIds: { "observed-batch-call-1": "call-stale-first" },
+    })));
+    sendText("successor attempt");
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
+    const successorHandlers = handlersByRun[1];
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(5, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-2": "call-stale-first-late-result" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const messagesBeforeSuccessorEvent = getChatMessages(chatId);
+    expect(messagesBeforeSuccessorEvent.find((message) => message.id === firstSnapshot.id).traceFrames)
+      .toEqual(firstSnapshot.traceFrames);
+    const successorBeforeEvent = messagesBeforeSuccessorEvent.filter((message) => message.role === "assistant")[1];
+    expect(successorBeforeEvent?.traceFrames || []).toEqual([]);
+
+    await act(async () => {
+      successorHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-second",
+        callIds: { "observed-batch-call-1": "call-stale-second" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await waitFor(() => {
+      const successor = lastChatMessagesProps.messages.filter((message) => message.role === "assistant")[1];
+      expect(successor?.traceFrames?.some((frame) => frame.payload?.call_id === "call-stale-second")).toBe(true);
+    });
+    const assistants = getChatMessages(chatId).filter((message) => message.role === "assistant");
+    expect(assistants[0].traceFrames.some((frame) => frame.payload?.call_id === "call-stale-first-late-result")).toBe(false);
+  });
+
+  test("#384: stop drains a same-stack approval request before recording cancellation identity", async () => {
+    startRuntimeV4("attempt-same-stack-approval-384");
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok",
+      session_id: payload.session_id,
+      attempt_id: payload.attempt_id,
+      state: "cancelled",
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("choose a folder");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-stop-384";
+    const callId = "call-stop-approval-384";
+    const config = {
+      prompt: "Choose a folder",
+      options: [],
+      allow_other: true,
+    };
+    const approvalEvent = {
+      schema_version: "v4",
+      event_id: "event-stop-approval-384",
+      type: "interaction.requested",
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      run_id: "attempt-same-stack-approval-384",
+      agent_id: "developer",
+      turn_id: "attempt-same-stack-approval-384:turn-0",
+      seq: 1,
+      links: { interaction_id: interactionId, tool_call_id: callId },
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+      payload: {
+        interaction_id: interactionId,
+        kind: "choice",
+        renderer: "single",
+        title: "Folder",
+        prompt: "Choose a folder",
+        selection_mode: "single",
+        options: [],
+        allow_other: true,
+        target: { tool_call_id: callId, tool_name: "ask_user_question" },
+        config,
+      },
+    };
+
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(approvalEvent);
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool_call", payload: expect.objectContaining({
+        confirmation_id: interactionId,
+        call_id: callId,
+        requires_confirmation: true,
+      }) }),
+    ]));
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({
+      owner_chat_id: chatId,
+      interaction_id: interactionId,
+      reason: "user_stop",
+    }));
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests[interactionId]).toBeUndefined();
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
   test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
     startRuntimeV4("attempt-visible-384");
     renderChat();
