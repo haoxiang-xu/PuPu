@@ -57,7 +57,7 @@ describe("settleStreamingAssistantMessages", () => {
     Date.now.mockRestore();
   });
 
-  test("#66: never fabricates a body from tool frames and never promotes cancel to terminal", () => {
+  test("#384: retains completed and in-flight tool history without fabricating a body", () => {
     jest.spyOn(Date, "now").mockReturnValue(1234);
 
     const { nextMessages } = settleStreamingAssistantMessages([
@@ -74,10 +74,57 @@ describe("settleStreamingAssistantMessages", () => {
       },
     ]);
 
-    // Only tool activity, no recoverable assistant text → message is not settled
-    // with fabricated tool output as its body.
-    expect(nextMessages).toHaveLength(0);
+    expect(nextMessages).toHaveLength(1);
+    expect(nextMessages[0]).toEqual({
+      id: "assistant-1",
+      role: "assistant",
+      status: "cancelled",
+      content: "",
+      traceFrames: [
+        { type: "tool_call", payload: { tool_name: "search" } },
+        { type: "tool_result", payload: { result: { ok: true } } },
+      ],
+      updatedAt: 1234,
+    });
 
     Date.now.mockRestore();
+  });
+
+  test("#384: keeps nested execution history when it is the only meaningful content", () => {
+    jest.spyOn(Date, "now").mockReturnValue(1234);
+    const subagentFrames = {
+      "worker-run-1": [
+        { type: "tool_call", payload: { call_id: "nested-call", tool_name: "search" } },
+      ],
+    };
+
+    const { nextMessages } = settleStreamingAssistantMessages([{
+      id: "assistant-1",
+      role: "assistant",
+      status: "streaming",
+      content: "",
+      subagentFrames,
+    }]);
+
+    expect(nextMessages).toHaveLength(1);
+    expect(nextMessages[0].status).toBe("cancelled");
+    expect(nextMessages[0].content).toBe("");
+    expect(nextMessages[0].subagentFrames).toEqual(subagentFrames);
+    Date.now.mockRestore();
+  });
+
+  test.each([
+    ["metadata only", { subagentMetaByRunId: { "worker-run-1": { status: "running" } } }],
+    ["empty frames", { traceFrames: [], subagentFrames: {} }],
+    ["empty payload", { traceFrames: [{ type: "tool_call", payload: {} }] }],
+  ])("#384: drops an empty streaming placeholder with %s", (_label, extra) => {
+    const { nextMessages } = settleStreamingAssistantMessages([{
+      id: "assistant-empty",
+      role: "assistant",
+      status: "streaming",
+      content: "",
+      ...extra,
+    }]);
+    expect(nextMessages).toHaveLength(0);
   });
 });

@@ -195,4 +195,31 @@ describe("useChatSessionState bootstrap straggler settle (isGenerating meta driv
 
     view.unmount();
   });
+
+  test("#384: bootstrap retains a tool-only interrupted assistant for a cold remount", () => {
+    bridge.readMessages.mockImplementation((chatId) => chatId === CHAT_B ? [
+      { id: "user-b", role: "user", content: "run tools" },
+      {
+        id: "assistant-b",
+        role: "assistant",
+        status: "streaming",
+        content: "",
+        traceFrames: [
+          { type: "tool_call", payload: { call_id: "complete-b", tool_name: "read_file" } },
+          { type: "tool_result", payload: { call_id: "complete-b", result: { content: "seen" } } },
+          { type: "tool_call", payload: { call_id: "running-b", tool_name: "search" } },
+        ],
+      },
+    ] : []);
+
+    const { cs, view } = renderSessionState();
+    const settled = cs.getChatMessages(CHAT_B).find((message) => message.role === "assistant");
+    expect(settled).toBeDefined();
+    expect(settled.status).toBe("cancelled");
+    expect(settled.content).toBe("");
+    expect(settled.traceFrames.map((entry) => entry.payload.call_id)).toEqual([
+      "complete-b", "complete-b", "running-b",
+    ]);
+    view.unmount();
+  });
 });

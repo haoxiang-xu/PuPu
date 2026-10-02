@@ -80,6 +80,40 @@ const makeRafScheduler = () => {
 };
 
 describe("TraceChain final_message draft timeline", () => {
+  test("#384: cancelled generic calls are not presented as completed", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "unfinished-generic", tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText("Interrupted")).toBeInTheDocument();
+    expect(screen.queryByText("Used 1 step")).not.toBeInTheDocument();
+  });
+
+  test("#384: cancelled nested calls do not keep a child trace actively running", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "delegate-1", tool_name: "delegate_to_subagent", arguments: { target: "worker" } },
+      })],
+      subagentFrames: {
+        "worker-run": [frame({ seq: 1, type: "tool_call", payload: { call_id: "worker-call", tool_name: "search" } })],
+      },
+      subagentMetaByRunId: {
+        "worker-run": { subagentId: "worker", mode: "delegate", template: "worker", status: "running" },
+      },
+    });
+
+    expect(screen.getByText("Interrupted")).toBeInTheDocument();
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+  });
+
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
