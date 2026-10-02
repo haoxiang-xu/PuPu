@@ -89,7 +89,7 @@ Initial gate completed at `f5d0278e`: reviewed plan pushed and independently res
 
 ## Current isolated acceptance evidence
 
-Production source is fixed at `ce9e434c069c14cf0ae6bf7997671d6d065d1394`; the test/evidence checkpoint is `5a2e3fa52ded0a29098d828898d6800bccb832ce`. Both independent intermediate reviews have their source findings and evidence gaps resolved. Final GPT-6.1 Sol acceptance is pending on the next immutable, remotely checkpointed evidence snapshot.
+Production source is fixed at `ce9e434c069c14cf0ae6bf7997671d6d065d1394`; the test/evidence checkpoint is `5a2e3fa52ded0a29098d828898d6800bccb832ce`. Both independent intermediate reviews have their source findings and evidence gaps resolved. Final GPT-6.1 Sol acceptance passed on immutable source/test/evidence snapshot 0d672d5425419b4b79687258daf8b0b99d3b5e26; see ticket-384-evidence/final-acceptance.md. Its independent focused run passes 111 tests and its artifact/hash/screenshot checks identify no unresolved production finding.
 
 | Acceptance criterion | Current result and attributable evidence |
 |---|---|
@@ -115,4 +115,4 @@ Production source is fixed at `ce9e434c069c14cf0ae6bf7997671d6d065d1394`; the te
 
 Focused final slice: 6 suites / 111 tests pass. Full frontend run on unchanged production `ce9e434c`: 443/445 suites pass; two isolated listener suites initially fail under sandbox EPERM and then pass 2 suites / 30 tests in an authorized isolated-loopback rerun on identical source. Combined closure: 445 suites / 5410 passing / 5 skipped, explicitly not one all-green aggregate invocation. The two later test-only cases have independent red/green evidence and intermediate-review readback. CI web build actual compiler child exits 0. The accepted producer fixture, compiled entry/bundle and source hashes are recorded; no #383 runtime adoption, provider request, live approval action or shared-profile access occurred.
 
-Active rollout remains INCOMPLETE. Isolated evidence does not prove durable MemoryV2 records were deleted or repaired, deployed sidecar cancellation, a cold sidecar restart, or real-device acceptance. #383 acceptance remains on hold until the user says ready. No merge, deployment, ticket closure or draft PR has occurred; draft PR is subject to final review and parent coordination.
+Active rollout remains INCOMPLETE. Isolated evidence does not prove durable MemoryV2 records were deleted or repaired, deployed sidecar cancellation, a cold sidecar restart, or real-device acceptance. #383 acceptance remains on hold until the user says ready. At the final acceptance checkpoint, no merge, deployment, ticket closure or draft PR had occurred. Final review is complete; draft PR delivery still requires source-parent coordination and remote PR CI readback.

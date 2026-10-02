@@ -1,6 +1,6 @@
 # Accepted baseline producer artifact — #384
 
-Producer fixture preparation and independent strict release-manifest validation are complete; compiled candidate-consumer evidence is still pending.
+Producer fixture preparation and independent strict release-manifest validation are complete. Compiled candidate-consumer source/bundle/lock hashes, browser readback and screenshots are now recorded at checkpoint 0d672d54 under compiled-consumer/. The browser consumes the fixture produced by this artifact, not a deployed Python runtime or live cancellation service.
 
 - Accepted Unchain source: `1ec49ddfc28d3b42ba035debada5e3db759dad1b` (the #386 baseline pinned by current `dev` Release QA).
 - One prebuilt baseline wheel reused unchanged: `unchain-0.2.0-py3-none-any.whl`, 1,160,341 bytes, SHA-256 `f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889`.

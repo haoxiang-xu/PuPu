@@ -1,0 +1,58 @@
+{
+  "remote": "https://github.com/haoxiang-xu/PuPu.git",
+  "branch": "codex/ticket-384-interrupted-tool-chain",
+  "restored_commit": "0d672d5425419b4b79687258daf8b0b99d3b5e26",
+  "tree": "940001d161393c9417e4e1708fea42d1e28027a2",
+  "checkout": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384-remote-proof",
+  "restore_status": "clean",
+  "fetch_source": "direct GitHub authenticated origin, depth 1; not a local clone",
+  "tracked_tree_equal": true,
+  "files": [
+    {
+      "path": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "sha256": "3dc910b8be3786cf036cae4fe0f3ef72002782e3652e40557809df5172b3a1d9",
+      "bytes": 551348
+    },
+    {
+      "path": "src/PAGEs/chat/utils/chat_turn_utils.js",
+      "sha256": "0cd7f91805c127b4d2ff877176f1d9247f9a866f06a26bba99c9ea64101cad58",
+      "bytes": 6053
+    },
+    {
+      "path": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "sha256": "f270244b6ba0e62d01713ea548cc6688937058e2b79648140957d984192a2afa",
+      "bytes": 79834
+    },
+    {
+      "path": "src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js",
+      "sha256": "4cfecb189cc1397a5ee3c62156eeaa8c4e9612fe180bc13e926d1a7b589f0a28",
+      "bytes": 63979
+    },
+    {
+      "path": "docs/implementation/ticket-384-interrupted-tool-chain.md",
+      "sha256": "4a2e76659a84893585137152ed68074949cb3c0b5186bea0a7c83b14a37815ca",
+      "bytes": 20768
+    },
+    {
+      "path": "docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+      "sha256": "5f604cc728db9b7e12d6a8ba744c2dec644941ea3e97d9289fda7eacfa59f1c0",
+      "bytes": 9200
+    },
+    {
+      "path": "docs/implementation/ticket-384-evidence/compiled-consumer/verify.cjs",
+      "sha256": "b6ae9dbf564ce11fc585413c032082e5a1d8d6c0da013e3d59153dd59e8828e0",
+      "bytes": 9537
+    },
+    {
+      "path": "docs/implementation/ticket-384-evidence/compiled-consumer/browser-results.json",
+      "sha256": "f098e9b844cc4f9704ee5b7e1efdc1267326dc293d3454499f13d9e0656ce138",
+      "bytes": 5016
+    },
+    {
+      "path": "docs/implementation/ticket-384-evidence/compiled-consumer/nested-after-reload.png",
+      "sha256": "19f7854b08cc5ba18f10a29c9a6d12f060a2ba8feea899cfc35a0465290e3a32",
+      "bytes": 80329
+    }
+  ],
+  "initial_pre_implementation_restore": "f5d0278ecc38f7b2978210c826c687f14875aff6"
+}
