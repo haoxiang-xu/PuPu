@@ -12,6 +12,8 @@ The original baseline `produce-events.py` fixture from #383 was copied unchanged
 
 Canonical/raw events, full producer evidence and provenance remain under `.local/ticket-384-runtime/producer`. No application bridge, shared profile, durable user database, provider request, approval service or running sidecar was accessed. Prefixing this real producer output around calls/results can supply realistic isolated stop fixtures; those prefixes must not be described as actual live cancellation evidence.
 
+The committed hook-test fixture `src/SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json` is a byte-for-byte copy of `.local/ticket-384-runtime/producer/observed-batch.runtime-events.json` (SHA-256 `b913b4f7aad9ed9a42be20f306d7e88a4b4529130aa4a3cc7effa0300cc4b356`). This makes the deterministic event prefix available in clean CI checkouts while retaining provenance to the accepted baseline producer output.
+
 Command (from this isolated checkout):
 
 ```

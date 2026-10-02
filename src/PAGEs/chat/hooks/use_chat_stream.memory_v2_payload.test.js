@@ -26,6 +26,7 @@ import {
 } from "../../../CONTAINERs/config/context";
 import ChatInterface from "../chat";
 import {
+  getChatMessages,
   getChatsStore,
   createChatInSelectedContext,
   selectTreeNode,
@@ -37,6 +38,7 @@ import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
+import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -95,7 +97,7 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
   default: (props) => {
     lastChatInputProps = props;
-    const { value, onChange, onSend, sendDisabled } = props;
+    const { value, onChange, onSend, onStop, isStreaming, sendDisabled } = props;
     return (
       <div>
         <input
@@ -110,6 +112,11 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
         >
           Send
         </button>
+        {isStreaming ? (
+          <button data-testid="stop-button" onClick={onStop}>
+            Stop
+          </button>
+        ) : null}
       </div>
     );
   },
@@ -172,6 +179,7 @@ describe("Memory V2 P0 payload seams", () => {
         url: "http://localhost:3000",
         reason: "",
       })),
+      isRuntimeEventStreamV4Available: jest.fn(() => false),
       getModelCatalog: jest.fn(async () => ({
         activeModel: "openai:gpt-5",
         providers: { openai: ["gpt-5"], ollama: [], anthropic: [] },
@@ -235,6 +243,40 @@ describe("Memory V2 P0 payload seams", () => {
     fireEvent.click(screen.getByTestId("send-button"));
   };
 
+  const startRuntimeV4 = (attemptId) => {
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      streamHandlers = handlers;
+      return { cancel: jest.fn(), disconnect: jest.fn(), requestId: `request-${attemptId}`, attemptId };
+    });
+  };
+
+  const observedBatchEvent = (index, { chatId, runId, callIds = {} }) => {
+    const event = JSON.parse(JSON.stringify(observedBatchFixture[index]));
+    event.event_id = `test-${runId}-${event.seq}`;
+    event.session_id = chatId;
+    event.run_id = runId;
+    event.turn_id = `${runId}:turn-0`;
+    const previousCallId = event.links?.tool_call_id;
+    const mappedCallId = previousCallId ? callIds[previousCallId] : undefined;
+    if (mappedCallId) {
+      event.links.tool_call_id = mappedCallId;
+      if (typeof event.links.step_id === "string") {
+        event.links.step_id = `tool:${mappedCallId}`;
+      }
+      if (event.payload?.call_id) event.payload.call_id = mappedCallId;
+      if (typeof event.payload?.step_id === "string") {
+        event.payload.step_id = `tool:${mappedCallId}`;
+      }
+    }
+    return event;
+  };
+
+  const waitForRuntimeRun = async () => {
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  };
+
   const seedPriorTurn = (chatId) => {
     const priorMessages = [
       {
@@ -258,6 +300,84 @@ describe("Memory V2 P0 payload seams", () => {
     setChatMessages(chatId, priorMessages, { source: "test" });
     return priorMessages;
   };
+
+  test("#384: stop preserves a canonical V4 call admitted to the pending 64ms batch", async () => {
+    startRuntimeV4("attempt-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("read the fixture");
+    await waitForRuntimeRun();
+
+    const chatId = getChatsStore().activeChatId;
+    const admittedCall = observedBatchEvent(2, {
+      chatId,
+      runId: "attempt-buffered-384",
+      callIds: { "observed-batch-call-1": "call-buffered-384" },
+    });
+    await act(async () => streamHandlers.onRuntimeEvent(admittedCall));
+    expect(lastChatMessagesProps.messages.find((message) => message.role === "assistant")?.traceFrames)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "tool_call" })]));
+
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant).toBeDefined();
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual([
+      expect.objectContaining({
+        type: "tool_call",
+        payload: expect.objectContaining({
+          call_id: "call-buffered-384",
+          tool_name: "read_file",
+          arguments: { path: "fixture-1.txt" },
+        }),
+      }),
+    ]);
+  });
+
+  test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
+    startRuntimeV4("attempt-visible-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-completed-384",
+      "observed-batch-call-2": "call-running-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-visible-384",
+          callIds,
+        }));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(assistant.traceFrames?.some((frame) => frame.payload?.call_id === "call-running-384")).toBe(true);
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-completed-384",
+      "call-completed-384",
+      "call-running-384",
+    ]);
+    const completedResult = assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-completed-384",
+    );
+    expect(completedResult?.payload).toEqual(expect.objectContaining({
+      result: { content: "fixture contents for fixture-1.txt" },
+    }));
+  });
 
   test("a v4 reset removes only its failed live reasoning from the assistant message", async () => {
     window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
