@@ -5,13 +5,13 @@
 - Core candidate reviewed as `9b9b1e8bf48f59cb6683d23849dc79f77ad95c5e`; review 1 returned **CONTINUE**.
 - Parity candidate: `d9f3e76c0fcafd7f751eb63ec9d65ea600a0c937`, tree `98702eab83929d7f946c0a61118acd214518a9ee`.
 - Review 2 returned **CONTINUE** after requesting one renderer-only coverage correction for every prefix of the actual legacy V2 fixture. That test was added and passed before the verdict.
-- Final GPT-6.1 acceptance then found one must-fix expansion regression: a late truncation summary anchored to call A shifted an already-expanded call B observation onto call B's argument row in the nested detail Timeline. The final delta adds `ToolGroupTimeline` inside TraceChain, controlling the existing Timeline by stable member keys. The exact regression was RED before the wrapper and GREEN after it; see `phase2-final-nested-expansion.log` and the current focused log. Final GPT-6.1 delta recheck is pending.
+- Final GPT-6.1 acceptance then found one must-fix expansion regression: a late truncation summary anchored to call A shifted an already-expanded call B observation onto call B's argument row in the nested detail Timeline. The final delta adds `ToolGroupTimeline` inside TraceChain, controlling the existing Timeline by stable member keys. The exact regression was RED before the wrapper and GREEN after it; see `phase2-final-nested-expansion.log` and the current focused log. Final independent delta checks passed on source commit `0eb843fe2312f0e5e4ba6edd98cb8056e9bfe40e`; see `final-acceptance.md` and `final-independent-evidence.json`.
 - The correction is durably saved as `382c0e24f850f5a93c605a38e7fd93559c9f55cd`, tree `609ac092700db5b772240108d23432c7562a9a6e`. The d9f3 review candidate is its parent.
 - Allowed production files remain `src/COMPONENTs/chat-bubble/trace_chain.js` and `trace_tool_grouping.js`. The final correction changes only the state owner in TraceChain and its renderer regression test; no backend, provider, Unchain, schema, journal, Timeline, or ordinary result/status changes.
 
 Candidate file SHA-256:
 
-- `trace_chain.js`: `9a37981bea275a86dfd9b7e8bfe631b929d5ddfe40e04148ae91cac93539bd1b`
+- `trace_chain.js`: `9c38823b599c76ba92256d8210de6e8ee18f3a0dae151d427056c12be111e502`
 - `trace_tool_grouping.js`: `65a7f4bf78bd3eb42418f307e9bd02788a184eff61d6dac2feace64c386a71c8`
 - `trace_tool_grouping.test.js`: `ebf34fbbbb9bff2decd374769d0b1ab572b2246a226948d2eeac70ce5128af28`
 - `trace_chain.grouping.test.js`: `3bfda65257790fabdacdb2e5def65c8b7703f6372067506854ce39c9e12c04bf`
@@ -47,7 +47,7 @@ The initial external legacy UI harness still contains a pre-fix expectation that
 
 ## Aggregate suite classification
 
-`CI=true npm run test:frontend -- --runInBand` completed with **445/447 suites passed, 5,373 tests passed, 38 failed, 5 skipped**. All failures are confined to these two unrelated Electron suites:
+The final reviewer independently reran `CI=true npm run test:frontend -- --runInBand` on frozen source commit `0eb843fe2312f0e5e4ba6edd98cb8056e9bfe40e`: **445/447 suites passed, 5,375 tests passed, 38 failed, 5 skipped (5,418 total)**. The 38 failed assertion names exactly match the immutable original-dev baseline; see `final-frontend-summary.json`. All failures are confined to these two unrelated Electron suites:
 
 - `src/electron/tests/main/memory_vault_service.test.js`: 19 failures.
 - `src/electron/tests/main/memory_vault_use_state.test.js`: 19 failures.
@@ -56,7 +56,7 @@ Thirty-seven of 38 failed assertions explicitly report `[secret_storage_unavaila
 
 ## Build and browser verification
 
-Build is **INCONCLUSIVE**, not PASS. A plain non-interactive `npm run build:web` failed before compilation because no build version was supplied. With the current package version explicitly supplied (`PUPU_BUILD_VERSION=0.1.12 npm run build:web`), the wrapper returned exit code 0 twice, but both logs stopped at “Creating an optimized production build…” and neither `build/index.html` nor `build/static/js` existed afterward. `scripts/build-web.cjs` exits with `result.status || 0`, so a terminated child can be masked as code 0; the child signal itself was not captured. Logs and exact check are in `phase2-build-web.log`. Final reviewer owns one sequential build diagnosis/retry; do not infer success from the wrapper exit code.
+The default build is **NOT PASS**: an instrumented `PUPU_BUILD_VERSION=0.1.12 npm run build:web` captured a `SIGKILL` child with no artifacts even though the existing wrapper reported exit 0. OOM was not established. The final reviewer then ran a resource-bounded **CI=true** build on the unchanged final source: **PASS**, actual child status 0 / signal null, complete successful footer, `build/index.html`, 72 JS assets and feature snapshot present. Supported environment flags cap the heap at 1536 MB, disable source maps and pin CPU affinity 0; the tiny out-of-repo diagnostic preload only records child status. The two missing memo dependency warnings were corrected in commit `0eb843fe2312f0e5e4ba6edd98cb8056e9bfe40e`, and no lint warning remains. See `final-acceptance.md`, `final-ci-build.log`, `final-ci-build-child.jsonl` and `final-ci-build-artifacts.json`.
 
 Actual browser QA is **NOT_RUN**. The cloud browser returned `ERR_BLOCKED_BY_CLIENT` for localhost; no alternate network probing was attempted.
 

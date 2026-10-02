@@ -221,11 +221,17 @@ stable-member-key correction and regression test are saved as
 `609ac092700db5b772240108d23432c7562a9a6e`). The focused set now passes 12 suites /
 122 tests. Final GPT-6.1 delta recheck and build diagnosis remain in progress.
 
-The phase-2 focused regression set passes 12 suites / 122 tests. The full frontend
-aggregate has 2 unrelated secret-storage suites that fail identically on immutable
-9b9b1e8 and original-dev 0047d58 archives. The web build remains INCONCLUSIVE: its wrapper
-reported exit 0 without producing `build/index.html` or JS assets, and does not
-surface the child signal. Final GPT-6.1 acceptance owns one sequential build
-diagnosis/retry. Browser QA is NOT_RUN (`ERR_BLOCKED_BY_CLIENT`). A draft PR to dev
-is authorized only after final acceptance; no merge, deployment, or ticket closure
-is authorized by these results.
+Final source candidate `0eb843fe2312f0e5e4ba6edd98cb8056e9bfe40e` adds only the two
+missing grouping memo dependencies required by CI lint. Independent final checks
+pass 17 focused suites / 152 tests and 5 producer/probe suites / 19 tests. The full
+frontend aggregate passes 445/447 suites and 5,375 tests, with 38 failed assertions
+and 5 skipped; the failed assertion set exactly matches original-dev 0047d58.
+A resource-bounded CI=true web build passes with a successful child exit and real
+artifacts. The default build child SIGKILL is recorded separately and is not PASS.
+Browser QA is NOT_RUN (`ERR_BLOCKED_BY_CLIENT`). Exact results, hashes, commands and
+remaining limits are preserved in
+[`ticket-383-evidence/final-acceptance.md`](ticket-383-evidence/final-acceptance.md)
+and `final-independent-evidence.json`.
+
+The owner authorized a draft PR to dev only after final acceptance, followed by CI
+checks. No merge, deployment, feature-audit PASS or ticket closure is implied.
