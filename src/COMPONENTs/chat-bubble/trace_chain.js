@@ -62,6 +62,64 @@ import {
   groupToolTimelineItems,
 } from "./trace_tool_grouping";
 
+const traceScopePart = (value) =>
+  typeof value === "string" && value.trim().length > 0
+    ? [true, value.trim()]
+    : [false, ""];
+
+const traceCallBaseKey = (frame) => {
+  const payload = frame?.payload || {};
+  if (typeof payload.call_id !== "string" || !payload.call_id.trim()) return "";
+  return JSON.stringify([
+    payload.call_id.trim(),
+    traceScopePart(frame?.run_id),
+    traceScopePart(payload.toolkit_id),
+    traceScopePart(payload.tool_name),
+  ]);
+};
+
+const traceCallScopeKey = (frame) => {
+  const baseKey = traceCallBaseKey(frame);
+  if (!baseKey) return "";
+  return JSON.stringify([
+    baseKey,
+    traceScopePart(frame?.payload?.confirmation_id),
+  ]);
+};
+
+const resolveTraceCallScopeKey = (linkedFrame, toolCallFrames, requireConfirmation = false) => {
+  const payload = linkedFrame?.payload || {};
+  if (typeof payload.call_id !== "string" || !payload.call_id.trim()) return "";
+  const linkedConfirmation = traceScopePart(payload.confirmation_id);
+  const matches = toolCallFrames.filter((callFrame) => {
+    const callPayload = callFrame?.payload || {};
+    if (callPayload.call_id !== payload.call_id) return false;
+    if (JSON.stringify(traceScopePart(callFrame?.run_id)) !== JSON.stringify(traceScopePart(linkedFrame?.run_id))) return false;
+    if (
+      typeof payload.tool_name === "string" &&
+      payload.tool_name.trim() &&
+      callPayload.tool_name !== payload.tool_name
+    ) return false;
+    if (
+      typeof payload.toolkit_id === "string" &&
+      payload.toolkit_id.trim() &&
+      callPayload.toolkit_id !== payload.toolkit_id
+    ) return false;
+    if (
+      linkedConfirmation[0] &&
+      JSON.stringify(traceScopePart(callPayload.confirmation_id)) !== JSON.stringify(linkedConfirmation)
+    ) return false;
+    if (
+      requireConfirmation &&
+      linkedConfirmation[0] &&
+      callPayload.confirmation_id !== payload.confirmation_id
+    ) return false;
+    return true;
+  });
+  const keys = [...new Set(matches.map(traceCallScopeKey).filter(Boolean))];
+  return keys.length === 1 ? keys[0] : "";
+};
+
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
 export const DISPLAY_FRAME_TYPES = new Set([
@@ -1036,30 +1094,51 @@ const TraceChain = ({
     (group) => group.outcome === "waiting",
   );
 
-  const toolResultByCallId = useMemo(() => {
-    const m = new Map();
-    for (const frame of frames) {
-      if (frame.type === "tool_result" && frame.payload?.call_id) {
-        m.set(frame.payload.call_id, frame);
-      }
-    }
-    return m;
-  }, [frames]);
+  const toolCallFrames = useMemo(
+    () => frames.filter((frame) => frame?.type === "tool_call"),
+    [frames],
+  );
 
-  const confirmationStatusByCallId = useMemo(() => {
+  const toolResultFramesByCallScope = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
-      if (!frame?.payload?.call_id) {
-        continue;
-      }
-      if (frame.type === "tool_confirmed") {
-        map.set(frame.payload.call_id, "approved");
-      } else if (frame.type === "tool_denied") {
-        map.set(frame.payload.call_id, "denied");
-      }
+      if (frame?.type !== "tool_result") continue;
+      const key = resolveTraceCallScopeKey(frame, toolCallFrames);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(frame);
     }
     return map;
-  }, [frames]);
+  }, [frames, toolCallFrames]);
+
+  const toolResultByCallScope = useMemo(() => {
+    const map = new Map();
+    toolResultFramesByCallScope.forEach((candidates, key) => {
+      if (candidates.length === 1) map.set(key, candidates[0]);
+    });
+    return map;
+  }, [toolResultFramesByCallScope]);
+
+  const confirmationFramesByCallScope = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") continue;
+      const key = resolveTraceCallScopeKey(frame, toolCallFrames, true);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(frame);
+    }
+    return map;
+  }, [frames, toolCallFrames]);
+
+  const confirmationStatusByCallScope = useMemo(() => {
+    const map = new Map();
+    confirmationFramesByCallScope.forEach((candidates, key) => {
+      if (candidates.length !== 1) return;
+      map.set(key, candidates[0].type === "tool_confirmed" ? "approved" : "denied");
+    });
+    return map;
+  }, [confirmationFramesByCallScope]);
 
   const childRunIdsBySubagentId = useMemo(() => {
     const map = new Map();
@@ -1077,75 +1156,59 @@ const TraceChain = ({
     return map;
   }, [effectiveSubagentMetaByRunId]);
 
-  const interactTypeByCallId = useMemo(() => {
+  const interactTypeByCallScope = useMemo(() => {
     const map = new Map();
-    for (const frame of frames) {
-      if (frame?.type !== "tool_call" || !frame?.payload?.call_id) {
-        continue;
-      }
-      const itype =
-        typeof frame.payload?.interact_type === "string"
-          ? frame.payload.interact_type
-          : "";
-      if (itype) {
-        map.set(frame.payload.call_id, itype);
-      }
+    for (const frame of toolCallFrames) {
+      const key = traceCallScopeKey(frame);
+      const itype = typeof frame.payload?.interact_type === "string"
+        ? frame.payload.interact_type
+        : "";
+      if (key && itype) map.set(key, itype);
     }
     return map;
-  }, [frames]);
+  }, [toolCallFrames]);
 
-  const confirmationUserResponseByCallId = useMemo(() => {
+  const confirmationUserResponseByCallScope = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
       if (
         (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
-        !frame?.payload?.call_id ||
         frame?.payload?.user_response === undefined
-      ) {
-        continue;
-      }
-
+      ) continue;
+      const key = resolveTraceCallScopeKey(frame, toolCallFrames, true);
+      if (!key || confirmationFramesByCallScope.get(key)?.length !== 1) continue;
       const normalized = normalizePersistedInteractionResponse(
-        interactTypeByCallId.get(frame.payload.call_id) || "",
+        interactTypeByCallScope.get(key) || "",
         frame.payload.user_response,
       );
-      map.set(
-        frame.payload.call_id,
-        normalized === undefined ? frame.payload.user_response : normalized,
-      );
+      map.set(key, normalized === undefined ? frame.payload.user_response : normalized);
     }
     return map;
-  }, [frames, interactTypeByCallId]);
+  }, [frames, confirmationFramesByCallScope, interactTypeByCallScope, toolCallFrames]);
 
-  const toolResultUserResponseByCallId = useMemo(() => {
+  const toolResultUserResponseByCallScope = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
-      if (frame?.type !== "tool_result" || !frame?.payload?.call_id) {
-        continue;
-      }
-
+      if (frame?.type !== "tool_result") continue;
+      const key = resolveTraceCallScopeKey(frame, toolCallFrames);
+      if (!key || toolResultByCallScope.get(key) !== frame) continue;
       const interactType =
         typeof frame?.payload?.interact_type === "string"
           ? frame.payload.interact_type
-          : interactTypeByCallId.get(frame.payload.call_id) ||
-            (typeof frame?.payload?.tool_name === "string" &&
-            frame.payload.tool_name === "ask_user_question"
-              ? "single"
-              : "");
+          : interactTypeByCallScope.get(key) ||
+            (frame?.payload?.tool_name === "ask_user_question" ? "single" : "");
       const normalized = normalizePersistedInteractionResponse(
         interactType,
         frame.payload?.result,
       );
-      if (normalized !== undefined) {
-        map.set(frame.payload.call_id, normalized);
-      }
+      if (normalized !== undefined) map.set(key, normalized);
     }
     return map;
-  }, [frames, interactTypeByCallId]);
+  }, [frames, interactTypeByCallScope, toolCallFrames, toolResultByCallScope]);
 
   const timelineItems = useMemo(() => {
     const items = [];
-    const renderedCallIds = new Set();
+    const renderedCallScopes = new Set();
     const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
     const fallbackChunks = isStreaming
@@ -1377,8 +1440,9 @@ const TraceChain = ({
         });
       } else if (frame.type === "tool_call") {
         const callId = frame.payload?.call_id;
-        if (callId && renderedCallIds.has(callId)) continue;
-        if (callId) renderedCallIds.add(callId);
+        const callScopeKey = traceCallScopeKey(frame);
+        if (callScopeKey && renderedCallScopes.has(callScopeKey)) continue;
+        if (callScopeKey) renderedCallScopes.add(callScopeKey);
 
         const toolName = getToolDisplayName(frame.payload);
         const args = frame.payload?.arguments;
@@ -1398,7 +1462,7 @@ const TraceChain = ({
             ? frame.payload.interact_type
             : "confirmation";
         const interactConfig = frame.payload?.interact_config || {};
-        const resultFrame = callId ? toolResultByCallId.get(callId) : null;
+        const resultFrame = callScopeKey ? toolResultByCallScope.get(callScopeKey) : null;
         const result = resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
@@ -1735,8 +1799,8 @@ const TraceChain = ({
           continue;
         }
 
-        const confirmationResult = callId
-          ? confirmationStatusByCallId.get(callId)
+        const confirmationResult = callScopeKey
+          ? confirmationStatusByCallScope.get(callScopeKey)
           : "";
         const hasAuthoritativeConfirmationUiState = Boolean(
           confirmationId &&
@@ -1750,10 +1814,10 @@ const TraceChain = ({
           ? toolConfirmationUiStateById[confirmationId] || {}
           : {};
         const persistedUserResponse =
-          callId && confirmationUserResponseByCallId.has(callId)
-            ? confirmationUserResponseByCallId.get(callId)
-            : callId && toolResultUserResponseByCallId.has(callId)
-              ? toolResultUserResponseByCallId.get(callId)
+          callScopeKey && confirmationUserResponseByCallScope.has(callScopeKey)
+            ? confirmationUserResponseByCallScope.get(callScopeKey)
+            : callScopeKey && toolResultUserResponseByCallScope.has(callScopeKey)
+              ? toolResultUserResponseByCallScope.get(callScopeKey)
               : undefined;
         const effectiveConfirmationUiState =
           persistedUserResponse !== undefined &&
@@ -2272,10 +2336,10 @@ const TraceChain = ({
     store,
     chatId,
     startFrame,
-    toolResultByCallId,
-    confirmationStatusByCallId,
-    confirmationUserResponseByCallId,
-    toolResultUserResponseByCallId,
+    toolResultByCallScope,
+    confirmationStatusByCallScope,
+    confirmationUserResponseByCallScope,
+    toolResultUserResponseByCallScope,
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,

@@ -34,7 +34,7 @@ def test_tool_metadata_transport_preserves_declared_timeline_policy():
     enriched_live = unchain_adapter._enrich_tool_event_with_toolkit_metadata(
         live_legacy, index
     )
-    assert enriched_live["timeline_merge_policy"] == "always"
+    assert "timeline_merge_policy" not in enriched_live
 
 
 def test_cold_policy_lookup_requires_exact_journal_cursor_and_tool_identity(monkeypatch):
@@ -97,3 +97,7 @@ def test_cold_policy_lookup_requires_exact_journal_cursor_and_tool_identity(monk
     ) is None
     assert lookup(**{**request, "call_id": "other"}) is None
     assert lookup(**{**request, "source_attempt_id": "other-attempt"}) is None
+    event.payload["timeline_merge_policy"] = ["always"]
+    assert lookup(**request) == "never"
+    event.payload.pop("timeline_merge_policy")
+    assert lookup(**request) is None

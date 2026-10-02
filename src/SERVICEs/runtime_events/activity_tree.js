@@ -1131,9 +1131,11 @@ const interactionRequestedToProjected = (event, originalPolicy) => {
     ? originalPolicy.declared
       ? { timeline_merge_policy: originalPolicy.value }
       : {}
-    : Object.prototype.hasOwnProperty.call(target, "timeline_merge_policy")
-      ? { timeline_merge_policy: target.timeline_merge_policy }
-      : {};
+    : Object.prototype.hasOwnProperty.call(payload, "timeline_merge_policy")
+      ? { timeline_merge_policy: payload.timeline_merge_policy }
+      : Object.prototype.hasOwnProperty.call(target, "timeline_merge_policy")
+        ? { timeline_merge_policy: target.timeline_merge_policy }
+        : {};
 
   return baseProjectedEvent(
     event,

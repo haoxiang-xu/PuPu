@@ -117,6 +117,7 @@ const groupingIdentityKey = (identity) =>
         identity.toolkitId,
         identity.runPresent,
         identity.runId,
+        identity.confirmationId,
         identity.policy,
       ])
     : "";
@@ -134,6 +135,13 @@ const frameMatchesIdentityScope = (frame, identity) => {
   if (
     toolkit.present &&
     (!identity.toolkitPresent || toolkit.value !== identity.toolkitId)
+  ) {
+    return false;
+  }
+  const confirmationId = payload?.confirmation_id;
+  if (
+    hasTextIdentity(confirmationId) &&
+    identity.confirmationId !== confirmationId.trim()
   ) {
     return false;
   }
@@ -163,8 +171,9 @@ const collectPolicyEvidence = (frames) => {
         identity,
         frame,
         index,
-        approvalIndex: -1,
-        resultIndex: -1,
+        approvalIndexes: [],
+        resultIndexes: [],
+        feedbackFrames: [],
       });
     } else if (!existing.identity.hasFeedback && identity.hasFeedback) {
       existing.identity = identity;
@@ -189,8 +198,8 @@ const collectPolicyEvidence = (frames) => {
         typeof owner.frame?.payload?.interact_type === "string"
           ? owner.frame.payload.interact_type
           : "confirmation";
-      owner.feedbackStatus = frame.type;
-      owner.approvalIndex = index;
+      owner.feedbackFrames.push(frame);
+      owner.approvalIndexes.push({ type: frame.type, index });
       feedbackOwners.set(frame, owner);
       return;
     }
@@ -200,32 +209,47 @@ const collectPolicyEvidence = (frames) => {
     );
     if (matches.length === 1) {
       outputOwners.set(frame, matches[0]);
-      if (frame.type === "tool_result") matches[0].resultIndex = index;
+      if (frame.type === "tool_result") matches[0].resultIndexes.push(index);
     }
   });
 
   const eligible = new Set();
+  const feedbackCallKeys = new Set();
   const resultOwners = new Map();
+  const validApprovedProofs = new Set();
   callRecords.forEach((record) => {
     const { identity, frame, index } = record;
+    if (record.feedback) {
+      feedbackCallKeys.add(groupingIdentityKey(identity));
+    }
+    const feedbackFrames = record.feedbackFrames || [];
+    const approvals = record.approvalIndexes || [];
+    const results = record.resultIndexes || [];
+    const hasFeedback = Boolean(record.feedback || feedbackFrames.length);
+    const validApprovedProof =
+      feedbackFrames.length === 1 &&
+      approvals.length === 1 &&
+      approvals[0].type === "tool_confirmed" &&
+      identity.interactType === "confirmation" &&
+      approvals[0].index > index &&
+      results.length === 1 &&
+      results[0] > approvals[0].index;
+    if (validApprovedProof) {
+      validApprovedProofs.add(record);
+    }
+
     let allowed = false;
     if (identity.policy === "always") {
       allowed = true;
     } else if (identity.policy === "no_feedback") {
-      allowed = !record.feedback;
+      allowed = !hasFeedback;
     } else if (identity.policy === "approved") {
-      allowed = !record.feedback || (
-        record.feedbackStatus === "tool_confirmed" &&
-        record.feedbackType === "confirmation" &&
-        record.approvalIndex > index &&
-        record.resultIndex > record.approvalIndex
-      );
+      allowed = !hasFeedback || validApprovedProof;
     }
     if (allowed) eligible.add(groupingIdentityKey(identity));
-    if (record.resultIndex >= 0) {
-      const resultFrame = frames[record.resultIndex];
-      resultOwners.set(resultFrame, record);
-    }
+    results.forEach((resultIndex) => {
+      resultOwners.set(frames[resultIndex], record);
+    });
   });
 
   const transparentFeedback = new Set();
@@ -234,10 +258,8 @@ const collectPolicyEvidence = (frames) => {
       transparentFeedback.add(feedbackFrame);
     } else if (
       record.identity.policy === "approved" &&
-      record.feedbackStatus === "tool_confirmed" &&
-      record.feedbackType === "confirmation" &&
-      record.approvalIndex >= 0 &&
-      record.resultIndex > record.approvalIndex
+      validApprovedProofs.has(record) &&
+      feedbackFrame.type === "tool_confirmed"
     ) {
       transparentFeedback.add(feedbackFrame);
     }
@@ -245,6 +267,7 @@ const collectPolicyEvidence = (frames) => {
 
   return {
     eligible,
+    feedbackCallKeys,
     resultOwners,
     outputOwners,
     feedbackOwners,
@@ -646,7 +669,11 @@ export const groupToolTimelineItems = (items, frames = []) => {
         calls,
         outputs,
         memberItems,
-        hasFeedback: calls.some((call) => call._toolGrouping?.hasFeedback),
+        hasFeedback: calls.some((call) =>
+          policyEvidence.feedbackCallKeys.has(
+            groupingIdentityKey(call._toolGrouping),
+          ),
+        ),
       },
     });
     index = cursor;

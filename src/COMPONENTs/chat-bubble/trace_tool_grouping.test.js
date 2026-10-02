@@ -107,6 +107,138 @@ describe("Trace tool grouping", () => {
     });
   });
 
+  test("denied feedback remains a barrier even if a later confirmation reuses its identity", () => {
+    const deniedCall = frame(1, "tool_call", {
+      call_id: "denied-then-approved",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "approved",
+      confirmation_id: "confirm-contradiction",
+      requires_confirmation: true,
+    });
+    const denied = frame(2, "tool_denied", {
+      call_id: "denied-then-approved",
+      tool_name: "web_fetch",
+      confirmation_id: "confirm-contradiction",
+    });
+    const contradictoryApproval = frame(3, "tool_confirmed", {
+      call_id: "denied-then-approved",
+      tool_name: "web_fetch",
+      confirmation_id: "confirm-contradiction",
+    });
+    const deniedResult = frame(4, "tool_result", {
+      call_id: "denied-then-approved",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    });
+    const nextCall = frame(5, "tool_call", {
+      ...deniedCall.payload,
+      call_id: "following-call",
+      confirmation_id: "confirm-following",
+    });
+    const nextConfirmed = frame(6, "tool_confirmed", {
+      call_id: "following-call",
+      tool_name: "web_fetch",
+      confirmation_id: "confirm-following",
+    });
+    const nextResult = frame(7, "tool_result", {
+      call_id: "following-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    });
+
+    const grouped = groupToolTimelineItems(
+      [call(deniedCall), call(nextCall)],
+      [deniedCall, denied, contradictoryApproval, deniedResult, nextCall, nextConfirmed, nextResult],
+    );
+
+    expect(groupAt(grouped)).toBeUndefined();
+  });
+
+  test("duplicate approval proofs remain a barrier in approved mode", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "duplicate-proof-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "approved",
+      confirmation_id: "duplicate-proof-confirm-a",
+      requires_confirmation: true,
+    });
+    const confirmed = frame(2, "tool_confirmed", {
+      call_id: first.payload.call_id,
+      tool_name: "web_fetch",
+      confirmation_id: first.payload.confirmation_id,
+    });
+    const duplicateConfirmed = frame(3, "tool_confirmed", {
+      call_id: first.payload.call_id,
+      tool_name: "web_fetch",
+      confirmation_id: first.payload.confirmation_id,
+    });
+    const result = frame(4, "tool_result", {
+      call_id: first.payload.call_id,
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    });
+    const second = frame(5, "tool_call", {
+      ...first.payload,
+      call_id: "duplicate-proof-b",
+      confirmation_id: "duplicate-proof-confirm-b",
+    });
+    const secondConfirmed = frame(6, "tool_confirmed", {
+      call_id: second.payload.call_id,
+      tool_name: "web_fetch",
+      confirmation_id: second.payload.confirmation_id,
+    });
+    const secondResult = frame(7, "tool_result", {
+      call_id: second.payload.call_id,
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    });
+
+    const grouped = groupToolTimelineItems(
+      [call(first), call(second)],
+      [first, confirmed, duplicateConfirmed, result, second, secondConfirmed, secondResult],
+    );
+
+    expect(groupAt(grouped)).toBeUndefined();
+  });
+
+  test("marks groups feedback-bearing from scoped ownership evidence", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "feedback-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-feedback-a",
+    });
+    const firstFeedback = frame(2, "tool_confirmed", {
+      call_id: "feedback-a",
+      tool_name: "web_fetch",
+      confirmation_id: "confirm-feedback-a",
+    });
+    const second = frame(3, "tool_call", {
+      ...first.payload,
+      call_id: "feedback-b",
+      confirmation_id: "confirm-feedback-b",
+    });
+    const secondFeedback = frame(4, "tool_confirmed", {
+      call_id: "feedback-b",
+      tool_name: "web_fetch",
+      confirmation_id: "confirm-feedback-b",
+    });
+    const firstItem = call(first);
+    const secondItem = call(second);
+    firstItem._toolGrouping = { ...firstItem._toolGrouping, hasFeedback: false };
+    secondItem._toolGrouping = { ...secondItem._toolGrouping, hasFeedback: false };
+
+    const grouped = groupToolTimelineItems(
+      [firstItem, secondItem],
+      [first, firstFeedback, second, secondFeedback],
+    );
+
+    expect(groupAt(grouped).hasFeedback).toBe(true);
+  });
+
   test("groups the sanitized representative approved web_fetch sequence without dropping call metadata", () => {
     // Reconstructed representative frontend frames from the sanitized canonical events fixture;
     // these are not the original renderer packets from the screenshot capture.
@@ -226,6 +358,7 @@ describe("Trace tool grouping", () => {
     const mismatches = [
       { label: "call", payload: { call_id: "other" } },
       { label: "run", runId: "other-run" },
+      { label: "tool", payload: { tool_name: "other_tool" } },
       { label: "toolkit", payload: { toolkit_id: "other-toolkit" } },
       { label: "confirmation", payload: { confirmation_id: "other-confirmation" } },
     ];

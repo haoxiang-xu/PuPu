@@ -178,7 +178,13 @@ describe("TraceChain consecutive tool grouping", () => {
     });
     const onDecision = jest.fn();
 
-    renderTraceChain([callA, callB], {
+    const foreignApproval = testFrame(3, "tool_confirmed", {
+      call_id: "pending-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "foreign-confirmation",
+    }, "run-b");
+    renderTraceChain([callA, callB, foreignApproval], {
       onToolConfirmationDecision: onDecision,
       toolConfirmationUiStateById: {
         "confirm-a": { status: "idle" },
@@ -234,6 +240,155 @@ describe("TraceChain consecutive tool grouping", () => {
       userResponse: { value: "a" },
       scope: "once",
     });
+  });
+
+  test("scopes duplicate call IDs across runs for approval, result, answer, and row rendering", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-run-a",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Run A pending call",
+    }, "run-a");
+    const callB = testFrame(2, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "never",
+      confirmation_id: "confirm-run-b",
+      requires_confirmation: true,
+      interact_type: "single",
+      interact_config: {
+        question: "Run B answer",
+        options: [{ label: "Run B option", value: "b" }],
+      },
+    }, "run-b");
+    const confirmedB = testFrame(3, "tool_confirmed", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "confirm-run-b",
+    }, "run-b");
+    const resultB = testFrame(4, "tool_result", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      interact_type: "single",
+      result: { selected_values: ["b"] },
+    }, "run-b");
+    const onDecision = jest.fn();
+    const onSubmit = jest.fn();
+
+    renderTraceChain([callA, callB, confirmedB, resultB], {
+      onToolConfirmationDecision: onDecision,
+      onToolInteractionSubmit: onSubmit,
+      toolConfirmationUiStateById: {
+        "confirm-run-a": { status: "idle" },
+        "confirm-run-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(1);
+    expect(screen.getByText("Run B answer")).toBeInTheDocument();
+    expect(screen.getByText("Run B option")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-run-a",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("scopes approval and result lookups when a call ID is reused across toolkits", () => {
+    const coreCall = testFrame(1, "tool_call", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-core",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    }, "run-a");
+    const customCall = testFrame(2, "tool_call", {
+      ...coreCall.payload,
+      toolkit_id: "custom.fetch",
+      timeline_merge_policy: "never",
+      confirmation_id: "confirm-custom",
+    }, "run-a");
+    const customConfirmed = testFrame(3, "tool_confirmed", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "custom.fetch",
+      confirmation_id: "confirm-custom",
+    }, "run-a");
+    const customResult = testFrame(4, "tool_result", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "custom.fetch",
+      result: { status: "custom result" },
+    }, "run-a");
+    const onDecision = jest.fn();
+
+    renderTraceChain([coreCall, customCall, customConfirmed, customResult], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-core": { status: "idle" },
+        "confirm-custom": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(1);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-core",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("leaves ambiguous or mismatched confirmation evidence pending", () => {
+    const call = (seq, confirmationId) => testFrame(seq, "tool_call", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: confirmationId,
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    }, "run-a");
+    const first = call(1, "confirm-first");
+    const second = call(2, "confirm-second");
+    const mismatched = testFrame(3, "tool_confirmed", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "confirm-foreign",
+    }, "run-a");
+    const unscoped = testFrame(4, "tool_confirmed", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    }, "run-a");
+
+    renderTraceChain([first, second, mismatched, unscoped], {
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-first": { status: "idle" },
+        "confirm-second": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(2);
+    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
   });
 
   test("does not transfer expanded observation state to a shifted error row", () => {

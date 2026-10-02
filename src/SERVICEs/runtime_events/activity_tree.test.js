@@ -137,6 +137,58 @@ describe("runtime events activity tree", () => {
       .toBe("no_feedback");
   });
 
+  test("uses top-level interaction projection policy only when the original call is absent", () => {
+    const cold = reduceEvents([
+      event({ id: "cold-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-policy-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold-policy", interaction_id: "cold-policy-confirm" },
+        payload: {
+          interaction_id: "cold-policy-confirm",
+          timeline_merge_policy: "no_feedback",
+          target: { tool_call_id: "cold-policy", tool_name: "web_fetch" },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+
+    const legacyOriginalWins = reduceEvents([
+      event({ id: "legacy-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-policy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy-policy", tool_call_id: "legacy-policy" },
+        payload: {
+          step_id: "tool:legacy-policy",
+          step_type: "tool",
+          call_id: "legacy-policy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-policy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy-policy", interaction_id: "legacy-policy-confirm" },
+        payload: {
+          interaction_id: "legacy-policy-confirm",
+          timeline_merge_policy: "always",
+          target: {
+            tool_call_id: "legacy-policy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(legacyOriginalWins.frames.find((frame) => frame.seq === 3).payload)
+      .not.toHaveProperty("timeline_merge_policy");
+  });
+
   test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
     const failedId = "a".repeat(32);
     const acceptedId = "b".repeat(32);

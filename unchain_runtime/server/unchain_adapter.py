@@ -4474,16 +4474,6 @@ def _enrich_tool_event_with_toolkit_metadata(
     if not toolkit_meta:
         return enriched
 
-    if (
-        event_type == "tool_call"
-        and "timeline_merge_policy" not in enriched
-        and toolkit_meta.get("timeline_merge_policy")
-        in _TIMELINE_MERGE_POLICIES
-    ):
-        enriched["timeline_merge_policy"] = toolkit_meta[
-            "timeline_merge_policy"
-        ]
-
     if not str(enriched.get("toolkit_id", "") or "").strip():
         enriched["toolkit_id"] = toolkit_meta.get("toolkit_id", "")
     if not str(enriched.get("toolkit_name", "") or "").strip():

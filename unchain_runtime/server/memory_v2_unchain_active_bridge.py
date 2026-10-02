@@ -181,11 +181,13 @@ def pupu_unchain_cold_tool_call_timeline_policy(
     if len(matches) != 1:
         return None
     policy = matches[0].payload.get("timeline_merge_policy")
+    if "timeline_merge_policy" not in matches[0].payload:
+        return None
     return (
         policy
         if isinstance(policy, str)
         and policy in {"never", "no_feedback", "approved", "always"}
-        else None
+        else "never"
     )
 
 
