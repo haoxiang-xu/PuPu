@@ -329,4 +329,48 @@ describe("Trace tool grouping", () => {
     expect(grouped[0]._toolGroup.memberItems).toEqual([firstItem, secondItem]);
     expect(grouped[1]).toBe(lateOutputItem);
   });
+
+  test("keeps a late count-only result anchored to its observation before the next same-tool call", () => {
+    const callA = frame(1, "tool_call", { call_id: "a", tool_name: "read_file" });
+    const outputA = frame(2, "observation", { call_id: "a", content: "output A" });
+    const callB = frame(3, "tool_call", { call_id: "b", tool_name: "read_file" });
+    const lateResultA = frame(4, "tool_result", {
+      call_id: "a",
+      tool_name: "read_file",
+      observation_omitted: 7,
+      observation_tail: [],
+    });
+    const firstItem = call(callA);
+    const outputItem = observation(outputA);
+    const truncationItem = {
+      key: "obs-trunc-a",
+      title: "+7 more output lines coalesced",
+      status: "done",
+      _sourceFrame: outputA,
+      _outputFrame: lateResultA,
+      _toolOutput: true,
+      _outputCallId: "a",
+    };
+    const secondItem = call(callB);
+    const items = [firstItem, outputItem, truncationItem, secondItem];
+
+    const grouped = groupToolTimelineItems(items, [callA, outputA, callB, lateResultA]);
+
+    expect(grouped).toHaveLength(1);
+    expect(groupAt(grouped).calls).toEqual([firstItem, secondItem]);
+    expect(groupAt(grouped).outputs).toEqual([outputItem, truncationItem]);
+    expect(groupAt(grouped).memberItems).toEqual(items);
+    expect(groupAt(grouped).memberItems[2].details).toBeUndefined();
+
+    const wrongProvenance = {
+      ...truncationItem,
+      _outputFrame: { ...lateResultA, run_id: "different-run" },
+    };
+    const rejected = groupToolTimelineItems(
+      [firstItem, outputItem, wrongProvenance, secondItem],
+      [callA, outputA, callB, lateResultA],
+    );
+    expect(rejected.some((item) => item._toolGroup)).toBe(false);
+    expect(rejected).toContain(wrongProvenance);
+  });
 });

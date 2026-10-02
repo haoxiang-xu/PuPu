@@ -93,6 +93,37 @@ describe("TraceChain consecutive tool grouping", () => {
     expect(screen.getByText("output beta")).toBeInTheDocument();
   });
 
+  test("keeps a same-tool call grouped when an earlier call’s truncation result arrives later", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      arguments: { path: "alpha.txt" },
+    });
+    const outputA = testFrame(2, "observation", {
+      call_id: "call-a",
+      content: "output alpha",
+    });
+    const callB = testFrame(3, "tool_call", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      arguments: { path: "beta.txt" },
+    });
+    const lateResultA = testFrame(4, "tool_result", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      result: { content: "result alpha" },
+      observation_omitted: 7,
+      observation_tail: [],
+    });
+
+    renderTraceChain([callA, outputA, callB, lateResultA]);
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getAllByText("Observation")).toHaveLength(1);
+    expect(screen.getByText("+7 more output lines coalesced")).toBeInTheDocument();
+    expect(screen.getByText("output alpha")).toBeInTheDocument();
+  });
+
   test("keeps singleton and silent grouped-tool presentation unchanged", () => {
     const singleton = [
       testFrame(1, "tool_call", {

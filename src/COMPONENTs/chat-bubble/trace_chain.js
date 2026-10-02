@@ -2045,11 +2045,13 @@ const TraceChain = ({
         ? frame.payload.observation_tail.filter(Boolean)
         : [];
       const tailText = tail.join("\n");
+      const observationAnchor = items[lastObsIdx]?._sourceFrame || frame;
       items.splice(lastObsIdx + 1, 0, {
         key: `obs-trunc-${cid}`,
         title: `+${omitted} more output line${omitted === 1 ? "" : "s"} coalesced`,
         status: "done",
-        _sourceFrame: frame,
+        _sourceFrame: observationAnchor,
+        _outputFrame: frame,
         _toolOutput: true,
         _outputCallId: cid,
         ...(tailText

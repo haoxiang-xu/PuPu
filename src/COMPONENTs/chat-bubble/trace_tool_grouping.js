@@ -243,7 +243,7 @@ const sourceFrameOf = (item) => item?._sourceFrame;
 const outputOwnerForItem = (item, callIdentitiesById, legacyOwners) => {
   if (!item?._toolOutput && item?._outputCallId === undefined) return null;
 
-  const sourceFrame = sourceFrameOf(item);
+  const sourceFrame = item?._outputFrame || sourceFrameOf(item);
   const explicitCallId = hasTextIdentity(item?._outputCallId)
     ? item._outputCallId
     : hasTextIdentity(sourceFrame?.payload?.call_id)
@@ -291,10 +291,10 @@ const isTransparentBetweenCalls = (
 
   if (type === "tool_call") {
     const identity = getToolGroupingIdentity(frame);
-    if (!identity || !sameGroupingIdentity(identity, candidateCalls[0]?._toolGrouping)) {
-      return false;
-    }
-    return candidateCallIds.has(identity.callId);
+    return Boolean(
+      identity &&
+        sameGroupingIdentity(identity, candidateCalls[0]?._toolGrouping),
+    );
   }
 
   if (type === "observation") {
@@ -315,22 +315,17 @@ const isTransparentBetweenCalls = (
 };
 
 const hasSemanticBarrierBetween = (
-  previousCall,
-  nextCall,
+  previousIndex,
+  nextIndex,
   candidateCalls,
   candidateCallIds,
   frames,
-  frameIndex,
   legacyOwners,
 ) => {
-  const previousFrame = sourceFrameOf(previousCall);
-  const nextFrame = sourceFrameOf(nextCall);
-  const previousIndex = frameIndex.get(previousFrame);
-  const nextIndex = frameIndex.get(nextFrame);
   if (
     previousIndex === undefined ||
     nextIndex === undefined ||
-    nextIndex <= previousIndex
+    nextIndex < previousIndex
   ) {
     return true;
   }
@@ -375,21 +370,21 @@ export const groupToolTimelineItems = (items, frames = []) => {
     const outputs = [];
     const memberItems = [first];
     let cursor = index + 1;
-    let previousCall = first;
+    let lastMemberFrameIndex = frameIndex.get(sourceFrameOf(first));
 
     while (cursor < items.length) {
       const next = items[cursor];
       if (isOutputDescriptor(next)) {
         const owner = outputOwnerForItem(next, callIdentitiesById, legacyOwners);
+        const nextFrameIndex = frameIndex.get(sourceFrameOf(next));
         if (
           !isOwnedByCurrentCalls(owner, calls, candidateCallIds) ||
           hasSemanticBarrierBetween(
-            previousCall,
-            next,
+            lastMemberFrameIndex,
+            nextFrameIndex,
             calls,
             candidateCallIds,
             frames,
-            frameIndex,
             legacyOwners,
           )
         ) {
@@ -397,28 +392,29 @@ export const groupToolTimelineItems = (items, frames = []) => {
         }
         outputs.push(next);
         memberItems.push(next);
+        lastMemberFrameIndex = nextFrameIndex;
         cursor += 1;
         continue;
       }
 
+      const nextFrameIndex = frameIndex.get(sourceFrameOf(next));
       if (
         next?._toolGrouping &&
         sourceFrameOf(next) &&
         sameGroupingIdentity(first._toolGrouping, next._toolGrouping) &&
         !hasSemanticBarrierBetween(
-          previousCall,
-          next,
+          lastMemberFrameIndex,
+          nextFrameIndex,
           calls,
           candidateCallIds,
           frames,
-          frameIndex,
           legacyOwners,
         )
       ) {
         calls.push(next);
         candidateCallIds.add(next._toolGrouping.callId);
         memberItems.push(next);
-        previousCall = next;
+        lastMemberFrameIndex = nextFrameIndex;
         cursor += 1;
         continue;
       }

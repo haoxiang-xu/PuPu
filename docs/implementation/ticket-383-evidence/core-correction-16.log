@@ -1,0 +1,13 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js
+PASS src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+
+Test Suites: 2 passed, 2 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        1.053 s, estimated 2 s
+Ran all test suites matching /src\/COMPONENTs\/chat-bubble\/trace_tool_grouping.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.grouping.test.js/i.
