@@ -22,6 +22,11 @@ const scopePart = (value) =>
     ? { present: true, value: value.trim() }
     : { present: false, value: "" };
 
+const toolkitScopePart = (payload) => {
+  const toolkitId = scopePart(payload?.toolkit_id);
+  return toolkitId.present ? toolkitId : scopePart(payload?.toolkit_name);
+};
+
 const normalizedToolName = (frame) => {
   const name = frame?.payload?.tool_name;
   return typeof name === "string" ? name.trim() : "";
@@ -76,7 +81,7 @@ export const getToolGroupingIdentity = (frame) => {
   const policy = timelineMergePolicyForFrame(frame);
   if (policy === "never") return null;
 
-  const toolkit = scopePart(payload?.toolkit_id);
+  const toolkit = toolkitScopePart(payload);
   const run = scopePart(frame?.run_id);
   return {
     callId,
@@ -131,7 +136,7 @@ const frameMatchesIdentityScope = (frame, identity) => {
   }
   const toolName = normalizedToolName(frame);
   if (toolName && toolName !== identity.toolName) return false;
-  const toolkit = scopePart(payload?.toolkit_id);
+  const toolkit = toolkitScopePart(payload);
   if (
     toolkit.present &&
     (!identity.toolkitPresent || toolkit.value !== identity.toolkitId)
@@ -457,7 +462,7 @@ const outputOwnerForItem = (item, callIdentities, legacyOwners) => {
   if (explicitCallId) {
     const outputRun = scopePart(sourceFrame?.run_id);
     const outputTool = normalizedToolName(sourceFrame);
-    const outputToolkit = scopePart(sourceFrame?.payload?.toolkit_id);
+    const outputToolkit = toolkitScopePart(sourceFrame?.payload);
     const matches = callIdentities.filter((identity) =>
       identity.callId === explicitCallId &&
       identity.runPresent === outputRun.present &&
