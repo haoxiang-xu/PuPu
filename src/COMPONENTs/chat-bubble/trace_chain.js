@@ -533,6 +533,9 @@ const getSubagentTraceStatus = (status) => {
   if (normalized === "failed" || normalized === "timeout") {
     return "error";
   }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return "cancelled";
+  }
   if (
     normalized === "running" ||
     normalized === "spawned" ||
@@ -1505,20 +1508,32 @@ const TraceChain = ({
           };
 
           const branches = childTimelineItems.map((worker, wi) => {
+            const normalizedWorkerStatus =
+              typeof worker.status === "string"
+                ? worker.status.trim().toLowerCase()
+                : "";
+            const workerStatus =
+              status === "cancelled" &&
+              ["", "running", "spawned", "needs_clarification"].includes(
+                normalizedWorkerStatus,
+              )
+                ? "cancelled"
+                : worker.status;
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
               fallbackAgentName: worker.agentName,
               fallbackTemplate: worker.template,
             });
             const wStatusColor = getSubagentStatusColor(
-              worker.status,
+              workerStatus,
               isDark,
             );
             const hasWFrames =
               Array.isArray(worker.frames) && worker.frames.length > 0;
             const canExpand = hasWFrames && _depth < MAX_TRACE_DEPTH;
             const frameCount = hasWFrames ? worker.frames.length : 0;
-            const workerTraceStatus = getSubagentTraceStatus(worker.status);
+            const workerTraceStatus = getSubagentTraceStatus(workerStatus);
+            const workerInterrupted = workerTraceStatus === "cancelled";
             const shouldLazyRender =
               workerTraceStatus === "streaming" ||
               _depth > 0 ||
@@ -1581,9 +1596,11 @@ const TraceChain = ({
                   )}
                 </span>
               ),
-              span: worker.task
-                ? truncateInlineText(worker.task, 120)
-                : undefined,
+              span: workerInterrupted
+                ? "Interrupted"
+                : worker.task
+                  ? truncateInlineText(worker.task, 120)
+                  : undefined,
               status:
                 workerTraceStatus === "done"
                   ? "done"
@@ -1657,8 +1674,15 @@ const TraceChain = ({
                 )}
               </span>
             ),
-            span: spanText,
-            status: resultFrame ? "done" : "active",
+            span:
+              status === "cancelled" && !resultFrame
+                ? "Interrupted"
+                : spanText,
+            status: resultFrame
+              ? "done"
+              : status === "cancelled"
+                ? "pending"
+                : "active",
             point: <SubagentPoint isDark={isDark} />,
             body: branches.length > 0 ? (
               <BranchGraph
@@ -1763,7 +1787,12 @@ const TraceChain = ({
         /* ── confirmation / selection state (computed for all tool_calls) ── */
         let interactBody = undefined;
         let toolPointEl = <HammerPoint isDark={isDark} />;
-        let toolStatus = "done";
+        const callStatus = resultFrame
+          ? "done"
+          : status === "cancelled" || isInlineInteraction
+            ? "pending"
+            : "active";
+        let toolStatus = callStatus;
 
         if (isInlineInteraction) {
           let statusLabel = "Pending";
@@ -1785,6 +1814,7 @@ const TraceChain = ({
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&
+            status !== "cancelled" &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -1796,7 +1826,7 @@ const TraceChain = ({
             : "var(--pupu-text-secondary)";
 
           toolPointEl = <HammerPoint isDark={isDark} />;
-          toolStatus = "done";
+          toolStatus = callStatus;
 
           interactBody = (
             <div
@@ -1850,7 +1880,10 @@ const TraceChain = ({
         items.push({
           key: `${frame.seq}-tool`,
           title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
-          span: spanText,
+          span:
+            status === "cancelled" && !resultFrame
+              ? "Interrupted"
+              : spanText,
           status: toolStatus,
           point: toolPointEl,
           body: interactBody,

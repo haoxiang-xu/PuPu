@@ -7,6 +7,57 @@ import {
   hasMeaningfulContent,
 } from "./message_finality";
 
+const isPlainRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const hasMeaningfulPayloadValue = (value) => {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.some(hasMeaningfulPayloadValue);
+  if (!isPlainRecord(value)) return false;
+  return Object.values(value).some(hasMeaningfulPayloadValue);
+};
+
+const FRAME_METADATA_KEYS = new Set([
+  "agent_id",
+  "run_id",
+  "seq",
+  "status",
+  "timestamp",
+  "ts",
+]);
+
+const hasMeaningfulFrame = (frame) => {
+  if (
+    !isPlainRecord(frame) ||
+    typeof frame.type !== "string" ||
+    !frame.type.trim() ||
+    !isPlainRecord(frame.payload)
+  ) {
+    return false;
+  }
+  return Object.entries(frame.payload).some(
+    ([key, value]) =>
+      !FRAME_METADATA_KEYS.has(key) && hasMeaningfulPayloadValue(value),
+  );
+};
+
+const hasMeaningfulTraceFrames = (frames) =>
+  Array.isArray(frames) && frames.some(hasMeaningfulFrame);
+
+const hasMeaningfulSubagentFrames = (framesByRunId) =>
+  isPlainRecord(framesByRunId) &&
+  Object.entries(framesByRunId).some(
+    ([runId, frames]) =>
+      typeof runId === "string" &&
+      runId.trim().length > 0 &&
+      hasMeaningfulTraceFrames(frames),
+  );
+
+const hasMeaningfulExecutionHistory = (message) =>
+  hasMeaningfulTraceFrames(message?.traceFrames) ||
+  hasMeaningfulSubagentFrames(message?.subagentFrames);
+
 export const settleStreamingAssistantMessages = (messages) => {
   if (!Array.isArray(messages)) {
     return { changed: false, nextMessages: [] };
@@ -33,7 +84,10 @@ export const settleStreamingAssistantMessages = (messages) => {
     const content = hasMeaningfulContent(streamingText)
       ? streamingText
       : getLatestFinalMessageText(message?.traceFrames);
-    if (!hasMeaningfulContent(content)) {
+    if (
+      !hasMeaningfulContent(content) &&
+      !hasMeaningfulExecutionHistory(message)
+    ) {
       continue;
     }
 

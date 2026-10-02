@@ -117,6 +117,8 @@ describe("settleStreamingAssistantMessages", () => {
     ["metadata only", { subagentMetaByRunId: { "worker-run-1": { status: "running" } } }],
     ["empty frames", { traceFrames: [], subagentFrames: {} }],
     ["empty payload", { traceFrames: [{ type: "tool_call", payload: {} }] }],
+    ["malformed frames", { traceFrames: [null, {}, { type: "tool_call", payload: { status: "running" } }] }],
+    ["malformed nested frames", { subagentFrames: { "worker-run-1": [{ type: "tool_call", payload: [] }] } }],
   ])("#384: drops an empty streaming placeholder with %s", (_label, extra) => {
     const { nextMessages } = settleStreamingAssistantMessages([{
       id: "assistant-empty",

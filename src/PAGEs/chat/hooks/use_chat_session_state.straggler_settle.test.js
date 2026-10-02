@@ -196,7 +196,7 @@ describe("useChatSessionState bootstrap straggler settle (isGenerating meta driv
     view.unmount();
   });
 
-  test("#384: bootstrap retains a tool-only interrupted assistant for a cold remount", () => {
+  test("#384: bootstrap retains tool-only interrupted assistant history", () => {
     bridge.readMessages.mockImplementation((chatId) => chatId === CHAT_B ? [
       { id: "user-b", role: "user", content: "run tools" },
       {
