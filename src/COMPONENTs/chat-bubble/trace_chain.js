@@ -57,6 +57,10 @@ import {
   RetryStoppedPoint,
   RetryWaitPoint,
 } from "./provider_retry_step";
+import {
+  getToolGroupingIdentity,
+  groupToolTimelineItems,
+} from "./trace_tool_grouping";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -811,6 +815,9 @@ const TraceChain = ({
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
   const [bodyOpen, setBodyOpen] = useState(true);
+  const [expandedTimelineKeys, setExpandedTimelineKeys] = useState(
+    () => new Set(),
+  );
   const [memoryV2JournalProjection, setMemoryV2JournalProjection] =
     useState(null);
   const handleMemoryV2JournalProjection = useCallback((projection) => {
@@ -1128,6 +1135,13 @@ const TraceChain = ({
         items.push({
           key: `${frame.seq}-${frame.type}`,
           ...(isObs ? { _callId: frame.payload?.call_id } : {}),
+          ...(isObs
+            ? {
+                _sourceFrame: frame,
+                _toolOutput: true,
+                _outputCallId: frame.payload?.call_id,
+              }
+            : {}),
           title: isObs ? "Observation" : "Reasoning",
           span: spanText,
           status: "done",
@@ -1860,6 +1874,10 @@ const TraceChain = ({
             ) : undefined,
           _toolName: isInlineInteraction ? undefined : toolName,
           _sections: isInlineInteraction ? undefined : sections,
+          _sourceFrame: frame,
+          _toolGrouping: isInlineInteraction
+            ? null
+            : getToolGroupingIdentity(frame),
         });
       } else if (frame.type === "provider_retry") {
         const group = providerRetryGroups.get(Number(frame.seq));
@@ -2031,6 +2049,9 @@ const TraceChain = ({
         key: `obs-trunc-${cid}`,
         title: `+${omitted} more output line${omitted === 1 ? "" : "s"} coalesced`,
         status: "done",
+        _sourceFrame: frame,
+        _toolOutput: true,
+        _outputCallId: cid,
         ...(tailText
           ? {
               details: (
@@ -2050,48 +2071,43 @@ const TraceChain = ({
       });
     }
 
-    /* ── group consecutive identical tool calls ── */
-    const grouped = [];
-    let i = 0;
-    while (i < items.length) {
-      const item = items[i];
-      if (!item._toolName) {
-        grouped.push(item);
-        i++;
-        continue;
-      }
-      /* collect consecutive run of the same tool name */
-      const run = [item];
-      while (
-        i + run.length < items.length &&
-        items[i + run.length]._toolName === item._toolName
-      ) {
-        run.push(items[i + run.length]);
-      }
-      i += run.length;
-      if (run.length === 1) {
-        grouped.push(item);
-        continue;
-      }
-      /* merge run into a single batched item */
-      const allSections = run.flatMap((r) => r._sections || []);
-      grouped.push({
-        key: run.map((r) => r.key).join("+"),
+    /* ── group consecutive calls by canonical tool, preserving owned output ── */
+    const grouped = groupToolTimelineItems(items, frames).map((item) => {
+      const group = item?._toolGroup;
+      if (!group) return item;
+
+      const firstCall = group.calls[0];
+      const allSections = group.calls.flatMap((call) => call._sections || []);
+      const details =
+        group.outputs.length > 0 ? (
+          <Timeline
+            items={group.memberItems}
+            compact
+            hideTrack
+            style={{ fontSize: compact ? 11 : 12 }}
+          />
+        ) : allSections.length > 0 ? (
+          <KVPanel sections={allSections} isDark={isDark} color={color} />
+        ) : undefined;
+
+      return {
+        key: firstCall.key,
         title: (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <ToolTag name={item._toolName} isDark={isDark} compact={compact} />
-            <CountBadge count={run.length} isDark={isDark} />
+            <ToolTag
+              name={firstCall._toolName}
+              isDark={isDark}
+              compact={compact}
+            />
+            <CountBadge count={group.calls.length} isDark={isDark} />
           </span>
         ),
-        span: run[run.length - 1].span,
+        span: group.calls[group.calls.length - 1].span,
         status: "done",
         point: <HammerPoint isDark={isDark} />,
-        details:
-          allSections.length > 0 ? (
-            <KVPanel sections={allSections} isDark={isDark} color={color} />
-          ) : undefined,
-      });
-    }
+        details,
+      };
+    });
 
     /* ── durable Memory V2 audit + token summary at the end ── */
     const memoryV2Audit = mergeMemoryV2AuditWithJournal(
@@ -2232,6 +2248,26 @@ const TraceChain = ({
     toggleBranchWorker,
   ]);
 
+  const expandedTimelineIndices = useMemo(() => {
+    const indices = [];
+    timelineItems.forEach((item, index) => {
+      if (expandedTimelineKeys.has(item.key)) indices.push(index);
+    });
+    return indices;
+  }, [expandedTimelineKeys, timelineItems]);
+  const handleTimelineExpandChange = useCallback(
+    (indices) => {
+      setExpandedTimelineKeys(
+        new Set(
+          indices
+            .map((index) => timelineItems[index]?.key)
+            .filter((key) => typeof key === "string" && key.length > 0),
+        ),
+      );
+    },
+    [timelineItems],
+  );
+
   if (timelineItems.length === 0) return null;
 
   const isBodyVisible = showContainerHeader ? bodyOpen : true;
@@ -2259,6 +2295,8 @@ const TraceChain = ({
       >
         <Timeline
           items={timelineItems}
+          expanded_indices={expandedTimelineIndices}
+          on_expand_change={handleTimelineExpandChange}
           compact={compact}
           hideTrack={hideTrack}
           style={{ fontSize: compact ? 12 : 13 }}

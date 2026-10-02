@@ -273,17 +273,19 @@ const outputOwnerForItem = (item, callIdentitiesById, legacyOwners) => {
 const isOutputDescriptor = (item) =>
   item?._toolOutput === true || item?._outputCallId !== undefined;
 
-const isOwnedByCurrentCalls = (owner, calls) => {
+const isOwnedByCurrentCalls = (owner, calls, currentCallIds) => {
   if (!owner || calls.length === 0) return false;
   const identity = calls[0]._toolGrouping;
   if (!sameGroupingIdentity(identity, owner.identity)) return false;
-  const currentIds = new Set(
-    calls.map((item) => item?._toolGrouping?.callId).filter(hasTextIdentity),
-  );
-  return owner.callIds.length > 0 && owner.callIds.every((id) => currentIds.has(id));
+  return owner.callIds.length > 0 && owner.callIds.every((id) => currentCallIds.has(id));
 };
 
-const isTransparentBetweenCalls = (frame, candidateCalls, legacyOwners) => {
+const isTransparentBetweenCalls = (
+  frame,
+  candidateCalls,
+  candidateCallIds,
+  legacyOwners,
+) => {
   const type = frame?.type;
   if (TRANSPARENT_METADATA_TYPES.has(type) || type === "tool_result") return true;
 
@@ -292,7 +294,7 @@ const isTransparentBetweenCalls = (frame, candidateCalls, legacyOwners) => {
     if (!identity || !sameGroupingIdentity(identity, candidateCalls[0]?._toolGrouping)) {
       return false;
     }
-    return candidateCalls.some((item) => item?._toolGrouping?.callId === identity.callId);
+    return candidateCallIds.has(identity.callId);
   }
 
   if (type === "observation") {
@@ -300,15 +302,12 @@ const isTransparentBetweenCalls = (frame, candidateCalls, legacyOwners) => {
       ? { callIds: [frame.payload.call_id], identity: null }
       : legacyOwners.get(frame);
     if (!owner) return false;
-    const callIds = new Set(
-      candidateCalls.map((item) => item?._toolGrouping?.callId),
-    );
     if (!owner.identity) {
-      return owner.callIds.every((id) => callIds.has(id));
+      return owner.callIds.every((id) => candidateCallIds.has(id));
     }
     return (
       sameGroupingIdentity(owner.identity, candidateCalls[0]?._toolGrouping) &&
-      owner.callIds.every((id) => callIds.has(id))
+      owner.callIds.every((id) => candidateCallIds.has(id))
     );
   }
 
@@ -319,6 +318,7 @@ const hasSemanticBarrierBetween = (
   previousCall,
   nextCall,
   candidateCalls,
+  candidateCallIds,
   frames,
   frameIndex,
   legacyOwners,
@@ -336,7 +336,14 @@ const hasSemanticBarrierBetween = (
   }
 
   for (let index = previousIndex + 1; index < nextIndex; index += 1) {
-    if (!isTransparentBetweenCalls(frames[index], candidateCalls, legacyOwners)) {
+    if (
+      !isTransparentBetweenCalls(
+        frames[index],
+        candidateCalls,
+        candidateCallIds,
+        legacyOwners,
+      )
+    ) {
       return true;
     }
   }
@@ -364,7 +371,9 @@ export const groupToolTimelineItems = (items, frames = []) => {
     }
 
     const calls = [first];
+    const candidateCallIds = new Set([first._toolGrouping.callId]);
     const outputs = [];
+    const memberItems = [first];
     let cursor = index + 1;
     let previousCall = first;
 
@@ -372,8 +381,22 @@ export const groupToolTimelineItems = (items, frames = []) => {
       const next = items[cursor];
       if (isOutputDescriptor(next)) {
         const owner = outputOwnerForItem(next, callIdentitiesById, legacyOwners);
-        if (!isOwnedByCurrentCalls(owner, calls)) break;
+        if (
+          !isOwnedByCurrentCalls(owner, calls, candidateCallIds) ||
+          hasSemanticBarrierBetween(
+            previousCall,
+            next,
+            calls,
+            candidateCallIds,
+            frames,
+            frameIndex,
+            legacyOwners,
+          )
+        ) {
+          break;
+        }
         outputs.push(next);
+        memberItems.push(next);
         cursor += 1;
         continue;
       }
@@ -386,12 +409,15 @@ export const groupToolTimelineItems = (items, frames = []) => {
           previousCall,
           next,
           calls,
+          candidateCallIds,
           frames,
           frameIndex,
           legacyOwners,
         )
       ) {
         calls.push(next);
+        candidateCallIds.add(next._toolGrouping.callId);
+        memberItems.push(next);
         previousCall = next;
         cursor += 1;
         continue;
@@ -412,6 +438,7 @@ export const groupToolTimelineItems = (items, frames = []) => {
         identity: first._toolGrouping,
         calls,
         outputs,
+        memberItems,
       },
     });
     index = cursor;

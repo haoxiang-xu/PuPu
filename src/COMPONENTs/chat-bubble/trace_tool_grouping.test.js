@@ -146,6 +146,12 @@ describe("Trace tool grouping", () => {
     expect(grouped).toHaveLength(1);
     expect(groupAt(grouped).calls).toEqual([firstItem, secondItem]);
     expect(groupAt(grouped).outputs).toEqual([outputItem, countOnly]);
+    expect(groupAt(grouped).memberItems).toEqual([
+      firstItem,
+      outputItem,
+      secondItem,
+      countOnly,
+    ]);
     expect(groupAt(grouped).outputs[0]).toMatchObject({
       title: "Observation",
       span: "3ms",
@@ -301,5 +307,26 @@ describe("Trace tool grouping", () => {
     expect(grouped).toHaveLength(5);
     expect(grouped).toContain(outputItem);
     expect(grouped.some((item) => item._toolGroup)).toBe(false);
+  });
+
+  test("does not pull output backward across hidden final text after the last call", () => {
+    const first = frame(1, "tool_call", { call_id: "a", tool_name: "read_file" });
+    const second = frame(2, "tool_call", { call_id: "b", tool_name: "read_file" });
+    const hiddenFinal = frame(3, "final_message", { content: "bubble-owned text" });
+    const lateOutput = frame(4, "observation", { call_id: "a", content: "late output" });
+    const firstItem = call(first);
+    const secondItem = call(second);
+    const lateOutputItem = observation(lateOutput);
+
+    const grouped = groupToolTimelineItems(
+      [firstItem, secondItem, lateOutputItem],
+      [first, second, hiddenFinal, lateOutput],
+    );
+
+    expect(grouped).toHaveLength(2);
+    expect(groupAt(grouped, 0).calls).toEqual([firstItem, secondItem]);
+    expect(groupAt(grouped, 0).outputs).toEqual([]);
+    expect(grouped[0]._toolGroup.memberItems).toEqual([firstItem, secondItem]);
+    expect(grouped[1]).toBe(lateOutputItem);
   });
 });
