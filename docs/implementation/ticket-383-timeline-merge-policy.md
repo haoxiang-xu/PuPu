@@ -1,49 +1,54 @@
 # Ticket 383: per-tool timeline merge policy
 
-## Provenance
+## Provenance and boundary
 
-- Unchain source starts from immutable base 1ec49ddfc28d3b42ba035debada5e3db759dad1b on codex/ticket-383-timeline-merge-policy.
-- PuPu starts from spacing commit 901ba813 on codex/ticket-383-tool-call-grouping.
-- The pre-existing pinned runtime remains at 1ec49dd; this change does not replace or restart it.
-- The policy is display-only metadata. It does not enter provider tool schemas, confirmation requests, durable interaction payloads, receipts, or tool capability/configuration digests.
+- Unchain source starts from immutable base `1ec49ddfc28d3b42ba035debada5e3db759dad1b` on `codex/ticket-383-timeline-merge-policy`.
+- PuPu starts from spacing commit `901ba813` on `codex/ticket-383-tool-call-grouping`.
+- The running Unchain backend remains pinned to the previously accepted `1ec49dd` runtime; it was not replaced or restarted.
+- The one candidate wheel was built from clean Unchain source revision `73b11eb7db996fcd303555d448c4a145246f6760`. Its filename is `unchain-0.2.0-py3-none-any.whl`, size is `1,162,141` bytes, SHA-256 is `f79f37765da64ffd3c18998930994cb9607de5ff16d209be36f68b023dd3673e`, and runtime manifest digest is `a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be`. The candidate wheel was installed only into the isolated `candidate-runtime/site` target. The running environment was not replaced.
+- The PuPu backend/cold-host tests are bound to checkpoint `b77071d60df88feada687de3d4d7926eee07c598`; those Python files are unchanged in final source `81a9db994e29e9cae497de7fd3025374d17d7344` (tree `097a3d11b2`). Final renderer, browser, frontend-suite, and build evidence is bound to `81a9db994e29e9cae497de7fd3025374d17d7344`.
+- These are candidate tests only. The local development frontend may hot-refresh edited frontend code; the running Unchain backend remains on the prior accepted runtime. No new application instance, app/sidecar restart, profile/settings mutation, or candidate runtime rollout was performed.
+- `timeline_merge_policy` is display-only metadata. It stays out of provider schemas, confirmation request payloads, durable interaction payloads, receipts, and tool capability/configuration digests. Interaction presentation carries the scalar beside the copied durable request, never inside its hashed contents.
 
-## BC-383-01: developer declaration to runtime presentation
+## Boundary contracts
 
-Tool, Tool.from_callable, Tool.__call__, @tool (both forms), Toolkit.register, and Toolkit.tool accept timeline_merge_policy. Valid values are never, no_feedback, approved, and always; the default is approved. Invalid values raise ValueError in the Python API. The built-in ask_user_question tool declares never; a developer may explicitly override it through normal Tool registration.
+**BC-383-01 — Tool declaration to original call.** `Tool`, `Tool.from_callable`, `Tool.__call__`, both `@tool` forms, `Toolkit.register`, and `Toolkit.tool` accept `timeline_merge_policy`. The allowed values are `never`, `no_feedback`, `approved`, and `always`; omitted declarations default to `approved`; invalid declarations raise `ValueError`. The built-in `ask_user_question` declares `never`, with explicit developer overrides preserved. Both Python tool-call producers carry the scalar on the raw original call. On resume, an exact already-journaled call re-emits its original scalar or its original omission, even when the current toolkit declaration has changed. This keeps duplicate journal payload identity stable without changing event hashes or idempotency rules.
 
-The field is stored on the Tool object only. It is not serialized into provider JSON or hashed tool configuration. Runtime tool_call callbacks emit the scalar beside the original call identity and arguments.
+**BC-383-02 — Cross-repository Python and PuPu transport.** Both observed/shadow and canonical semantic projectors preserve valid policy values. An absent field remains absent for legacy traces; a present malformed value normalizes conservatively to `never`. The normalizer carries the value to `step.started` and, when present on the source interaction event, to presentation metadata beside the request. PuPu does not infer an absent historical policy from current toolkit configuration. Cold interaction presentation reads policy only from the existing read-only journal and only when the request cursor matches both sequence and event ID, session/execution, source attempt, call ID, and tool name. A present malformed historical value maps to `never`; missing or ambiguous history leaves the optional presentation field absent, except `ask_user_question`, which uses `never`.
 
-## BC-383-02: Python event transport
+**BC-383-03 — Renderer grouping.** Grouping applies the selected policy to presentation only. Original calls, results, feedback controls, and handlers remain attached to their own members. The strict compiled-TraceChain probe bound to final PuPu `81a9db99` passed 23/23 cases with the exact candidate producer fixture: badge multiplicity and two logical steps matched across the 4×5 policy/state matrix, and all 12 expanded-output cases retained each member's own result once. Before each output case, the probe collapsed any open details, asserted the expected closed detail count (one for a no-feedback group, two otherwise), then expanded every detail with fresh DOM locators and verified each member's own output once. Pending/question controls remained visible and once-only callbacks carried the exact second-member identity. The 13-frame representative legacy trace retained 3 steps, 3 Approved members, and each result once; local stop/remount preserved presentation. This is local renderer evidence, not a live app or durable process restart.
 
-Both the legacy execution harness and Context V2 tool-authority harness emit the scalar. The observed/shadow and canonical semantic projectors preserve a recognized value on their tool_call payloads. The runtime normalizer carries it to step.started and, when present on the source event, to interaction presentation outside the copied durable request. Unrecognized values are omitted by the normalizer. Older producers omit the optional field and retain the documented renderer fallback.
+**BC-383-04 — Artifact binding and provider/approval isolation.** The reviewed candidate is the exact PuPu `81a9db994e29e9cae497de7fd3025374d17d7344` and Unchain `73b11eb7db996fcd303555d448c4a145246f6760` pair, using the single candidate wheel with SHA-256 `f79f37765da64ffd3c18998930994cb9607de5ff16d209be36f68b023dd3673e` and manifest digest `a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be`. The field never enters provider tool schemas, confirmation construction, capability authorization, interaction receipts, or interaction request hashing. It is an ordinary field on the source `tool_call` event and therefore participates in that event's existing payload digest; the implementation leaves journal operation IDs, payload hashing, duplicate detection, and idempotence rules unchanged. The PuPu adapter does not mutate the copied durable request or its digest.
 
-PuPu toolkit metadata carries a valid declaration for live enrichment. An already-present call scalar wins, so a changed live toolkit configuration cannot replace an explicitly recorded declaration. Cold interaction presentation reads the exact original tool_call event using the request subject cursor and matches both cursor fields, session/execution, source attempt, call ID, and tool name. The read uses the existing read-only Unchain journal path and exact active owner admission. Missing or ambiguous history leaves legacy fallback behavior; ask_user_question falls back to never. No current-tool lookup mutates or rebinds the durable interaction request.
+## Sequences
 
-## BC-383-03: renderer boundary
+**SEQ-383-01 — Fresh call and approval.** A fresh tool call uses its configured declaration, defaulting to `approved`. Pending approval remains independently actionable. After a positive approval and execution completion, eligible same-identity calls may share a visual group; each call, interaction, handler, and result remains a separate member.
 
-Frontend grouping consumes the optional scalar as presentation metadata. It does not change callbacks, approval decisions, interaction submission, execution authorization, or durable receipts. See the renderer implementation and tests in this branch.
+**SEQ-383-02 — Explicit `always` feedback and member controls.** A developer declaration of `always` can group calls with pending or resolved feedback. Feedback controls and member state stay available within the grouped content; grouping does not coalesce or invoke callbacks.
 
-## SEQ-383-01: ordinary approval
+**SEQ-383-03 — Local stop/reopen and original-policy resume.** Local renderer stop/remount preserves the saved trace presentation. Durable approval-resume tests preserve the original policy or its legacy omission even when current tool configuration changes; older traces retain their renderer fallback. Actual application stop/reopen remains unverified.
 
-A call enters the timeline with its declared policy. Pending approval remains independently actionable under approved; after positive approval and execution completion, eligible same-identity calls may appear in the same visual group. The original call, interaction ID, decision handler, and result remain attached to the individual member.
+**SEQ-383-04 — Compatible call/interaction/feedback/resume/result projection.** Compatible calls can share a visual projection across original call, interaction feedback, resumed call, and result while retaining each member's identity, controls, and output. Focused renderer and producer evidence covers this presentation sequence; live provider execution and actual sidecar cold restart remain unverified.
 
-## SEQ-383-02: explicit always
-
-A developer declaration of always can group calls that have pending or resolved feedback. The feedback controls and member state remain visible in the group's member content; grouping does not invoke or coalesce individual callbacks.
-
-## SEQ-383-03: restart and older traces
-
-A restart reconstructs presentation policy only from the source call's exact scoped journal event. A request's hashed payload is not changed. Older traces with no policy value use their normal legacy behavior; reserved question rendering uses never.
-
-## AC-383 evidence state
+## Acceptance evidence
 
 | Acceptance item | State | Evidence |
 |---|---|---|
-| API enum/default/override/schema invariant | Partial PASS | Focused Unchain API and provider-schema test: 10 passed. Tests cover direct construction, callable conversion, decorator forms, toolkit registration, invalid values, reserved question default/override, clone preservation, and unchanged provider schemas. |
-| Normalizer/projector transport and request isolation | Partial PASS | Same focused Unchain test covers canonical tool-call projection, normalized step.started, malformed/absent values, and interaction metadata outside the durable request. |
-| PuPu metadata and exact cold-call provenance | Partial PASS | Focused PuPu transport test: 2 passed, including explicit scalar precedence and exact cursor/attempt/call/name matching through the cold helper. |
-| Full 4x5 policy behavior and per-call UI actions | NOT RUN HERE | Renderer and end-to-end verification remain with parent review. |
-| Red-before-green original representative screenshot sequence | NOT RUN HERE | Private screenshots and raw trace evidence remain outside the repository. |
-| Candidate wheel digest and exact pair verification | NOT RUN HERE | Parent will build one candidate wheel from the committed Unchain source and reuse those exact bytes. |
-| Full relevant Python and JavaScript suites | NOT RUN HERE | Focused tests above only; broader suites remain to be run and baseline failures recorded separately. |
-| Live window / rollout state matrix | NOT RUN HERE | Running pinned runtime and user session were intentionally left untouched. |
+| API defaults, enum validation, overrides, clone/decorator/registration paths, unchanged provider schemas | PASS | Exact-wheel focused policy and approval-resume tests: 14 passed. Wheel SHA and runtime manifest were asserted before collection. |
+| Raw producer, normalizer, canonical/observed projection, malformed-present and durable-request isolation | PASS | Included in the 14 exact-wheel focused tests; malformed-present maps to `never`, absent remains absent, and the durable interaction request stays unchanged. |
+| Durable resume with changed configuration and legacy omission | PASS | Exact-wheel parameterized callback → persisted approval → resume regression covers original `never` and original absence while the current tool declaration changes to `always`; both preserve original journal intent. |
+| PuPu adapter and exact-cursor cold policy recovery | PASS | Exact-wheel PuPu host-boundary module: 83 passed. This includes two sequential cold presentations in one chat, reading original `never` and `always` call metadata from the real temporary SQLite journal and preserving both request digests. The sequence runs in one process; it is not a process-restart test. |
+| Full Unchain Python suite using the exact candidate wheel | FAIL WITH KNOWN SDK BASELINE FAILURES | 4,010 passed, 4 failed, 17 skipped, and 5 xfailed (exit 1). The four failures are existing OpenAI SDK `Literal` mismatches for `none`/`xhigh` with `gpt-6-sol`/`gpt-6-luna`. The wheel runner also passed installed-package export/module-origin smoke checks corresponding to the source-only `src/__file__` assertion. See the separate evidence note for exact commands and artifact identity. |
+| Frontend full and focused suites at PuPu checkpoint `81a9db99` | PASS | Audited actual process exit: full 447/447 suites, 5,435 passed and 5 skipped (5,440 total), exit 0; focused 7/7 suites, 129/129 passed, exit 0. Final log SHA-256s are recorded in the evidence note. |
+| Exact-wheel frontend producer→activity-tree→TraceChain scenarios at `81a9db99` | PASS, scoped | Strict compiled-renderer probe: 23/23 pass across the 4×5 policy/state matrix plus 3 legacy-invalid cases; 12/12 output expansions preserve each result once; pending controls and synthetic question callbacks preserve exact second-member IDs. Before each output case, open details were collapsed and the closed count asserted before fresh-locator expansion. Console errors/warnings: none. Evidence hash and limits are in the evidence note. |
+| Full policy matrix, UI interaction actions, prefix/replay/reopen semantics | PARTIAL | The strict local renderer matrix, per-member actions, output expansion, and local stop/remount pass. Actual app durable stop/reopen, process restart, full KernelLoop resume, live first/second provider messages, and graph/subagent policy paths remain NOT_RUN. |
+| `CI=true` web build at PuPu checkpoint `81a9db99` | PASS | Optimized build compiled successfully; output included a fresh footer/index, 72 JavaScript assets, and feature flags. Build log and proof hashes are recorded in the evidence note. Earlier lint findings were corrected before this final build. |
+| Final independent source review | PASS | Sol independently returned PROCEED for the isolated PuPu `81a9db99` + Unchain `73b11eb7` candidate pair and the single exact wheel. |
+| Remote source checks at PuPu checkpoint `81a9db99` | PASS | Release QA, Enforce Merge Source, and CodeQL completed successfully ([run 37050813118](https://github.com/haoxiang-xu/PuPu/actions/runs/37050813118)). A documentation delivery commit triggers its own checks; these results apply to the source checkpoint only. No merge or deployment is implied. |
+| Live-window state matrix or runtime rollout | NOT RUN | The running Unchain backend remains on the previously accepted source. No application instance or sidecar was started/restarted; no profile/settings or real user interaction was changed. |
+
+## Implementation scope
+
+Unchain production changes are limited to the Tool API/declaration, raw event producers, semantic projectors, normalizer, and exact replay presentation preservation. PuPu backend changes are limited to runtime event enrichment and read-only cold interaction presentation. Frontend grouping changes are in the renderer slice on this same branch. The `release-qa.yml` default and four consumer fallback refs now point at the exact candidate source revision above; the existing build/evidence pipeline uses that selected `unchain_ref`. The immutable accepted/final-acceptance record was not rewritten.
+
+See [`timeline-policy-acceptance.md`](ticket-383-evidence/timeline-policy-acceptance.md) for exact artifact provenance, browser evidence hashes, commands, and the remaining state matrix. The live application and durable restart paths remain unverified.
