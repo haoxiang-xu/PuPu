@@ -8,7 +8,7 @@
 
 [version:prepare-build] Version already 0.1.12; no update needed.
 [build:web] Using build feature flags: {} (snapshot not found; using local defaults)
-(node:83156) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(node:15796) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
 (Use `node --trace-deprecation ...` to show where the warning was created)
 Creating an optimized production build...
 Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
@@ -27,81 +27,81 @@ Compiled successfully.
 
 File sizes after gzip:
 
-  835.79 kB (+3 B)  build/static/js/main.775f11f4.js
-  173.79 kB         build/static/js/6406.a1b2844c.chunk.js
-  128.36 kB         build/static/js/5729.4b574222.chunk.js
-  41.94 kB          build/static/js/7287.c8b697ae.chunk.js
-  31.46 kB          build/static/js/4732.60b69c42.chunk.js
-  17.07 kB          build/static/js/4363.7ca3801c.chunk.js
-  13.02 kB          build/static/js/9279.1d39b729.chunk.js
-  12.88 kB          build/static/js/5971.d90cb709.chunk.js
-  8.58 kB           build/static/js/5981.82cc6eb8.chunk.js
-  1.76 kB           build/static/js/1124.aae7bb48.chunk.js
-  1.4 kB            build/static/js/9173.c86e9410.chunk.js
-  1.39 kB           build/static/js/5115.b7f6c853.chunk.js
-  1.37 kB           build/static/js/7482.a7387c0b.chunk.js
-  1.34 kB           build/static/js/9816.ce3d8b19.chunk.js
-  1.34 kB           build/static/js/1544.1b82ae8b.chunk.js
-  1.33 kB           build/static/js/6604.50381ee4.chunk.js
-  1.24 kB           build/static/js/5145.bd0350f3.chunk.js
-  1.19 kB           build/static/js/4581.d2304548.chunk.js
-  1.15 kB           build/static/js/9002.52948b71.chunk.js
-  1.14 kB           build/static/js/4111.841dbf8d.chunk.js
-  1.06 kB           build/static/js/9498.d0b0b680.chunk.js
-  1 kB              build/static/js/5336.e3efac06.chunk.js
-  960 B             build/static/js/4368.f8cf733e.chunk.js
-  949 B             build/static/js/1445.4701b9d2.chunk.js
-  947 B             build/static/js/9383.9ffee153.chunk.js
-  915 B             build/static/js/469.8df0cff3.chunk.js
-  905 B             build/static/js/507.6686fcb1.chunk.js
-  859 B             build/static/js/7913.879ee9ae.chunk.js
-  857 B             build/static/css/main.30f0cc02.css
-  838 B             build/static/js/2392.f3ba2a55.chunk.js
-  838 B             build/static/js/1052.66606df4.chunk.js
-  818 B             build/static/js/3032.7b335448.chunk.js
-  799 B             build/static/js/4897.ac1f2ebe.chunk.js
-  796 B             build/static/js/3884.b05fe580.chunk.js
-  756 B             build/static/js/6679.1ed739b9.chunk.js
-  739 B             build/static/js/5916.e76c4a87.chunk.js
-  736 B             build/static/js/8184.032b36f0.chunk.js
-  733 B             build/static/js/1070.61dee8a3.chunk.js
-  715 B             build/static/js/3042.918a9c00.chunk.js
-  705 B             build/static/js/1849.5a2a1bc1.chunk.js
-  675 B             build/static/js/3106.f7ac3516.chunk.js
-  521 B             build/static/css/5970.d53773b6.chunk.css
-  451 B             build/static/css/3960.6a393fa1.chunk.css
-  175 B             build/static/js/5970.8bd4889c.chunk.js
-  174 B             build/static/js/3960.aa5690a6.chunk.js
-  157 B             build/static/js/9318.42125b2f.chunk.js
-  156 B             build/static/js/4825.f6b6f343.chunk.js
-  155 B             build/static/js/7890.8067c5a1.chunk.js
-  155 B             build/static/js/7999.0daaf033.chunk.js
-  153 B             build/static/js/4556.336d126a.chunk.js
-  153 B             build/static/js/5011.446a44f4.chunk.js
-  153 B             build/static/js/5066.9560b791.chunk.js
-  153 B             build/static/js/7521.dd72c168.chunk.js
-  153 B             build/static/js/4078.8a3256bd.chunk.js
-  152 B             build/static/js/3301.6cad38e8.chunk.js
-  152 B             build/static/js/1338.0fab7dee.chunk.js
-  152 B             build/static/js/4272.11170102.chunk.js
-  152 B             build/static/js/4836.610da5a0.chunk.js
-  152 B             build/static/js/5592.3b125eee.chunk.js
-  152 B             build/static/js/1233.51e4f84d.chunk.js
-  152 B             build/static/js/5577.c99c8da9.chunk.js
-  152 B             build/static/js/6457.fd27b8c3.chunk.js
-  152 B             build/static/js/6804.f7e84cd9.chunk.js
-  152 B             build/static/js/9724.be2ad2c2.chunk.js
-  152 B             build/static/js/8805.0780f294.chunk.js
-  151 B             build/static/js/1151.e13f955d.chunk.js
-  151 B             build/static/js/2124.b78eb846.chunk.js
-  151 B             build/static/js/5864.96002ef0.chunk.js
-  151 B             build/static/js/8681.9c0227ff.chunk.js
-  151 B             build/static/js/9054.9750cbc3.chunk.js
-  151 B             build/static/js/3835.a346de5a.chunk.js
-  151 B             build/static/js/6449.7b648fae.chunk.js
-  151 B             build/static/js/8630.e66a53bf.chunk.js
-  150 B             build/static/js/7167.a6bb8ea0.chunk.js
-  150 B             build/static/js/2023.6fc8e4eb.chunk.js
+  835.85 kB (+58 B)  build/static/js/main.23a0152b.js
+  173.79 kB          build/static/js/6406.a1b2844c.chunk.js
+  128.36 kB          build/static/js/5729.4b574222.chunk.js
+  41.94 kB           build/static/js/7287.c8b697ae.chunk.js
+  31.46 kB           build/static/js/4732.60b69c42.chunk.js
+  17.07 kB           build/static/js/4363.7ca3801c.chunk.js
+  13.02 kB           build/static/js/9279.1d39b729.chunk.js
+  12.88 kB           build/static/js/5971.d90cb709.chunk.js
+  8.58 kB            build/static/js/5981.82cc6eb8.chunk.js
+  1.76 kB            build/static/js/1124.aae7bb48.chunk.js
+  1.4 kB             build/static/js/9173.c86e9410.chunk.js
+  1.39 kB            build/static/js/5115.b7f6c853.chunk.js
+  1.37 kB            build/static/js/7482.a7387c0b.chunk.js
+  1.34 kB            build/static/js/9816.ce3d8b19.chunk.js
+  1.34 kB            build/static/js/1544.1b82ae8b.chunk.js
+  1.33 kB            build/static/js/6604.50381ee4.chunk.js
+  1.24 kB            build/static/js/5145.bd0350f3.chunk.js
+  1.19 kB            build/static/js/4581.d2304548.chunk.js
+  1.15 kB            build/static/js/9002.52948b71.chunk.js
+  1.14 kB            build/static/js/4111.841dbf8d.chunk.js
+  1.06 kB            build/static/js/9498.d0b0b680.chunk.js
+  1 kB               build/static/js/5336.e3efac06.chunk.js
+  960 B              build/static/js/4368.f8cf733e.chunk.js
+  949 B              build/static/js/1445.4701b9d2.chunk.js
+  947 B              build/static/js/9383.9ffee153.chunk.js
+  915 B              build/static/js/469.8df0cff3.chunk.js
+  905 B              build/static/js/507.6686fcb1.chunk.js
+  859 B              build/static/js/7913.879ee9ae.chunk.js
+  857 B              build/static/css/main.30f0cc02.css
+  838 B              build/static/js/2392.f3ba2a55.chunk.js
+  838 B              build/static/js/1052.66606df4.chunk.js
+  818 B              build/static/js/3032.7b335448.chunk.js
+  799 B              build/static/js/4897.ac1f2ebe.chunk.js
+  796 B              build/static/js/3884.b05fe580.chunk.js
+  756 B              build/static/js/6679.1ed739b9.chunk.js
+  739 B              build/static/js/5916.e76c4a87.chunk.js
+  736 B              build/static/js/8184.032b36f0.chunk.js
+  733 B              build/static/js/1070.61dee8a3.chunk.js
+  715 B              build/static/js/3042.918a9c00.chunk.js
+  705 B              build/static/js/1849.5a2a1bc1.chunk.js
+  675 B              build/static/js/3106.f7ac3516.chunk.js
+  521 B              build/static/css/5970.d53773b6.chunk.css
+  451 B              build/static/css/3960.6a393fa1.chunk.css
+  175 B              build/static/js/5970.8bd4889c.chunk.js
+  174 B              build/static/js/3960.aa5690a6.chunk.js
+  157 B              build/static/js/9318.42125b2f.chunk.js
+  156 B              build/static/js/4825.f6b6f343.chunk.js
+  155 B              build/static/js/7890.8067c5a1.chunk.js
+  155 B              build/static/js/7999.0daaf033.chunk.js
+  153 B              build/static/js/4556.336d126a.chunk.js
+  153 B              build/static/js/5011.446a44f4.chunk.js
+  153 B              build/static/js/5066.9560b791.chunk.js
+  153 B              build/static/js/7521.dd72c168.chunk.js
+  153 B              build/static/js/4078.8a3256bd.chunk.js
+  152 B              build/static/js/3301.6cad38e8.chunk.js
+  152 B              build/static/js/1338.0fab7dee.chunk.js
+  152 B              build/static/js/4272.11170102.chunk.js
+  152 B              build/static/js/4836.610da5a0.chunk.js
+  152 B              build/static/js/5592.3b125eee.chunk.js
+  152 B              build/static/js/1233.51e4f84d.chunk.js
+  152 B              build/static/js/5577.c99c8da9.chunk.js
+  152 B              build/static/js/6457.fd27b8c3.chunk.js
+  152 B              build/static/js/6804.f7e84cd9.chunk.js
+  152 B              build/static/js/9724.be2ad2c2.chunk.js
+  152 B              build/static/js/8805.0780f294.chunk.js
+  151 B              build/static/js/1151.e13f955d.chunk.js
+  151 B              build/static/js/2124.b78eb846.chunk.js
+  151 B              build/static/js/5864.96002ef0.chunk.js
+  151 B              build/static/js/8681.9c0227ff.chunk.js
+  151 B              build/static/js/9054.9750cbc3.chunk.js
+  151 B              build/static/js/3835.a346de5a.chunk.js
+  151 B              build/static/js/6449.7b648fae.chunk.js
+  151 B              build/static/js/8630.e66a53bf.chunk.js
+  150 B              build/static/js/7167.a6bb8ea0.chunk.js
+  150 B              build/static/js/2023.6fc8e4eb.chunk.js
 
 The bundle size is significantly larger than recommended.
 Consider reducing it with code splitting: https://goo.gl/9VhYWB
@@ -116,4 +116,4 @@ Find out more about deployment here:
 
   https://cra.link/deployment
 
-[acceptance child exit] {"cwd":"/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384","command":"/Users/red/.nvm/versions/node/v24.18.0/bin/node","args":["/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/node_modules/react-scripts/scripts/build.js"],"status":0,"signal":null,"error":null,"pid":83156,"duration_ms":14229,"node_options":"--max-old-space-size=8192 --require=/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/.local/ticket-384-build/child-probe.cjs","generate_sourcemap":null}
+[acceptance child exit] {"cwd":"/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384","command":"/Users/red/.nvm/versions/node/v24.18.0/bin/node","args":["/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/node_modules/react-scripts/scripts/build.js"],"status":0,"signal":null,"error":null,"pid":15796,"duration_ms":14665,"node_options":"--max-old-space-size=8192 --require=/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/.local/ticket-384-build/child-probe.cjs","generate_sourcemap":null}

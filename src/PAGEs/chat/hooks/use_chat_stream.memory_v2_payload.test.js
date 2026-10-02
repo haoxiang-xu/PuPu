@@ -372,6 +372,81 @@ describe("Memory V2 P0 payload seams", () => {
     )?.payload.result).toEqual({ content: "fixture contents for fixture-1.txt" });
   });
 
+  test("#384: stop drains nested V4 calls and results admitted in the same 64ms batch", async () => {
+    startRuntimeV4("attempt-nested-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("inspect with a worker");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const runId = "attempt-nested-buffered-384";
+    const rootCallIds = {
+      "observed-batch-call-1": "call-nested-root-complete-384",
+      "observed-batch-call-2": "call-nested-root-running-384",
+    };
+    const childEvents = [
+      {
+        seq: 6, type: "run.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId }, payload: { agent_id: "worker-search", mode: "delegate" },
+      },
+      {
+        seq: 7, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", arguments: { path: "worker-complete.txt" } },
+      },
+      {
+        seq: 8, type: "step.completed", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", status: "success", result: { content: "worker result" } },
+      },
+      {
+        seq: 9, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-running-384" },
+        payload: { step_type: "tool", call_id: "child-call-running-384", tool_name: "search", arguments: { query: "unfinished" } },
+      },
+    ].map((event) => ({
+      schema_version: "v4",
+      event_id: `test-worker-${event.seq}`,
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      turn_id: `${runId}:turn-0`,
+      visibility: "user",
+      metadata: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      ...event,
+    }));
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, { chatId, runId, callIds: rootCallIds }));
+      });
+      childEvents.forEach((event) => streamHandlers.onRuntimeEvent(event));
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-nested-root-complete-384",
+      "call-nested-root-complete-384",
+      "call-nested-root-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) => frame.type === "tool_result" && frame.payload?.call_id === "call-nested-root-complete-384")?.payload.result)
+      .toEqual({ content: "fixture contents for fixture-1.txt" });
+    expect(assistant.subagentFrames["worker-run-384"].map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "child-call-complete-384",
+      "child-call-complete-384",
+      "child-call-running-384",
+    ]);
+    expect(assistant.subagentFrames["worker-run-384"].find((frame) => frame.type === "tool_result")?.payload.result)
+      .toEqual({ content: "worker result" });
+    // Keep the worker's observed raw status for provenance. TraceChain projects
+    // running child metadata as Cancelled when its saved parent is cancelled.
+    expect(assistant.subagentMetaByRunId["worker-run-384"].status).toBe("running");
+    expect(JSON.stringify(getChatMessages(chatId).find((message) => message.id === assistant.id).subagentFrames["worker-run-384"]))
+      .toBe(JSON.stringify(assistant.subagentFrames["worker-run-384"]));
+  });
+
   test("#384: repeated stop and callbacks from a finished V4 run cannot mutate its successor", async () => {
     const handlersByRun = [];
     window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
@@ -1011,6 +1086,98 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
     expect(window.unchainAPI.startStreamV4.mock.calls[1][0].interaction_id).toBe(next.interaction_id);
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("#384: Stop on a second child approval cancels that interaction and preserves the first completed answer", async () => {
+    const { chatId, interactionId, decision, replacePending } = await prepareRecoveredHumanInput();
+    const firstCompleted = {
+      id: "assistant-first-answer-384",
+      role: "assistant",
+      content: "The first folder was selected.",
+      status: "done",
+      createdAt: 2,
+      updatedAt: 3,
+      traceFrames: [
+        { seq: 1, ts: 2, run_id: "attempt-path", type: "tool_call", payload: {
+          call_id: "call-path", confirmation_id: interactionId, requires_confirmation: true,
+          tool_name: "ask_user_question", arguments: { question: "Where first?" },
+        } },
+        { seq: 2, ts: 3, run_id: "attempt-path", type: "tool_result", payload: {
+          call_id: "call-path", result: { selected_values: ["/tmp/first"] },
+        } },
+      ],
+    };
+    setChatMessages(chatId, [
+      { id: "user-path", role: "user", content: "Ask where to put the project", createdAt: 1, updatedAt: 1 },
+      firstCompleted,
+    ], { source: "test" });
+    await waitFor(() => expect(lastChatMessagesProps.messages.some((message) => message.id === firstCompleted.id)).toBe(true));
+    const savedFirstCompleted = lastChatMessagesProps.messages.find((message) => message.id === firstCompleted.id);
+
+    let resumedHandlers;
+    window.unchainAPI.startStreamV4.mockImplementation((_payload, handlers) => {
+      resumedHandlers = handlers;
+      return { requestId: "resume-second-interaction", attemptId: "resume-second-interaction", disconnect: jest.fn(), cancel: jest.fn() };
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(resumedHandlers).not.toBeNull());
+    const second = JSON.parse(JSON.stringify(await window.unchainAPI.getPendingInteraction()));
+    second.interaction_id = "interaction-second-stop-384";
+    for (const call of [second.presentation.tool_call, second.presentation.trace_frame.payload]) {
+      call.call_id = "call-second-stop-384";
+      call.confirmation_id = second.interaction_id;
+      call.arguments.request_id = call.call_id;
+      call.interact_config.request_id = call.call_id;
+    }
+    replacePending(second);
+    window.unchainAPI.cancelExecution.mockClear();
+
+    await act(async () => {
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-run-started-384", type: "run.started",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "resume-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 0,
+        links: {}, surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {}, payload: {},
+      });
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-child-approval-384", type: "interaction.requested",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "worker-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 1,
+        links: { parent_run_id: "resume-second-interaction", interaction_id: second.interaction_id, tool_call_id: "call-second-stop-384" },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: {
+          interaction_id: second.interaction_id, kind: "choice", renderer: "single",
+          title: "Folder", prompt: "Where next?", selection_mode: "single", options: [], allow_other: true,
+          target: { tool_call_id: "call-second-stop-384", tool_name: "ask_user_question" },
+          config: second.presentation.tool_call.interact_config,
+        },
+      });
+      await lastChatInputProps.onStop();
+    });
+
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    expect(window.unchainAPI.cancelExecution.mock.calls[0][0]).toEqual(expect.objectContaining({
+      interaction_id: second.interaction_id,
+      reason: "user_stop",
+    }));
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.respondToolConfirmation.mock.calls[0][0]).toEqual(expect.objectContaining({
+      confirmation_id: interactionId,
+    }));
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests[second.interaction_id]).toBeUndefined();
+      expect(lastChatMessagesProps.messages.find((message) => message.id === savedFirstCompleted.id)?.status).toBe("cancelled");
+    });
+    const afterStop = getChatMessages(chatId).find((message) => message.id === savedFirstCompleted.id);
+    expect(afterStop.content).toBe(savedFirstCompleted.content);
+    expect(afterStop.traceFrames.slice(0, 2)).toEqual(savedFirstCompleted.traceFrames.slice(0, 2));
+    const retainedSecondCall = [
+      ...(afterStop.traceFrames || []),
+      ...Object.values(afterStop.subagentFrames || {}).flat(),
+    ].some((frame) => frame.payload?.call_id === "call-second-stop-384");
+    expect(retainedSecondCall).toBe(true);
   });
 
   test("a resume startup error preserves the receipt and exposes the failure without cancellation", async () => {

@@ -1,5 +1,5 @@
 {
-  "source_commit": "a074f48d26d1f2b50131c4a6e482f78fb04c0436",
+  "source_commit": "ce9e434c069c14cf0ae6bf7997671d6d065d1394",
   "lockfile_sha256": "3e1a619d2b71b5947f2b99fec076f4bfac0804e324a83173a10ca5c059179c5a",
   "command": "CI=true PUPU_BUILD_VERSION=0.1.12 npm run build:web",
   "actual_compiler_child": {
@@ -11,15 +11,15 @@
     "status": 0,
     "signal": null,
     "error": null,
-    "pid": 83156,
-    "duration_ms": 14229,
+    "pid": 15796,
+    "duration_ms": 14665,
     "node_options": "--max-old-space-size=8192 --require=/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/.local/ticket-384-build/child-probe.cjs",
     "generate_sourcemap": null
   },
   "artifacts": {
     "main.js": {
-      "sha256": "cc65536d2d72fbcb6744d2f8d4995fe96280fa2a0d5cd5a6549182d10a53f7bd",
-      "bytes": 3113436
+      "sha256": "d9fb960387c667fce7558c0a161c0621efdd5456042669e28079140910989f32",
+      "bytes": 3113654
     },
     "static/js/7482.a7387c0b.chunk.js": {
       "sha256": "dfec9dec3f02a7d05d5415502db235ae0080a46a2d74e083655f843e19b44bc4",
@@ -306,7 +306,7 @@
       "bytes": 67686
     },
     "index.html": {
-      "sha256": "931069a92ce2f2956fd542cbf680d081d56ac1183912cb1bbd0f9a9ed39ac031",
+      "sha256": "a1cefc89b1769800a3675b4b99a87df03e23be304c9686a46056985750609040",
       "bytes": 1823
     }
   },

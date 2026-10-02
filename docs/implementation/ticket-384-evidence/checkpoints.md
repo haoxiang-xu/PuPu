@@ -25,3 +25,16 @@ The previous incremental refresh temporarily lost helper/renderer lookups. The o
 - Independent #383 integration probe: first source patch applied cleanly to detached `7e7abc21` in a separate task-local clone; eight suites / 124 tests passed, including grouping and interaction rendering. This is source-integration evidence only. No #383 commit, policy or candidate wheel was adopted into #384.
 
 Intermediate review 1 is saved separately and requests a nested visible-status correction; additional state-sequence and compiled-consumer checks remain pending. Small remote checkpoints do not count as extra reviews.
+
+## Correction and timing checkpoints
+
+All checkpoints below were pushed to the same dedicated branch using existing authentication; remote `ls-remote` readback matched each full source SHA.
+
+- `e957848de3fe9417d25e55831309079296780c03`: review-1 nested visible-status/active-branch correction, supported-history negatives and ordinary renderer compatibility; 4 suites / 76 tests passed. The independent pre-correction replay reproduced five expected failures. The first CI build exposed a missing cancellation-state memo dependency rather than producing an accepted artifact.
+- `a074f48d26d1f2b50131c4a6e482f78fb04c0436`: includes `isCancelled` in the timeline memo dependency list. CI web build passed with actual compiler child exit status 0; wrapper success alone was not used.
+- `d713e2584e20fff1bfa6af43d3f13ac5dff4b432`: red actual V4 admitted-batch case and byte-identical accepted-producer fixture; already-projected own result preserved in the paired passing case. No drain implementation in this checkpoint.
+- `ce9e434c069c14cf0ae6bf7997671d6d065d1394`: synchronous stop-only drain of the exact current V4 handle before identity capture and generation invalidation, with no await or admission change. Final pre-drain replay: 3 expected failures, 2 passing timing cases. Six focused suites / 109 tests passed; final CI build actual child status 0. The final source patch applies cleanly to isolated detached #383 `7e7abc21`, where 10 suites / 163 tests passed. No #383 policy/runtime adoption.
+
+The full frontend run on `ce9e434c` passed 443/445 suites (5402 tests, 5 skipped) and failed 8 tests solely in two isolated vault-listener suites. An independent ephemeral loopback probe confirmed sandbox `listen EPERM`. The same two suites passed 30/30 tests after an authorized isolated-loopback rerun on identical source. Combined closure is 445 suites / 5410 passing / 5 skipped; this is explicitly not a single all-green aggregate run. See `aggregate-closure.json` and its attributed raw-log hash.
+
+Intermediate review 2 found no production defect and requested two actual-hook evidence cases: buffered child calls/results and Stop on the second interaction after resume. Test-only corrections are being checkpointed separately; compiled saved-record remount/reload verification remains pending at this record's update. Real-device cells stay ON HOLD.

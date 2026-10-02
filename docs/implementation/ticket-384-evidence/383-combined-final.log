@@ -1,0 +1,22 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand --testPathPattern=chat_turn_utils.test.js|use_chat_stream.composer_sidecar.test.js|use_chat_session_state.straggler_settle.test.js|trace_chain.test.js|trace_chain.grouping|trace_tool_grouping.test.js|use_chat_stream.memory_v2_payload.test.js|chat_storage.interrupted_trace_persistence.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js
+PASS src/COMPONENTs/chat-bubble/lazy_trace_chain.test.js
+PASS src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+PASS src/PAGEs/chat/utils/chat_turn_utils.test.js
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+PASS src/SERVICEs/chat_storage.interrupted_trace_persistence.test.js
+
+Test Suites: 10 passed, 10 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        4.363 s
+Ran all test suites matching /chat_turn_utils.test.js|use_chat_stream.composer_sidecar.test.js|use_chat_session_state.straggler_settle.test.js|trace_chain.test.js|trace_chain.grouping|trace_tool_grouping.test.js|use_chat_stream.memory_v2_payload.test.js|chat_storage.interrupted_trace_persistence.test.js/i.
