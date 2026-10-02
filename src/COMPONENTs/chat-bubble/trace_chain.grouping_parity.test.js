@@ -14,6 +14,7 @@ import { adaptActivityTreeToTraceChain } from "../../SERVICEs/runtime_events/tra
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
 const actualV4Events = require("../../../docs/implementation/ticket-383-evidence/observed-sequential.sidecar-runtime-events.json");
+const actualV2Frames = require("../../../docs/implementation/ticket-383-evidence/observed-sequential.legacy-frames.json");
 
 const renderTrace = (frames, props = {}) =>
   render(
@@ -82,6 +83,41 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
     });
   });
 
+  test("each actual V2 frame prefix preserves arrived observations and grouping count", () => {
+    actualV2Frames.forEach((_frame, index) => {
+      const prefix = actualV2Frames.slice(0, index + 1);
+      const callCount = prefix.filter((frame) => frame.type === "tool_call").length;
+      const observationCount = prefix.filter(
+        (frame) => frame.type === "observation",
+      ).length;
+      const view = renderTrace(prefix, {
+        messageId: `legacy-prefix-${index + 1}`,
+        status: "streaming",
+      });
+
+      if (callCount >= 2) {
+        expect(screen.getByText("×2")).toBeInTheDocument();
+      } else {
+        expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
+      }
+      expect(screen.queryAllByText("Observation")).toHaveLength(
+        observationCount,
+      );
+      view.unmount();
+    });
+
+    const reopenedFrames = JSON.parse(JSON.stringify(actualV2Frames));
+    ["streaming", "waiting", "done", "error"].forEach((status) => {
+      const view = renderTrace(reopenedFrames, {
+        messageId: `legacy-reopen-${status}`,
+        status,
+      });
+      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.getAllByText("Observation")).toHaveLength(2);
+      view.unmount();
+    });
+  });
+
   test("one-at-a-time and different event batch sizes produce the same trace frames", () => {
     const expected = replay(actualV4Events).traceFrames;
 
@@ -118,9 +154,32 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
     const projection = replay(actualV4Events);
     const reopenedFrames = JSON.parse(JSON.stringify(projection.traceFrames));
 
-    ["streaming", "waiting", "done", "error"].forEach((status) => {
+    ["streaming", "waiting", "paused", "stopped", "done", "error"].forEach((status) => {
       const view = renderTrace(reopenedFrames, {
         messageId: `reopen-${status}`,
+        status,
+      });
+      expect(screen.getByText("×2")).toBeInTheDocument();
+      view.unmount();
+    });
+  });
+
+  test("a partial same-tool snapshot stays grouped when paused or stopped", () => {
+    const toolStartIndices = actualV4Events.reduce((indices, event, index) => {
+      if (event.type === "step.started" && event.payload?.step_type === "tool") {
+        indices.push(index);
+      }
+      return indices;
+    }, []);
+    expect(toolStartIndices.length).toBeGreaterThanOrEqual(2);
+    const partial = replay(actualV4Events.slice(0, toolStartIndices[1] + 1));
+    expect(
+      partial.traceFrames.filter((frame) => frame.type === "tool_call"),
+    ).toHaveLength(2);
+
+    ["streaming", "waiting", "paused", "stopped"].forEach((status) => {
+      const view = renderTrace(partial.traceFrames, {
+        messageId: `partial-${status}`,
         status,
       });
       expect(screen.getByText("×2")).toBeInTheDocument();
@@ -237,11 +296,16 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
           : frame.payload,
     }));
     const view = renderTrace(firstFrames, { chatId: "chat-a", messageId: "message-a" });
-    const observationDetail = screen
+    const detailControls = () =>
+      screen
+        .getAllByRole("button")
+        .map((button) => button.textContent.trim())
+        .filter((label) => label === "detail" || label === "hide");
+    const detailButtons = screen
       .getAllByRole("button")
-      .find((button) => button.textContent.trim() === "detail");
-    fireEvent.click(observationDetail);
-    expect(screen.getByText("first message output")).toBeInTheDocument();
+      .filter((button) => button.textContent.trim() === "detail");
+    fireEvent.click(detailButtons[1]);
+    expect(detailControls()).toEqual(["detail", "hide"]);
 
     view.rerender(
       <ConfigContext.Provider
@@ -266,7 +330,124 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
       </ConfigContext.Provider>,
     );
 
-    expect(screen.getByRole("button", { name: "detail" })).toBeInTheDocument();
-    expect(screen.queryByText("second message output")).not.toBeInTheDocument();
+    expect(detailControls()).toEqual(["detail", "detail"]);
+  });
+
+  test("expanded grouped output state does not cross message or chat reuse", () => {
+    const makeFrames = (prefix, outputLabel) => [
+      {
+        seq: 1,
+        ts: 100,
+        run_id: `${prefix}-run`,
+        type: "tool_call",
+        payload: {
+          call_id: `${prefix}-a`,
+          tool_name: "read_file",
+          arguments: { path: `${prefix}-a.txt` },
+        },
+      },
+      {
+        seq: 2,
+        ts: 200,
+        run_id: `${prefix}-run`,
+        type: "tool_result",
+        payload: {
+          call_id: `${prefix}-a`,
+          tool_name: "read_file",
+          result: "A",
+        },
+      },
+      {
+        seq: 3,
+        ts: 300,
+        run_id: `${prefix}-run`,
+        type: "observation",
+        payload: { call_id: `${prefix}-a`, content: outputLabel },
+      },
+      {
+        seq: 4,
+        ts: 400,
+        run_id: `${prefix}-run`,
+        type: "tool_call",
+        payload: {
+          call_id: `${prefix}-b`,
+          tool_name: "read_file",
+          arguments: { path: `${prefix}-b.txt` },
+        },
+      },
+      {
+        seq: 5,
+        ts: 500,
+        run_id: `${prefix}-run`,
+        type: "tool_result",
+        payload: {
+          call_id: `${prefix}-b`,
+          tool_name: "read_file",
+          result: "B",
+        },
+      },
+      {
+        seq: 6,
+        ts: 600,
+        run_id: `${prefix}-run`,
+        type: "observation",
+        payload: { call_id: `${prefix}-b`, content: `${outputLabel} second` },
+      },
+    ];
+    const detailControls = () =>
+      screen
+        .getAllByRole("button")
+        .map((button) => button.textContent.trim())
+        .filter((label) => label === "detail" || label === "hide");
+    const firstFrames = makeFrames("first", "first grouped output");
+    const secondFrames = makeFrames("second", "second grouped output");
+    const view = renderTrace(firstFrames, {
+      chatId: "chat-a",
+      messageId: "message-a",
+    });
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button").find(
+      (button) => button.textContent.trim() === "detail",
+    ));
+    expect(detailControls()[0]).toBe("hide");
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .filter((button) => button.textContent.trim() === "detail")[1],
+    );
+    expect(detailControls()[2]).toBe("hide");
+
+    view.rerender(
+      <ConfigContext.Provider
+        value={{
+          theme: { color: "#222", font: { fontFamily: "sans-serif" } },
+          onThemeMode: "light_mode",
+        }}
+      >
+        <StreamingMessageStoreContext.Provider
+          value={{
+            chatId: "chat-b",
+            store: null,
+            notifyStreamingContentCommitted: jest.fn(),
+          }}
+        >
+          <TraceChain
+            frames={secondFrames}
+            status="done"
+            messageId="message-b"
+          />
+        </StreamingMessageStoreContext.Provider>
+      </ConfigContext.Provider>,
+    );
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .find((button) => button.textContent.trim() === "detail"),
+    );
+    expect(detailControls()[0]).toBe("hide");
+    expect(detailControls()[2]).toBe("detail");
   });
 });

@@ -2084,6 +2084,7 @@ const TraceChain = ({
       const details =
         group.outputs.length > 0 ? (
           <Timeline
+            key={`tool-group:${timelineExpansionScope}:${firstCall.key}`}
             items={group.memberItems}
             compact
             hideTrack
