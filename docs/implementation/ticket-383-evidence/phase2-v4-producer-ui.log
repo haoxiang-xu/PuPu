@@ -1,0 +1,12 @@
+PASS src/producer-ui.test.js
+  ✓ actual pinned producer + actual sidecar: silent-batch (49 ms)
+  ✓ actual pinned producer + actual sidecar: content-batch (16 ms)
+  ✓ actual pinned producer + actual sidecar: observed-batch (13 ms)
+  ✓ actual pinned producer + actual sidecar: observed-sequential (14 ms)
+  ✓ actual pinned producer duplicate replay still counts two tool executions (15 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        1.193 s, estimated 2 s
+Ran all test suites within paths "src/producer-ui.test.js".

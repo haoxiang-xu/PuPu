@@ -1,0 +1,7 @@
+Build qualification record: INCONCLUSIVE, not PASS
+
+Attempt 1: `npm run build:web` in non-interactive mode failed before compilation because no build version was supplied.
+
+Attempts 2 and 3: `PUPU_BUILD_VERSION=0.1.12 npm run build:web` used the current package version. The wrapper's captured exit code was 0, but each log stopped after “Creating an optimized production build…” and Browserslist notices. Neither `build/index.html` nor `build/static/js` existed after either run; no process remained. No tracked build output changed.
+
+The child signal was not captured: scripts/build-web.cjs checks spawnSync result.status but exits with `result.status || 0`, so a null status can be masked as success. Do not infer build success from this wrapper exit code. Final GPT-6.1 owns the sequential diagnosis/retry.

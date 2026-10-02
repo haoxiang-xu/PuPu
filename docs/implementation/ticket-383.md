@@ -14,7 +14,9 @@ Preserve the existing grouped header/count badge, detail styling and interaction
 Fix grouping, count and output preservation only. Do not redesign the UI, change
 runtime journal/schema/provider behavior, refactor ordinary statuses/result lookup,
 fix reasoning fragmentation or pause lifecycle, or work on stopped ticket 249.
-No merge, deployment, automatic ticket closure or PR is authorized by this phase.
+No merge, deployment, or automatic ticket closure is authorized. The owner has
+authorized creating a draft PR to dev only after final GPT-6.1 acceptance; no PR
+is authorized before that gate.
 
 ## Findings and reproduced defect
 
@@ -199,4 +201,31 @@ Exact wheel producer fixtures, red-before-green evidence and final candidate has
 must be linked in checkpoint records. Required unavailable matrix evidence is
 INCOMPLETE, never PASS. No release qualification, live provider calls, merge or
 rollout is implied. Finish when final accepted code/evidence are remotely preserved;
-report remaining acceptance limits and wait for owner close for PR/audit workflow.
+after final acceptance the coordinator may create the owner-authorized draft PR to
+dev. Audit, merge, deployment, and ticket closure are outside this phase.
+
+## Phase 2 execution record
+
+Review 1 returned CONTINUE on core candidate `9b9b1e8bf48f59cb6683d23849dc79f77ad95c5e`.
+Review 2 returned CONTINUE on parity candidate `d9f3e76c0fcafd7f751eb63ec9d65ea600a0c937`
+(tree `98702eab83929d7f946c0a61118acd214518a9ee`) after the requested actual V2
+fixture-prefix regression was added and passed. The exact source/test hashes, parity
+matrix, pinned runtime provenance, aggregate baseline classification, build status,
+and browser limitation are recorded in
+[`ticket-383-evidence/phase2-results.md`](ticket-383-evidence/phase2-results.md).
+
+Final GPT-6.1 acceptance found a nested expansion-index regression when a late
+truncation row for an earlier call shifts an already-expanded observation. The
+stable-member-key correction and regression test are saved as
+`382c0e24f850f5a93c605a38e7fd93559c9f55cd` (tree
+`609ac092700db5b772240108d23432c7562a9a6e`). The focused set now passes 12 suites /
+122 tests. Final GPT-6.1 delta recheck and build diagnosis remain in progress.
+
+The phase-2 focused regression set passes 12 suites / 122 tests. The full frontend
+aggregate has 2 unrelated secret-storage suites that fail identically on immutable
+9b9b1e8 and original-dev 0047d58 archives. The web build remains INCONCLUSIVE: its wrapper
+reported exit 0 without producing `build/index.html` or JS assets, and does not
+surface the child signal. Final GPT-6.1 acceptance owns one sequential build
+diagnosis/retry. Browser QA is NOT_RUN (`ERR_BLOCKED_BY_CLIENT`). A draft PR to dev
+is authorized only after final acceptance; no merge, deployment, or ticket closure
+is authorized by these results.
