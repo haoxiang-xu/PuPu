@@ -905,5 +905,26 @@
     "organization_queued": "等待整理记忆",
     "organization_empty": "暂无记忆需要整理",
     "organization_complete": "记忆整理完成"
+  },
+  "provider_retry": {
+    "waiting": "正在等待 {provider}",
+    "retrying_header": "正在重试…",
+    "next_try_in": "{seconds} 秒后重试",
+    "trying_again": "正在重试（第 {attempt} 次，共 {max} 次）",
+    "stopped": "重试时已停止",
+    "retried": "已重试 {count} 次",
+    "legend_failed": "{count} 次失败",
+    "legend_current": "第 {attempt} 次",
+    "legend_left": "剩余 {count} 次",
+    "stop": "停止",
+    "stopped_by_you": "已由你停止",
+    "bar_label": "已用尝试次数（共 {max} 次）",
+    "reason_overloaded": "服务过载（HTTP {status}）",
+    "reason_rate_limited": "达到速率或配额限制（HTTP {status}）",
+    "reason_gateway": "网关错误（HTTP {status}）",
+    "reason_http": "临时故障（HTTP {status}）",
+    "reason_unknown": "临时故障",
+    "provider_fallback": "服务商",
+    "usage_partial": "{total} 次调用中有 {excluded} 次无用量数据"
   }
 }

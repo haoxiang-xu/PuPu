@@ -1089,16 +1089,33 @@ export const selectRunBundleUsage = (bundle) => {
     try {
       const normalized = normalizeRendererRunBundleV1(bundle);
       const usage = normalized.aggregation.all_usage;
+      const calls = normalized.provider_calls;
+      // The aggregate is unknown as soon as one call has no usage (a failed
+      // try before a retry, for example). Like Settings → Token Usage (#377),
+      // show the sum of the usage that is known and count the calls without it.
+      const metric = (read) => {
+        const aggregate = read(usage);
+        if (aggregate !== null) return aggregate;
+        let sum = null;
+        calls.forEach((call) => {
+          const value = read(call.usage);
+          if (value !== null) sum = (sum ?? 0) + value;
+        });
+        return sum;
+      };
       return {
         canonical: true,
-        input: usage.input.total_tokens,
-        output: usage.output.total_tokens,
-        total: usage.total_tokens,
-        cacheRead: usage.input.cache_read_tokens,
-        cacheWrite: usage.input.cache_write_tokens,
-        cacheWrite5m: usage.input.cache_write_5m_tokens,
-        cacheWrite1h: usage.input.cache_write_1h_tokens,
-        reasoning: usage.output.reasoning_tokens,
+        input: metric((u) => u.input.total_tokens),
+        output: metric((u) => u.output.total_tokens),
+        total: metric((u) => u.total_tokens),
+        cacheRead: metric((u) => u.input.cache_read_tokens),
+        cacheWrite: metric((u) => u.input.cache_write_tokens),
+        cacheWrite5m: metric((u) => u.input.cache_write_5m_tokens),
+        cacheWrite1h: metric((u) => u.input.cache_write_1h_tokens),
+        reasoning: metric((u) => u.output.reasoning_tokens),
+        callCount: calls.length,
+        callsWithoutUsage: calls.filter((call) => call.usage.total_tokens === null)
+          .length,
         coverage: normalized.coverage.status,
         source: usage.source,
         partial: normalized.coverage.status !== "complete",

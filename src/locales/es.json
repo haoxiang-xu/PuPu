@@ -905,5 +905,26 @@
     "organization_queued": "Organización de recuerdos en espera",
     "organization_empty": "No hay recuerdos que organizar",
     "organization_complete": "Recuerdos organizados"
+  },
+  "provider_retry": {
+    "waiting": "Esperando a {provider}",
+    "retrying_header": "Reintentando…",
+    "next_try_in": "siguiente intento en {seconds} s",
+    "trying_again": "reintentando (intento {attempt} de {max})",
+    "stopped": "Detenido durante los reintentos",
+    "retried": "Reintentado {count}×",
+    "legend_failed": "{count} fallidos",
+    "legend_current": "intento {attempt}",
+    "legend_left": "quedan {count}",
+    "stop": "Detener",
+    "stopped_by_you": "detenido por ti",
+    "bar_label": "Intentos usados de {max}",
+    "reason_overloaded": "Sobrecargado (HTTP {status})",
+    "reason_rate_limited": "Límite de velocidad o cuota (HTTP {status})",
+    "reason_gateway": "Error de pasarela (HTTP {status})",
+    "reason_http": "Fallo temporal (HTTP {status})",
+    "reason_unknown": "Fallo temporal",
+    "provider_fallback": "el proveedor",
+    "usage_partial": "{excluded} de {total} llamadas sin datos de uso"
   }
 }

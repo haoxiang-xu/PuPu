@@ -905,5 +905,26 @@
     "organization_queued": "Organisation des souvenirs en attente",
     "organization_empty": "Aucun souvenir à organiser",
     "organization_complete": "Souvenirs organisés"
+  },
+  "provider_retry": {
+    "waiting": "En attente de {provider}",
+    "retrying_header": "Nouvelle tentative…",
+    "next_try_in": "prochain essai dans {seconds} s",
+    "trying_again": "nouvel essai (essai {attempt} sur {max})",
+    "stopped": "Arrêté pendant les nouvelles tentatives",
+    "retried": "Réessayé {count}×",
+    "legend_failed": "{count} en échec",
+    "legend_current": "essai {attempt}",
+    "legend_left": "reste {count}",
+    "stop": "Arrêter",
+    "stopped_by_you": "arrêté par vous",
+    "bar_label": "Essais utilisés sur {max}",
+    "reason_overloaded": "Surchargé (HTTP {status})",
+    "reason_rate_limited": "Limite de débit ou de quota (HTTP {status})",
+    "reason_gateway": "Erreur de passerelle (HTTP {status})",
+    "reason_http": "Échec temporaire (HTTP {status})",
+    "reason_unknown": "Échec temporaire",
+    "provider_fallback": "le fournisseur",
+    "usage_partial": "{excluded} appels sur {total} sans données d'utilisation"
   }
 }

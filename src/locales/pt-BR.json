@@ -905,5 +905,26 @@
     "organization_queued": "Organização de memórias na fila",
     "organization_empty": "Nenhuma memória para organizar",
     "organization_complete": "Memórias organizadas"
+  },
+  "provider_retry": {
+    "waiting": "Aguardando {provider}",
+    "retrying_header": "Tentando novamente…",
+    "next_try_in": "próxima tentativa em {seconds} s",
+    "trying_again": "tentando novamente (tentativa {attempt} de {max})",
+    "stopped": "Interrompido durante as novas tentativas",
+    "retried": "Repetido {count}×",
+    "legend_failed": "{count} com falha",
+    "legend_current": "tentativa {attempt}",
+    "legend_left": "{count} restantes",
+    "stop": "Parar",
+    "stopped_by_you": "interrompido por você",
+    "bar_label": "Tentativas usadas de {max}",
+    "reason_overloaded": "Sobrecarregado (HTTP {status})",
+    "reason_rate_limited": "Limite de taxa ou cota (HTTP {status})",
+    "reason_gateway": "Erro de gateway (HTTP {status})",
+    "reason_http": "Falha temporária (HTTP {status})",
+    "reason_unknown": "Falha temporária",
+    "provider_fallback": "o provedor",
+    "usage_partial": "{excluded} de {total} chamadas sem dados de uso"
   }
 }

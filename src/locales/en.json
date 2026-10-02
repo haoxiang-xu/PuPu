@@ -905,5 +905,26 @@
     "organization_queued": "Memory organization queued",
     "organization_empty": "No memories to organize",
     "organization_complete": "Memories organized"
+  },
+  "provider_retry": {
+    "waiting": "Waiting for {provider}",
+    "retrying_header": "Retrying…",
+    "next_try_in": "next try in {seconds}s",
+    "trying_again": "trying again (try {attempt} of {max})",
+    "stopped": "Stopped while retrying",
+    "retried": "Retried {count}×",
+    "legend_failed": "{count} failed",
+    "legend_current": "try {attempt}",
+    "legend_left": "{count} left",
+    "stop": "Stop",
+    "stopped_by_you": "stopped by you",
+    "bar_label": "Tries used out of {max}",
+    "reason_overloaded": "Overloaded (HTTP {status})",
+    "reason_rate_limited": "Rate or quota limit (HTTP {status})",
+    "reason_gateway": "Gateway error (HTTP {status})",
+    "reason_http": "Temporary failure (HTTP {status})",
+    "reason_unknown": "Temporary failure",
+    "provider_fallback": "the provider",
+    "usage_partial": "{excluded} of {total} calls without usage"
   }
 }
