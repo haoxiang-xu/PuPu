@@ -2226,6 +2226,7 @@ const TraceChain = ({
     isRetryWaiting,
     onStopStream,
     isStreaming,
+    isCancelled,
     bubbleOwnsLiveText,
     messageId,
     streamingContent,
