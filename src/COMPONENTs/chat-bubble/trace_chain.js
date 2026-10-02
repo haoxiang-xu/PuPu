@@ -2571,7 +2571,6 @@ const TraceChain = ({
 
     return grouped;
   }, [
-    frames,
     logicalFrames,
     displayFrames,
     providerRetryGroups,
