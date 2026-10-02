@@ -117,6 +117,24 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Interrupted").length).toBeGreaterThan(0);
     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
     expect(screen.getByText("search")).toBeInTheDocument();
+    expect(screen.queryByText("running")).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["done", "Used 1 step"],
+    ["error", "Used 1 step"],
+  ])("#384: keeps the existing %s summary for result-less calls", (status, summary) => {
+    renderTraceChain({
+      status,
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: `call-${status}`, tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.queryByText("Interrupted")).not.toBeInTheDocument();
   });
 
   test("#384: stopping a pending approval leaves it pending and removes stale decisions", () => {

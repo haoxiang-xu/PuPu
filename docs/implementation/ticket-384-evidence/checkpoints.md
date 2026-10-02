@@ -17,3 +17,11 @@ The previous incremental refresh temporarily lost helper/renderer lookups. The o
 ## Remaining coordination
 
 #383/#390 shared profile access stays off limits. Real connected-app pause/reopen, provider requests, approval clicks and cold sidecar restart remain NOT_RUN. Active rollout INCOMPLETE. Draft PR requires source-parent coordination after full review.
+
+## Red and first source checkpoints
+
+- `0ef41b29455b30654481cb979c5187279f181258`: baseline red regression checkpoint, four suites / six expected failures / 61 passes. The failures include the actual composer `onStop` callback through the real hook and storage. No production source edits in that checkpoint.
+- `f3d3fd6b7618509b62d91f77b393409825140945`: meaningful root/nested execution-history retention and interrupted status projection. Four focused suites / 70 tests passed. Staged graph detection reported 7 files, 11 symbols, 14 processes, HIGH risk; source corroborates shifted line mappings and newly added helpers absent from the baseline index. Both commits were pushed using existing authentication and `ls-remote` readback matched exact HEAD.
+- Independent #383 integration probe: first source patch applied cleanly to detached `7e7abc21` in a separate task-local clone; eight suites / 124 tests passed, including grouping and interaction rendering. This is source-integration evidence only. No #383 commit, policy or candidate wheel was adopted into #384.
+
+Intermediate review 1 is saved separately and requests a nested visible-status correction; additional state-sequence and compiled-consumer checks remain pending. Small remote checkpoints do not count as extra reviews.

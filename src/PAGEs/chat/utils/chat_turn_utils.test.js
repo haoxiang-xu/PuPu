@@ -119,6 +119,10 @@ describe("settleStreamingAssistantMessages", () => {
     ["empty payload", { traceFrames: [{ type: "tool_call", payload: {} }] }],
     ["malformed frames", { traceFrames: [null, {}, { type: "tool_call", payload: { status: "running" } }] }],
     ["malformed nested frames", { subagentFrames: { "worker-run-1": [{ type: "tool_call", payload: [] }] } }],
+    ["infrastructure frames", { traceFrames: [{ type: "stream_started", payload: { model_name: "model-x" } }] }],
+    ["unknown frame types", { traceFrames: [{ type: "runtime_internal_state", payload: { message: "not rendered" } }] }],
+    ["nested infrastructure frames", { subagentFrames: { "worker-run-1": [{ type: "stream_started", payload: { model_name: "model-x" } }] } }],
+    ["nested unknown frame types", { subagentFrames: { "worker-run-1": [{ type: "runtime_internal_state", payload: { message: "not rendered" } }] } }],
   ])("#384: drops an empty streaming placeholder with %s", (_label, extra) => {
     const { nextMessages } = settleStreamingAssistantMessages([{
       id: "assistant-empty",

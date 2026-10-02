@@ -1,6 +1,6 @@
 # Accepted baseline producer artifact — #384
 
-Producer fixture preparation is complete; strict candidate-consumer evidence is still pending.
+Producer fixture preparation and independent strict release-manifest validation are complete; compiled candidate-consumer evidence is still pending.
 
 - Accepted Unchain source: `1ec49ddfc28d3b42ba035debada5e3db759dad1b` (the #386 baseline pinned by current `dev` Release QA).
 - One prebuilt baseline wheel reused unchanged: `unchain-0.2.0-py3-none-any.whl`, 1,160,341 bytes, SHA-256 `f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889`.
@@ -21,3 +21,5 @@ PYTHONPATH=$PWD/.local/ticket-384-runtime/site \
 ```
 
 No rebuild is required; subsequent acceptance must reuse and checksum this same wheel and actual imported manifest. Real deployed app/sidecar pairing and cold restart remain NOT_RUN, active rollout INCOMPLETE.
+
+`artifact-validator.json` records the unchanged wheel checksum and validation through the candidate's existing `validateRuntimeManifestForRelease`: actual imported manifest accepted; unknown outer field, wrong schema version and wrong digest rejected. This is independent strict-validator evidence, not deployed cancellation or restart evidence.

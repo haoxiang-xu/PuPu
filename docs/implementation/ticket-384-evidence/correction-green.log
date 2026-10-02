@@ -1,0 +1,14 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/utils/chat_turn_utils.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js
+PASS src/PAGEs/chat/utils/chat_turn_utils.test.js
+
+Test Suites: 4 passed, 4 total
+Tests:       76 passed, 76 total
+Snapshots:   0 total
+Time:        1.483 s, estimated 3 s
+Ran all test suites matching /src\/PAGEs\/chat\/utils\/chat_turn_utils.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.composer_sidecar.test.js|src\/PAGEs\/chat\/hooks\/use_chat_session_state.straggler_settle.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.test.js/i.

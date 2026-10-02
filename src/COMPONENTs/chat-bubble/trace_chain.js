@@ -852,6 +852,7 @@ const TraceChain = ({
   }, []);
 
   const isStreaming = status === "streaming";
+  const isCancelled = status === "cancelled" || status === "canceled";
   const effectiveSubagentFrames = useMemo(
     () =>
       subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
@@ -1513,7 +1514,7 @@ const TraceChain = ({
                 ? worker.status.trim().toLowerCase()
                 : "";
             const workerStatus =
-              status === "cancelled" &&
+              isCancelled &&
               ["", "running", "spawned", "needs_clarification"].includes(
                 normalizedWorkerStatus,
               )
@@ -1585,7 +1586,7 @@ const TraceChain = ({
                       userSelect: "none",
                     }}
                   >
-                    {worker.status || "pending"}
+                    {workerStatus || "pending"}
                   </span>
                   {canExpand && (
                     <BranchExpandArrow
@@ -1645,7 +1646,9 @@ const TraceChain = ({
             ? failed
               ? "error"
               : "done"
-            : "active";
+            : isCancelled
+              ? "pending"
+              : "active";
 
           items.push({
             key: `${frame.seq}-subagent`,
@@ -1675,12 +1678,12 @@ const TraceChain = ({
               </span>
             ),
             span:
-              status === "cancelled" && !resultFrame
+              isCancelled && !resultFrame
                 ? "Interrupted"
                 : spanText,
             status: resultFrame
               ? "done"
-              : status === "cancelled"
+              : isCancelled
                 ? "pending"
                 : "active",
             point: <SubagentPoint isDark={isDark} />,
@@ -1787,11 +1790,7 @@ const TraceChain = ({
         /* ── confirmation / selection state (computed for all tool_calls) ── */
         let interactBody = undefined;
         let toolPointEl = <HammerPoint isDark={isDark} />;
-        const callStatus = resultFrame
-          ? "done"
-          : status === "cancelled" || isInlineInteraction
-            ? "pending"
-            : "active";
+        const callStatus = isCancelled && !resultFrame ? "pending" : "done";
         let toolStatus = callStatus;
 
         if (isInlineInteraction) {
@@ -1814,7 +1813,7 @@ const TraceChain = ({
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&
-            status !== "cancelled" &&
+            !isCancelled &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -1881,7 +1880,7 @@ const TraceChain = ({
           key: `${frame.seq}-tool`,
           title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
           span:
-            status === "cancelled" && !resultFrame
+            isCancelled && !resultFrame
               ? "Interrupted"
               : spanText,
           status: toolStatus,
