@@ -85,3 +85,34 @@ The one forced full 1024 KiB rebuild includes the hook: `settleStreamingAssistan
 | Real Electron stop/reopen, cold sidecar resume | parent-coordinated shared-profile window | NOT_RUN / ON HOLD |
 
 Initial gate completed at `f5d0278e`: reviewed plan pushed and independently restored directly from GitHub before Luna edited tests/source. Red checkpoint `0ef41b29` reproduced six failures across four suites; source checkpoint `f3d3fd6b` passed four suites / 70 tests and was pushed/read back. Intermediate review 1 requested a nested visible-status correction. The matrix above records the original planned cells; final evidence and current cell states will be added after corrections and state-sequence verification. Active rollout: INCOMPLETE; real-device cells remain ON HOLD.
+
+
+## Current isolated acceptance evidence
+
+Production source is fixed at `ce9e434c069c14cf0ae6bf7997671d6d065d1394`; the test/evidence checkpoint is `5a2e3fa52ded0a29098d828898d6800bccb832ce`. Both independent intermediate reviews have their source findings and evidence gaps resolved. Final GPT-6.1 Sol acceptance is pending on the next immutable, remotely checkpointed evidence snapshot.
+
+| Acceptance criterion | Current result and attributable evidence |
+|---|---|
+| AC-384-001 | PASS isolated: actual composer Stop retains ordered completed/in-flight root and child calls, including tool-only and pending 64 ms batch; no fake answer/result |
+| AC-384-002 | PASS isolated: first/second interactions cancel their exact pending owner, clear pending UI and preserve call history; only explicitly answered first interaction submits a response; compiled cancelled approval has no action buttons |
+| AC-384-003 | PASS isolated: observed result before/same-stack Stop retained; truly late callback rejected by existing generation fence; stale old run cannot mutate same-chat successor |
+| AC-384-004 | PASS isolated fallback storage/consumer: exact closed outer projection, open bounded payload, fresh module reload, repeat Stop and byte-identical consumer Return/cold page reload; real MemoryV2 journal reopen NOT_RUN |
+| AC-384-005 | PASS isolated: empty/malformed/metadata/infrastructure/unknown placeholders remain droppable; unaffected message/reference semantics and existing boundary negatives pass |
+| AC-384-006 | PASS isolated: production-config actual TraceChain details/status verified for generic, worker and approval scenarios after remount; #383 combined source candidate 10 suites / 165 tests passes |
+
+| State sequence cell | Current status |
+|---|---|
+| First ordinary response with calls | PASS actual hook, fake external transport |
+| Second response in same chat | PASS successor ownership and old-handler fencing |
+| First interaction | PASS exact pending owner/Stop without answer |
+| Second interaction in same execution | PASS first answer/resume then second child interaction/Stop; exact second id, retained first completed content/result |
+| Tool execution/result race | PASS already-visible, admitted batch, same-stack result + pending call and stale callback cases |
+| Retry/replay/durable resume | PASS isolated existing cancel-outbox/turn mutation/replay/storage regressions; live durable resume NOT_RUN |
+| Switch/reload/reopen | PASS fallback storage plus compiled Return/cold page reload; real app/MemoryV2 reopen NOT_RUN |
+| Root/subagent scopes | PASS actual same-stack child batch ownership/persistence plus cancelled-parent renderer projection |
+| Compiled UI + accepted runtime artifact | PASS isolated consumer/source/bundle/lock hashes bound to accepted 1ec49ddf wheel and actual manifest provenance; deployed artifact pair NOT_RUN |
+| Real Electron stop/reopen, cold sidecar resume | NOT_RUN / ON HOLD, user/parent-coordinated profile window required |
+
+Focused final slice: 6 suites / 111 tests pass. Full frontend run on unchanged production `ce9e434c`: 443/445 suites pass; two isolated listener suites initially fail under sandbox EPERM and then pass 2 suites / 30 tests in an authorized isolated-loopback rerun on identical source. Combined closure: 445 suites / 5410 passing / 5 skipped, explicitly not one all-green aggregate invocation. The two later test-only cases have independent red/green evidence and intermediate-review readback. CI web build actual compiler child exits 0. The accepted producer fixture, compiled entry/bundle and source hashes are recorded; no #383 runtime adoption, provider request, live approval action or shared-profile access occurred.
+
+Active rollout remains INCOMPLETE. Isolated evidence does not prove durable MemoryV2 records were deleted or repaired, deployed sidecar cancellation, a cold sidecar restart, or real-device acceptance. #383 acceptance remains on hold until the user says ready. No merge, deployment, ticket closure or draft PR has occurred; draft PR is subject to final review and parent coordination.
