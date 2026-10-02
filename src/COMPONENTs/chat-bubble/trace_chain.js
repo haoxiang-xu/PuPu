@@ -2254,6 +2254,7 @@ const TraceChain = ({
 
     return grouped;
   }, [
+    frames,
     displayFrames,
     providerRetryGroups,
     isRetryWaiting,
@@ -2261,6 +2262,7 @@ const TraceChain = ({
     isStreaming,
     bubbleOwnsLiveText,
     messageId,
+    timelineExpansionScope,
     streamingContent,
     streamingChunks,
     storeHasLiveText,
