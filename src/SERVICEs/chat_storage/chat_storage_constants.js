@@ -1,3 +1,5 @@
+import { secureRandomId } from "../secure_random_id";
+
 export const CHATS_STORAGE_KEY = "chats";
 export const CHATS_SCHEMA_VERSION = 2;
 
@@ -26,7 +28,7 @@ export const MONTH_MS = 30 * DAY_MS;
 export const YEAR_MS = 365 * DAY_MS;
 
 export const generateId = (prefix) =>
-  `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  `${prefix}-${Date.now()}-${secureRandomId()}`;
 
 export const generateFolderId = () => generateId("fld");
 export const generateChatId = () => generateId("chat");
@@ -39,7 +41,7 @@ export const ensureUniqueNodeId = (nodesById, preferred, prefix) => {
 
   let nextId = preferred;
   while (nodesById[nextId]) {
-    nextId = `${prefix}-${Math.random().toString(16).slice(2)}`;
+    nextId = `${prefix}-${secureRandomId()}`;
   }
   return nextId;
 };

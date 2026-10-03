@@ -646,6 +646,31 @@ def test_artifact_checkpoint_and_context_build_round_trip(bound_repository):
         operation=_operation("write-checkpoint"),
     )
     assert capabilities.checkpoints.read(ref=checkpoint_ref) == b"Deterministic checkpoint"
+    assert capabilities.checkpoints.list_committed_refs() == (checkpoint_ref,)
+
+    store.append_semantic_event(
+        owner_chat_id=scope.owner_chat_id,
+        session_id=scope.session_id,
+        attempt_id="attempt-next",
+        event={
+            "event_id": "event-next-attempt",
+            "type": "message.user",
+            "seq": 1,
+            "data": {"content": "next turn"},
+        },
+        operation_id="append-next-attempt",
+    )
+    next_attempt = host.bind_execution(
+        replace(scope, attempt_id="attempt-next")
+    )
+    assert next_attempt.checkpoints.list_committed_refs() == (checkpoint_ref,)
+    store.seal_task(
+        owner_chat_id=scope.owner_chat_id,
+        session_id=scope.session_id,
+        attempt_id="attempt-next",
+        outcome="completed",
+        operation_id="seal-next-attempt-before-rebase",
+    )
 
     envelope = ContextBuildEnvelope(
         build_id="build-1",
@@ -703,6 +728,7 @@ def test_artifact_checkpoint_and_context_build_round_trip(bound_repository):
     )
     with pytest.raises(ContextScopeError):
         foreign.artifacts.read_verified(artifact=artifact)
+    assert foreign.checkpoints.list_committed_refs() == ()
 
     store.seal_task(
         owner_chat_id=scope.owner_chat_id,
@@ -732,7 +758,6 @@ def test_artifact_checkpoint_and_context_build_round_trip(bound_repository):
         ref=PupuRefCodec.encode(artifact.ref),
     )
     assert base64.b64decode(audit_page["data"], validate=True) == b"complete tool result"
-
     store.append_semantic_event(
         owner_chat_id="chat-a",
         session_id="session-b",
@@ -753,6 +778,30 @@ def test_artifact_checkpoint_and_context_build_round_trip(bound_repository):
     assert forged_event.resource_refs == ()
     with pytest.raises(ContextScopeError):
         foreign.artifacts.read_verified(artifact=artifact)
+
+
+def test_checkpoint_preview_matches_prepare_and_commit(bound_repository):
+    _store, _host, _scope, capabilities = bound_repository
+    operation = _operation("preview-checkpoint")
+    source_range = EventRange(
+        EventCursor(1, "event-seed"),
+        EventCursor(1, "event-seed"),
+    )
+
+    prospective = capabilities.checkpoints.checkpoint_ref_for(
+        operation=operation,
+    )
+    prepared = capabilities.checkpoints.prepare(
+        source_range=source_range,
+        summary="Deterministic preview",
+        refs=(),
+        operation=operation,
+    )
+
+    assert prepared.checkpoint_ref == prospective
+    assert capabilities.checkpoints.commit(
+        prepared=prepared,
+    ).checkpoint_ref == prospective
 
 
 def test_artifact_full_read_uses_one_scoped_read_for_large_and_empty_objects(

@@ -136,11 +136,11 @@ describe("TraceChain Memory V2 audit", () => {
     });
 
     expect(screen.getByTestId("memory-v2-trace-title")).toHaveTextContent(
-      "Memory V2 · Complete",
+      "Conversation ready",
     );
-    expect(screen.getByText("90% context")).toBeInTheDocument();
+    expect(screen.queryByText("90% context")).not.toBeInTheDocument();
     expect(screen.getByTestId("memory-agent-trace-title")).toHaveTextContent(
-      "Memory Agent · Completed",
+      "Memories organized",
     );
     const [contextDetailButton, memoryAgentDetailButton] = screen.getAllByRole(
       "button",
@@ -844,7 +844,7 @@ describe("TraceChain Memory V2 audit", () => {
     expect(screen.getByText(handoffRef, { exact: true })).toBeInTheDocument();
     expect(
       await screen.findByTestId("memory-agent-trace-title"),
-    ).toHaveTextContent("Memory Agent · Completed");
+    ).toHaveTextContent("Memories organized");
     fireEvent.click(screen.getByRole("button", { name: "detail" }));
     expect(screen.getByText("curation_completed")).toBeInTheDocument();
     expect(screen.getByText("77 total")).toBeInTheDocument();
@@ -879,7 +879,7 @@ describe("TraceChain Memory V2 audit", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(checkpointRef, { exact: true })).toBeInTheDocument();
     expect(screen.getByTestId("memory-v2-trace-title")).toHaveTextContent(
-      "Memory V2 · Complete",
+      "Conversation ready",
     );
   });
 

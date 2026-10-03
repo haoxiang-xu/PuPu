@@ -1,0 +1,70 @@
+{
+  "schema": "pupu.ticket349.final_audit_test_results.v1",
+  "candidate": {
+    "pupu_product_repair_revision": "8622ad2fe899ec80c266d889e57b348f00c3b28d",
+    "unchain_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815",
+    "wheel_sha256": "d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0"
+  },
+  "corrected_pair_ci": {
+    "run_id": 36344678998,
+    "url": "https://github.com/haoxiang-xu/PuPu/actions/runs/36344678998",
+    "pupu_revision": "70dc122c49cf2022dfa1db1f3ff8932e81eb9d91",
+    "unchain_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815",
+    "ci_wheel_sha256": "a8e3e93fd34b950f876919b37739b1046bac2cf2558ce86122b104cbc13faa5c",
+    "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+    "backend_passed": 2601,
+    "backend_skipped": 18,
+    "backend_warnings": 1,
+    "deterministic_qa": "passed",
+    "context_v2_gate": "passed",
+    "run_bundle_gate": "passed",
+    "electron_playwright": "passed",
+    "final_report": "passed",
+    "playwright_release_smoke_passed": 2,
+    "final_report_artifact_archive_sha256": "0308a32369f8cac8749a78d21f0a547d4df926894458a3518e3a0b669c5eeb19",
+    "artifact_note": "CI built and reused one Linux wheel. The local fixed-wheel/frozen-sidecar chain uses separately built bytes and is recorded independently."
+  },
+  "results": [
+    {
+      "suite": "unchain_full",
+      "passed": 3785,
+      "skipped": 16,
+      "xfailed": 5
+    },
+    {
+      "suite": "installed_exact_wheel_context_and_memory",
+      "passed": 1907,
+      "skipped": 1,
+      "xfailed": 5
+    },
+    {
+      "suite": "pupu_focused_repair",
+      "passed": 22
+    },
+    {
+      "suite": "pupu_server_installed_exact_wheel",
+      "passed": 2602,
+      "skipped": 17,
+      "subtests_passed": 3590
+    },
+    {
+      "suite": "pupu_renderer",
+      "suites_passed": 43,
+      "tests_passed": 351
+    },
+    {
+      "suite": "frozen_arm64_sidecar_package_smoke",
+      "passed": 5,
+      "total": 5
+    },
+    {
+      "suite": "release_workflow_structure_after_pin_repair",
+      "passed": 26
+    }
+  ],
+  "known_warnings": [
+    "Intentional invalid-signature serializer fixture warning in the PuPu server suite.",
+    "Graph-test cleanup thread without UNCHAIN_DATA_DIR in the PuPu server suite.",
+    "Two pre-existing React act warnings in the renderer suite."
+  ]
+}

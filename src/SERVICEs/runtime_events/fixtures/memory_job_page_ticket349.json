@@ -1,0 +1,31 @@
+{
+  "jobs": [
+    {
+      "attempt_count": 1,
+      "attempt_id": "unchain-1790527197235-2fdb922327f39",
+      "candidate_refs": [
+        "pupu://memory/candidate/candidate-419207ae5422c11d2396bde0a187bad7@1"
+      ],
+      "completed_at_ms": 1790527211941,
+      "created_at_ms": 1790527203008,
+      "job_id": "curation-job-eb899fd52d73273139f6fb076445435b",
+      "job_type": "memory_consolidation",
+      "last_error_code": "",
+      "lease_expires_at_ms": null,
+      "lease_owner": null,
+      "next_attempt_at_ms": 0,
+      "owner_chat_id": "chat-1790527192724-cc624cd988cdb",
+      "payload": {
+        "candidate_count": 1,
+        "trigger_key": "completed_root_run:c754b3491671b10182369f93ceed7207f094f285361d3f8c7472b0ce290ec58b"
+      },
+      "replayed": false,
+      "revision": 3,
+      "run_id": "unchain-1790527197235-2fdb922327f39",
+      "session_id": "chat-1790527192724-cc624cd988cdb",
+      "status": "completed",
+      "updated_at_ms": 1790527211941
+    }
+  ],
+  "owner_chat_id": "chat-1790527192724-cc624cd988cdb"
+}

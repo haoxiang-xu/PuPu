@@ -1,0 +1,35 @@
+100-turn same-execution warm replay, real SQLite. Profiler adds substantial overhead; use baseline-step1.json for timings.
+         9665167 function calls (9398852 primitive calls) in 1.334 seconds
+
+   Ordered by: cumulative time
+   List reduced from 369 to 28 due to restriction <28>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    1.337    1.337 benchmark_step1.py:227(context_sample)
+        1    0.000    0.000    0.884    0.884 coordinator.py:788(compile)
+      409    0.000    0.000    0.790    0.002 resource_limits.py:63(validate_json_resource)
+70521/409    0.093    0.000    0.790    0.002 resource_limits.py:109(walk)
+   110943    0.381    0.000    0.623    0.000 resource_limits.py:90(string_bytes)
+        8    0.000    0.000    0.537    0.067 snapshot.py:84(_validate_snapshot_resource)
+        1    0.001    0.001    0.533    0.533 coordinator.py:342(_prepare_journal_view)
+        1    0.000    0.000    0.452    0.452 request_factory.py:607(__call__)
+        2    0.000    0.000    0.349    0.175 benchmark_step1.py:87(capture_snapshot)
+        2    0.000    0.000    0.349    0.175 sqlite_v2.py:2554(capture_snapshot)
+        2    0.001    0.000    0.347    0.173 sqlite_v2.py:2521(_snapshot_with_connection)
+        1    0.000    0.000    0.335    0.335 request_factory.py:137(_validated_snapshot)
+        2    0.000    0.000    0.327    0.163 snapshot.py:225(from_dict)
+        4    0.000    0.000    0.286    0.071 snapshot.py:121(__post_init__)
+        2    0.000    0.000    0.280    0.140 snapshot.py:267(capture_journal_snapshot)
+        3    0.000    0.000    0.264    0.088 models.py:735(__post_init__)
+        2    0.000    0.000    0.195    0.097 dataclasses.py:1540(replace)
+28330/1995    0.025    0.000    0.192    0.000 models.py:280(_freeze_json)
+        2    0.001    0.000    0.180    0.090 compiler.py:1978(project_canonical_journal_messages)
+        1    0.000    0.000    0.172    0.172 coordinator.py:947(_compile_pass)
+        1    0.000    0.000    0.172    0.172 compiler.py:3714(_compile_for_coordinator)
+        1    0.000    0.000    0.172    0.172 compiler.py:3586(_compile_core)
+        3    0.000    0.000    0.158    0.053 models.py:635(_validate_compile_request_resources)
+        5    0.002    0.000    0.146    0.029 compiler.py:1396(_validated_projection_events)
+85351/5581    0.046    0.000    0.132    0.000 compiler.py:185(_plain)
+1043664/1043660    0.076    0.000    0.128    0.000 {built-in method builtins.isinstance}
+        3    0.003    0.001    0.123    0.041 compiler.py:1603(_canonical_journal_message_projection)
+  1832510    0.114    0.000    0.114    0.000 {method 'encode' of 'str' objects}

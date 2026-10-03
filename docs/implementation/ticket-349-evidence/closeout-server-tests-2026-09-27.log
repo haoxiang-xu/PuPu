@@ -1,0 +1,80 @@
+.................................................................... [  2%]
+...................................................................... [  5%]
+.......................................ss.................................................................................. [  9%]
+........................................................................ [ 12%]
+........................................................................ [ 15%]
+..................................................................... [ 18%]
+.................................................................. [ 20%]
+...................................................................... [ 23%]
+........................................................................ [ 26%]
+.................................................................... [ 28%]
+......................................................ssssssss. [ 31%]
+...............................s........................................ [ 33%]
+...........................................................sssss........ [ 36%]
+.......................................................... [ 38%]
+................................................................ [ 41%]
+.................................................... [ 43%]
+............................................................................... [ 46%]
+................................... [ 47%]
+...................................................... [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 66%]
+............................................................. [ 68%]
+........................................................................ [ 71%]
+.................................................................................................................... [ 75%]
+..................................................................... [ 78%]
+..................................................................................................... [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+...................................................................... [ 90%]
+.............................................................................................. [ 93%]
+........................................................................ [ 96%]
+....................................s.................................. [ 99%]
+................                                                         [100%]
+=============================== warnings summary ===============================
+unchain_runtime/server/tests/test_kimi_replay_wire_contract.py::test_pinned_sdk_stream_and_final_message_replay[123]
+  /Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-final9-desktop/venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='signature', input_value=123, input_type=int])
+    return self.__pydantic_serializer__.to_python(
+
+unchain_runtime/server/tests/test_unchain_adapter_recipe_graph_runtime.py::RecipeGraphRuntimeTests::test_memory_v2_failure_reason_preserves_only_safe_context_reason
+  /Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-final9-desktop/venv/lib/python3.12/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread unchain-workflow-runner-events
+
+  Traceback (most recent call last):
+    File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+      self.run()
+    File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1010, in run
+      self._target(*self._args, **self._kwargs)
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/unchain_adapter.py", line 11097, in run_workflow
+      _execution_control_call(
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/unchain_adapter.py", line 1275, in _execution_control_call
+      return operation(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/execution_control.py", line 895, in mark_completed
+      release_run_guard(session_id, attempt_id)
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/session_execution_guard.py", line 1348, in release_run_guard
+      return _DEFAULT_REGISTRY.release_run(session_id, attempt_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/session_execution_guard.py", line 395, in release_run
+      return self._release(
+             ^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/session_execution_guard.py", line 717, in _release
+      path = self._record_path(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/session_execution_guard.py", line 941, in _record_path
+      return self._root(create=True) / f"{_digest(session_id)}.json"
+             ^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/red/Desktop/GITRepo/pupu-349/unchain_runtime/server/session_execution_guard.py", line 912, in _root
+      raise SessionExecutionGuardError(
+  session_execution_guard.SessionExecutionGuardError: UNCHAIN_DATA_DIR is not configured
+
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2601 passed, 17 skipped, 2 warnings, 3590 subtests passed in 150.41s (0:02:30)

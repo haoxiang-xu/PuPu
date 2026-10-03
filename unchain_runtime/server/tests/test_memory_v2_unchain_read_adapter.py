@@ -399,7 +399,7 @@ def test_host_store_status_is_database_scoped_without_fabricated_chat_scope(
 
     assert status == {
         "available": True,
-        "schema_version": 2,
+        "schema_version": 3,
         "journal_mode": "wal",
         "lexical_backend": "fts5",
         "vector_status": "disabled",
@@ -422,7 +422,7 @@ def test_host_store_status_initializes_fresh_unchain_store_idempotently(
     assert first == second
     assert first == {
         "available": True,
-        "schema_version": 2,
+        "schema_version": 3,
         "journal_mode": "wal",
         "lexical_backend": "fts5",
         "vector_status": "disabled",

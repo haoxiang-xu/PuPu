@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict
 
 from mcp_oauth_apps import get_mcp_oauth_app
+from mcp_credential_store import credential_store_lock, read_credential_store, write_credential_store
 from mcp_registry import oauth_recipe_for_entry, oauth_registry_entry
 from net_tls import annotate_tls_error, get_outbound_ssl_context, is_tls_trust_error
 
@@ -37,8 +38,6 @@ _COMMIT_LOCKS_LOCK = threading.Lock()
 _TOKEN_EPOCHS: Dict[str, int] = {}
 _REFRESH_LOCKS: Dict[str, threading.Lock] = {}
 _REFRESH_LOCKS_LOCK = threading.Lock()
-_STORE_LOCKS: Dict[str, Any] = {}
-_STORE_LOCKS_LOCK = threading.Lock()
 
 
 def _data_dir(data_dir: str | Path | None = None) -> Path:
@@ -57,11 +56,7 @@ def _store_scope_key(data_dir: str | Path | None = None) -> str:
 
 
 def _store_lock(data_dir: str | Path | None = None):
-    key = _store_scope_key(data_dir)
-    with _STORE_LOCKS_LOCK:
-        if key not in _STORE_LOCKS:
-            _STORE_LOCKS[key] = threading.RLock()
-        return _STORE_LOCKS[key]
+    return credential_store_lock(_store_path(data_dir))
 
 
 def _empty_store() -> Dict[str, Any]:
@@ -69,39 +64,11 @@ def _empty_store() -> Dict[str, Any]:
 
 
 def _read_store(data_dir: str | Path | None = None) -> Dict[str, Any]:
-    path = _store_path(data_dir)
-    if not path.exists():
-        return _empty_store()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return _empty_store()
-    if not isinstance(raw, dict) or not isinstance(raw.get("toolkits"), dict):
-        return _empty_store()
-    return {"version": 1, "toolkits": raw["toolkits"]}
+    return read_credential_store(_store_path(data_dir))
 
 
 def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> None:
-    path = _store_path(data_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(
-        f".{path.name}.{os.getpid()}.{threading.get_ident()}.{secrets.token_hex(4)}.tmp"
-    )
-    try:
-        temp_path.write_text(
-            json.dumps(store, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        try:
-            temp_path.chmod(0o600)
-        except OSError:
-            pass
-        os.replace(temp_path, path)
-    finally:
-        try:
-            temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+    write_credential_store(_store_path(data_dir), store)
 
 
 def _entry_from_any_id(

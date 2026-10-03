@@ -122,6 +122,58 @@ describe("test_bridge chat_storage_adapter (v3 lazy messages)", () => {
     expect(bridge.readMessages).toHaveBeenCalledWith(CHAT_B);
   });
 
+  test("getChatDetail projects persisted assistant tool frames as Test API evidence", () => {
+    const adapter = makeAdapter();
+    const { setChatMessages } = require("../chat_storage");
+    setChatMessages(CHAT_A, [
+      ACTIVE_MESSAGES[0],
+      {
+        id: "msg-tool",
+        role: "assistant",
+        status: "done",
+        content: "Read the file",
+        traceFrames: [
+          { type: "tool_call", run_id: "run-a", payload: {
+            call_id: "call-1", tool_name: "read", arguments: { path: "a.txt" },
+          } },
+          { type: "tool_result", run_id: "run-a", payload: {
+            call_id: "call-1", result: { text: "hello" }, status: "completed",
+          } },
+        ],
+      },
+    ], { source: "test" });
+
+    expect(adapter.getChatDetail(CHAT_A).messages[1].tool_calls).toEqual([{
+      id: "call-1",
+      run_id: "run-a",
+      name: "read",
+      arguments: { path: "a.txt" },
+      status: "completed",
+      result: { text: "hello" },
+    }]);
+  });
+
+  test("getChatDetail keeps tool evidence after a non-active chat message reload", () => {
+    const savedMessages = [CHAT_B_MESSAGES[0], {
+      id: "msg-b-tool", role: "assistant", content: "done", status: "done",
+      subagentFrames: {
+        "child-run": [
+          { type: "tool_call", payload: { call_id: "child-call", tool_name: "read" } },
+          { type: "tool_result", payload: { call_id: "child-call", result: { text: "persisted" } } },
+        ],
+      },
+    }];
+    bridge.readMessages.mockImplementation((chatId) =>
+      chatId === CHAT_B ? JSON.parse(JSON.stringify(savedMessages)) : [],
+    );
+    const detail = makeAdapter().getChatDetail(CHAT_B);
+    expect(detail.messages[1].tool_calls).toEqual([{
+      id: "child-call", run_id: "child-run", name: "read", arguments: null,
+      status: "completed", result: { text: "persisted" },
+    }]);
+    expect(savedMessages[1].tool_calls).toBeUndefined();
+  });
+
   test("getChatConfig derives last_message_role via getChatMessages", () => {
     const adapter = makeAdapter();
 

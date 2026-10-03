@@ -1,0 +1,12 @@
+{
+  "server": {
+    "pupu_server_snapshot_sha256": "176faa3e22f2ad42fcf3580654d35b1ba326e425789917aede12b16c094c7100",
+    "file_count": 372,
+    "wheel_path": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-cache-checkpoint/wheels/unchain-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44"
+  },
+  "desktop_files": {
+    "electron/main/services/unchain/memory_v2_rollout.js": "0befe31df0a72d01fd45fa07b3fa6cb3de858886037d1e5074014ca85bee38c9"
+  },
+  "candidate_sha256": "ddf32dd4d20b4a283663551744fa4a5fbcd9fd1dc01a54a0be111d2e7782c121"
+}

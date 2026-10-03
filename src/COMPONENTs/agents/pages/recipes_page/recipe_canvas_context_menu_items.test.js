@@ -148,6 +148,15 @@ describe("node menu keeps its shape across kinds", () => {
     ).toContain("view_code");
   });
 
+  test("Open detail advertises no key", () => {
+    /* Enter opens the selected node anyway; spelling it out in the row only
+     *competes with the shortcuts that are worth reading. */
+    const row = byId(buildRecipeNodeContextMenuItems({ node: agent }), "open_detail");
+    expect(row.trail).toBeUndefined();
+    expect(row.trail_icon).toBeUndefined();
+    expect(row.icon).toBe("eye_open");
+  });
+
   test("copy carries the platform shortcut, and Duplicate no longer exists", () => {
     const items = buildRecipeNodeContextMenuItems({ node: agent, isMac: true });
     expect(byId(items, "copy")).toMatchObject({

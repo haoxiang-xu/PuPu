@@ -393,6 +393,7 @@ def _run_memory_completion(
     root_run_id: str,
     completion: RootRunCompletion,
 ) -> PupuUnchainGraphRootMemoryReceipt:
+    factory.prepare_memory_completion()
     enqueue = factory.memory_host.enqueue_root_completion(completion)
     if type(enqueue) is not MemoryAgentEnqueueReceipt:
         _fail("graph_root_completion_enqueue_receipt_invalid")
@@ -422,28 +423,12 @@ def _run_memory_completion(
 
     worker_receipt = None
     worker_failure_code = ""
-    try:
-        worker_receipt = factory.memory_worker.process_next(
-            owner_chat_id=owner_chat_id,
-            root_run_id=root_run_id,
-            job_trigger_key=completion.trigger_key,
-        )
-        if type(worker_receipt) is not PupuMemoryAgentWorkerReceipt:
-            raise PupuMemoryAgentWorkerError(
-                "memory_agent_worker_receipt_invalid"
-            )
-        if (
-            worker_receipt.trigger.owner_chat_id != owner_chat_id
-            or worker_receipt.trigger.root_run_id != root_run_id
-            or worker_receipt.trigger.job_trigger_key != completion.trigger_key
-        ):
-            raise PupuMemoryAgentWorkerError(
-                "memory_agent_worker_receipt_invalid"
-            )
-        worker_failure_code = _receipt_failure_code(worker_receipt)
-    except Exception as error:
-        worker_receipt = None
-        worker_failure_code = _worker_failure_code(error)
+    if candidate_count:
+        try:
+            from memory_v2_background_worker import notify_memory_background
+            notify_memory_background()
+        except Exception as error:
+            worker_failure_code = _worker_failure_code(error)
 
     return PupuUnchainGraphRootMemoryReceipt(
         enqueue_enabled=enqueue.enabled,

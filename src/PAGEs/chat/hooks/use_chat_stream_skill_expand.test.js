@@ -1,3 +1,4 @@
+import contextV2Bridge from "../../../SERVICEs/bridges/context_v2_bridge";
 /**
  * Composer-send expansion of plugin skill commands (Part 3, Task 3).
  *
@@ -92,6 +93,11 @@ describe("composer-send expansion of plugin skill commands", () => {
   let streamHandlers;
 
   beforeEach(() => {
+    // Composer-only fixtures model an existing legacy chat with no V2 state.
+    jest.spyOn(contextV2Bridge, "isAvailable").mockReturnValue(true);
+    jest.spyOn(contextV2Bridge, "getSessionHead").mockRejectedValue(
+      new Error("[context_v2_not_found] No canonical session"),
+    );
     window.localStorage.clear();
     lastChatMessagesProps = null;
     lastChatInputProps = null;
@@ -164,6 +170,8 @@ describe("composer-send expansion of plugin skill commands", () => {
   });
 
   afterEach(() => {
+    contextV2Bridge.isAvailable.mockRestore();
+    contextV2Bridge.getSessionHead.mockRestore();
     jest.restoreAllMocks();
     unregisterBySource(PLUGIN_SOURCE);
     delete window.unchainAPI;

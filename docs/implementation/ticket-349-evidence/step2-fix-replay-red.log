@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_exact_completed_finalizer_replay_preserves_one_job_and_audit_event ____
+unchain_runtime/server/memory_v2_context.py:4750: in persist_memory_v2_semantic_event
+    receipt = runtime.append_semantic_event(
+unchain_runtime/server/memory_v2_runtime.py:136: in append_semantic_event
+    return self.store.append_semantic_event(
+unchain_runtime/server/memory_v2_store.py:3334: in append_semantic_event
+    replay = self._receipt_replay(
+unchain_runtime/server/memory_v2_store.py:2697: in _receipt_replay
+    raise MemoryV2Error(
+E   memory_v2_store.MemoryV2Error: operation_id is already bound to a different payload
+
+The above exception was the direct cause of the following exception:
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:174: in test_exact_completed_finalizer_replay_preserves_one_job_and_audit_event
+    result = ua._finalize_memory_v2_curator(legacy.background_test_admission, options,
+unchain_runtime/server/unchain_adapter.py:1114: in _finalize_memory_v2_curator
+    _memory_v2_persist_audit_event(
+unchain_runtime/server/unchain_adapter.py:374: in _memory_v2_persist_audit_event
+    receipt = _persist_memory_v2_semantic_event(admission, event)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+unchain_runtime/server/memory_v2_context.py:4774: in persist_memory_v2_semantic_event
+    raise MemoryV2PersistenceError(
+E   memory_v2_context.MemoryV2PersistenceError: Memory V2 failed to persist memory.curator.pending before inline delivery
+=========================== short test summary info ============================
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_exact_completed_finalizer_replay_preserves_one_job_and_audit_event
+1 failed, 17 deselected in 1.51s

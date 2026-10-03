@@ -1,7 +1,10 @@
 # Contributing to PuPu
 
 Thanks for helping make PuPu better. You can propose community integrations
-or contribute code directly.
+or contribute code directly. You do not need to apply or be approved first.
+
+**New here?** [Your first contribution](./docs/contributing/first-contribution.md)
+walks through finding a task, claiming it, setting up, and opening the PR.
 
 ## 🧩 Contribute an MCP server, Skill, or Toolkit
 
@@ -42,11 +45,36 @@ All ordinary contributions, including MCP catalog entries, target `dev`.
 Maintainers promote `dev` to the release branch `main`; ordinary contribution
 PRs targeting `main` fail the source-branch check.
 
+### Claiming an issue
+
+Issues open to outside help carry
+[`good first issue`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+or
+[`help wanted`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+Comment to say you would like to take one and a maintainer assigns it to you, so
+everyone can see it is taken. An assignment with no visible progress for 14 days
+is released for someone else; a short status comment keeps it. Small changes and
+typo fixes need no claim at all — open the PR.
+
+You never need repository write access, label permissions, or project board
+access to contribute. Details in
+[Your first contribution](./docs/contributing/first-contribution.md).
+
+If you end up working in one area repeatedly, two merged PRs in that path lets
+you apply to review it yourself — see
+[Becoming a code owner](./docs/contributing/becoming-a-code-owner.md). Optional,
+and unrelated to whether your contributions are welcome.
+
 ## Licensing & CLA
 
 By submitting a contribution you agree to the terms in [docs/CLA.md](./docs/CLA.md).
 In short: you keep ownership; the project may ship your work under Apache-2.0 and
 may relicense accepted contributions in future offerings. If the work is owned by
 your employer, make sure you have authority to contribute it.
+
+## Code of conduct
+
+Participation in this project is governed by the
+[Code of Conduct](./CODE_OF_CONDUCT.md).
 
 See also: [License](./LICENSE) · [Trademark policy](./docs/TRADEMARK_POLICY.md).

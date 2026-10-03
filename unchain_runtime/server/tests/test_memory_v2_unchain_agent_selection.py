@@ -91,9 +91,7 @@ def test_explicit_selection_wins_and_builds_only_after_codec_is_bound():
     build_invoker.assert_called_once()
     assert build_invoker.call_args.kwargs["provider"] == "anthropic"
     assert build_invoker.call_args.kwargs["model_id"] == "memory-model"
-    assert build_invoker.call_args.kwargs["options"]["nested"] == {
-        "request": "original"
-    }
+    assert "nested" not in build_invoker.call_args.kwargs["options"]
     assert isinstance(build_invoker.call_args.kwargs["reference_codec"], _Codec)
     resolver.assert_not_called()
 

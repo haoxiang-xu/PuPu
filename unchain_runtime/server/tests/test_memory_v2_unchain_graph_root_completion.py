@@ -304,15 +304,12 @@ def test_candidate_free_root_completion_is_model_free_and_restart_idempotent(
 
     assert first.memory.enqueue_disposition is EnqueueDisposition.NO_OP
     assert first.memory.candidate_count == 0
-    assert (
-        first.memory.worker_receipt.disposition
-        is MemoryAgentWorkerDisposition.IDLE
-    )
+    assert first.memory.worker_receipt is None
     assert first_invoker.calls == []
     assert replay.journal_replayed is True
     assert replay.final_cursor == first.final_cursor
     assert replay.terminal_cursor == first.terminal_cursor
-    assert replay.memory.worker_receipt.replayed is True
+    assert replay.memory.worker_receipt is None
 
     restarted_invoker = _NeverRunMemoryAgent()
     restarted_bridge = _active_bridge(
@@ -379,14 +376,11 @@ def test_graph_step_candidate_is_aggregated_by_root_job_and_processed(
 
     assert receipt.memory.enqueue_disposition is EnqueueDisposition.ENQUEUED
     assert receipt.memory.candidate_count == 1
-    assert (
-        receipt.memory.worker_receipt.disposition
-        is MemoryAgentWorkerDisposition.PROCESSED
-    )
-    assert (
-        receipt.memory.worker_receipt.process_disposition
-        is ProcessDisposition.COMPLETED
-    )
+    assert receipt.memory.worker_receipt is None
+    assert invokers == []  # Construction is deferred along with invocation.
+    processed = bridge.preparation.host_factory.memory_host.process_next(operation_id="test-background")
+    assert processed.disposition is MemoryAgentWorkerDisposition.PROCESSED
+    assert processed.result.disposition is ProcessDisposition.COMPLETED
     assert receipt.memory.worker_failure_code == ""
     assert len(invokers) == 1 and len(invokers[0].calls) == 1
     request = invokers[0].calls[0][0]
@@ -435,11 +429,12 @@ def test_memory_model_failure_is_isolated_after_graph_and_root_journal_complete(
     )
 
     assert host.recover().is_complete is True
-    assert receipt.memory.worker_failure_code == "memory_agent_process_failed"
-    assert (
-        receipt.memory.worker_receipt.process_disposition
-        is ProcessDisposition.FAILED
-    )
+    assert receipt.memory.worker_failure_code == ""
+    assert receipt.memory.worker_receipt is None
+    assert failing.calls == []
+    processed = bridge.preparation.host_factory.memory_host.process_next(operation_id="test-background-failure")
+    assert processed.result.disposition is ProcessDisposition.FAILED
+    assert receipt.memory.worker_failure_code == ""
     assert len(failing.calls) == 1
     root_events = tuple(
         event
@@ -475,15 +470,12 @@ def test_worker_hook_failure_is_content_free_and_does_not_undo_graph(
     )
     _finish_graph(host)
 
-    def fail_worker(self, **kwargs):
-        del self, kwargs
+    _propose_from_step(host)
+
+    def fail_worker():
         raise RuntimeError("worker unavailable")
 
-    monkeypatch.setattr(
-        PupuUnchainMemoryAgentWorker,
-        "process_next",
-        fail_worker,
-    )
+    monkeypatch.setattr("memory_v2_background_worker.notify_memory_background", fail_worker)
     receipt = complete_pupu_unchain_graph_root(
         host,
         agent_name="Root graph",

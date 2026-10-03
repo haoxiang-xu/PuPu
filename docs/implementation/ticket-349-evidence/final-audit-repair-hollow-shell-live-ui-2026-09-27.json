@@ -1,0 +1,243 @@
+{
+  "schema": "pupu.ticket349.hollow_shell_live_ui.v1",
+  "captured_at_unix_ms": 1790538320514,
+  "candidate": {
+    "pupu_product_revision": "8622ad2fe899ec80c266d889e57b348f00c3b28d",
+    "pupu_observed_head": "70dc122c49cf2022dfa1db1f3ff8932e81eb9d91",
+    "runtime_paths_unchanged_since_product_revision": true,
+    "unchain_revision": "93e97c0a9239488ea0dc9379335aa8cb73d95815",
+    "wheel_sha256": "d6cbdeb02c1b75cf711631b09e5b6a417077c4636b46658136ccd893565a5bf0",
+    "frozen_sidecar_sha256": "78c7bf6ab71815fb991f5cdbbe3524a99cab24436b75cbc8c8399095ec1cbf5a",
+    "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e"
+  },
+  "chat_id": "chat-1790538299967-8fa927dcd71048",
+  "model": "openai:gpt-4.1",
+  "responses": [
+    {
+      "latency_ms": 3553,
+      "finish_reason": "stop"
+    },
+    {
+      "latency_ms": 7406,
+      "finish_reason": "stop"
+    }
+  ],
+  "runtime_status": {
+    "status": "ready",
+    "ready": true,
+    "reason": "",
+    "memoryV2": {
+      "configured": true,
+      "ready": true,
+      "status": "ready",
+      "reason": "",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 100,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "rolloutFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "sidecarFingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+      "runtimeProtocolDigest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "ec28b85225d4ed2b3588b6bab14fd9053e523b70f9b77b1a49fe087eb205a27c",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    },
+    "runtimeProtocolManifest": null,
+    "unchainRevision": "",
+    "unchainRuntimeSource": ""
+  },
+  "context_status": {
+    "available": true,
+    "schemaVersion": 3,
+    "journalMode": "wal",
+    "lexicalBackend": "fts5",
+    "vectorStatus": "disabled",
+    "featureCeiling": "all",
+    "rolloutMode": "all",
+    "readOnlyDegraded": false
+  },
+  "diagnostics": [
+    {
+      "available_input_tokens": 1035288,
+      "canary_hash_strategy": "sha256_owner_v1",
+      "canary_percent": 100,
+      "canary_selected": true,
+      "compression_threshold_tokens": 931759,
+      "effective_rollout_mode": "all",
+      "mode": "active",
+      "output_reserve_tokens": 8192,
+      "real_context_window_tokens": 1047576,
+      "reason": "",
+      "requested_mode": "all",
+      "requested_rollout_mode": "all",
+      "schema_version": "memory_v2.context.v1",
+      "transport_margin_tokens": 4096
+    },
+    {
+      "available_input_tokens": 1035288,
+      "canary_hash_strategy": "sha256_owner_v1",
+      "canary_percent": 100,
+      "canary_selected": true,
+      "compression_threshold_tokens": 931759,
+      "effective_rollout_mode": "all",
+      "mode": "active",
+      "output_reserve_tokens": 8192,
+      "real_context_window_tokens": 1047576,
+      "reason": "",
+      "requested_mode": "all",
+      "requested_rollout_mode": "all",
+      "schema_version": "memory_v2.context.v1",
+      "transport_margin_tokens": 4096
+    }
+  ],
+  "durable_producer_output": {
+    "jobs": [
+      {
+        "job_id": "curation-job-b961289a3dbdc76e4b8e42591a32c27d",
+        "status": "completed",
+        "revision": 3,
+        "run_id": "unchain-1790538303604-d259eb4a7374c8"
+      }
+    ],
+    "candidates": [
+      {
+        "candidate_id": "candidate-05255e83867786a21e9a51ac44d2b4c5",
+        "status": "applied"
+      }
+    ]
+  },
+  "renderer_job_page": {
+    "jobs": [
+      {
+        "attempt_count": 1,
+        "attempt_id": "unchain-1790538303604-d259eb4a7374c8",
+        "candidate_refs": [
+          "pupu://memory/candidate/candidate-05255e83867786a21e9a51ac44d2b4c5@1"
+        ],
+        "completed_at_ms": 1790538319287,
+        "created_at_ms": 1790538310895,
+        "job_id": "curation-job-b961289a3dbdc76e4b8e42591a32c27d",
+        "job_type": "memory_consolidation",
+        "last_error_code": "",
+        "lease_expires_at_ms": null,
+        "lease_owner": null,
+        "next_attempt_at_ms": 0,
+        "owner_chat_id": "chat-1790538299967-8fa927dcd71048",
+        "payload": {
+          "candidate_count": 1,
+          "trigger_key": "completed_root_run:fc1d0f8d566bfb401ca729145502dbe42a0c3a7533a662b969a00c8150ee1954"
+        },
+        "replayed": false,
+        "revision": 3,
+        "run_id": "unchain-1790538303604-d259eb4a7374c8",
+        "session_id": "chat-1790538299967-8fa927dcd71048",
+        "status": "completed",
+        "updated_at_ms": 1790538319287
+      }
+    ],
+    "owner_chat_id": "chat-1790538299967-8fa927dcd71048"
+  },
+  "ui": {
+    "clicked_context_titles": [
+      "Conversation ready",
+      "Conversation ready"
+    ],
+    "clicked_agent_titles": [
+      "Memories organized"
+    ],
+    "agent_titles": [
+      "Memories organized"
+    ],
+    "matching_agent_audit_text": [
+      "Run\ncuration-job-b961289a3dbdc76e4b8e42591a32c27d\nStatus\ncompleted"
+    ],
+    "dom": {
+      "memoryContextTitles": [
+        {
+          "text": "Conversation ready",
+          "html": "<span data-testid=\"memory-v2-trace-title\">Conversation ready</span>"
+        },
+        {
+          "text": "Conversation ready",
+          "html": "<span data-testid=\"memory-v2-trace-title\">Conversation ready</span>"
+        }
+      ],
+      "memoryAgentTitles": [
+        {
+          "text": "Memories organized",
+          "html": "<span data-testid=\"memory-agent-trace-title\">Memories organized</span>"
+        }
+      ],
+      "memoryAgentAudits": [
+        {
+          "text": "Run\ncuration-job-b961289a3dbdc76e4b8e42591a32c27d\nStatus\ncompleted",
+          "html": "<div data-testid=\"memory-agent-audit\"><div style=\"padding-top: 0px; margin-top: 0px; border-top: none;\"><div style=\"display: grid; grid-template-columns: minmax(104px, 0.34fr) minmax(0px, 1fr); gap: 10px; align-items: start; padding: 3px 0px; line-height: 1.5;\"><span style=\"opacity: 0.54; font-size: 11px;\">Run</span><span style=\"min-width: 0px; color: rgba(255, 255, 255, 0.76); font-family: Menlo, Monaco, Consolas, monospace; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;\">curation-job-b961289a3dbdc76e4b8e42591a32c27d</span></div><div style=\"display: grid; grid-template-columns: minmax(104px, 0.34fr) minmax(0px, 1fr); gap: 10px; align-items: start; padding: 3px 0px; line-height: 1.5;\"><span style=\"opacity: 0.54; font-size: 11px;\">Status</span><span style=\"min-width: 0px; color: rgba(255, 255, 255, 0.76); font-family: inherit; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;\">completed</span></div></div></div>"
+        }
+      ],
+      "bootOverlayPresent": false,
+      "locationHash": "",
+      "documentTitle": "PuPu"
+    },
+    "debug_state": {
+      "active_chat_id": "chat-1790538299967-8fa927dcd71048",
+      "active_chat": {
+        "id": "chat-1790538299967-8fa927dcd71048",
+        "title": "Ticket 349 hollow-shell UI verification",
+        "model": "openai:gpt-4.1",
+        "message_count": 4,
+        "last_message_role": "assistant"
+      },
+      "inspected_chat_id": "chat-1790538299967-8fa927dcd71048",
+      "inspected_chat": {
+        "id": "chat-1790538299967-8fa927dcd71048",
+        "title": "Ticket 349 hollow-shell UI verification",
+        "model": "openai:gpt-4.1",
+        "message_count": 4,
+        "last_message_role": "assistant"
+      },
+      "current_model": "openai:gpt-4.1",
+      "toolkits_active": [
+        "core"
+      ],
+      "character_id": null,
+      "modal_open": [],
+      "is_streaming": false,
+      "route": "",
+      "window_state": {
+        "width": 1280,
+        "height": 820,
+        "isDark": true,
+        "locale": "en"
+      },
+      "catalog_loaded": {
+        "models": 32,
+        "toolkits": 3,
+        "characters": 2
+      }
+    },
+    "boot_overlay_absent": true,
+    "job_identity_matches_dom": true,
+    "terminal_status_visible": true
+  },
+  "assertions": {
+    "runtime_ready": true,
+    "memory_v2_ready": true,
+    "runtime_manifest_matches": true,
+    "background_job_completed": true,
+    "candidate_applied": true,
+    "renderer_received_same_job": true,
+    "ui_title_complete": true,
+    "ui_detail_same_job": true,
+    "ui_detail_terminal": true,
+    "boot_overlay_absent": true
+  },
+  "screenshot_sha256": "57e26f33fe7c08c371a7faba84efeb7a4270bf3fbf615841dd72b04e1e87bc50",
+  "screenshot_note": "The screenshot shows the real chat but the Memory Agent terminal row is below the viewport; use the recorded DOM assertions as UI proof."
+}

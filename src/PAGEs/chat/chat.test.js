@@ -5,6 +5,7 @@ import {
   ThemeContext,
 } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
+import contextV2Bridge from "../../SERVICEs/bridges/context_v2_bridge";
 import { resolveQueueRelaySessionOwner } from "./hooks/use_chat_stream";
 import {
   createChatInSelectedContext,
@@ -139,6 +140,12 @@ describe("ChatInterface stop flow", () => {
   let streamV4Handlers;
 
   beforeEach(() => {
+    // These legacy replacement tests require a server-confirmed absent V2
+    // session; the retired feature flag no longer bypasses canonical admission.
+    jest.spyOn(contextV2Bridge, "isAvailable").mockReturnValue(true);
+    jest.spyOn(contextV2Bridge, "getSessionHead").mockRejectedValue(
+      new Error("[context_v2_not_found] No canonical session"),
+    );
     window.localStorage.clear();
     lastChatMessagesProps = null;
     lastChatInputProps = null;
@@ -646,6 +653,116 @@ describe("ChatInterface stop flow", () => {
       attempt_id: `attempt-${chatAId}`,
       content: "answer A",
     });
+  });
+
+  test("a provider retry wait is kept on the stored assistant message (#386)", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(commandHandlers.has("sendMessage")).toBe(true));
+    const reply = commandHandlers.get("sendMessage")({ id: chatId, text: "hello" });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    const run = runs[0];
+    const runId = `run-${run.attemptId}`;
+    const stepId = `model:${runId}:turn-1:response`;
+    const base = {
+      schema_version: "v4", timestamp: new Date().toISOString(),
+      session_id: chatId, run_id: runId, agent_id: "developer",
+      turn_id: `${runId}:turn-1`, links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user", metadata: {},
+    };
+    act(() => {
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-start", seq: 1, type: "run.started",
+        payload: { status: "running" },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-wait", seq: 2, type: "step.delta",
+        links: { step_id: stepId },
+        payload: {
+          step_id: stepId, step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+          delay_ms: 1000, remaining_ms: 1000, http_status: 503,
+          provider_status: "UNAVAILABLE",
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-final", seq: 3, type: "step.completed",
+        links: { step_id: stepId },
+        payload: {
+          step_id: stepId, step_type: "model_response", status: "completed",
+          final_text: "answer after a retry",
+        },
+      });
+      run.handlers.onRuntimeEvent({
+        ...base, event_id: "retry-done", seq: 4, type: "run.completed",
+        payload: { status: "completed" },
+      });
+      run.handlers.onDone({ finished_at: Date.now() });
+    });
+    await expect(reply).resolves.toMatchObject({ content: "answer after a retry" });
+    await waitFor(() => {
+      const assistant = getChatsStore().chatsById[chatId].messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect((assistant.traceFrames || []).map((frame) => frame.type)).toContain(
+        "provider_retry",
+      );
+    });
+  });
+
+  test("Test API run and blocking reply expose the same V4 tool evidence", async () => {
+    const commandHandlers = installTestCommandBridge();
+    const runs = installAddressedV4Runs();
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    renderChat();
+    await waitForReady();
+    await waitFor(() => expect(commandHandlers.has("sendMessage")).toBe(true));
+    const reply = commandHandlers.get("sendMessage")({ id: chatId, text: "read a file" });
+    await waitFor(() => expect(runs).toHaveLength(1));
+    const run = runs[0];
+    const runId = `run-${run.attemptId}`;
+    const baseEvent = {
+      schema_version: "v4", timestamp: "2026-07-21T12:00:00.000Z",
+      session_id: chatId, run_id: runId, agent_id: "developer",
+      turn_id: `${runId}:turn-1`, links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user", metadata: {},
+    };
+    const emit = (seq, type, payload, links = {}) => run.handlers.onRuntimeEvent({
+      ...baseEvent, event_id: `tool-evidence-${seq}`, seq, type, payload, links,
+    });
+    act(() => {
+      emit(1, "run.started", { status: "running" });
+      emit(2, "step.started", {
+        step_id: "tool:call-1", step_type: "tool", tool_name: "read",
+        call_id: "call-1", arguments: { path: "a.txt" },
+      }, { tool_call_id: "call-1" });
+      emit(3, "step.completed", {
+        step_id: "tool:call-1", step_type: "tool", tool_name: "read",
+        call_id: "call-1", status: "completed", result: { text: "hello" },
+      }, { tool_call_id: "call-1" });
+      emit(4, "step.completed", {
+        step_id: "model:response", step_type: "model_response",
+        status: "completed", final_text: "The file says hello",
+      });
+      emit(5, "run.completed", { status: "completed" });
+      run.handlers.onDone({ finished_at: Date.now() });
+    });
+    const expected = [{
+      id: "call-1", run_id: runId, name: "read",
+      arguments: { path: "a.txt" }, status: "completed",
+      result: { text: "hello" },
+    }];
+    await expect(reply).resolves.toMatchObject({ tool_calls: expected });
+    expect(commandHandlers.get("getChatRun")({
+      id: chatId, attempt_id: run.attemptId,
+    }).tool_calls).toEqual(expected);
   });
 
   test("keeps an exact Test API cancellation terminal when the stream event wins the race", async () => {

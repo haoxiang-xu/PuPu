@@ -1,6 +1,6 @@
 {
   "name": "PuPu",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "PuPu desktop application",
   "author": {
@@ -39,7 +39,7 @@
     "start": "npm run start:electron",
     "start:installed": "node ./scripts/start-installed.cjs",
     "start:web": "cross-env BROWSER=none HOST=127.0.0.1 PORT=2907 react-scripts start",
-    "start:electron": "cross-env PUPU_FEATURE_MEMORY_V2=all PUPU_MEMORY_V2_MODE=all node ./scripts/start-dev.cjs",
+    "start:electron": "node ./scripts/start-dev.cjs",
     "electron:start": "electron .",
     "react-start": "npm run start:web",
     "electron-start": "npm run start:electron",

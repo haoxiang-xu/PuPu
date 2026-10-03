@@ -490,15 +490,10 @@ class PupuMemoryAgentWorkerModule:
             if str(result.status or "").strip().casefold() != "completed":
                 return None
             try:
-                receipt = self._worker.process_next(
-                    owner_chat_id=self._owner_chat_id,
-                    root_run_id=root_run_id,
-                    job_trigger_key=trigger_key,
-                )
+                from memory_v2_background_worker import notify_memory_background
+                notify_memory_background()
             except Exception as error:
                 self._record_failure(error)
-                return None
-            self._record_receipt(receipt)
             return None
 
         setattr(

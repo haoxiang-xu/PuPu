@@ -1,0 +1,16 @@
+{
+  "deletion_race": {
+    "deleted": true,
+    "registry_rows_after_recovery": 0,
+    "retry_exists": true,
+    "worker_status": null
+  },
+  "selection_race": {
+    "process_result": "retry",
+    "requested_model": "new-model",
+    "actual_model_selections": [],
+    "job_status": "pending",
+    "job_run_id": "new-model-root",
+    "retry_still_exists": true
+  }
+}

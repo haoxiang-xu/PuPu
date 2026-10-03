@@ -843,10 +843,15 @@ class MemoryV2UnchainGenerationAPI:
                 execution_id=self.execution_id,
                 data_dir=self._guard_data_dir,
             ):
-                receipt = self._rebase_with_recovery(
-                    request,
-                    expected_revision=expected_session_revision,
-                )
+                from memory_v2_background_host import memory_background_source_guard
+                with memory_background_source_guard(
+                    database_path=self._guard_data_dir / "memory_v2" / "context_v2.sqlite3",
+                    owner_chat_id=self.owner_chat_id,
+                ):
+                    receipt = self._rebase_with_recovery(
+                        request,
+                        expected_revision=expected_session_revision,
+                    )
         except SessionExecutionInProgress as error:
             raise MemoryV2UnchainGenerationAPIError(
                 "context_v2_rebase_in_progress",

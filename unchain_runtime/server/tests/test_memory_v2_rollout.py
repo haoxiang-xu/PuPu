@@ -1,4 +1,6 @@
 import os
+import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -22,23 +24,69 @@ from memory_v2_rollout import resolve_memory_v2_rollout
 
 
 class MemoryV2RolloutTests(unittest.TestCase):
-    def test_defaults_are_consistently_off(self):
+    def test_real_snapshot_producer_matches_python_across_restart_and_overrides(self):
+        repo = SERVER_ROOT.parents[1]
+        script = """
+const {createBuildFeatureSnapshot} = require('./electron/main/services/unchain/memory_v2_rollout');
+process.stdout.write(JSON.stringify(createBuildFeatureSnapshot(
+  {enable_memory_v2: false}, JSON.parse(process.argv[1]))));
+"""
+        for overrides in (
+            {},
+            {"PUPU_MEMORY_V2_MODE": " "},
+            {"PUPU_MEMORY_V2_MODE": "off"},
+            {"PUPU_MEMORY_V2_MODE": "shadow"},
+            {"PUPU_MEMORY_V2_MODE": "canary", "PUPU_MEMORY_V2_CANARY_PERCENT": "25"},
+            {"PUPU_FEATURE_MEMORY_V2": "shadow"},
+            {"PUPU_MEMORY_V2_READ_ONLY_DEGRADED": "1"},
+        ):
+            with self.subTest(overrides=overrides):
+                snapshot = json.loads(subprocess.check_output(
+                    ["node", "-e", script, json.dumps(overrides)], cwd=repo,
+                ))
+                self.assertEqual(set(snapshot), {"_pupu_memory_v2_release"})
+                release = snapshot["_pupu_memory_v2_release"]
+                self.assertEqual(set(release), {
+                    "schema", "sidecar_environment", "rollout_fingerprint",
+                    "snapshot_fingerprint",
+                })
+                environment = release["sidecar_environment"]
+                self.assertEqual(set(environment), {
+                    "PUPU_FEATURE_MEMORY_V2", "PUPU_MEMORY_V2_MODE",
+                    "PUPU_MEMORY_V2_CANARY_PERCENT", "PUPU_MEMORY_V2_READ_ONLY_DEGRADED",
+                    "PUPU_CONTEXT_V2_STORE_OWNER",
+                })
+                config = resolve_memory_v2_rollout(overrides)
+                self.assertEqual(config, resolve_memory_v2_rollout(environment))
+                self.assertEqual(config.fingerprint, release["rollout_fingerprint"])
+                # A fresh Python process consumes the producer's exact environment.
+                restarted = subprocess.check_output([
+                    sys.executable, "-c",
+                    "from memory_v2_rollout import resolve_memory_v2_rollout; "
+                    "print(resolve_memory_v2_rollout().fingerprint)",
+                ], cwd=SERVER_ROOT, env={
+                    **{k: v for k, v in os.environ.items() if not k.startswith("PUPU_")},
+                    **environment,
+                }, text=True).strip()
+                self.assertEqual(restarted, config.fingerprint)
+
+    def test_defaults_are_consistently_all(self):
         config = resolve_memory_v2_rollout({})
 
-        self.assertEqual(config.feature_ceiling, "off")
-        self.assertEqual(config.configured_mode, "off")
-        self.assertEqual(config.rollout_mode, "off")
+        self.assertEqual(config.feature_ceiling, "all")
+        self.assertEqual(config.configured_mode, "all")
+        self.assertEqual(config.rollout_mode, "all")
         self.assertEqual(config.canary_percent, 5)
         self.assertTrue(config.valid)
         self.assertRegex(config.fingerprint, r"^[0-9a-f]{64}$")
 
-    def test_missing_mode_does_not_disagree_with_the_feature_ceiling(self):
+    def test_missing_mode_defaults_to_all(self):
         environment = {"PUPU_FEATURE_MEMORY_V2": "all"}
         config = resolve_memory_v2_rollout(environment)
 
         self.assertEqual(config.feature_ceiling, "all")
-        self.assertEqual(config.configured_mode, "off")
-        self.assertEqual(config.rollout_mode, "off")
+        self.assertEqual(config.configured_mode, "all")
+        self.assertEqual(config.rollout_mode, "all")
         with mock.patch.dict(os.environ, environment, clear=True):
             intent = inspect_memory_v2_rollout_intent(
                 {"enable_memory_v2": True},

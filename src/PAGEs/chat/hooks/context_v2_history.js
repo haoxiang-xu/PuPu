@@ -2,7 +2,7 @@
  * context_v2_history — Memory V2 P0 renderer-side lazy-bootstrap history
  * (PURE helper).
  *
- * When the enable_memory_v2 feature flag is ON, the chat hook attaches a
+ * On every normal send, the chat hook attaches a
  * `context_v2_history` array to the top level of the outgoing stream payload
  * (next to `memory_v2_requested: true`). The sidecar uses it ONLY to lazily
  * bootstrap its Context V2 journal for a chat it has never seen — it is NOT

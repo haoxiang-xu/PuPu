@@ -1312,6 +1312,7 @@ const ChatInterface = () => {
             }
             pendingContinuationRequest={stream.pendingContinuationRequest}
             onContinuationDecision={stream.handleContinuationDecision}
+            onStopStream={stream.stopStream}
             streamingMessageStore={streamingMessageStoreRef.current}
             initialVisibleCount={12}
             loadBatchSize={6}

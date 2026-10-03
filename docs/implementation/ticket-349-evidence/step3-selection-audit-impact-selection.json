@@ -1,0 +1,9 @@
+{
+  "error": "Target 'selection_for_claimed_job' not found",
+  "target": {
+    "name": "selection_for_claimed_job"
+  },
+  "direction": "upstream",
+  "impactedCount": null,
+  "risk": "UNKNOWN"
+}

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import Dict, List
+
+from mcp_credential_store import credential_store_lock, read_credential_store, write_credential_store
 
 MCP_SECRETS_FILENAME = "mcp_secrets.json"
 
@@ -24,26 +25,11 @@ def _empty_store() -> Dict:
 
 
 def _read_store(data_dir: str | Path | None = None) -> Dict:
-    path = _store_path(data_dir)
-    if not path.exists():
-        return _empty_store()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return _empty_store()
-    if not isinstance(raw, dict) or not isinstance(raw.get("toolkits"), dict):
-        return _empty_store()
-    return {"version": 1, "toolkits": raw["toolkits"]}
+    return read_credential_store(_store_path(data_dir))
 
 
 def _write_store(store: Dict, data_dir: str | Path | None = None) -> None:
-    path = _store_path(data_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
+    write_credential_store(_store_path(data_dir), store)
 
 
 def save_mcp_secret_values(
@@ -59,9 +45,10 @@ def save_mcp_secret_values(
         if str(key).strip() and str(value)
     }
 
-    store = _read_store(data_dir)
-    store["toolkits"][clean_toolkit_id] = clean_values
-    _write_store(store, data_dir)
+    with credential_store_lock(_store_path(data_dir)):
+        store = _read_store(data_dir)
+        store["toolkits"][clean_toolkit_id] = clean_values
+        _write_store(store, data_dir)
     return {"ok": True, "toolkitId": clean_toolkit_id}
 
 
@@ -111,7 +98,8 @@ def delete_mcp_secret_values(
     data_dir: str | Path | None = None,
 ) -> Dict[str, object]:
     clean_toolkit_id = str(toolkit_id or "").strip()
-    store = _read_store(data_dir)
-    store["toolkits"].pop(clean_toolkit_id, None)
-    _write_store(store, data_dir)
+    with credential_store_lock(_store_path(data_dir)):
+        store = _read_store(data_dir)
+        store["toolkits"].pop(clean_toolkit_id, None)
+        _write_store(store, data_dir)
     return {"ok": True, "toolkitId": clean_toolkit_id}

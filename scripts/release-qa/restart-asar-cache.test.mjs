@@ -10,8 +10,10 @@ import asar from "@electron/asar";
 import { inspectResources } from "./installed-package-qualification.mjs";
 
 const snapshotBytes = (fingerprint = "a", enabled = true) => JSON.stringify({
-  enable_memory_v2: enabled,
-  _pupu_memory_v2_release: { snapshot_fingerprint: fingerprint.repeat(64) },
+  _pupu_memory_v2_release: {
+    snapshot_fingerprint: fingerprint.repeat(64),
+    sidecar_environment: { PUPU_MEMORY_V2_MODE: enabled ? "all" : "off" },
+  },
 });
 const digest = (bytes) => `sha256:${crypto.createHash("sha256").update(bytes).digest("hex")}`;
 

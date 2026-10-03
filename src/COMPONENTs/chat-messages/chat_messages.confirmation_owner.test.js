@@ -8,10 +8,12 @@ jest.mock("../chat-bubble/chat_bubble", () => ({
     message,
     pendingToolConfirmationRequests = {},
     toolConfirmationUiStateById = {},
+    onStopStream,
   }) => {
     const React = require("react");
     return React.createElement("div", {
       "data-testid": `bubble-${message.id}`,
+      "data-has-stop": typeof onStopStream === "function" ? "yes" : "no",
       "data-pending-confirmations": Object.keys(
         pendingToolConfirmationRequests,
       )
@@ -123,5 +125,30 @@ describe("ChatMessages confirmation owner bubble", () => {
 
     expectConfirmationProps("assistant-owner", "confirmation-1");
     expectConfirmationProps("assistant-other", "");
+  });
+
+  test("only the streaming last assistant message gets the stop handler (#386)", () => {
+    const onStopStream = jest.fn();
+    render(
+      <ConfigContext.Provider
+        value={{ onThemeMode: "light_mode", theme: { color: "#222" } }}
+      >
+        <ChatMessages
+          chatId="chat-stop-test"
+          messages={[
+            { id: "user-1", role: "user", content: "a" },
+            { id: "assistant-old", role: "assistant", status: "done", content: "x" },
+            { id: "user-2", role: "user", content: "b" },
+            { id: "assistant-live", role: "assistant", status: "streaming", content: "" },
+          ]}
+          onStopStream={onStopStream}
+          initialVisibleCount={10}
+          bootVisibleCount={10}
+          maxMountedCount={10}
+        />
+      </ConfigContext.Provider>,
+    );
+    expect(screen.getByTestId("bubble-assistant-live")).toHaveAttribute("data-has-stop", "yes");
+    expect(screen.getByTestId("bubble-assistant-old")).toHaveAttribute("data-has-stop", "no");
   });
 });

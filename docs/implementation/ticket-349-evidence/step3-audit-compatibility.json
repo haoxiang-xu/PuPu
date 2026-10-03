@@ -1,0 +1,24 @@
+{
+  "actual_tool_names": [
+    "context_checkpoint_events_read",
+    "context_content_read",
+    "memory_candidate_apply_new",
+    "memory_candidate_propose_review",
+    "memory_candidate_read",
+    "memory_candidate_source_read",
+    "memory_list",
+    "memory_read",
+    "memory_search"
+  ],
+  "process_result": "processed",
+  "job": {
+    "status": "failed",
+    "attempt_count": 1,
+    "last_error_code": "memory_agent_toolkit_scope_invalid"
+  },
+  "content_ref_projection": {
+    "type": "ValueError",
+    "message": "reference cannot be represented as a PuPu URI"
+  },
+  "model_constructed": 0
+}

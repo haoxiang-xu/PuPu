@@ -1,0 +1,217 @@
+{
+  "target": {
+    "id": "Class:unchain_runtime/server/memory_v2_unchain_agent_selection.py:PupuOfficialMemoryAgentInvokerFactory",
+    "name": "PupuOfficialMemoryAgentInvokerFactory",
+    "type": "Class",
+    "filePath": "unchain_runtime/server/memory_v2_unchain_agent_selection.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 20,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 0,
+    "modules_affected": 0
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 5,
+    "3": 14
+  },
+  "affected_processes": [],
+  "affected_modules": [],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "File:unchain_runtime/server/unchain_adapter.py",
+        "name": "unchain_adapter.py",
+        "filePath": "unchain_runtime/server/unchain_adapter.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "File:docs/implementation/ticket-289-evidence/verify_activation.py",
+        "name": "verify_activation.py",
+        "filePath": "docs/implementation/ticket-289-evidence/verify_activation.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:unchain_runtime/server/interject_router.py",
+        "name": "interject_router.py",
+        "filePath": "unchain_runtime/server/interject_router.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:unchain_runtime/server/route_interject.py",
+        "name": "route_interject.py",
+        "filePath": "unchain_runtime/server/route_interject.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:unchain_runtime/server/routes.py",
+        "name": "routes.py",
+        "filePath": "unchain_runtime/server/routes.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:unchain_runtime/server/skills_inventory.py",
+        "name": "skills_inventory.py",
+        "filePath": "unchain_runtime/server/skills_inventory.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "File:docs/implementation/ticket-289-evidence/README.md",
+        "name": "README.md",
+        "filePath": "docs/implementation/ticket-289-evidence/README.md",
+        "relationType": "IMPORTS",
+        "confidence": 0.8,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/app.py",
+        "name": "app.py",
+        "filePath": "unchain_runtime/server/app.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_catalog.py",
+        "name": "route_catalog.py",
+        "filePath": "unchain_runtime/server/route_catalog.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_characters.py",
+        "name": "route_characters.py",
+        "filePath": "unchain_runtime/server/route_characters.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_chat.py",
+        "name": "route_chat.py",
+        "filePath": "unchain_runtime/server/route_chat.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_computer_use.py",
+        "name": "route_computer_use.py",
+        "filePath": "unchain_runtime/server/route_computer_use.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_mcp.py",
+        "name": "route_mcp.py",
+        "filePath": "unchain_runtime/server/route_mcp.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_memory.py",
+        "name": "route_memory.py",
+        "filePath": "unchain_runtime/server/route_memory.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_memory_v2.py",
+        "name": "route_memory_v2.py",
+        "filePath": "unchain_runtime/server/route_memory_v2.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_projection.py",
+        "name": "route_projection.py",
+        "filePath": "unchain_runtime/server/route_projection.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_providers.py",
+        "name": "route_providers.py",
+        "filePath": "unchain_runtime/server/route_providers.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_recipes.py",
+        "name": "route_recipes.py",
+        "filePath": "unchain_runtime/server/route_recipes.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_skillpacks.py",
+        "name": "route_skillpacks.py",
+        "filePath": "unchain_runtime/server/route_skillpacks.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:unchain_runtime/server/route_skills.py",
+        "name": "route_skills.py",
+        "filePath": "unchain_runtime/server/route_skills.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ]
+  }
+}

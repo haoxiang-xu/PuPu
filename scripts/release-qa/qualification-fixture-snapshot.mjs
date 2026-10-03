@@ -52,7 +52,7 @@ export function prepareFixtureReleaseSnapshot({ sourceRoot, snapshotPath }) {
   assert.deepEqual(Object.keys(release || {}).sort(), [
     "rollout_fingerprint", "schema", "sidecar_environment", "snapshot_fingerprint",
   ], "N-1 snapshot release metadata must be closed");
-  if (flags.enable_memory_v2 !== true || release.schema !== "pupu.memory-v2-release.v1" ||
+  if ((Object.hasOwn(flags, "enable_memory_v2") && flags.enable_memory_v2 !== true) || release.schema !== "pupu.memory-v2-release.v1" ||
       !/^[0-9a-f]{64}$/.test(release.snapshot_fingerprint) ||
       !/^[0-9a-f]{64}$/.test(release.rollout_fingerprint)) {
     throw new Error("N-1 producer did not emit a valid enabled release snapshot");

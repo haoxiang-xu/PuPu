@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "value": {
+    "rows": [
+      "对话已准备好",
+      "对话已准备好",
+      "记忆整理完成"
+    ],
+    "text": "ription=\"Synthetic verification marker\", content=\"Synthetic verification marker: violet lighthouse 349.\", mime_type=\"text/markdown\", confidence=1, rationale=\"Isolated synthetic verification\". After the tool call report its actual outcome briefly. Do not use other tools.\nUsed 1 step · 5.6s\nmemory_propose\ndetail\n+2.8s\nARGS\nvalue\n{\"confidence\":1,\"content\":\"Synthetic verification marker: violet lighthouse 349.\",\"content_base64\":\"\",\"description\":\"Synthetic verification marker\",\"kind\":\"markdown\",\"mime_type\":\"text/markdown\",\"path\":\"/verification/defer-fix.md\",\"rationale\":\"Isolated synthetic verification\",\"sensitivity\":\"normal\",\"…show more\n对话已准备好\nhide\nMode\nActive\nTrace state\nComplete\nReal window\n1,047,576 tokens\nCompression line\n931,759 tokens\nCanonical journal reload\nComplete\n1 page · 48 events\nPending memory decisions\nRefresh\nNo pending memory decisions.\n记忆整理完成\nhide\nRun\ncuration-job-3023cce16325d71bce49dd1dc1283d8d\nStatus\ncompleted\n13,034 in (5,888 cached) · 155 out · 13,189 total\n\nmemory_propose was called exactly once as instructed. Outcome: a memory candidate was successfully proposed with the specified marker and parameters. No errors occurred.\n\n顶部\n上一条\n下一条\n底部\n/\nCOMMANDS · ↑↓ · ⏎\n整理\ngpt-4.1\n1\n1\nAI can make mistakes, please double-check critical information.\n模型\n插件\n工作区\n智能体\n聊天\nTicket 349 repaired memory synthetic check\n2m\nTicket 349 repaired memory synthetic check\n16m\nNew Chat\n16m\n设置"
+  }
+}

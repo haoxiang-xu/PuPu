@@ -16,6 +16,21 @@
       },
       "models": [
         {
+          "id": "deepseek-flash",
+          "capabilities": {
+            "supports_tools": true,
+            "supports_vision": true,
+            "max_tokens": 384000,
+            "max_context_window_tokens": 1000000
+          },
+          "default_payload": {
+            "max_tokens": 32768,
+            "thinking": {
+              "type": "disabled"
+            }
+          }
+        },
+        {
           "id": "deepseek-v4-pro",
           "capabilities": {
             "supports_tools": true,

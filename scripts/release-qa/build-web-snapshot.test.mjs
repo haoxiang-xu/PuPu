@@ -10,17 +10,39 @@ const buildWeb = path.join(repoRoot, "scripts/build-web.cjs");
 const writeSnapshot = path.join(repoRoot, "scripts/write-build-feature-snapshot.cjs");
 const shadowProfile = path.join(
   repoRoot,
-  "docs/contracts/memory-v2/release-profile.shadow.v1.json",
+  "docs/contracts/memory-v2/release-profile.shadow.v2.json",
 );
 const allProfile = path.join(
   repoRoot,
-  "docs/contracts/memory-v2/release-profile.all.v1.json",
+  "docs/contracts/memory-v2/release-profile.all.v2.json",
 );
 
 const run = (script, args, environment) => spawnSync(process.execPath, [script, ...args], {
   cwd: repoRoot,
   encoding: "utf8",
   env: { ...process.env, ...environment },
+});
+
+test("flag-free profile v2 rejects retired flags, unknown fields and wrong schemas", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-profile-v2-negative-"));
+  const profile = JSON.parse(fs.readFileSync(allProfile, "utf8"));
+  const profilePath = path.join(root, "profile.json");
+  try {
+    for (const changed of [
+      { ...profile, feature_flags: { enable_memory_v2: false } },
+      { ...profile, feature_flags: { enable_unknown: true } },
+      { ...profile, schema: "pupu.memory-v2-release-profile.v99" },
+      { ...profile, extra: true },
+      { ...profile, sidecar_environment: { ...profile.sidecar_environment, extra: "all" } },
+    ]) {
+      fs.writeFileSync(profilePath, JSON.stringify(changed));
+      const result = run(writeSnapshot, ["--profile", profilePath, "--out", path.join(root, "snapshot.json")]);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /invalid schema or Memory V2 environment/);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("W0-03 release build refuses a missing or malformed feature snapshot", () => {
@@ -59,7 +81,7 @@ test("W0-03 release build consumes the exact producer snapshot without environme
     });
     assert.equal(produced.status, 0, produced.stderr);
     const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
-    assert.equal(snapshot.enable_memory_v2, true);
+    assert.equal(Object.hasOwn(snapshot, "enable_memory_v2"), false);
     assert.equal(snapshot._pupu_memory_v2_release.sidecar_environment.PUPU_FEATURE_MEMORY_V2, "shadow");
 
     const built = run(buildWeb, ["--print-flags"], {
@@ -69,7 +91,7 @@ test("W0-03 release build consumes the exact producer snapshot without environme
       PUPU_VERSION_PREPARED: "1",
     });
     assert.equal(built.status, 0, built.stderr);
-    assert.deepEqual(JSON.parse(built.stdout), { enable_memory_v2: true });
+    assert.deepEqual(JSON.parse(built.stdout), {});
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -120,8 +142,8 @@ test("controlled All profile enables active Memory V2 without a theme gate", () 
     });
     assert.equal(produced.status, 0, produced.stderr);
     const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
-    assert.deepEqual(Object.keys(snapshot).sort(), ["_pupu_memory_v2_release", "enable_memory_v2"]);
-    assert.equal(snapshot.enable_memory_v2, true);
+    assert.deepEqual(Object.keys(snapshot).sort(), ["_pupu_memory_v2_release"]);
+    assert.equal(Object.hasOwn(snapshot, "enable_memory_v2"), false);
     assert.deepEqual(
       snapshot._pupu_memory_v2_release.sidecar_environment,
       {

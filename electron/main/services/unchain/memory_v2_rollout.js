@@ -2,12 +2,15 @@ const { createHash } = require("crypto");
 
 const MEMORY_V2_RELEASE_SCHEMA = "pupu.memory-v2-release.v1";
 const MEMORY_V2_ROLLOUT_SCHEMA = "memory_v2.rollout.v1";
-// Must track Unchain's SQLiteContextV2Store schema exactly. This is an
-// EQUALITY gate, not a floor. PuPu's retired prototype also used the public
-// Context V2 status shape but ended at schema v4, so readiness must verify the
-// canonical store owner as well as Unchain schema v2 before enabling traffic.
-const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 2;
-const MEMORY_V2_BUILD_FEATURE_KEY = "enable_memory_v2";
+// Admit only the current Unchain schema and its supported migration source.
+// Read-only startup status may still report v2; opening the runtime migrates
+// it to v3. This is a closed set, not a floor. Owner and protocol checks must
+// also pass so the retired PuPu prototype's v4 cannot become ready.
+const MEMORY_V2_REQUIRED_SCHEMA_VERSION = 3;
+const MEMORY_V2_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([
+  2,
+  MEMORY_V2_REQUIRED_SCHEMA_VERSION,
+]);
 const MEMORY_V2_RELEASE_FIELD = "_pupu_memory_v2_release";
 const UNCHAIN_RUNTIME_PROTOCOL_SCHEMA = "unchain.runtime_protocol_manifest.v1";
 const UNCHAIN_RUNTIME_PROTOCOL_DIGEST_DOMAIN =
@@ -31,6 +34,8 @@ const UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS = Object.freeze([
       "canonical_journal",
       "chat_deletion_sqlite_scope_closure",
       "context_compiler",
+      "context_content_paging_v1",
+      "context_content_read_recovery_v1",
       "generation_rebase_live_interaction_cycles",
       "interaction_resolution_compat",
       "long_term_promotion",
@@ -64,6 +69,8 @@ const UNCHAIN_RUNTIME_PROTOCOL_REQUIRED_PROTOCOLS = Object.freeze([
       "graph_runs",
       "memory_off",
       "ollama_reasoning_preview_v1",
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1",
       "subagent_runs",
     ]),
     id: "provider_turn_ownership",
@@ -291,16 +298,15 @@ const normalizeFeatureFlags = (source = {}) => {
   const payload = isObject(source) ? source : {};
   const featureFlags = Object.fromEntries(
     Object.entries(payload)
-      .filter(([key]) => key.startsWith("enable_"))
+      // Discard the retired experiment flag, including old saved false values.
+      .filter(([key]) => key.startsWith("enable_") && key !== "enable_memory_v2")
       .map(([key, value]) => [key, value === true]),
   );
-  featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] =
-    payload[MEMORY_V2_BUILD_FEATURE_KEY] === true;
   return stableObject(featureFlags);
 };
 
 const buildRolloutConfig = ({
-  featureEnabled,
+  featureEnabled = true,
   sidecarEnvironment = {},
   processEnvironment = {},
   allowProcessOverrides = false,
@@ -317,10 +323,16 @@ const buildRolloutConfig = ({
   };
 
   const featureCeiling = featureEnabled
-    ? normalizeMode(readValue(MEMORY_V2_ENV_KEYS.featureCeiling), "off")
+    ? normalizeMode(
+        String(readValue(MEMORY_V2_ENV_KEYS.featureCeiling) || "").trim() || "all",
+        "off",
+      )
     : "off";
   const configuredMode = featureEnabled
-    ? normalizeMode(readValue(MEMORY_V2_ENV_KEYS.rolloutMode), "off")
+    ? normalizeMode(
+        String(readValue(MEMORY_V2_ENV_KEYS.rolloutMode) || "").trim() || "all",
+        "off",
+      )
     : "off";
   const resolvedRolloutMode = effectiveMode(featureCeiling, configuredMode);
   const canaryPercent = normalizeCanaryPercent(
@@ -369,7 +381,6 @@ const releaseSnapshotFingerprint = ({ featureFlags, release }) =>
 const createBuildFeatureSnapshot = (source = {}, environment = {}) => {
   const featureFlags = normalizeFeatureFlags(source);
   const rollout = buildRolloutConfig({
-    featureEnabled: featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] === true,
     sidecarEnvironment: isObject(source?.[MEMORY_V2_RELEASE_FIELD])
       ? source[MEMORY_V2_RELEASE_FIELD].sidecar_environment
       : {},
@@ -414,15 +425,15 @@ const resolveMemoryV2ReleaseConfig = ({
   }
 
   const featureFlags = normalizeFeatureFlags(source);
-  const featureEnabled = featureFlags[MEMORY_V2_BUILD_FEATURE_KEY] === true;
+  // Memory is a standard capability. Snapshot/protocol admission still applies.
   const release = isObject(source[MEMORY_V2_RELEASE_FIELD])
     ? source[MEMORY_V2_RELEASE_FIELD]
     : null;
-  let snapshotValid = !app.isPackaged || !featureEnabled;
+  let snapshotValid = !app.isPackaged;
   let snapshotErrorCode = "";
   let sidecarEnvironment = release?.sidecar_environment;
 
-  if (app.isPackaged && featureEnabled) {
+  if (app.isPackaged) {
     if (
       release?.schema !== MEMORY_V2_RELEASE_SCHEMA ||
       !isObject(sidecarEnvironment) ||
@@ -443,14 +454,13 @@ const resolveMemoryV2ReleaseConfig = ({
   }
 
   const rollout = buildRolloutConfig({
-    featureEnabled: featureEnabled && snapshotValid,
+    featureEnabled: snapshotValid,
     sidecarEnvironment: isObject(sidecarEnvironment) ? sidecarEnvironment : {},
     processEnvironment: environment,
     allowProcessOverrides: !app.isPackaged,
   });
   if (
     app.isPackaged &&
-    featureEnabled &&
     snapshotValid &&
     rollout.rolloutFingerprint !== release.rollout_fingerprint
   ) {
@@ -462,7 +472,7 @@ const resolveMemoryV2ReleaseConfig = ({
     const disabled = buildRolloutConfig({ featureEnabled: false });
     return Object.freeze({
       ...disabled,
-      buildFeatureEnabled: featureEnabled,
+      buildFeatureEnabled: true,
       snapshotPath,
       snapshotValid: false,
       snapshotErrorCode,
@@ -475,7 +485,7 @@ const resolveMemoryV2ReleaseConfig = ({
 
   return Object.freeze({
     ...rollout,
-    buildFeatureEnabled: featureEnabled,
+    buildFeatureEnabled: true,
     snapshotPath,
     snapshotValid: true,
     snapshotErrorCode: "",
@@ -599,7 +609,7 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
   } else if (!status.available) reason = "context_v2_unavailable";
   else if (status.storeOwner !== "unchain") {
     reason = "context_v2_store_owner_incompatible";
-  } else if (status.schemaVersion !== MEMORY_V2_REQUIRED_SCHEMA_VERSION) {
+  } else if (!MEMORY_V2_SUPPORTED_SCHEMA_VERSIONS.includes(status.schemaVersion)) {
     reason = "context_v2_schema_incompatible";
   } else if (status.journalMode !== "wal") {
     reason = "context_v2_wal_required";
@@ -624,7 +634,6 @@ const validateMemoryV2Status = (payload, releaseConfig) => {
 };
 
 module.exports = {
-  MEMORY_V2_BUILD_FEATURE_KEY,
   MEMORY_V2_ENV_KEYS,
   MEMORY_V2_RELEASE_FIELD,
   MEMORY_V2_RELEASE_SCHEMA,

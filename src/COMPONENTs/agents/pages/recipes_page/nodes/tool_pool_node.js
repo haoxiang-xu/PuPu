@@ -21,7 +21,7 @@ export default function ToolPoolNode({ node, isDark }) {
                 flexShrink: 0,
               }}
             >
-              <Icon src="tool" color="#fff" style={{ width: 16, height: 16 }} />
+              <Icon src="toolkit_pool" color="#fff" style={{ width: 16, height: 16 }} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div

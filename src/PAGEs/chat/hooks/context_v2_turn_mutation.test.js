@@ -3,7 +3,7 @@
  *
  * These lock the three decisions that a later phase is most likely to "clean
  * up" and thereby break:
- *   1. the ONLY two Legacy outcomes are flag-off and a server-confirmed absent
+ *   1. the ONLY Legacy outcome is a server-confirmed absent
  *      session — every other head shape blocks and never falls back to V1;
  *   2. the replacement-history projection matches the rebase allowlist EXACTLY
  *      (role + content, nothing else), which is enforced independently in
@@ -133,10 +133,10 @@ describe("buildRebaseReplacementHistory", () => {
 });
 
 describe("decideTurnMutationMemoryMode — legacy is a narrow door", () => {
-  test("flag off is legacy and never touches the bridge", () => {
+  test("a retired flag cannot bypass session admission", () => {
     expect(decideTurnMutationMemoryMode({ flagEnabled: false })).toEqual({
-      mode: TURN_MUTATION_ADMISSION.LEGACY,
-      reason: "flag_off",
+      mode: TURN_MUTATION_ADMISSION.BLOCKED,
+      reason: "bridge_unavailable",
     });
   });
 
@@ -330,7 +330,7 @@ describe("decideTurnMutationMemoryMode — V2 admission", () => {
   });
 
   test("a blocked or legacy decision carries no admissionMode", () => {
-    expect(decide({ flagEnabled: false }).admissionMode).toBeUndefined();
+    expect(decide({ bridgeAvailable: false }).admissionMode).toBeUndefined();
     expect(
       decide({ head: head({ currentGenerationId: "" }) }).admissionMode,
     ).toBeUndefined();

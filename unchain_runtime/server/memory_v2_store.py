@@ -10243,6 +10243,34 @@ class MemoryV2Store:
             "data": base64.b64encode(chunk).decode("ascii"),
         }
 
+    def _assert_background_curator_fence(
+        self, connection, *, owner_chat_id, job_id, fence,
+    ) -> None:
+        """Check a host-only background lease/source inside the mutation transaction."""
+        if fence is None:
+            return  # Existing synchronous/public callers retain their contract.
+        if not isinstance(fence, Mapping) or set(fence) != {"revision", "lease_owner", "lease_token"}:
+            raise MemoryV2Error("context_v2_background_fence_invalid", "Invalid background fence", status_code=409)
+        if type(fence["revision"]) is not int or fence["revision"] < 1 or any(
+            type(fence[key]) is not str or not fence[key] for key in ("lease_owner", "lease_token")
+        ):
+            raise MemoryV2Error("context_v2_background_fence_invalid", "Invalid background fence", status_code=409)
+        row = connection.execute(
+            "SELECT jobs.* FROM consolidation_jobs AS jobs "
+            "JOIN attempts ON attempts.owner_chat_id=jobs.owner_chat_id "
+            "AND attempts.session_id=jobs.session_id AND attempts.attempt_id=jobs.attempt_id "
+            "JOIN sessions ON sessions.session_key=attempts.session_key "
+            "WHERE jobs.job_id=? AND jobs.owner_chat_id=? AND jobs.deleted_at_ms IS NULL "
+            "AND attempts.deleted_at_ms IS NULL AND sessions.deleted_at_ms IS NULL "
+            "AND sessions.current_generation_id=attempts.generation_id",
+            (job_id, owner_chat_id),
+        ).fetchone()
+        if row is None or row["status"] != "leased" or row["revision"] != fence["revision"] or (
+            row["lease_owner"] != fence["lease_owner"] or row["lease_token"] != fence["lease_token"]
+            or int(row["lease_expires_at_ms"] or 0) <= self._clock()
+        ):
+            raise MemoryV2Error("context_v2_background_fence_lost", "Background source or lease is no longer current", status_code=409)
+
     def apply_job_candidate_new(
         self,
         *,
@@ -10252,6 +10280,7 @@ class MemoryV2Store:
         expected_binding_revision: int,
         expected_space_revision: int,
         operation_id: str,
+        background_fence: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         owner = _required_identifier(owner_chat_id, "owner_chat_id", owner=True)
         job_key = _required_identifier(job_id, "job_id")
@@ -10276,6 +10305,7 @@ class MemoryV2Store:
         )
         now_ms = self._clock()
         with self._write() as connection:
+            self._assert_background_curator_fence(connection, owner_chat_id=owner, job_id=job_key, fence=background_fence)
             replay = self._receipt_replay(
                 connection,
                 op_id,
@@ -10587,6 +10617,7 @@ class MemoryV2Store:
         target_entry_id: str,
         expected_target_revision: int,
         operation_id: str,
+        background_fence: Mapping[str, Any] | None = None,
         mode: str = "overwrite",
     ) -> dict[str, Any]:
         owner = _required_identifier(owner_chat_id, "owner_chat_id", owner=True)
@@ -10793,6 +10824,7 @@ class MemoryV2Store:
         try:
             now_ms = self._clock()
             with self._write() as connection:
+                self._assert_background_curator_fence(connection, owner_chat_id=owner, job_id=job_key, fence=background_fence)
                 replay = self._receipt_replay(
                     connection,
                     op_id,
@@ -13228,6 +13260,8 @@ class MemoryV2Store:
             replay = self._receipt_replay(connection, op_id, "delete_chat", intent_hash)
             if replay is not None:
                 return replay
+            if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='pupu_memory_background_hosts'").fetchone():
+                connection.execute("DELETE FROM pupu_memory_background_hosts WHERE owner_chat_id=?", (owner,))
             counts: dict[str, int] = {}
             for table in (
                 "artifacts",

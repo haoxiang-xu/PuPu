@@ -1,0 +1,44 @@
+[
+  {
+    "target": "enqueue",
+    "risk": "CRITICAL",
+    "summary": {
+      "direct": 219,
+      "processes_affected": 136,
+      "modules_affected": 20
+    },
+    "error": null
+  },
+  {
+    "target": "lifecycle-tests",
+    "risk": "UNKNOWN",
+    "summary": {
+      "direct": 0,
+      "processes_affected": 0,
+      "modules_affected": 0
+    },
+    "error": null
+  },
+  {
+    "target": "finalize",
+    "risk": "CRITICAL",
+    "summary": {
+      "direct": 3,
+      "processes_affected": 90,
+      "modules_affected": 20
+    },
+    "error": null
+  },
+  {
+    "target": "legacy",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "error": "Target '_process_legacy' not found"
+  },
+  {
+    "target": "background-file",
+    "risk": "UNKNOWN",
+    "summary": null,
+    "error": "Target 'memory_v2_background_worker.py' not found"
+  }
+]

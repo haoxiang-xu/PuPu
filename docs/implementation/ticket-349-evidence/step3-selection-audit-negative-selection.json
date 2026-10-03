@@ -1,0 +1,49 @@
+[
+  {
+    "scenario": "deferred_after_claim",
+    "result": "retry",
+    "model_calls": [],
+    "job_status": "pending",
+    "error": "memory_background_registration_pending"
+  },
+  {
+    "scenario": "registered_after_claim",
+    "result": "processed",
+    "model_calls": [
+      {
+        "model": "fresh-model",
+        "paired_options": true
+      }
+    ],
+    "job_status": "completed",
+    "error": ""
+  },
+  {
+    "scenario": "missing_row",
+    "result": "retry",
+    "model_calls": [],
+    "job_status": "pending",
+    "error": "memory_background_registration_pending"
+  },
+  {
+    "scenario": "unknown_field",
+    "result": "retry",
+    "model_calls": [],
+    "job_status": "pending",
+    "error": "memory_background_registration_pending"
+  },
+  {
+    "scenario": "wrong_version",
+    "result": "retry",
+    "model_calls": [],
+    "job_status": "pending",
+    "error": "memory_background_registration_pending"
+  },
+  {
+    "scenario": "sqlite_unavailable",
+    "result": "retry",
+    "model_calls": [],
+    "job_status": "pending",
+    "error": "memory_background_registration_pending"
+  }
+]

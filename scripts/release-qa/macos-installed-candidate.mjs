@@ -203,7 +203,7 @@ const inspectInstalledBundle = ({ appPath, expectedSnapshotBytes }) => {
   const snapshotFingerprint =
     snapshot?._pupu_memory_v2_release?.snapshot_fingerprint;
   if (
-    snapshot?.enable_memory_v2 !== true ||
+    snapshot?._pupu_memory_v2_release?.sidecar_environment?.PUPU_MEMORY_V2_MODE !== "all" ||
     typeof snapshotFingerprint !== "string" ||
     !snapshotFingerprint
   ) {

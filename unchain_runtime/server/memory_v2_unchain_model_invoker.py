@@ -63,6 +63,10 @@ _TERMINAL_TOOL_NAMES = frozenset(
         "memory_candidate_propose_review",
     }
 )
+_OFFICIAL_SHARED_READ_TOOLS = frozenset({
+    "context_checkpoint_events_read", "context_content_read",
+    "memory_list", "memory_read", "memory_search",
+})
 
 
 class PupuOfficialMemoryAgentInvokerError(CuratorRunnerFailure):
@@ -109,13 +113,18 @@ def _recording_toolkit(
     if not isinstance(toolkit, Toolkit):
         _failure("memory_agent_toolkit_invalid")
     names = frozenset(toolkit.tools)
-    if names != _CONSOLIDATION_TOOL_NAMES or "memory_promote" in names:
+    if names not in {
+        _CONSOLIDATION_TOOL_NAMES,
+        _CONSOLIDATION_TOOL_NAMES | _OFFICIAL_SHARED_READ_TOOLS,
+    }:
         _failure("memory_agent_toolkit_scope_invalid")
 
     cloned = copy.copy(toolkit)
     cloned.tools = {}
     wrapped_callables: dict[str, Callable[..., Any]] = {}
     for name, tool in toolkit.tools.items():
+        if name not in _CONSOLIDATION_TOOL_NAMES:
+            continue
         function = getattr(tool, "func", None)
         if not callable(function):
             _failure("memory_agent_toolkit_invalid")
@@ -125,7 +134,7 @@ def _recording_toolkit(
         cloned_tool.func = function
         cloned.tools[name] = cloned_tool
         wrapped_callables[name] = function
-    setattr(cloned, "_unchain_memory_v2_tool_names", tuple(toolkit.tools))
+    setattr(cloned, "_unchain_memory_v2_tool_names", tuple(cloned.tools))
     setattr(cloned, "_unchain_memory_v2_callables", wrapped_callables)
     return cloned
 

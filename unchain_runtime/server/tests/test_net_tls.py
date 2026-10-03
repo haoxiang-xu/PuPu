@@ -72,6 +72,11 @@ def _assert_verifying(testcase, context):
 class VerificationIsNeverDisabledTests(unittest.TestCase):
     """The security red line, asserted across every resolution strategy."""
 
+    def test_absent_resolved_context_fails_closed(self):
+        with _TrustEnv(), mock.patch.object(net_tls, "_resolve", return_value=(None, {})):
+            with self.assertRaisesRegex(RuntimeError, "verification context is unavailable"):
+                net_tls.get_outbound_ssl_context()
+
     def test_every_strategy_verifies(self):
         for strategy in ("auto", "truststore", "certifi", "system"):
             with self.subTest(strategy=strategy):

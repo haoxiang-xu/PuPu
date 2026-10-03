@@ -65,7 +65,8 @@ class PupuOfficialMemoryAgentInvokerFactory:
         model_id: str,
     ) -> None:
         try:
-            self._options = copy.deepcopy(dict(options))
+            from memory_v2_background_worker import narrow_provider_options
+            self._options = narrow_provider_options(options)
         except Exception as error:
             raise PupuMemoryAgentSelectionError(
                 "memory_agent_request_options_invalid"

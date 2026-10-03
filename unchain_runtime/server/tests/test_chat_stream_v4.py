@@ -33,6 +33,69 @@ class ChatStreamV4RouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = miso_app.create_app().test_client()
 
+    def test_chat_stream_v4_emits_safe_provider_retry_without_private_diagnostics(self) -> None:
+        retry = {
+            "type": "provider_retry", "run_id": "run-gemini", "iteration": 1,
+            "timestamp": 1790970507.0, "provider": "gemini", "http_status": 503,
+            "retry_ordinal": 1, "max_retries": 2, "delay_ms": 500,
+        }
+        events = iter([
+            {"type": "run_started", "run_id": "run-gemini", "iteration": 1},
+            retry,
+            {**retry, "response_body": "private-provider-content"},
+            {"type": "final_message", "run_id": "run-gemini",
+             "iteration": 1, "content": "done"},
+        ])
+        with mock.patch.object(miso_routes, "stream_chat_events", return_value=events):
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={"message": "hello", "threadId": "chat-gemini-retry",
+                      "attempt_id": "attempt-gemini-retry"},
+            )
+            body = response.get_data(as_text=True)
+        frames = _parse_sse_blocks(body)
+        retry_events = [payload for name, payload in frames
+                        if name == "runtime_event" and
+                        payload.get("payload", {}).get("kind") == "provider_retry"]
+        self.assertEqual(len(retry_events), 1)
+        self.assertEqual(retry_events[0]["type"], "step.delta")
+        self.assertEqual(retry_events[0]["payload"]["retry_ordinal"], 1)
+        self.assertNotIn("private-provider-content", body)
+
+    def test_chat_stream_v4_records_latency_without_adding_a_wire_event(self) -> None:
+        events = iter(
+            [
+                {"type": "run_started", "run_id": "run-latency", "iteration": 0},
+                {"type": "final_message", "run_id": "run-latency",
+                 "iteration": 0, "content": "private answer"},
+            ]
+        )
+        with mock.patch.object(
+            miso_routes, "stream_chat_events", return_value=events,
+        ), mock.patch("chat_latency_diagnostics._write") as write_log:
+            response = self.client.post(
+                "/chat/stream/v4",
+                json={
+                    "message": "private question",
+                    "threadId": "private-chat-id",
+                    "attempt_id": "private-attempt-id",
+                },
+            )
+            frames = _parse_sse_blocks(response.get_data(as_text=True))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([name for name, _ in frames], [
+            "runtime_event", "runtime_event", "runtime_event", "done",
+        ])
+        write_log.assert_called_once()
+        record = write_log.call_args.args[0]
+        self.assertEqual(record["kind"], "request")
+        self.assertEqual(record["outcome"], "completed")
+        self.assertIn("run_started", record["stages_ms"])
+        self.assertNotIn("private question", str(record))
+        self.assertNotIn("private answer", str(record))
+        self.assertNotIn("private-chat-id", str(record))
+
     def test_chat_stream_v4_requires_message_or_attachments(self) -> None:
         response = self.client.post(
             "/chat/stream/v4",

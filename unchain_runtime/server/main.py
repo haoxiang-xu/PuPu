@@ -198,6 +198,15 @@ def main(argv: list[str] | None = None) -> int:
     _log_outbound_tls_trust()
 
     try:
+        from mcp_credential_store import migrate_mcp_credentials
+
+        migrate_mcp_credentials()
+    except Exception:
+        # Keep non-MCP features available. Credential reads retry the same
+        # fail-closed migration; never expose OS errors or credential contents.
+        print("[unchain] MCP credential migration unavailable", flush=True)
+
+    try:
         from subagent_seeds import ensure_seeds_written
         from pathlib import Path
         ensure_seeds_written(Path.home() / ".pupu" / "subagents")
@@ -226,6 +235,9 @@ def main(argv: list[str] | None = None) -> int:
         lambda: get_memory_v2_runtime(required=False),
         worker_id=f"sidecar-deletion-{os.getpid()}",
     )
+
+    from memory_v2_background_worker import get_memory_background_dispatcher
+    memory_dispatcher = get_memory_background_dispatcher()
 
     shutdown_event = threading.Event()
 
@@ -277,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         deletion_runner.start()
+        if memory_dispatcher is not None:
+            memory_dispatcher.start()
         server.start()
         print(f"[unchain] listening on http://{host}:{port}", flush=True)
         while not shutdown_event.is_set():
@@ -284,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         shutdown_event.set()
     finally:
+        if memory_dispatcher is not None:
+            memory_dispatcher.stop()
         deletion_runner.stop()
         server.stop()
         print("[unchain] server stopped", flush=True)

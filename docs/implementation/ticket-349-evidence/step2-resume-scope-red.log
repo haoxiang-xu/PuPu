@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_resumed_root_uses_actual_attempt_not_ancestor_root_for_source_scope ___
+unchain_runtime/server/tests/test_memory_v2_background_worker.py:392: in test_resumed_root_uses_actual_attempt_not_ancestor_root_for_source_scope
+    assert _jobs(registry)[0]["status"] == "completed"
+E   AssertionError: assert 'failed' == 'completed'
+E
+E     - completed
+E     + failed
+=========================== short test summary info ============================
+FAILED unchain_runtime/server/tests/test_memory_v2_background_worker.py::test_resumed_root_uses_actual_attempt_not_ancestor_root_for_source_scope
+1 failed, 18 deselected in 1.78s

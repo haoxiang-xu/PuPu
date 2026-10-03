@@ -1,0 +1,321 @@
+{
+  "benchmark": "ticket-349-baseline-step1",
+  "completion_hook": {
+    "0": {
+      "enqueue_ms": {
+        "max": 0.002,
+        "median": 0.001,
+        "min": 0.001,
+        "p95": 0.002
+      },
+      "worker_ms": {
+        "max": 0.031,
+        "median": 0.022,
+        "min": 0.02,
+        "p95": 0.028
+      }
+    },
+    "250": {
+      "enqueue_ms": {
+        "max": 0.004,
+        "median": 0.002,
+        "min": 0.002,
+        "p95": 0.004
+      },
+      "worker_ms": {
+        "max": 255.267,
+        "median": 255.109,
+        "min": 250.193,
+        "p95": 255.261
+      }
+    }
+  },
+  "context": {
+    "message-1-turns": {
+      "first_build": {
+        "compile_ms": 5.421,
+        "factory_ms": 2.061,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 2,
+        "snapshot_ms": 2.452,
+        "total_ms": 7.483
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 4.811,
+          "median": 4.32,
+          "min": 3.923,
+          "p95": 4.677
+        },
+        "factory_ms": {
+          "max": 2.52,
+          "median": 2.239,
+          "min": 2.042,
+          "p95": 2.403
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          2
+        ],
+        "snapshot_ms": {
+          "max": 3.073,
+          "median": 2.705,
+          "min": 2.485,
+          "p95": 2.979
+        },
+        "total_ms": {
+          "max": 7.179,
+          "median": 6.576,
+          "min": 6.108,
+          "p95": 7.076
+        }
+      }
+    },
+    "message-100-turns": {
+      "first_build": {
+        "compile_ms": 198.225,
+        "factory_ms": 109.775,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 398,
+        "snapshot_ms": 87.968,
+        "total_ms": 308.0
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 198.431,
+          "median": 196.278,
+          "min": 193.583,
+          "p95": 198.054
+        },
+        "factory_ms": {
+          "max": 109.296,
+          "median": 107.723,
+          "min": 106.498,
+          "p95": 109.029
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          398
+        ],
+        "snapshot_ms": {
+          "max": 88.557,
+          "median": 87.042,
+          "min": 85.69,
+          "p95": 87.971
+        },
+        "total_ms": {
+          "max": 307.728,
+          "median": 303.972,
+          "min": 300.77,
+          "p95": 306.9
+        }
+      }
+    },
+    "message-25-turns": {
+      "first_build": {
+        "compile_ms": 53.878,
+        "factory_ms": 29.18,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 98,
+        "snapshot_ms": 24.408,
+        "total_ms": 83.058
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 57.129,
+          "median": 50.679,
+          "min": 49.774,
+          "p95": 52.737
+        },
+        "factory_ms": {
+          "max": 29.241,
+          "median": 27.772,
+          "min": 27.14,
+          "p95": 29.073
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          98
+        ],
+        "snapshot_ms": {
+          "max": 24.328,
+          "median": 23.073,
+          "min": 22.351,
+          "p95": 24.206
+        },
+        "total_ms": {
+          "max": 86.371,
+          "median": 78.331,
+          "min": 76.975,
+          "p95": 80.962
+        }
+      }
+    },
+    "tool-1-turns": {
+      "first_build": {
+        "compile_ms": 8.82,
+        "factory_ms": 3.591,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 6,
+        "snapshot_ms": 3.586,
+        "total_ms": 12.411
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 8.112,
+          "median": 7.617,
+          "min": 7.103,
+          "p95": 7.959
+        },
+        "factory_ms": {
+          "max": 4.059,
+          "median": 3.858,
+          "min": 3.716,
+          "p95": 4.003
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          6
+        ],
+        "snapshot_ms": {
+          "max": 4.092,
+          "median": 3.814,
+          "min": 3.581,
+          "p95": 4.089
+        },
+        "total_ms": {
+          "max": 11.918,
+          "median": 11.497,
+          "min": 10.892,
+          "p95": 11.785
+        }
+      }
+    },
+    "tool-100-turns": {
+      "first_build": {
+        "compile_ms": 200.432,
+        "factory_ms": 109.82,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 402,
+        "snapshot_ms": 88.211,
+        "total_ms": 310.252
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 203.697,
+          "median": 199.688,
+          "min": 198.159,
+          "p95": 201.4
+        },
+        "factory_ms": {
+          "max": 110.846,
+          "median": 109.77,
+          "min": 108.897,
+          "p95": 110.247
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          402
+        ],
+        "snapshot_ms": {
+          "max": 89.266,
+          "median": 88.535,
+          "min": 87.684,
+          "p95": 89.226
+        },
+        "total_ms": {
+          "max": 313.184,
+          "median": 309.503,
+          "min": 307.195,
+          "p95": 311.398
+        }
+      }
+    },
+    "tool-25-turns": {
+      "first_build": {
+        "compile_ms": 55.37,
+        "factory_ms": 29.099,
+        "provider_calls": 0,
+        "snapshot_count": 2,
+        "snapshot_events": 102,
+        "snapshot_ms": 24.23,
+        "total_ms": 84.47
+      },
+      "warm_replay": {
+        "compile_ms": {
+          "max": 54.824,
+          "median": 54.457,
+          "min": 53.679,
+          "p95": 54.823
+        },
+        "factory_ms": {
+          "max": 30.12,
+          "median": 29.683,
+          "min": 29.06,
+          "p95": 30.084
+        },
+        "provider_calls": [
+          0
+        ],
+        "snapshot_count": [
+          2
+        ],
+        "snapshot_events": [
+          102
+        ],
+        "snapshot_ms": {
+          "max": 25.183,
+          "median": 24.491,
+          "min": 23.796,
+          "p95": 24.938
+        },
+        "total_ms": {
+          "max": 84.943,
+          "median": 84.043,
+          "min": 83.046,
+          "p95": 84.838
+        }
+      }
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.11"
+  },
+  "samples": 30,
+  "scope": {
+    "excluded": "Electron/IPC, provider network and tokens, real Memory Agent model, cold sidecar startup",
+    "included": "real Unchain SQLite journal/request factory/compile coordinator; actual PuPu memory run hooks with controlled fake worker delay"
+  },
+  "warmups": 3
+}

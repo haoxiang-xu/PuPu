@@ -61,6 +61,8 @@ const SAFE_ERROR_PATTERN = /^vault_[a-z0-9_]{1,80}$/;
 const SAFE_FIELD_PATTERN = /^[^\u0000-\u001f\u007f]{1,512}$/u;
 const SAFE_ENV_KEYS = Object.freeze([
   "COMSPEC",
+  // Linux MCP credentials use Secret Service over the user's session bus.
+  "DBUS_SESSION_BUS_ADDRESS",
   "LANG",
   "LC_ALL",
   "PATH",

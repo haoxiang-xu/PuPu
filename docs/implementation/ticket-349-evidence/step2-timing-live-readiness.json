@@ -1,0 +1,71 @@
+{
+  "before": {
+    "status": "ready",
+    "reason": "",
+    "memory": {
+      "configured": true,
+      "ready": false,
+      "status": "degraded",
+      "reason": "context_v2_readiness_unavailable",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 5,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "sidecarFingerprint": "",
+      "runtimeProtocolDigest": "",
+      "runtimeProtocolVerification": "",
+      "snapshotFingerprint": "",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  },
+  "candidate": {
+    "status": "ready",
+    "reason": "",
+    "memory": {
+      "configured": true,
+      "ready": false,
+      "status": "degraded",
+      "reason": "context_v2_schema_incompatible",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 5,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "sidecarFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "runtimeProtocolDigest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  },
+  "candidate_database_schema_rows": [
+    [
+      1,
+      "2026-09-26 18:13:17"
+    ],
+    [
+      2,
+      "2026-09-26 18:13:17"
+    ],
+    [
+      3,
+      "2026-09-26 18:13:17"
+    ]
+  ],
+  "electron_required_schema": 2
+}

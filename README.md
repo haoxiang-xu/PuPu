@@ -132,9 +132,17 @@ Manage multiple conversations without losing context or cluttering your workflow
 
 ## Contributing
 
-Contributions are welcome.
+Contributions are welcome, and you do not need to be invited or approved first.
 
-The fastest way to contribute is the [MCP tool store](./CONTRIBUTING.md#-add-a-tool--mcp-server-to-the-store) — no code required. See [CONTRIBUTING.md](./CONTRIBUTING.md) for everything else.
+- **Never contributed here before?** [Your first contribution](./docs/contributing/first-contribution.md)
+  covers finding a task, claiming it, setting up, and opening the PR.
+- **No code, fastest path:** [submit an MCP server, Skill, or Toolkit](./CONTRIBUTING.md#-contribute-an-mcp-server-skill-or-toolkit)
+  through a short form.
+- **Code, docs, UI:** [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, tests, and
+  the `base: dev` rule. Open tasks are labelled
+  [`good first issue`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+  and [`help wanted`](https://github.com/haoxiang-xu/PuPu/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+Everyone taking part agrees to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 By intentionally submitting a contribution, you agree to the terms in
 [docs/CLA.md](./docs/CLA.md). In short:
@@ -157,6 +165,7 @@ the PuPu name and brand are not automatically included in those rights.
 - License text: [LICENSE](./LICENSE)
 - Project notices: [NOTICE](./NOTICE)
 - Contributor terms: [docs/CLA.md](./docs/CLA.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 - Brand usage rules: [docs/TRADEMARK_POLICY.md](./docs/TRADEMARK_POLICY.md)
 
 If you ship a modified fork, rename it and replace PuPu branding unless you

@@ -2,6 +2,7 @@ import { useState } from "react";
 import contextV2Bridge from "../../SERVICEs/bridges/context_v2_bridge";
 import MemoryV2PendingReviews from "./memory_v2_pending_reviews";
 import MemoryV2CanonicalJournalReload from "./memory_v2_journal_reload";
+import MemoryJobDiscovery from "./memory_job_discovery";
 
 const mono = "Menlo, Monaco, Consolas, monospace";
 
@@ -269,6 +270,9 @@ export const MemoryV2ContextAudit = ({
   ownerChatId,
   isDark,
   onJournalProjection,
+  messageId,
+  rootRunId,
+  onMemoryJobs,
 }) => {
   const pressure = audit.pressure;
   const compression = audit.compression;
@@ -313,6 +317,7 @@ export const MemoryV2ContextAudit = ({
     : "";
   return (
     <div data-testid="memory-v2-context-audit">
+      <MemoryJobDiscovery ownerChatId={ownerChatId} messageId={messageId} rootRunId={rootRunId} onUpdate={onMemoryJobs} />
       <AuditRow label="Mode" value={audit.modeLabel} isDark={isDark} />
       <AuditRow label="Trace state" value={audit.status} isDark={isDark} />
       <AuditRow

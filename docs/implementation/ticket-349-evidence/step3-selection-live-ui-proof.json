@@ -1,0 +1,115 @@
+{
+  "status": {
+    "status": "ready",
+    "memoryV2": {
+      "configured": true,
+      "ready": true,
+      "status": "ready",
+      "reason": "",
+      "featureCeiling": "all",
+      "configuredMode": "all",
+      "releaseRolloutMode": "all",
+      "rolloutMode": "all",
+      "canaryPercent": 5,
+      "readOnlyDegraded": false,
+      "platformActiveBlocked": false,
+      "releaseRolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "rolloutFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "sidecarFingerprint": "c1b938696d24cbc1fe3d48652651277616f3a051e275f5dcf29ae60789365dcc",
+      "runtimeProtocolDigest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+      "runtimeProtocolVerification": "runtime_protocol",
+      "snapshotFingerprint": "",
+      "windowsCapability": {
+        "reason": "",
+        "status": "not_applicable"
+      }
+    }
+  },
+  "memory": {
+    "data": "U3ludGhldGljIHZlcmlmaWNhdGlvbiBtYXJrZXI6IHZpb2xldCBsaWdodGhvdXNlIDM0OS4=",
+    "encoding": "base64",
+    "limit": 32768,
+    "mime_type": "text/markdown",
+    "next_offset": null,
+    "offset": 0,
+    "owner_chat_id": "chat-1790458189438-1ce0de0db159e8",
+    "ref": "pupu://memory/space-chat-8fc4389cfc4f8050383c9403b13a4e45611f116e/memory-f478a1b3364b96b21461096d8bec0725@1",
+    "sha256": "5309618a91fae78c4feb306172ceb3b766be054e0c8083fc00ad30a3e4d61c4e",
+    "total_bytes": 53,
+    "truncated": false
+  },
+  "jobs": {
+    "jobs": [
+      {
+        "attempt_count": 1,
+        "attempt_id": "unchain-1790458193360-1ea1250d3cf25",
+        "candidate_refs": [
+          "pupu://memory/candidate/candidate-78feaccf4c9bc67598a37d0ecffea32f@1"
+        ],
+        "completed_at_ms": 1790458212184,
+        "created_at_ms": 1790458200070,
+        "job_id": "curation-job-168e32ed93f5a3414ca72eb39ac3e5df",
+        "job_type": "memory_consolidation",
+        "last_error_code": "",
+        "lease_expires_at_ms": null,
+        "lease_owner": null,
+        "next_attempt_at_ms": 0,
+        "owner_chat_id": "chat-1790458189438-1ce0de0db159e8",
+        "payload": {
+          "candidate_count": 1,
+          "trigger_key": "completed_root_run:2ac49720c7aa6ac2975640183a0ec159dfa16f742c0e81017f8f7eb5757a02ab"
+        },
+        "replayed": false,
+        "revision": 3,
+        "run_id": "unchain-1790458193360-1ea1250d3cf25",
+        "session_id": "chat-1790458189438-1ce0de0db159e8",
+        "status": "completed",
+        "updated_at_ms": 1790458212184
+      }
+    ],
+    "owner_chat_id": "chat-1790458189438-1ce0de0db159e8"
+  },
+  "candidates": {
+    "candidates": [
+      {
+        "applied_entry_id": "memory-f478a1b3364b96b21461096d8bec0725",
+        "applied_entry_revision": 1,
+        "attempt_id": "",
+        "binding_revision": 3,
+        "candidate_id": "candidate-78feaccf4c9bc67598a37d0ecffea32f",
+        "candidate_ref": "pupu://memory/candidate/candidate-78feaccf4c9bc67598a37d0ecffea32f@1",
+        "confidence": 1,
+        "content_bytes": 53,
+        "content_sha256": "5309618a91fae78c4feb306172ceb3b766be054e0c8083fc00ad30a3e4d61c4e",
+        "description": "Synthetic verification marker",
+        "error_code": "",
+        "kind": "file",
+        "mime_type": "text/markdown",
+        "name": "defer-fix.md",
+        "owner_chat_id": "chat-1790458189438-1ce0de0db159e8",
+        "payload_sha256": "f4e526eea4a69b77a9b770666b4897606f53c16c9615d709f92a7a9e3aa274b0",
+        "rationale": "Isolated synthetic verification",
+        "replayed": false,
+        "result_ref": {
+          "fragment": "space-chat-8fc4389cfc4f8050383c9403b13a4e45611f116e",
+          "id": "memory-f478a1b3364b96b21461096d8bec0725",
+          "kind": "memory",
+          "revision": 1,
+          "schema": "unchain.resource_ref.v1"
+        },
+        "revision": 1,
+        "sensitivity": "normal",
+        "session_id": "",
+        "source_agent_run_id": "graph-step-86b8f424cfe214be9f1f088d75caa38c63a69412d2215edbd81460c2d8b1aaa2",
+        "source_event_ids": [
+          "event-e13091a28619f26264d36d53331956aa376f547ac7c079111c82242f30e68234"
+        ],
+        "source_tool_call_id": "",
+        "status": "applied",
+        "target_path": "/verification/defer-fix.md",
+        "target_space_id": "space-chat-8fc4389cfc4f8050383c9403b13a4e45611f116e"
+      }
+    ],
+    "owner_chat_id": "chat-1790458189438-1ce0de0db159e8"
+  }
+}

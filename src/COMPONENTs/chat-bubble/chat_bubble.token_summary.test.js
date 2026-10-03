@@ -315,4 +315,61 @@ describe("assistant token summary", () => {
       window.cancelIdleCallback = originalCancelIdle;
     }
   });
+
+  test("a retried turn shows the usage it knows and how many calls had none (#386)", async () => {
+    const { emptyUsage } = require("../../../electron/tests/fixtures/run_bundle_v1_fixture.cjs");
+    const bundle = buildRunBundleV1({ multiModel: true });
+    const failed = bundle.provider_calls.find(
+      (receipt) => receipt.provider.name === "anthropic",
+    );
+    failed.status = "failed";
+    failed.usage = emptyUsage();
+    failed.raw_usage_sha256 = null;
+    bundle.metrics.events
+      .filter((event) => event.subject_id === failed.provider_call_id)
+      .forEach((event) => {
+        event.outcome = "failed";
+      });
+    bundle.usage_slices = bundle.usage_slices.filter(
+      (slice) => slice.provider !== "anthropic",
+    );
+    bundle.aggregation.direct_usage = emptyUsage();
+    bundle.aggregation.all_usage = emptyUsage();
+    bundle.coverage = {
+      status: "partial",
+      receipt_count: 2,
+      observed_usage_count: 1,
+      missing_usage_count: 1,
+      uncertain_call_count: 0,
+      missing_usage_call_ids: [failed.provider_call_id],
+    };
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+    try {
+      renderWithConfig(
+        <ChatBubble
+          message={{
+            id: "assistant-retried",
+            role: "assistant",
+            content: "Final answer",
+            status: "done",
+            meta: { bundle },
+          }}
+          traceFrames={[]}
+        />,
+      );
+      const summary = await screen.findByTestId("token-summary");
+      expect(summary.textContent).toMatch(/1,000 in/);
+      expect(summary.textContent).toMatch(/1,200 total/);
+      expect(summary.textContent).toMatch(/1 of 2 calls without usage/);
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
+  });
 });

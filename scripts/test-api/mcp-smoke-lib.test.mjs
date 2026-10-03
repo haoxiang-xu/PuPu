@@ -8,6 +8,49 @@ import {
   summarizeToolkit,
 } from "./mcp-smoke-lib.mjs";
 
+it("keeps OAuth credential values out of both the smoke summary and logger", async () => {
+  const canary = "synthetic-oauth-credential-canary";
+  const logs = [];
+  const fetchImpl = async (url) => {
+    const pathname = new URL(url).pathname;
+    const item = {
+      entryId: "productivity.notion-remote",
+      toolkitId: "mcp.productivity.notion-remote",
+      id: "mcp.productivity.notion-remote",
+      name: "mcp.productivity.notion-remote",
+      authProvider: "notion",
+      authStatus: "connected",
+      status: "available",
+      configured: true,
+      access_token: canary,
+      refresh_token: canary,
+      clientSecret: canary,
+      secret_values: { TOKEN: canary },
+      state: canary,
+      authUrl: `https://mcp.example/oauth?state=${canary}`,
+    };
+    const payload = pathname === "/mcp/oauth/apps"
+      ? { apps: [item] }
+      : { ...item, toolkits: [item], toolkit: item, ok: true, cancelled: true };
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const summary = await runMcpSmoke({
+    authToken: canary,
+    oauthStartEntry: "productivity.notion-remote",
+    fetchImpl,
+    logger: (...args) => logs.push(args),
+  });
+  assert.equal(JSON.stringify(summary).includes(canary), false);
+  assert.equal(JSON.stringify(logs).includes(canary), false);
+  assert.equal(summary.oauthStart.authUrlHost, "mcp.example");
+  assert.equal(summary.oauthStart.hasState, true);
+  assert.equal(summary.oauthCancel.cancelled, true);
+  assert.ok(JSON.stringify(logs).includes("productivity.notion-remote"));
+});
+
 describe("mcp smoke helpers", () => {
   it("masks tokens, secrets, authorization headers, and auth urls", () => {
     const masked = maskSensitive({

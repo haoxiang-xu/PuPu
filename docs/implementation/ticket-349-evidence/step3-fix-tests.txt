@@ -1,0 +1,22 @@
+........................................................................ [ 32%]
+........................................................................ [ 64%]
+..........................................F............................. [ 96%]
+........                                                                 [100%]
+=================================== FAILURES ===================================
+__ test_versioned_windows_protocol_sink_contract_matches_sidecar_requirements __
+.local/ticket-349-defer-fix/server/tests/test_context_memory_v2_runtime_protocol.py:61: in test_versioned_windows_protocol_sink_contract_matches_sidecar_requirements
+    contract = _windows_protocol_sink_contract()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-defer-fix/server/tests/test_context_memory_v2_runtime_protocol.py:27: in _windows_protocol_sink_contract
+    value = json.loads(WINDOWS_PROTOCOL_SINK_CONTRACT.read_text(encoding="utf-8"))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/pathlib.py:1013: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/red/Desktop/GITRepo/pupu-349/.local/docs/contracts/memory-v2/windows-required-protocol-and-sink-contract.v1.json'
+=========================== short test summary info ============================
+FAILED .local/ticket-349-defer-fix/server/tests/test_context_memory_v2_runtime_protocol.py::test_versioned_windows_protocol_sink_contract_matches_sidecar_requirements
+1 failed, 223 passed in 38.12s

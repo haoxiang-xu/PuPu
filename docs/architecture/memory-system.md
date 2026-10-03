@@ -54,10 +54,14 @@ Built by `_session_collection_name()` / the prefix helpers in `memory_embeddings
 
 ## Frontend Configuration
 
-Memory settings are authoritative in the `memory` namespace of `settings.db`
-(read through the settings repository memory snapshot; `localStorage.settings.memory`
-remains a browser/degraded fallback). They are injected into the payload by
-`injectMemoryIntoPayload()` in `api.unchain.js`.
+Legacy memory settings are authoritative in the `memory` namespace of
+`settings.db` (read through the settings repository memory snapshot;
+`localStorage.settings.memory` remains a browser/degraded fallback). They are
+injected into the payload by `injectMemoryIntoPayload()` in `api.unchain.js`.
+The Settings > Memory page keeps these controls in a collapsed legacy section;
+they do not enable or disable the current Memory service. Its normal page status
+is read-only and comes from the existing Context V2 status bridge, where it
+describes availability for new conversations rather than a particular chat.
 
 Injected fields:
 

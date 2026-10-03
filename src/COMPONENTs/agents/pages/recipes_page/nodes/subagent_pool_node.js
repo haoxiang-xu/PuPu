@@ -45,7 +45,7 @@ export default function SubagentPoolNode({
                 flexShrink: 0,
               }}
             >
-              <Icon src="shapes" color="#fff" style={{ width: 16, height: 16 }} />
+              <Icon src="subagent_pool" color="#fff" style={{ width: 16, height: 16 }} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div

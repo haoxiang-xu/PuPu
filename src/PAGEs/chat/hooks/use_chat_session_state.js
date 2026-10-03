@@ -12,7 +12,6 @@ import {
   subscribeChatsStore,
   updateChatDraft,
 } from "../../../SERVICEs/chat_storage";
-import { isFeatureFlagEnabled } from "../../../SERVICEs/feature_flags";
 import {
   readReasoningEffortPref,
   writeReasoningEffortPref,
@@ -81,9 +80,8 @@ const modelRecordExtras = (reasoningEffort, contextWindow) => ({
      - matched text is NEVER logged, echoed, or surfaced anywhere;
      - the guard only ever REPLACES persisted text with "" — it never mutates
        the in-memory composer, so typing is untouched;
-     - fully inert when `enable_memory_v2` is off (byte-for-byte equivalent).
+     - applied for every chat, including profiles with retired feature flags.
 */
-const MEMORY_V2_FLAG = "enable_memory_v2";
 
 const SECRET_SYNTAX_OPEN_PREFIX = "{{secret:";
 const SECRET_SYNTAX_CLOSE_TAG = "{{/secret}}";
@@ -140,11 +138,9 @@ export const draftTextLooksSecret = (text) => {
   return false;
 };
 
-/* Flag is read BEFORE the predicate so a disabled build does exactly what it
-   did before this guard existed. Attachments are deliberately untouched. */
+/* Draft protection is always active. Attachments are deliberately untouched. */
 const secretSafeDraftText = (text) => {
   if (typeof text !== "string" || !text) return text;
-  if (!isFeatureFlagEnabled(MEMORY_V2_FLAG)) return text;
   return draftTextLooksSecret(text) ? "" : text;
 };
 
@@ -666,9 +662,6 @@ export const useChatSessionState = ({
      text: the user can still see, edit, and send it (send-path capture then
      handles it) — only the durable copy is emptied. */
   useEffect(() => {
-    if (!isFeatureFlagEnabled(MEMORY_V2_FLAG)) {
-      return;
-    }
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
       return;

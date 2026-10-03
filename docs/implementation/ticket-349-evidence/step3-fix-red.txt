@@ -1,0 +1,66 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+________ test_registry_failure_keeps_normal_and_graph_stream_completed _________
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:33: in test_registry_failure_keeps_normal_and_graph_stream_completed
+    test_active_host_builds_agent_with_only_official_normal_memory_tools(tmp_path / "normal")
+unchain_runtime/server/tests/test_memory_v2_unchain_runtime_factory.py:450: in test_active_host_builds_agent_with_only_official_normal_memory_tools
+    assert hook(result) is None
+           ^^^^^^^^^^^^
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/module.py:258: in enqueue_terminal
+    completion = completion_factory.build(result=result)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-defer-checkpoint/server/memory_v2_unchain_root_completion.py:307: in build
+    self.before_enqueue()
+.local/ticket-349-defer-checkpoint/server/memory_v2_unchain_runtime_factory.py:768: in prepare_memory_completion
+    register_background_host(
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:26: in _unavailable
+    raise sqlite3.OperationalError("injected registry outage")
+E   sqlite3.OperationalError: injected registry outage
+__ test_registration_outage_cold_restart_restores_selection_and_applies_once ___
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:26: in _unavailable
+    raise sqlite3.OperationalError("injected registry outage")
+E   sqlite3.OperationalError: injected registry outage
+
+The above exception was the direct cause of the following exception:
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:54: in test_registration_outage_cold_restart_restores_selection_and_applies_once
+    receipt = complete_pupu_unchain_graph_root(host, agent_name="Root")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-defer-checkpoint/server/memory_v2_unchain_graph_root_completion.py:506: in complete_pupu_unchain_graph_root
+    _fail("graph_root_completion_capture_failed", error)
+.local/ticket-349-defer-checkpoint/server/memory_v2_unchain_graph_root_completion.py:218: in _fail
+    raise error from cause
+E   memory_v2_unchain_graph_root_completion.PupuUnchainGraphRootCompletionError: graph_root_completion_capture_failed
+_ test_official_nine_tool_producer_reaches_strict_raw_factory_and_completes_job _
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:146: in test_official_nine_tool_producer_reaches_strict_raw_factory_and_completes_job
+    assert _jobs(registry)[0]["status"] == "completed", _jobs(registry)[0].get("last_error_code")
+E   AssertionError: memory_agent_toolkit_scope_invalid
+E   assert 'failed' == 'completed'
+E
+E     - completed
+E     + failed
+_________ test_real_candidate_proposal_uri_is_lossless_and_replayable __________
+.local/ticket-349-defer-fix/red/test_audit_fixes.py:174: in test_real_candidate_proposal_uri_is_lossless_and_replayable
+    first = toolkit.tools["memory_propose"].func(**args)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/toolkit/toolkit.py:646: in memory_propose
+    return present(
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/toolkit/toolkit.py:141: in present
+    return model_value(
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/toolkit/presentation.py:57: in model_value
+    return model_value(to_dict(), codec, hidden_fields=hidden_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/toolkit/presentation.py:45: in model_value
+    str(key): model_value(child, codec, hidden_fields=hidden_fields)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-live-timing/installed-wheel/unchain/memory/toolkit/presentation.py:43: in model_value
+    return codec.encode(ResourceRef.from_dict(value))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.local/ticket-349-defer-checkpoint/server/memory_v2_unchain_runtime_factory.py:211: in encode
+    raise ValueError("reference cannot be represented as a PuPu URI")
+E   ValueError: reference cannot be represented as a PuPu URI
+=========================== short test summary info ============================
+FAILED .local/ticket-349-defer-fix/red/test_audit_fixes.py::test_registry_failure_keeps_normal_and_graph_stream_completed
+FAILED .local/ticket-349-defer-fix/red/test_audit_fixes.py::test_registration_outage_cold_restart_restores_selection_and_applies_once
+FAILED .local/ticket-349-defer-fix/red/test_audit_fixes.py::test_official_nine_tool_producer_reaches_strict_raw_factory_and_completes_job
+FAILED .local/ticket-349-defer-fix/red/test_audit_fixes.py::test_real_candidate_proposal_uri_is_lossless_and_replayable
+4 failed, 13 deselected in 1.73s

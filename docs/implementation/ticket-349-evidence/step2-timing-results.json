@@ -1,0 +1,311 @@
+{
+  "kind": "controlled real SQLite and worker; injected model delay; no network",
+  "candidate": {
+    "pupu_server_snapshot_sha256": "176faa3e22f2ad42fcf3580654d35b1ba326e425789917aede12b16c094c7100",
+    "file_count": 372,
+    "wheel_path": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-cache-checkpoint/wheels/unchain-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44"
+  },
+  "original_completion_sha256": "55333e846386507ec4684cfff45be77729d4557f2862c024b43d1d40c4d70e31",
+  "runtime_manifest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+  "summary": [
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "samples": 5,
+      "foreground_ms": 112.272,
+      "memory_done_ms": 125.939,
+      "model_and_apply_ms": 26.056
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "samples": 5,
+      "foreground_ms": 89.918,
+      "memory_done_ms": 205.606,
+      "model_and_apply_ms": 26.812
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "samples": 5,
+      "foreground_ms": 1149.664,
+      "memory_done_ms": 1166.028,
+      "model_and_apply_ms": 1063.36
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "samples": 5,
+      "foreground_ms": 88.285,
+      "memory_done_ms": 1243.966,
+      "model_and_apply_ms": 1063.435
+    }
+  ],
+  "samples": [
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": true,
+      "repetition": 0,
+      "foreground_ms": 112.87725006695837,
+      "memory_done_ms": 134.50754201039672,
+      "memory_applied_ms": 110.36495899315923,
+      "model_and_apply_ms": 26.286749984137714,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": true,
+      "repetition": 0,
+      "foreground_ms": 89.2895000288263,
+      "memory_done_ms": 213.1170000648126,
+      "memory_applied_ms": 187.02087504789233,
+      "model_and_apply_ms": 26.806792011484504,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 1,
+      "foreground_ms": 87.44837495032698,
+      "memory_done_ms": 202.48670794535428,
+      "memory_applied_ms": 178.6933329422027,
+      "model_and_apply_ms": 27.045541908591986,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 1,
+      "foreground_ms": 119.81991596985608,
+      "memory_done_ms": 134.41379100549966,
+      "memory_applied_ms": 117.22024995833635,
+      "model_and_apply_ms": 28.223874978721142,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 2,
+      "foreground_ms": 119.58275001961738,
+      "memory_done_ms": 133.56666604522616,
+      "memory_applied_ms": 117.1310410136357,
+      "model_and_apply_ms": 27.418749989010394,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 2,
+      "foreground_ms": 89.9175419472158,
+      "memory_done_ms": 207.66549999825656,
+      "memory_applied_ms": 180.93174998648465,
+      "model_and_apply_ms": 26.61012497264892,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 3,
+      "foreground_ms": 91.33108402602375,
+      "memory_done_ms": 206.87391702085733,
+      "memory_applied_ms": 180.19558407831937,
+      "model_and_apply_ms": 26.918250019662082,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 3,
+      "foreground_ms": 112.27191600482911,
+      "memory_done_ms": 125.93937502242625,
+      "memory_applied_ms": 109.84191601164639,
+      "model_and_apply_ms": 26.055791066028178,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 4,
+      "foreground_ms": 111.94487498141825,
+      "memory_done_ms": 125.7154589984566,
+      "memory_applied_ms": 109.56479201558977,
+      "model_and_apply_ms": 25.868625030852854,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 4,
+      "foreground_ms": 89.30662495549768,
+      "memory_done_ms": 205.60554100666195,
+      "memory_applied_ms": 179.2596250306815,
+      "model_and_apply_ms": 26.812000083737075,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 5,
+      "foreground_ms": 90.09437495842576,
+      "memory_done_ms": 205.01150004565716,
+      "memory_applied_ms": 179.04850002378225,
+      "model_and_apply_ms": 26.6462080180645,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 0,
+      "warmup": false,
+      "repetition": 5,
+      "foreground_ms": 111.08579102437943,
+      "memory_done_ms": 125.40816608816385,
+      "memory_applied_ms": 108.73891599476337,
+      "model_and_apply_ms": 25.816624984145164,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": true,
+      "repetition": 0,
+      "foreground_ms": 1147.890332969837,
+      "memory_done_ms": 1164.7337500471622,
+      "memory_applied_ms": 1144.8123750742525,
+      "model_and_apply_ms": 1061.347167007625,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": true,
+      "repetition": 0,
+      "foreground_ms": 91.12716699019074,
+      "memory_done_ms": 1247.6569169666618,
+      "memory_applied_ms": 1217.2880420694128,
+      "model_and_apply_ms": 1063.208375009708,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 1,
+      "foreground_ms": 87.21133309882134,
+      "memory_done_ms": 1249.2676670663059,
+      "memory_applied_ms": 1220.2858329983428,
+      "model_and_apply_ms": 1064.9979159934446,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 1,
+      "foreground_ms": 1147.840291960165,
+      "memory_done_ms": 1164.2404169542715,
+      "memory_applied_ms": 1144.8888330487534,
+      "model_and_apply_ms": 1062.0307080680504,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 2,
+      "foreground_ms": 1150.1222919905558,
+      "memory_done_ms": 1166.3234579609707,
+      "memory_applied_ms": 1147.06666697748,
+      "model_and_apply_ms": 1064.0598749741912,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 2,
+      "foreground_ms": 88.2846659515053,
+      "memory_done_ms": 1242.376207956113,
+      "memory_applied_ms": 1214.955999981612,
+      "model_and_apply_ms": 1063.1735420320183,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 3,
+      "foreground_ms": 94.39137496519834,
+      "memory_done_ms": 1243.9658329822123,
+      "memory_applied_ms": 1216.6954999556765,
+      "model_and_apply_ms": 1061.0506249358878,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 3,
+      "foreground_ms": 1149.6640410041437,
+      "memory_done_ms": 1166.67004104238,
+      "memory_applied_ms": 1146.5896250447258,
+      "model_and_apply_ms": 1063.3610000368208,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 4,
+      "foreground_ms": 1149.7837910428643,
+      "memory_done_ms": 1166.0284580430016,
+      "memory_applied_ms": 1146.693208022043,
+      "model_and_apply_ms": 1063.3600419387221,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 4,
+      "foreground_ms": 88.1502500269562,
+      "memory_done_ms": 1242.441999958828,
+      "memory_applied_ms": 1214.949833927676,
+      "model_and_apply_ms": 1063.434666953981,
+      "candidates": 1
+    },
+    {
+      "mode": "background",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 5,
+      "foreground_ms": 90.41237505152822,
+      "memory_done_ms": 1245.317624998279,
+      "memory_applied_ms": 1215.5116670764983,
+      "model_and_apply_ms": 1063.46812506672,
+      "candidates": 1
+    },
+    {
+      "mode": "sync",
+      "delay_ms": 1000,
+      "warmup": false,
+      "repetition": 5,
+      "foreground_ms": 1120.8183330018073,
+      "memory_done_ms": 1136.4386250497773,
+      "memory_applied_ms": 1118.1383330840617,
+      "model_and_apply_ms": 1034.063708037138,
+      "candidates": 1
+    }
+  ]
+}

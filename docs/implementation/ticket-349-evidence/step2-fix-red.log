@@ -1,0 +1,44 @@
+....................FFFFF                                              [100%]
+=================================== FAILURES ===================================
+__________ test_delayed_custom_job_does_not_change_transport[builtin] __________
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:78: in test_delayed_custom_job_does_not_change_transport
+    assert _process(registry) == 'retry'
+E   AssertionError: assert 'processed' == 'retry'
+E
+E     - retry
+E     + processed
+_________ test_delayed_custom_job_does_not_change_transport[custom-b] __________
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:78: in test_delayed_custom_job_does_not_change_transport
+    assert _process(registry) == 'retry'
+E   AssertionError: assert 'processed' == 'retry'
+E
+E     - retry
+E     + processed
+_____ test_delayed_custom_job_does_not_change_transport[changed-endpoint] ______
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:78: in test_delayed_custom_job_does_not_change_transport
+    assert _process(registry) == 'retry'
+E   AssertionError: assert 'processed' == 'retry'
+E
+E     - retry
+E     + processed
+_________ test_ready_legacy_job_is_found_beyond_deferred_page[pending] _________
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:118: in test_ready_legacy_job_is_found_beyond_deferred_page
+    assert _process(registry) == 'processed'
+E   AssertionError: assert 'idle' == 'processed'
+E
+E     - processed
+E     + idle
+_________ test_ready_legacy_job_is_found_beyond_deferred_page[leased] __________
+unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py:118: in test_ready_legacy_job_is_found_beyond_deferred_page
+    assert _process(registry) == 'processed'
+E   AssertionError: assert 'idle' == 'processed'
+E
+E     - processed
+E     + idle
+=========================== short test summary info ============================
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_delayed_custom_job_does_not_change_transport[builtin]
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_delayed_custom_job_does_not_change_transport[custom-b]
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_delayed_custom_job_does_not_change_transport[changed-endpoint]
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_ready_legacy_job_is_found_beyond_deferred_page[pending]
+FAILED unchain_runtime/server/tests/test_memory_v2_background_legacy_regressions.py::test_ready_legacy_job_is_found_beyond_deferred_page[leased]
+5 failed, 20 passed, 2 subtests passed in 5.32s

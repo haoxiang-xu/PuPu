@@ -1,0 +1,9 @@
+{
+  "error": "Target 'process_owner' not found",
+  "target": {
+    "name": "process_owner"
+  },
+  "direction": "upstream",
+  "impactedCount": null,
+  "risk": "UNKNOWN"
+}

@@ -1,0 +1,19 @@
+{
+  "legacy_page_false_idle": {
+    "dispatcher_result": "idle",
+    "newer_future_jobs": 500,
+    "direct_store_claim_found_original_ready_job": true
+  },
+  "legacy_custom_to_builtin": {
+    "enqueued_with_custom_transport": true,
+    "later_registration_custom": false,
+    "old_job_agent_construction": [
+      {
+        "provider": "openai",
+        "model": "gpt-test",
+        "custom_transport": false
+      }
+    ],
+    "outbound_requests": 0
+  }
+}

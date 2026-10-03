@@ -1,0 +1,10 @@
+[
+  {
+    "custom": false,
+    "model_id": "gpt-5",
+    "provider": "openai",
+    "reason": "",
+    "schema": "pupu.memory-background-host.v1",
+    "status": "Ready"
+  }
+]

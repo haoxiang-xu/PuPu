@@ -23,6 +23,7 @@ const ChatBubble = ({
   traceFrames = [],
   pendingContinuationRequest,
   onContinuationDecision,
+  onStopStream,
   resendPresentation = null,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -98,7 +99,8 @@ const ChatBubble = ({
       f.type === "observation" ||
       f.type === "fyi_injected" ||
       f.type === "side_answer" ||
-      f.type === "clarify_request",
+      f.type === "clarify_request" ||
+      f.type === "provider_retry",
   );
   const hasVisibleTraceActivity = hasToolActivity;
   const tokenUsage =
@@ -143,6 +145,7 @@ const ChatBubble = ({
           }
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
+          onStopStream={onStopStream}
           bundle={message.meta?.bundle}
           completionDiagnostics={completionDiagnostics}
           subagentFrames={confirmationTraceState.subagentFrames}
@@ -162,6 +165,7 @@ const ChatBubble = ({
           onClarifyResolve={onClarifyResolve}
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
+          onStopStream={onStopStream}
         />
       )}
 
@@ -278,6 +282,7 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.pendingContinuationRequest ===
     nextProps.pendingContinuationRequest &&
   previousProps.onContinuationDecision === nextProps.onContinuationDecision &&
+  previousProps.onStopStream === nextProps.onStopStream &&
   previousProps.resendPresentation === nextProps.resendPresentation;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);

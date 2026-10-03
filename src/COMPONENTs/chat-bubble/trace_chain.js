@@ -7,6 +7,14 @@ import {
   useRef,
 } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import {
+  conversationActivity,
+  mergeMemoryJobProjection,
+  mergeMemoryJobRuns,
+  organizationActivity,
+} from "../../SERVICEs/runtime_events/memory_activity_labels";
+import MemoryAgentLiveDetails from "./memory_agent_live_details";
 import {
   colorWithAlpha,
   themeHighlightColor,
@@ -34,13 +42,21 @@ import {
 } from "../../PAGEs/chat/utils/message_finality";
 import { presentMemoryV2Audit } from "../../SERVICEs/runtime_events/memory_v2_trace_presenter";
 import {
-  MemoryAgentAudit,
   MemoryV2ContextAudit,
 } from "./memory_v2_trace_audit";
 import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
 import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
 import { hasContextCompositionEvidence } from "../../SERVICEs/context_composition_v1";
 import ContextCompositionModal from "./context-composition/context_composition_modal";
+import {
+  groupProviderRetryFrames,
+  providerDisplayName,
+  providerRetryReason,
+  ProviderRetryRecordDetails,
+  ProviderRetryWaitBody,
+  RetryStoppedPoint,
+  RetryWaitPoint,
+} from "./provider_retry_step";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -51,10 +67,49 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "tool_result",
   "final_message",
   "error",
+  "provider_retry",
   "fyi_injected",
   "side_answer",
   "clarify_request",
 ]);
+
+/* Anthropic-protocol providers stream thinking as one runtime event per
+   thinking_delta (a single token on DeepSeek), and each becomes its own
+   reasoning frame. Adjacent deltas from the same model turn are one block.
+   Whole reasoning items (Responses API `reasoning_items`) are left as-is. */
+const isReasoningDeltaFrame = (frame) =>
+  frame?.type === "reasoning" &&
+  typeof frame.payload?.reasoning === "string" &&
+  frame.payload?.reasoning_items === undefined;
+
+const sameReasoningTurn = (a, b) =>
+  (a.run_id || "") === (b.run_id || "") &&
+  a.iteration === b.iteration &&
+  (a.payload?.provisional_reasoning_id || "") ===
+    (b.payload?.provisional_reasoning_id || "");
+
+export const coalesceReasoningDeltaFrames = (frames) => {
+  const out = [];
+  for (const frame of frames) {
+    const prev = out[out.length - 1];
+    if (
+      isReasoningDeltaFrame(frame) &&
+      isReasoningDeltaFrame(prev) &&
+      sameReasoningTurn(prev, frame)
+    ) {
+      out[out.length - 1] = {
+        ...prev,
+        payload: {
+          ...prev.payload,
+          reasoning: prev.payload.reasoning + frame.payload.reasoning,
+        },
+      };
+      continue;
+    }
+    out.push(frame);
+  }
+  return out;
+};
 
 const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
   "confirmation",
@@ -77,6 +132,45 @@ const extractText = (payload) => {
     payload.observation ||
     ""
   );
+};
+
+const GEMINI_RETRY_FIELDS = new Set([
+  "provider",
+  "http_status",
+  "retry_ordinal",
+  "max_retries",
+  "delay_ms",
+  "workflow_node_id",
+  "workflow_step_index",
+  "workflow_step_count",
+  "runtime_event_id",
+]);
+
+const safeGeminiRetry = (payload) => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  if (Object.keys(payload).some((key) => !GEMINI_RETRY_FIELDS.has(key))) {
+    return null;
+  }
+  const { provider, http_status: httpStatus, retry_ordinal: ordinal,
+    max_retries: maxRetries, delay_ms: delayMs } = payload;
+  if (
+    provider !== "gemini" ||
+    httpStatus !== 503 ||
+    !Number.isSafeInteger(ordinal) ||
+    !Number.isSafeInteger(maxRetries) ||
+    !Number.isSafeInteger(delayMs) ||
+    maxRetries < 1 ||
+    maxRetries > 2 ||
+    ordinal < 1 ||
+    ordinal > maxRetries ||
+    delayMs < 0 ||
+    delayMs > 3600000
+  ) {
+    return null;
+  }
+  return { ordinal, maxRetries, delayMs };
 };
 
 const toKVPairs = (data) => {
@@ -595,7 +689,7 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ usage, isDark, bundle }) => {
+const TokenSummary = ({ usage, isDark, bundle, partialNote = null }) => {
   const [compositionOpen, setCompositionOpen] = useState(false);
   const triggerRef = useRef(null);
   const fmt = (n) =>
@@ -628,6 +722,11 @@ const TokenSummary = ({ usage, isDark, bundle }) => {
         </span>
       )}
       {" "}&middot; {fmt(usage.total)} total
+      {partialNote ? (
+        <span style={{ color: cacheColor }}>
+          {" "}&middot; {partialNote}
+        </span>
+      ) : null}
     </>
   );
   const textStyle = {
@@ -692,6 +791,7 @@ const TraceChain = ({
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
   onClarifyResolve,
+  onStopStream,
   bundle,
   completionDiagnostics,
   subagentFrames,
@@ -704,6 +804,22 @@ const TraceChain = ({
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
+  const { t } = useTranslation();
+  const [memoryJobProjection, setMemoryJobProjection] = useState(null);
+  const handleMemoryJobProjection = useCallback(
+    (projection) => {
+      if (
+        projection?.ownerChatId !== chatId ||
+        projection?.messageId !== messageId
+      ) {
+        return;
+      }
+      setMemoryJobProjection((current) =>
+        mergeMemoryJobProjection(current, projection),
+      );
+    },
+    [chatId, messageId],
+  );
   // Subscribe only to the boolean "has (non-whitespace) live text" — this flips
   // ~once per tool turn, so per-chunk commits no longer re-render TraceChain or
   // rebuild timelineItems. The per-chunk text upload is consumed inside the
@@ -873,18 +989,20 @@ const TraceChain = ({
 
   const displayFrames = useMemo(
     () =>
-      frames.filter((frame) => {
-        if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
-          return false;
-        }
+      coalesceReasoningDeltaFrames(
+        frames.filter((frame) => {
+          if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
+            return false;
+          }
 
-        if (frame.type !== "final_message") {
-          return true;
-        }
+          if (frame.type !== "final_message") {
+            return true;
+          }
 
-        const seq = Number(frame.seq);
-        return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
-      }),
+          const seq = Number(frame.seq);
+          return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
+        }),
+      ),
     [frames, intermediateFinalMessageSeqs],
   );
   const startFrame = frames.find((f) => f.type === "stream_started");
@@ -896,6 +1014,13 @@ const TraceChain = ({
     (f) => f.type === "tool_call" || f.type === "reasoning",
   ).length;
   const hasError = displayFrames.some((f) => f.type === "error");
+  const providerRetryGroups = useMemo(
+    () => groupProviderRetryFrames(displayFrames, frames, status),
+    [displayFrames, frames, status],
+  );
+  const isRetryWaiting = Array.from(providerRetryGroups.values()).some(
+    (group) => group.outcome === "waiting",
+  );
 
   const toolResultByCallId = useMemo(() => {
     const m = new Map();
@@ -1036,7 +1161,21 @@ const TraceChain = ({
       const spanText =
         delta != null && delta > 0 ? `+${formatDelta(delta)}` : null;
 
-      if (frame.type === "reasoning" || frame.type === "observation") {
+      if (
+        frame.type === "provider_retry" &&
+        (Object.prototype.hasOwnProperty.call(frame.payload || {}, "retry_ordinal") ||
+          Object.prototype.hasOwnProperty.call(frame.payload || {}, "max_retries"))
+      ) {
+        const retry = safeGeminiRetry(frame.payload);
+        if (!retry) continue;
+        items.push({
+          key: `${frame.seq}-provider-retry`,
+          title: `Gemini temporarily busy — retrying ${retry.ordinal}/${retry.maxRetries}`,
+          span: spanText,
+          status: "done",
+          body: `Waiting ${(retry.delayMs / 1000).toFixed(1)}s before retry`,
+        });
+      } else if (frame.type === "reasoning" || frame.type === "observation") {
         const text = extractText(frame.payload);
         const isObs = frame.type === "observation";
         items.push({
@@ -1518,6 +1657,7 @@ const TraceChain = ({
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
                   onClarifyResolve={onClarifyResolve}
+                  onStopStream={onStopStream}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (
@@ -1774,6 +1914,48 @@ const TraceChain = ({
           _toolName: isInlineInteraction ? undefined : toolName,
           _sections: isInlineInteraction ? undefined : sections,
         });
+      } else if (frame.type === "provider_retry") {
+        const group = providerRetryGroups.get(Number(frame.seq));
+        if (!group) continue;
+        const last = group.frames[group.frames.length - 1].payload;
+        const provider = providerDisplayName(last.provider, t);
+        // A plain string gets the timeline's default body style.
+        const record = `${provider} · ${providerRetryReason(last, t)}`;
+        if (group.outcome === "waiting") {
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: t("provider_retry.waiting", { provider }),
+            span: spanText,
+            status: "active",
+            point: "loading",
+            body: (
+              <ProviderRetryWaitBody
+                frames={group.frames}
+                onStopStream={onStopStream}
+                t={t}
+              />
+            ),
+          });
+        } else {
+          const stopped = group.outcome === "stopped";
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: stopped
+              ? t("provider_retry.stopped")
+              : t("provider_retry.retried", { count: last.attempt_failed }),
+            span: spanText,
+            status: "done",
+            point: stopped ? <RetryStoppedPoint /> : <RetryWaitPoint />,
+            body: record,
+            details: (
+              <ProviderRetryRecordDetails
+                frames={group.frames}
+                outcome={group.outcome}
+                t={t}
+              />
+            ),
+          });
+        }
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
         const code = frame.payload?.code;
@@ -1857,7 +2039,7 @@ const TraceChain = ({
             ),
           });
         }
-      } else {
+      } else if (!isRetryWaiting) {
         items.push({
           key: "__streaming__",
           title: "Thinking…",
@@ -1977,17 +2159,17 @@ const TraceChain = ({
         : null,
     );
     if (memoryV2Audit) {
+      const currentJobs = memoryJobProjection?.ownerChatId === chatId &&
+        memoryJobProjection?.messageId === messageId ? memoryJobProjection.runs : [];
+      const runs = mergeMemoryJobRuns(memoryV2Audit.agentRuns, currentJobs);
       grouped.push({
         key: "__memory_v2_audit__",
         title: (
           <span data-testid="memory-v2-trace-title">
-            Memory V2 · {memoryV2Audit.status}
+            {conversationActivity(memoryV2Audit, t)}
           </span>
         ),
-        span:
-          memoryV2Audit.pressure.percent !== null
-            ? `${memoryV2Audit.pressure.percent}% context`
-            : memoryV2Audit.modeLabel,
+        span: "",
         status:
           memoryV2Audit.status === "Unavailable" ? "pending" : "done",
         unmountDetailsWhenClosed: true,
@@ -1997,34 +2179,32 @@ const TraceChain = ({
             ownerChatId={chatId}
             isDark={isDark}
             onJournalProjection={handleMemoryV2JournalProjection}
+            messageId={messageId}
+            rootRunId={bundle?.identity?.root_run_id}
+            onMemoryJobs={handleMemoryJobProjection}
           />
         ),
       });
 
-      if (memoryV2Audit.agentRuns.length > 0) {
-        const memoryAgentActive = memoryV2Audit.agentRuns.some((run) =>
-          ["Pending", "Running", "Leased"].includes(run.status),
-        );
+      if (runs.length > 0) {
         grouped.push({
           key: "__memory_agent_audit__",
           title: (
             <span data-testid="memory-agent-trace-title">
-              Memory Agent · {memoryV2Audit.agentRuns.length === 1
-                ? memoryV2Audit.agentRuns[0].status
-                : `${memoryV2Audit.agentRuns.length} runs`}
+              {organizationActivity(runs, t)}
             </span>
           ),
-          span:
-            memoryV2Audit.agentRuns.length === 1
-              ? memoryV2Audit.agentRuns[0].model ||
-                memoryV2Audit.agentRuns[0].provider ||
-                ""
-              : "",
-          status: memoryAgentActive ? "active" : "done",
+          span: "",
+          // Background work must not animate or reopen the finished answer.
+          status: "done",
+          unmountDetailsWhenClosed: true,
           details: (
-            <MemoryAgentAudit
-              runs={memoryV2Audit.agentRuns}
+            <MemoryAgentLiveDetails
+              key={`${chatId}:${messageId}`}
+              runs={runs}
               ownerChatId={chatId}
+              messageId={messageId}
+              onUpdate={handleMemoryJobProjection}
               isDark={isDark}
             />
           ),
@@ -2045,6 +2225,14 @@ const TraceChain = ({
             usage={tokenUsage}
             isDark={isDark}
             bundle={bundle}
+            partialNote={
+              tokenUsage.callsWithoutUsage > 0
+                ? t("provider_retry.usage_partial", {
+                    excluded: tokenUsage.callsWithoutUsage,
+                    total: tokenUsage.callCount,
+                  })
+                : null
+            }
           />
         ),
         status: "done",
@@ -2055,6 +2243,9 @@ const TraceChain = ({
     return grouped;
   }, [
     displayFrames,
+    providerRetryGroups,
+    isRetryWaiting,
+    onStopStream,
     isStreaming,
     bubbleOwnsLiveText,
     messageId,
@@ -2079,6 +2270,9 @@ const TraceChain = ({
     bundle,
     completionDiagnostics,
     memoryV2JournalProjection,
+    memoryJobProjection,
+    handleMemoryJobProjection,
+    t,
     handleMemoryV2JournalProjection,
     compact,
     hideTrack,
@@ -2172,7 +2366,9 @@ const TraceChain = ({
             }}
           >
             {isStreaming && !doneFrame
-              ? "Thinking…"
+              ? isRetryWaiting
+                ? t("provider_retry.retrying_header")
+                : "Thinking…"
               : hasError
                 ? (stepCount > 0
                     ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`

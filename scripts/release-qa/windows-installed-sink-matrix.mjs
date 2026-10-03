@@ -48,6 +48,7 @@ import {
   secretVariantsFor,
 } from "./windows-installed-sink-matrix-lib.mjs";
 import { loadExpectedIdentity, verifyInstalledSinkEvidence } from "./verify-windows-installed-sink-evidence.mjs";
+import { readBoundedFile } from "./read-bounded-file.mjs";
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1011,9 +1012,8 @@ try {
   const texts = {};
   const addFile = (label, file, limit = 8 * 1024 * 1024) => {
     try {
-      const stat = fs.statSync(file);
-      if (!stat.isFile() || stat.size > limit) return;
-      texts[label] = fs.readFileSync(file, "latin1");
+      const text = readBoundedFile(file, limit);
+      if (text !== null) texts[label] = text;
     } catch (_error) {
       // unreadable files are skipped; they are listed by name below
     }

@@ -22,7 +22,7 @@ function snapshotFixture(t, revision = null) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sourceRoot = path.join(root, "source");
   const profile = revision ? "contracts/memory-v2/release-profile.all.v2.json"
-    : "docs/contracts/memory-v2/release-profile.all.v1.json";
+    : "docs/contracts/memory-v2/release-profile.all.v2.json";
   for (const name of ["scripts/write-build-feature-snapshot.cjs", "scripts/build-web.cjs",
     "electron/main/services/unchain/memory_v2_rollout.js",
     ".github/workflows/_shared-release-deterministic.yml", profile]) {
@@ -80,10 +80,14 @@ async function exerciseSnapshotBoundary(t, revision) {
   const f = snapshotFixture(t, revision);
   // Red: the previous workflow silently builds Memory V2 off. The existing
   // installed consumer rejects a real ASAR containing that actual build output.
-  assert.deepEqual(runFixtureWebBuild(f, {}).bundledFlags.enable_memory_v2, false);
-  const broken = await packSnapshotFixture(f);
-  assert.throws(() => inspectResources(broken), /no valid enabled release build snapshot/);
-  asar.uncacheAll();
+  if (revision) {
+    assert.equal(runFixtureWebBuild(f, {}).bundledFlags.enable_memory_v2, false);
+    const broken = await packSnapshotFixture(f);
+    assert.throws(() => inspectResources(broken), /no valid enabled release build snapshot/);
+    asar.uncacheAll();
+  } else {
+    assert.equal(runFixtureWebBuild(f, {}).bundledFlags.enable_memory_v2, undefined);
+  }
 
   assert.equal(resolveFixtureSnapshotProfile(f.sourceRoot), path.join(f.sourceRoot, f.profile));
   const produced = prepareFixtureReleaseSnapshot(f);
@@ -94,7 +98,7 @@ async function exerciseSnapshotBoundary(t, revision) {
     PUPU_BUILD_FEATURE_SNAPSHOT_PATH: f.snapshotPath,
     PUPU_FEATURE_MEMORY_V2: "shadow", PUPU_MEMORY_V2_MODE: "shadow" });
   assert.equal(built.status, 0);
-  assert.equal(built.bundledFlags.enable_memory_v2, true);
+  assert.equal(built.bundledFlags.enable_memory_v2, revision ? true : undefined);
   if (revision) assert.equal(built.bundledFlags.enable_theme_color_customization, true);
   const packaged = await packSnapshotFixture(f);
   assert.deepEqual(verifyFixtureReleaseSnapshot({ ...f, ...packaged }), { sha256: produced.sha256 });

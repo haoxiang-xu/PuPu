@@ -486,7 +486,8 @@ def _owner_scoped_deletion_tables(database_path: Path) -> tuple[str, ...]:
         raise PupuUnchainChatDeletionError(
             "durable admission deletion schema is incomplete"
         )
-    return _ADMISSION_TABLES if present else ()
+    extension = ("pupu_memory_background_hosts",) if "pupu_memory_background_hosts" in tables else ()
+    return (_ADMISSION_TABLES if present else ()) + extension
 
 
 def _direct_owner_evidence(

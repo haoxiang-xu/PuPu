@@ -1,0 +1,64 @@
+{
+  "target": {
+    "id": "Class:src/unchain/memory/curator/host.py:MemoryAgentHostAdapter",
+    "name": "MemoryAgentHostAdapter",
+    "type": "Class",
+    "filePath": "src/unchain/memory/curator/host.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 3,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 0,
+    "modules_affected": 0
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 1,
+    "3": 1
+  },
+  "affected_processes": [],
+  "affected_modules": [],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "File:src/unchain/memory/module.py",
+        "name": "module.py",
+        "filePath": "src/unchain/memory/module.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "File:src/unchain/persistence/sqlite_memory_host_v2.py",
+        "name": "sqlite_memory_host_v2.py",
+        "filePath": "src/unchain/persistence/sqlite_memory_host_v2.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "File:src/unchain/persistence/sqlite_context_memory_bootstrap_v2.py",
+        "name": "sqlite_context_memory_bootstrap_v2.py",
+        "filePath": "src/unchain/persistence/sqlite_context_memory_bootstrap_v2.py",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ]
+  }
+}

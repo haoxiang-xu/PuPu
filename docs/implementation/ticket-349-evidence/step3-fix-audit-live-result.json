@@ -1,0 +1,113 @@
+{
+  "chat_id": "chat-1790457283861-037a3e30f2f6c",
+  "foreground_model": "openai:gpt-4.1",
+  "responses": [
+    {
+      "content": "READY",
+      "latency_ms": 5106,
+      "finish_reason": "stop"
+    },
+    {
+      "content": "memory_propose was called exactly once with the specified parameters. The outcome: a memory candidate was proposed with the synthetic verification marker (\"violet lighthouse 349\") at /verification/defer-fix.md. The result status is pending review.",
+      "latency_ms": 8245,
+      "finish_reason": "stop"
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "curation-job-8a28d1a7a7f1b630143b893d9c8f4178",
+      "status": "completed",
+      "job_json": {
+        "attempt_count": 1,
+        "candidates": [
+          {
+            "binding_revision": 3,
+            "byte_length": 53,
+            "candidate_ref": {
+              "fragment": "",
+              "id": "candidate-27840792b38fe85b8d309db4301caa79",
+              "kind": "memory_candidate",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "confidence": 1.0,
+            "content_ref": {
+              "fragment": "space-chat-af54095e1706db11caf0a7fc9578b9d74923d5ce",
+              "id": "candidate-27840792b38fe85b8d309db4301caa79",
+              "kind": "memory_candidate_content",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "content_sha256": "5309618a91fae78c4feb306172ceb3b766be054e0c8083fc00ad30a3e4d61c4e",
+            "description": "Synthetic verification marker",
+            "error_code": "",
+            "kind": "file",
+            "link_url": "",
+            "media_type": "text/markdown",
+            "name": "defer-fix.md",
+            "origin": "agent_proposal",
+            "outcome": "applied",
+            "payload_sha256": "c524b26be0d91b408df2648b166e1e656321d8bcd123591a6795d55f58c77e6d",
+            "rationale": "Isolated synthetic verification",
+            "result_ref": {
+              "fragment": "space-chat-af54095e1706db11caf0a7fc9578b9d74923d5ce",
+              "id": "memory-5ff54f670e807cf5b970d37eb2e57583",
+              "kind": "memory",
+              "revision": 1,
+              "schema": "unchain.resource_ref.v1"
+            },
+            "review_diff": {},
+            "sensitivity": "normal",
+            "source_agent_run_id": "graph-step-5edec171f7808e8bf11dabf2cac6b17534ec9b828c57162d1d6bd8d06f54500a",
+            "source_refs": [
+              {
+                "fragment": "",
+                "id": "event-57b6a0bef02f250353a756283a46ab64b24d91a1883837c14df525db96b9eb56",
+                "kind": "context_event",
+                "revision": 1,
+                "schema": "unchain.resource_ref.v1"
+              }
+            ],
+            "source_tool_call_id": "",
+            "target_path": "/verification/defer-fix.md",
+            "target_space_id": "space-chat-af54095e1706db11caf0a7fc9578b9d74923d5ce"
+          }
+        ],
+        "created_at_ms": 1790457297197,
+        "job_id": "curation-job-8a28d1a7a7f1b630143b893d9c8f4178",
+        "last_error_code": "",
+        "lease": null,
+        "next_attempt_at_ms": 0,
+        "operation_id": "curator.enqueue.c1d06671b09433a1908ad64944a9d32becf3a7b77d845dd17f6b1c6403de96e7",
+        "revision": 3,
+        "schema": "unchain.consolidation_job.v2",
+        "status": "completed",
+        "trigger": {
+          "attempt_id": "unchain-1790457289038-0f79c415b1443",
+          "capture_status": "complete",
+          "is_root_run": true,
+          "run_id": "unchain-1790457289038-0f79c415b1443",
+          "run_status": "completed",
+          "session_id": "chat-1790457283861-037a3e30f2f6c",
+          "trigger_key": "completed_root_run:c55b7ff7aa7b9c71167283570cc1b76d0453fbf4dcc8df8283adca9a43ed1c83"
+        },
+        "updated_at_ms": 1790457312377
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "candidate-27840792b38fe85b8d309db4301caa79",
+      "status": "applied"
+    }
+  ],
+  "entry_tables": [
+    "entries",
+    "workspace_entries_fts",
+    "workspace_entries_fts_data",
+    "workspace_entries_fts_idx",
+    "workspace_entries_fts_content",
+    "workspace_entries_fts_docsize",
+    "workspace_entries_fts_config"
+  ]
+}

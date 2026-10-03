@@ -1,5 +1,6 @@
 <!-- Ordinary contributions, including MCP catalog entries: select base: dev.
-GitHub may default to main. Maintainer release-promotion PRs use dev → main. -->
+GitHub may default to main. Maintainer release-promotion PRs use dev → main.
+First PR here? docs/contributing/first-contribution.md covers the whole flow. -->
 
 ## Contribution type
 

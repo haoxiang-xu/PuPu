@@ -18,6 +18,7 @@ from mcp_managed_runtime import (
     resolve_managed_stdio_runtime,
 )
 from mcp_registry import oauth_recipe_for_entry
+from mcp_credential_store import McpCredentialStoreError
 from mcp_secrets import (
     delete_mcp_secret_values,
     get_mcp_secret_values,
@@ -1115,9 +1116,14 @@ def delete_mcp_toolkit(
                 )
             store["toolkits"] = next_records
             delete_mcp_secret_values(normalized, data_dir=data_dir)
+            # A locked/corrupt credential store is not successful deletion.
+            # Keep the installed record so the user can retry after recovery.
             try:
                 delete_mcp_oauth_token(normalized, data_dir=data_dir)
+            except McpCredentialStoreError:
+                raise
             except Exception:
+                # Preserve removal of non-OAuth or no-longer-trusted entries.
                 pass
             _write_store(store, data_dir)
     return {"ok": True, "toolkitId": normalized}

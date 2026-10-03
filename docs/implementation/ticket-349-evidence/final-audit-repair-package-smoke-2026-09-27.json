@@ -1,0 +1,11 @@
+{
+  "schema": "pupu.release.packaged-sidecar-smoke.v1",
+  "started": true,
+  "unauthenticated_rejected": true,
+  "authenticated_health": true,
+  "authenticated_context_status": true,
+  "runtime_manifest_digest": "sha256:84bc5ed2b528ad4d36d4798837834b8539b951287406b0c3ae6a7ba2e943643e",
+  "snapshot_fingerprint": "ec28b85225d4ed2b3588b6bab14fd9053e523b70f9b77b1a49fe087eb205a27c",
+  "rollout_fingerprint": "061791396c7aef8fa79e268bd1ede2313daf50bbfb81704bcd4b9316a3e44be2",
+  "executed_tests": 5
+}

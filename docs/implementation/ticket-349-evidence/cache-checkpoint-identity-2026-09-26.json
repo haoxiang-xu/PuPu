@@ -1,0 +1,112 @@
+{
+  "wheel_sha256": "03735e882580c0276856acb4804edb215097e1c4e5a6041ef6bbcf0f663f0e44",
+  "imported_from": "/Users/red/Desktop/GITRepo/pupu-349/.local/ticket-349-cache-checkpoint/wheels/unchain-0.2.0-py3-none-any.whl/unchain/__init__.py",
+  "manifest": {
+    "manifest_digest": "sha256:2d0587fa3670329bc42c1a936b37b85a8c9248e45896cc79ec31acd74628d12c",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "kind": "diagnostic checkpoint from dirty source; not a release artifact",
+  "unchain_source_sha256": "a4f340c7043cf85e3e72fd549a657970965882600ccdc9eae277d2cf96d38d37",
+  "pupu_candidate_sha256": "70de3084df8e8e33ef7432b143437c1dd4617aa45e978f10c8337967f6262078",
+  "tests": {
+    "core_and_differential": {
+      "passed": 1499,
+      "skipped": 1,
+      "xfailed": 1
+    },
+    "pupu": {
+      "passed": 195
+    }
+  },
+  "harness_sha256": {
+    "cache_checkpoint_fixture.py": "fa77b820cf8b40b397005c575a19ae5a16fdfa5492f4c5d363e82f813a925d4c",
+    "cache_checkpoint_benchmark.py": "ec6ed68b019dad312135b9927bd7a9057b8054d175083183b8b6248303ad1425",
+    "test_cache_checkpoint_differential.py": "105e2b12bcd675173b1e5ee2e4b340f58ad1842771772fe528d1555574bb0254",
+    "checkpoint_artifact_guard.py": "dc106502a2825fab120d0e5972df874f87ebc1a48e3c9726978fe20ae73a0e54",
+    "run_cache_checkpoint.py": "0c27d0a7b1a26d0e9d90940923f99a61c54a29a5a5c0c7f9b4011a7231459849",
+    "test_tool_cache_acceptance.py": "769203d3205ab89486d45c96a94da0d01e935de717032eb96172b4c9bb5ce5bd",
+    "test_tool_cache_final_reaudit.py": "deaccc0bd5ea9297624510a3e94ae0c8d8583f642e8f0b28a1b8238980a8baab",
+    "test_tool_cache_integrity_reaudit.py": "e7a8e359ed857b8dbcb7e1c1d0299ed62976d376ac42bca3cbc0cfb0c06baf36",
+    "test_tool_cache_revision_audit.py": "dfd972b00c7aaabc312d2f609babafd18f6738b67cd863f1f247f460534e6616"
+  },
+  "cache-checkpoint-results-2026-09-26.json_sha256": "1905eb1c2940b1520b77f181e14acff5489beae1352118f8d0f7e96c6ccc2102",
+  "cache-checkpoint-core-tests-2026-09-26.log_sha256": "c8d48630b32277200bd8c34cafcef02af8ca383c44ee4474a3b20e88a0c1a47e",
+  "cache-checkpoint-pupu-tests-2026-09-26.log_sha256": "1b0b1c69efa8ba3acfaf7a14a1f5c7d35e366f51a12aafa08e69b7e57843a59e"
+}
