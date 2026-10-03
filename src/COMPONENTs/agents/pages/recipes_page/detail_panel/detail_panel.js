@@ -7,6 +7,9 @@ import AgentPanel from "./agent_panel";
 import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
+import InputVariablesSection from "./input_variables_section";
+import SkeletonDiagnosticsNotice from "./skeleton_diagnostics_notice";
+import { find_node, is_skeleton_node } from "../skeleton_document";
 import { is_toolkit_pool_type } from "../recipe_graph";
 
 /* The shell: a fixed identity header above a hairline, and a body that is the
@@ -20,6 +23,9 @@ export default function DetailPanel({
   onChangeSilent,
   recipes,
   onDrillIn,
+  document,
+  diagnostics,
+  onDocumentChange,
 }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
@@ -66,6 +72,17 @@ export default function DetailPanel({
       </div>
     );
   }
+
+  /* The same node as seen in the Skeleton document, when one is being edited.
+     `onDocumentChange` is what writes it back, so the legacy `onChange` path is
+     left exactly as it was. */
+  const skeleton_node =
+    document && typeof onDocumentChange === "function"
+      ? (() => {
+          const candidate = find_node(document, selectedNodeId);
+          return is_skeleton_node(candidate) ? candidate : null;
+        })()
+      : null;
 
   const props = {
     recipe,
@@ -148,6 +165,26 @@ export default function DetailPanel({
         data-testid="recipe-detail-panel-body"
         style={body_style}
       >
+        {/* A Skeleton document carries its IO in each node's own config, so the
+            shared sections render from it. Without one — a legacy recipe, which
+            has no such config — nothing below changes. */}
+        {skeleton_node && (
+          <>
+            <SkeletonDiagnosticsNotice
+              document={document}
+              diagnostics={diagnostics}
+              nodeId={node.id}
+              isDark={isDark}
+            />
+            <InputVariablesSection
+              document={document}
+              node={skeleton_node}
+              diagnostics={diagnostics}
+              isDark={isDark}
+              onChange={onDocumentChange}
+            />
+          </>
+        )}
         {node.type === "start" && <StartPanel {...props} />}
         {node.type === "end" && <EndPanel {...props} />}
         {node.type === "agent" && <AgentPanel {...props} />}
