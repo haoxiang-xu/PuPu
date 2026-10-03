@@ -79,6 +79,53 @@ const makeRafScheduler = () => {
   };
 };
 
+test("shows bounded Gemini retry progress without rendering provider content", () => {
+  renderTraceChain({
+    status: "streaming",
+    frames: [
+      frame({ seq: 1, type: "stream_started" }),
+      frame({
+        seq: 2,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 1,
+          max_retries: 2,
+          delay_ms: 500,
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 2,
+          max_retries: 2,
+          delay_ms: 1000,
+        },
+      }),
+      frame({
+        seq: 4,
+        type: "provider_retry",
+        payload: {
+          provider: "gemini",
+          http_status: 503,
+          retry_ordinal: 3,
+          max_retries: 2,
+          delay_ms: 1000,
+          response_body: "secret provider text",
+        },
+      }),
+    ],
+  });
+  expect(screen.getByText("Gemini temporarily busy — retrying 1/2")).toBeInTheDocument();
+  expect(screen.getByText("Gemini temporarily busy — retrying 2/2")).toBeInTheDocument();
+  expect(screen.queryByText(/secret provider text/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/retrying 3\/2/)).not.toBeInTheDocument();
+});
+
 describe("TraceChain final_message draft timeline", () => {
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
     const frames = [

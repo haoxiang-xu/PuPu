@@ -662,6 +662,38 @@ const applyEvent = (state, event) => {
   if (eventType === "model.delta") {
     const kind = stringValue(payload.kind, "text");
     const delta = rawStringValue(payload.delta);
+    if (kind === "provider_retry") {
+      const expectedStepId = `model:${event.turn_id}:response`;
+      const allowed = new Set([
+        "step_id", "step_type", "kind", "provider", "http_status",
+        "retry_ordinal", "max_retries", "delay_ms",
+      ]);
+      const { retry_ordinal: ordinal, max_retries: maxRetries,
+        delay_ms: delayMs } = payload;
+      if (
+        Object.keys(payload).some((key) => !allowed.has(key)) ||
+        iterationFromTurnId(event.turn_id) === null ||
+        stringValue(payload.step_id) !== expectedStepId ||
+        stringValue(links.step_id) !== expectedStepId ||
+        payload.step_type !== "model_response" ||
+        payload.provider !== "gemini" ||
+        event?.metadata?.provider !== "gemini" ||
+        payload.http_status !== 503 ||
+        !Number.isSafeInteger(ordinal) ||
+        !Number.isSafeInteger(maxRetries) ||
+        !Number.isSafeInteger(delayMs) ||
+        maxRetries < 1 || maxRetries > 2 ||
+        ordinal < 1 || ordinal > maxRetries ||
+        delayMs < 0 || delayMs > 3600000
+      ) {
+        return;
+      }
+      routeFrame(state, event, createFrame(state, event, "provider_retry", {
+        provider: "gemini", http_status: 503, retry_ordinal: ordinal,
+        max_retries: maxRetries, delay_ms: delayMs,
+      }));
+      return;
+    }
     if (kind === "reasoning_reset") {
       const previewId = stringValue(payload.preview_id);
       const iteration = iterationFromTurnId(event.turn_id);

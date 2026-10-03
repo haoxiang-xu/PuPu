@@ -1016,6 +1016,7 @@ class PupuUnchainContextMemoryV2HostFactory:
             checkpoint_repository=compiler_capabilities.checkpoints,
             build_repository=compiler_capabilities.context_builds,
             partial_attempt_sink=self._partial_attempt_sink,
+            provider_turn_result_reader=journal.read_full_verified,
             model_projection=ModelContextProjection(
                 artifacts,
                 remote_source_decoder=decode_pupu_attachment_source,

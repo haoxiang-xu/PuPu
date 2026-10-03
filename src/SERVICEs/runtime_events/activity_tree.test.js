@@ -40,6 +40,35 @@ const reduceEvents = (events) => {
 };
 
 describe("runtime events activity tree", () => {
+  test("projects bounded Gemini retry progress without model text or leaked fields", () => {
+    const retry = (id, seq, overrides = {}) => ({
+      ...event({
+        id, type: "step.delta", seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503,
+          retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+          ...overrides,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    });
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      retry("safe", 2),
+      retry("unsafe", 3, { response_body: "private-provider-content" }),
+    ]);
+    const progress = state.frames.filter((frame) => frame.type === "provider_retry");
+    expect(progress).toHaveLength(1);
+    expect(progress[0].payload).toMatchObject({
+      provider: "gemini", retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+    });
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(JSON.stringify(progress)).not.toContain("private-provider-content");
+  });
+
   test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
     const failedId = "a".repeat(32);
     const acceptedId = "b".repeat(32);
