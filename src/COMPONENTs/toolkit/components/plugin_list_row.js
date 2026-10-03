@@ -49,8 +49,10 @@ const PluginListRow = ({
         color: chipColor,
         padding: commandFirst ? "2px 7px" : "1px 6px",
         /* The name is the row's only scanning cue (13 of 24 registry entries
-           share one grey glyph), so the chip gives way first. */
-        flexShrink: 1000,
+           share one grey glyph), so a trailing chip takes only the space the
+           name leaves over. A shrink ratio is not enough: it still hands the
+           name a sliver of every overflow, and ellipsis fires on any sliver. */
+        ...(commandFirst ? { flexShrink: 1000 } : { flex: "1 1 0px" }),
         minWidth: 0,
         overflow: "hidden",
         textOverflow: "ellipsis",

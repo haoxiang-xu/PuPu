@@ -85,12 +85,17 @@ describe("PluginListRow", () => {
     });
   });
 
-  test("when space runs out the command chip gives way before the name does", () => {
+  test("the trailing command chip only takes the space the name leaves over", () => {
     render(<PluginListRow name="Vercel Web Review" command="/web-design-guidelines" />);
 
-    const name = screen.getByText("Vercel Web Review");
+    // A shrink ratio (chip 1000 : name 1) still hands the name a sliver of
+    // every overflow, and ellipsis fires on any sliver: live it painted
+    // "Vercel Web Revi…". Growing from zero means nothing on the line shrinks
+    // until the name alone no longer fits.
     const chip = screen.getByText("/web-design-guidelines");
-    expect(Number(chip.style.flexShrink)).toBeGreaterThan(Number(name.style.flexShrink || 1));
+    expect(chip.style.flexGrow).toBe("1");
+    expect(chip.style.flexBasis).toBe("0px");
+    expect(chip.style.minWidth).toBe("0");
     expect(chip.style.overflow).toBe("hidden");
     expect(chip.style.textOverflow).toBe("ellipsis");
   });
