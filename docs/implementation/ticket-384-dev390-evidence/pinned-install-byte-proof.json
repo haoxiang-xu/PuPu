@@ -1,0 +1,7 @@
+{
+  "wheel_sha256": "819e097dee4ad8b934b76fabf83d04360c3081a48730d21792bf525b806e7e76",
+  "installed_target": "/tmp/pupu384-host-venv/lib/python3.12/site-packages",
+  "all_packaged_files_verified": 345,
+  "python_files_verified": 334,
+  "result": "PASS"
+}

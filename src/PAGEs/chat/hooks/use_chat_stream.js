@@ -3121,6 +3121,10 @@ export const useChatStream = ({
     if (!currentChatId) {
       return Array.isArray(messagesRef.current) ? messagesRef.current : [];
     }
+    const handle = streamHandlesRef.current.get(currentChatId);
+    if (typeof handle?.flushPendingEventsForStop === "function") {
+      handle.flushPendingEventsForStop();
+    }
     const executionIdentity =
       executionIdentityByChatIdRef.current.get(currentChatId) ||
       executionIdentityFromMessages(currentChatId, messagesRef.current) ||
@@ -3134,8 +3138,10 @@ export const useChatStream = ({
       toolConfirmationUiStateByChatIdRef.current[currentChatId]?.[id]?.resolved !== true,
     )?.[0] || "";
 
-    // Invalidate first. Any lookup, retry, receipt, or queue callback that was
-    // already in flight must observe the tombstone before transport teardown.
+    // First drain only events already admitted to this V4 run, so cancellation
+    // can settle the latest visible frames and approval identity. Then
+    // invalidate before any asynchronous cancellation or transport teardown;
+    // late callbacks must observe the tombstone and cannot append more events.
     invalidateRunGeneration(currentChatId);
     const durableRetryTimer =
       durableResumeRetryTimersRef.current.get(currentChatId);
@@ -3154,7 +3160,6 @@ export const useChatStream = ({
     updatePendingContinuationRequestForChat(currentChatId, null);
 
     clearActiveTokenFlushController(currentChatId, "flush");
-    const handle = streamHandlesRef.current.get(currentChatId);
     executionIdentityByChatIdRef.current.delete(currentChatId);
     const queuedCancellation = enqueueExecutionCancel({
       ...(executionIdentity || {}),
@@ -6349,6 +6354,13 @@ export const useChatStream = ({
         const wrapRuntimeEventStreamHandle = (rawHandle) => {
           if (!rawHandle) return rawHandle;
           const wrappedHandle = { ...rawHandle };
+          wrappedHandle.flushPendingEventsForStop = () => {
+            if (!isCurrentRun()) return false;
+            runtimeEventBatcher?.flushNow();
+            flushSubagentState(Date.now());
+            activeFlushScheduler.flushSync();
+            return true;
+          };
           wrappedHandle.quarantineQueueRelayAcceptance = () => {
             runtimeEventBatcher?.cancel();
             runtimeEventStreamFailed = true;

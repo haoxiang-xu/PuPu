@@ -1,0 +1,26 @@
+{
+  "manifest_digest": "sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672",
+  "results": [
+    {
+      "case": "real-positive",
+      "artifact": "PASS",
+      "electron": "PASS"
+    },
+    {
+      "case": "provider_response_outcomes_v1",
+      "artifact": "PASS",
+      "artifact_reason": "runtime manifest is missing provider_turn_ownership.provider_response_outcomes_v1",
+      "electron": "PASS",
+      "electron_reason": "context_v2_unchain_protocol_incompatible",
+      "fresh_digest": "sha256:1a912fd4ce40882158874eccfef8c7513e119e667ba1e448b1ebab78ed28f308"
+    },
+    {
+      "case": "provider_uncertainty_diagnostics_v1",
+      "artifact": "PASS",
+      "artifact_reason": "runtime manifest is missing provider_turn_ownership.provider_uncertainty_diagnostics_v1",
+      "electron": "PASS",
+      "electron_reason": "context_v2_unchain_protocol_incompatible",
+      "fresh_digest": "sha256:213ef239e6f3ed6738a58f22ff9fe14a47e7133010b272c7b9b74eba771159c3"
+    }
+  ]
+}

@@ -140,6 +140,91 @@ test("shows bounded Gemini retry progress without rendering provider content", (
 });
 
 describe("TraceChain final_message draft timeline", () => {
+  test("#384: cancelled generic calls are not presented as completed", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "unfinished-generic", tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText("Interrupted")).toBeInTheDocument();
+    expect(screen.getByText("Used 1 step")).toBeInTheDocument();
+  });
+
+  test("#384: cancelled nested calls do not keep a child trace actively running", () => {
+    renderTraceChain({
+      status: "cancelled",
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: "delegate-1", tool_name: "delegate_to_subagent", arguments: { target: "worker" } },
+      }), frame({
+        seq: 2,
+        type: "tool_result",
+        payload: { call_id: "delegate-1", tool_name: "delegate_to_subagent", result: { agent_name: "worker", status: "running" } },
+      })],
+      subagentFrames: {
+        "worker-run": [frame({ seq: 1, type: "tool_call", payload: { call_id: "worker-call", tool_name: "search" } })],
+      },
+      subagentMetaByRunId: {
+        "worker-run": { subagentId: "worker", mode: "delegate", template: "worker", status: "running" },
+      },
+    });
+
+    expect(screen.getAllByText("Interrupted").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.getByText("search")).toBeInTheDocument();
+    expect(screen.queryByText("running")).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["done", "Used 1 step"],
+    ["error", "Used 1 step"],
+  ])("#384: keeps the existing %s summary for result-less calls", (status, summary) => {
+    renderTraceChain({
+      status,
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: { call_id: `call-${status}`, tool_name: "search", arguments: { query: "x" } },
+      })],
+    });
+
+    expect(screen.getByText(summary)).toBeInTheDocument();
+    expect(screen.queryByText("Interrupted")).not.toBeInTheDocument();
+  });
+
+  test("#384: stopping a pending approval leaves it pending and removes stale decisions", () => {
+    const onDecision = jest.fn();
+    renderTraceChain({
+      status: "cancelled",
+      onToolConfirmationDecision: onDecision,
+      frames: [frame({
+        seq: 1,
+        type: "tool_call",
+        payload: {
+          call_id: "approval-call",
+          confirmation_id: "approval-384",
+          requires_confirmation: true,
+          interact_type: "confirmation",
+          interact_config: {},
+          toolkit_id: "core",
+          tool_name: "delete_file",
+          arguments: { path: "a.txt" },
+        },
+      })],
+      toolConfirmationUiStateById: { "approval-384": { status: "idle" } },
+    });
+
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow once" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(onDecision).not.toHaveBeenCalled();
+  });
+
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),

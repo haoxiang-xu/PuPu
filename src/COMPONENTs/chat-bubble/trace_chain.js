@@ -572,6 +572,9 @@ const getSubagentTraceStatus = (status) => {
   if (normalized === "failed" || normalized === "timeout") {
     return "error";
   }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return "cancelled";
+  }
   if (
     normalized === "running" ||
     normalized === "spawned" ||
@@ -888,6 +891,7 @@ const TraceChain = ({
   }, []);
 
   const isStreaming = status === "streaming";
+  const isCancelled = status === "cancelled" || status === "canceled";
   const effectiveSubagentFrames = useMemo(
     () =>
       subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
@@ -1558,20 +1562,32 @@ const TraceChain = ({
           };
 
           const branches = childTimelineItems.map((worker, wi) => {
+            const normalizedWorkerStatus =
+              typeof worker.status === "string"
+                ? worker.status.trim().toLowerCase()
+                : "";
+            const workerStatus =
+              isCancelled &&
+              ["", "running", "spawned", "needs_clarification"].includes(
+                normalizedWorkerStatus,
+              )
+                ? "cancelled"
+                : worker.status;
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
               fallbackAgentName: worker.agentName,
               fallbackTemplate: worker.template,
             });
             const wStatusColor = getSubagentStatusColor(
-              worker.status,
+              workerStatus,
               isDark,
             );
             const hasWFrames =
               Array.isArray(worker.frames) && worker.frames.length > 0;
             const canExpand = hasWFrames && _depth < MAX_TRACE_DEPTH;
             const frameCount = hasWFrames ? worker.frames.length : 0;
-            const workerTraceStatus = getSubagentTraceStatus(worker.status);
+            const workerTraceStatus = getSubagentTraceStatus(workerStatus);
+            const workerInterrupted = workerTraceStatus === "cancelled";
             const shouldLazyRender =
               workerTraceStatus === "streaming" ||
               _depth > 0 ||
@@ -1623,7 +1639,7 @@ const TraceChain = ({
                       userSelect: "none",
                     }}
                   >
-                    {worker.status || "pending"}
+                    {workerStatus || "pending"}
                   </span>
                   {canExpand && (
                     <BranchExpandArrow
@@ -1634,9 +1650,11 @@ const TraceChain = ({
                   )}
                 </span>
               ),
-              span: worker.task
-                ? truncateInlineText(worker.task, 120)
-                : undefined,
+              span: workerInterrupted
+                ? "Interrupted"
+                : worker.task
+                  ? truncateInlineText(worker.task, 120)
+                  : undefined,
               status:
                 workerTraceStatus === "done"
                   ? "done"
@@ -1681,7 +1699,9 @@ const TraceChain = ({
             ? failed
               ? "error"
               : "done"
-            : "active";
+            : isCancelled
+              ? "pending"
+              : "active";
 
           items.push({
             key: `${frame.seq}-subagent`,
@@ -1710,8 +1730,15 @@ const TraceChain = ({
                 )}
               </span>
             ),
-            span: spanText,
-            status: resultFrame ? "done" : "active",
+            span:
+              isCancelled && !resultFrame
+                ? "Interrupted"
+                : spanText,
+            status: resultFrame
+              ? "done"
+              : isCancelled
+                ? "pending"
+                : "active",
             point: <SubagentPoint isDark={isDark} />,
             body: branches.length > 0 ? (
               <BranchGraph
@@ -1816,7 +1843,8 @@ const TraceChain = ({
         /* ── confirmation / selection state (computed for all tool_calls) ── */
         let interactBody = undefined;
         let toolPointEl = <HammerPoint isDark={isDark} />;
-        let toolStatus = "done";
+        const callStatus = isCancelled && !resultFrame ? "pending" : "done";
+        let toolStatus = callStatus;
 
         if (isInlineInteraction) {
           let statusLabel = "Pending";
@@ -1838,6 +1866,7 @@ const TraceChain = ({
             !isResolved &&
             !uiResolved &&
             !isSubmitting &&
+            !isCancelled &&
             typeof onToolConfirmationDecision === "function";
 
           /* approved / denied / pending are success, danger and neutral —
@@ -1849,7 +1878,7 @@ const TraceChain = ({
             : "var(--pupu-text-secondary)";
 
           toolPointEl = <HammerPoint isDark={isDark} />;
-          toolStatus = "done";
+          toolStatus = callStatus;
 
           interactBody = (
             <div
@@ -1903,7 +1932,10 @@ const TraceChain = ({
         items.push({
           key: `${frame.seq}-tool`,
           title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
-          span: spanText,
+          span:
+            isCancelled && !resultFrame
+              ? "Interrupted"
+              : spanText,
           status: toolStatus,
           point: toolPointEl,
           body: interactBody,
@@ -2247,6 +2279,7 @@ const TraceChain = ({
     isRetryWaiting,
     onStopStream,
     isStreaming,
+    isCancelled,
     bubbleOwnsLiveText,
     messageId,
     streamingContent,

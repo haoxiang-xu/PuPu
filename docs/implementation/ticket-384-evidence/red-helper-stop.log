@@ -1,0 +1,71 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/utils/chat_turn_utils.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+
+FAIL src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+  ● composer sidecar (write + 禁读 + rewrite paths) › #384: the composer Stop retains observed tool history through persisted messages
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      472 |
+      473 |     const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    > 474 |     expect(assistant).toBeDefined();
+          |                       ^
+      475 |     expect(assistant.status).toBe("cancelled");
+      476 |     expect(assistant.content).toBe("");
+      477 |     expect(assistant.traceFrames.map((entry) => entry.payload.call_id)).toEqual([
+
+      at Object.<anonymous> (src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js:474:23)
+
+FAIL src/PAGEs/chat/utils/chat_turn_utils.test.js
+  ● settleStreamingAssistantMessages › #384: retains completed and in-flight tool history without fabricating a body
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      75 |     ]);
+      76 |
+    > 77 |     expect(nextMessages).toHaveLength(1);
+         |                          ^
+      78 |     expect(nextMessages[0]).toEqual({
+      79 |       id: "assistant-1",
+      80 |       role: "assistant",
+
+      at Object.<anonymous> (src/PAGEs/chat/utils/chat_turn_utils.test.js:77:26)
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● settleStreamingAssistantMessages › #384: keeps nested execution history when it is the only meaningful content
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      107 |     }]);
+      108 |
+    > 109 |     expect(nextMessages).toHaveLength(1);
+          |                          ^
+      110 |     expect(nextMessages[0].status).toBe("cancelled");
+      111 |     expect(nextMessages[0].content).toBe("");
+      112 |     expect(nextMessages[0].subagentFrames).toEqual(subagentFrames);
+
+      at Object.<anonymous> (src/PAGEs/chat/utils/chat_turn_utils.test.js:109:26)
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 2 failed, 2 total
+Tests:       3 failed, 13 passed, 16 total
+Snapshots:   0 total
+Time:        1.112 s, estimated 2 s
+Ran all test suites matching /src\/PAGEs\/chat\/utils\/chat_turn_utils.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.composer_sidecar.test.js/i.

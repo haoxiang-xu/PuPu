@@ -1,0 +1,115 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/utils/chat_turn_utils.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js
+
+FAIL src/COMPONENTs/chat-bubble/trace_chain.test.js
+  ● TraceChain final_message draft timeline › #384: cancelled nested calls do not keep a child trace actively running
+
+    expect(element).not.toBeInTheDocument()
+
+    expected document not to contain element, found <span style="font-family: Menlo, Monaco, Consolas, monospace; font-size: 0.74em; user-select: none;">running</span> instead
+
+      118 |     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+      119 |     expect(screen.getByText("search")).toBeInTheDocument();
+    > 120 |     expect(screen.queryByText("running")).not.toBeInTheDocument();
+          |                                               ^
+      121 |   });
+      122 |
+      123 |   test.each([
+
+      at Object.<anonymous> (src/COMPONENTs/chat-bubble/trace_chain.test.js:120:47)
+
+FAIL src/PAGEs/chat/utils/chat_turn_utils.test.js
+  ● settleStreamingAssistantMessages › #384: drops an empty streaming placeholder with infrastructure frames
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 0
+    Received length: 1
+    Received array:  [{"content": "", "id": "assistant-empty", "role": "assistant", "status": "cancelled", "traceFrames": [{"payload": {"model_name": "model-x"}, "type": "stream_started"}], "updatedAt": 1790977510334}]
+
+      132 |       ...extra,
+      133 |     }]);
+    > 134 |     expect(nextMessages).toHaveLength(0);
+          |                          ^
+      135 |   });
+      136 | });
+      137 |
+
+      at src/PAGEs/chat/utils/chat_turn_utils.test.js:134:26
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● settleStreamingAssistantMessages › #384: drops an empty streaming placeholder with unknown frame types
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 0
+    Received length: 1
+    Received array:  [{"content": "", "id": "assistant-empty", "role": "assistant", "status": "cancelled", "traceFrames": [{"payload": {"message": "not rendered"}, "type": "runtime_internal_state"}], "updatedAt": 1790977510337}]
+
+      132 |       ...extra,
+      133 |     }]);
+    > 134 |     expect(nextMessages).toHaveLength(0);
+          |                          ^
+      135 |   });
+      136 | });
+      137 |
+
+      at src/PAGEs/chat/utils/chat_turn_utils.test.js:134:26
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● settleStreamingAssistantMessages › #384: drops an empty streaming placeholder with nested infrastructure frames
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 0
+    Received length: 1
+    Received array:  [{"content": "", "id": "assistant-empty", "role": "assistant", "status": "cancelled", "subagentFrames": {"worker-run-1": [{"payload": {"model_name": "model-x"}, "type": "stream_started"}]}, "updatedAt": 1790977510337}]
+
+      132 |       ...extra,
+      133 |     }]);
+    > 134 |     expect(nextMessages).toHaveLength(0);
+          |                          ^
+      135 |   });
+      136 | });
+      137 |
+
+      at src/PAGEs/chat/utils/chat_turn_utils.test.js:134:26
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ● settleStreamingAssistantMessages › #384: drops an empty streaming placeholder with nested unknown frame types
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 0
+    Received length: 1
+    Received array:  [{"content": "", "id": "assistant-empty", "role": "assistant", "status": "cancelled", "subagentFrames": {"worker-run-1": [{"payload": {"message": "not rendered"}, "type": "runtime_internal_state"}]}, "updatedAt": 1790977510338}]
+
+      132 |       ...extra,
+      133 |     }]);
+    > 134 |     expect(nextMessages).toHaveLength(0);
+          |                          ^
+      135 |   });
+      136 | });
+      137 |
+
+      at src/PAGEs/chat/utils/chat_turn_utils.test.js:134:26
+      at TestScheduler.scheduleTests (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../../../../Desktop/GITRepo/PuPu/node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 2 failed, 2 total
+Tests:       5 failed, 58 passed, 63 total
+Snapshots:   0 total
+Time:        2.635 s
+Ran all test suites matching /src\/PAGEs\/chat\/utils\/chat_turn_utils.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.test.js/i.
