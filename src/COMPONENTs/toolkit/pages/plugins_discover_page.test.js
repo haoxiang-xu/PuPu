@@ -2,16 +2,20 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import PluginsDiscoverPage from "./plugins_discover_page";
 import api from "../../../SERVICEs/api";
 import { loadStoreCuration } from "../../../SERVICEs/plugin_presentation";
+import { installStoreSkillPack, listStoreSkillPacks } from "../utils/skill_pack_store_install";
+import {
+  emitToolkitCatalogRefresh,
+  subscribeToolkitCatalogRefresh,
+} from "../../../SERVICEs/toolkit_catalog_refresh";
 
 jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
   __esModule: true,
   default: ({ src }) => <span aria-hidden="true" data-icon-name={src} />,
 }));
 
-/* NOTE: useTranslation is intentionally left un-mocked — same rationale as
-   plugins_installed_page.test.js: the vocabulary assertion reads rendered
-   TEXT and an identity-key mock would leak i18n key NAMES (which themselves
-   contain "tool") into the DOM. */
+/* useTranslation is left un-mocked: assertions read rendered English text,
+   and an identity mock would leak key names (which contain "tool") into the
+   vocabulary check. */
 
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
@@ -21,17 +25,13 @@ jest.mock("../components/toolkit_icon", () => ({
 
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
-  default: {
-    unchain: {
-      listToolModalCatalog: jest.fn(),
-    },
-  },
+  default: { unchain: { listToolModalCatalog: jest.fn() } },
 }));
 
 jest.mock("../../../SERVICEs/mcp_toolkit_store", () => ({
   __esModule: true,
-  listMcpStoreEntries: jest.fn(() => []),
-  resolveMcpIcon: jest.fn(() => ({ type: "builtin", name: "plug" })),
+  listMcpStoreEntries: jest.fn(),
+  resolveMcpIcon: jest.fn(),
 }));
 
 jest.mock("../../../SERVICEs/plugin_presentation", () => {
@@ -43,19 +43,34 @@ jest.mock("../../../SERVICEs/plugin_presentation", () => {
   };
 });
 
+jest.mock("../utils/skill_pack_store_install", () => ({
+  __esModule: true,
+  listStoreSkillPacks: jest.fn(),
+  installStoreSkillPack: jest.fn(),
+  DEFAULT_SKILL_PACK_ICON: { type: "builtin", name: "command" },
+}));
+
+jest.mock("../../../SERVICEs/toolkit_catalog_refresh", () => ({
+  __esModule: true,
+  subscribeToolkitCatalogRefresh: jest.fn(),
+  emitToolkitCatalogRefresh: jest.fn(),
+}));
+
+jest.mock("../../../SERVICEs/toast", () => ({
+  __esModule: true,
+  toast: { success: jest.fn(), error: jest.fn() },
+}));
+
+/* A fixed "today", so relative dates and the future-date cut are stable. */
+jest.mock("../../../SERVICEs/store_latest", () => ({
+  __esModule: true,
+  ...jest.requireActual("../../../SERVICEs/store_latest"),
+  todayIso: () => "2026-10-03",
+}));
+
 const { listMcpStoreEntries } = require("../../../SERVICEs/mcp_toolkit_store");
 
-const PLAN_TOOLKIT = {
-  toolkitId: "plan",
-  toolkitName: "Plan",
-  toolkitDescription: "Workspace-backed planning: draft, refine and finalize plans.",
-  source: "builtin",
-  tags: ["productivity"],
-  tools: [{ name: "plan_start", title: "Plan Start", requiresConfirmation: false }],
-  skills: [{ name: "plan", title: "Plan First", description: "Draft a plan first." }],
-};
-
-const NOTION_ENTRY = {
+const NOTION = {
   id: "notion",
   toolkitId: "mcp.productivity.notion-remote",
   toolkitName: "Notion",
@@ -64,11 +79,11 @@ const NOTION_ENTRY = {
   category: "productivity",
   status: "available",
   installable: true,
+  addedAt: "2026-09-22",
   tools: [{ name: "notion_search", title: "Search pages", requiresConfirmation: false }],
   skills: [{ name: "summarize", title: "Summarize", description: "Summarize a page." }],
 };
-
-const GITHUB_ENTRY = {
+const GITHUB = {
   id: "github",
   toolkitId: "mcp.dev.github-remote",
   toolkitName: "GitHub",
@@ -77,29 +92,92 @@ const GITHUB_ENTRY = {
   category: "dev",
   status: "available",
   installable: true,
-  tools: [{ name: "review_pr", title: "Review pull request", requiresConfirmation: false }],
-  skills: [{ name: "review-pr", title: "Review PR", description: "Review a pull request." }],
+  addedAt: "2026-09-13",
+  secrets: [{ key: "GITHUB_TOKEN", label: "Token" }],
+  tools: [],
+  skills: [],
 };
-
-const FULL_CURATION = {
+const FILESYSTEM = {
+  id: "filesystem",
+  toolkitId: "mcp.workspace.filesystem",
+  toolkitName: "Filesystem",
+  toolkitDescription: "Read and write files in a folder you choose.",
+  source: "mcp",
+  category: "workspace",
+  status: "available",
+  installable: true,
+  addedAt: "2026-06-06",
+  tools: [],
+  skills: [],
+};
+const FIGMA_SOON = {
+  id: "figma",
+  toolkitId: "mcp.dev.figma-remote",
+  toolkitName: "Figma",
+  toolkitDescription: "Design files.",
+  source: "mcp",
+  category: "dev",
+  status: "coming_soon",
+  installable: false,
+  addedAt: "2026-10-01",
+  tools: [],
+  skills: [],
+};
+const HUMANIZER = {
+  id: "skillpack.humanizer",
+  title: "Humanizer",
+  blurb: "Revise pasted prose for clearer language.",
+  review: { reviewedAt: "2026-09-22" },
+};
+const SUPERPOWERS = {
+  id: "skillpack.superpowers-essentials",
+  title: "Superpowers Essentials",
+  blurb: "Methodology skills for building software.",
+  review: { reviewedAt: "2026-07-18" },
+};
+const HUMANIZER_INSTALLED = {
+  toolkitId: "skillpack.humanizer",
+  toolkitName: "Humanizer",
+  toolkitDescription: "Revise pasted prose for clearer language.",
+  source: "skillpack",
+  tools: [],
+  skills: [{ name: "humanizer", title: "Humanizer", description: "Revise prose." }],
+};
+const CURATION = {
   featured: {
-    pluginId: "plan",
+    pluginId: "mcp.dev.github-remote",
     kicker: "Editor's pick",
-    headline: "Plan before you build",
-    blurb: "Turn any request into a step-by-step plan you approve first.",
+    headline: "GitHub, in the chat",
+    blurb: "Browse repos and act on your code.",
     gradient: ["#6478f6", "#4a5bd8"],
   },
-  essentials: ["mcp.dev.github-remote", "mcp.productivity.notion-remote"],
+  essentials: [
+    "mcp.productivity.notion-remote",
+    "mcp.dev.github-remote",
+    "skillpack.superpowers-essentials",
+  ],
   collections: [
     {
-      id: "web-research-kit",
-      title: "Web Research Kit",
+      id: "research-kit",
+      title: "Research Kit",
       blurb: "See, browse and extract.",
       gradient: ["#4cbe8b", "#2f9a68"],
-      pluginIds: ["mcp.productivity.notion-remote", "mcp.dev.github-remote"],
+      pluginIds: ["mcp.productivity.notion-remote", "mcp.workspace.filesystem"],
     },
   ],
+  skillPacks: [],
 };
+
+const HUE = /154, 168, 255|37, 99, 235|124, 140, 248/;
+
+beforeEach(() => {
+  // react-scripts resets mock implementations before every test.
+  api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
+  listMcpStoreEntries.mockReturnValue([NOTION, GITHUB, FILESYSTEM, FIGMA_SOON]);
+  listStoreSkillPacks.mockReturnValue([HUMANIZER, SUPERPOWERS]);
+  loadStoreCuration.mockReturnValue(CURATION);
+  subscribeToolkitCatalogRefresh.mockReturnValue(() => {});
+});
 
 const renderPage = async (props = {}) => {
   let rendered;
@@ -118,311 +196,276 @@ const renderPage = async (props = {}) => {
   return rendered;
 };
 
-describe("PluginsDiscoverPage — title", () => {
-  test("renders the fixed 'Discover' title", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([]);
-    loadStoreCuration.mockReturnValue({ featured: null, essentials: [], collections: [] });
+const latestIds = () =>
+  screen
+    .getAllByTestId(/^discover-latest-/)
+    .map((row) => row.getAttribute("data-testid").replace("discover-latest-", ""));
 
+describe("Discover — title", () => {
+  test("renders the fixed 'Discover' title", async () => {
     await renderPage();
 
     expect(screen.getByText("Discover")).toBeInTheDocument();
   });
 });
 
-describe("PluginsDiscoverPage — Featured aurora card", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-  });
-
-  test("renders the curated featured plugin's kicker/title/blurb on the aurora card", async () => {
+describe("Discover — featured row", () => {
+  test("shows the curated headline, blurb and the plugin's type", async () => {
     await renderPage();
 
-    const card = screen.getByTestId("discover-featured-aurora");
-    expect(within(card).getByText("Editor's pick")).toBeInTheDocument();
-    expect(within(card).getByText("Plan before you build")).toBeInTheDocument();
-    expect(
-      within(card).getByText("Turn any request into a step-by-step plan you approve first."),
-    ).toBeInTheDocument();
+    const featured = screen.getByTestId("discover-featured");
+    expect(within(featured).getByText("GitHub, in the chat")).toBeInTheDocument();
+    expect(within(featured).getByText("Browse repos and act on your code.")).toBeInTheDocument();
+    expect(within(featured).getByTestId("type-tag")).toHaveTextContent("MCP");
   });
 
-
-  test("clicking the featured card opens its detail", async () => {
+  test("carries no install pill — the whole row opens detail (owner decision 2026-07-18)", async () => {
     const onOpenDetail = jest.fn();
     await renderPage({ onOpenDetail });
 
-    fireEvent.click(screen.getByTestId("discover-featured-aurora"));
+    const featured = screen.getByTestId("discover-featured");
+    expect(within(featured).queryAllByRole("button")).toHaveLength(0);
 
-    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+    fireEvent.click(featured);
+    expect(onOpenDetail).toHaveBeenCalledWith("github");
   });
 
-  test("an all-missing featured curation omits the aurora card entirely", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([]);
-    loadStoreCuration.mockReturnValue({
-      featured: {
-        pluginId: "does-not-exist",
-        kicker: "K",
-        headline: "Should Not Render",
-        blurb: "B",
-        gradient: ["#111111", "#222222"],
-      },
-      essentials: [],
-      collections: [],
-    });
-
+  test("a featured id found nowhere omits the row and its caption", async () => {
+    loadStoreCuration.mockReturnValue({ ...CURATION, featured: { ...CURATION.featured, pluginId: "mcp.nope" } });
     await renderPage();
 
-    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
-    expect(screen.queryByText("Should Not Render")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("discover-featured")).not.toBeInTheDocument();
+    expect(screen.queryByText("Featured")).not.toBeInTheDocument();
   });
 });
 
-describe("PluginsDiscoverPage — Essentials brand-orb grid", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-  });
-
-  test("renders one grid card per curated essential, each with a brand orb", async () => {
+describe("Discover — Latest", () => {
+  test("lists the three newest across MCP servers and packs; same-day ties by name", async () => {
     await renderPage();
 
-    const grid = screen.getByTestId("essentials-grid");
-    expect(within(grid).getByText("Notion")).toBeInTheDocument();
-    expect(within(grid).getByText("GitHub")).toBeInTheDocument();
-
-    const notionCard = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
-    expect(within(notionCard).getByTestId("brand-orb")).toBeInTheDocument();
+    // Humanizer and Notion share 2026-09-22; GitHub is 2026-09-13; Figma is
+    // coming_soon and Filesystem is older.
+    expect(latestIds()).toEqual([
+      "skillpack.humanizer",
+      "mcp.productivity.notion-remote",
+      "mcp.dev.github-remote",
+    ]);
   });
 
-  test("renders the first command as a chip and a two-line-clamped description", async () => {
+  test("each row says how long ago it landed, in the app's words", async () => {
     await renderPage();
 
-    const githubCard = screen.getByTestId("discover-grid-mcp.dev.github-remote");
-    expect(within(githubCard).getByText("/review-pr")).toBeInTheDocument();
-    expect(
-      within(githubCard).getByText("Repos, issues and pull requests, right in the chat."),
-    ).toBeInTheDocument();
+    expect(within(screen.getByTestId("discover-latest-skillpack.humanizer")).getByText("11 days ago")).toBeInTheDocument();
+    expect(within(screen.getByTestId("discover-latest-mcp.dev.github-remote")).getByText("3 weeks ago")).toBeInTheDocument();
   });
 
-  test("clicking a grid card opens detail; clicking its pill does not also open detail via the card handler twice", async () => {
+  test("a pack is tagged SKILL and an MCP server that ships a command is tagged MCP · SKILL", async () => {
+    await renderPage();
+
+    expect(within(screen.getByTestId("discover-latest-skillpack.humanizer")).getByTestId("type-tag")).toHaveTextContent("SKILL");
+    expect(within(screen.getByTestId("discover-latest-mcp.productivity.notion-remote")).getByTestId("type-tag")).toHaveTextContent("MCP · SKILL");
+  });
+
+  test("a future-dated entry is never listed", async () => {
+    listMcpStoreEntries.mockReturnValue([
+      { ...NOTION, id: "future", toolkitId: "mcp.x.future", toolkitName: "Aaa Future", addedAt: "2099-01-01" },
+      NOTION,
+    ]);
+    await renderPage();
+
+    expect(latestIds()).not.toContain("mcp.x.future");
+  });
+
+  test("an old sidecar that sends no dates leaves Latest to the packs (SEQ-002 cell 2)", async () => {
+    listMcpStoreEntries.mockReturnValue(
+      [NOTION, GITHUB, FILESYSTEM].map(({ addedAt, ...rest }) => rest),
+    );
+    await renderPage();
+
+    expect(latestIds()).toEqual(["skillpack.humanizer", "skillpack.superpowers-essentials"]);
+  });
+
+  test("with nothing dated at all, the band and its caption are left out", async () => {
+    listMcpStoreEntries.mockReturnValue([NOTION, GITHUB].map(({ addedAt, ...rest }) => rest));
+    listStoreSkillPacks.mockReturnValue([{ ...HUMANIZER, review: {} }]);
+    await renderPage();
+
+    expect(screen.queryByTestId("discover-section-latest")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId(/^discover-latest-/)).toHaveLength(0);
+  });
+
+  test("GET on a pack runs the pack installer", async () => {
+    installStoreSkillPack.mockResolvedValue({ toolkitName: "Humanizer", skills: [{}] });
+    await renderPage();
+
+    const row = screen.getByTestId("discover-latest-skillpack.humanizer");
+    await act(async () => {
+      fireEvent.click(within(row).getByRole("button", { name: "GET" }));
+    });
+
+    expect(installStoreSkillPack).toHaveBeenCalledWith(HUMANIZER);
+    expect(emitToolkitCatalogRefresh).toHaveBeenCalledWith({ source: "skill_pack_store_install" });
+  });
+
+  test("an installed pack shows OPEN and opens its installed detail", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [HUMANIZER_INSTALLED] });
     const onOpenDetail = jest.fn();
     await renderPage({ onOpenDetail });
 
-    const notionCard = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
-    fireEvent.click(notionCard);
-    expect(onOpenDetail).toHaveBeenCalledWith("notion");
+    const row = await screen.findByTestId("discover-latest-skillpack.humanizer");
+    await waitFor(() => expect(within(row).getByRole("button", { name: "OPEN" })).toBeInTheDocument());
+    expect(within(row).getByTestId("type-tag")).toHaveTextContent("SKILL");
+
+    fireEvent.click(within(row).getByRole("button", { name: "OPEN" }));
+    expect(onOpenDetail.mock.calls[0][0].raw.toolkitId).toBe("skillpack.humanizer");
   });
 
-  test("the Essentials header's 'See all' link navigates to the store page", async () => {
+  test("reloads the catalog when a pack install announces itself, so GET turns into OPEN", async () => {
+    await renderPage();
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(1);
+
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [HUMANIZER_INSTALLED] });
+    const onRefresh = subscribeToolkitCatalogRefresh.mock.calls[0][0];
+    await act(async () => {
+      onRefresh();
+    });
+
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(2);
+    const row = screen.getByTestId("discover-latest-skillpack.humanizer");
+    await waitFor(() => expect(within(row).getByRole("button", { name: "OPEN" })).toBeInTheDocument());
+  });
+});
+
+describe("Discover — Essentials", () => {
+  test("one row per resolved essential, including a not-yet-installed pack", async () => {
+    await renderPage();
+
+    expect(screen.getByTestId("discover-essential-mcp.productivity.notion-remote")).toBeInTheDocument();
+    expect(screen.getByTestId("discover-essential-mcp.dev.github-remote")).toBeInTheDocument();
+    const pack = screen.getByTestId("discover-essential-skillpack.superpowers-essentials");
+    expect(within(pack).getByTestId("type-tag")).toHaveTextContent("SKILL");
+  });
+
+  test("'See all' goes to Browse › All", async () => {
     const onNavigate = jest.fn();
     await renderPage({ onNavigate });
 
-    fireEvent.click(screen.getByText("See all ›"));
-
+    fireEvent.click(screen.getByRole("button", { name: /see all/i }));
     expect(onNavigate).toHaveBeenCalledWith("cat:all");
   });
 
-  test("with no onNavigate prop, no 'See all' link renders", async () => {
+  test("with no onNavigate prop, no 'See all' renders", async () => {
     await renderPage();
 
-    expect(screen.queryByText("See all ›")).not.toBeInTheDocument();
-  });
-});
-
-describe("PluginsDiscoverPage — Collections", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
+    expect(screen.queryByRole("button", { name: /see all/i })).not.toBeInTheDocument();
   });
 
-  test("renders one collection row per curated collection, with its plugins' stacked icons and tagline", async () => {
-    await renderPage();
-
-    const row = screen.getByTestId("collection-web-research-kit");
-    expect(within(row).getByText("Web Research Kit")).toBeInTheDocument();
-    expect(within(row).getByText(/See, browse and extract\./)).toBeInTheDocument();
-    expect(within(row).getByText(/2 plugins/)).toBeInTheDocument();
-  });
-
-  test("an all-missing collection omits its row entirely", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([]);
-    loadStoreCuration.mockReturnValue({
-      featured: null,
-      essentials: [],
-      collections: [
-        {
-          id: "ghost-collection",
-          title: "Ghost",
-          blurb: "b",
-          gradient: ["#111111", "#222222"],
-          pluginIds: ["missing-a", "missing-b"],
-        },
-      ],
-    });
-
-    await renderPage();
-
-    expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
-    expect(screen.getByText("Discover")).toBeInTheDocument();
-  });
-});
-
-describe("PluginsDiscoverPage — Get all skips Set-up entries", () => {
-  const SECRET_ENTRY = {
-    id: "browser-use-local",
-    toolkitId: "mcp.browser.browser-use-local",
-    toolkitName: "Browser Use",
-    toolkitDescription: "Local browser automation agent.",
-    source: "mcp",
-    category: "dev",
-    status: "available",
-    installable: true,
-    mcp: { transport: "stdio" },
-    secrets: [{ key: "OPENAI_API_KEY", label: "OpenAI API key" }],
-    tools: [],
-  };
-
-});
-
-describe("PluginsDiscoverPage — curation tolerance", () => {
-  test("missing curation pluginIds skip silently and an all-missing curation omits every section", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([]);
-    loadStoreCuration.mockReturnValue({
-      featured: {
-        pluginId: "does-not-exist",
-        kicker: "K",
-        headline: "Should Not Render",
-        blurb: "B",
-        gradient: ["#111111", "#222222"],
-      },
-      essentials: ["also-missing"],
-      collections: [
-        {
-          id: "ghost-collection",
-          title: "Ghost",
-          blurb: "b",
-          gradient: ["#111111", "#222222"],
-          pluginIds: ["missing-a", "missing-b"],
-        },
-      ],
-    });
-
-    await renderPage();
-
-    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("essentials-grid")).not.toBeInTheDocument();
-    expect(screen.queryByText("Ghost")).not.toBeInTheDocument();
-    expect(screen.getByText("Discover")).toBeInTheDocument();
-  });
-
-  test("empty curation object does not crash the page", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([]);
-    loadStoreCuration.mockReturnValue({ featured: null, essentials: [], collections: [] });
-
-    await renderPage();
-
-    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
-    expect(screen.getByText("Discover")).toBeInTheDocument();
-  });
-});
-
-describe("PluginsDiscoverPage — vocabulary", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-  });
-
-  test("never renders the word 'tool' — plugin vocabulary only", async () => {
-    const { container } = await renderPage();
-    expect(container.textContent).not.toMatch(/tool/i);
-  });
-});
-
-/* C2 regression: a secrets-backed featured entry's aurora pill reads
-   "Set up" — clicking it must open detail instead of firing a secretless
-   install (same opensSetup gating the old tile/row pill had). */
-const SECRET_ENTRY = {
-  id: "browser-use-local",
-  toolkitId: "mcp.browser.browser-use-local",
-  toolkitName: "Browser Use",
-  toolkitDescription: "Local browser automation agent.",
-  source: "mcp",
-  category: "dev",
-  status: "available",
-  installable: true,
-  mcp: { transport: "stdio" },
-  secrets: [{ key: "OPENAI_API_KEY", label: "OpenAI API key" }],
-  tools: [],
-};
-
-describe("PluginsDiscoverPage — Set-up gating", () => {
-
-  test("a secrets-backed essential entry's grid pill opens detail instead of installing", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [] });
-    listMcpStoreEntries.mockReturnValue([SECRET_ENTRY]);
-    const onInstall = jest.fn();
-    const onOpenDetail = jest.fn();
-    loadStoreCuration.mockReturnValue({
-      featured: null,
-      essentials: ["mcp.browser.browser-use-local"],
-      collections: [],
-    });
-
-    await renderPage({ onInstall, onOpenDetail });
-
-    const pill = screen.getByText("Set up");
-    await act(async () => {
-      fireEvent.click(pill);
-    });
-
-    expect(onInstall).not.toHaveBeenCalled();
-    expect(onOpenDetail).toHaveBeenCalledWith("browser-use-local");
-  });
-});
-
-describe("PluginsDiscoverPage — install error strip", () => {
-  test("renders the shell's install error the same way Categories does", async () => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-
-    await renderPage({
-      installError: { entryId: "notion", message: "Install failed: network error" },
-    });
-
-    expect(screen.getByText("Install failed: network error")).toBeInTheDocument();
-  });
-});
-
-describe("PluginsDiscoverPage — trust badges", () => {
-  beforeEach(() => {
-    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [PLAN_TOOLKIT] });
-    listMcpStoreEntries.mockReturnValue([NOTION_ENTRY, GITHUB_ENTRY]);
-    loadStoreCuration.mockReturnValue(FULL_CURATION);
-  });
-
-  test("keeps trust badges out of the hero, essentials and expanded collection", async () => {
+  test("a secrets-backed essential's pill opens detail instead of installing", async () => {
     const onOpenDetail = jest.fn();
     const onInstall = jest.fn();
     await renderPage({ onOpenDetail, onInstall });
 
-    const hero = screen.getByTestId("discover-featured-aurora");
-    expect(within(hero).queryByTestId("plugin-trust-badge")).toBeNull();
-    const essential = screen.getByTestId("discover-grid-mcp.productivity.notion-remote");
-    expect(within(essential).queryByTestId("plugin-trust-badge")).toBeNull();
-    fireEvent.click(screen.getByTestId("collection-web-research-kit"));
-    expect(screen.queryByTestId("plugin-trust-badge")).toBeNull();
+    const row = screen.getByTestId("discover-essential-mcp.dev.github-remote");
+    fireEvent.click(within(row).getByRole("button", { name: /set up/i }));
 
-    expect(onOpenDetail).not.toHaveBeenCalled();
+    expect(onOpenDetail).toHaveBeenCalledWith("github");
     expect(onInstall).not.toHaveBeenCalled();
+  });
+});
+
+describe("Discover — Collections", () => {
+  test("one row per collection with its plugin count, expanding to its members", async () => {
+    await renderPage();
+
+    const collection = screen.getByTestId("collection-research-kit");
+    expect(within(collection).getByText("Research Kit")).toBeInTheDocument();
+    expect(within(collection).getByText("· 2 plugins")).toBeInTheDocument();
+    expect(collection).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(collection);
+
+    expect(collection).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("discover-member-research-kit-mcp.workspace.filesystem")).toBeInTheDocument();
+  });
+
+  test("a collection whose ids are all missing is left out", async () => {
+    loadStoreCuration.mockReturnValue({
+      ...CURATION,
+      collections: [{ ...CURATION.collections[0], pluginIds: ["mcp.nope"] }],
+    });
+    await renderPage();
+
+    expect(screen.queryByTestId("collection-research-kit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Collections")).not.toBeInTheDocument();
+  });
+
+  test("there is no 'Install all' (owner decision 2026-07-21)", async () => {
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: /install all|get all/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("Discover — curation tolerance", () => {
+  test("missing ids skip silently", async () => {
+    loadStoreCuration.mockReturnValue({ ...CURATION, essentials: ["mcp.nope", "mcp.productivity.notion-remote"] });
+    await renderPage();
+
+    expect(screen.getAllByTestId(/^discover-essential-/)).toHaveLength(1);
+  });
+
+  test("an empty store renders the title and nothing else, without crashing", async () => {
+    loadStoreCuration.mockReturnValue({ featured: null, essentials: [], collections: [], skillPacks: [] });
+    listMcpStoreEntries.mockReturnValue([]);
+    listStoreSkillPacks.mockReturnValue([]);
+    await renderPage();
+
+    expect(screen.getByText("Discover")).toBeInTheDocument();
+    ["Featured", "Latest", "Essentials", "Collections"].forEach((label) =>
+      expect(screen.queryByText(label)).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe("Discover — the store's language", () => {
+  test("the WebGL cards are gone", async () => {
+    await renderPage();
+
+    expect(screen.queryByTestId("discover-featured-aurora")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("essentials-grid")).not.toBeInTheDocument();
+  });
+
+  test("nothing on the page carries a hue", async () => {
+    const { container } = await renderPage();
+
+    expect(container.querySelector(".scrollable").outerHTML).not.toMatch(HUE);
+  });
+
+  test("per-item copy never says 'tool' (type tags are exempt)", async () => {
+    const { container } = await renderPage();
+
+    const body = container.querySelector(".scrollable").cloneNode(true);
+    body.querySelectorAll('[data-testid="type-tag"]').forEach((tag) => tag.remove());
+    expect(body.textContent).not.toMatch(/tool/i);
+  });
+
+  test("keeps trust badges out of every section", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByTestId("collection-research-kit"));
+
+    expect(screen.queryAllByTestId("plugin-trust-badge")).toHaveLength(0);
+  });
+
+  test("shows the shell's install error and a pack install error", async () => {
+    installStoreSkillPack.mockRejectedValue(Object.assign(new Error("x"), { code: "integrity" }));
+    await renderPage({ installError: { message: "Network down" } });
+
+    expect(screen.getByText("Network down")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByTestId("discover-latest-skillpack.humanizer")).getByRole("button", { name: "GET" }),
+      );
+    });
+    expect(screen.getByText(/reviewed fingerprint/i)).toBeInTheDocument();
   });
 });
