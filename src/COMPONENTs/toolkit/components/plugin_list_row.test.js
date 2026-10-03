@@ -85,6 +85,16 @@ describe("PluginListRow", () => {
     });
   });
 
+  test("when space runs out the command chip gives way before the name does", () => {
+    render(<PluginListRow name="Vercel Web Review" command="/web-design-guidelines" />);
+
+    const name = screen.getByText("Vercel Web Review");
+    const chip = screen.getByText("/web-design-guidelines");
+    expect(Number(chip.style.flexShrink)).toBeGreaterThan(Number(name.style.flexShrink || 1));
+    expect(chip.style.overflow).toBe("hidden");
+    expect(chip.style.textOverflow).toBe("ellipsis");
+  });
+
   test("renders the type tag next to the name", () => {
     render(<PluginListRow name="Playwright Browser" types={["mcp"]} />);
 

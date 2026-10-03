@@ -48,7 +48,13 @@ const PluginListRow = ({
         fontSize: commandFirst ? 11 : 10,
         color: chipColor,
         padding: commandFirst ? "2px 7px" : "1px 6px",
-        flexShrink: 0,
+        /* The name is the row's only scanning cue (13 of 24 registry entries
+           share one grey glyph), so the chip gives way first. */
+        flexShrink: 1000,
+        minWidth: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
       }}
     >
       {command}
