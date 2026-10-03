@@ -111,6 +111,8 @@ jobs:
             --evidence "${{ steps.unchain_artifact.outputs.evidence_path }}" \
             --python python \
             --installed true
+          # Host test bootstrap must not shadow the verified wheel with sibling source.
+          python -I -c "from pathlib import Path; import unchain; print('UNCHAIN_SOURCE_PATH=' + str(Path(unchain.__file__).resolve().parent.parent))" >> "$GITHUB_ENV"
 
       - name: Upload immutable Unchain artifact
         uses: actions/upload-artifact@v4

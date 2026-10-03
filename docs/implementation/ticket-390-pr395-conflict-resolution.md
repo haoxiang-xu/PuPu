@@ -1,5 +1,9 @@
 # PR #395 dev conflict resolution — 2026-10-02
 
+Historical source-merge evidence. The subsequent runtime/CI reconciliation and
+its combined-pair results are recorded in
+[`ticket-390-pr395-ci-acceptance.md`](ticket-390-pr395-ci-acceptance.md).
+
 Merge source: PuPu dev `0047d58d0369d5c245a3fd8021d4d97c3e3f9a35`.
 Pre-merge PR head: `114d8f950d6b112d5d3e6adc6c199066dcf78664`.
 Scope: resolve the requested PuPu source conflict and preserve both tickets'

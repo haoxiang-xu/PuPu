@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
@@ -126,17 +128,23 @@ def test_uncertain_and_exhausted_provider_failures_keep_their_status_text():
     )
 
 def test_uncertain_failure_without_http_status_keeps_its_fixed_reason():
-    """#386: a connection lost mid-response reaches the UI with its fixed wording."""
+    """A typed connection interruption keeps its safe cause at the host boundary."""
+
+    from unchain.providers.uncertainty_diagnostic import ProviderUncertaintyDiagnostic
 
     error = DurableProviderTurnUncertainError(
-        detail=(
-            "Provider connection closed before the response completed; "
-            "the provider may still have processed it (RemoteProtocolError)"
-        )
+        ProviderUncertaintyDiagnostic("connection_interrupted", "reading_response")
     )
     assert route_chat._normalize_stream_error(error) == (
         "durable_provider_turn_uncertain",
-        "durable_provider_turn_uncertain; Provider connection closed before the "
-        "response completed; the provider may still have processed it "
-        "(RemoteProtocolError)",
+        "Provider request outcome is uncertain: The connection was interrupted "
+        "(reason=connection_interrupted, phase=reading_response)",
     )
+
+
+def test_uncertain_error_rejects_free_form_detail_at_construction():
+    """Private exception text cannot bypass the closed diagnostic contract."""
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'detail'") as caught:
+        DurableProviderTurnUncertainError(detail="PRIVATE provider body / key / signed response")
+    assert "PRIVATE" not in str(caught.value)

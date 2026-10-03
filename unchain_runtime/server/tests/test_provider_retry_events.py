@@ -213,7 +213,7 @@ def test_stop_during_the_wait_sends_nothing_more(tmp_path, monkeypatch):
 
 
 def test_an_unexpected_provider_error_reaches_the_stream_with_its_class_only(tmp_path, monkeypatch):
-    """#386 bare uncertain: the turn fails with fixed wording and the class name."""
+    """Unknown exceptions surface a closed category without raw body or class name."""
 
     events, sends, raised = _run(
         tmp_path,
@@ -227,8 +227,10 @@ def test_an_unexpected_provider_error_reaches_the_stream_with_its_class_only(tmp
         repr(event) for event in events if event.get("type") in {"error", "run_failed"}
     ] + [repr(exc) for exc in raised]
     assert any(
-        "Provider call failed with an unexpected error; the provider may still have "
-        "processed it (ValueError)" in text
+        "A local error interrupted provider response processing "
+        "(reason=local_processing_error, phase=reading_response)" in text
         for text in surfaced
     ), surfaced
     assert not any("PRIVATE" in text for text in surfaced)
+    assert not any("ValueError" in text for text in surfaced)
+    assert not [event for event in events if event.get("type") in {"provider_retry", "final_message"}]
