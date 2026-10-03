@@ -101,6 +101,33 @@ two PRs after push.
 
 ## Impact and delivery limits
 
+### First delivered CI follow-up
+
+[PuPu run 37101792846](https://github.com/haoxiang-xu/PuPu/actions/runs/37101792846)
+passed frontend (**5,088**), Electron (**660**, lite selection), both contract
+gates, Web build, MCP checks, Release QA scripts and notices. The backend had
+**1 failed / 2,674 passed / 18 skipped / 3,599 subtests passed**. Its one failure
+was the existing public-toolkit ordering assertion, not a #390 provider test.
+
+The installed-wheel source binding was insufficient while the backend step
+still set `PYTHONPATH` to the archive: an early cached ZIP import gave toolkit
+modules archive paths, so ordinary filesystem reads could not see their
+`toolkit.toml` files. Those files are present in the wheel. The resulting
+default display orders exactly explain the Linux assertion. A fresh-process
+ZIP-import reproduction failed the unchanged assertion; a filesystem installation
+passed. No production ordering code, test assertion or fixture is changed.
+The backend now inherits the verified installed distribution; the workflow
+regression forbidding the ZIP override was RED before that change.
+
+This CI run's wheel is
+`sha256:cc07d479be833c32f76f64147d255ba58ef10a66743372a8f89a8740a859a0c7`;
+its source revision and manifest digest match the local qualification above.
+Its downloaded bytes were independently reverified. It is recorded separately
+from the local wheel rather than claiming two builds have the same archive hash.
+The UI checkmark for a `continue-on-error` step is not a passing test outcome;
+the authoritative report correctly lists the backend as failed. Follow-up
+evidence maps to **AC-CI-06 / BC-390-16**.
+
 Unchain's complete staged pre-commit graph check covered **175 changed symbols,
 9 affected processes and 28 files, HIGH**, with no partial/truncated/error
 result. Core retry/projector and Electron readiness upstream checks report

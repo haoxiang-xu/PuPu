@@ -202,8 +202,6 @@ jobs:
         timeout-minutes: 10
         continue-on-error: true
         working-directory: pupu/unchain_runtime/server
-        env:
-          PYTHONPATH: ${{ steps.unchain_artifact.outputs.artifact_path }}
         shell: bash
         run: |
           set -o pipefail

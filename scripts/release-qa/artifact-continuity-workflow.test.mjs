@@ -55,6 +55,12 @@ test("release builds Unchain once and every test/package consumes the same bytes
       `${id} must run after the verified artifact is bound`,
     );
   }
+  const pythonStep = deterministicSteps.find((step) => step.id === "python");
+  assert.equal(
+    pythonStep.env?.PYTHONPATH,
+    undefined,
+    "host tests must inherit the verified installed distribution; a wheel ZIP import hides toolkit metadata files",
+  );
   assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
   assert.match(sharedDeterministic, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
