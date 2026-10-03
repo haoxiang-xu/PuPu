@@ -223,7 +223,7 @@ describe("PluginsDiscoverPage — Essentials brand-orb grid", () => {
 
     fireEvent.click(screen.getByText("See all ›"));
 
-    expect(onNavigate).toHaveBeenCalledWith("store");
+    expect(onNavigate).toHaveBeenCalledWith("cat:all");
   });
 
   test("with no onNavigate prop, no 'See all' link renders", async () => {

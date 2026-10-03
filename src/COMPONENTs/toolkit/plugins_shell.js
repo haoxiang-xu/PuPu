@@ -17,9 +17,12 @@ import api from "../../SERVICEs/api";
 import { toPluginPresentation } from "../../SERVICEs/plugin_presentation";
 import {
   getMcpStoreEntry,
+  listMcpStoreEntries,
   setMcpStoreEntriesCache,
   setMcpStoreMetadataCache,
 } from "../../SERVICEs/mcp_toolkit_store";
+import { listStoreSkillPacks } from "./utils/skill_pack_store_install";
+import { categoryCounts, orderedCategories } from "../../SERVICEs/store_categories";
 import {
   connectMcpOAuthEntry,
   ensureWorkspaceForEntry,
@@ -59,7 +62,6 @@ const installErrorMessage = (error) => {
    matches the mockup exactly. */
 const NAV_ITEMS = [
   { id: "discover", icon: "discover", labelKey: "toolkit.nav_discover" },
-  { id: "store", icon: "storefront", labelKey: "toolkit.nav_store" },
   { id: "installed", icon: "download", labelKey: "toolkit.nav_installed" },
 ];
 
@@ -532,7 +534,26 @@ export const PluginsShell = ({
      with no sidebar UI writing into it anymore. */
   const [sidebarSearch, setSidebarSearch] = useState("");
 
-  /* ── Page content — Discover, Store and Installed are each dedicated
+  /* Rail rows come from the same two sources the category page lists —
+     listMcpStoreEntries() (static registry + any external-registry merge) and
+     listStoreSkillPacks() (the fail-closed curated packs) — so a category's
+     count is the number of rows its page shows. needs_review entries are
+     dropped here exactly as the page drops them. Computed in render, not
+     memoized: both sources are small and the entry cache can change under us.
+
+     builtins stays empty until the catalog carries storeCategory across the
+     IPC boundary (BC-001), so the PuPu Official row cannot appear yet. */
+  const categoryRows = orderedCategories(
+    categoryCounts({
+      entries: listMcpStoreEntries().filter(
+        (entry) => entry?.status !== "needs_review",
+      ),
+      packs: listStoreSkillPacks(),
+      builtins: [],
+    }),
+  );
+
+  /* ── Page content — Discover, Browse and Installed are each dedicated
      App-Store surfaces (Task 4 split Discover/Categories off the legacy
      store page; store-final collapsed the three type-category tabs into
      Store's own in-page segmented control). ── */
@@ -550,10 +571,11 @@ export const PluginsShell = ({
         />
       );
     }
-    if (activePage === "store") {
+    if (activePage.startsWith("cat:")) {
       return (
         <PluginsCategoriesPage
           isDark={isDark}
+          category={activePage.slice("cat:".length)}
           onOpenDetail={handleUnifiedOpenDetail}
           installedIds={installedMcpIds}
           onInstall={handleInstall}
@@ -660,6 +682,67 @@ export const PluginsShell = ({
             />
           );
         })}
+
+        {/* ── Browse — the store itself. One hairline separates it from
+             Discover and Installed above, the way the settings rail
+             separates its groups. All carries no count: its page also lists
+             catalog-only rows (custom MCP, builtin toolkits) the rail has no
+             source for, so a number there could not be true. ── */}
+        <div
+          style={{
+            fontSize: 12,
+            textTransform: "uppercase",
+            letterSpacing: "1.5px",
+            color: "var(--pupu-text)",
+            opacity: 0.3,
+            padding: "14px 12px 12px",
+            marginTop: 6,
+            borderTop: "1px solid var(--pupu-border)",
+          }}
+        >
+          {t("toolkit.nav_browse")}
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {[{ id: "all", count: null }, ...categoryRows].map((row) => {
+            const pageId = `cat:${row.id}`;
+            return (
+              <Button
+                key={row.id}
+                dom_props={{ "data-testid": "plugins-rail-category" }}
+                label={t(`toolkit.store_category_${row.id}`)}
+                postfix={row.count == null ? undefined : String(row.count)}
+                onClick={() => handleNavigate(pageId)}
+                style={{
+                  width: "100%",
+                  justifyContent: "flex-start",
+                  fontSize: 13,
+                  opacity: activePage === pageId ? 1 : 0.65,
+                  padding: "8px 12px",
+                  borderRadius: 7,
+                  content: {
+                    postfixText: {
+                      marginLeft: "auto",
+                      fontSize: 10.5,
+                      fontWeight: 300,
+                      opacity: 0.5,
+                      fontVariantNumeric: "tabular-nums",
+                    },
+                  },
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Content ── */}

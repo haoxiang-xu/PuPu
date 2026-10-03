@@ -6,7 +6,8 @@ import {
   getInstalledMcpIds,
   deleteMcpEntry,
 } from "../../SERVICEs/mcp_install";
-import { getMcpStoreEntry } from "../../SERVICEs/mcp_toolkit_store";
+import { getMcpStoreEntry, listMcpStoreEntries } from "../../SERVICEs/mcp_toolkit_store";
+import { listStoreSkillPacks } from "./utils/skill_pack_store_install";
 import { getPluginSettingsEntry } from "./plugin_settings_registry";
 import * as defaultToolkitStore from "../../SERVICEs/default_toolkit_store";
 
@@ -27,9 +28,10 @@ jest.mock("./pages/plugins_discover_page", () => ({
 
 jest.mock("./pages/plugins_categories_page", () => ({
   __esModule: true,
-  default: ({ onOpenDetail, onOpenCustomMcp }) => (
+  default: ({ category, onOpenDetail, onOpenCustomMcp }) => (
     <div>
       <span>Categories Page</span>
+      <span>Category: {category}</span>
       <button onClick={() => onOpenDetail?.("external.sample")}>
         Open External Entry
       </button>
@@ -273,18 +275,83 @@ describe("PluginsShell", () => {
     return rendered;
   };
 
-  /* store-final (2026-07-17): the five-item sidebar (Discover + three
-     separate type-category tabs + Installed) collapsed to three — Discover /
-     Store / Installed — once Store grew its own in-page segmented control
-     (see plugins_categories_page.test.js for All/Toolkits/MCP/Skills
-     segment coverage). */
-  test("renders the settings-clone sidebar title and the three nav items as Buttons", async () => {
+  /* #207: the Store nav item is retired. The rail carries Discover and
+     Installed, then a Browse group whose rows ARE the store — All plus one
+     row per category. */
+  test("renders the settings-clone sidebar title, Discover, Installed and the Browse group as Buttons", async () => {
     await renderShell();
 
     expect(screen.getByText("toolkit.nav_title")).toBeInTheDocument();
     expect(screen.getByText("toolkit.nav_discover").closest("button")).not.toBeNull();
-    expect(screen.getByText("toolkit.nav_store").closest("button")).not.toBeNull();
     expect(screen.getByText("toolkit.nav_installed").closest("button")).not.toBeNull();
+    expect(screen.getByText("toolkit.nav_browse")).toBeInTheDocument();
+    expect(screen.getByText("toolkit.store_category_all").closest("button")).not.toBeNull();
+  });
+
+  test("the retired Store nav item is gone", async () => {
+    await renderShell({ activePage: "cat:all" });
+
+    expect(screen.queryByText("toolkit.nav_store")).not.toBeInTheDocument();
+  });
+
+  test("clicking a category navigates to it", async () => {
+    const onNavigate = jest.fn();
+    await renderShell({ activePage: "cat:all", onNavigate });
+
+    fireEvent.click(screen.getByText("toolkit.store_category_dev"));
+
+    expect(onNavigate).toHaveBeenCalledWith("cat:dev");
+  });
+
+  test("each category row shows its count; All shows none, because it would not match the page", async () => {
+    await renderShell({ activePage: "cat:all" });
+
+    // All's page also lists catalog-only rows (custom MCP, builtin toolkits)
+    // that the rail has no source for, so a number there could not be true.
+    const [all, ...categories] = screen.getAllByTestId("plugins-rail-category");
+
+    expect(all.textContent).not.toMatch(/\d/);
+    expect(categories.length).toBeGreaterThan(0);
+    categories.forEach((row) => expect(row.textContent).toMatch(/\d+\s*$/));
+  });
+
+  test("categories are ordered by count, largest first, after All", async () => {
+    await renderShell({ activePage: "cat:all" });
+
+    const rows = screen.getAllByTestId("plugins-rail-category");
+    const counts = rows.slice(1).map((row) => Number(row.textContent.match(/(\d+)\s*$/)?.[1]));
+
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+  });
+
+  test("a category's count equals the registry entries and packs the page lists for it", async () => {
+    await renderShell({ activePage: "cat:all" });
+
+    const dev = screen.getByText("toolkit.store_category_dev").closest("button");
+    const shown = Number(dev.textContent.match(/(\d+)\s*$/)?.[1]);
+    const expected =
+      listMcpStoreEntries().filter(
+        (e) => e.status !== "needs_review" && (e.storeCategory ?? e.category) === "dev",
+      ).length +
+      listStoreSkillPacks().filter((p) => p.storeCategory === "dev").length;
+
+    expect(shown).toBe(expected);
+  });
+
+  test("a category selection reaches the page as its `category`", async () => {
+    await renderShell({ activePage: "cat:dev" });
+
+    expect(screen.getByText("Category: dev")).toBeInTheDocument();
+  });
+
+  test("the selected Browse row is full opacity, the others are dimmed", async () => {
+    await renderShell({ activePage: "cat:dev" });
+
+    const selected = screen.getByText("toolkit.store_category_dev").closest("button");
+    const idle = screen.getByText("toolkit.store_category_all").closest("button");
+
+    expect(selected.style.opacity).toBe("1");
+    expect(idle.style.opacity).toBe("0.65");
   });
 
   test("renders the installedCount badge next to Installed", async () => {
@@ -312,13 +379,13 @@ describe("PluginsShell", () => {
     expect(idleItem.style.opacity).toBe("0.65");
   });
 
-  test("routes content by activePage — discover, store and installed each get their own page", async () => {
+  test("routes content by activePage — discover, a category and installed each get their own page", async () => {
     const { rerender } = await renderShell({ activePage: "discover" });
     expect(screen.getByText("Discover Page")).toBeInTheDocument();
 
     await act(async () => {
       rerender(
-        <PluginsShell activePage="store" onNavigate={() => {}} installedCount={6} />,
+        <PluginsShell activePage="cat:all" onNavigate={() => {}} installedCount={6} />,
       );
     });
     expect(screen.getByText("Categories Page")).toBeInTheDocument();
@@ -346,7 +413,7 @@ describe("PluginsShell", () => {
       })
       .mockResolvedValueOnce({ entries: [REVIEW_ENTRY], count: 1, status: "ok" });
 
-    await renderShell({ activePage: "store" });
+    await renderShell({ activePage: "cat:all" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open External Entry"));
@@ -389,7 +456,7 @@ describe("PluginsShell", () => {
      page uses (same ensureWorkspaceForEntry → installMcpEntry → reload
      chain — install logic is unchanged, only the entry point moved). */
   test("the footer's 'Add a custom plugin' entry opens CustomMcpPage, and installing routes through the shared install flow", async () => {
-    await renderShell({ activePage: "store" });
+    await renderShell({ activePage: "cat:all" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Add a custom plugin"));
@@ -422,7 +489,7 @@ describe("PluginsShell", () => {
       ],
     });
 
-    await renderShell({ activePage: "store" });
+    await renderShell({ activePage: "cat:all" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
@@ -449,7 +516,7 @@ describe("PluginsShell", () => {
   test("toggling auto-enable on a store-kind detail persists through the shell's own handler", async () => {
     getInstalledMcpIds.mockResolvedValue(new Set(["mcp.installed.ready"]));
 
-    await renderShell({ activePage: "store" });
+    await renderShell({ activePage: "cat:all" });
 
     await act(async () => {
       fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
@@ -487,7 +554,7 @@ describe("PluginsShell", () => {
         persistedEnabled ? ["mcp.installed.ready"] : [],
       );
     try {
-      await renderShell({ activePage: "store" });
+      await renderShell({ activePage: "cat:all" });
       await act(async () => {
         fireEvent.click(screen.getByText("Open Installed-Ready Entry"));
       });

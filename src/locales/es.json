@@ -752,6 +752,7 @@
     "nav_mcp": "MCP",
     "nav_skills": "Habilidades",
     "nav_installed": "Instalados",
+    "nav_browse": "Explorar",
     "search_placeholder_v2": "Buscar plugins",
     "category_empty_search": "Ningún plugin coincide con tu búsqueda.",
     "installed_title": "Instalados",

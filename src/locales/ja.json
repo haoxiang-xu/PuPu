@@ -752,6 +752,7 @@
     "nav_mcp": "MCP",
     "nav_skills": "スキル",
     "nav_installed": "インストール済み",
+    "nav_browse": "ブラウズ",
     "search_placeholder_v2": "プラグインを検索",
     "category_empty_search": "検索条件に一致するプラグインはありません。",
     "installed_title": "インストール済み",

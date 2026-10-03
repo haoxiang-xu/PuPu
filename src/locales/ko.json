@@ -752,6 +752,7 @@
     "nav_mcp": "MCP",
     "nav_skills": "스킬",
     "nav_installed": "설치됨",
+    "nav_browse": "둘러보기",
     "search_placeholder_v2": "플러그인 검색",
     "category_empty_search": "검색과 일치하는 플러그인이 없습니다.",
     "installed_title": "설치됨",

@@ -752,6 +752,7 @@
     "nav_mcp": "MCP",
     "nav_skills": "技能",
     "nav_installed": "已安装",
+    "nav_browse": "浏览",
     "search_placeholder_v2": "搜索插件",
     "category_empty_search": "没有匹配搜索条件的插件。",
     "installed_title": "已安装",

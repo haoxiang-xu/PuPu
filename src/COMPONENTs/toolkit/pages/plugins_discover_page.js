@@ -429,7 +429,7 @@ const PluginsDiscoverPage = ({
 
         {essentials.length > 0 && (
           <>
-            {sectionHeader(t("toolkit.section_essentials"), onNavigate ? () => onNavigate("store") : null)}
+            {sectionHeader(t("toolkit.section_essentials"), onNavigate ? () => onNavigate("cat:all") : null)}
             <div
               data-testid="essentials-grid"
               style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingTop: 8, marginBottom: 12 }}
