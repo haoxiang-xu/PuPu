@@ -26,10 +26,19 @@ import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_act
 import PlaceholderBlock from "../components/placeholder_block";
 import PluginListRow from "../components/plugin_list_row";
 import PluginInstallPill from "../components/plugin_install_pill";
-import CategoryChip from "../components/category_chip";
-import SegmentedControl from "../components/segmented_control";
+import { matchesCategory } from "../../../SERVICEs/store_categories";
 
 const isMcpSourced = (source) => String(source || "").startsWith("mcp");
+
+/* Type is NOT exclusive. These are the same independent predicates the retired
+   type segments used: an MCP source makes a plugin mcp, anything else a
+   toolkit, and a command list additionally makes it a skill — so a builtin
+   toolkit that also ships a /command is both, and carries both tags. */
+const typesFor = (mcpSourced, presentation) => {
+  const types = [mcpSourced ? "mcp" : "toolkit"];
+  if ((presentation.commands || []).length > 0) types.push("skill");
+  return types;
+};
 
 /* The r1.2 error-code enum from the S6a download channel — each code has its
    own i18n key; anything outside the enum (facade timeouts, scan failures)
@@ -74,43 +83,26 @@ const CatalogOpenPill = ({ isDark, label, onClick }) => {
   );
 };
 
-/* The four type segments of the Store's in-page segmented control (design
-   authority: 2026-07-17 store-final mockup, `.seg`/`.sg` blocks). "all" has
-   no CategoryChip (mockup: "All 视图不加类型徽标"); the other three each
-   carry a color-tinted glyph via CategoryChip (no backdrop). */
-const TYPE_SEGMENTS = [
-  { key: "all", labelKey: "toolkit.seg_all" },
-  { key: "toolkit", labelKey: "toolkit.nav_toolkits", chip: "toolkit" },
-  { key: "mcp", labelKey: "toolkit.nav_mcp", chip: "mcp" },
-  { key: "skill", labelKey: "toolkit.nav_skills", chip: "skill" },
-];
+/* PluginsCategoriesPage — one category of the store, behind plugins_shell.js's
+   Browse group (#207). The sidebar rail owns which category is open and hands
+   it down as `category` ("all" or a subject id); this page no longer carries a
+   type control of its own, because type is a tag on every row now.
 
-/* PluginsCategoriesPage — the Store page behind plugins_shell.js's "store"
-   nav entry. Ground truth: 2026-07-17 store-final mockup screens ①/②.
-   CEO decision (2026-07-17, final): the three separate type-category nav
-   tabs (Toolkits/MCP/Skills) collapse into ONE Store page carrying an
-   in-page segmented control (All/Toolkits/MCP/Skills) — `typeFilter` is now
-   this page's own state (segment selection), not a caller-supplied prop.
-   The underlying union is unchanged: UNION of (1) the MCP store registry
-   (unchanged flow: static registry + any external-registry merge the shell
-   loaded into setMcpStoreEntriesCache + refresh-metadata overlay) and (2)
-   the installed/builtin catalog (listToolModalCatalog, same visibility
-   filter plugins_installed_page.js uses: source !== "plugin", !hidden, not
-   a base toolkit id). A toolkitId present in both is deduped down to the
-   registry entry only — it already renders as installed/OPEN once
-   `installedIds` (which the shell keeps fresh) contains it, so keeping a
-   second catalog-only row for it would just be a duplicate. A plugin with
-   more than one attribute (a builtin toolkit that also ships a /command, an
-   MCP server that also ships a /command) legitimately appears on more than
-   one segment — that's a feature of the union, not a bug to dedupe away.
-   `typeFilter` ("all" | "toolkit" | "mcp" | "skill") narrows the union;
-   "all" applies no type narrowing at all (every filter predicate below
-   falls through to its default case for "all", same as it already did for
-   the registry's native "mcp" default). The theme pill row (dev/devops/…)
-   from the pre-final design is retired entirely — CEO-approved final has no
-   theme filtering, only the four type segments. */
+   The list is still the UNION of (1) the MCP store registry (static registry +
+   any external-registry merge the shell loaded into setMcpStoreEntriesCache +
+   refresh-metadata overlay), (2) the installed/builtin catalog
+   (listToolModalCatalog, same visibility filter plugins_installed_page.js uses:
+   source !== "plugin", !hidden, not a base toolkit id), and (3) the curated
+   skill packs. A toolkitId present in registry and catalog is deduped down to
+   the registry entry only. A plugin with more than one type legitimately
+   carries more than one tag.
+
+   `category` narrows the union through store_categories.matchesCategory.
+   Admission is OPEN: a registry entry with no recognised category, and any
+   catalog-only row, belongs to All and to no other category. */
 const PluginsCategoriesPage = ({
   isDark,
+  category = "all",
   onOpenDetail,
   installedIds,
   onInstall,
@@ -136,13 +128,11 @@ const PluginsCategoriesPage = ({
   const [localSearch, setLocalSearch] = useState("");
   const search = controlledSearch !== undefined ? controlledSearch : localSearch;
   const setSearch = onSearchChange || setLocalSearch;
-  const [typeFilter, setTypeFilter] = useState("all");
 
   /* ── Registry half of the union — unchanged flow (searchMcpStoreEntries
        still owns deprecated-exclusion and text search for registry
-       entries), narrowed to `typeFilter` on top. No theme/category argument
-       any more — the theme pill row is retired, so the registry search is
-       always over the full "all" category. ── */
+       entries), narrowed to `category` on top. searchMcpStoreEntries gets no
+       category argument: the narrowing is store_categories.matchesCategory. ── */
   const registryEntries = listMcpStoreEntries();
   const filteredRegistryEntries = useMemo(
     () => searchMcpStoreEntries(registryEntries, search),
@@ -152,18 +142,14 @@ const PluginsCategoriesPage = ({
     () =>
       filteredRegistryEntries
         .filter((entry) => entry?.status !== "needs_review")
+        .filter((entry) => matchesCategory(entry, category))
         .map((entry) => ({
           kind: "registry",
           key: entry.id,
           entry,
           presentation: toPluginPresentation(entry),
-        }))
-        .filter((item) => {
-          if (typeFilter === "toolkit") return false; // registry entries are all MCP-sourced
-          if (typeFilter === "skill") return item.presentation.commands.length > 0;
-          return true; // typeFilter === "all" | "mcp"
-        }),
-    [filteredRegistryEntries, typeFilter],
+        })),
+    [filteredRegistryEntries, category],
   );
 
   /* ── Catalog half of the union — same load pattern as
@@ -230,23 +216,36 @@ const PluginsCategoriesPage = ({
     });
   }, [catalogOnly, search]);
 
+  /* A catalog row carries no category of its own until the catalog sends one
+     (BC-001). An installed skill pack is the one catalog row whose category we
+     do know — its store row is dropped once installed, so without this it
+     would vanish from the very category it was listed under. It inherits its
+     curated pack's category by id; every other catalog-only row stays under
+     All. A category the catalog does send wins. */
+  const packCategoryById = useMemo(
+    () =>
+      new Map(
+        listStoreSkillPacks().map((pack) => [pack.id, pack.storeCategory]),
+      ),
+    [],
+  );
+
   const catalogItems = useMemo(
     () =>
       catalogSearchFiltered
+        .filter((tk) =>
+          matchesCategory(
+            { storeCategory: tk.storeCategory ?? packCategoryById.get(tk.toolkitId) },
+            category,
+          ),
+        )
         .map((tk) => ({
           kind: "catalog",
           key: tk.toolkitId,
           toolkit: tk,
           presentation: toPluginPresentation(tk),
-        }))
-        .filter((item) => {
-          if (typeFilter === "skill") return item.presentation.commands.length > 0;
-          const mcpSourced = isMcpSourced(item.toolkit.source);
-          if (typeFilter === "mcp") return mcpSourced;
-          if (typeFilter === "toolkit") return !mcpSourced;
-          return true; // typeFilter === "all"
-        }),
-    [catalogSearchFiltered, typeFilter],
+        })),
+    [catalogSearchFiltered, category, packCategoryById],
   );
 
   /* ── Store skill packs (S6b) — curated one-click installable packs from
@@ -254,8 +253,7 @@ const PluginsCategoriesPage = ({
        catalog (installed) drops its store row entirely: the catalog half
        already renders it with the quiet OPEN pill, so keeping both would be
        a duplicate — same dedupe philosophy as registry-vs-catalog above.
-       Packs surface on the All and Skills segments only (a pack is a bundle
-       of /commands; it is neither an MCP server nor a builtin toolkit). ── */
+       A pack is a bundle of /commands, so it carries the SKILL tag. ── */
   const [installingPackIds, setInstallingPackIds] = useState(() => new Set());
   const [packError, setPackError] = useState(null);
   const zhLocale = String(locale || "").toLowerCase().startsWith("zh");
@@ -266,10 +264,10 @@ const PluginsCategoriesPage = ({
   );
 
   const packItems = useMemo(() => {
-    if (typeFilter !== "all" && typeFilter !== "skill") return [];
     const q = search.trim().toLowerCase();
     return listStoreSkillPacks()
       .filter((pack) => !installedCatalogIds.has(pack.id))
+      .filter((pack) => matchesCategory(pack, category))
       .map((pack) => ({
         pack,
         title: zhLocale && pack.titleZh ? pack.titleZh : pack.title,
@@ -283,7 +281,7 @@ const PluginsCategoriesPage = ({
             .toLowerCase()
             .includes(q),
       );
-  }, [typeFilter, search, installedCatalogIds, zhLocale]);
+  }, [category, search, installedCatalogIds, zhLocale]);
 
   const handleInstallPack = async (pack) => {
     if (installingPackIds.has(pack.id)) return;
@@ -312,26 +310,18 @@ const PluginsCategoriesPage = ({
 
   const rows = [...registryItems, ...catalogItems];
 
-  /* Skills segment: the command chip renders BEFORE the name (mockup screen
-     ②) and the row description prefers the skill's own description over
-     the plugin's tagline — "this view, you're picking a command". */
-  const commandFirst = typeFilter === "skill";
-  const rowDescription = (presentation) =>
-    commandFirst
-      ? presentation.commands?.[0]?.description || presentation.tagline
-      : presentation.tagline;
+  const rowDescription = (presentation) => presentation.tagline;
 
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const textColor = isDark ? "rgba(var(--pupu-text-rgb),0.90)" : "rgba(var(--pupu-text-rgb),0.85)";
   const tertiaryText = isDark ? "rgba(var(--pupu-text-rgb),0.34)" : "rgba(var(--pupu-text-rgb),0.4)";
 
-  /* Custom-MCP entry-point and the third-party trademark disclaimer are both
-     MCP-specific — they only make sense when the MCP segment is active. */
-  const isMcpCategory = typeFilter === "mcp";
-
-  /* Type segments render through the shared SegmentedControl (sliding
-     indicator, agents_modal_content.js's section switcher) — its `leading`
-     slot carries the tinted CategoryChip per segment. */
+  /* The custom-MCP entry point and the metadata refresh act on the whole MCP
+     registry, so they live on All. The trademark disclaimer belongs to
+     whichever page actually lists registry servers. */
+  const showMcpChrome = category === "all";
+  const showTrademarkDisclaimer = registryItems.length > 0;
+  const title = t(`toolkit.store_category_${category}`);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -339,38 +329,20 @@ const PluginsCategoriesPage = ({
            on the MCP segment), search, and the metadata/install error
            strips (both tightly bound to the header controls above them). ── */}
       <div style={{ flexShrink: 0, padding: "20px 26px 0", display: "flex", flexDirection: "column", gap: 12 }}>
-        <span
-          style={{
-            fontSize: 22,
-            fontWeight: 500,
-            letterSpacing: "-0.01em",
-            fontFamily,
-            color: textColor,
-          }}
-        >
-          {t("toolkit.nav_store")}
-        </span>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* Sliding-indicator segmented control — same component (and same
-              0.28s bezier slide) as the agents modal's section switcher;
-              category segments carry their tinted CategoryChip via the
-              `leading` slot. */}
-          <SegmentedControl
-            sections={TYPE_SEGMENTS.map((segment) => ({
-              key: segment.key,
-              label: t(segment.labelKey),
-              leading: segment.chip ? (
-                <CategoryChip type={segment.chip} />
-              ) : undefined,
-            }))}
-            selected={typeFilter}
-            onChange={setTypeFilter}
-            isDark={isDark}
-            buttonFontWeight={500}
-          />
+          <span
+            style={{
+              fontSize: 22,
+              fontWeight: 500,
+              letterSpacing: "-0.01em",
+              fontFamily,
+              color: textColor,
+            }}
+          >
+            {title}
+          </span>
 
-          {isMcpCategory && (
+          {showMcpChrome && (
             <span
               title={
                 metadataRefreshing
@@ -430,7 +402,7 @@ const PluginsCategoriesPage = ({
           }}
         />
 
-        {isMcpCategory && metadataError && (
+        {showMcpChrome && metadataError && (
           <div style={{ fontSize: 10.5, fontFamily, color: warningColor, marginTop: -8 }}>
             {t("toolkit.store_metadata_error")}
           </div>
@@ -458,7 +430,7 @@ const PluginsCategoriesPage = ({
             lead the Skills segment. The pill mirrors PluginInstallPill's GET
             state (same colors/metrics); the whole install machine is local
             (handleInstallPack) since packs have no registry entry. */}
-        {packItems.map(({ pack, title, blurb }) => {
+        {packItems.map(({ pack, title: packTitle, blurb }) => {
           const installing = installingPackIds.has(pack.id);
           const firstCommand = String(pack.subset?.[0] || "")
             .split("/")
@@ -469,9 +441,9 @@ const PluginsCategoriesPage = ({
               trustEntry={pack}
               icon={pack.icon || { type: "builtin", name: "command", color: "#6478f6" }}
               isDark={isDark}
-              name={title}
+              name={packTitle}
+              types={["skill"]}
               command={firstCommand ? `/${firstCommand}` : undefined}
-              commandFirst={commandFirst}
               description={blurb}
               onOpenDetail={() => onOpenDetail?.({ skillPack: pack })}
               testId={`skillpack-row-${pack.id}`}
@@ -523,8 +495,8 @@ const PluginsCategoriesPage = ({
                 icon={resolveMcpIcon(item.entry)}
                 isDark={isDark}
                 name={item.presentation.name}
+                types={typesFor(true, item.presentation)}
                 command={item.presentation.commands?.[0]?.name}
-                commandFirst={commandFirst}
                 description={rowDescription(item.presentation)}
                 fallbackColor={item.presentation.sourceBadge?.color}
                 onOpenDetail={() => onOpenDetail?.(item.entry.id)}
@@ -549,8 +521,8 @@ const PluginsCategoriesPage = ({
                 icon={item.toolkit.toolkitIcon}
                 isDark={isDark}
                 name={item.presentation.name}
+                types={typesFor(isMcpSourced(item.toolkit.source), item.presentation)}
                 command={item.presentation.commands?.[0]?.name}
-                commandFirst={commandFirst}
                 description={rowDescription(item.presentation)}
                 fallbackColor={item.presentation.sourceBadge?.color}
                 onOpenDetail={() => onOpenDetail?.({ ...item.presentation, raw: item.toolkit })}
@@ -577,7 +549,7 @@ const PluginsCategoriesPage = ({
             store tab (legacy toolkit_store_page.js "Add Custom MCP" card) —
             demoted to a footer link on the Installed screen and the MCP
             segment here, since a custom entry is always an MCP server. ── */}
-        {isMcpCategory && (
+        {showMcpChrome && (
           <div
             role="button"
             onClick={() => onOpenCustomMcp?.()}
@@ -593,7 +565,7 @@ const PluginsCategoriesPage = ({
           </div>
         )}
 
-        {isMcpCategory && (
+        {showTrademarkDisclaimer && (
           <div
             style={{
               fontSize: 10.5,

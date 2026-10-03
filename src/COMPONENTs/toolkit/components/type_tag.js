@@ -21,6 +21,7 @@ const TypeTag = ({ types, dim = false }) => {
 
   return (
     <span
+      data-testid="type-tag"
       style={{
         fontSize: 9.5,
         fontWeight: 500,
