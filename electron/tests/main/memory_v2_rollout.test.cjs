@@ -57,6 +57,8 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "graph_runs",
       "memory_off",
       "ollama_reasoning_preview_v1",
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1",
       "subagent_runs",
     ]),
   }),
@@ -454,6 +456,8 @@ describe("Memory V2 runtime protocol admission", () => {
     ["graph_interaction_lineage_preflight_v1", "durable_interaction"],
     ["interaction_resolution_atomic_acceptance_v1", "durable_interaction"],
     ["ollama_reasoning_preview_v1", "provider_turn_ownership"],
+    ["provider_response_outcomes_v1", "provider_turn_ownership"],
+    ["provider_uncertainty_diagnostics_v1", "provider_turn_ownership"],
     ["run_bundle_v2", "run_bundle"],
   ])("requires incident compatibility feature %s", (feature, protocolId) => {
     const protocols = cloneProtocols();

@@ -67,10 +67,10 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "tool_result",
   "final_message",
   "error",
+  "provider_retry",
   "fyi_injected",
   "side_answer",
   "clarify_request",
-  "provider_retry",
 ]);
 
 /* Anthropic-protocol providers stream thinking as one runtime event per
@@ -132,6 +132,45 @@ const extractText = (payload) => {
     payload.observation ||
     ""
   );
+};
+
+const GEMINI_RETRY_FIELDS = new Set([
+  "provider",
+  "http_status",
+  "retry_ordinal",
+  "max_retries",
+  "delay_ms",
+  "workflow_node_id",
+  "workflow_step_index",
+  "workflow_step_count",
+  "runtime_event_id",
+]);
+
+const safeGeminiRetry = (payload) => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  if (Object.keys(payload).some((key) => !GEMINI_RETRY_FIELDS.has(key))) {
+    return null;
+  }
+  const { provider, http_status: httpStatus, retry_ordinal: ordinal,
+    max_retries: maxRetries, delay_ms: delayMs } = payload;
+  if (
+    provider !== "gemini" ||
+    httpStatus !== 503 ||
+    !Number.isSafeInteger(ordinal) ||
+    !Number.isSafeInteger(maxRetries) ||
+    !Number.isSafeInteger(delayMs) ||
+    maxRetries < 1 ||
+    maxRetries > 2 ||
+    ordinal < 1 ||
+    ordinal > maxRetries ||
+    delayMs < 0 ||
+    delayMs > 3600000
+  ) {
+    return null;
+  }
+  return { ordinal, maxRetries, delayMs };
 };
 
 const toKVPairs = (data) => {
@@ -1122,7 +1161,21 @@ const TraceChain = ({
       const spanText =
         delta != null && delta > 0 ? `+${formatDelta(delta)}` : null;
 
-      if (frame.type === "reasoning" || frame.type === "observation") {
+      if (
+        frame.type === "provider_retry" &&
+        (Object.prototype.hasOwnProperty.call(frame.payload || {}, "retry_ordinal") ||
+          Object.prototype.hasOwnProperty.call(frame.payload || {}, "max_retries"))
+      ) {
+        const retry = safeGeminiRetry(frame.payload);
+        if (!retry) continue;
+        items.push({
+          key: `${frame.seq}-provider-retry`,
+          title: `Gemini temporarily busy — retrying ${retry.ordinal}/${retry.maxRetries}`,
+          span: spanText,
+          status: "done",
+          body: `Waiting ${(retry.delayMs / 1000).toFixed(1)}s before retry`,
+        });
+      } else if (frame.type === "reasoning" || frame.type === "observation") {
         const text = extractText(frame.payload);
         const isObs = frame.type === "observation";
         items.push({

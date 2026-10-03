@@ -32,6 +32,35 @@ test("release builds Unchain once and every test/package consumes the same bytes
   assert.match(workflow, /uses: \.\/\.github\/workflows\/_shared-release-deterministic\.yml/);
   assert.match(sharedDeterministic, /Validate closed shared deterministic inputs/);
   assert.match(sharedDeterministic, /name: unchain-release-artifact/);
+  const deterministicSteps = YAML.parse(sharedDeterministic).jobs.deterministic.steps;
+  const artifactVerifyIndex = deterministicSteps.findIndex(
+    (step) => step.id === "artifact_verify",
+  );
+  assert.notEqual(artifactVerifyIndex, -1);
+  const artifactVerify = deterministicSteps[artifactVerifyIndex];
+  assert.match(
+    artifactVerify.run,
+    /--installed true[\s\S]*import unchain[\s\S]*unchain\.__file__[\s\S]*GITHUB_ENV/,
+    "after byte verification, tests must bind to the imported installed artifact",
+  );
+  assert.match(artifactVerify.run, /UNCHAIN_SOURCE_PATH=/);
+  assert.doesNotMatch(
+    artifactVerify.run,
+    /UNCHAIN_SOURCE_PATH=.*(?:\.\.\/unchain|github\.workspace)/,
+    "a sibling checkout must not replace the verified installed wheel",
+  );
+  for (const id of ["python", "context_v2_contract", "run_bundle_contract"]) {
+    assert.ok(
+      deterministicSteps.findIndex((step) => step.id === id) > artifactVerifyIndex,
+      `${id} must run after the verified artifact is bound`,
+    );
+  }
+  const pythonStep = deterministicSteps.find((step) => step.id === "python");
+  assert.equal(
+    pythonStep.env?.PYTHONPATH,
+    undefined,
+    "host tests must inherit the verified installed distribution; a wheel ZIP import hides toolkit metadata files",
+  );
   assert.match(sharedDeterministic, /Create the single controlled Memory V2 build snapshot/);
   assert.match(sharedDeterministic, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v2\.json/);
   assert.match(sharedDeterministic, /name: memory-v2-build-feature-snapshot/);
