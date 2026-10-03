@@ -12,51 +12,19 @@ import {
   withMcpStoreIcon,
 } from "../../../SERVICEs/mcp_toolkit_store";
 import { toPluginPresentation } from "../../../SERVICEs/plugin_presentation";
-import {
-  subscribeToolkitCatalogRefresh,
-  emitToolkitCatalogRefresh,
-} from "../../../SERVICEs/toolkit_catalog_refresh";
-import { toast } from "../../../SERVICEs/toast";
+import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 import { isBaseToolkitId } from "../utils/plugin_actions";
 import {
   DEFAULT_SKILL_PACK_ICON,
   listStoreSkillPacks,
-  installStoreSkillPack,
 } from "../utils/skill_pack_store_install";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "../components/placeholder_block";
 import PluginListRow from "../components/plugin_list_row";
 import PluginInstallPill, { ACTION_PILL_STYLE } from "../components/plugin_install_pill";
 import { matchesCategory } from "../../../SERVICEs/store_categories";
-
-const isMcpSourced = (source) => String(source || "").startsWith("mcp");
-
-/* Type is NOT exclusive. These are the same independent predicates the retired
-   type segments used: an MCP source makes a plugin mcp, anything else a
-   toolkit, and a command list additionally makes it a skill — so a builtin
-   toolkit that also ships a /command is both, and carries both tags. */
-const typesFor = (source, presentation) => {
-  // An installed skill pack reaches us as a catalog row; it must keep the SKILL
-  // tag its store row had, not turn into a toolkit the moment it is installed.
-  if (source === "skillpack") return ["skill"];
-  const types = [isMcpSourced(source) ? "mcp" : "toolkit"];
-  if ((presentation.commands || []).length > 0) types.push("skill");
-  return types;
-};
-
-/* The r1.2 error-code enum from the S6a download channel — each code has its
-   own i18n key; anything outside the enum (facade timeouts, scan failures)
-   falls back to the generic line. */
-const SKILL_PACK_ERROR_CODES = new Set([
-  "invalid_payload",
-  "network",
-  "timeout",
-  "not_found",
-  "too_large",
-  "malformed",
-  "integrity",
-  "fs",
-]);
+import useSkillPackInstall from "../hooks/use_skill_pack_install";
+import { typesFor } from "../utils/plugin_types";
 
 /* CatalogOpenPill — the quiet "OPEN" pill for a catalog-only row (a builtin/
    local plugin, or an MCP install with no matching store registry entry).
@@ -258,8 +226,11 @@ const PluginsCategoriesPage = ({
        already renders it with the quiet OPEN pill, so keeping both would be
        a duplicate — same dedupe philosophy as registry-vs-catalog above.
        A pack is a bundle of /commands, so it carries the SKILL tag. ── */
-  const [installingPackIds, setInstallingPackIds] = useState(() => new Set());
-  const [packError, setPackError] = useState(null);
+  const {
+    installingPackIds,
+    packError,
+    installPack: handleInstallPack,
+  } = useSkillPackInstall({ t });
   const zhLocale = String(locale || "").toLowerCase().startsWith("zh");
 
   const installedCatalogIds = useMemo(
@@ -286,31 +257,6 @@ const PluginsCategoriesPage = ({
             .includes(q),
       );
   }, [category, search, installedCatalogIds, zhLocale]);
-
-  const handleInstallPack = async (pack) => {
-    if (installingPackIds.has(pack.id)) return;
-    setPackError(null);
-    setInstallingPackIds((previous) => new Set(previous).add(pack.id));
-    try {
-      const installed = await installStoreSkillPack(pack);
-      emitToolkitCatalogRefresh({ source: "skill_pack_store_install" });
-      toast.success(
-        t("toolkit.import_skills_success", {
-          count: installed.skills.length,
-          name: installed.toolkitName,
-        }),
-      );
-    } catch (error) {
-      const code = SKILL_PACK_ERROR_CODES.has(error?.code) ? error.code : "generic";
-      setPackError(code);
-    } finally {
-      setInstallingPackIds((previous) => {
-        const next = new Set(previous);
-        next.delete(pack.id);
-        return next;
-      });
-    }
-  };
 
   const rows = [...registryItems, ...catalogItems];
 
