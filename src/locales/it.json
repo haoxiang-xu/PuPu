@@ -905,5 +905,26 @@
     "organization_queued": "Organizzazione dei ricordi in attesa",
     "organization_empty": "Nessun ricordo da organizzare",
     "organization_complete": "Ricordi organizzati"
+  },
+  "provider_retry": {
+    "waiting": "In attesa di {provider}",
+    "retrying_header": "Nuovo tentativo…",
+    "next_try_in": "prossimo tentativo tra {seconds} s",
+    "trying_again": "nuovo tentativo (tentativo {attempt} di {max})",
+    "stopped": "Interrotto durante i tentativi",
+    "retried": "Riprovato {count}×",
+    "legend_failed": "{count} falliti",
+    "legend_current": "tentativo {attempt}",
+    "legend_left": "{count} rimasti",
+    "stop": "Interrompi",
+    "stopped_by_you": "interrotto da te",
+    "bar_label": "Tentativi usati su {max}",
+    "reason_overloaded": "Sovraccarico (HTTP {status})",
+    "reason_rate_limited": "Limite di frequenza o quota (HTTP {status})",
+    "reason_gateway": "Errore del gateway (HTTP {status})",
+    "reason_http": "Errore temporaneo (HTTP {status})",
+    "reason_unknown": "Errore temporaneo",
+    "provider_fallback": "provider",
+    "usage_partial": "{excluded} chiamate su {total} senza dati di utilizzo"
   }
 }

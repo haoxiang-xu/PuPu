@@ -48,6 +48,15 @@ import { mergeMemoryV2AuditWithJournal } from "./memory_v2_journal_reload";
 import { selectRunBundleUsage } from "../../SERVICEs/run_bundle_v1";
 import { hasContextCompositionEvidence } from "../../SERVICEs/context_composition_v1";
 import ContextCompositionModal from "./context-composition/context_composition_modal";
+import {
+  groupProviderRetryFrames,
+  providerDisplayName,
+  providerRetryReason,
+  ProviderRetryRecordDetails,
+  ProviderRetryWaitBody,
+  RetryStoppedPoint,
+  RetryWaitPoint,
+} from "./provider_retry_step";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -680,7 +689,7 @@ const AccentPoint = ({ color }) => (
 
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
-const TokenSummary = ({ usage, isDark, bundle }) => {
+const TokenSummary = ({ usage, isDark, bundle, partialNote = null }) => {
   const [compositionOpen, setCompositionOpen] = useState(false);
   const triggerRef = useRef(null);
   const fmt = (n) =>
@@ -713,6 +722,11 @@ const TokenSummary = ({ usage, isDark, bundle }) => {
         </span>
       )}
       {" "}&middot; {fmt(usage.total)} total
+      {partialNote ? (
+        <span style={{ color: cacheColor }}>
+          {" "}&middot; {partialNote}
+        </span>
+      ) : null}
     </>
   );
   const textStyle = {
@@ -777,6 +791,7 @@ const TraceChain = ({
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
   onClarifyResolve,
+  onStopStream,
   bundle,
   completionDiagnostics,
   subagentFrames,
@@ -999,6 +1014,13 @@ const TraceChain = ({
     (f) => f.type === "tool_call" || f.type === "reasoning",
   ).length;
   const hasError = displayFrames.some((f) => f.type === "error");
+  const providerRetryGroups = useMemo(
+    () => groupProviderRetryFrames(displayFrames, frames, status),
+    [displayFrames, frames, status],
+  );
+  const isRetryWaiting = Array.from(providerRetryGroups.values()).some(
+    (group) => group.outcome === "waiting",
+  );
 
   const toolResultByCallId = useMemo(() => {
     const m = new Map();
@@ -1139,7 +1161,11 @@ const TraceChain = ({
       const spanText =
         delta != null && delta > 0 ? `+${formatDelta(delta)}` : null;
 
-      if (frame.type === "provider_retry") {
+      if (
+        frame.type === "provider_retry" &&
+        (Object.prototype.hasOwnProperty.call(frame.payload || {}, "retry_ordinal") ||
+          Object.prototype.hasOwnProperty.call(frame.payload || {}, "max_retries"))
+      ) {
         const retry = safeGeminiRetry(frame.payload);
         if (!retry) continue;
         items.push({
@@ -1631,6 +1657,7 @@ const TraceChain = ({
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
                   onClarifyResolve={onClarifyResolve}
+                  onStopStream={onStopStream}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (
@@ -1887,6 +1914,48 @@ const TraceChain = ({
           _toolName: isInlineInteraction ? undefined : toolName,
           _sections: isInlineInteraction ? undefined : sections,
         });
+      } else if (frame.type === "provider_retry") {
+        const group = providerRetryGroups.get(Number(frame.seq));
+        if (!group) continue;
+        const last = group.frames[group.frames.length - 1].payload;
+        const provider = providerDisplayName(last.provider, t);
+        // A plain string gets the timeline's default body style.
+        const record = `${provider} · ${providerRetryReason(last, t)}`;
+        if (group.outcome === "waiting") {
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: t("provider_retry.waiting", { provider }),
+            span: spanText,
+            status: "active",
+            point: "loading",
+            body: (
+              <ProviderRetryWaitBody
+                frames={group.frames}
+                onStopStream={onStopStream}
+                t={t}
+              />
+            ),
+          });
+        } else {
+          const stopped = group.outcome === "stopped";
+          items.push({
+            key: `${frame.seq}-provider-retry`,
+            title: stopped
+              ? t("provider_retry.stopped")
+              : t("provider_retry.retried", { count: last.attempt_failed }),
+            span: spanText,
+            status: "done",
+            point: stopped ? <RetryStoppedPoint /> : <RetryWaitPoint />,
+            body: record,
+            details: (
+              <ProviderRetryRecordDetails
+                frames={group.frames}
+                outcome={group.outcome}
+                t={t}
+              />
+            ),
+          });
+        }
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
         const code = frame.payload?.code;
@@ -1970,7 +2039,7 @@ const TraceChain = ({
             ),
           });
         }
-      } else {
+      } else if (!isRetryWaiting) {
         items.push({
           key: "__streaming__",
           title: "Thinking…",
@@ -2156,6 +2225,14 @@ const TraceChain = ({
             usage={tokenUsage}
             isDark={isDark}
             bundle={bundle}
+            partialNote={
+              tokenUsage.callsWithoutUsage > 0
+                ? t("provider_retry.usage_partial", {
+                    excluded: tokenUsage.callsWithoutUsage,
+                    total: tokenUsage.callCount,
+                  })
+                : null
+            }
           />
         ),
         status: "done",
@@ -2166,6 +2243,9 @@ const TraceChain = ({
     return grouped;
   }, [
     displayFrames,
+    providerRetryGroups,
+    isRetryWaiting,
+    onStopStream,
     isStreaming,
     bubbleOwnsLiveText,
     messageId,
@@ -2286,7 +2366,9 @@ const TraceChain = ({
             }}
           >
             {isStreaming && !doneFrame
-              ? "Thinking…"
+              ? isRetryWaiting
+                ? t("provider_retry.retrying_header")
+                : "Thinking…"
               : hasError
                 ? (stepCount > 0
                     ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`

@@ -26,6 +26,7 @@ const ChatMessages = ({
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
+  onStopStream,
   turnMutationPresentationByMessageId = {},
   streamingMessageStore,
   initialVisibleCount = 12,
@@ -278,6 +279,12 @@ const ChatMessages = ({
                   ) : (
                     <ChatBubble
                       message={msg}
+                      onStopStream={
+                        messageIndex === messages.length - 1 &&
+                        msg.status === "streaming"
+                          ? onStopStream
+                          : undefined
+                      }
                       onDeleteMessage={onDeleteMessage}
                       onResendMessage={onResendMessage}
                       onEditMessage={onEditMessage}

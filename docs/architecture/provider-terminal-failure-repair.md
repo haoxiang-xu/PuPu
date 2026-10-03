@@ -170,3 +170,85 @@ platform block. Evidence: `start-installed-status.json` under the diagnostic
 candidate evidence root. A previously orphaned installed sidecar was stopped
 only after verifying its executable and absent parent. No real-provider request
 was sent; the provider rejection remains awaiting owner reproduction.
+
+## #386 extension: provider 5xx retry and Gemini failure reasons
+
+Ticket: https://github.com/haoxiang-xu/PuPu/issues/386. The plan and decisions
+are in `docs/implementation/ticket-386.md`; this section records the contract
+change so BC-201 and BC-202 stay the single place to read it.
+
+- BC-201 (extended). `ProviderFailureDiagnostic` gains `provider_status` and
+  `replacement_model`. CLOSED: `provider_status` comes only from a google-genai
+  `APIError.status` and only if it is one of the listed Google RPC statuses;
+  `replacement_model` is read only from the phrase `use models/<id>` in a 404
+  message and kept only if that id exists in the Gemini catalog. The message text
+  itself is never stored or shown. A diagnostic with neither field keeps the v1
+  shape and bytes; one with either uses `unchain.provider_failure_diagnostic.v2`,
+  and a v2 record with both fields empty is refused so a record has one spelling.
+- BC-202 (extended). VERSIONED: a failed lease carries a v1 diagnostic under
+  `unchain.provider_request_lease.v3` and a v2 diagnostic under `...v4`; the two
+  never mix, and every other combination fails closed. v2 and v3 bytes are
+  unchanged. Old binaries cannot read v4 failure records (same rollback rule as
+  v3: restore the pre-install profile backup). Persisted `replacement_model` is
+  checked for shape only, so a record stays readable after the catalog drops
+  that model.
+- Retry classification. 502, 503 and 529 and 429 are retry-safe for every
+  provider (the classifier is shared); 500 and 504 stay "uncertain" because the
+  provider may have processed them, but their text now carries the HTTP status.
+  A budget-exhausted retry reads `retries_exhausted; <summary> after N retries`.
+- SEQ-386-1: claim, provider 503, transient lease (retryable), backoff, second
+  send, result. Restart between the lease and the second send reuses the recorded
+  lease and never resends ordinal 0. SEQ-386-2: claim, provider 404 with a
+  replacement, failed lease v4, error text with the suggestion, cold reopen
+  recovers the identical text without a provider send.
+- AC-386-1..7 are implemented as tests in Unchain
+  (`tests/test_exact_provider_route_transport.py`,
+  `tests/test_durable_provider_turn_runtime.py`,
+  `tests/test_provider_failure_diagnostic.py`,
+  `tests/test_september_native_models.py`) and PuPu
+  (`unchain_runtime/server/tests/test_provider_terminal_diagnostic.py`,
+  `test_gemini_provider.py`, `test_september_provider_models.py`). AC-386-7 is the
+  live check against the real Gemini API on the built wheel.
+- Transport timeouts (`httpx.TimeoutException`, `TimeoutError`) carry no HTTP
+  status, stay "uncertain" and are never resent; their text is the fixed
+  sentence `Provider request timed out before a response arrived; the provider
+  may still have processed it`.
+- Failures without an HTTP status also get fixed wording, still "uncertain" and
+  never resent: an httpx connection failure names its (code-owned) exception
+  class, `Provider connection could not be established (ConnectError)` or
+  `Provider connection closed before the response completed; the provider may
+  still have processed it (RemoteProtocolError)`; a Gemini stream that ends
+  without a usable answer raises `ProviderResponseEndedError`, whose reason is
+  kept only if it is a member of the SDK's closed FinishReason / BlockedReason
+  enums (`Provider ended the response early (MALFORMED_FUNCTION_CALL)`,
+  `Provider blocked the prompt (SAFETY)`, `Provider returned no content`).
+- Known limits: after a cold restart that finds an exhausted transient budget the
+  surfaced text is still `durable_provider_turn_terminal_failed:transient` without
+  the status, because transient leases are recorded without a diagnostic to keep
+  existing 429 lease bytes unchanged. PuPu's `gemini-2.5-` thinking-budget branch
+  in `_build_payload` and Unchain's `GEMINI_PRO_15` schema constant are left in
+  place.
+
+- Retry visibility (design A2): while the durable runtime waits between
+  retry-safe tries it calls the kernel's `retry_wait` hook instead of sleeping
+  silently. The hook emits a raw `provider_retry` event at the start of the wait
+  and once per second, and sleeps in slices of at most one second. The event
+  carries only closed fields (try numbers, `max_attempts`, `delay_ms`,
+  `remaining_ms`, `http_status`, `provider_status`, `provider`). It is not
+  journaled (the request leases remain the durable record of every try) and
+  reaches V4 as `step.delta` on the model response step with
+  `kind: "provider_retry"`. PuPu's sidecar step callback raises on a cancelled
+  execution for every event, so Stop ends a wait within a second and the next
+  try is never claimed or sent. The renderer keeps one trace frame per wait and
+  shows the waits of one model turn as one row: a countdown, one bar segment per
+  try and a Stop button while waiting; "Retried N×" or "Stopped while retrying"
+  afterwards.
+- Token line after retries: a failed try has no usage, which makes the V1
+  bundle aggregate unknown. The renderer then sums the usage the calls do report,
+  per metric, and notes how many calls had none (the #377 rule).
+- No bare uncertain text remains. Every site that raises
+  `durable_provider_turn_uncertain` now adds fixed local wording: an unexpected
+  send error, a request that could not be started, an unusable result, an answer
+  that could not be recorded, a call record that could not be built, or an
+  earlier send that did not finish. Where an exception is involved only its class
+  name is shown (a plain identifier, otherwise `unknown error`), never its message.

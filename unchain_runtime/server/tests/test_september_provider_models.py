@@ -29,6 +29,10 @@ MODELS = [
     ("gemini", "gemini-3.7-flash", "medium"),
     ("gemini", "gemini-3.8-flash", "medium"),
     ("gemini", "gemini-3.5-flash-lite", "minimal"),
+    ("gemini", "gemini-3.5-flash", "medium"),
+    ("gemini", "gemini-3.1-pro-preview", "high"),
+    ("gemini", "gemini-3-flash-preview", "high"),
+    ("gemini", "gemini-3.1-flash-lite", "minimal"),
 ]
 
 

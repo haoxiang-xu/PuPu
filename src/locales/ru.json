@@ -905,5 +905,26 @@
     "organization_queued": "Упорядочивание воспоминаний в очереди",
     "organization_empty": "Нет воспоминаний для упорядочивания",
     "organization_complete": "Воспоминания упорядочены"
+  },
+  "provider_retry": {
+    "waiting": "Ожидание {provider}",
+    "retrying_header": "Повторная попытка…",
+    "next_try_in": "следующая попытка через {seconds} с",
+    "trying_again": "повторная попытка ({attempt} из {max})",
+    "stopped": "Остановлено во время повторов",
+    "retried": "Повторено {count}×",
+    "legend_failed": "неудачных: {count}",
+    "legend_current": "попытка {attempt}",
+    "legend_left": "осталось: {count}",
+    "stop": "Остановить",
+    "stopped_by_you": "остановлено вами",
+    "bar_label": "Использовано попыток из {max}",
+    "reason_overloaded": "Перегрузка (HTTP {status})",
+    "reason_rate_limited": "Лимит запросов или квоты (HTTP {status})",
+    "reason_gateway": "Ошибка шлюза (HTTP {status})",
+    "reason_http": "Временный сбой (HTTP {status})",
+    "reason_unknown": "Временный сбой",
+    "provider_fallback": "провайдера",
+    "usage_partial": "{excluded} из {total} вызовов без данных об использовании"
   }
 }

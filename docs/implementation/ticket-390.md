@@ -817,3 +817,42 @@ not test the 1.11.0 SDK. No SDK is downgraded or test skipped to make CI pass.
   existing integration hold. Do not restart the owner's accepted live instance.
 
 Evidence and final results: `ticket-390-ci-sdk-compatibility.md`.
+
+## PR #395 source conflict resolution — 2026-10-02
+
+Merge PuPu dev `0047d58d0369d5c245a3fd8021d4d97c3e3f9a35` into the existing
+delivery branch. Preserve both tickets' host diagnostic tests. The text conflict
+is in `test_provider_terminal_diagnostic.py`; the automatically merged retry
+projector and renderer also shadow each other's handlers and need manual fixes.
+
+- **BC-390-14:** #386 and #390 V4 `step.delta kind=provider_retry` producers feed
+  the activity-tree projection, saved trace and timeline. They remain two
+  explicit formats: #390 carries `retry_ordinal/max_retries` with its original
+  CLOSED keys and Gemini 503/budget/scope checks; #386 carries
+  `attempt_failed/next_attempt/max_attempts/remaining_ms` and retains its
+  existing validated projection (unrelated input extensions are ignored,
+  never copied to the frame). A payload carrying either legacy discriminator
+  must pass the #390 validator, never fall back to #386. Do not infer a retry
+  budget or transform a legacy record into the other format. Only #386-shaped
+  frames enter grouped waits; invalid or legacy frames break grouping and
+  cannot create an invisible waiting state. Preserve legacy rows and #386's
+  grouped countdown, Stop and settled records. This consumer-only compatibility
+  does not resolve the producers' durable schema/version collisions.
+- **SEQ-390-11:** Reduce and render each format alone, adjacent mixed records,
+  rejected legacy/hybrid records and #386 heartbeats. Grouped records retain
+  waiting/completed/failed/cancelled behavior and Stop routing. Saved frames
+  retain their format and scope; there is no backend resend, lease write or
+  profile migration. Cross-format grouping must not combine unrelated waits.
+- **AC-390-M01:** Preserve RED evidence for the automatic merge, then verify
+  both projector/timeline suites plus mixed/hybrid/no-hidden-header regressions,
+  heartbeat deduplication, countdown/Stop, saved retry traces and runner/Stop
+  routing. Check no conflict markers or unresolved index entries remain.
+- **AC-390-M02:** Run host diagnostic/admission checks using the once-built
+  `95d9a731…` Unchain #48 wheel and record all #386 producer/API incompatibility
+  failures rather than skipping tests, weakening assertions or the required
+  capabilities. Keep both PRs Draft and the exact combined-artifact rollout
+  `INCOMPLETE` until #46/#48 reconciliation and package smoke are qualified.
+
+Source mergeability is separate from runtime/release qualification. Results are
+recorded in `ticket-390-pr395-conflict-resolution.md`; earlier pair acceptance
+is not transferred to this merged source.

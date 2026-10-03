@@ -79,6 +79,19 @@ const makeRafScheduler = () => {
   };
 };
 
+test("bounded retry records do not create a grouped waiting header", () => {
+  renderTraceChain({
+    status: "streaming",
+    frames: [frame({ seq: 1, type: "provider_retry", payload: {
+      provider: "gemini", http_status: 503,
+      retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+    } })],
+  });
+  expect(screen.getByText("Gemini temporarily busy — retrying 1/2")).toBeInTheDocument();
+  expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+  expect(screen.queryByText("Waiting for Gemini")).not.toBeInTheDocument();
+});
+
 test("shows bounded Gemini retry progress without rendering provider content", () => {
   renderTraceChain({
     status: "streaming",

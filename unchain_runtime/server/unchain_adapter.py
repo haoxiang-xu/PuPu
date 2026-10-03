@@ -3744,6 +3744,17 @@ def _catalog_model_context_window(provider: str, model: str) -> int:
     return 0
 
 
+def _gemini_family_context_window() -> int:
+    """The smallest context window declared by the Gemini catalog, or 0."""
+
+    windows = [
+        _catalog_model_context_window("gemini", model)
+        for model in get_capability_catalog().get("gemini", [])
+    ]
+    windows = [window for window in windows if window > 0]
+    return min(windows) if windows else 0
+
+
 def get_max_context_window_tokens(
     provider: str,
     model: str,
@@ -3762,6 +3773,12 @@ def get_max_context_window_tokens(
     if cfg is not None:
         return cfg.max_context_window_tokens(model)
     declared = _catalog_model_context_window(provider, model)
+    if not declared and str(provider or "").strip().lower() == "gemini":
+        # A Gemini id that is not in the catalog (e.g. a retired 2.5 model in
+        # an old chat or recipe) must still reach Google: its 404 names the
+        # replacement through the closed provider diagnostic (#386). Without
+        # this the turn failed locally on an unknown 8K window instead.
+        declared = _gemini_family_context_window()
     if str(provider or "").strip().lower() == "ollama":
         return _ollama_context_window_tokens(
             declared,
