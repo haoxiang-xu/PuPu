@@ -1,0 +1,29 @@
+
+  GitNexus Detect Changes (1.6.12)
+{"level":40,"time":1790915524597,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+Changes: 7 files, 8 symbols
+Affected processes: 22
+Risk level: critical
+
+Changed symbols:
+  Const DISPLAY_FRAME_TYPES → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function TraceChain → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function handleMemoryV2JournalProjection → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function timelineItems → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function isOwnedByCurrentCalls → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function isTransparentBetweenCalls → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function hasSemanticBarrierBetween → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Function groupToolTimelineItems → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+
+Affected execution flows:
+  • TimelineItems → ClampPct (10 steps) — changed: timelineItems
+  • TimelineItems → GetBar (10 steps) — changed: timelineItems
+  • TimelineItems → GetOverlay (10 steps) — changed: timelineItems
+  • TimelineItems → Notify (10 steps) — changed: timelineItems
+  • TimelineItems → HasLineEnd (10 steps) — changed: timelineItems
+  • TimelineItems → SplitLines (10 steps) — changed: timelineItems
+  • TimelineItems → EmitMisoRuntimeLog (10 steps) — changed: timelineItems
+  • TimelineItems → RelaySessionGuardDiagnostic (10 steps) — changed: timelineItems
+  • TimelineItems → SplitStreamingMarkdown (10 steps) — changed: timelineItems
+  • TimelineItems → ReadUserAgent (9 steps) — changed: timelineItems
+... and 12 more

@@ -1,0 +1,383 @@
+{
+  "source_revision": "1ec49ddfc28d3b42ba035debada5e3db759dad1b",
+  "module_origin": "/workspace/shared/pupu-383-producer/venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "distribution_version": "0.2.0",
+  "direct_url": {
+    "archive_info": {
+      "hash": "sha256=f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889",
+      "hashes": {
+        "sha256": "f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889"
+      }
+    },
+    "url": "file:///workspace/shared/pupu-383-producer/artifact/unchain-0.2.0-py3-none-any.whl"
+  },
+  "runtime_manifest": {
+    "manifest_digest": "sha256:a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_content_paging_v1",
+          "context_content_read_recovery_v1",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "ollama_reasoning_preview_v1",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "network_attempts": [],
+  "case_summaries": [
+    {
+      "case": "silent-batch",
+      "raw_event_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_event_types": [
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "dropped_event_types": [],
+      "calls": [
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "silent-batch-call-1"
+        },
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "silent-batch-call-2"
+        }
+      ],
+      "tool_results": [
+        {
+          "step_id": "tool:silent-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-1",
+          "status": "success",
+          "result": {}
+        },
+        {
+          "step_id": "tool:silent-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "silent-batch-call-2",
+          "status": "success",
+          "result": {}
+        }
+      ]
+    },
+    {
+      "case": "content-batch",
+      "raw_event_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_event_types": [
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "dropped_event_types": [],
+      "calls": [
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "content-batch-call-1"
+        },
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "content-batch-call-2"
+        }
+      ],
+      "tool_results": [
+        {
+          "step_id": "tool:content-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:content-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "content-batch-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    },
+    {
+      "case": "observed-batch",
+      "raw_event_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_event_types": [
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "dropped_event_types": [
+        "observation"
+      ],
+      "calls": [
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "observed-batch-call-1"
+        },
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "observed-batch-call-2"
+        }
+      ],
+      "tool_results": [
+        {
+          "step_id": "tool:observed-batch-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-batch-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-batch-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    },
+    {
+      "case": "observed-sequential",
+      "raw_event_types": [
+        "run_started",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "tool_call",
+        "tool_result",
+        "observation",
+        "response_received",
+        "iteration_completed",
+        "iteration_started",
+        "response_received",
+        "final_message",
+        "run_completed"
+      ],
+      "canonical_event_types": [
+        "run.started",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.started",
+        "step.completed",
+        "step.completed",
+        "turn.completed",
+        "turn.started",
+        "step.completed",
+        "step.completed",
+        "run.completed"
+      ],
+      "dropped_event_types": [
+        "observation",
+        "observation"
+      ],
+      "calls": [
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "observed-sequential-call-1"
+        },
+        {
+          "tool_name": "read_file",
+          "tool_display_name": null,
+          "toolkit_id": null,
+          "call_id": "observed-sequential-call-2"
+        }
+      ],
+      "tool_results": [
+        {
+          "step_id": "tool:observed-sequential-call-1",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-1",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-1.txt"
+          }
+        },
+        {
+          "step_id": "tool:observed-sequential-call-2",
+          "step_type": "tool",
+          "tool_name": "read_file",
+          "call_id": "observed-sequential-call-2",
+          "status": "success",
+          "result": {
+            "content": "fixture contents for fixture-2.txt"
+          }
+        }
+      ]
+    }
+  ]
+}

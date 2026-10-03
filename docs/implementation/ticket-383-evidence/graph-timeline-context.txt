@@ -1,0 +1,251 @@
+
+  GitNexus Context (1.6.12)
+{"level":40,"time":1790910935526,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+{
+  "status": "found",
+  "symbol": {
+    "uid": "Function:src/COMPONENTs/chat-bubble/trace_chain.js:TraceChain.timelineItems@1092:2",
+    "name": "timelineItems",
+    "kind": "Function",
+    "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js",
+    "startLine": 1093,
+    "endLine": 2233
+  },
+  "epistemic": "exact",
+  "incoming": {},
+  "outgoing": {
+    "accesses": [
+      {
+        "uid": "Const:src/COMPONENTs/chat-bubble/trace_chain.js:MAX_TRACE_DEPTH",
+        "name": "MAX_TRACE_DEPTH",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js"
+      },
+      {
+        "uid": "Const:src/COMPONENTs/chat-bubble/trace_chain.js:SUBAGENT_LAZY_FRAME_THRESHOLD",
+        "name": "SUBAGENT_LAZY_FRAME_THRESHOLD",
+        "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js"
+      }
+    ],
+    "calls": [
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/test-api/logs.js:createLogStore.push@12:2",
+        "name": "push",
+        "filePath": "electron/main/services/test-api/logs.js"
+      },
+      {
+        "uid": "Function:electron/main/services/unchain/service.js:createUnchainService.createUnchainRuntimeLogLineEmitter@5074:45.push@5089:4",
+        "name": "push",
+        "filePath": "electron/main/services/unchain/service.js"
+      }
+    ]
+  },
+  "processes": [
+    {
+      "id": "proc_222_timelineitems",
+      "name": "TimelineItems → EmitMisoRuntimeLog",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_223_timelineitems",
+      "name": "TimelineItems → RelaySessionGuardDiagnostic",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_224_timelineitems",
+      "name": "TimelineItems → SplitStreamingMarkdown",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_25_timelineitems",
+      "name": "TimelineItems → ClampPct",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_26_timelineitems",
+      "name": "TimelineItems → GetBar",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_27_timelineitems",
+      "name": "TimelineItems → GetOverlay",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_28_timelineitems",
+      "name": "TimelineItems → Notify",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_29_timelineitems",
+      "name": "TimelineItems → HasLineEnd",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_304_timelineitems",
+      "name": "TimelineItems → ReadUserAgent",
+      "step_index": 1,
+      "step_count": 9
+    },
+    {
+      "id": "proc_305_timelineitems",
+      "name": "TimelineItems → ReadHeight",
+      "step_index": 1,
+      "step_count": 9
+    },
+    {
+      "id": "proc_30_timelineitems",
+      "name": "TimelineItems → SplitLines",
+      "step_index": 1,
+      "step_count": 10
+    },
+    {
+      "id": "proc_361_timelineitems",
+      "name": "TimelineItems → ReadWidth",
+      "step_index": 1,
+      "step_count": 9
+    }
+  ],
+  "staleness": {
+    "status": "behind",
+    "commitsBehind": 1,
+    "hint": "⚠️ Index is 1 commit behind HEAD. Run analyze tool to update."
+  }
+}

@@ -202,6 +202,7 @@ def _seed_durable_cold_interaction(
     *,
     response: dict | None,
     source_attempt_id: str = ROOT_ATTEMPT_ID,
+    intent_cursor: dict | None = None,
 ):
     from unchain.interaction import (
         INTERACTION_KIND_HUMAN_INPUT,
@@ -248,7 +249,15 @@ def _seed_durable_cold_interaction(
             INTERACTION_KIND_HUMAN_INPUT
         ),
         created_revision=0,
-        subject={"provider": "openai", "model": "gpt-host-event-test"},
+        subject={
+            "provider": "openai",
+            "model": "gpt-host-event-test",
+            **(
+                {"intent_cursor": intent_cursor}
+                if intent_cursor is not None
+                else {}
+            ),
+        },
     )
     state.suspend_state.payload = {"interaction_request": request.to_dict()}
     checkpoint = build_execution_checkpoint(
@@ -283,7 +292,11 @@ def _seed_durable_cold_interaction(
     return request
 
 
-def _replace_with_second_durable_interaction(first_request):
+def _replace_with_second_durable_interaction(
+    first_request,
+    *,
+    intent_cursor: dict | None = None,
+):
     from unchain.interaction import (
         INTERACTION_JOURNAL_KEY,
         INTERACTION_KIND_HUMAN_INPUT,
@@ -352,7 +365,15 @@ def _replace_with_second_durable_interaction(first_request):
             INTERACTION_KIND_HUMAN_INPUT
         ),
         created_revision=int(applied.revision or 0),
-        subject={"provider": "openai", "model": "gpt-host-event-test"},
+        subject={
+            "provider": "openai",
+            "model": "gpt-host-event-test",
+            **(
+                {"intent_cursor": intent_cursor}
+                if intent_cursor is not None
+                else {}
+            ),
+        },
     )
     next_state.suspend_state.payload = {"interaction_request": second.to_dict()}
     checkpoint = build_execution_checkpoint(
@@ -2515,6 +2536,104 @@ def test_stale_cancel_for_applied_interaction_cannot_consume_new_same_run_wait(
     pending = durable_host.get_pending_interaction(EXECUTION_ID)
     assert pending["status"] == "awaiting_response"
     assert pending["interaction_id"] == second.interaction_id
+
+
+def test_cold_pending_rehydrates_two_original_tool_policies_in_same_chat(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from unchain.journal import EventCursor
+
+    bridge = _prepare_bridge(tmp_path, monkeypatch)
+    _bind_attempt(bridge, ROOT_ATTEMPT_ID)
+    _mark_sticky_active()
+    bundle = bridge.attempt_for_run(ROOT_ATTEMPT_ID).bundle
+
+    def record_question_call(call_id: str, iteration: int, policy: str) -> dict:
+        bundle.durable_event_sink(
+            {
+                "type": "tool_call",
+                "run_id": ROOT_ATTEMPT_ID,
+                "iteration": iteration,
+                "tool_name": "ask_user_question",
+                "call_id": call_id,
+                "arguments": {"question": "Which framework?"},
+                "source_provider": "openai",
+                "timeline_merge_policy": policy,
+            }
+        )
+        event = next(
+            event
+            for event in reversed(_snapshot(bridge, ROOT_ATTEMPT_ID).events)
+            if event.event_type == "tool_call"
+            and event.payload.get("call_id") == call_id
+        )
+        return EventCursor(
+            store_seq=event.store_seq,
+            event_id=event.event_id,
+        ).to_dict()
+
+    first_cursor = record_question_call("cold-ask-user", 1, "never")
+    first = _seed_durable_cold_interaction(
+        response={
+            "request_id": "cold-ask-user",
+            "selected_values": ["react"],
+            "other_text": None,
+        },
+        intent_cursor=first_cursor,
+    )
+    first_digest = first.request_digest
+    first_pending = durable_host.get_pending_interaction(EXECUTION_ID)
+    assert first_pending["status"] == "receipt_recorded"
+    assert (
+        first_pending["presentation"]["tool_call"]["timeline_merge_policy"]
+        == "never"
+    )
+    assert (
+        first_pending["presentation"]["trace_frame"]["payload"]["timeline_merge_policy"]
+        == "never"
+    )
+    assert (
+        durable_host._interaction_runtime()
+        .load_active(EXECUTION_ID)
+        .request.request_digest
+        == first_digest
+    )
+    import session_execution_guard
+    assert session_execution_guard.resume_live_session_guard(
+        session_id=EXECUTION_ID,
+        interaction_id=first.interaction_id,
+        source_attempt_id=ROOT_ATTEMPT_ID,
+        receipt_id=first_pending["receipt_id"],
+    ) == "resumed"
+
+    second_cursor = record_question_call("cold-ask-user-second", 2, "always")
+    second = _replace_with_second_durable_interaction(
+        first,
+        intent_cursor=second_cursor,
+    )
+    second_digest = second.request_digest
+    second_pending = durable_host.get_pending_interaction(EXECUTION_ID)
+    assert second_pending["status"] == "awaiting_response"
+    assert (
+        second_pending["session_id"]
+        == first_pending["session_id"]
+        == EXECUTION_ID
+    )
+    assert (
+        second_pending["presentation"]["tool_call"]["timeline_merge_policy"]
+        == "always"
+    )
+    assert (
+        second_pending["presentation"]["trace_frame"]["payload"]["timeline_merge_policy"]
+        == "always"
+    )
+    assert (
+        durable_host._interaction_runtime()
+        .load_active(EXECUTION_ID)
+        .request.request_digest
+        == second_digest
+    )
 
 
 def test_exact_cancel_cas_closes_preflight_to_new_interaction_race(

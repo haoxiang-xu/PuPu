@@ -116,6 +116,81 @@ def _open_existing_cold_context_journal(execution_id: str) -> Any | None:
         ) from exc
 
 
+def pupu_unchain_cold_tool_call_timeline_policy(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+    source_attempt_id: str,
+    call_id: str,
+    tool_name: str,
+    intent_cursor: Mapping[str, Any],
+) -> str | None:
+    """Read one declared display policy from its exact original tool-call event."""
+
+    owner = _required_text(owner_chat_id, "owner_chat_id", identifier=True)
+    session = _required_text(session_id, "session_id", identifier=True)
+    source_attempt = _required_text(
+        source_attempt_id, "source_attempt_id", identifier=True
+    )
+    call = _required_text(call_id, "call_id", identifier=True)
+    name = _required_text(tool_name, "tool_name", identifier=True)
+    if not session:
+        return None
+    if not isinstance(intent_cursor, Mapping):
+        return None
+    cursor_schema = intent_cursor.get("schema")
+    store_seq = intent_cursor.get("store_seq")
+    event_id = intent_cursor.get("event_id")
+    if (
+        cursor_schema != "unchain.event_cursor.v1"
+        or isinstance(store_seq, bool)
+        or not isinstance(store_seq, int)
+        or store_seq < 1
+        or not isinstance(event_id, str)
+        or not event_id.strip()
+    ):
+        return None
+    try:
+        admitted = pupu_unchain_cold_active_admission(
+            owner_chat_id=owner,
+            session_id=session,
+            execution_id=session,
+        )
+    except PupuUnchainActiveBridgeError:
+        return None
+    if not admitted:
+        return None
+    journal = _open_existing_cold_context_journal(session)
+    if journal is None:
+        return None
+    try:
+        events = tuple(journal.capture_snapshot().events)
+    except Exception:
+        return None
+    matches = [
+        event
+        for event in events
+        if event.event_type == "tool_call"
+        and event.store_seq == store_seq
+        and event.event_id == event_id
+        and event.attempt.generation.execution_id == session
+        and event.attempt.attempt_id == source_attempt
+        and event.payload.get("call_id") == call
+        and event.payload.get("tool_name") == name
+    ]
+    if len(matches) != 1:
+        return None
+    policy = matches[0].payload.get("timeline_merge_policy")
+    if "timeline_merge_policy" not in matches[0].payload:
+        return None
+    return (
+        policy
+        if isinstance(policy, str)
+        and policy in {"never", "no_feedback", "approved", "always"}
+        else "never"
+    )
+
+
 def _read_existing_active_admission(owner_chat_id: str) -> dict[str, Any] | None:
     """Read PuPu-owned sticky metadata without initializing an absent store."""
 

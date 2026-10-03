@@ -1,0 +1,42 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> react-scripts test --watchAll=false --runInBand --runTestsByPath src/nested-expansion.test.js
+
+FAIL src/nested-expansion.test.js
+  ✕ late earlier-call truncation does not transfer nested observation expansion to another call (272 ms)
+
+  ● late earlier-call truncation does not transfer nested observation expansion to another call
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "hide",
+        "detail",
+        "detail",
+    -   "detail",
+        "hide",
+    +   "detail",
+      ]
+
+      20 |  view.rerender(draw([callA,obsA,callB,obsB,lateResultA]));
+      21 |  expect(screen.getByText('+7 more output lines coalesced')).toBeInTheDocument();
+    > 22 |  expect(controls().map(x=>x.textContent.trim())).toEqual(['hide','detail','detail','detail','hide']);
+         |                                                  ^
+      23 | });
+      24 |
+
+      at Object.<anonymous> (src/nested-expansion.test.js:22:50)
+      at TestScheduler.scheduleTests (../../workspace/shared/pupu-383-planning-20261002/node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (../../workspace/shared/pupu-383-planning-20261002/node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (../../workspace/shared/pupu-383-planning-20261002/node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (../../workspace/shared/pupu-383-planning-20261002/node_modules/@jest/core/build/cli/index.js:173:3)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        3.059 s
+Ran all test suites within paths "src/nested-expansion.test.js".

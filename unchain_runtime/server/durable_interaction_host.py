@@ -3557,6 +3557,47 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         except DurableInteractionHostError as exc:
             context_unavailable_reason = exc.code
 
+    presentation = _presentation_for_request(request)
+    tool_presentation = presentation.get("tool_call")
+    if isinstance(tool_presentation, dict):
+        policy = None
+        request_subject = request.subject if isinstance(request.subject, dict) else {}
+        intent_cursor = request_subject.get("intent_cursor")
+        call_id = str(tool_presentation.get("call_id") or "").strip()
+        tool_name = str(tool_presentation.get("tool_name") or "").strip()
+        if source_run_id and call_id and tool_name and isinstance(intent_cursor, dict):
+            try:
+                owner_chat_id = _cold_interaction_owner_chat_id(
+                    normalized_session_id, source_run_id
+                )
+                from memory_v2_unchain_active_bridge import (
+                    pupu_unchain_cold_tool_call_timeline_policy,
+                )
+
+                policy = pupu_unchain_cold_tool_call_timeline_policy(
+                    owner_chat_id=owner_chat_id,
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    intent_cursor=intent_cursor,
+                )
+            except Exception:
+                # Missing or ambiguous historical provenance keeps legacy display behavior.
+                policy = None
+        if policy is None and tool_name == "ask_user_question":
+            policy = "never"
+        if policy in {"never", "no_feedback", "approved", "always"}:
+            tool_presentation["timeline_merge_policy"] = policy
+            trace_frame = presentation.get("trace_frame")
+            trace_payload = (
+                trace_frame.get("payload")
+                if isinstance(trace_frame, dict)
+                else None
+            )
+            if isinstance(trace_payload, dict):
+                trace_payload["timeline_merge_policy"] = policy
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -3570,7 +3611,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "kind": request.kind,
         "provider": subject_provider,
         "model": subject_model,
-        "presentation": _presentation_for_request(request),
+        "presentation": presentation,
         "resume_available": context is not None or graph_context is not None,
         "resume_options": (
             copy.deepcopy(
