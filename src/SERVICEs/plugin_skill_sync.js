@@ -112,9 +112,9 @@ export const syncPluginSkills = (toolkits) => {
 };
 
 const SKILL_INVENTORY_SOURCE = "skill-inventory";
-// "command" is the same builtin icon category_chip.js and
-// skill_pack_detail_page.js already use for the "skill" category — no
-// per-entry icon field exists on a `pupu.skill_inventory.v1` row.
+// "command" is the same builtin icon skill_pack_detail_page.js already uses
+// for the "skill" category — no per-entry icon field exists on a
+// `pupu.skill_inventory.v1` row.
 const SKILL_INVENTORY_ICON = "command";
 
 /**
