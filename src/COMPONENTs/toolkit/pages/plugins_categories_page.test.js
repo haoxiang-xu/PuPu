@@ -624,6 +624,16 @@ describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
     }
   });
 
+  test("the pack's GET carries no hue", async () => {
+    await renderPage({ category: "all" });
+    await waitFor(() => expect(screen.getByText("Test Pack")).toBeInTheDocument());
+
+    const row = screen.getByTestId("skillpack-row-skillpack.test-pack");
+    expect(within(row).getByRole("button", { name: /get/i }).outerHTML).not.toMatch(
+      /154, 168, 255|37, 99, 235|124, 140, 248/,
+    );
+  });
+
   test("keeps trust badges out of skill pack rows", async () => {
     const onOpenDetail = jest.fn();
     const onInstall = jest.fn();

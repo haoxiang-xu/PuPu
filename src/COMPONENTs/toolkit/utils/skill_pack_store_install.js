@@ -2,6 +2,15 @@ import api from "../../../SERVICEs/api";
 import curation from "../../../SERVICEs/plugin_store_curation.json";
 import { buildSkillPackFromScan } from "../../../SERVICEs/skill_pack_import";
 
+/* A pack with no artwork gets the same grey glyph on the same transparent plate
+   an MCP server without a logo does (DEFAULT_MCP_ICON) — never a hue. */
+export const DEFAULT_SKILL_PACK_ICON = {
+  type: "builtin",
+  name: "command",
+  color: "#9aa0a6",
+  backgroundColor: "transparent",
+};
+
 /* skill_pack_store_install — S6b's renderer-side orchestration of the store
    one-click skill-pack install (spec: 2026-07-18 S6, channel contract r1.2).
 

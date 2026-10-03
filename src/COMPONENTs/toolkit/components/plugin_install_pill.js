@@ -11,6 +11,33 @@ import { usePluginInstallState } from "../hooks/use_plugin_install_state";
    usePluginInstallState. M6: a 12px ArcSpinner renders beside the label
    while installing — ported from plugin_tile.js's own spinner, which this
    pill dropped when it replaced the tile as the list-row right slot. */
+/* The store carries no colour fills (SPEC rule 1): an action reads as an action
+   by being a filled neutral pill, not by being blue. Exported so the two pages
+   that draw their own skill-pack Get button speak in the same voice. Colours
+   are alphas over --pupu-text-rgb, so they follow the theme without a branch. */
+const PILL_METRICS = {
+  fontSize: 11,
+  fontWeight: 500,
+  paddingVertical: 3,
+  paddingHorizontal: 13,
+  borderRadius: 999,
+  state: {
+    disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} },
+  },
+};
+
+export const ACTION_PILL_STYLE = {
+  ...PILL_METRICS,
+  color: "rgba(var(--pupu-text-rgb),0.82)",
+  root: { background: "rgba(var(--pupu-text-rgb),0.08)" },
+};
+
+export const QUIET_PILL_STYLE = {
+  ...PILL_METRICS,
+  color: "rgba(var(--pupu-text-rgb),0.50)",
+  root: { background: "rgba(var(--pupu-text-rgb),0.05)" },
+};
+
 const PluginInstallPill = ({
   entry,
   isDark,
@@ -36,10 +63,6 @@ const PluginInstallPill = ({
 
   const isOpen = installMachine.installState === "installed";
   const pillEnabled = isOpen || installMachine.canInstall;
-  const chipColor = isDark ? "#9aa8ff" : "#2563eb";
-  const pillBg = isDark ? "rgba(124,140,248,0.12)" : "rgba(37,99,235,0.08)";
-  const pillOpenColor = isDark ? "rgba(var(--pupu-text-rgb),0.55)" : "rgba(var(--pupu-text-rgb),0.50)";
-  const pillOpenBg = isDark ? "rgba(var(--pupu-text-rgb),0.08)" : "rgba(var(--pupu-text-rgb),0.06)";
 
   const handleClick = (event) => {
     event.stopPropagation();
@@ -67,18 +90,7 @@ const PluginInstallPill = ({
         label={installMachine.stateLabel}
         disabled={!pillEnabled}
         onClick={handleClick}
-        style={{
-          fontSize: 11,
-          fontWeight: 500,
-          paddingVertical: 3,
-          paddingHorizontal: 13,
-          borderRadius: 999,
-          color: isOpen ? pillOpenColor : chipColor,
-          root: { background: isOpen ? pillOpenBg : pillBg },
-          state: {
-            disabled: { root: { opacity: 0.6, cursor: "not-allowed" }, background: {} },
-          },
-        }}
+        style={isOpen ? QUIET_PILL_STYLE : ACTION_PILL_STYLE}
       />
     </span>
   );

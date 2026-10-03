@@ -19,13 +19,14 @@ import {
 import { toast } from "../../../SERVICEs/toast";
 import { isBaseToolkitId } from "../utils/plugin_actions";
 import {
+  DEFAULT_SKILL_PACK_ICON,
   listStoreSkillPacks,
   installStoreSkillPack,
 } from "../utils/skill_pack_store_install";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "../components/placeholder_block";
 import PluginListRow from "../components/plugin_list_row";
-import PluginInstallPill from "../components/plugin_install_pill";
+import PluginInstallPill, { ACTION_PILL_STYLE } from "../components/plugin_install_pill";
 import { matchesCategory } from "../../../SERVICEs/store_categories";
 
 const isMcpSourced = (source) => String(source || "").startsWith("mcp");
@@ -442,7 +443,7 @@ const PluginsCategoriesPage = ({
             <PluginListRow
               key={pack.id}
               trustEntry={pack}
-              icon={pack.icon || { type: "builtin", name: "command", color: "#6478f6" }}
+              icon={pack.icon || DEFAULT_SKILL_PACK_ICON}
               isDark={isDark}
               name={packTitle}
               types={["skill"]}
@@ -466,25 +467,7 @@ const PluginsCategoriesPage = ({
                     event.stopPropagation();
                     handleInstallPack(pack);
                   }}
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    paddingVertical: 3,
-                    paddingHorizontal: 13,
-                    borderRadius: 999,
-                    color: isDark ? "#9aa8ff" : "#2563eb",
-                    root: {
-                      background: isDark
-                        ? "rgba(124,140,248,0.12)"
-                        : "rgba(37,99,235,0.08)",
-                    },
-                    state: {
-                      disabled: {
-                        root: { opacity: 0.6, cursor: "not-allowed" },
-                        background: {},
-                      },
-                    },
-                  }}
+                  style={ACTION_PILL_STYLE}
                 />
               </span>
             </PluginListRow>

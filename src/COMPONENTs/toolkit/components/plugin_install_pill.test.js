@@ -77,3 +77,25 @@ describe("PluginInstallPill — installing spinner", () => {
     expect(onInstall).toHaveBeenCalledWith(ENTRY);
   });
 });
+
+describe("PluginInstallPill — no colour fill", () => {
+  // jsdom serializes #9aa8ff / #2563eb / rgba(124,140,248,…) as these triples.
+  const HUE = /154, 168, 255|37, 99, 235|124, 140, 248/;
+
+  test.each([[true], [false]])("an actionable pill carries no hue (isDark=%s)", (isDark) => {
+    render(
+      <PluginInstallPill
+        entry={ENTRY}
+        isDark={isDark}
+        installedIds={new Set()}
+        onInstall={noop}
+        onOAuthConnect={noop}
+        onCancelOAuth={noop}
+        onOpenDetail={noop}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "GET" });
+    expect(button.outerHTML).not.toMatch(HUE);
+  });
+});
