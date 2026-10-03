@@ -1,6 +1,7 @@
 import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { ToolkitIconFrame } from "./toolkit_icon";
+import TypeTag from "./type_tag";
 
 /* PluginListRow — the settings-isomorphic list row shared by Installed,
    Discover and Store (T3). Ground truth: mockup screen ③ (Installed
@@ -21,6 +22,7 @@ const PluginListRow = ({
   icon,
   isDark = false,
   name,
+  types,
   command,
   description,
   onOpenDetail,
@@ -34,8 +36,10 @@ const PluginListRow = ({
 
   const nameColor = isDark ? "rgba(var(--pupu-text-rgb),0.88)" : "rgba(var(--pupu-text-rgb),0.85)";
   const descColor = isDark ? "rgba(var(--pupu-text-rgb),0.38)" : "rgba(var(--pupu-text-rgb),0.40)";
-  const chipColor = isDark ? "#9aa8ff" : "#2563eb";
-  const chipBg = "rgba(124,140,248,0.10)";
+  /* The command chip used to be a tinted pill. It is a caption now: the
+     store carries no colour fills, and a mono face already separates a
+     /command from the name beside it. */
+  const chipColor = "rgba(var(--pupu-text-rgb),0.42)";
 
   const commandChip = command && (
     <span
@@ -43,8 +47,6 @@ const PluginListRow = ({
         fontFamily: "ui-monospace, Menlo, monospace",
         fontSize: commandFirst ? 11 : 10,
         color: chipColor,
-        background: chipBg,
-        borderRadius: 5,
         padding: commandFirst ? "2px 7px" : "1px 6px",
         flexShrink: 0,
       }}
@@ -60,28 +62,28 @@ const PluginListRow = ({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "11px 0",
+        gap: 11,
+        padding: "8px 0",
         cursor: onOpenDetail ? "pointer" : "default",
       }}
     >
       <ToolkitIconFrame
         icon={icon}
         isDark={isDark}
-        size={36}
-        iconSize={18}
-        borderRadius={10}
+        size={26}
+        iconSize={15}
+        borderRadius={7}
         fallbackColor={fallbackColor}
-        style={{ alignSelf: "flex-start", marginTop: 4 }}
+        style={{ alignSelf: "center" }}
       />
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
           {commandFirst && commandChip}
           <span
             style={{
-              fontSize: 12.5,
-              fontWeight: 500,
+              fontSize: 13.5,
+              fontWeight: 400,
               fontFamily,
               color: nameColor,
               overflow: "hidden",
@@ -91,15 +93,17 @@ const PluginListRow = ({
           >
             {name}
           </span>
+          <TypeTag types={types} />
           {!commandFirst && commandChip}
         </div>
         {description && (
           <div
             style={{
-              fontSize: 11,
+              fontSize: 11.5,
+              fontWeight: 300,
               fontFamily,
               color: descColor,
-              marginTop: 1,
+              marginTop: 2,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -113,7 +117,7 @@ const PluginListRow = ({
       {children && (
         <div
           onClick={(event) => event.stopPropagation()}
-          style={{ flexShrink: 0, display: "flex", alignItems: "center", alignSelf: "flex-start", marginTop: 6, gap: 8 }}
+          style={{ flexShrink: 0, display: "flex", alignItems: "center", alignSelf: "center", gap: 8 }}
         >
           {children}
         </div>

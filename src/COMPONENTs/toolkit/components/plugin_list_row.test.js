@@ -84,4 +84,30 @@ describe("PluginListRow", () => {
       expect(screen.getByText("Plan")).toBeInTheDocument();
     });
   });
+
+  test("renders the type tag next to the name", () => {
+    render(<PluginListRow name="Playwright Browser" types={["mcp"]} />);
+
+    expect(screen.getByText("MCP")).toBeInTheDocument();
+  });
+
+  test("renders both tags for a row that qualifies as two types", () => {
+    render(<PluginListRow name="Plan" types={["toolkit", "skill"]} />);
+
+    expect(screen.getByText(/TOOLKIT/)).toBeInTheDocument();
+    expect(screen.getByText(/SKILL/)).toBeInTheDocument();
+  });
+
+  test("renders no tag element when no types are given", () => {
+    render(<PluginListRow name="Core" />);
+
+    expect(screen.queryByText("MCP")).not.toBeInTheDocument();
+    expect(screen.queryByText(/TOOLKIT/)).not.toBeInTheDocument();
+  });
+
+  test("the command chip carries no colour fill", () => {
+    render(<PluginListRow name="Plan" command="/plan" />);
+
+    expect(screen.getByText("/plan").style.background).toBe("");
+  });
 });
