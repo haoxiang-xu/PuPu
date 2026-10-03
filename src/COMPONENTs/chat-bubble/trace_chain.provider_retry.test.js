@@ -69,6 +69,60 @@ afterEach(() => {
 });
 
 describe("TraceChain provider retry (design A2)", () => {
+  test("bounded records separate grouped waits without consuming either display format", () => {
+    renderTrace({
+      status: "done",
+      frames: [
+        retryFrame({ seq: 1 }),
+        {
+          ...retryFrame({ seq: 2 }),
+          payload: {
+            provider: "gemini", http_status: 503,
+            retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+          },
+        },
+        retryFrame({ seq: 3, failed: 2 }),
+      ],
+    });
+    expect(screen.getByText("Retried 1×")).toBeInTheDocument();
+    expect(screen.getByText("Retried 2×")).toBeInTheDocument();
+    expect(screen.getByText("Gemini temporarily busy — retrying 1/2")).toBeInTheDocument();
+    expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+  });
+
+  test("rejected records separate valid grouped waits", () => {
+    renderTrace({
+      status: "done",
+      frames: [
+        retryFrame({ seq: 1 }),
+        { ...retryFrame({ seq: 2 }), payload: {} },
+        retryFrame({ seq: 3, failed: 2 }),
+      ],
+    });
+    expect(screen.getByText("Retried 1×")).toBeInTheDocument();
+    expect(screen.getByText("Retried 2×")).toBeInTheDocument();
+    expect(screen.getAllByText("Gemini · Overloaded (HTTP 503)")).toHaveLength(2);
+  });
+
+  test.each([
+    {},
+    { attempt_failed: "1", next_attempt: 2, max_attempts: 11, delay_ms: 4000,
+      remaining_ms: 4000, http_status: 503, provider_status: "UNAVAILABLE", provider: "gemini" },
+    { attempt_failed: 1, next_attempt: 2, max_attempts: 11, delay_ms: 4000,
+      remaining_ms: 4000, http_status: 503, provider_status: "UNAVAILABLE", provider: "gemini",
+      retry_ordinal: null },
+    { attempt_failed: 1, next_attempt: 2, max_attempts: 11, delay_ms: 4000,
+      remaining_ms: 4000, http_status: 503, provider_status: "UNAVAILABLE", provider: "gemini",
+      retry_ordinal: 1, max_retries: 2, response_body: "private provider body" },
+  ])("rejected retry records cannot create an invisible waiting header: %p", (payload) => {
+    renderTrace({ frames: [{ ...retryFrame({ seq: 1 }), payload }] });
+    expect(screen.queryByText("Retrying…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Waiting for Gemini")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/private provider body/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+  });
+
   test("a wait shows the reason, a countdown, the try budget and Stop", () => {
     const onStopStream = jest.fn();
     renderTrace({ frames: [retryFrame({ seq: 1 })], onStopStream });

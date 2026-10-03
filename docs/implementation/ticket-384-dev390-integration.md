@@ -1,6 +1,6 @@
 # Integrate current dev / #390 into #384
 
-Status: PLAN CHECKPOINT, implementation and validation pending. 2026-10-03 UTC.
+Status: SOURCE MERGE CHECKPOINT, aggregate validation pending. 2026-10-03 UTC.
 
 ## Authorized scope
 
@@ -30,3 +30,29 @@ SEQ-390-I01: first/second message, first/second interaction, retry/durable resum
 ## Pending evidence
 
 Conflict map, graph risk, final artifact identity, tests, independent review, remote restore proof and exact-head CI are PENDING. Prior branch acceptance is historical, not acceptance of this merged pair. macOS-only unpublished work is not assumed accessible or included. Live/frozen/platform-specific acceptance is NOT_RUN until demonstrated.
+
+
+## Textual and semantic merge assessment
+
+Read-only three-way merge from plan checkpoint `be7c0badc5ccc702709dcc4c8be89d8535d04a79` and current dev `f689b9fa9732fc4dc3ae527eea96e56c82dc1873` is textually clean. The automatic source tree is `5897c696c302d035a4cd0d9a50da78c8b7719bf6`. No broad ours/theirs selection was used. The merge remains a two-parent history-preserving integration, with no #383 policy fix imported.
+
+The anticipated giant-hook conflict does not occur at these exact revisions: incoming dev does not change `use_chat_stream.js` relative to the shared base. The branch hook and automatic merged hook both have SHA-256 `3dc910b8be3786cf036cae4fe0f3ef72002782e3652e40557809df5172b3a1d9`. Thus the #384 current-handle synchronous admitted-batch drain, nested/message flush, interaction identity capture, generation tombstone, and stale/successor ownership guards survive byte-identically. `chat_turn_utils.js` likewise retains the original #384 supported-history retention without dev edits.
+
+The shared TraceChain file composes disjoint hunks: #384 cancelled generic/parent/child statuses and disabled stale approval actions plus #390 strict legacy-ordinal/grouped-retry routing and renderer. Runtime projector, provider-result readers, strict capability consumers and diagnostic tests follow accepted current dev. This source assessment is not aggregate or live acceptance.
+
+All five Release QA default source refs select immutable clean Unchain dev `358b96d723daa0d2882158985c8245c7f8c7fb23`, which contains reconciled #390/#386 source `1c9b399beb65bda72520e1c3ebc11c7f117751cb`. The same pinned ref feeds every downstream default. This integration supersedes the narrow runtime-pin portion of inaccessible Mac-only #384 WIP; no unpublished Mac document or edit is claimed recovered.
+
+## Pre-edit graph evidence
+
+GitNexus 1.6.12 is bound only to this exclusive linked worktree, indexed at `be7c0bad`, with isolated home/index and `--max-file-size 1024 --index-only`. The 551,348-byte streaming hook is included. Index completed: 2,728 files, 44,627 symbols, 151,054 edges, 1,220 flows. FTS was unavailable, while graph construction succeeded. Callable/property dispatch fanout, flow ranking and trace-depth caps remain coverage limits and are not an all-clear.
+
+Upstream impact, reported before the merge/workflow edits: `startRuntimeEventStream` CRITICAL (16 symbols, 14 process groups); `settleStreamingAssistantMessages` CRITICAL (21 symbols including tests/compiled consumer, 7 groups); `cancelCurrentStreamAndSettleMessages` HIGH (4 symbols, 3 groups). Actual direct paths include `runTurnRequest`, Stop/deleteTurn, session bootstrap and unavailable/test cancellation settlement. `applyEvent` LOW (8 symbols), `providerRetryFields` LOW (5), `groupProviderRetryFrames` LOW (1), `wrapRuntimeEventStreamHandle` LOW (3). `TraceChain` UNKNOWN (JSX caller edges unresolved): actual ChatBubble → LazyTraceChain and recursive nested TraceChain call sites corroborate its load-bearing use. The workflow is unindexed/UNKNOWN; exact file reading verifies its five immutable defaults and downstream consumers. No UNKNOWN zero is interpreted as unused or safe.
+
+## Exact artifact planned for all new validation
+
+One clean-dev wheel was built once and independently inspected by the coordinator. Source/ref: `358b96d723daa0d2882158985c8245c7f8c7fb23`. Wheel: `unchain-0.2.0-py3-none-any.whl`, SHA-256 `819e097dee4ad8b934b76fabf83d04360c3081a48730d21792bf525b806e7e76`. Actual imported runtime manifest digest: `sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672`. Local acceptance must reuse these exact bytes and verified installed package; mutable sibling source is not runtime evidence. BC-390-I01/02 and SEQ-390-I01 apply alongside BC-384-001/SEQ-384-001. New focused, aggregate, contract, build and independent-review results remain PENDING at this checkpoint.
+
+
+Admission-boundary File upstream impacts are separately scoped: Electron readiness MEDIUM (7 symbols), artifact consumer MEDIUM (11), runtime factory MEDIUM (42), Python capability file LOW (25), and context adapter UNKNOWN (0). File nodes omit process/community axes. The adapter's actual bind call sites and injected `execution.artifacts.read_full_verified` reader are corroborated in adapter tests; UNKNOWN does not imply unused. Same-wheel host tests will exercise both factories and strict consumers.
+
+Before source-checkpoint publication, complete backend `detect_changes(scope=all, worktree=this checkout)` records 33 changed files, 32 symbols and 20 affected processes, CRITICAL risk. The full structured result has no `partial`, `truncated` or `error` flag. CLI prose intentionally abbreviates rows, so the full structured backend response was independently saved and checked instead. Coverage limitations above still apply. Whitespace and unresolved-index checks pass; validation remains PENDING.
