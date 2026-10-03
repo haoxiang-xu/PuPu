@@ -16,7 +16,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
   ...jest.requireActual("../components/toolkit_icon"),
-  ToolkitIconFrame: () => <span data-testid="icon" />,
+  ToolkitIconFrame: ({ icon }) => <span data-testid="icon" data-icon-color={icon?.color} />,
 }));
 
 jest.mock("../../../SERVICEs/api", () => ({
@@ -45,6 +45,7 @@ jest.mock("../../../SERVICEs/toast", () => ({
    itself is covered by skill_pack_store_install.test.js. */
 jest.mock("../utils/skill_pack_store_install", () => ({
   __esModule: true,
+  ...jest.requireActual("../utils/skill_pack_store_install"),
   listStoreSkillPacks: jest.fn(() => []),
   installStoreSkillPack: jest.fn(),
 }));
@@ -587,6 +588,7 @@ describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
           toolkitName: "Test Pack",
           toolkitDescription: "Battle-tested methodology commands.",
           source: "skillpack",
+          toolkitIcon: { type: "builtin", name: "command", color: "#7c8cf8", backgroundColor: "#eef0fe" },
           tools: [],
           skills: [{ name: "brainstorming", title: "Brainstorming", description: "Ideate first." }],
         },
@@ -608,6 +610,8 @@ describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
     // never a TOOLKIT.
     const row = screen.getByTestId("category-row-skillpack.test-pack");
     expect(within(row).getByTestId("type-tag").textContent).toBe("SKILL");
+    // …and it keeps the grey glyph, not the sidecar's blue default.
+    expect(within(row).getByTestId("icon")).toHaveAttribute("data-icon-color", "#9aa0a6");
   });
 
   test("the rows a category page lists equal the count the rail derives for it", async () => {

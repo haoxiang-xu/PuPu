@@ -15,7 +15,11 @@ import SectionCaption from "../components/section_caption";
 import TypeTag from "../components/type_tag";
 import useSkillPackInstall from "../hooks/use_skill_pack_install";
 import { typesFor } from "../utils/plugin_types";
-import { DEFAULT_SKILL_PACK_ICON, listStoreSkillPacks } from "../utils/skill_pack_store_install";
+import {
+  DEFAULT_SKILL_PACK_ICON,
+  displayIconForToolkit,
+  listStoreSkillPacks,
+} from "../utils/skill_pack_store_install";
 
 /* Resolves a curated id against the three places a plugin can live, in this
    order: the MCP store registry (renders GET until installed), the connected
@@ -36,7 +40,7 @@ const resolvePluginId = (pluginId, storeById, catalogById, packById) => {
 const iconFor = (resolved) => {
   if (resolved.kind === "store") return resolveMcpIcon(resolved.entry);
   if (resolved.kind === "pack") return resolved.entry.icon || DEFAULT_SKILL_PACK_ICON;
-  return resolved.entry.toolkitIcon;
+  return displayIconForToolkit(resolved.entry);
 };
 
 const keyOf = (resolved) => resolved.entry.toolkitId || resolved.entry.id;

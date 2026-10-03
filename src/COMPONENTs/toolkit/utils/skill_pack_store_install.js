@@ -11,6 +11,18 @@ export const DEFAULT_SKILL_PACK_ICON = {
   backgroundColor: "transparent",
 };
 
+/* An installed pack comes back from the sidecar as a catalog row, and when the
+   pack ships no artwork the sidecar fills in its own lavender "command" glyph
+   (unchain_runtime/server/skill_packs.py). The store shows one glyph for a
+   pack before and after install, so that default is swapped for the grey one;
+   real artwork, and every row that is not a pack, pass through untouched. */
+export const displayIconForToolkit = (toolkit) => {
+  const icon = toolkit?.toolkitIcon;
+  if (toolkit?.source !== "skillpack") return icon;
+  if (!icon || (icon.type === "builtin" && icon.name === "command")) return DEFAULT_SKILL_PACK_ICON;
+  return icon;
+};
+
 /* skill_pack_store_install — S6b's renderer-side orchestration of the store
    one-click skill-pack install (spec: 2026-07-18 S6, channel contract r1.2).
 

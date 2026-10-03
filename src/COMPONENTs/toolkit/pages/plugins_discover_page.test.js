@@ -20,7 +20,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
 jest.mock("../components/toolkit_icon", () => ({
   __esModule: true,
   ...jest.requireActual("../components/toolkit_icon"),
-  ToolkitIconFrame: () => <span data-testid="icon" />,
+  ToolkitIconFrame: ({ icon }) => <span data-testid="icon" data-icon-color={icon?.color} />,
 }));
 
 jest.mock("../../../SERVICEs/api", () => ({
@@ -45,9 +45,9 @@ jest.mock("../../../SERVICEs/plugin_presentation", () => {
 
 jest.mock("../utils/skill_pack_store_install", () => ({
   __esModule: true,
+  ...jest.requireActual("../utils/skill_pack_store_install"),
   listStoreSkillPacks: jest.fn(),
   installStoreSkillPack: jest.fn(),
-  DEFAULT_SKILL_PACK_ICON: { type: "builtin", name: "command" },
 }));
 
 jest.mock("../../../SERVICEs/toolkit_catalog_refresh", () => ({
@@ -139,6 +139,8 @@ const HUMANIZER_INSTALLED = {
   toolkitId: "skillpack.humanizer",
   toolkitName: "Humanizer",
   toolkitDescription: "Revise pasted prose for clearer language.",
+  // The sidecar's own default for a pack that ships no artwork.
+  toolkitIcon: { type: "builtin", name: "command", color: "#7c8cf8", backgroundColor: "#eef0fe" },
   source: "skillpack",
   tools: [],
   skills: [{ name: "humanizer", title: "Humanizer", description: "Revise prose." }],
@@ -318,6 +320,15 @@ describe("Discover — Latest", () => {
 
     fireEvent.click(within(row).getByRole("button", { name: "OPEN" }));
     expect(onOpenDetail.mock.calls[0][0].raw.toolkitId).toBe("skillpack.humanizer");
+  });
+
+  test("an installed pack keeps the grey glyph it had before install, not the sidecar's blue", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValue({ toolkits: [HUMANIZER_INSTALLED] });
+    await renderPage();
+
+    const row = await screen.findByTestId("discover-latest-skillpack.humanizer");
+    await waitFor(() => expect(within(row).getByRole("button", { name: "OPEN" })).toBeInTheDocument());
+    expect(within(row).getByTestId("icon")).toHaveAttribute("data-icon-color", "#9aa0a6");
   });
 
   test("reloads the catalog when a pack install announces itself, so GET turns into OPEN", async () => {

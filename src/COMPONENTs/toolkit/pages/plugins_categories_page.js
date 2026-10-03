@@ -16,6 +16,7 @@ import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalo
 import { isBaseToolkitId } from "../utils/plugin_actions";
 import {
   DEFAULT_SKILL_PACK_ICON,
+  displayIconForToolkit,
   listStoreSkillPacks,
 } from "../utils/skill_pack_store_install";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
@@ -450,7 +451,7 @@ const PluginsCategoriesPage = ({
               <PluginListRow
                 key={item.key}
                 trustEntry={item.toolkit}
-                icon={item.toolkit.toolkitIcon}
+                icon={displayIconForToolkit(item.toolkit)}
                 isDark={isDark}
                 name={item.presentation.name}
                 types={typesFor(item.toolkit.source, item.presentation)}
