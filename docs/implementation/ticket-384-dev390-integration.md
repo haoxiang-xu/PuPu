@@ -1,6 +1,6 @@
 # Integrate current dev / #390 into #384
 
-Status: SOURCE MERGE CHECKPOINT, aggregate validation pending. 2026-10-03 UTC.
+Status: SOURCE MERGE PUSHED; local and canonical CI qualification recorded. 2026-10-03 UTC.
 
 ## Authorized scope
 
@@ -56,3 +56,8 @@ One clean-dev wheel was built once and independently inspected by the coordinato
 Admission-boundary File upstream impacts are separately scoped: Electron readiness MEDIUM (7 symbols), artifact consumer MEDIUM (11), runtime factory MEDIUM (42), Python capability file LOW (25), and context adapter UNKNOWN (0). File nodes omit process/community axes. The adapter's actual bind call sites and injected `execution.artifacts.read_full_verified` reader are corroborated in adapter tests; UNKNOWN does not imply unused. Same-wheel host tests will exercise both factories and strict consumers.
 
 Before source-checkpoint publication, complete backend `detect_changes(scope=all, worktree=this checkout)` records 33 changed files, 32 symbols and 20 affected processes, CRITICAL risk. The full structured result has no `partial`, `truncated` or `error` flag. CLI prose intentionally abbreviates rows, so the full structured backend response was independently saved and checked instead. Coverage limitations above still apply. Whitespace and unresolved-index checks pass; validation remains PENDING.
+
+
+## Current qualification
+
+Source merge checkpoint `30bf2126851ddb3adc27d1d06dfa1fbc19235f7a` was published/restored with exact two parents and tree `8d0821998060c7ba19dd4bc03f64d301b44fe6b3`. No tracked production/test changes were needed after composition. See [new integration evidence](ticket-384-dev390-evidence/acceptance.md) for separate local and canonical CI artifact identities, complete fresh test counts, preserved raw local Linux fixture failures, environment-only recoveries, actual compiler exit proof and current limits. Historical ticket acceptance does not replace this qualification. Independent GPT-6.1 Sol final review is PASS for source integration and qualified lite CI on exact30bf212; see the cited review in the evidence directory. Evidence-only publication/readback is the remaining delivery step; live/frozen/platform acceptance and active rollout remain INCOMPLETE.
