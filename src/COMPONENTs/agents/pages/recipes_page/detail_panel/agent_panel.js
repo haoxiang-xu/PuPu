@@ -6,7 +6,6 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
@@ -16,7 +15,10 @@ const MODEL_OPTIONS = [
   { value: "anthropic:claude-sonnet-5", label: "anthropic:claude-sonnet-5" },
   { value: "gemini:gemini-3.7-flash", label: "gemini:gemini-3.7-flash" },
   { value: "gemini:gemini-3.8-flash", label: "gemini:gemini-3.8-flash" },
-  { value: "gemini:gemini-3.5-flash-lite", label: "gemini:gemini-3.5-flash-lite" },
+  {
+    value: "gemini:gemini-3.5-flash-lite",
+    label: "gemini:gemini-3.5-flash-lite",
+  },
   { value: "claude-opus-4-7", label: "claude-opus-4-7" },
   { value: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
   { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },
@@ -97,7 +99,13 @@ function custom_optimizer_from(raw) {
   };
 }
 
-export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isDark }) {
+export default function AgentPanel({
+  node,
+  recipe,
+  onChange,
+  onChangeSilent,
+  isDark,
+}) {
   const scope = compute_variable_scope(node.id, recipe.nodes, recipe.edges);
 
   function set_node(patch) {
@@ -203,26 +211,6 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="bot" color="#fff" style={{ width: 14, height: 14 }} />
-        </div>
-        <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600 }}>
-          {node.id}
-        </div>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={SECTION_LABEL}>Input Variables</span>
         {scope.length === 0 && (
@@ -380,7 +368,8 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
                     v,
                     0,
                     100,
-                    custom_optimizer.tool_history_compaction.keep_completed_turns,
+                    custom_optimizer.tool_history_compaction
+                      .keep_completed_turns,
                   ),
                 })
               }

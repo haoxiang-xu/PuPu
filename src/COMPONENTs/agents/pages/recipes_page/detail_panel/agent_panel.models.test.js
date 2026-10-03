@@ -4,12 +4,17 @@ import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import AgentPanel from "./agent_panel";
 
 test.each([
-  "openai:gpt-6-sol", "openai:gpt-6-luna",
-  "anthropic:claude-opus-5-5", "anthropic:claude-sonnet-5",
-  "gemini:gemini-3.7-flash", "gemini:gemini-3.8-flash", "gemini:gemini-3.5-flash-lite",
+  "openai:gpt-6-sol",
+  "openai:gpt-6-luna",
+  "anthropic:claude-opus-5-5",
+  "anthropic:claude-sonnet-5",
+  "gemini:gemini-3.7-flash",
+  "gemini:gemini-3.8-flash",
+  "gemini:gemini-3.5-flash-lite",
 ])("selecting %s preserves its provider in the recipe override", (model) => {
   const recipe = {
-    nodes: [{ id: "agent", type: "agent", override: {}, outputs: [] }], edges: [],
+    nodes: [{ id: "agent", type: "agent", override: {}, outputs: [] }],
+    edges: [],
   };
   const onChange = jest.fn();
   render(

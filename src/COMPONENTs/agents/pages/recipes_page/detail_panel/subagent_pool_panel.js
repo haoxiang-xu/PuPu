@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import SubagentPicker from "../subagent_picker";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { entry_reference } from "../subagent_eligibility";
+import {
+  can_drill,
+  drill_unavailable_reason,
+  reference_exists,
+} from "../subagent_drill";
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -11,7 +16,14 @@ const SECTION_LABEL = {
   letterSpacing: 0.4,
 };
 
-export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
+export default function SubagentPoolPanel({
+  node,
+  recipe,
+  onChange,
+  isDark,
+  recipes,
+  onDrillIn,
+}) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function set_subagents(nextSubagents) {
@@ -35,56 +47,64 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #8a8cee, #5a5dd6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="shapes" color="#fff" style={{ width: 14, height: 14 }} />
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Subagent Pool</div>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={SECTION_LABEL}>Subagents</span>
+        <span style={{ fontSize: 10.5, color: "#86868b", lineHeight: 1.45 }}>
+          Each entry is an Agent with its own graph. This panel manages the
+          entries; double-click one to open its graph and edit it there.
+        </span>
         {(node.subagents || []).map((s, i) => {
-          const label =
-            s.kind === "recipe_ref"
-              ? s.recipe_name
-              : s.kind === "ref"
-                ? s.template_name
-                : s.name;
-          const kindLabel = s.kind === "recipe_ref" ? "workflow" : s.kind;
+          /* The row says where this Agent comes from. It used to print the
+           * entry's `kind` verbatim, so a `recipe_ref` row read "workflow" —
+           * a reference field name mistaken for a resource kind. Every entry
+           * here is an Agent. */
+          const { name, source } = entry_reference(s);
+          const present = reference_exists(s, recipes);
+          const openable = can_drill(s) && present && typeof onDrillIn === "function";
+          const missingColor = isDark
+            ? "rgba(255,120,120,0.92)"
+            : "rgba(176,32,32,0.92)";
           return (
             <div
               key={i}
+              data-testid={`subagent-row-${i}`}
+              title={
+                present
+                  ? drill_unavailable_reason(s) || `Double-click to open ${name}`
+                  : `${name} is no longer in the Agent library`
+              }
+              onDoubleClick={
+                typeof onDrillIn === "function" ? () => onDrillIn(s) : undefined
+              }
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
                 padding: "6px 10px",
                 borderRadius: 6,
+                cursor: openable ? "pointer" : "default",
                 background: isDark
                   ? "rgba(255,255,255,0.04)"
                   : "rgba(0,0,0,0.025)",
                 fontSize: 11.5,
               }}
             >
-              <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
-                {label}
+              <span
+                style={{
+                  fontFamily: "ui-monospace, Menlo, monospace",
+                  color: present ? undefined : missingColor,
+                }}
+              >
+                {name}
               </span>
               <span
-                style={{ fontSize: 10, color: "#86868b", marginLeft: "auto" }}
+                style={{
+                  fontSize: 10,
+                  color: present ? "#86868b" : missingColor,
+                  marginLeft: "auto",
+                }}
               >
-                {kindLabel}
+                {present ? source : "missing"}
               </span>
               <Button
                 prefix_icon="delete"

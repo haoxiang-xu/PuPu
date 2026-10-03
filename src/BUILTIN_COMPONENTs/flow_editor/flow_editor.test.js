@@ -427,3 +427,80 @@ describe("FlowEditor right-click during a gesture", () => {
     expect(on_context_menu).not.toHaveBeenCalled();
   });
 });
+
+describe("FlowEditor viewport is readable and restorable", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("both props are inert when absent, so nothing moves on mount", () => {
+    const { getByTestId } = render(wrap(<FlowEditor nodes={nodes} edges={[]} />));
+    /* An untouched viewport sits at the identity transform, so a graph that
+     * asked for neither prop is framed exactly as before. */
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+
+  test("the out ref carries the current viewport for a caller to stash", () => {
+    const out = { current: null };
+    render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    expect(out.current).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  test("a restored viewport is applied exactly, not approximated", () => {
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          restore_viewport={{ x: 42, y: -17, zoom: 1.5, token: 1 }}
+        />,
+      ),
+    );
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(42px, -17px) scale(1.5)",
+    );
+  });
+
+  test("a restore without a token does nothing", () => {
+    /* The token is what makes the restore happen once. A value alone would
+     * fight every pan the user makes. */
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          restore_viewport={{ x: 42, y: -17, zoom: 1.5 }}
+        />,
+      ),
+    );
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(0px, 0px) scale(1)",
+    );
+  });
+
+  test("the out ref follows a restore", () => {
+    const out = { current: null };
+    const { rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          viewport_out_ref={out}
+          restore_viewport={{ x: 5, y: 6, zoom: 2, token: 7 }}
+        />,
+      ),
+    );
+    expect(out.current).toEqual({ x: 5, y: 6, zoom: 2 });
+  });
+});

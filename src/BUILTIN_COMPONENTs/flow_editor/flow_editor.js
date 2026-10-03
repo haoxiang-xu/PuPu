@@ -88,6 +88,8 @@ function FlowEditor({
   fit_token,
   zoom_reset_token,
   select_all_token,
+  viewport_out_ref,
+  restore_viewport,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -180,6 +182,34 @@ function FlowEditor({
     setViewport(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
+
+  /* ── Mirror the viewport out ────────────────────────────── */
+  /*  Pull-based on purpose: a caller that swaps the graph out    */
+  /*  (drilling into a subagent) needs the viewport it is         */
+  /*  leaving, and a callback would fire on every pan frame for   */
+  /*  a value almost nobody reads.                                */
+  useEffect(() => {
+    if (viewport_out_ref) viewport_out_ref.current = viewport;
+  }, [viewport, viewport_out_ref]);
+
+  /* ── Restore a viewport ─────────────────────────────────── */
+  /*  Same token idiom as the home reset. Coming back up from a   */
+  /*  drill-in puts the parent graph exactly where it was, which  */
+  /*  re-fitting or re-centering would only approximate.          */
+  useEffect(() => {
+    if (!restore_viewport || restore_viewport.token === undefined) return;
+    const next = {
+      x: restore_viewport.x || 0,
+      y: restore_viewport.y || 0,
+      zoom: restore_viewport.zoom || 1,
+    };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
+    }
+    setViewport(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restore_viewport && restore_viewport.token]);
 
   /* ── Fit every node into view ───────────────────────────── */
   /*  Same token idiom as the home reset: the parent bumps the   */
@@ -987,7 +1017,11 @@ function FlowEditor({
       {...props}
     >
       <PuzzleDefs />
-      <div ref={viewport_div_ref} style={viewport_transform_style}>
+      <div
+        ref={viewport_div_ref}
+        data-testid="flow-editor-viewport"
+        style={viewport_transform_style}
+      >
         {/* ── SVG edge layer ── */}
         <svg
           style={{
