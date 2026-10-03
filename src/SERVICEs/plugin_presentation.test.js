@@ -142,3 +142,45 @@ describe("loadStoreCuration", () => {
     expect(featured).toMatchObject({ status: "available", installable: true });
   });
 });
+
+describe("loadStoreCuration — skill packs", () => {
+  test("exposes skill packs, which the shipped surfaces never received before", () => {
+    const curation = loadStoreCuration();
+
+    expect(Array.isArray(curation.skillPacks)).toBe(true);
+    expect(curation.skillPacks.length).toBeGreaterThan(0);
+    curation.skillPacks.forEach((pack) => {
+      expect(typeof pack.id).toBe("string");
+      expect(typeof pack.title).toBe("string");
+    });
+  });
+
+  test("every shipped skill pack carries a store category", () => {
+    loadStoreCuration().skillPacks.forEach((pack) => {
+      expect(typeof pack.storeCategory).toBe("string");
+      expect(pack.storeCategory.length).toBeGreaterThan(0);
+    });
+  });
+
+  test("a pack without a usable id or title is dropped rather than half-rendered", () => {
+    const packs = loadStoreCuration().skillPacks;
+
+    expect(packs.every((pack) => pack.id && pack.title)).toBe(true);
+  });
+});
+
+describe("registry addedAt", () => {
+  test("every entry carries an ISO date", () => {
+    registry.entries.forEach((entry) => {
+      expect(entry.addedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  test("no entry claims a date in the future", () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    registry.entries.forEach((entry) => {
+      expect(entry.addedAt <= today).toBe(true);
+    });
+  });
+});

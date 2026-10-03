@@ -6,6 +6,7 @@
     {
       "id": "workspace.zotero-readonly",
       "toolkitId": "mcp.workspace.zotero-readonly",
+      "addedAt": "2026-09-22",
       "name": "Zotero (local read-only)",
       "description": "Search your local Zotero library and read citation metadata and abstracts. / 只读检索本机 Zotero 文献库、引用信息与摘要。",
       "category": "workspace",
@@ -48,6 +49,7 @@
     {
       "id": "browser.playwright",
       "toolkitId": "mcp.browser.playwright",
+      "addedAt": "2026-06-06",
       "name": "Playwright Browser",
       "description": "Browser automation through the official Playwright MCP server.",
       "category": "browser",
@@ -104,6 +106,7 @@
     {
       "id": "browser.browser-use-local",
       "toolkitId": "mcp.browser.browser-use-local",
+      "addedAt": "2026-06-06",
       "name": "Browser Use",
       "description": "Local agentic browser control via the browser-use CLI MCP server.",
       "category": "browser",
@@ -164,6 +167,7 @@
     {
       "id": "browser.chrome-devtools",
       "toolkitId": "mcp.browser.chrome-devtools",
+      "addedAt": "2026-06-08",
       "name": "Chrome DevTools",
       "description": "Official Chrome DevTools MCP server for browser debugging, console inspection and performance trace analysis.",
       "category": "browser",
@@ -226,6 +230,7 @@
     {
       "id": "dev.github-remote",
       "toolkitId": "mcp.dev.github-remote",
+      "addedAt": "2026-06-06",
       "name": "GitHub",
       "description": "Remote GitHub MCP server for repositories, issues and pull requests.",
       "category": "dev",
@@ -290,6 +295,7 @@
     {
       "id": "dev.figma-remote",
       "toolkitId": "mcp.dev.figma-remote",
+      "addedAt": "2026-06-07",
       "name": "Figma",
       "description": "Official remote Figma MCP server; PuPu connection is pending Figma client approval.",
       "category": "dev",
@@ -353,6 +359,7 @@
     {
       "id": "dev.bug-bounty-intelligence",
       "toolkitId": "mcp.dev.bug-bounty-intelligence",
+      "addedAt": "2026-09-12",
       "name": "Bug Bounty Intelligence",
       "description": "Third-party smart contract security tools using Sherlock/Code4rena audit data. Two tools are free; the provider advertises paid scans at 5 USDC. See payment limitations before use.",
       "category": "dev",
@@ -407,6 +414,7 @@
     {
       "id": "devops.sentry-remote",
       "toolkitId": "mcp.devops.sentry-remote",
+      "addedAt": "2026-06-08",
       "name": "Sentry",
       "description": "Official hosted Sentry MCP service for issues, traces, projects and debugging workflows.",
       "category": "devops",
@@ -488,6 +496,7 @@
     {
       "id": "devops.vercel-remote",
       "toolkitId": "mcp.devops.vercel-remote",
+      "addedAt": "2026-06-08",
       "name": "Vercel",
       "description": "Official Vercel remote MCP server; PuPu connection is pending Vercel client approval.",
       "category": "devops",
@@ -547,6 +556,7 @@
     {
       "id": "devops.grafana",
       "toolkitId": "mcp.devops.grafana",
+      "addedAt": "2026-06-08",
       "name": "Grafana",
       "description": "Official Grafana MCP server for dashboards, datasources, alerts and observability queries.",
       "category": "devops",
@@ -612,6 +622,7 @@
     {
       "id": "devops.netdata-cloud",
       "toolkitId": "mcp.devops.netdata-cloud",
+      "addedAt": "2026-06-08",
       "name": "Netdata Cloud",
       "description": "Official Netdata Cloud MCP endpoint for infrastructure metrics, nodes, alerts and functions.",
       "category": "devops",
@@ -680,6 +691,7 @@
     {
       "id": "productivity.notion-remote",
       "toolkitId": "mcp.productivity.notion-remote",
+      "addedAt": "2026-06-06",
       "name": "Notion",
       "description": "Hosted remote MCP for Notion pages, databases and search.",
       "category": "productivity",
@@ -736,6 +748,7 @@
     {
       "id": "workspace.filesystem",
       "toolkitId": "mcp.workspace.filesystem",
+      "addedAt": "2026-06-06",
       "name": "Filesystem",
       "description": "Read and write files within an allowed workspace directory.",
       "category": "workspace",
@@ -796,6 +809,7 @@
     {
       "id": "workspace.markitdown",
       "toolkitId": "mcp.workspace.markitdown",
+      "addedAt": "2026-06-07",
       "name": "MarkItDown",
       "description": "Convert documents, archives and rich files into Markdown through Microsoft's local MarkItDown MCP server.",
       "category": "workspace",
@@ -848,6 +862,7 @@
     {
       "id": "memory.memory",
       "toolkitId": "mcp.memory.memory",
+      "addedAt": "2026-06-06",
       "name": "Memory",
       "description": "Persistent knowledge-graph memory via the reference MCP server.",
       "category": "memory",
@@ -905,6 +920,7 @@
     {
       "id": "productivity.slack-remote",
       "toolkitId": "mcp.productivity.slack-remote",
+      "addedAt": "2026-06-06",
       "name": "Slack Remote",
       "description": "Official Slack remote MCP server; PuPu requires a registered Slack app before connection can ship.",
       "category": "communication",
@@ -989,6 +1005,7 @@
     {
       "id": "workspace.fetch",
       "toolkitId": "mcp.workspace.fetch",
+      "addedAt": "2026-06-14",
       "name": "Fetch",
       "description": "Fetch a URL and convert its contents to Markdown for the agent via the official local Fetch MCP server.",
       "category": "workspace",
@@ -1041,6 +1058,7 @@
     {
       "id": "productivity.discord",
       "toolkitId": "mcp.productivity.discord",
+      "addedAt": "2026-06-14",
       "name": "Discord",
       "description": "Third-party Discord MCP server (IQAI) for messaging, channels, forums, reactions and webhooks via a Discord bot token.",
       "category": "communication",
@@ -1116,6 +1134,7 @@
     {
       "id": "productivity.telegram",
       "toolkitId": "mcp.productivity.telegram",
+      "addedAt": "2026-06-14",
       "name": "Telegram",
       "description": "Third-party Telegram MCP server (IQAI, Bot API / Telegraf) for sending, forwarding and pinning messages and reading channel info/members via a Telegram bot token.",
       "category": "communication",
@@ -1174,6 +1193,7 @@
     {
       "id": "workspace.sqlite",
       "toolkitId": "mcp.workspace.sqlite",
+      "addedAt": "2026-06-14",
       "name": "SQLite",
       "description": "Query and manage a local SQLite database file through the SQLite reference MCP server.",
       "category": "workspace",
@@ -1238,6 +1258,7 @@
     {
       "id": "dev.microsoft-learn",
       "toolkitId": "mcp.dev.microsoft-learn",
+      "addedAt": "2026-09-13",
       "name": "Microsoft Learn",
       "description": "Official Microsoft Learn MCP service for searching and fetching Microsoft documentation and code samples.",
       "category": "dev",
@@ -1272,6 +1293,7 @@
     {
       "id": "productivity.brave-search",
       "toolkitId": "mcp.productivity.brave-search",
+      "addedAt": "2026-09-13",
       "name": "Brave Search",
       "description": "Official Brave Search MCP server for web, news, image and video search.",
       "category": "productivity",
@@ -1308,6 +1330,7 @@
     {
       "id": "productivity.tavily",
       "toolkitId": "mcp.productivity.tavily",
+      "addedAt": "2026-09-13",
       "name": "Tavily",
       "description": "Official Tavily MCP server for web search, extraction, crawling, mapping and research.",
       "category": "productivity",
@@ -1345,6 +1368,7 @@
     {
       "id": "productivity.firecrawl",
       "toolkitId": "mcp.productivity.firecrawl",
+      "addedAt": "2026-09-13",
       "name": "Firecrawl",
       "description": "Official Firecrawl MCP server for web scraping, search and site mapping.",
       "category": "productivity",

@@ -150,10 +150,10 @@ export function loadStoreCuration() {
   try {
     // Validate curation structure
     if (!curation || typeof curation !== "object") {
-      return { featured: null, essentials: [], collections: [] };
+      return { featured: null, essentials: [], collections: [], skillPacks: [] };
     }
 
-    const { featured, essentials = [], collections = [] } = curation;
+    const { featured, essentials = [], collections = [], skillPacks = [] } = curation;
 
     // Validate featured
     const validatedFeatured =
@@ -184,13 +184,29 @@ export function loadStoreCuration() {
         )
       : [];
 
+    // A pack reaches a surface only with the two fields every row needs.
+    // storeCategory is optional on purpose: admission is OPEN, and a pack
+    // without one is listed under All rather than dropped.
+    const validatedSkillPacks = Array.isArray(skillPacks)
+      ? skillPacks.filter(
+          (pack) =>
+            pack &&
+            typeof pack === "object" &&
+            typeof pack.id === "string" &&
+            pack.id &&
+            typeof pack.title === "string" &&
+            pack.title,
+        )
+      : [];
+
     return {
       featured: validatedFeatured,
       essentials: validatedEssentials,
       collections: validatedCollections,
+      skillPacks: validatedSkillPacks,
     };
   } catch (e) {
     // Return safe shape on any error
-    return { featured: null, essentials: [], collections: [] };
+    return { featured: null, essentials: [], collections: [], skillPacks: [] };
   }
 }
