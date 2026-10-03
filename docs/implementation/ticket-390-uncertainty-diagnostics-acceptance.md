@@ -80,7 +80,7 @@ eligibility. No credentials or project permission were changed.
 
 ## Rollout and limits
 
-AC-390-U01/U02: PASS on the final artifact. AC-390-U03: package admission, strict
+AC-390-U01/U02: PASS on the final artifact. AC-390-U03: imported-runtime admission, strict
 host SSE, full regressions and existing-profile instance readiness are verified.
 The owner subsequently requested an instance restart for manual acceptance.
 The running candidate is now `/Users/red/Desktop/GITRepo/pupu-390`, with the same
@@ -92,7 +92,10 @@ Evidence is `live-instance-readiness.json` beside the final wheel. At 20:22 on
 2026-10-02, the owner reported real-device acceptance satisfactory. This records
 the owner's acceptance of model/tool behavior, without inventing a per-model
 test matrix. The console findings below are a separate storage/logging concern.
-No new profile, credential re-entry, commit, push or ticket closure.
+At evidence-capture time, no new profile, credential re-entry, commit, push or
+ticket closure had occurred. Subsequent push/PR delivery is recorded in the plan.
+Packaged/frozen-sidecar smoke is not included in this evidence and remains
+outstanding for release qualification of the reconciled delivery pair.
 
 The SDK/HTTPX fixtures establish detailed failure reporting and conservative
 recovery. They do not prove that Google's intermittent live failure is repaired.

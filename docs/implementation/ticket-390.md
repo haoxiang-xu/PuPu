@@ -657,13 +657,15 @@ are separate findings and are not part of this repair.
   injected private content. Strict v1/v2 roundtrip and malformed rejection pass.
 - **AC-390-G03:** Same wheel passes SDK signed tool continuation, actual SQLite
   reopen, HTTP 503/429 regression, runtime feature admission and PuPu projection;
-  applicable full suites and package smoke are recorded. Old feature manifests
+  applicable full suites are recorded. Packaged/frozen-sidecar smoke remains
+  required before release qualification. Old feature manifests
   are rejected before active writes. Live checks use the existing profile/key.
 
-Acceptance: PASS for AC-390-G01–G03 on the artifact pair recorded in
+Acceptance: AC-390-G01/G02 PASS, and AC-390-G03 runtime/host checks pass on the pair recorded in
 `ticket-390-gemini-response-outcomes-acceptance.md`. The full Unchain suite
 retains four independently reproduced baseline OpenAI sampling-contract failures;
-these are not represented as passing.
+these are not represented as passing. No packaged/frozen-sidecar smoke is recorded;
+that part of G03 remains outstanding on the reconciled delivery pair.
 
 ## Uncertain request diagnostics — 2026-10-02
 
@@ -719,7 +721,7 @@ these are not represented as passing.
   their relevant existing integration suites remain part of regression.
 
 Acceptance: U01/U02 PASS on the once-built final wheel recorded in
-`ticket-390-uncertainty-diagnostics-acceptance.md`. U03 package admission, strict
+`ticket-390-uncertainty-diagnostics-acceptance.md`. U03 imported-runtime admission, strict
 host SSE and full regressions complete, retaining the four independently
 reproduced baseline OpenAI sampling failures. At the owner's restart request, the
 final candidate was launched on the existing profile; actual imported manifest,
