@@ -11,6 +11,7 @@ if str(SERVER_ROOT) not in sys.path:
 
 import app as miso_app  # noqa: E402
 import routes as miso_routes  # noqa: E402
+import mcp_registry  # noqa: E402
 from mcp_external_registries import (  # noqa: E402
     McpExternalRegistryError,
     approve_mcp_store_entry,
@@ -470,3 +471,65 @@ class McpExternalRegistryRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class McpStoreAddedAtTests(unittest.TestCase):
+    """BC-002: PuPu's curated registry dates its entries on the wire; nothing else may."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.data_dir = Path(self.tmpdir.name)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_every_curated_entry_carries_the_registry_files_date(self):
+        registry_file = json.loads(
+            (SERVER_ROOT.parents[1] / "src/SERVICEs/mcp_toolkit_registry.json").read_text()
+        )
+        expected = {entry["id"]: entry["addedAt"] for entry in registry_file["entries"]}
+
+        curated = [
+            entry
+            for entry in list_mcp_store_entries(data_dir=self.data_dir)["entries"]
+            if not entry.get("registryId")
+        ]
+
+        self.assertEqual(len(curated), len(expected))
+        for entry in curated:
+            self.assertEqual(entry["addedAt"], expected[entry["id"]], entry["id"])
+
+    def test_an_external_registry_cannot_date_its_entries(self):
+        payload = sample_registry()
+        payload["entries"][0]["addedAt"] = "2026-09-30"
+        import_mcp_store_registry(
+            {"registry": payload}, data_dir=self.data_dir, now_fn=lambda: 1000.0
+        )
+
+        external = [
+            entry
+            for entry in list_mcp_store_entries(data_dir=self.data_dir)["entries"]
+            if entry.get("registryId")
+        ]
+
+        self.assertEqual(len(external), 1)
+        self.assertNotIn("addedAt", external[0])
+
+    def test_the_producer_admits_only_a_real_calendar_date(self):
+        cases = [
+            ("2026-09-22", "2026-09-22"),
+            ("2026-02-30", ""),
+            ("26-09-22", ""),
+            ("2026/09/22", ""),
+            (20260922, ""),
+            (None, ""),
+            ("", ""),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                payload = sample_registry()
+                payload["entries"][0]["addedAt"] = raw
+                normalized = mcp_registry.normalize_registry_payload(payload)
+                self.assertEqual(
+                    normalized["entries_by_id"]["external.sample"]["added_at"], expected
+                )

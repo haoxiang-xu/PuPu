@@ -353,7 +353,7 @@ def _entry_to_frontend(
     effective_entry = _approved_entry_copy(entry) if approval_status == "approved" else entry
     workspace = entry.get("workspace") if isinstance(entry.get("workspace"), dict) else {}
     review = _review_for_entry(entry, approval)
-    return {
+    payload = {
         "id": effective_entry.get("entry_id", ""),
         "entryId": effective_entry.get("entry_id", ""),
         "toolkitId": effective_entry.get("toolkit_id", ""),
@@ -400,6 +400,12 @@ def _entry_to_frontend(
             if key != "recipeMaterial"
         },
     }
+    # BC-002: only PuPu's own curated registry may date an entry. External
+    # entries always carry a registry_id, and a third-party list must not be
+    # able to pin itself to the top of Discover's Latest band.
+    if not entry.get("registry_id"):
+        payload["addedAt"] = str(entry.get("added_at") or "")
+    return payload
 
 
 def _approval_counts_for_registry(

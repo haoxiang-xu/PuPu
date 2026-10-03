@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -61,6 +63,24 @@ def _read_registry_payload(path: Path | None = None) -> Dict[str, Any]:
 
 def _clean_str(value: Any) -> str:
     return str(value or "").strip()
+
+
+_ADDED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _normalize_added_at(value: Any) -> str:
+    """BC-002: an entry's ISO calendar date, or "" — never raises.
+
+    A missing or bad date only keeps the entry out of Discover's Latest band, so
+    it is dropped quietly rather than failing the whole registry.
+    """
+    if not isinstance(value, str) or not _ADDED_AT_RE.match(value):
+        return ""
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return ""
+    return value
 
 
 def _entry_identity(raw: Any) -> tuple[str, str]:
@@ -294,6 +314,7 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
         ),
         "toolkit_icon": copy.deepcopy(raw.get("toolkitIcon") or raw.get("icon") or {}),
         "category": _clean_str(raw.get("category")),
+        "added_at": _normalize_added_at(raw.get("addedAt", raw.get("added_at"))),
         "source": _clean_str(raw.get("source")) or "mcp",
         "trust_level": _clean_str(raw.get("trustLevel") or raw.get("trust_level")),
         "status": _clean_str(raw.get("status")) or "available",
