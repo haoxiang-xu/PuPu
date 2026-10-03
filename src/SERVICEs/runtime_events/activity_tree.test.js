@@ -189,6 +189,92 @@ describe("runtime events activity tree", () => {
       .not.toHaveProperty("timeline_merge_policy");
   });
 
+  test("preserves both retry formats and ignores grouped wait heartbeats", () => {
+    const retry = (id, seq, fields) => ({
+      ...event({
+        id, type: "step.delta", seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503, delay_ms: 500,
+          ...fields,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    });
+    const groupedFields = {
+      attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+      remaining_ms: 500, provider_status: "UNAVAILABLE",
+    };
+    const state = reduceEvents([
+      retry("bounded", 1, { retry_ordinal: 1, max_retries: 2 }),
+      retry("grouped", 2, groupedFields),
+      retry("heartbeat", 3, { ...groupedFields, remaining_ms: 250 }),
+    ]);
+    const frames = state.frames.filter((item) => item.type === "provider_retry");
+    expect(frames).toHaveLength(2);
+    expect(frames[0].payload).toMatchObject({ retry_ordinal: 1, max_retries: 2 });
+    expect(frames[0].payload).not.toHaveProperty("attempt_failed");
+    expect(frames[1].payload).toMatchObject(groupedFields);
+    expect(frames[1].payload).not.toHaveProperty("retry_ordinal");
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+  });
+
+  test.each([
+    { retry_ordinal: 1, max_retries: 2 },
+    { retry_ordinal: null },
+    { max_retries: "2" },
+  ])("does not reinterpret a hybrid retry payload as a grouped wait: %p", (legacyFields) => {
+    const state = reduceEvents([{
+      ...event({
+        id: "hybrid", type: "step.delta",
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503, delay_ms: 500,
+          attempt_failed: 1, next_attempt: 2, max_attempts: 11,
+          remaining_ms: 500, provider_status: "UNAVAILABLE",
+          ...legacyFields,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    }]);
+    expect(state.frames.filter((item) => item.type === "provider_retry")).toHaveLength(0);
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(state.effects.filter((effect) => effect.type === "token")).toHaveLength(0);
+  });
+
+  test("projects bounded Gemini retry progress without model text or leaked fields", () => {
+    const retry = (id, seq, overrides = {}) => ({
+      ...event({
+        id, type: "step.delta", seq,
+        links: { step_id: "model:run-root:turn-1:response" },
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response", kind: "provider_retry",
+          provider: "gemini", http_status: 503,
+          retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+          ...overrides,
+        },
+      }),
+      metadata: { provider: "gemini" },
+    });
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      retry("safe", 2),
+      retry("unsafe", 3, { response_body: "private-provider-content" }),
+    ]);
+    const progress = state.frames.filter((frame) => frame.type === "provider_retry");
+    expect(progress).toHaveLength(1);
+    expect(progress[0].payload).toMatchObject({
+      provider: "gemini", retry_ordinal: 1, max_retries: 2, delay_ms: 500,
+    });
+    expect(state.modelTextByRunId["run-root"] || "").toBe("");
+    expect(JSON.stringify(progress)).not.toContain("private-provider-content");
+  });
+
   test("resets only a failed Ollama reasoning preview while preserving committed and later thinking", () => {
     const failedId = "a".repeat(32);
     const acceptedId = "b".repeat(32);

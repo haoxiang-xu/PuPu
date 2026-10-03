@@ -252,4 +252,3 @@ change so BC-201 and BC-202 stay the single place to read it.
   that could not be recorded, a call record that could not be built, or an
   earlier send that did not finish. Where an exception is involved only its class
   name is shown (a plain identifier, otherwise `unknown error`), never its message.
-

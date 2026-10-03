@@ -41,6 +41,28 @@ export const providerRetryReason = (payload, t) => {
   return t("provider_retry.reason_http", { status });
 };
 
+const isGroupedProviderRetry = (payload) => {
+  if (
+    !payload || typeof payload !== "object" || Array.isArray(payload) ||
+    Object.prototype.hasOwnProperty.call(payload, "retry_ordinal") ||
+    Object.prototype.hasOwnProperty.call(payload, "max_retries")
+  ) {
+    return false;
+  }
+  const { attempt_failed: failed, next_attempt: next, max_attempts: max,
+    delay_ms: delay, remaining_ms: remaining, http_status: status } = payload;
+  return (
+    Number.isInteger(failed) && failed >= 1 &&
+    Number.isInteger(next) && next === failed + 1 &&
+    Number.isInteger(max) && max >= 2 && next <= max &&
+    Number.isInteger(delay) && delay >= 0 &&
+    Number.isInteger(remaining) && remaining === delay &&
+    (status === null || (Number.isInteger(status) && status >= 400 && status <= 599)) &&
+    typeof payload.provider === "string" &&
+    typeof payload.provider_status === "string"
+  );
+};
+
 /* Group consecutive provider_retry frames of one run and model turn. Returns
    a Map from the first frame's seq to { frames, outcome }, where outcome is
    "waiting" | "retried" | "failed" | "stopped". */
@@ -48,7 +70,7 @@ export const groupProviderRetryFrames = (displayFrames, allFrames, status) => {
   const groups = new Map();
   let current = null;
   for (const frame of displayFrames) {
-    if (frame?.type !== "provider_retry") {
+    if (frame?.type !== "provider_retry" || !isGroupedProviderRetry(frame.payload)) {
       current = null;
       continue;
     }

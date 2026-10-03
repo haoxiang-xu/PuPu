@@ -60,6 +60,8 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "graph_runs",
       "memory_off",
       "ollama_reasoning_preview_v1",
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1",
       "subagent_runs",
     ]),
     id: "provider_turn_ownership",
