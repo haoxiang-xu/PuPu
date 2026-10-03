@@ -1,5 +1,6 @@
 import { toPluginPresentation, loadStoreCuration } from "./plugin_presentation";
 import registry from "./mcp_toolkit_registry.json";
+import { listStoreSkillPacks } from "../COMPONENTs/toolkit/utils/skill_pack_store_install";
 
 const ENTRY = {
   toolkitId: "plan",
@@ -97,7 +98,7 @@ describe("loadStoreCuration", () => {
     expect(c.collections[0].gradient).toHaveLength(2);
   });
 
-  test("essentials + collections recommend only credential-free one-click MCP entries", () => {
+  test("essentials + collections recommend only credential-free one-click entries", () => {
     /* The one-click contract applies to surfaces that carry an INLINE install
        pill — the Essentials grid and Collection member rows. Those must be
        status:available, installable, and require zero credentials so a first
@@ -121,8 +122,18 @@ describe("loadStoreCuration", () => {
       "mcp.workspace.filesystem",
       "mcp.workspace.markitdown",
       "mcp.workspace.sqlite",
+      "skillpack.superpowers-essentials",
     ]);
+    const listedPacks = new Map(listStoreSkillPacks().map((pack) => [pack.id, pack]));
     for (const toolkitId of inlineInstallIds) {
+      if (toolkitId.startsWith("skillpack.")) {
+        // A curated pack must pass the store's fail-closed listing, and it
+        // installs with one click asking for nothing.
+        const pack = listedPacks.get(toolkitId);
+        expect(pack).toBeDefined();
+        expect(pack.secrets || []).toHaveLength(0);
+        continue;
+      }
       const entry = entriesByToolkitId.get(toolkitId);
       expect(entry).toMatchObject({ status: "available", installable: true });
       expect(entry.secrets || []).toHaveLength(0);
