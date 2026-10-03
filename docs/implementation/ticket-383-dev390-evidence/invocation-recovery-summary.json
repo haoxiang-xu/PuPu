@@ -1,0 +1,27 @@
+{
+  "evidence_kind": "derived path-free summary; failed raw output is not acceptance evidence",
+  "initial_run": "INVALID and failed; no product or assertion changes",
+  "causes": [
+    "unguarded evidence-runner main recursively invoked pytest under multiprocessing spawn",
+    "runtime namespace audit incorrectly included the separate host adapter module",
+    "ambient test CA aliases overrode unchanged explicit CA fixtures"
+  ],
+  "recovery": [
+    "guard pytest behind main entrypoint",
+    "audit only unchain and unchain.* runtime modules",
+    "use fresh isolated temporary test storage",
+    "remove inherited CA aliases only from the mock-test invocation"
+  ],
+  "failed_raw_log_sha256": "c4c8c92cdd2dfdfae81e70d3a69fb0361ee83a5d61c53eba92291604f8a8a53f",
+  "original_runner_sha256": "7965675c78b4a4fff999647a7105517fd04aebc9dbf2954f8c617be0358a9654",
+  "corrected_runner_sha256": "6ce002e914abb58a30f64f851765c3ee31dcd30724b54767e023e2202178aa21",
+  "focused_setup_result": {
+    "passed": 61,
+    "subtests_passed": 11,
+    "warnings": 1,
+    "exit": 0,
+    "foreign_runtime_imports": [],
+    "raw_log_sha256": "8c12db406ddaaa47f3b756b28de9dbc7dfe3eba9869ef0aebb6f257dc18af775"
+  },
+  "complete_rerun": "2678 passed, 18 skipped, 3599 subtests, exit 0; separately recorded"
+}

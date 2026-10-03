@@ -1,0 +1,188 @@
+{
+  "host_source_checkpoint": "9d6ca4322e5c338d2a2c4f0f4fb482ae0c0792ea",
+  "runtime_source": "a7fa15d685b1130bf5678c1e493a51d2551185cf",
+  "wheel_sha256": "a88028bbb7d286d4792e49b5945f80e33d71203579298ddb053190cca1aced62",
+  "manifest_digest": "sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672",
+  "frontend": {
+    "passed_suites": 445,
+    "failed_suites": 2,
+    "passed": 5412,
+    "failed": 38,
+    "skipped": 5,
+    "exit": 1
+  },
+  "electron": {
+    "passed_suites": 54,
+    "failed_suites": 2,
+    "passed": 936,
+    "failed": 38,
+    "skipped": 5,
+    "exit": 1
+  },
+  "immutable_dev_baseline": {
+    "source": "f689b9fa9732fc4dc3ae527eea96e56c82dc1873",
+    "passed_suites": 442,
+    "failed_suites": 2,
+    "passed": 5364,
+    "failed": 38,
+    "skipped": 5,
+    "failed_names_and_errors_match": true
+  },
+  "initial_frontend_attempt": {
+    "passed": 5406,
+    "failed": 44,
+    "skipped": 5,
+    "extra_agents_modal_failures": 6,
+    "candidate_and_dev_focused_pass": true,
+    "stable_candidate_aggregate_extra_failures": 0,
+    "source_or_fixture_changes": false
+  },
+  "release_qa": {
+    "passed": 399,
+    "skipped": 7,
+    "harness_passed": 62,
+    "exit": 0,
+    "initial_setup_failure": 1,
+    "ordinary_postinstall_fix": true
+  },
+  "context_gate": {
+    "runtime_passed": 92,
+    "host_passed": 24,
+    "subtests_passed": 3,
+    "strict_fake_passed": 2,
+    "exit": 0
+  },
+  "run_bundle_gate": {
+    "runtime_passed": 63,
+    "host_passed": 31,
+    "subtests_passed": 2,
+    "pricing_passed": 14,
+    "electron_passed": 36,
+    "renderer_passed": 225,
+    "exit": 0
+  },
+  "backend": {
+    "passed": 2678,
+    "skipped": 18,
+    "subtests_passed": 3599,
+    "warnings": 2,
+    "duration_seconds": 208.35,
+    "exit": 0,
+    "foreign_unchain_imports": [],
+    "invalid_initial_invocation_retained": true,
+    "runner_guard_and_namespace_audit_corrected": true,
+    "ambient_ca_aliases_removed": [
+      "SSL_CERT_FILE",
+      "SSL_CERT_DIR",
+      "NODE_EXTRA_CA_CERTS",
+      "REQUESTS_CA_BUNDLE",
+      "CURL_CA_BUNDLE",
+      "PIP_CERT",
+      "PUPU_TLS_TRUST_SOURCE"
+    ],
+    "focused_setup_passed": 61,
+    "focused_subtests_passed": 11
+  },
+  "active_rollout": "INCOMPLETE",
+  "live_profile_provider_frozen_platform_acceptance": "NOT_RUN",
+  "host_final_pin_checkpoint": "77f8afb0a73d27a6783790ce118a3f184eec900b",
+  "source_checkpoint_ci": {
+    "source": "77f8afb0a73d27a6783790ce118a3f184eec900b",
+    "run_url": "https://github.com/haoxiang-xu/PuPu/actions/runs/37108144017",
+    "status": "SUCCESS",
+    "codeql": "SUCCESS",
+    "source_enforcement": "SUCCESS",
+    "ci_wheel_sha256": "166f7e33855f8a38891fd893bdc84e51ffde44e232353b5ec2a82dd0d6bbb080",
+    "runtime_source": "a7fa15d685b1130bf5678c1e493a51d2551185cf",
+    "matched_package_entries": 346,
+    "matched_python_files": 335,
+    "frontend_passed": 5136,
+    "frontend_skipped": 319,
+    "electron_passed": 660,
+    "electron_skipped": 319,
+    "backend_passed": 2678,
+    "backend_skipped": 18,
+    "backend_subtests_passed": 3599,
+    "contracts": "PASS",
+    "web_build": "PASS",
+    "linux_playwright": "PASS",
+    "final_report": "PASS",
+    "failed_checks": 0,
+    "selection": "lite",
+    "different_from_local_wheel": true
+  },
+  "evidence_kind": "derived path-free qualification summary; original records retained unchanged locally",
+  "raw_record_sha256": {
+    "frontend-full.log": "0a33521ebf272dab2c9243304ac6cf9fec74a4dc3729024bc5e4d3f0fa394543",
+    "frontend-full-stable.log": "e5a0b944c0be9b6781c838f552d35ad0133211bbbabdd77dcb8f0b5923d8709b",
+    "dev-frontend-full.log": "a962d276bdf6e4a5bb35944dd6be55d36b86e6c937f9a80e94b973562bf24e50",
+    "electron-full.log": "a4f324a9f971e3257a67852d0b65e246260573d3bd0fd7c7f7a72499a97eb768",
+    "release-qa-unit.log": "07d389500d97bdb0a1ed425e91af5729ba6962f389cf5a31c22a596fde93d924",
+    "release-qa-unit-ready.log": "aae4c7c027b8654df4ce378f72f45143f93632eab7b58ce1fdd9125f4cc9dfce",
+    "build-web.log": "f34c0a200936bf124c5c7d7f5ed75be17d773e12b6c7fd09297159ae274755a5",
+    "build-web-versioned.log": "066397bc6a11929796eda7c7fad249358579f17b682238be03376e21b9ecd4e6",
+    "build-child.jsonl": "b96a19f190dc83c105b2b717b6690a249ef55d97518eca0b4915549409e38b87",
+    "backend-full.log": "c4c8c92cdd2dfdfae81e70d3a69fb0361ee83a5d61c53eba92291604f8a8a53f",
+    "backend-full-valid.log": "32dd21acccfa5a051b8d56ac8f153e373d4953c5c0ef1100441a6661af0f53d8",
+    "backend-setup-focus.log": "a34619dceb3793d9ffdda73fedb4f569285f4bdbed96ba0b6224013274917df4",
+    "backend-setup-final.log": "8c12db406ddaaa47f3b756b28de9dbc7dfe3eba9869ef0aebb6f257dc18af775",
+    "context-v2-contract.log": "1b667f240e90a790c6348524610b4736741e0d7b14e0bce78fc48375bfea43de",
+    "run-bundle-contract.log": "147916a3bc76fcfb3471df90eeac090da1fff043b0a8588af824cabf0d792084",
+    "corrected-installed-probe.json": "2d2b25aaf916b0989be157a8c9b55ffb932d80ed798f5672e55c857c457581e5",
+    "strict-installed-consumers.json": "badf77a9fb63d1884bdadc682f00cd992f7fd080b688d3f3b4691bd51cf73b12",
+    "corrected-host-freeze.txt": "bf218360c58c70d4f592f2d90ccfc8c84d74f5a321ea9d666c693e681adb681e"
+  },
+  "raw_ci_report_sha256": "a9b173b5f92274905d77869000d720e3030ab63c942802924e5acc114433808c",
+  "raw_ci_byte_proof_sha256": "7751f7ba42a99ee717c4a1f1c038b14ef56a5582114c521eeeb380208b7ed6d7",
+  "installed_distribution": {
+    "isolated_import": true,
+    "origin_verified": true,
+    "archive_metadata_sha256_matches_wheel": true,
+    "manifest_verified": true,
+    "foreign_runtime_imports": []
+  },
+  "web_build": {
+    "exit": 0,
+    "compiler_status": 0,
+    "compiler_signal": null,
+    "compiler_error": null,
+    "duration_ms": 39361,
+    "heap_cap_mib": 2048,
+    "source_maps": false,
+    "js_files": 72,
+    "artifacts": {
+      "index.html": {
+        "size": 1823,
+        "sha256": "bc63d713f9abc66fe89b815b64eff51a4bb9ffecce8c05191885c4d9bac479ef"
+      },
+      "asset-manifest.json": {
+        "size": 10514,
+        "sha256": "8c3d029a8282c3f69858d790afd7cfd02e011e0e4520abb034389f7bab29f257"
+      },
+      "build_feature_flags.json": {
+        "size": 522,
+        "sha256": "9eee2ee003c62a50f1497c23852666b4df82f715db4537508455a589c1be9713"
+      }
+    },
+    "source_checkpoint": "9d6ca4322e5c338d2a2c4f0f4fb482ae0c0792ea",
+    "initial_invocation": "failed before compiler due missing noninteractive version; no source edits"
+  },
+  "strict_consumer_verification": {
+    "actual_imported_producer": "unchain.runtime.runtime_protocol.runtime_protocol_manifest",
+    "complete_manifest_accepted_by_electron_and_artifact": true,
+    "freshly_digested_missing_feature_negatives": [
+      "provider_response_outcomes_v1",
+      "provider_uncertainty_diagnostics_v1"
+    ],
+    "unknown_key_wrong_schema_negatives": true
+  },
+  "host_environment": {
+    "requirements": "unchain_runtime/server/requirements.txt",
+    "python": "3.12.14",
+    "openai": "2.7.1",
+    "anthropic": "0.83.0",
+    "google-genai": "1.68.0",
+    "latest_sdk_runtime_environment": "separate and unchanged"
+  },
+  "privacy": "Public summaries omit private environment paths; raw bytes were neither redacted in place nor mislabeled as original summaries"
+}
