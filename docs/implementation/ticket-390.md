@@ -768,3 +768,52 @@ or weaken the runtime capability check to declare that pair accepted.
 
 No production integration change, original checkout edit, live-instance stop,
 profile migration, issue closure, or merge is part of this delivery.
+
+## PR #48 SDK compatibility follow-up — 2026-10-02
+
+The first CI run installed Anthropic 1.11.0 from the existing open dependency
+range. Two actual SDK tests failed at client construction: this SDK uses
+`httpx2`, while their mock transports used `httpx`. Reproducing that environment
+also exposed the production timeout type mismatch and the SDK's newly populated
+`toolset_name: null` response default. The earlier 0.83.0 wheel acceptance did
+not test the 1.11.0 SDK. No SDK is downgraded or test skipped to make CI pass.
+
+- **BC-390-12:** Anthropic/Hyperspace adapter configuration crosses the public
+  Anthropic SDK client boundary. Convert the existing timeout values into the
+  installed SDK's exported `Timeout` type, preserving connect=10, write=30,
+  pool=10 and read=120 (Anthropic) / 600 (Hyperspace). Injected clients without
+  the optional SDK retain their existing configuration. The real-SDK mock
+  transport follows the installed SDK client's actual HTTP library, including
+  when both HTTP packages are installed. No retry budget or wire message schema
+  changes. Admission remains CLOSED for provider messages and VERSIONED for
+  the imported runtime manifest; SDK version is telemetry, not a capability
+  admission whitelist.
+- **BC-390-13:** SDK response blocks become canonical semantic messages and
+  native replay frames. Before that fan-out, remove only known null defaults
+  `caller` and `toolset_name` from `tool_use`; retain non-null metadata and all
+  unknown fields so the existing CLOSED outbound validator can reject them.
+  Native signatures, arguments, call IDs and block order remain authoritative.
+  No persisted frame migration is included. Frames already captured with
+  SDK 1.11.0 and `toolset_name: null` are not covered by historical replay
+  compatibility; the accepted live instance remains on SDK 0.83.0.
+- **SEQ-390-10:** Real SDK SSE response → signed semantic/replay fan-out → two
+  parallel tool effects → next model request → final response. Verify the
+  SDK-filled null field does not pollute the next request and an unsupported
+  non-null toolset is rejected before that next send. Existing cold checkpoint,
+  exact durable route and mutated-signature/identity regressions remain required.
+  No new persisted-state transition, automatic resend or profile migration is
+  introduced; broader restart/interaction behavior remains covered by the
+  unchanged #390 matrix. This follow-up does not reconcile the #386 hold.
+- **AC-390-S01:** Preserve RED evidence for the two CI failures, production
+  timeout rejection and null-default continuation rejection. Run the same
+  real-SDK wire tests on 0.83.0 and 1.11.0, including both family providers,
+  exact timeout values and strict negative metadata tests.
+- **AC-390-S02:** Build one new wheel and reuse it for the full latest-SDK
+  Unchain regression and the PuPu candidate's full sidecar regression. Verify
+  all packaged source files against that installed wheel and record its SHA-256
+  and actual imported manifest digest. Results are separate from the earlier
+  r2 artifact acceptance; do not claim the old wheel matches the new source.
+  Package/frozen-sidecar smoke and active rollout stay outstanding under the
+  existing integration hold. Do not restart the owner's accepted live instance.
+
+Evidence and final results: `ticket-390-ci-sdk-compatibility.md`.

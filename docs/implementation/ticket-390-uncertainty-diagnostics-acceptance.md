@@ -1,5 +1,11 @@
 # Provider uncertainty diagnostics — 2026-10-02
 
+This report records the r2 artifact and owner acceptance before PR #48's SDK
+compatibility follow-up. The current repaired source head uses a new wheel;
+see `ticket-390-ci-sdk-compatibility.md` for that separate evidence. The accepted
+live r2 instance remains unchanged, and its manual acceptance is not transferred
+to the new artifact.
+
 The diagnostic repair is implemented. New failures distinguish their observed
 reason and phase instead of displaying only `durable_provider_turn_uncertain`.
 The stable programmatic code remains unchanged. This does not establish the
