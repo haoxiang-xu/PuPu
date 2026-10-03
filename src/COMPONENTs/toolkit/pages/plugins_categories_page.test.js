@@ -603,6 +603,11 @@ describe("PluginsCategoriesPage — store skill packs (S6b)", () => {
     expect(
       screen.queryByTestId("skillpack-row-skillpack.test-pack"),
     ).not.toBeInTheDocument();
+
+    // Installing must not relabel it: a skill pack is a SKILL before and after,
+    // never a TOOLKIT.
+    const row = screen.getByTestId("category-row-skillpack.test-pack");
+    expect(within(row).getByTestId("type-tag").textContent).toBe("SKILL");
   });
 
   test("the rows a category page lists equal the count the rail derives for it", async () => {

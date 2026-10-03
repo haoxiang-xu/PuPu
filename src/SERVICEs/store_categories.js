@@ -48,17 +48,21 @@ export const categoryCounts = ({ entries = [], packs = [], builtins = [] } = {})
 };
 
 export const orderedCategories = (counts = {}) => {
-  const rows = Object.keys(counts)
-    .filter((id) => KNOWN.has(id) && counts[id] > 0)
-    .map((id) => ({ id, count: counts[id] }));
+  /* PuPu Official is provenance, not a subject: it appears only once it holds
+     something, and is then pinned ahead of everything. */
+  const pinned =
+    counts[PUPU_OFFICIAL_ID] > 0
+      ? [{ id: PUPU_OFFICIAL_ID, count: counts[PUPU_OFFICIAL_ID] }]
+      : [];
 
-  const pinned = rows.filter((row) => row.id === PUPU_OFFICIAL_ID);
-  const rest = rows
-    .filter((row) => row.id !== PUPU_OFFICIAL_ID)
-    /* Count descending, then id ascending — without the tiebreak, two
-       equal counts could swap places between renders and the rail would
-       appear to shuffle on its own. */
-    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+  /* Every subject category keeps its row even when it is empty — the owner's
+     call (2026-09-29), so a category that empties is not silently dropped from
+     the rail. Count descending, then id ascending: without the tiebreak, two
+     equal counts could swap places between renders and the rail would appear
+     to shuffle on its own. */
+  const rest = CATEGORY_IDS.map((id) => ({ id, count: counts[id] || 0 })).sort(
+    (a, b) => b.count - a.count || a.id.localeCompare(b.id),
+  );
 
   return [...pinned, ...rest];
 };

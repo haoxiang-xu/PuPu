@@ -18,6 +18,7 @@ import { toPluginPresentation } from "../../SERVICEs/plugin_presentation";
 import {
   getMcpStoreEntry,
   listMcpStoreEntries,
+  searchMcpStoreEntries,
   setMcpStoreEntriesCache,
   setMcpStoreMetadataCache,
 } from "../../SERVICEs/mcp_toolkit_store";
@@ -545,7 +546,12 @@ export const PluginsShell = ({
      IPC boundary (BC-001), so the PuPu Official row cannot appear yet. */
   const categoryRows = orderedCategories(
     categoryCounts({
-      entries: listMcpStoreEntries().filter(
+      /* Same two exclusions the page applies: searchMcpStoreEntries drops
+         deprecated entries (an empty query changes nothing else), then
+         needs_review is dropped. An external registry can send a deprecated
+         entry, and counting it here would make the rail say 9 over a page
+         that lists 8. */
+      entries: searchMcpStoreEntries(listMcpStoreEntries(), "").filter(
         (entry) => entry?.status !== "needs_review",
       ),
       packs: listStoreSkillPacks(),

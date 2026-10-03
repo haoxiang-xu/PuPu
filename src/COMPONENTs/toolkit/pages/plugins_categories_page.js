@@ -34,8 +34,11 @@ const isMcpSourced = (source) => String(source || "").startsWith("mcp");
    type segments used: an MCP source makes a plugin mcp, anything else a
    toolkit, and a command list additionally makes it a skill — so a builtin
    toolkit that also ships a /command is both, and carries both tags. */
-const typesFor = (mcpSourced, presentation) => {
-  const types = [mcpSourced ? "mcp" : "toolkit"];
+const typesFor = (source, presentation) => {
+  // An installed skill pack reaches us as a catalog row; it must keep the SKILL
+  // tag its store row had, not turn into a toolkit the moment it is installed.
+  if (source === "skillpack") return ["skill"];
+  const types = [isMcpSourced(source) ? "mcp" : "toolkit"];
   if ((presentation.commands || []).length > 0) types.push("skill");
   return types;
 };
@@ -495,7 +498,7 @@ const PluginsCategoriesPage = ({
                 icon={resolveMcpIcon(item.entry)}
                 isDark={isDark}
                 name={item.presentation.name}
-                types={typesFor(true, item.presentation)}
+                types={typesFor("mcp", item.presentation)}
                 command={item.presentation.commands?.[0]?.name}
                 description={rowDescription(item.presentation)}
                 fallbackColor={item.presentation.sourceBadge?.color}
@@ -521,7 +524,7 @@ const PluginsCategoriesPage = ({
                 icon={item.toolkit.toolkitIcon}
                 isDark={isDark}
                 name={item.presentation.name}
-                types={typesFor(isMcpSourced(item.toolkit.source), item.presentation)}
+                types={typesFor(item.toolkit.source, item.presentation)}
                 command={item.presentation.commands?.[0]?.name}
                 description={rowDescription(item.presentation)}
                 fallbackColor={item.presentation.sourceBadge?.color}

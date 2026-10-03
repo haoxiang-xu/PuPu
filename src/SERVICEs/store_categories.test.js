@@ -74,7 +74,7 @@ describe("orderedCategories", () => {
       memory: 1,
     });
 
-    expect(ordered.map((row) => row.id)).toEqual([
+    expect(ordered.slice(0, 4).map((row) => row.id)).toEqual([
       PUPU_OFFICIAL_ID,
       "dev",
       "workspace",
@@ -82,10 +82,22 @@ describe("orderedCategories", () => {
     ]);
   });
 
-  test("omits a category with no items, but keeps one that merely has few", () => {
-    const ordered = orderedCategories({ dev: 2, memory: 1, workspace: 0 });
+  test("keeps an empty subject category, with its zero count (owner decision, 2026-09-29)", () => {
+    // Communication is the live case: nothing in it is installable today.
+    const ordered = orderedCategories({ dev: 2, memory: 1 });
 
-    expect(ordered.map((row) => row.id)).toEqual(["dev", "memory"]);
+    expect(ordered).toHaveLength(CATEGORY_IDS.length);
+    expect(ordered.find((row) => row.id === "communication")).toEqual({
+      id: "communication",
+      count: 0,
+    });
+  });
+
+  test("empty categories sort after every non-empty one", () => {
+    const ordered = orderedCategories({ dev: 2, memory: 1 });
+    const counts = ordered.map((row) => row.count);
+
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
   });
 
   test("breaks a count tie by id, so the rail never reorders between renders", () => {
@@ -93,12 +105,19 @@ describe("orderedCategories", () => {
     const second = orderedCategories({ browser: 3, devops: 3 });
 
     expect(first.map((row) => row.id)).toEqual(second.map((row) => row.id));
+    expect(first.slice(0, 2).map((row) => row.id)).toEqual(["browser", "devops"]);
   });
 
-  test("leaves PuPu Official out when nothing is in it", () => {
+  test("leaves PuPu Official out when nothing is in it — it is provenance, not a subject", () => {
     const ordered = orderedCategories({ dev: 1, [PUPU_OFFICIAL_ID]: 0 });
 
-    expect(ordered.map((row) => row.id)).toEqual(["dev"]);
+    expect(ordered.map((row) => row.id)).not.toContain(PUPU_OFFICIAL_ID);
+  });
+
+  test("ignores an id it does not know", () => {
+    const ordered = orderedCategories({ dev: 1, nonsense: 9 });
+
+    expect(ordered.map((row) => row.id)).not.toContain("nonsense");
   });
 });
 

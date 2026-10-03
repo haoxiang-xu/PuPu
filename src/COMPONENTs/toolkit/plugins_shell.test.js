@@ -338,6 +338,25 @@ describe("PluginsShell", () => {
     expect(shown).toBe(expected);
   });
 
+  test("a deprecated entry is not counted, because the page does not list it", async () => {
+    const storeModule = require("../../SERVICEs/mcp_toolkit_store");
+    const spy = jest.spyOn(storeModule, "listMcpStoreEntries").mockReturnValue([
+      { id: "live", toolkitId: "mcp.x.live", category: "dev", status: "available" },
+      { id: "gone", toolkitId: "mcp.x.gone", category: "dev", status: "deprecated" },
+    ]);
+    try {
+      await renderShell({ activePage: "cat:all" });
+
+      const dev = screen.getByText("toolkit.store_category_dev").closest("button");
+      const shown = Number(dev.textContent.match(/(\d+)\s*$/)?.[1]);
+      const packs = listStoreSkillPacks().filter((p) => p.storeCategory === "dev").length;
+
+      expect(shown).toBe(1 + packs);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   test("a category selection reaches the page as its `category`", async () => {
     await renderShell({ activePage: "cat:dev" });
 
