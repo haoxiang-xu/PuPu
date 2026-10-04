@@ -62,3 +62,13 @@ Actual-HTTP cold pending-resume remains **NOT_RUN / UNQUALIFIED**: earlier guard
 The reused wheel's empty-error result classifier remains a separate known runtime issue: an approved fetch can still be classified as terminal error. This change preserves the recorded execution status and does not claim fetch success or fix that classifier. Gemini HTTP 503 retries remain genuine provider failures.
 
 The unresolved CodeQL import-cycle observation concerns function-local delayed imports between the durable host and active bridge. The changed read-only display resolver does not recursively call pending-interaction lookup, and the descriptor module imports only the standard library. No runtime blocker was validated from that static cycle; the observation was not silently resolved and unrelated imports were not refactored.
+
+## CI follow-up: canonical cold-interaction fixture
+
+Release QA on delivery `da28b6b70af77f1df55e1146fd4f0b8e69377df9` recorded one Python failure: `test_cold_pending_rehydrates_two_original_tool_policies_in_same_chat` expected `always` and observed `never`. Its complete Python result was 2,702 passed, 1 failed, 18 skipped and 3,605 subtests passed. The workflow's individual step conclusions apply `continue-on-error`; the underlying test outcomes and final deterministic gate establish the actual failure.
+
+The two fixture helpers supplied a top-level `subject.intent_cursor`. The unchanged pinned runtime producer places it at `subject.extra.context_v2_tool_authority.intent_cursor`; generic request construction does not migrate the field. Missing authority therefore kept the question's legacy `never` fallback, making the first `never` assertion pass by coincidence and the second `always` assertion fail.
+
+Only the two fixture placements were corrected. Original journal events, policy expectations, cursor identity, same-chat sequence and request-digest checks remain intact. No production parser fallback or admission guard was added. The exact fixed-wheel reproduction recorded RED before correction, then the named case passed and its entire existing 83-test file passed. Independent source review confirmed the producer/consumer shape and the narrow test-only correction.
+
+Production frontend and host bytes still match the previously accepted source snapshots; the 449-suite frontend result, production build, independent 11-case saved-user replay and fixed-wheel host checkpoint retain that qualification. A new full CI run is required after this test/documentation follow-up. The separate actual-HTTP cold pending-resume state remains unqualified; this in-process fixture correction does not establish it.

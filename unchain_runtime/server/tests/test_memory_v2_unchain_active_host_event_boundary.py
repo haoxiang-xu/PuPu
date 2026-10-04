@@ -253,7 +253,13 @@ def _seed_durable_cold_interaction(
             "provider": "openai",
             "model": "gpt-host-event-test",
             **(
-                {"intent_cursor": intent_cursor}
+                {
+                    "extra": {
+                        "context_v2_tool_authority": {
+                            "intent_cursor": intent_cursor,
+                        },
+                    },
+                }
                 if intent_cursor is not None
                 else {}
             ),
@@ -369,7 +375,13 @@ def _replace_with_second_durable_interaction(
             "provider": "openai",
             "model": "gpt-host-event-test",
             **(
-                {"intent_cursor": intent_cursor}
+                {
+                    "extra": {
+                        "context_v2_tool_authority": {
+                            "intent_cursor": intent_cursor,
+                        },
+                    },
+                }
                 if intent_cursor is not None
                 else {}
             ),
