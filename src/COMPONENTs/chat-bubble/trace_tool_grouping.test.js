@@ -408,6 +408,87 @@ describe("Trace tool grouping", () => {
     expect(groupAt(grouped).hasFeedback).toBe(true);
   });
 
+  test("does not map compressed display indexes onto a different source owner", () => {
+    const makeQualifiedCall = (seq, callId, ref = explicitRef({ callId, seq })) =>
+      frame(seq, "tool_call", {
+        call_id: callId,
+        tool_name: "web_fetch",
+        timeline_merge_policy: "always",
+        arguments: { callId },
+        call_ref: ref,
+        call_ref_metadata: {
+          schema: "pupu.tool_call_ref_metadata.v1",
+          intent_cursor: ref.intent_cursor,
+          timeline_merge_policy_declared: true,
+          timeline_merge_policy: "always",
+          original_arguments_declared: true,
+          original_arguments: { callId },
+        },
+      }, "run-a", ref.iteration);
+    const aliasA = makeQualifiedCall(1, "index-alias-a");
+    const aliasAReplay = makeQualifiedCall(2, "index-alias-a", aliasA.payload.call_ref);
+    const callB = makeQualifiedCall(3, "index-alias-b");
+    const unqualified = frame(4, "tool_call", {
+      call_id: "index-unqualified",
+      tool_name: "web_fetch",
+      timeline_merge_policy: "always",
+      call_ref: null,
+    });
+    const callC = makeQualifiedCall(5, "index-alias-c");
+    const sourceFrames = [aliasA, aliasAReplay, callB, unqualified, callC];
+    const projection = projectToolCallLifecycle(sourceFrames);
+    const aliasOwner = projection.calls.find(
+      (candidate) => candidate.descriptor.call_id === "index-alias-a",
+    );
+    expect(aliasOwner?.callFrameIndexes).toEqual([0, 1]);
+    expect(projection.evidenceOwnership.some((owner) => owner.frameIndex === 3))
+      .toBe(false);
+
+    const callBySourceFrameIndex = new Map();
+    projection.calls.forEach((candidate) => {
+      candidate.callFrameIndexes.forEach((frameIndex) => {
+        callBySourceFrameIndex.set(frameIndex, candidate);
+      });
+    });
+    const emittedCalls = new Set();
+    const coalescedFrames = sourceFrames.flatMap((sourceFrame, sourceIndex) => {
+      const owner = callBySourceFrameIndex.get(sourceIndex);
+      if (!owner) return [sourceFrame];
+      if (emittedCalls.has(owner.key)) return [];
+      emittedCalls.add(owner.key);
+      return [{ ...sourceFrame, _lifecycle_call_key: owner.key }];
+    });
+    const ownerByFrame = new Map(
+      projection.evidenceOwnership.map(({ frameIndex, callKey }) => [
+        sourceFrames[frameIndex],
+        callKey,
+      ]),
+    );
+    const containsUnqualifiedMember = (grouped) =>
+      grouped.some((item) =>
+        item._toolGroup?.memberItems.some(
+          (member) => member._sourceFrame === unqualified,
+        ),
+      );
+    const containsVisibleUnqualifiedCall = (grouped) =>
+      grouped.some((item) => item._sourceFrame === unqualified);
+
+    const unshifted = groupToolTimelineItems(
+      sourceFrames.map((sourceFrame) => call(sourceFrame)),
+      sourceFrames,
+      { lifecycleProjection: projection, sourceFrames, ownerByFrame },
+    );
+    expect(containsUnqualifiedMember(unshifted)).toBe(false);
+
+    const compressed = groupToolTimelineItems(
+      coalescedFrames.map((sourceFrame) => call(sourceFrame)),
+      coalescedFrames,
+      { lifecycleProjection: projection, sourceFrames, ownerByFrame },
+    );
+    expect(containsUnqualifiedMember(compressed)).toBe(false);
+    expect(containsVisibleUnqualifiedCall(compressed)).toBe(true);
+  });
+
   test("valid explicit identity with unknown policy does not inherit the approved grouping default", () => {
     const first = frame(1, "tool_call", {
       call_id: "explicit-a",

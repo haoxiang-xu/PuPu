@@ -239,6 +239,9 @@ const itemFrameIndex = (item, frameIndex) => {
   return frame ? frameIndex.get(frame) : undefined;
 };
 
+const isSourceFrameAtIndex = (context, index, frame) =>
+  index !== undefined && context.sourceFrames[index] === frame;
+
 const callForItem = (item, context, frameIndex) => {
   const sourceFrame = sourceFrameOf(item);
   const sourceIndex = itemFrameIndex(item, frameIndex);
@@ -248,7 +251,7 @@ const callForItem = (item, context, frameIndex) => {
     : owner?.callKey;
   const call = callKey
     ? context.callsByKey.get(callKey)
-    : sourceIndex === undefined
+    : !isSourceFrameAtIndex(context, sourceIndex, sourceFrame)
       ? null
       : context.callByFrameIndex.get(sourceIndex);
   return call && (owner?.kind === "call" || call.callFrameIndexes.includes(sourceIndex))
@@ -264,7 +267,9 @@ const outputOwnerForItem = (item, context, frameIndex) => {
   const evidenceFrame = item?._outputFrame || sourceFrameOf(item);
   const sourceIndex = evidenceFrame ? frameIndex.get(evidenceFrame) : undefined;
   const owner = context.ownerForFrame(evidenceFrame) ||
-    (sourceIndex === undefined ? null : context.ownersByFrameIndex.get(sourceIndex));
+    (!isSourceFrameAtIndex(context, sourceIndex, evidenceFrame)
+      ? null
+      : context.ownersByFrameIndex.get(sourceIndex));
   if (!owner || !["result", "observation"].includes(owner.kind)) return null;
   const call = context.callsByKey.get(owner.callKey);
   if (!call) return null;
@@ -285,7 +290,10 @@ const candidateCallSetIsCompatible = (calls, nextCall, frames) =>
 const transparentOwnedFrame = (frameIndex, callKeys, context, frames) => {
   const frame = frames[frameIndex];
   if (TRANSPARENT_METADATA_TYPES.has(frame?.type)) return true;
-  const owner = context.ownerForFrame(frame) || context.ownersByFrameIndex.get(frameIndex);
+  const owner = context.ownerForFrame(frame) ||
+    (!isSourceFrameAtIndex(context, frameIndex, frame)
+      ? null
+      : context.ownersByFrameIndex.get(frameIndex));
   if (!owner || !callKeys.has(owner.callKey)) return false;
   const call = context.callsByKey.get(owner.callKey);
   if (!call || !isEligibleCall(context.sourceFrames, call)) return false;
