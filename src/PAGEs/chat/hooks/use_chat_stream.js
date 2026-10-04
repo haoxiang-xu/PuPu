@@ -653,11 +653,40 @@ const buildToolConfirmationRequest = ({
   callId,
   chatId,
   sessionId,
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "session_id")
+    ? { session_id: frame.session_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "run_id")
+    ? { runId: frame.run_id, run_id: frame.run_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "execution_id")
+    ? { executionId: frame.execution_id, execution_id: frame.execution_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_cursor")
+    ? { eventCursor: frame.event_cursor, event_cursor: frame.event_cursor }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_id")
+    ? { eventId: frame.event_id, event_id: frame.event_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "iteration")
+    ? { iteration: frame.iteration }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "links")
+    ? { links: frame.links }
+    : {}),
   toolName,
-  toolkitId:
-    typeof frame.payload?.toolkit_id === "string"
-      ? frame.payload.toolkit_id
-      : "",
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "toolkit_id")
+    ? { toolkitId: frame.payload.toolkit_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref")
+    ? { callRef: frame.payload.call_ref }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref_metadata")
+    ? { callRefMetadata: frame.payload.call_ref_metadata }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "timeline_merge_policy")
+    ? { timelineMergePolicy: frame.payload.timeline_merge_policy }
+    : {}),
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
       ? frame.payload.tool_display_name

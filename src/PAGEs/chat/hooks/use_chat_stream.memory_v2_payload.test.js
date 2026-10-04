@@ -38,6 +38,7 @@ import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_c
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
 import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
+import { mergePendingConfirmationTraceState } from "../../../COMPONENTs/chat-bubble/pending_confirmation_trace_frames";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -889,6 +890,12 @@ describe("Memory V2 P0 payload seams", () => {
       eventId: "intent-two",
       args: { command: "second" },
     });
+    first.session_id = "frame-session-one";
+    first.event_cursor = first.payload.call_ref.intent_cursor;
+    first.event_id = "intent-one";
+    first.links = { interaction_id: "confirm-one", call_id: "reused-call-id" };
+    delete first.payload.toolkit_id;
+    first.payload.timeline_merge_policy = "approved";
     expect(resolveToolCallOwnerForRequest([first, second], "confirm-one").status)
       .toBe("qualified");
     await act(async () => streamHandlers.onFrame(first));
@@ -905,6 +912,35 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => {
       expect(lastChatMessagesProps.pendingToolConfirmationRequests["confirm-one"]).toBeDefined();
     });
+    const pendingRequest =
+      lastChatMessagesProps.pendingToolConfirmationRequests["confirm-one"];
+    expect(pendingRequest).toMatchObject({
+      runId: first.run_id,
+      run_id: first.run_id,
+      executionId: first.execution_id,
+      execution_id: first.execution_id,
+      sessionId: getChatsStore().activeChatId,
+      session_id: first.session_id,
+      eventCursor: first.event_cursor,
+      event_cursor: first.event_cursor,
+      eventId: first.event_id,
+      event_id: first.event_id,
+      iteration: first.iteration,
+      links: first.links,
+      callRef: first.payload.call_ref,
+      callRefMetadata: first.payload.call_ref_metadata,
+      timelineMergePolicy: "approved",
+    });
+    expect(Object.prototype.hasOwnProperty.call(pendingRequest, "toolkitId"))
+      .toBe(false);
+    const merged = mergePendingConfirmationTraceState({
+      frames: sourceFrames(),
+      requests: { "confirm-one": pendingRequest },
+    });
+    expect(merged.frames).toHaveLength(2);
+    expect(merged.frames.map((frame) => frame.payload?.confirmation_id))
+      .toEqual(["confirm-one", "confirm-two"]);
+    expect(merged.frames[0].payload.call_ref).toEqual(first.payload.call_ref);
     expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
 
     window.unchainAPI.respondToolConfirmation.mockResolvedValue({
