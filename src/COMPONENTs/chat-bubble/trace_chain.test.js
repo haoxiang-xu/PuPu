@@ -855,11 +855,12 @@ describe("TraceChain final_message draft timeline", () => {
       }),
       frame({
         seq: 3,
-        type: "tool_confirmed",
-        payload: {
-          call_id: "call-1",
-          tool_name: "delete_file",
-        },
+      type: "tool_confirmed",
+      payload: {
+        call_id: "call-1",
+        tool_name: "delete_file",
+        confirmation_id: "confirm-1",
+      },
       }),
     ];
 

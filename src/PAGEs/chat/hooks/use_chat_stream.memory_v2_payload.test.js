@@ -37,6 +37,7 @@ import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
 import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_prefs";
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
+import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -148,6 +149,53 @@ const DEFAULT_MEMORY_AGENT_CONFIG = {
   additionalInstructions: "",
   provider: "",
   modelId: "",
+};
+
+const makeQualifiedToolFrame = ({ confirmationId, callId, attemptId, eventId, args }) => {
+  const intentCursor = {
+    schema: "unchain.event_cursor.v1",
+    store_seq: attemptId === "attempt-one" ? 11 : 12,
+    event_id: eventId,
+  };
+  const callRef = {
+    schema: "pupu.tool_call_ref.v1",
+    execution_id: "execution-one",
+    original_attempt_id: attemptId,
+    call_id: callId,
+    tool_name: "shell",
+    intent_cursor: intentCursor,
+    iteration: attemptId === "attempt-one" ? 2 : 3,
+    toolkit_id: "core",
+  };
+  return {
+    seq: intentCursor.store_seq,
+    ts: intentCursor.store_seq * 10,
+    type: "tool_call",
+    run_id: attemptId,
+    execution_id: "execution-one",
+    session_id: "session-one",
+    stage: "tools",
+    iteration: callRef.iteration,
+    payload: {
+      call_id: callId,
+      confirmation_id: confirmationId,
+      requires_confirmation: true,
+      toolkit_id: "core",
+      tool_name: "shell",
+      arguments: args,
+      interact_type: "confirmation",
+      timeline_merge_policy: "approved",
+      call_ref: callRef,
+      call_ref_metadata: {
+        schema: "pupu.tool_call_ref_metadata.v1",
+        intent_cursor: intentCursor,
+        timeline_merge_policy_declared: true,
+        timeline_merge_policy: "approved",
+        original_arguments_declared: true,
+        original_arguments: args,
+      },
+    },
+  };
 };
 
 describe("Memory V2 P0 payload seams", () => {
@@ -606,6 +654,25 @@ describe("Memory V2 P0 payload seams", () => {
     expect(window.unchainAPI.startStreamV4.mock.calls[0][0]).toEqual(expect.objectContaining({ threadId: chatId, owner_chat_id: chatId, interaction_id: interactionId, source_attempt_id: "attempt-path" }));
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
     expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    const legacyDecision = lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || [])
+      .find((frame) => frame.type === "tool_confirmed" && frame.payload?.confirmation_id === interactionId);
+    expect(legacyDecision).toMatchObject({
+      type: "tool_confirmed",
+      run_id: "attempt-path",
+      payload: {
+        tool_name: "ask_user_question",
+        call_id: "call-path",
+        confirmation_id: interactionId,
+        feedback_acknowledged: true,
+        user_response: decision.userResponse,
+      },
+    });
+    expect(legacyDecision).not.toHaveProperty("intent_cursor");
+    expect(legacyDecision).not.toHaveProperty("execution_cursor");
+    expect(legacyDecision.payload).not.toHaveProperty("call_ref");
+    expect(legacyDecision.payload).not.toHaveProperty("call_ref_metadata");
   });
 
   test("live human input callback does not start another stream", async () => {
@@ -791,11 +858,122 @@ describe("Memory V2 P0 payload seams", () => {
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].status).toBe("error");
     expect(lastChatMessagesProps.pendingToolConfirmationRequests["live-confirmation"]).toBeDefined();
+    expect(lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || [])
+      .some((frame) => frame.payload?.feedback_acknowledged === true)).toBe(false);
     await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
     expect(lastChatMessagesProps.toolConfirmationUiStateById["live-confirmation"].resolved).toBe(true);
     const calls = window.unchainAPI.respondToolConfirmation.mock.calls;
     expect(calls).toHaveLength(2);
     expect(calls[0][0]).toEqual(calls[1][0]);
+  });
+
+  test("same call_id requests keep both source frames and acknowledge only the uniquely bound owner", async () => {
+    renderChat();
+    await waitForReady();
+    sendText("run two attempts");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    const first = makeQualifiedToolFrame({
+      confirmationId: "confirm-one",
+      callId: "reused-call-id",
+      attemptId: "attempt-one",
+      eventId: "intent-one",
+      args: { command: "first" },
+    });
+    const second = makeQualifiedToolFrame({
+      confirmationId: "confirm-two",
+      callId: "reused-call-id",
+      attemptId: "attempt-two",
+      eventId: "intent-two",
+      args: { command: "second" },
+    });
+    expect(resolveToolCallOwnerForRequest([first, second], "confirm-one").status)
+      .toBe("qualified");
+    await act(async () => streamHandlers.onFrame(first));
+    await act(async () => streamHandlers.onFrame(second));
+
+    const sourceFrames = () => lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || []);
+    await waitFor(() => {
+      expect(sourceFrames().filter((frame) => frame.type === "tool_call")).toHaveLength(2);
+    });
+    expect(resolveToolCallOwnerForRequest(sourceFrames(), "confirm-one").status)
+      .toBe("qualified");
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests["confirm-one"]).toBeDefined();
+    });
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+
+    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
+      status: "ok",
+      durable: false,
+      disposition: "live_only",
+      interaction_id: "confirm-one",
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision({
+      confirmationId: "confirm-one",
+      approved: true,
+    }));
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalled();
+    expect(lastChatMessagesProps.toolConfirmationUiStateById["confirm-one"]?.status)
+      .toBe("submitted");
+
+    await waitFor(() => {
+      const frames = sourceFrames();
+      const decisions = frames.filter((frame) => frame.type === "tool_confirmed");
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0].payload.confirmation_id).toBe("confirm-one");
+      expect(decisions[0].payload.feedback_acknowledged).toBe(true);
+      expect(decisions[0].payload.call_ref).toEqual(first.payload.call_ref);
+      expect(decisions[0].payload.call_ref_metadata).toEqual(first.payload.call_ref_metadata);
+      expect(decisions[0].run_id).toBe("attempt-one");
+      expect(decisions[0].iteration).toBe(2);
+      expect(frames.filter((frame) => frame.type === "tool_call")).toEqual([first, second]);
+    });
+  });
+
+  test("a malformed explicit call_ref remains visible and never gets synthetic acknowledged feedback", async () => {
+    renderChat();
+    await waitForReady();
+    sendText("run a malformed-reference call");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    const malformed = makeQualifiedToolFrame({
+      confirmationId: "confirm-malformed",
+      callId: "malformed-call",
+      attemptId: "attempt-one",
+      eventId: "intent-malformed",
+      args: { command: "preserve evidence" },
+    });
+    malformed.payload.call_ref = { ...malformed.payload.call_ref, unexpected: true };
+    await act(async () => streamHandlers.onFrame(malformed));
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests["confirm-malformed"])
+        .toBeDefined();
+    });
+
+    window.unchainAPI.respondToolConfirmation.mockResolvedValue({
+      status: "ok",
+      durable: false,
+      disposition: "live_only",
+      interaction_id: "confirm-malformed",
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision({
+      confirmationId: "confirm-malformed",
+      approved: true,
+    }));
+
+    const frames = lastChatMessagesProps.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.traceFrames || []);
+    expect(frames.find((frame) => frame.type === "tool_call")?.payload.call_ref)
+      .toEqual(malformed.payload.call_ref);
+    expect(frames.some((frame) => frame.type === "tool_confirmed" &&
+      frame.payload?.confirmation_id === "confirm-malformed")).toBe(false);
+    expect(frames.some((frame) => frame.payload?.feedback_acknowledged === true)).toBe(false);
   });
 
   test.each(["same", "foreign"])("old Stop outbox recovers only a %s attempt target", async (target) => {

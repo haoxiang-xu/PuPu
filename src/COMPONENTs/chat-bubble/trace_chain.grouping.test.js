@@ -69,12 +69,13 @@ describe("TraceChain consecutive tool grouping", () => {
     },
   );
 
-  test("renders the sanitized representative approved fetch sequence as one three-call group", () => {
+  test("keeps the sanitized representative sequence ungrouped when policy provenance is absent", () => {
     renderTraceChain(candidateGroupingFixture.representative_frontend_frames, {
       toolConfirmationUiStateById: candidateGroupingFixture.representative_ui,
     });
 
-    expect(screen.getAllByText("×3")).toHaveLength(1);
+    expect(screen.queryByText("×3")).not.toBeInTheDocument();
+    expect(screen.getAllByText("web_fetch")).toHaveLength(3);
     expect(screen.getAllByText("Approved")).toHaveLength(3);
     screen
       .getAllByRole("button")
@@ -297,10 +298,10 @@ describe("TraceChain consecutive tool grouping", () => {
     expect(noteBRow.querySelector("button").textContent).toContain("detail");
   });
 
-  test("groups the real sequential legacy calls without hiding either observation", () => {
+  test("keeps real sequential legacy calls ungrouped when policy provenance is absent", () => {
     renderTraceChain(observedSequentialFrames);
 
-    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
     expect(screen.getAllByText("Observation")).toHaveLength(2);
 
     screen.getAllByRole("button").forEach((button) => {
@@ -318,6 +319,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callA = testFrame(1, "tool_call", {
       call_id: "call-a",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "alpha.txt" },
     });
     const resultA = testFrame(2, "tool_result", {
@@ -332,6 +334,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callB = testFrame(4, "tool_call", {
       call_id: "call-b",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       tool_display_name: "Read a file",
       arguments: { path: "beta.txt" },
     });
@@ -366,6 +369,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callA = testFrame(1, "tool_call", {
       call_id: "call-a",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "alpha.txt" },
     });
     const outputA = testFrame(2, "observation", {
@@ -375,6 +379,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callB = testFrame(3, "tool_call", {
       call_id: "call-b",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "beta.txt" },
     });
     const lateResultA = testFrame(4, "tool_result", {
@@ -410,11 +415,13 @@ describe("TraceChain consecutive tool grouping", () => {
       testFrame(1, "tool_call", {
         call_id: "silent-a",
         tool_name: "read_file",
+        timeline_merge_policy: "always",
         arguments: { path: "one.txt" },
       }),
       testFrame(2, "tool_call", {
         call_id: "silent-b",
         tool_name: "read_file",
+        timeline_merge_policy: "always",
         arguments: { path: "two.txt" },
       }),
     ];
@@ -664,6 +671,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callA = testFrame(1, "tool_call", {
       call_id: "call-a",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "alpha.txt" },
     });
     const resultA = testFrame(2, "tool_result", {
@@ -687,6 +695,7 @@ describe("TraceChain consecutive tool grouping", () => {
     const callB = testFrame(4, "tool_call", {
       call_id: "call-b",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "beta.txt" },
     });
     const resultB = testFrame(5, "tool_result", {

@@ -150,6 +150,45 @@ def pupu_unchain_cold_tool_call_timeline_policy(
         or not event_id.strip()
     ):
         return None
+    metadata = pupu_unchain_cold_tool_call_display_metadata(
+        owner_chat_id=owner,
+        session_id=session,
+        source_attempt_id=source_attempt,
+        call_id=call,
+        tool_name=name,
+        intent_cursor=intent_cursor,
+    )
+    if metadata is None or not metadata["timeline_merge_policy_declared"]:
+        return None
+    policy = metadata["timeline_merge_policy"]
+    return (
+        policy
+        if isinstance(policy, str)
+        and policy in {"never", "no_feedback", "approved", "always"}
+        else "never"
+    )
+
+
+def pupu_unchain_cold_tool_call_display_metadata(
+    *,
+    owner_chat_id: str,
+    session_id: str,
+    source_attempt_id: str,
+    call_id: str,
+    tool_name: str,
+    intent_cursor: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve display facts from one admitted, exact canonical intent."""
+
+    owner = _required_text(owner_chat_id, "owner_chat_id", identifier=True)
+    session = _required_text(session_id, "session_id", identifier=True)
+    source_attempt = _required_text(
+        source_attempt_id, "source_attempt_id", identifier=True
+    )
+    call = _required_text(call_id, "call_id", identifier=True)
+    name = _required_text(tool_name, "tool_name", identifier=True)
+    if not session or not isinstance(intent_cursor, Mapping):
+        return None
     try:
         admitted = pupu_unchain_cold_active_admission(
             owner_chat_id=owner,
@@ -165,30 +204,18 @@ def pupu_unchain_cold_tool_call_timeline_policy(
         return None
     try:
         events = tuple(journal.capture_snapshot().events)
+        from pupu_tool_call_ref import resolve_tool_call_display_metadata
+
+        return resolve_tool_call_display_metadata(
+            events,
+            expected_execution_id=session,
+            expected_original_attempt_id=source_attempt,
+            expected_call_id=call,
+            expected_tool_name=name,
+            explicit_intent_cursor=intent_cursor,
+        )
     except Exception:
         return None
-    matches = [
-        event
-        for event in events
-        if event.event_type == "tool_call"
-        and event.store_seq == store_seq
-        and event.event_id == event_id
-        and event.attempt.generation.execution_id == session
-        and event.attempt.attempt_id == source_attempt
-        and event.payload.get("call_id") == call
-        and event.payload.get("tool_name") == name
-    ]
-    if len(matches) != 1:
-        return None
-    policy = matches[0].payload.get("timeline_merge_policy")
-    if "timeline_merge_policy" not in matches[0].payload:
-        return None
-    return (
-        policy
-        if isinstance(policy, str)
-        and policy in {"never", "no_feedback", "approved", "always"}
-        else "never"
-    )
 
 
 def _read_existing_active_admission(owner_chat_id: str) -> dict[str, Any] | None:

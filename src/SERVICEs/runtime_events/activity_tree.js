@@ -36,6 +36,8 @@ const ARTIFACT_SUMMARY_ORDER = Symbol("artifactSummaryOrder");
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+const hasOwn = (value, key) =>
+  Object.prototype.hasOwnProperty.call(value, key);
 
 const stringValue = (value, fallback = "") =>
   typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -164,17 +166,43 @@ const providerRetryFields = (payload) => {
 const createFrame = (state, event, type, payload = {}) => {
   const nextSeq = Number(state.seq) + 1;
   state.seq = nextSeq;
-  const iteration = iterationFromTurnId(event.turn_id);
+  const lifecycleFrame = [
+    "tool_call",
+    "tool_result",
+    "tool_confirmed",
+    "tool_denied",
+    "interaction.requested",
+    "interaction.resolved",
+    "observation",
+  ].includes(type);
+  const iteration = hasOwn(event, "iteration")
+    ? event.iteration
+    : lifecycleFrame
+      ? undefined
+      : iterationFromTurnId(event.turn_id);
+  const eventMetadata = isObject(event.metadata) ? event.metadata : {};
+  const runtimeSourceType = hasOwn(eventMetadata, "raw_type")
+    ? eventMetadata.raw_type
+    : event.type;
   return {
     seq: nextSeq,
     ts: parseTimestampMs(event.timestamp),
     type,
-    run_id: stringValue(event.run_id),
-    stage: "runtime_event",
-    ...(iteration !== null ? { iteration } : {}),
+    run_id: hasOwn(event, "run_id") ? clone(event.run_id) : stringValue(event.run_id),
+    stage: hasOwn(event, "stage") ? clone(event.stage) : "runtime_event",
+    ...(hasOwn(event, "links") ? { links: clone(event.links) } : {}),
+    ...(hasOwn(event, "event_id") ? { event_id: clone(event.event_id) } : {}),
+    ...(hasOwn(event, "execution_id") ? { execution_id: clone(event.execution_id) } : {}),
+    ...(hasOwn(event, "session_id") ? { session_id: clone(event.session_id) } : {}),
+    ...(hasOwn(event, "event_cursor") ? { event_cursor: clone(event.event_cursor) } : {}),
+    ...(iteration !== undefined ? { iteration: clone(iteration) } : {}),
     payload: {
       ...(isObject(payload) ? payload : {}),
       runtime_event_id: stringValue(event.event_id),
+      ...(lifecycleFrame && (hasOwn(eventMetadata, "raw_type") || hasOwn(event, "type")) &&
+      !hasOwn(payload, "runtime_source_type")
+        ? { runtime_source_type: clone(runtimeSourceType) }
+        : {}),
     },
   };
 };
@@ -423,6 +451,11 @@ const inputRequestToToolCallPayload = (event) => {
     },
     interact_type: stringValue(payload.interact_type, "confirmation"),
     interact_config: interactConfig,
+    ...copyOwnProperties(payload, [
+      "call_ref", "call_ref_metadata", "call_id", "tool_name", "toolkit_id",
+      "execution_id", "original_attempt_id", "intent_cursor", "iteration",
+      "request_digest", "session_id", "timeline_merge_policy",
+    ]),
   };
 };
 
@@ -437,8 +470,14 @@ const inputResolvedToFramePayload = (event) => {
   return {
     call_id: callId || requestId,
     confirmation_id: requestId,
-    user_response: payload.response,
+    ...(hasOwn(payload, "response") ? { user_response: payload.response } : {}),
     decision: stringValue(payload.decision, "approved"),
+    ...copyOwnProperties(payload, [
+      "call_ref", "call_ref_metadata", "call_id", "confirmation_id", "interaction_id",
+      "request_id", "tool_name", "toolkit_id", "execution_id", "original_attempt_id",
+      "intent_cursor", "iteration", "request_digest", "session_id", "outcome",
+      "timeline_merge_policy",
+    ]),
     ...(payload.reason ? { reason: payload.reason } : {}),
   };
 };
@@ -1020,9 +1059,27 @@ const baseProjectedEvent = (
   run_id: stringValue(event?.run_id),
   agent_id: stringValue(event?.agent_id),
   turn_id: stringValue(event?.turn_id),
-  links: isObject(links) ? { ...links } : {},
+  links: {
+    ...(isObject(event?.links) ? clone(event.links) : {}),
+    ...(isObject(links) ? clone(links) : {}),
+  },
   visibility: stringValue(event?.visibility, "user"),
-  payload: isObject(payload) ? clone(payload) : {},
+  ...copyOwnProperties(event, [
+    "event_id", "session_id", "run_id", "execution_id", "event_cursor",
+    "iteration", "stage",
+  ]),
+  payload: {
+    ...(isObject(payload) ? clone(payload) : {}),
+    ...(new Set(["tool.started", "tool.completed", "input.resolved"]).has(type) &&
+    type !== event?.type &&
+    !hasOwn(payload, "runtime_source_type")
+      ? {
+          runtime_source_type: hasOwn(event?.metadata || {}, "raw_type")
+            ? clone(event.metadata.raw_type)
+            : clone(event?.type),
+        }
+      : {}),
+  },
   metadata: {
     ...(isObject(event?.metadata) ? clone(event.metadata) : {}),
     ...(Number.isFinite(Number(event?.seq)) ? { seq: Number(event.seq) } : {}),
@@ -1074,6 +1131,14 @@ const isToolStartEvent = (event) => {
     (type === "step.started" && stringValue(payload.step_type) === "tool")
   );
 };
+
+const copyOwnProperties = (source, keys) =>
+  keys.reduce((result, key) => {
+    if (isObject(source) && hasOwn(source, key)) {
+      result[key] = clone(source[key]);
+    }
+    return result;
+  }, {});
 
 const collectDeclaredToolPolicies = (eventIds, eventsById) => {
   const policies = new Map();
@@ -1135,6 +1200,14 @@ const interactionRequestedToProjected = (event, originalPolicy) => {
   const payload = payloadOf(event);
   const links = linksOf(event);
   const target = isObject(payload.target) ? payload.target : {};
+  const rawRequestPayload = isObject(payload.request?.payload)
+    ? payload.request.payload
+    : null;
+  const toolkitScopeField = (field) =>
+    [payload, rawRequestPayload, payload.call_ref].find(
+      (source) => isObject(source) && hasOwn(source, field),
+    ) ||
+    (!rawRequestPayload && hasOwn(target, field) ? target : null);
   const targetArguments = isObject(target.arguments) ? target.arguments : {};
   const callId = stringValue(
     links.tool_call_id,
@@ -1162,15 +1235,20 @@ const interactionRequestedToProjected = (event, originalPolicy) => {
     ...(payload.min_selected !== undefined ? { min_selected: payload.min_selected } : {}),
     ...(payload.max_selected !== undefined ? { max_selected: payload.max_selected } : {}),
   };
-  const declaredPolicy = originalPolicy
-    ? originalPolicy.declared
-      ? { timeline_merge_policy: originalPolicy.value }
+  const declaredPolicy = hasOwn(payload, "call_ref_metadata")
+    ? payload.call_ref_metadata?.timeline_merge_policy_declared === true &&
+      hasOwn(payload.call_ref_metadata, "timeline_merge_policy")
+      ? { timeline_merge_policy: payload.call_ref_metadata.timeline_merge_policy }
       : {}
-    : Object.prototype.hasOwnProperty.call(payload, "timeline_merge_policy")
-      ? { timeline_merge_policy: payload.timeline_merge_policy }
-      : Object.prototype.hasOwnProperty.call(target, "timeline_merge_policy")
-        ? { timeline_merge_policy: target.timeline_merge_policy }
-        : {};
+    : originalPolicy
+      ? originalPolicy.declared
+        ? { timeline_merge_policy: originalPolicy.value }
+        : {}
+      : hasOwn(payload, "timeline_merge_policy")
+        ? { timeline_merge_policy: payload.timeline_merge_policy }
+        : hasOwn(target, "timeline_merge_policy")
+          ? { timeline_merge_policy: target.timeline_merge_policy }
+          : {};
 
   return baseProjectedEvent(
     event,
@@ -1180,7 +1258,6 @@ const interactionRequestedToProjected = (event, originalPolicy) => {
       confirmation_id: confirmationId,
       requires_confirmation: true,
       tool_name: toolName,
-      toolkit_id: stringValue(target.toolkit_id),
       description: stringValue(payload.prompt, stringValue(payload.title)),
       arguments:
         Object.keys(targetArguments).length > 0
@@ -1196,6 +1273,22 @@ const interactionRequestedToProjected = (event, originalPolicy) => {
       interact_type: renderer,
       interact_config: interactConfig,
       ...declaredPolicy,
+      ...copyOwnProperties(payload, [
+        "call_ref", "call_ref_metadata", "call_id", "tool_name",
+        "execution_id", "original_attempt_id", "intent_cursor", "iteration",
+        "request_digest", "session_id", "confirmation_id", "interaction_id",
+        "request_id",
+      ]),
+      ...(toolkitScopeField("toolkit_id")
+        ? { toolkit_id: clone(toolkitScopeField("toolkit_id").toolkit_id) }
+        : {}),
+      ...(toolkitScopeField("toolkit_name")
+        ? { toolkit_name: clone(toolkitScopeField("toolkit_name").toolkit_name) }
+        : {}),
+      ...(hasOwn(payload, "call_ref_metadata") &&
+      hasOwn(payload, "timeline_merge_policy")
+        ? { timeline_merge_policy: clone(payload.timeline_merge_policy) }
+        : {}),
     },
     {
       ...links,
@@ -1226,6 +1319,12 @@ const interactionResolvedToProjected = (event) => {
       decision,
       response: clone(payload.response),
       ...(payload.reason ? { reason: payload.reason } : {}),
+      ...copyOwnProperties(payload, [
+        "call_ref", "call_ref_metadata", "call_id", "confirmation_id", "interaction_id",
+        "request_id", "tool_name", "toolkit_id", "execution_id", "original_attempt_id",
+        "timeline_merge_policy",
+        "intent_cursor", "iteration", "request_digest", "session_id", "outcome",
+      ]),
     },
     {
       ...links,

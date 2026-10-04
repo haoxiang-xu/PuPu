@@ -7,7 +7,6 @@ import { createRuntimeEventStreamReplayProjector } from "../../SERVICEs/runtime_
 import { createRuntimeEventStore } from "../../SERVICEs/runtime_events/event_store";
 import {
   createIncrementalActivityTreeProjector,
-  reduceActivityTree,
 } from "../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../SERVICEs/runtime_events/trace_chain_adapter";
 
@@ -59,34 +58,25 @@ const makeBatchedReplay = (events, batchSize) => {
 };
 
 describe("TraceChain tool grouping replay and lifecycle parity", () => {
-  test("each actual V4 live prefix matches a fresh replay and visible group count", () => {
+  test("each actual V4 live prefix matches a fresh replay without inventing missing policy", () => {
     const liveProjector = createRuntimeEventStreamReplayProjector();
 
     actualV4Events.forEach((event, index) => {
       const live = liveProjector.append(event, index + 1);
       const fresh = replay(actualV4Events.slice(0, index + 1));
-      const callCount = live.traceFrames.filter(
-        (frame) => frame.type === "tool_call",
-      ).length;
-
       expect(live.traceFrames).toEqual(fresh.traceFrames);
       const view = renderTrace(live.traceFrames, {
         messageId: `prefix-${index + 1}`,
         status: live.status,
       });
-      if (callCount >= 2) {
-        expect(screen.getByText(`×${callCount}`)).toBeInTheDocument();
-      } else {
-        expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
-      }
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       view.unmount();
     });
   });
 
-  test("each actual V2 frame prefix preserves arrived observations and grouping count", () => {
+  test("each actual V2 frame prefix preserves observations without unknown-policy grouping", () => {
     actualV2Frames.forEach((_frame, index) => {
       const prefix = actualV2Frames.slice(0, index + 1);
-      const callCount = prefix.filter((frame) => frame.type === "tool_call").length;
       const observationCount = prefix.filter(
         (frame) => frame.type === "observation",
       ).length;
@@ -95,11 +85,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         status: "streaming",
       });
 
-      if (callCount >= 2) {
-        expect(screen.getByText("×2")).toBeInTheDocument();
-      } else {
-        expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
-      }
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       expect(screen.queryAllByText("Observation")).toHaveLength(
         observationCount,
       );
@@ -112,13 +98,13 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         messageId: `legacy-reopen-${status}`,
         status,
       });
-      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       expect(screen.getAllByText("Observation")).toHaveLength(2);
       view.unmount();
     });
   });
 
-  test("one-at-a-time and different event batch sizes produce the same trace frames", () => {
+  test("batch sizes preserve trace frames and do not invent missing policy", () => {
     const expected = replay(actualV4Events).traceFrames;
 
     [1, 2, 3, actualV4Events.length].forEach((batchSize) => {
@@ -127,7 +113,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
       const view = renderTrace(actual.frames, {
         messageId: `batch-${batchSize}`,
       });
-      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       view.unmount();
     });
   });
@@ -146,11 +132,11 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
       actualV4Events.length,
     );
     const view = renderTrace(projection.traceFrames, { messageId: "duplicate" });
-    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
     view.unmount();
   });
 
-  test("serialized reopen and paused/settled snapshots keep the same grouped calls", () => {
+  test("serialized reopen and paused/settled snapshots preserve unknown-policy calls separately", () => {
     const projection = replay(actualV4Events);
     const reopenedFrames = JSON.parse(JSON.stringify(projection.traceFrames));
 
@@ -159,12 +145,12 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         messageId: `reopen-${status}`,
         status,
       });
-      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       view.unmount();
     });
   });
 
-  test("a partial same-tool snapshot stays grouped when paused or stopped", () => {
+  test("a partial same-tool snapshot preserves calls without unknown-policy grouping", () => {
     const toolStartIndices = actualV4Events.reduce((indices, event, index) => {
       if (event.type === "step.started" && event.payload?.step_type === "tool") {
         indices.push(index);
@@ -182,7 +168,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         messageId: `partial-${status}`,
         status,
       });
-      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.queryByText(/^×\d+$/)).not.toBeInTheDocument();
       view.unmount();
     });
   });
@@ -221,6 +207,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         {
           call_id: "child-a",
           tool_name: "read_file",
+          timeline_merge_policy: "always",
           arguments: { path: "a.txt" },
         },
         "child-run",
@@ -237,6 +224,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         {
           call_id: "child-b",
           tool_name: "read_file",
+          timeline_merge_policy: "always",
           arguments: { path: "b.txt" },
         },
         "child-run",
@@ -343,6 +331,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         payload: {
           call_id: `${prefix}-a`,
           tool_name: "read_file",
+          timeline_merge_policy: "always",
           arguments: { path: `${prefix}-a.txt` },
         },
       },
@@ -372,6 +361,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
         payload: {
           call_id: `${prefix}-b`,
           tool_name: "read_file",
+          timeline_merge_policy: "always",
           arguments: { path: `${prefix}-b.txt` },
         },
       },
@@ -469,6 +459,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
     const callA = frame(1, "tool_call", {
       call_id: "a",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "a.txt" },
     });
     const outputA = frame(2, "observation", {
@@ -478,6 +469,7 @@ describe("TraceChain tool grouping replay and lifecycle parity", () => {
     const callB = frame(3, "tool_call", {
       call_id: "b",
       tool_name: "read_file",
+      timeline_merge_policy: "always",
       arguments: { path: "b.txt" },
     });
     const outputB = frame(4, "observation", {

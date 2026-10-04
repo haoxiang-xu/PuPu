@@ -1,0 +1,40 @@
+{
+  "schema": "pupu.tool_call_ref_contract_vectors.v1",
+  "base": {
+    "schema": "pupu.tool_call_ref.v1",
+    "execution_id": "execution-a",
+    "original_attempt_id": "attempt-a",
+    "call_id": "call-a",
+    "tool_name": "web_fetch",
+    "intent_cursor": {
+      "schema": "unchain.event_cursor.v1",
+      "store_seq": 7,
+      "event_id": "intent-event-7"
+    }
+  },
+  "descriptor_vectors": [
+    { "name": "valid_base", "overrides": {}, "valid": true },
+    { "name": "iteration_integral_decimal", "overrides": { "iteration": 1.0 }, "valid": true },
+    { "name": "iteration_integral_exponent", "overrides": { "iteration": 1e0 }, "valid": true },
+    { "name": "iteration_safe_max", "overrides": { "iteration": 9007199254740991 }, "valid": true },
+    { "name": "iteration_unsafe", "overrides": { "iteration": 9007199254740992 }, "valid": false },
+    { "name": "iteration_fractional", "overrides": { "iteration": 1.5 }, "valid": false },
+    { "name": "iteration_boolean", "overrides": { "iteration": true }, "valid": false },
+    { "name": "iteration_null", "overrides": { "iteration": null }, "valid": false },
+    { "name": "cursor_integral_decimal", "overrides": { "intent_cursor": { "store_seq": 2.0 } }, "valid": true },
+    { "name": "cursor_integral_exponent", "overrides": { "intent_cursor": { "store_seq": 2e0 } }, "valid": true },
+    { "name": "cursor_safe_max", "overrides": { "intent_cursor": { "store_seq": 9007199254740991 } }, "valid": true },
+    { "name": "cursor_unsafe", "overrides": { "intent_cursor": { "store_seq": 9007199254740992 } }, "valid": false },
+    { "name": "cursor_fractional", "overrides": { "intent_cursor": { "store_seq": 1.5 } }, "valid": false },
+    { "name": "cursor_boolean", "overrides": { "intent_cursor": { "store_seq": false } }, "valid": false },
+    { "name": "cursor_null", "overrides": { "intent_cursor": { "store_seq": null } }, "valid": false },
+    { "name": "execution_ascii_whitespace_only", "overrides": { "execution_id": "\t\n\u000b\f\r " }, "valid": false },
+    { "name": "execution_python_only_whitespace", "overrides": { "execution_id": "\u0085\u001c\u001d\u001e\u001f" }, "valid": false },
+    { "name": "execution_ecmascript_only_whitespace", "overrides": { "execution_id": "\ufeff" }, "valid": false },
+    { "name": "execution_surrounded_union_whitespace", "overrides": { "execution_id": "\u0085\u001c\ufeffexecution-a\ufeff\u0085" }, "valid": true },
+    { "name": "event_id_surrounded_union_whitespace", "overrides": { "intent_cursor": { "event_id": "\ufeffevent-a\u0085" } }, "valid": true },
+    { "name": "tool_name_nonblank_preserved", "overrides": { "tool_name": "\u001cexact tool\ufeff" }, "valid": true },
+    { "name": "unknown_descriptor_key", "overrides": { "unexpected": true }, "valid": false },
+    { "name": "unknown_cursor_key", "overrides": { "intent_cursor": { "extra": 1 } }, "valid": false }
+  ]
+}

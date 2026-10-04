@@ -2,13 +2,17 @@ import {
   groupToolTimelineItems,
   getToolGroupingIdentity,
 } from "./trace_tool_grouping";
+import { projectToolCallLifecycle } from "../../SERVICEs/runtime_events/tool_call_projection";
 
 const frame = (seq, type, payload = {}, runId = "run-a", iteration = 0) => ({
   seq,
   run_id: runId,
   iteration,
   type,
-  payload,
+  payload:
+    payload.call_ref === undefined && payload.call_ref_metadata === undefined
+      ? { timeline_merge_policy: "approved", ...payload }
+      : payload,
 });
 
 const call = (sourceFrame, title = sourceFrame.payload.tool_name) => ({
@@ -34,6 +38,21 @@ const observation = (sourceFrame) => ({
 });
 
 const groupAt = (items, index = 0) => items[index]?._toolGroup;
+
+const explicitRef = ({ callId, seq, iteration = 0, toolName = "web_fetch" }) => ({
+  schema: "pupu.tool_call_ref.v1",
+  execution_id: "execution-a",
+  original_attempt_id: "run-a",
+  call_id: callId,
+  tool_name: toolName,
+  intent_cursor: {
+    schema: "unchain.event_cursor.v1",
+    store_seq: seq,
+    event_id: `intent-${seq}`,
+  },
+  iteration,
+  toolkit_id: "core",
+});
 
 describe("Trace tool grouping", () => {
   test("applies the four feedback policies across none, approved, pending, rejected, and answered states", () => {
@@ -323,6 +342,171 @@ describe("Trace tool grouping", () => {
     ]);
   });
 
+  test("uses the renderer's acknowledged projection and accepts ACKs that arrive after results", () => {
+    const frames = [];
+    const calls = [];
+    for (let index = 0; index < 3; index += 1) {
+      const callId = `late-ack-${index}`;
+      const ref = explicitRef({ callId, seq: index * 3 + 1, iteration: index });
+      const source = frame(index * 3 + 1, "tool_call", {
+        call_id: callId,
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        requires_confirmation: true,
+        confirmation_id: `confirm-${callId}`,
+        interact_type: "confirmation",
+        call_ref: ref,
+        call_ref_metadata: {
+          schema: "pupu.tool_call_ref_metadata.v1",
+          intent_cursor: ref.intent_cursor,
+          timeline_merge_policy_declared: false,
+          original_arguments_declared: false,
+        },
+      }, "run-a", index);
+      const result = frame(index * 3 + 2, "tool_result", {
+        call_id: callId,
+        tool_name: "web_fetch",
+        toolkit_id: "core",
+        call_ref: ref,
+      }, "run-a", index);
+      const ack = frame(index * 3 + 3, "tool_confirmed", {
+        call_id: callId,
+        tool_name: "web_fetch",
+        confirmation_id: `confirm-${callId}`,
+        synthetic: true,
+        call_ref: ref,
+      }, "run-a", index);
+      frames.push(source, result, ack);
+      calls.push(call(source));
+    }
+
+    const tentativeProjection = projectToolCallLifecycle(frames);
+    const tentativeOwners = new Map(
+      tentativeProjection.evidenceOwnership.map(({ frameIndex, callKey }) => [frames[frameIndex], callKey]),
+    );
+    const tentative = groupToolTimelineItems(calls, frames, {
+      lifecycleProjection: tentativeProjection,
+      sourceFrames: frames,
+      ownerByFrame: tentativeOwners,
+    });
+    expect(tentative).toHaveLength(3);
+    expect(tentative.some((item) => item._toolGroup)).toBe(false);
+
+    const acknowledgedProjection = projectToolCallLifecycle(frames, {
+      acknowledgedSyntheticFeedbackIndexes: [2, 5, 8],
+    });
+    const owners = new Map(
+      acknowledgedProjection.evidenceOwnership.map(({ frameIndex, callKey }) => [frames[frameIndex], callKey]),
+    );
+    const grouped = groupToolTimelineItems(calls, frames, {
+      lifecycleProjection: acknowledgedProjection,
+      sourceFrames: frames,
+      ownerByFrame: owners,
+    });
+    expect(grouped).toHaveLength(1);
+    expect(groupAt(grouped).calls).toEqual(calls);
+    expect(groupAt(grouped).hasFeedback).toBe(true);
+  });
+
+  test("valid explicit identity with unknown policy does not inherit the approved grouping default", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "explicit-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      call_ref: explicitRef({ callId: "explicit-a", seq: 1 }),
+    });
+    const second = frame(2, "tool_call", {
+      call_id: "explicit-b",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      call_ref: explicitRef({ callId: "explicit-b", seq: 2 }),
+    });
+
+    const grouped = groupToolTimelineItems([call(first), call(second)], [first, second]);
+
+    expect(grouped).toHaveLength(2);
+    expect(groupAt(grouped)).toBeUndefined();
+  });
+
+  test("legacy calls with unknown policy remain visible without grouping", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "legacy-unknown-a",
+      tool_name: "web_fetch",
+    });
+    const second = frame(2, "tool_call", {
+      call_id: "legacy-unknown-b",
+      tool_name: "web_fetch",
+    });
+    delete first.payload.timeline_merge_policy;
+    delete second.payload.timeline_merge_policy;
+
+    const grouped = groupToolTimelineItems([call(first), call(second)], [first, second]);
+
+    expect(grouped).toHaveLength(2);
+    expect(groupAt(grouped)).toBeUndefined();
+  });
+
+  test("invalid explicit references never fall back to legacy call-id grouping", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "invalid-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      call_ref: { ...explicitRef({ callId: "invalid-a", seq: 1 }), unexpected: true },
+    });
+    const second = frame(2, "tool_call", {
+      call_id: "invalid-b",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      call_ref: { ...explicitRef({ callId: "invalid-b", seq: 2 }), unexpected: true },
+    });
+
+    const grouped = groupToolTimelineItems([call(first), call(second)], [first, second]);
+
+    expect(grouped).toHaveLength(2);
+    expect(groupAt(grouped)).toBeUndefined();
+  });
+
+  test("keeps distinct explicit call ownership while folding eligible iterations", () => {
+    const first = frame(1, "tool_call", {
+      call_id: "iteration-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      call_ref: explicitRef({ callId: "iteration-a", seq: 1, iteration: 1 }),
+      call_ref_metadata: {
+        schema: "pupu.tool_call_ref_metadata.v1",
+        intent_cursor: explicitRef({ callId: "iteration-a", seq: 1, iteration: 1 }).intent_cursor,
+        timeline_merge_policy_declared: true,
+        timeline_merge_policy: "always",
+        original_arguments_declared: false,
+      },
+    }, "run-a", 1);
+    const secondRef = explicitRef({ callId: "iteration-b", seq: 2, iteration: 2 });
+    const second = frame(2, "tool_call", {
+      call_id: "iteration-b",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      call_ref: secondRef,
+      call_ref_metadata: {
+        schema: "pupu.tool_call_ref_metadata.v1",
+        intent_cursor: secondRef.intent_cursor,
+        timeline_merge_policy_declared: true,
+        timeline_merge_policy: "always",
+        original_arguments_declared: false,
+      },
+    }, "run-a", 2);
+
+    const grouped = groupToolTimelineItems([call(first), call(second)], [first, second]);
+
+    expect(grouped).toHaveLength(1);
+    expect(groupAt(grouped).calls.map((item) => item._sourceFrame.iteration)).toEqual([1, 2]);
+    expect(groupAt(grouped).calls.map((item) => item._sourceFrame.payload.call_id)).toEqual([
+      "iteration-a",
+      "iteration-b",
+    ]);
+  });
+
   test("uses canonical tool name, toolkit scope, run scope, and execution identity", () => {
     const makeCall = (seq, toolName, callId, extras = {}, runId = "run-a") =>
       frame(seq, "tool_call", { tool_name: toolName, call_id: callId, ...extras }, runId);
@@ -332,6 +516,7 @@ describe("Trace tool grouping", () => {
       [makeCall(1, "read_file", "a"), makeCall(2, "read_file", "b", { toolkit_id: "files" })],
       [makeCall(1, "read_file", "a", { toolkit_id: "files" }), makeCall(2, "read_file", "b", { toolkit_id: "other" })],
       [makeCall(1, "read_file", "a"), makeCall(2, "read_file", "b", {}, "run-b")],
+      [makeCall(1, "read_file", "a", { toolkit_name: "provider one" }), makeCall(2, "read_file", "b", { toolkit_name: "provider two" })],
       [makeCall(1, "read_file", "a"), makeCall(2, "read_file", "")],
       [makeCall(1, "read_file", "a"), makeCall(2, " ", "b")],
     ];
@@ -341,6 +526,17 @@ describe("Trace tool grouping", () => {
       expect(groupAt(grouped)).toBeUndefined();
       expect(grouped).toHaveLength(2);
     });
+
+    const renamedLabelCalls = [
+      makeCall(1, "read_file", "label-a", { toolkit_id: "files", toolkit_name: "Files" }),
+      makeCall(2, "read_file", "label-b", { toolkit_id: "files", toolkit_name: "File tools" }),
+    ];
+    const renamedLabelGroup = groupToolTimelineItems(
+      renamedLabelCalls.map((entry) => call(entry)),
+      renamedLabelCalls,
+    );
+    expect(renamedLabelGroup).toHaveLength(1);
+    expect(groupAt(renamedLabelGroup).calls).toHaveLength(2);
 
     expect(
       getToolGroupingIdentity(
@@ -420,11 +616,13 @@ describe("Trace tool grouping", () => {
     });
   });
 
-  test("treats missing toolkit and run IDs as trace-local legacy scopes", () => {
+  test("keeps legacy calls without an exact run and iteration scope ungrouped", () => {
     const first = frame(1, "tool_call", { call_id: "a", tool_name: "read_file" }, "", undefined);
     const second = frame(2, "tool_call", { call_id: "b", tool_name: "read_file" }, "", undefined);
 
-    expect(groupToolTimelineItems([call(first), call(second)], [first, second])).toHaveLength(1);
+    const grouped = groupToolTimelineItems([call(first), call(second)], [first, second]);
+    expect(grouped).toHaveLength(2);
+    expect(grouped.some((item) => item._toolGroup)).toBe(false);
   });
 
   test("does not group across semantic barriers, including bubble-owned final text", () => {
