@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import TraceChain from "./trace_chain";
 import { createRuntimeEventStore } from "../../SERVICEs/runtime_events/event_store";
@@ -18,6 +18,39 @@ const testFrame = (seq, type, payload = {}, run_id = "run-a", iteration = 0) => 
   payload,
 });
 
+const timelineVisible = (element) => {
+  let current = element;
+  while (current) {
+    if (
+      current.hidden ||
+      current.style?.display === "none" ||
+      current.style?.visibility === "hidden" ||
+      (["0", "0px"].includes(current.style?.height) &&
+        current.style?.overflow === "hidden")
+    ) {
+      return false;
+    }
+    current = current.parentElement;
+  }
+  return true;
+};
+const visibleText = (scope, text) =>
+  scope.queryAllByText(text).filter(timelineVisible);
+const timelineRowFor = (element) => {
+  let current = element;
+  while (
+    current &&
+    !(current.style?.flexDirection === "row" && current.style?.alignItems === "stretch")
+  ) {
+    current = current.parentElement;
+  }
+  return current;
+};
+const ownVisibleHeaderButtons = (row) =>
+  Array.from(row.querySelectorAll("button")).filter(
+    (button) => timelineRowFor(button) === row && timelineVisible(button),
+  );
+
 const renderTraceChain = (frames, props = {}) =>
   render(
     <ConfigContext.Provider
@@ -33,7 +66,7 @@ const renderTraceChain = (frames, props = {}) =>
 describe("TraceChain consecutive tool grouping", () => {
   test.each(candidateGroupingFixture.producer_cases)(
     "renders one feedback member per logical $policy call from real candidate events ($name)",
-    (producerCase) => {
+    async (producerCase) => {
       const store = createRuntimeEventStore();
       store.appendMany(producerCase.events);
       const projected = reduceActivityTree(null, store.getSnapshot());
@@ -46,14 +79,33 @@ describe("TraceChain consecutive tool grouping", () => {
 
       expect(screen.getAllByText("×2")).toHaveLength(1);
       if (producerCase.feedback === "approved") {
-        expect(screen.getAllByText("Approved")).toHaveLength(2);
-        screen
+        const groupRow = timelineRowFor(screen.getByText("×2"));
+        expect(visibleText(within(groupRow), "Approved")).toHaveLength(0);
+        const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+          (button) => button.textContent.trim() === "detail",
+        );
+        expect(groupDetails).toBeInTheDocument();
+        fireEvent.click(groupDetails);
+        await waitFor(() =>
+          expect(visibleText(screen, "Approved")).toHaveLength(2),
+        );
+        const memberDetails = screen
           .getAllByRole("button")
-          .filter((button) => button.textContent.trim() === "detail")
-          .forEach((button) => fireEvent.click(button));
-        expect(screen.getByText("Pair output 1")).toBeInTheDocument();
-        expect(screen.getByText("Pair output 2")).toBeInTheDocument();
+          .filter(
+            (button) =>
+              button.textContent.trim() === "detail" &&
+              timelineVisible(button) &&
+              timelineRowFor(button) !== groupRow,
+          );
+        expect(memberDetails).toHaveLength(2);
+        memberDetails.forEach((button) => fireEvent.click(button));
+        await waitFor(() => {
+          expect(visibleText(screen, "Pair output 1")).toHaveLength(1);
+          expect(visibleText(screen, "Pair output 2")).toHaveLength(1);
+        });
       } else if (producerCase.feedback === "pending") {
+        const groupRow = timelineRowFor(screen.getByText("×2"));
+        expect(ownVisibleHeaderButtons(groupRow)).toHaveLength(0);
         const allowButtons = screen.getAllByRole("button", { name: "Allow once" });
         expect(allowButtons).toHaveLength(2);
         fireEvent.click(allowButtons[1]);

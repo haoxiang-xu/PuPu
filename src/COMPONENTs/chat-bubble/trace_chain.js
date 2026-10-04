@@ -2100,6 +2100,11 @@ const TraceChain = ({
             ) : undefined,
           _toolName: toolName,
           _sections: sections,
+          _hasPendingFeedback:
+            isInlineInteraction &&
+            !isResolved &&
+            !uiResolved &&
+            !hasTerminalResult,
           _sourceFrame: frame,
           _toolGrouping: getToolGroupingIdentity(frame),
         });
@@ -2356,13 +2361,13 @@ const TraceChain = ({
           style={{ fontSize: compact ? 11 : 12 }}
         />
       );
-      const details = group.hasFeedback
+      const details = group.hasPendingFeedback
         ? undefined
-        : group.outputs.length > 0 ? (
-          memberTimeline
-        ) : allSections.length > 0 ? (
-          <KVPanel sections={allSections} isDark={isDark} color={color} />
-        ) : undefined;
+        : group.hasFeedback || group.outputs.length > 0
+          ? memberTimeline
+          : allSections.length > 0 ? (
+            <KVPanel sections={allSections} isDark={isDark} color={color} />
+          ) : undefined;
 
       return {
         key: firstCall.key,
@@ -2379,7 +2384,7 @@ const TraceChain = ({
         span: group.calls[group.calls.length - 1].span,
         status: "done",
         point: <HammerPoint isDark={isDark} />,
-        ...(group.hasFeedback ? { body: memberTimeline } : {}),
+        ...(group.hasPendingFeedback ? { body: memberTimeline } : {}),
         details,
       };
     });

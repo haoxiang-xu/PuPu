@@ -402,6 +402,9 @@ export const groupToolTimelineItems = (items, frames = [], options = {}) => {
         hasFeedback: calls.some((call) =>
           call.state?.feedback && call.state.feedback !== "none",
         ),
+        hasPendingFeedback: callItems.some(
+          (item) => item._hasPendingFeedback === true,
+        ),
       },
     });
     index = cursor;
