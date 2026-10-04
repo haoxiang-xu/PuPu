@@ -2,7 +2,7 @@
 
 - Issue: https://github.com/haoxiang-xu/PuPu/issues/383
 - Release: https://github.com/haoxiang-xu/PuPu/issues/216
-- Plan state: implementation in progress under the user's direct authorization; live rollout remains incomplete pending the acceptance matrix below.
+- Plan state: final local merge preparation passed; live rollout remains incomplete for the declared unqualified states. See [the 2026-10-04 acceptance record](ticket-383-evidence/merge-preparation-20261004.md).
 - PuPu base: `fce580597d2ea59c5e5a8048c3575a7c9f4422df`
 - Unchain source: `a7fa15d685b1130bf5678c1e493a51d2551185cf`
 - Unchain wheel SHA-256: `27139af8f6bf94b8f6bd1ce219a5da6966e17dc90b20225ace032e0c1a57d8b6`

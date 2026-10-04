@@ -2,6 +2,8 @@
 
 Status: local acceptance snapshot, 2026-10-03 (America/Vancouver). This is local implementation evidence, not a completed feature audit or rollout approval. Final backend, frontend, independent review, lifecycle matrix, and production-build runs passed on stable source snapshots. Actual-HTTP cold resume and manual application acceptance remain unqualified or not run as stated below.
 
+This is the historical 2026-10-03 snapshot. See [final local merge preparation, 2026-10-04](merge-preparation-20261004.md) for the subsequent user manual acceptance, approval-order repair, ownership-index safeguard, full 449-suite check and remaining qualifications.
+
 ## Artifact identity
 
 The native/backend qualification reused one already-built Unchain wheel: SHA-256 `27139af8f6bf94b8f6bd1ce219a5da6966e17dc90b20225ace032e0c1a57d8b6`. The imported protocol manifest digest was `sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672`; its source revision is `a7fa15d685b1130bf5678c1e493a51d2551185cf`. The pinned runtime site must be selected explicitly with both `UNCHAIN_SOURCE_PATH` and `PYTHONPATH`; `PYTHONPATH` alone can select a different sibling source tree. The wheel was not rebuilt.
