@@ -1,0 +1,1265 @@
+{
+  "provenance": {
+    "source": "Sanitized subset copied from browser-qa/producer-fixture.json, exact Unchain candidate artifact manifest digest sha256:a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be.",
+    "events": "Exact sanitized V4 event objects; tests project these through the real PuPu runtime-event store and activity tree before rendering TraceChain.",
+    "representative_frames": "Representative reconstruction using confirmed real V4 frontend schema from previous Approved web_fetch; not original lost multi-call renderer packets",
+    "sanitization": "IDs and URLs/results are synthetic/sanitized; no private chat text, URL, or credentials are included."
+  },
+  "producer_cases": [
+    {
+      "name": "approved/approved",
+      "feedback": "approved",
+      "policy": "approved",
+      "events": [
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-39",
+          "type": "run.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 39,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": null,
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "debug",
+            "scope": "run",
+            "group": "debug",
+            "default_state": "hidden",
+            "priority": 1000
+          },
+          "visibility": "debug",
+          "payload": {
+            "status": "running",
+            "provider": "",
+            "model": ""
+          },
+          "metadata": {
+            "raw_type": "run_started"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-40",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 40,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-1",
+            "tool_call_id": "approved-approved-call-1",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:approved-approved-call-1",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "approved-approved-call-1",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "approved"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-41",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 41,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-1",
+            "tool_call_id": "approved-approved-call-1",
+            "interaction_id": "approved-approved-confirm-1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "approved-approved-confirm-1",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "approved-approved-call-1",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "approved"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-42",
+          "type": "interaction.resolved",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 42,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-1",
+            "tool_call_id": "approved-approved-call-1",
+            "interaction_id": "approved-approved-confirm-1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "approved-approved-confirm-1",
+            "outcome": "approved",
+            "response": null,
+            "reason": ""
+          },
+          "metadata": {
+            "raw_type": "tool_confirmed"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-43",
+          "type": "step.completed",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 43,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-1",
+            "tool_call_id": "approved-approved-call-1",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:approved-approved-call-1",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "approved-approved-call-1",
+            "status": "success",
+            "result": {
+              "content": "Pair output 1"
+            }
+          },
+          "metadata": {
+            "raw_type": "tool_result"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-44",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 44,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-2",
+            "tool_call_id": "approved-approved-call-2",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:approved-approved-call-2",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "approved-approved-call-2",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "approved"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-45",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 45,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-2",
+            "tool_call_id": "approved-approved-call-2",
+            "interaction_id": "approved-approved-confirm-2",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "approved-approved-confirm-2",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "approved-approved-call-2",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "approved"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-46",
+          "type": "interaction.resolved",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 46,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-2",
+            "tool_call_id": "approved-approved-call-2",
+            "interaction_id": "approved-approved-confirm-2",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "approved-approved-confirm-2",
+            "outcome": "approved",
+            "response": null,
+            "reason": ""
+          },
+          "metadata": {
+            "raw_type": "tool_confirmed"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-47",
+          "type": "step.completed",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 47,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:approved-approved-call-2",
+            "tool_call_id": "approved-approved-call-2",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:approved-approved-call-2",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "approved-approved-call-2",
+            "status": "success",
+            "result": {
+              "content": "Pair output 2"
+            }
+          },
+          "metadata": {
+            "raw_type": "tool_result"
+          }
+        }
+      ],
+      "ui": {
+        "approved-approved-confirm-1": {
+          "status": "submitted",
+          "resolved": true,
+          "decision": "approved"
+        },
+        "approved-approved-confirm-2": {
+          "status": "submitted",
+          "resolved": true,
+          "decision": "approved"
+        }
+      },
+      "expected_grouped": true
+    },
+    {
+      "name": "pending/always",
+      "feedback": "pending",
+      "policy": "always",
+      "events": [
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-72",
+          "type": "run.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 72,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": null,
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "debug",
+            "scope": "run",
+            "group": "debug",
+            "default_state": "hidden",
+            "priority": 1000
+          },
+          "visibility": "debug",
+          "payload": {
+            "status": "running",
+            "provider": "",
+            "model": ""
+          },
+          "metadata": {
+            "raw_type": "run_started"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-73",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 73,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:pending-always-call-1",
+            "tool_call_id": "pending-always-call-1",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:pending-always-call-1",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "pending-always-call-1",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-74",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 74,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:pending-always-call-1",
+            "tool_call_id": "pending-always-call-1",
+            "interaction_id": "pending-always-confirm-1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "pending-always-confirm-1",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "pending-always-call-1",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-75",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 75,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:pending-always-call-2",
+            "tool_call_id": "pending-always-call-2",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:pending-always-call-2",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "pending-always-call-2",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-76",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 76,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:pending-always-call-2",
+            "tool_call_id": "pending-always-call-2",
+            "interaction_id": "pending-always-confirm-2",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "pending-always-confirm-2",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "pending-always-call-2",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        }
+      ],
+      "ui": {
+        "pending-always-confirm-1": {
+          "status": "idle"
+        },
+        "pending-always-confirm-2": {
+          "status": "idle"
+        }
+      },
+      "expected_grouped": true
+    },
+    {
+      "name": "rejected/always",
+      "feedback": "rejected",
+      "policy": "always",
+      "events": [
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-98",
+          "type": "run.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 98,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": null,
+            "tool_call_id": null,
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "debug",
+            "scope": "run",
+            "group": "debug",
+            "default_state": "hidden",
+            "priority": 1000
+          },
+          "visibility": "debug",
+          "payload": {
+            "status": "running",
+            "provider": "",
+            "model": ""
+          },
+          "metadata": {
+            "raw_type": "run_started"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-99",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 99,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-1",
+            "tool_call_id": "rejected-always-call-1",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:rejected-always-call-1",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "rejected-always-call-1",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-100",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 100,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-1",
+            "tool_call_id": "rejected-always-call-1",
+            "interaction_id": "rejected-always-confirm-1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "rejected-always-confirm-1",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "rejected-always-call-1",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-101",
+          "type": "interaction.resolved",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 101,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-1",
+            "tool_call_id": "rejected-always-call-1",
+            "interaction_id": "rejected-always-confirm-1",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "rejected-always-confirm-1",
+            "outcome": "denied",
+            "response": null,
+            "reason": ""
+          },
+          "metadata": {
+            "raw_type": "tool_denied"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-102",
+          "type": "step.started",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 102,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-2",
+            "tool_call_id": "rejected-always-call-2",
+            "interaction_id": null,
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "tool",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "step_id": "tool:rejected-always-call-2",
+            "step_type": "tool",
+            "tool_name": "qa_lookup",
+            "call_id": "rejected-always-call-2",
+            "toolkit_id": "core",
+            "toolkit_name": "Core",
+            "arguments": {
+              "item": 1
+            },
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_call"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-103",
+          "type": "interaction.requested",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 103,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-2",
+            "tool_call_id": "rejected-always-call-2",
+            "interaction_id": "rejected-always-confirm-2",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "expanded",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "rejected-always-confirm-2",
+            "kind": "confirmation",
+            "blocking": true,
+            "renderer": "confirmation",
+            "title": "",
+            "prompt": "",
+            "options": [],
+            "target": {
+              "tool_call_id": "rejected-always-call-2",
+              "tool_name": "qa_lookup",
+              "toolkit_id": "core",
+              "arguments": {}
+            },
+            "config": {},
+            "timeline_merge_policy": "always"
+          },
+          "metadata": {
+            "raw_type": "tool_confirmation_requested"
+          }
+        },
+        {
+          "schema_version": "v4",
+          "event_id": "pair-event-104",
+          "type": "interaction.resolved",
+          "timestamp": "2026-10-02T00:00:00Z",
+          "session_id": "pair-session",
+          "run_id": "pair-run",
+          "agent_id": "developer",
+          "turn_id": "pair-run:turn-1",
+          "seq": 104,
+          "links": {
+            "parent_run_id": null,
+            "parent_event_id": null,
+            "caused_by_event_id": null,
+            "step_id": "tool:rejected-always-call-2",
+            "tool_call_id": "rejected-always-call-2",
+            "interaction_id": "rejected-always-confirm-2",
+            "artifact_id": null,
+            "workspace_change_set_id": null,
+            "plan_id": null,
+            "channel_id": null,
+            "team_id": null
+          },
+          "surface": {
+            "slot": "trace_inline",
+            "scope": "turn",
+            "group": "interaction",
+            "default_state": "collapsed",
+            "priority": 100
+          },
+          "visibility": "user",
+          "payload": {
+            "interaction_id": "rejected-always-confirm-2",
+            "outcome": "denied",
+            "response": null,
+            "reason": ""
+          },
+          "metadata": {
+            "raw_type": "tool_denied"
+          }
+        }
+      ],
+      "ui": {
+        "rejected-always-confirm-1": {
+          "status": "submitted",
+          "resolved": true,
+          "decision": "denied"
+        },
+        "rejected-always-confirm-2": {
+          "status": "submitted",
+          "resolved": true,
+          "decision": "denied"
+        }
+      },
+      "expected_grouped": true
+    }
+  ],
+  "representative_frontend_frames": [
+    {
+      "seq": 98,
+      "ts": 9800,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-1",
+        "tool_name": "web_fetch",
+        "arguments": {
+          "url": "https://example.invalid/call-1"
+        },
+        "toolkit_id": "core",
+        "confirmation_id": "confirm-call-1",
+        "requires_confirmation": true,
+        "interact_type": "confirmation",
+        "interact_config": {}
+      }
+    },
+    {
+      "seq": 99,
+      "ts": 9900,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "response_received",
+      "payload": {
+        "status": "awaiting_interaction",
+        "has_tool_calls": true
+      }
+    },
+    {
+      "seq": 101,
+      "ts": 10100,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_confirmed",
+      "payload": {
+        "call_id": "call-1",
+        "tool_name": "web_fetch",
+        "confirmation_id": "confirm-call-1",
+        "synthetic": true
+      }
+    },
+    {
+      "seq": 102,
+      "ts": 10200,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-1",
+        "tool_name": "web_fetch",
+        "toolkit_id": "core",
+        "arguments": {
+          "url": "https://example.invalid/call-1"
+        }
+      }
+    },
+    {
+      "seq": 103,
+      "ts": 10300,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_result",
+      "payload": {
+        "call_id": "call-1",
+        "tool_name": "web_fetch",
+        "result": {
+          "ok": false,
+          "status_code": 301,
+          "cached": false,
+          "truncated": false,
+          "result": "Sanitized result for call-1"
+        },
+        "toolkit_id": "core"
+      }
+    },
+    {
+      "seq": 104,
+      "ts": 10400,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-2",
+        "tool_name": "web_fetch",
+        "arguments": {
+          "url": "https://example.invalid/call-2"
+        },
+        "toolkit_id": "core",
+        "confirmation_id": "confirm-call-2",
+        "requires_confirmation": true,
+        "interact_type": "confirmation",
+        "interact_config": {}
+      }
+    },
+    {
+      "seq": 106,
+      "ts": 10600,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_confirmed",
+      "payload": {
+        "call_id": "call-2",
+        "tool_name": "web_fetch",
+        "confirmation_id": "confirm-call-2",
+        "synthetic": true
+      }
+    },
+    {
+      "seq": 107,
+      "ts": 10700,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-2",
+        "tool_name": "web_fetch",
+        "toolkit_id": "core",
+        "arguments": {
+          "url": "https://example.invalid/call-2"
+        }
+      }
+    },
+    {
+      "seq": 108,
+      "ts": 10800,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_result",
+      "payload": {
+        "call_id": "call-2",
+        "tool_name": "web_fetch",
+        "result": {
+          "ok": false,
+          "status_code": 301,
+          "cached": false,
+          "truncated": false,
+          "result": "Sanitized result for call-2"
+        },
+        "toolkit_id": "core"
+      }
+    },
+    {
+      "seq": 109,
+      "ts": 10900,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-3",
+        "tool_name": "web_fetch",
+        "arguments": {
+          "url": "https://example.invalid/call-3"
+        },
+        "toolkit_id": "core",
+        "confirmation_id": "confirm-call-3",
+        "requires_confirmation": true,
+        "interact_type": "confirmation",
+        "interact_config": {}
+      }
+    },
+    {
+      "seq": 111,
+      "ts": 11100,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_confirmed",
+      "payload": {
+        "call_id": "call-3",
+        "tool_name": "web_fetch",
+        "confirmation_id": "confirm-call-3",
+        "synthetic": true
+      }
+    },
+    {
+      "seq": 112,
+      "ts": 11200,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_call",
+      "payload": {
+        "call_id": "call-3",
+        "tool_name": "web_fetch",
+        "toolkit_id": "core",
+        "arguments": {
+          "url": "https://example.invalid/call-3"
+        }
+      }
+    },
+    {
+      "seq": 113,
+      "ts": 11300,
+      "run_id": "run-approved-fetch",
+      "iteration": 5,
+      "type": "tool_result",
+      "payload": {
+        "call_id": "call-3",
+        "tool_name": "web_fetch",
+        "result": {
+          "ok": true,
+          "status_code": 200,
+          "cached": false,
+          "truncated": false,
+          "result": "Sanitized result for call-3"
+        },
+        "toolkit_id": "core"
+      }
+    }
+  ],
+  "representative_ui": {
+    "confirm-call-1": {
+      "status": "submitted",
+      "resolved": true,
+      "decision": "approved",
+      "error": ""
+    },
+    "confirm-call-2": {
+      "status": "submitted",
+      "resolved": true,
+      "decision": "approved",
+      "error": ""
+    },
+    "confirm-call-3": {
+      "status": "submitted",
+      "resolved": true,
+      "decision": "approved",
+      "error": ""
+    }
+  }
+}

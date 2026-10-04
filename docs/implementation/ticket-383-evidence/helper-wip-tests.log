@@ -1,0 +1,22 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+  Trace tool grouping
+    ✓ groups equal canonical tools despite different arguments and display aliases (3 ms)
+    ✓ uses canonical tool name, toolkit scope, run scope, and execution identity (3 ms)
+    ✓ treats missing toolkit and run IDs as trace-local legacy scopes
+    ✓ does not group across semantic barriers, including bubble-owned final text (3 ms)
+    ✓ groups output owned by current calls and preserves each complete descriptor once (2 ms)
+    ✓ associates a call-id-less observation only with its exact preceding completed batch (1 ms)
+    ✓ leaves mixed, incomplete, mismatched, stale, and nonnumeric legacy batches separate (6 ms)
+    ✓ does not search past an incomplete newer batch or look ahead to future results (1 ms)
+    ✓ keeps output from an older group separate after a semantic barrier
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        0.537 s, estimated 1 s
+Ran all test suites matching /src\/COMPONENTs\/chat-bubble\/trace_tool_grouping.test.js/i.

@@ -1,0 +1,728 @@
+[
+  {
+    "schema_version": "v4",
+    "event_id": "evt_f050bd0af97f432fafd9aded2de0fd80",
+    "type": "session.started",
+    "timestamp": "2026-10-02T03:18:26.182068Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": null,
+    "seq": 1,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "session",
+      "group": "session",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "model": "ollama:deepseek-r1:14b",
+      "started_at": 1790911106182,
+      "trace_level": "minimal",
+      "thread_id": "observed-sequential-session",
+      "execution_id": "observed-sequential-session",
+      "attempt_id": "observed-sequential-run",
+      "resume_interaction": false
+    },
+    "metadata": {}
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_00bf7dd01df94c50ab80262fc542dd50",
+    "type": "run.started",
+    "timestamp": "2026-10-02T03:18:26.182255Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 2,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "status": "running",
+      "provider": "openai",
+      "model": "gpt-test"
+    },
+    "metadata": {
+      "raw_type": "run_started",
+      "provider": "openai"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_6c87f83e5bae49f2a141b6ee4674267b",
+    "type": "turn.started",
+    "timestamp": "2026-10-02T03:18:26.182306Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 3,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "iteration": 0
+    },
+    "metadata": {
+      "raw_type": "iteration_started"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_08101a83840c42c1b19caab68b23fb8d",
+    "type": "step.started",
+    "timestamp": "2026-10-02T03:18:26.182376Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 4,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "tool:observed-sequential-call-1",
+      "tool_call_id": "observed-sequential-call-1",
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "tool",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "tool:observed-sequential-call-1",
+      "step_type": "tool",
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-1",
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools",
+      "arguments": {
+        "path": "fixture-1.txt"
+      }
+    },
+    "metadata": {
+      "raw_type": "tool_call"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_851c8dd51ee946b5b482a49c193a5b4a",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182423Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 5,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "tool:observed-sequential-call-1",
+      "tool_call_id": "observed-sequential-call-1",
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "tool",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "tool:observed-sequential-call-1",
+      "step_type": "tool",
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-1",
+      "status": "success",
+      "result": {
+        "content": "fixture contents for fixture-1.txt"
+      }
+    },
+    "metadata": {
+      "raw_type": "tool_result"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_e2df9d284fea45f5b9c27daf06f4d3f8",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182486Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 6,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "model:observed-sequential-run:turn-0:response",
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "model",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "model:observed-sequential-run:turn-0:response",
+      "step_type": "model_response",
+      "status": "running",
+      "response_id": "observed-sequential-main-1",
+      "has_tool_calls": true,
+      "usage": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "running",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-1",
+        "iteration": 1
+      }
+    },
+    "metadata": {
+      "raw_type": "response_received"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_ba289d40cc144071aa443a9637e9da6e",
+    "type": "turn.completed",
+    "timestamp": "2026-10-02T03:18:26.182541Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-0",
+    "seq": 7,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "iteration": 0,
+      "has_tool_calls": true
+    },
+    "metadata": {
+      "raw_type": "iteration_completed"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_a3d7d3ebaa9f4bc79ae7b910a31b8ae9",
+    "type": "turn.started",
+    "timestamp": "2026-10-02T03:18:26.182569Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-1",
+    "seq": 8,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "iteration": 1
+    },
+    "metadata": {
+      "raw_type": "iteration_started"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_0d6115b14d114d00a99e4bc8f4f01a49",
+    "type": "step.started",
+    "timestamp": "2026-10-02T03:18:26.182599Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-1",
+    "seq": 9,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "tool:observed-sequential-call-2",
+      "tool_call_id": "observed-sequential-call-2",
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "tool",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "tool:observed-sequential-call-2",
+      "step_type": "tool",
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-2",
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools",
+      "arguments": {
+        "path": "fixture-2.txt"
+      }
+    },
+    "metadata": {
+      "raw_type": "tool_call"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_0fb60f0b1a264532b584d95372db9860",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182638Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-1",
+    "seq": 10,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "tool:observed-sequential-call-2",
+      "tool_call_id": "observed-sequential-call-2",
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "tool",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "tool:observed-sequential-call-2",
+      "step_type": "tool",
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-2",
+      "status": "success",
+      "result": {
+        "content": "fixture contents for fixture-2.txt"
+      }
+    },
+    "metadata": {
+      "raw_type": "tool_result"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_374b9e894f7e477f8878d0bf5ce29af7",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182684Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-1",
+    "seq": 11,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "model:observed-sequential-run:turn-1:response",
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "model",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "model:observed-sequential-run:turn-1:response",
+      "step_type": "model_response",
+      "status": "running",
+      "response_id": "observed-sequential-main-2",
+      "has_tool_calls": true,
+      "usage": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "running",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-2",
+        "iteration": 2
+      }
+    },
+    "metadata": {
+      "raw_type": "response_received"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_7c541f920c1e449eba2639cb7575f9f5",
+    "type": "turn.completed",
+    "timestamp": "2026-10-02T03:18:26.182730Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-1",
+    "seq": 12,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "iteration": 1,
+      "has_tool_calls": true
+    },
+    "metadata": {
+      "raw_type": "iteration_completed"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_a6e1cd7182aa4d5fa3736afce0595ac5",
+    "type": "turn.started",
+    "timestamp": "2026-10-02T03:18:26.182755Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-2",
+    "seq": 13,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "iteration": 2
+    },
+    "metadata": {
+      "raw_type": "iteration_started"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_a013aaea50dc45f197bcace0171668a5",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182786Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-2",
+    "seq": 14,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "model:observed-sequential-run:turn-2:response",
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "model",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "model:observed-sequential-run:turn-2:response",
+      "step_type": "model_response",
+      "status": "running",
+      "response_id": "observed-sequential-main-3",
+      "has_tool_calls": false,
+      "usage": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "completed",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-3",
+        "iteration": 3
+      }
+    },
+    "metadata": {
+      "raw_type": "response_received"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_c4de8cf04548494f95d0bb69f16f8895",
+    "type": "step.completed",
+    "timestamp": "2026-10-02T03:18:26.182923Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-2",
+    "seq": 15,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": "model:observed-sequential-run:turn-2:response",
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "trace_inline",
+      "scope": "turn",
+      "group": "model",
+      "default_state": "collapsed",
+      "priority": 100
+    },
+    "visibility": "user",
+    "payload": {
+      "step_id": "model:observed-sequential-run:turn-2:response",
+      "step_type": "model_response",
+      "status": "completed",
+      "final_text": "Fixture complete"
+    },
+    "metadata": {
+      "raw_type": "final_message"
+    }
+  },
+  {
+    "schema_version": "v4",
+    "event_id": "evt_e9f118cb15fc4c3d8966e7abbf7d319b",
+    "type": "run.completed",
+    "timestamp": "2026-10-02T03:18:26.182968Z",
+    "session_id": "observed-sequential-session",
+    "run_id": "observed-sequential-run",
+    "agent_id": "developer",
+    "turn_id": "observed-sequential-run:turn-2",
+    "seq": 16,
+    "links": {
+      "parent_run_id": null,
+      "parent_event_id": null,
+      "caused_by_event_id": null,
+      "step_id": null,
+      "tool_call_id": null,
+      "interaction_id": null,
+      "artifact_id": null,
+      "workspace_change_set_id": null,
+      "plan_id": null,
+      "channel_id": null,
+      "team_id": null
+    },
+    "surface": {
+      "slot": "debug",
+      "scope": "run",
+      "group": "debug",
+      "default_state": "hidden",
+      "priority": 1000
+    },
+    "visibility": "debug",
+    "payload": {
+      "status": "completed",
+      "usage": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "completed",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-3",
+        "iteration": 3
+      }
+    },
+    "metadata": {
+      "raw_type": "run_completed"
+    }
+  }
+]

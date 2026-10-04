@@ -1,0 +1,284 @@
+[
+  {
+    "seq": 1,
+    "ts": 1790911358808,
+    "run_id": "",
+    "iteration": 0,
+    "type": "stream_started",
+    "payload": {
+      "model": "ollama:deepseek-r1:14b",
+      "started_at": 1790911358808,
+      "trace_level": "minimal",
+      "thread_id": "observed-sequential-session"
+    }
+  },
+  {
+    "seq": 2,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "run_started",
+    "payload": {
+      "provider": "openai",
+      "model": "gpt-test"
+    }
+  },
+  {
+    "seq": 3,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "iteration_started",
+    "payload": {}
+  },
+  {
+    "seq": 4,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "tool_call",
+    "payload": {
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-1",
+      "arguments": {
+        "path": "fixture-1.txt"
+      },
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools"
+    }
+  },
+  {
+    "seq": 5,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "tool_result",
+    "payload": {
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-1",
+      "result": {
+        "content": "fixture contents for fixture-1.txt"
+      },
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools"
+    }
+  },
+  {
+    "seq": 6,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "observation",
+    "payload": {
+      "content": "Fixture output reviewed safely"
+    }
+  },
+  {
+    "seq": 7,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "response_received",
+    "payload": {
+      "response_id": "observed-sequential-main-1",
+      "has_tool_calls": true,
+      "status": "running",
+      "bundle": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "running",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-1",
+        "iteration": 1
+      }
+    }
+  },
+  {
+    "seq": 8,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 0,
+    "type": "iteration_completed",
+    "payload": {
+      "has_tool_calls": true
+    }
+  },
+  {
+    "seq": 9,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "iteration_started",
+    "payload": {}
+  },
+  {
+    "seq": 10,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "tool_call",
+    "payload": {
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-2",
+      "arguments": {
+        "path": "fixture-2.txt"
+      },
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools"
+    }
+  },
+  {
+    "seq": 11,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "tool_result",
+    "payload": {
+      "tool_name": "read_file",
+      "call_id": "observed-sequential-call-2",
+      "result": {
+        "content": "fixture contents for fixture-2.txt"
+      },
+      "toolkit_id": "fixture.in_memory",
+      "toolkit_name": "Fixture in-memory tools"
+    }
+  },
+  {
+    "seq": 12,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "observation",
+    "payload": {
+      "content": "Fixture output reviewed safely"
+    }
+  },
+  {
+    "seq": 13,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "response_received",
+    "payload": {
+      "response_id": "observed-sequential-main-2",
+      "has_tool_calls": true,
+      "status": "running",
+      "bundle": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "running",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-2",
+        "iteration": 2
+      }
+    }
+  },
+  {
+    "seq": 14,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 1,
+    "type": "iteration_completed",
+    "payload": {
+      "has_tool_calls": true
+    }
+  },
+  {
+    "seq": 15,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 2,
+    "type": "iteration_started",
+    "payload": {}
+  },
+  {
+    "seq": 16,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 2,
+    "type": "response_received",
+    "payload": {
+      "response_id": "observed-sequential-main-3",
+      "has_tool_calls": false,
+      "status": "running",
+      "bundle": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "completed",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-3",
+        "iteration": 3
+      }
+    }
+  },
+  {
+    "seq": 17,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 2,
+    "type": "final_message",
+    "payload": {
+      "content": "Fixture complete"
+    }
+  },
+  {
+    "seq": 18,
+    "ts": 1790911358808,
+    "run_id": "observed-sequential-run",
+    "iteration": 2,
+    "type": "run_completed",
+    "payload": {
+      "status": "completed",
+      "bundle": {
+        "model": "gpt-test",
+        "consumed_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "last_turn_tokens": 0,
+        "last_turn_input_tokens": 0,
+        "last_turn_output_tokens": 0,
+        "max_context_window_tokens": 0,
+        "context_window_used_pct": 0.0,
+        "status": "completed",
+        "human_input_request": null,
+        "continuation": null,
+        "previous_response_id": "observed-sequential-main-3",
+        "iteration": 3
+      }
+    }
+  },
+  {
+    "seq": 19,
+    "ts": 1790911358808,
+    "run_id": "",
+    "iteration": 2,
+    "type": "done",
+    "payload": {
+      "finished_at": 1790911358808
+    }
+  }
+]

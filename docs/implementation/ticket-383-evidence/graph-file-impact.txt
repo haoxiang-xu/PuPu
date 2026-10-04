@@ -1,0 +1,153 @@
+
+  GitNexus Impact (1.6.12)
+{"level":40,"time":1790910934985,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+{
+  "target": {
+    "id": "File:src/COMPONENTs/chat-bubble/trace_chain.js",
+    "name": "trace_chain.js",
+    "type": "File",
+    "filePath": "src/COMPONENTs/chat-bubble/trace_chain.js"
+  },
+  "direction": "upstream",
+  "impactedCount": 11,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": false,
+    "unusedAxes": [
+      {
+        "axis": "processes",
+        "reason": "file-nodes-have-no-process-or-community-membership"
+      },
+      {
+        "axis": "modules",
+        "reason": "file-nodes-have-no-process-or-community-membership"
+      }
+    ]
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 4,
+    "processes_affected": 0,
+    "modules_affected": 0
+  },
+  "byDepthCounts": {
+    "1": 4,
+    "2": 3,
+    "3": 4
+  },
+  "affected_processes": [],
+  "affected_modules": [],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "File:src/COMPONENTs/chat-bubble/character_chat_bubble.js",
+        "name": "character_chat_bubble.js",
+        "filePath": "src/COMPONENTs/chat-bubble/character_chat_bubble.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 1,
+        "id": "File:src/COMPONENTs/chat-bubble/lazy_trace_chain.js",
+        "name": "lazy_trace_chain.js",
+        "filePath": "src/COMPONENTs/chat-bubble/lazy_trace_chain.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 1,
+        "id": "File:src/COMPONENTs/ui-testing/runners/interject_runner.js",
+        "name": "interject_runner.js",
+        "filePath": "src/COMPONENTs/ui-testing/runners/interject_runner.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 1,
+        "id": "File:src/COMPONENTs/ui-testing/runners/trace_chain_runner.js",
+        "name": "trace_chain_runner.js",
+        "filePath": "src/COMPONENTs/ui-testing/runners/trace_chain_runner.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "File:src/COMPONENTs/chat-bubble/chat_bubble.js",
+        "name": "chat_bubble.js",
+        "filePath": "src/COMPONENTs/chat-bubble/chat_bubble.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:src/COMPONENTs/chat-messages/chat_messages.js",
+        "name": "chat_messages.js",
+        "filePath": "src/COMPONENTs/chat-messages/chat_messages.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "File:src/COMPONENTs/ui-testing/ui_testing_modal.js",
+        "name": "ui_testing_modal.js",
+        "filePath": "src/COMPONENTs/ui-testing/ui_testing_modal.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "File:src/COMPONENTs/chat-bubble/index.js",
+        "name": "index.js",
+        "filePath": "src/COMPONENTs/chat-bubble/index.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:src/COMPONENTs/chat-messages/index.js",
+        "name": "index.js",
+        "filePath": "src/COMPONENTs/chat-messages/index.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:src/COMPONENTs/settings/dev/index.js",
+        "name": "index.js",
+        "filePath": "src/COMPONENTs/settings/dev/index.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "File:src/PAGEs/chat/chat.js",
+        "name": "chat.js",
+        "filePath": "src/PAGEs/chat/chat.js",
+        "relationType": "IMPORTS",
+        "confidence": 1,
+        "processes": []
+      }
+    ]
+  },
+  "staleness": {
+    "status": "behind",
+    "commitsBehind": 1,
+    "hint": "⚠️ Index is 1 commit behind HEAD. Run analyze tool to update."
+  }
+}

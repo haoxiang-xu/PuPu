@@ -1,0 +1,9 @@
+{
+  "index_html": true,
+  "static_js_count": 72,
+  "feature_snapshot": true,
+  "index_html_sha256": "e689479a3efc01dd920e36543943040713a9bb19299444cc002e8a9304d48e5f",
+  "main_js_sha256": {
+    "main.25009fb3.js": "75f34e7f28643f9799c2b0f3ad0d56d31917627ede3c3678f044b7acec01f01c"
+  }
+}

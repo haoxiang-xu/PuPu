@@ -383,7 +383,7 @@ const TimelineNode = ({
                 style={{
                   marginTop: compact ? 4 : 5,
                   width: "100%",
-                  padding: compact ? "6px 0 6px 8px" : "8px 0 8px 10px",
+                  padding: compact ? "6px 8px" : "8px 10px",
                   borderRadius: compact ? 6 : 8,
                   background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
                   border: "1px solid var(--pupu-card-border, transparent)",

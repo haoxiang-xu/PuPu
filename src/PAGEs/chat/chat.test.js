@@ -38,6 +38,10 @@ import {
   writeQueuedTurnsForAttempt,
 } from "../../SERVICEs/queued_turn_outbox";
 import { computeCompletionDiagnosticsDigestV1 } from "../../SERVICEs/completion_diagnostics_v1";
+import {
+  projectToolCallLifecycle,
+  resolveToolCallOwnerForRequest,
+} from "../../SERVICEs/runtime_events/tool_call_projection";
 
 const {
   buildRunBundleV1,
@@ -6365,7 +6369,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("replaces a bare shell tool call with the enriched confirmation frame", async () => {
+  test("preserves bare and confirmation events as one logical shell call", async () => {
     renderChat();
     await waitForReady();
 
@@ -6415,13 +6419,39 @@ describe("ChatInterface stop flow", () => {
           frame.payload?.call_id === "call-shell",
       );
 
-      expect(shellToolCalls).toHaveLength(1);
-      expect(shellToolCalls[0]?.payload).toEqual(
-        expect.objectContaining({
+      expect(shellToolCalls).toHaveLength(2);
+      expect(shellToolCalls.map((frame) => frame.seq)).toEqual([1, 2]);
+      expect(shellToolCalls.map((frame) => frame.payload)).toEqual([
+        {
+          call_id: "call-shell",
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "npm install" },
+        },
+        {
+          call_id: "call-shell",
           confirmation_id: "confirm-shell",
           requires_confirmation: true,
-        }),
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "npm install" },
+        },
+      ]);
+      const projection = projectToolCallLifecycle(shellToolCalls);
+      const shellOwners = projection.calls.filter(
+        (call) => call.identity?.callId === "call-shell",
       );
+      expect(shellOwners).toHaveLength(1);
+      expect(shellOwners[0].callFrameIndexes).toEqual([0, 1]);
+      const requestOwner = resolveToolCallOwnerForRequest(
+        shellToolCalls,
+        "confirm-shell",
+      );
+      expect(requestOwner.status).toBe("legacy");
+      expect(requestOwner.call.key).toBe(shellOwners[0].key);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-shell"],
+      ).toBeDefined();
       expect(
         lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-shell"]?.status,
       ).toBe("idle");

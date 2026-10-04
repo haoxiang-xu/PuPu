@@ -1,0 +1,37 @@
+
+  GitNexus Detect Changes (1.6.12)
+{"level":40,"time":1790914067778,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+Changes: 5 files, 21 symbols
+Affected processes: 105
+Risk level: critical
+
+Changed symbols:
+  Const SUBAGENT_TOOLS → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property callId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolName → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolkitPresent → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property toolkitId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runPresent → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property iteration → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property runId → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property iteration → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property invalid → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property calls → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property results → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+  Property callIds → src/COMPONENTs/chat-bubble/trace_tool_grouping.js
+... and 6 more
+
+Affected execution flows:
+  • SwipeCardContent → Error (10 steps) — changed: SUBAGENT_TOOLS
+  • Run_agent → Check (6 steps) — changed: SUBAGENT_TOOLS
+  • Record → _journal_failure (5 steps) — changed: SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS
+  • Build_optimizer_delta → _clamped_default (5 steps) — changed: SUBAGENT_TOOLS
+  • Run_agent → Update_diagnostics (4 steps) — changed: SUBAGENT_TOOLS
+  • Run_agent → Diagnostics (4 steps) — changed: SUBAGENT_TOOLS
+  • Record → _context_failure (4 steps) — changed: SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS
+  • Compare_and_swap → _identifier (4 steps) — changed: SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS
+  • Rebase_session → _installed_rebase_reason_values (4 steps) — changed: SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS
+  • Rebase_session → _structured_rebase_failure_detail (4 steps) — changed: SUBAGENT_TOOLS, SUBAGENT_TOOLS, SUBAGENT_TOOLS
+... and 95 more
