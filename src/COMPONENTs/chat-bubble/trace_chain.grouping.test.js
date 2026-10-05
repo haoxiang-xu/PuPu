@@ -51,11 +51,29 @@ const ownVisibleHeaderButtons = (row) =>
     (button) => timelineRowFor(button) === row && timelineVisible(button),
   );
 
-const renderTraceChain = (frames, props = {}) =>
+const interruptedGroupTestTheme = {
+  lineColor: "rgb(11, 12, 13)",
+  lineDoneColor: "rgb(21, 22, 23)",
+};
+
+const ownBottomTimelineTrack = (row) => {
+  // A retained reasoning row follows the group, so its lower track exists.
+  // Select only this row's track column, excluding any nested detail Timeline.
+  const trackColumn = row.firstElementChild;
+  return Array.from(trackColumn.children).find(
+    (node) => node.style.bottom === "0px" && node.style.width === "1px",
+  );
+};
+
+const renderTraceChain = (frames, props = {}, timelineTheme) =>
   render(
     <ConfigContext.Provider
       value={{
-        theme: { color: "#222", font: { fontFamily: "sans-serif" } },
+        theme: {
+          color: "#222",
+          font: { fontFamily: "sans-serif" },
+          timeline: timelineTheme,
+        },
         onThemeMode: "light_mode",
       }}
     >
@@ -770,5 +788,148 @@ describe("TraceChain consecutive tool grouping", () => {
     expect(screen.getByText("×2")).toBeInTheDocument();
     expect(screen.getByText("after the grouped calls")).toBeInTheDocument();
     expect(screen.queryByText("hide")).not.toBeInTheDocument();
+  });
+
+  test("#384: a stopped group keeps its unfinished first call visible when the last call completed", async () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "stopped-pending-a",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "pending-a.txt" },
+    });
+    const callB = testFrame(2, "tool_call", {
+      call_id: "stopped-completed-b",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-b.txt" },
+    });
+    const resultB = testFrame(3, "tool_result", {
+      call_id: "stopped-completed-b",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed B result" },
+    });
+    const reasoning = testFrame(4, "reasoning", {
+      reasoning: "Retained reasoning after these calls",
+    });
+
+    renderTraceChain(
+      [callA, callB, resultB, reasoning],
+      { status: "cancelled" },
+      interruptedGroupTestTheme,
+    );
+
+    expect(screen.getAllByText("×2")).toHaveLength(1);
+    const groupRow = timelineRowFor(screen.getByText("×2"));
+    expect(visibleText(within(groupRow), "Interrupted")).toHaveLength(1);
+    expect(visibleText(within(groupRow), "+100ms")).toHaveLength(0);
+    expect(ownBottomTimelineTrack(groupRow)).toHaveStyle({
+      background: interruptedGroupTestTheme.lineColor,
+    });
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+
+    const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+      (button) => button.textContent.trim() === "detail",
+    );
+    expect(groupDetails).toBeDefined();
+    fireEvent.click(groupDetails);
+
+    const pendingArguments = within(groupRow).getByText("pending-a.txt");
+    const completedArguments = within(groupRow).getByText("completed-b.txt");
+    const completedResult = within(groupRow).getByText("observed B result");
+    await waitFor(() => {
+      expect(visibleText(within(groupRow), "pending-a.txt")).toHaveLength(1);
+      expect(visibleText(within(groupRow), "completed-b.txt")).toHaveLength(1);
+      expect(visibleText(within(groupRow), "observed B result")).toHaveLength(1);
+    });
+    // Only B has a result; grouping must not manufacture one for A or show B twice.
+    expect(within(groupRow).getAllByText(/^result$/)).toHaveLength(1);
+    expect(
+      pendingArguments.compareDocumentPosition(completedArguments) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      completedArguments.compareDocumentPosition(completedResult) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("#384: a stopped group with two observed results keeps its completed header and each result once", async () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "stopped-completed-a-control",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-a-control.txt" },
+    });
+    const resultA = testFrame(2, "tool_result", {
+      call_id: "stopped-completed-a-control",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed A control result" },
+    });
+    const callB = testFrame(3, "tool_call", {
+      call_id: "stopped-completed-b-control",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-b-control.txt" },
+    });
+    const resultB = testFrame(4, "tool_result", {
+      call_id: "stopped-completed-b-control",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed B control result" },
+    });
+    const reasoning = testFrame(5, "reasoning", {
+      reasoning: "Retained reasoning after the completed calls",
+    });
+
+    renderTraceChain(
+      [callA, resultA, callB, resultB, reasoning],
+      { status: "cancelled" },
+      interruptedGroupTestTheme,
+    );
+
+    expect(screen.getAllByText("×2")).toHaveLength(1);
+    const groupRow = timelineRowFor(screen.getByText("×2"));
+    expect(visibleText(within(groupRow), "Interrupted")).toHaveLength(0);
+    expect(visibleText(within(groupRow), "+100ms")).toHaveLength(1);
+    expect(ownBottomTimelineTrack(groupRow)).toHaveStyle({
+      background: interruptedGroupTestTheme.lineDoneColor,
+    });
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+
+    const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+      (button) => button.textContent.trim() === "detail",
+    );
+    expect(groupDetails).toBeDefined();
+    fireEvent.click(groupDetails);
+
+    const argumentsA = within(groupRow).getByText("completed-a-control.txt");
+    const observedResultA = within(groupRow).getByText("observed A control result");
+    const argumentsB = within(groupRow).getByText("completed-b-control.txt");
+    const observedResultB = within(groupRow).getByText("observed B control result");
+    await waitFor(() => {
+      [
+        "completed-a-control.txt",
+        "observed A control result",
+        "completed-b-control.txt",
+        "observed B control result",
+      ].forEach((text) => {
+        expect(visibleText(within(groupRow), text)).toHaveLength(1);
+      });
+    });
+    expect(within(groupRow).getAllByText(/^result$/)).toHaveLength(2);
+    expect(
+      argumentsA.compareDocumentPosition(observedResultA) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      observedResultA.compareDocumentPosition(argumentsB) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      argumentsB.compareDocumentPosition(observedResultB) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

@@ -26,6 +26,7 @@ import {
 } from "../../../CONTAINERs/config/context";
 import ChatInterface from "../chat";
 import {
+  getChatMessages,
   getChatsStore,
   createChatInSelectedContext,
   selectTreeNode,
@@ -39,6 +40,7 @@ import { writeReasoningEffortPref } from "../../../SERVICEs/reasoning_effort_pre
 import ollamaPreviewFixture from "../../../SERVICEs/runtime_events/fixtures/ollama_live_preview.json";
 import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
 import { mergePendingConfirmationTraceState } from "../../../COMPONENTs/chat-bubble/pending_confirmation_trace_frames";
+import observedBatchFixture from "../../../SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json";
 
 const pendingToolInteraction = (sessionId, attemptId, interactionId) => {
   const toolCall = {
@@ -97,7 +99,7 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
   default: (props) => {
     lastChatInputProps = props;
-    const { value, onChange, onSend, sendDisabled } = props;
+    const { value, onChange, onSend, onStop, isStreaming, sendDisabled } = props;
     return (
       <div>
         <input
@@ -112,6 +114,11 @@ jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
         >
           Send
         </button>
+        {isStreaming ? (
+          <button data-testid="stop-button" onClick={onStop}>
+            Stop
+          </button>
+        ) : null}
       </div>
     );
   },
@@ -221,6 +228,7 @@ describe("Memory V2 P0 payload seams", () => {
         url: "http://localhost:3000",
         reason: "",
       })),
+      isRuntimeEventStreamV4Available: jest.fn(() => false),
       getModelCatalog: jest.fn(async () => ({
         activeModel: "openai:gpt-5",
         providers: { openai: ["gpt-5"], ollama: [], anthropic: [] },
@@ -284,6 +292,40 @@ describe("Memory V2 P0 payload seams", () => {
     fireEvent.click(screen.getByTestId("send-button"));
   };
 
+  const startRuntimeV4 = (attemptId) => {
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      streamHandlers = handlers;
+      return { cancel: jest.fn(), disconnect: jest.fn(), requestId: `request-${attemptId}`, attemptId };
+    });
+  };
+
+  const observedBatchEvent = (index, { chatId, runId, callIds = {} }) => {
+    const event = JSON.parse(JSON.stringify(observedBatchFixture[index]));
+    event.event_id = `test-${runId}-${event.seq}`;
+    event.session_id = chatId;
+    event.run_id = runId;
+    event.turn_id = `${runId}:turn-0`;
+    const previousCallId = event.links?.tool_call_id;
+    const mappedCallId = previousCallId ? callIds[previousCallId] : undefined;
+    if (mappedCallId) {
+      event.links.tool_call_id = mappedCallId;
+      if (typeof event.links.step_id === "string") {
+        event.links.step_id = `tool:${mappedCallId}`;
+      }
+      if (event.payload?.call_id) event.payload.call_id = mappedCallId;
+      if (typeof event.payload?.step_id === "string") {
+        event.payload.step_id = `tool:${mappedCallId}`;
+      }
+    }
+    return event;
+  };
+
+  const waitForRuntimeRun = async () => {
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+  };
+
   const seedPriorTurn = (chatId) => {
     const priorMessages = [
       {
@@ -307,6 +349,339 @@ describe("Memory V2 P0 payload seams", () => {
     setChatMessages(chatId, priorMessages, { source: "test" });
     return priorMessages;
   };
+
+  test("#384: stop preserves a canonical V4 call admitted to the pending 64ms batch", async () => {
+    startRuntimeV4("attempt-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("read the fixture");
+    await waitForRuntimeRun();
+
+    const chatId = getChatsStore().activeChatId;
+    const admittedCall = observedBatchEvent(2, {
+      chatId,
+      runId: "attempt-buffered-384",
+      callIds: { "observed-batch-call-1": "call-buffered-384" },
+    });
+    await act(async () => streamHandlers.onRuntimeEvent(admittedCall));
+    expect(lastChatMessagesProps.messages.find((message) => message.role === "assistant")?.traceFrames)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ type: "tool_call" })]));
+
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant).toBeDefined();
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual([
+      expect.objectContaining({
+        type: "tool_call",
+        payload: expect.objectContaining({
+          call_id: "call-buffered-384",
+          tool_name: "read_file",
+          arguments: { path: "fixture-1.txt" },
+        }),
+      }),
+    ]);
+  });
+
+  test("#384: stop drains a result and the in-flight root call admitted in the same stack", async () => {
+    startRuntimeV4("attempt-same-stack-result-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-same-stack-complete-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-same-stack-result-384",
+          callIds: {
+            ...callIds,
+            "observed-batch-call-2": "call-same-stack-running-384",
+          },
+        }));
+      });
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-same-stack-complete-384",
+      "call-same-stack-complete-384",
+      "call-same-stack-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-same-stack-complete-384",
+    )?.payload.result).toEqual({ content: "fixture contents for fixture-1.txt" });
+  });
+
+  test("#384: stop drains nested V4 calls and results admitted in the same 64ms batch", async () => {
+    startRuntimeV4("attempt-nested-buffered-384");
+    renderChat();
+    await waitForReady();
+    sendText("inspect with a worker");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const runId = "attempt-nested-buffered-384";
+    const rootCallIds = {
+      "observed-batch-call-1": "call-nested-root-complete-384",
+      "observed-batch-call-2": "call-nested-root-running-384",
+    };
+    const childEvents = [
+      {
+        seq: 6, type: "run.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId }, payload: { agent_id: "worker-search", mode: "delegate" },
+      },
+      {
+        seq: 7, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", arguments: { path: "worker-complete.txt" } },
+      },
+      {
+        seq: 8, type: "step.completed", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-complete-384" },
+        payload: { step_type: "tool", call_id: "child-call-complete-384", tool_name: "read_file", status: "success", result: { content: "worker result" } },
+      },
+      {
+        seq: 9, type: "step.started", run_id: "worker-run-384", agent_id: "worker-search",
+        links: { parent_run_id: runId, tool_call_id: "child-call-running-384" },
+        payload: { step_type: "tool", call_id: "child-call-running-384", tool_name: "search", arguments: { query: "unfinished" } },
+      },
+    ].map((event) => ({
+      schema_version: "v4",
+      event_id: `test-worker-${event.seq}`,
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      turn_id: `${runId}:turn-0`,
+      visibility: "user",
+      metadata: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      ...event,
+    }));
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, { chatId, runId, callIds: rootCallIds }));
+      });
+      childEvents.forEach((event) => streamHandlers.onRuntimeEvent(event));
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-nested-root-complete-384",
+      "call-nested-root-complete-384",
+      "call-nested-root-running-384",
+    ]);
+    expect(assistant.traceFrames.find((frame) => frame.type === "tool_result" && frame.payload?.call_id === "call-nested-root-complete-384")?.payload.result)
+      .toEqual({ content: "fixture contents for fixture-1.txt" });
+    expect(assistant.subagentFrames["worker-run-384"].map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "child-call-complete-384",
+      "child-call-complete-384",
+      "child-call-running-384",
+    ]);
+    expect(assistant.subagentFrames["worker-run-384"].find((frame) => frame.type === "tool_result")?.payload.result)
+      .toEqual({ content: "worker result" });
+    // Keep the worker's observed raw status for provenance. TraceChain projects
+    // running child metadata as Cancelled when its saved parent is cancelled.
+    expect(assistant.subagentMetaByRunId["worker-run-384"].status).toBe("running");
+    expect(JSON.stringify(getChatMessages(chatId).find((message) => message.id === assistant.id).subagentFrames["worker-run-384"]))
+      .toBe(JSON.stringify(assistant.subagentFrames["worker-run-384"]));
+  });
+
+  test("#384: repeated stop and callbacks from a finished V4 run cannot mutate its successor", async () => {
+    const handlersByRun = [];
+    window.unchainAPI.isRuntimeEventStreamV4Available.mockReturnValue(true);
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
+      handlersByRun.push(handlers);
+      streamHandlers = handlers;
+      const index = handlersByRun.length;
+      return {
+        cancel: jest.fn(),
+        requestId: `request-stale-${index}`,
+        attemptId: `attempt-stale-${index}`,
+      };
+    });
+    renderChat();
+    await waitForReady();
+    sendText("first attempt");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const firstHandlers = streamHandlers;
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-1": "call-stale-first" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+    const firstSnapshot = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(firstSnapshot.status).toBe("cancelled");
+
+    await act(async () => lastChatInputProps.onStop());
+    await act(async () => firstHandlers.onRuntimeEvent(observedBatchEvent(3, {
+      chatId,
+      runId: "attempt-stale-first",
+      callIds: { "observed-batch-call-1": "call-stale-first" },
+    })));
+    sendText("successor attempt");
+    await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
+    const successorHandlers = handlersByRun[1];
+
+    await act(async () => {
+      firstHandlers.onRuntimeEvent(observedBatchEvent(5, {
+        chatId,
+        runId: "attempt-stale-first",
+        callIds: { "observed-batch-call-2": "call-stale-first-late-result" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    const messagesBeforeSuccessorEvent = getChatMessages(chatId);
+    expect(messagesBeforeSuccessorEvent.find((message) => message.id === firstSnapshot.id).traceFrames)
+      .toEqual(firstSnapshot.traceFrames);
+    const successorBeforeEvent = messagesBeforeSuccessorEvent.filter((message) => message.role === "assistant")[1];
+    expect(successorBeforeEvent?.traceFrames || []).toEqual([]);
+
+    await act(async () => {
+      successorHandlers.onRuntimeEvent(observedBatchEvent(2, {
+        chatId,
+        runId: "attempt-stale-second",
+        callIds: { "observed-batch-call-1": "call-stale-second" },
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await waitFor(() => {
+      const successor = lastChatMessagesProps.messages.filter((message) => message.role === "assistant")[1];
+      expect(successor?.traceFrames?.some((frame) => frame.payload?.call_id === "call-stale-second")).toBe(true);
+    });
+    const assistants = getChatMessages(chatId).filter((message) => message.role === "assistant");
+    expect(assistants[0].traceFrames.some((frame) => frame.payload?.call_id === "call-stale-first-late-result")).toBe(false);
+  });
+
+  test("#384: stop drains a same-stack approval request before recording cancellation identity", async () => {
+    startRuntimeV4("attempt-same-stack-approval-384");
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => ({
+      status: "ok",
+      session_id: payload.session_id,
+      attempt_id: payload.attempt_id,
+      state: "cancelled",
+    }));
+    renderChat();
+    await waitForReady();
+    sendText("choose a folder");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const interactionId = "interaction-stop-384";
+    const callId = "call-stop-approval-384";
+    const config = {
+      prompt: "Choose a folder",
+      options: [],
+      allow_other: true,
+    };
+    const approvalEvent = {
+      schema_version: "v4",
+      event_id: "event-stop-approval-384",
+      type: "interaction.requested",
+      timestamp: "2026-10-02T00:00:00.000Z",
+      session_id: chatId,
+      run_id: "attempt-same-stack-approval-384",
+      agent_id: "developer",
+      turn_id: "attempt-same-stack-approval-384:turn-0",
+      seq: 1,
+      links: { interaction_id: interactionId, tool_call_id: callId },
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+      payload: {
+        interaction_id: interactionId,
+        kind: "choice",
+        renderer: "single",
+        title: "Folder",
+        prompt: "Choose a folder",
+        selection_mode: "single",
+        options: [],
+        allow_other: true,
+        target: { tool_call_id: callId, tool_name: "ask_user_question" },
+        config,
+      },
+    };
+
+    await act(async () => {
+      streamHandlers.onRuntimeEvent(approvalEvent);
+      fireEvent.click(screen.getByTestId("stop-button"));
+    });
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool_call", payload: expect.objectContaining({
+        confirmation_id: interactionId,
+        call_id: callId,
+        requires_confirmation: true,
+      }) }),
+    ]));
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({
+      owner_chat_id: chatId,
+      interaction_id: interactionId,
+      reason: "user_stop",
+    }));
+    expect(lastChatMessagesProps.pendingToolConfirmationRequests[interactionId]).toBeUndefined();
+    expect(window.unchainAPI.respondToolConfirmation).not.toHaveBeenCalled();
+  });
+
+  test("#384: stop preserves two V4 calls when one result was projected before stop", async () => {
+    startRuntimeV4("attempt-visible-384");
+    renderChat();
+    await waitForReady();
+    sendText("read both files");
+    await waitForRuntimeRun();
+    const chatId = getChatsStore().activeChatId;
+    const callIds = {
+      "observed-batch-call-1": "call-completed-384",
+      "observed-batch-call-2": "call-running-384",
+    };
+
+    await act(async () => {
+      observedBatchFixture.slice(0, 5).forEach((_event, index) => {
+        streamHandlers.onRuntimeEvent(observedBatchEvent(index, {
+          chatId,
+          runId: "attempt-visible-384",
+          callIds,
+        }));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+
+    await waitFor(() => {
+      const assistant = lastChatMessagesProps.messages.find((message) => message.role === "assistant");
+      expect(assistant.traceFrames?.some((frame) => frame.payload?.call_id === "call-running-384")).toBe(true);
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("stop-button")));
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.traceFrames.map((frame) => frame.payload?.call_id).filter(Boolean)).toEqual([
+      "call-completed-384",
+      "call-completed-384",
+      "call-running-384",
+    ]);
+    const completedResult = assistant.traceFrames.find((frame) =>
+      frame.type === "tool_result" && frame.payload?.call_id === "call-completed-384",
+    );
+    expect(completedResult?.payload).toEqual(expect.objectContaining({
+      result: { content: "fixture contents for fixture-1.txt" },
+    }));
+  });
 
   test("a v4 reset removes only its failed live reasoning from the assistant message", async () => {
     window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers) => {
@@ -779,6 +1154,98 @@ describe("Memory V2 P0 payload seams", () => {
     await waitFor(() => expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(2));
     expect(window.unchainAPI.startStreamV4.mock.calls[1][0].interaction_id).toBe(next.interaction_id);
     expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+  });
+
+  test("#384: Stop on a second child approval cancels that interaction and preserves the first completed answer", async () => {
+    const { chatId, interactionId, decision, replacePending } = await prepareRecoveredHumanInput();
+    const firstCompleted = {
+      id: "assistant-first-answer-384",
+      role: "assistant",
+      content: "The first folder was selected.",
+      status: "done",
+      createdAt: 2,
+      updatedAt: 3,
+      traceFrames: [
+        { seq: 1, ts: 2, run_id: "attempt-path", type: "tool_call", payload: {
+          call_id: "call-path", confirmation_id: interactionId, requires_confirmation: true,
+          tool_name: "ask_user_question", arguments: { question: "Where first?" },
+        } },
+        { seq: 2, ts: 3, run_id: "attempt-path", type: "tool_result", payload: {
+          call_id: "call-path", result: { selected_values: ["/tmp/first"] },
+        } },
+      ],
+    };
+    setChatMessages(chatId, [
+      { id: "user-path", role: "user", content: "Ask where to put the project", createdAt: 1, updatedAt: 1 },
+      firstCompleted,
+    ], { source: "test" });
+    await waitFor(() => expect(lastChatMessagesProps.messages.some((message) => message.id === firstCompleted.id)).toBe(true));
+    const savedFirstCompleted = lastChatMessagesProps.messages.find((message) => message.id === firstCompleted.id);
+
+    let resumedHandlers;
+    window.unchainAPI.startStreamV4.mockImplementation((_payload, handlers) => {
+      resumedHandlers = handlers;
+      return { requestId: "resume-second-interaction", attemptId: "resume-second-interaction", disconnect: jest.fn(), cancel: jest.fn() };
+    });
+    await act(async () => lastChatMessagesProps.onToolConfirmationDecision(decision));
+    await waitFor(() => expect(resumedHandlers).not.toBeNull());
+    const second = JSON.parse(JSON.stringify(await window.unchainAPI.getPendingInteraction()));
+    second.interaction_id = "interaction-second-stop-384";
+    for (const call of [second.presentation.tool_call, second.presentation.trace_frame.payload]) {
+      call.call_id = "call-second-stop-384";
+      call.confirmation_id = second.interaction_id;
+      call.arguments.request_id = call.call_id;
+      call.interact_config.request_id = call.call_id;
+    }
+    replacePending(second);
+    window.unchainAPI.cancelExecution.mockClear();
+
+    await act(async () => {
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-run-started-384", type: "run.started",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "resume-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 0,
+        links: {}, surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {}, payload: {},
+      });
+      resumedHandlers.onRuntimeEvent({
+        schema_version: "v4", event_id: "event-second-child-approval-384", type: "interaction.requested",
+        timestamp: "2026-10-02T00:00:00.000Z", session_id: chatId,
+        run_id: "worker-second-interaction", agent_id: "developer",
+        turn_id: "resume-second-interaction:turn-1", seq: 1,
+        links: { parent_run_id: "resume-second-interaction", interaction_id: second.interaction_id, tool_call_id: "call-second-stop-384" },
+        surface: { slot: "trace_inline", scope: "turn" }, visibility: "user", metadata: {},
+        payload: {
+          interaction_id: second.interaction_id, kind: "choice", renderer: "single",
+          title: "Folder", prompt: "Where next?", selection_mode: "single", options: [], allow_other: true,
+          target: { tool_call_id: "call-second-stop-384", tool_name: "ask_user_question" },
+          config: second.presentation.tool_call.interact_config,
+        },
+      });
+      await lastChatInputProps.onStop();
+    });
+
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalled());
+    expect(window.unchainAPI.cancelExecution.mock.calls[0][0]).toEqual(expect.objectContaining({
+      interaction_id: second.interaction_id,
+      reason: "user_stop",
+    }));
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.respondToolConfirmation.mock.calls[0][0]).toEqual(expect.objectContaining({
+      confirmation_id: interactionId,
+    }));
+    await waitFor(() => {
+      expect(lastChatMessagesProps.pendingToolConfirmationRequests[second.interaction_id]).toBeUndefined();
+      expect(lastChatMessagesProps.messages.find((message) => message.id === savedFirstCompleted.id)?.status).toBe("cancelled");
+    });
+    const afterStop = getChatMessages(chatId).find((message) => message.id === savedFirstCompleted.id);
+    expect(afterStop.content).toBe(savedFirstCompleted.content);
+    expect(afterStop.traceFrames.slice(0, 2)).toEqual(savedFirstCompleted.traceFrames.slice(0, 2));
+    const retainedSecondCall = [
+      ...(afterStop.traceFrames || []),
+      ...Object.values(afterStop.subagentFrames || {}).flat(),
+    ].some((frame) => frame.payload?.call_id === "call-second-stop-384");
+    expect(retainedSecondCall).toBe(true);
   });
 
   test("a resume startup error preserves the receipt and exposes the failure without cancellation", async () => {

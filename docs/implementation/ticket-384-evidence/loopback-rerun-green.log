@@ -1,0 +1,12 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/electron/tests/main/memory_vault_sink_broker.test.js src/electron/tests/main/memory_vault_use_state.test.js
+
+PASS src/electron/tests/main/memory_vault_use_state.test.js
+PASS src/electron/tests/main/memory_vault_sink_broker.test.js
+
+Test Suites: 2 passed, 2 total
+Tests:       30 passed, 30 total
+Snapshots:   0 total
+Time:        0.634 s, estimated 1 s
+Ran all test suites matching /src\/electron\/tests\/main\/memory_vault_sink_broker.test.js|src\/electron\/tests\/main\/memory_vault_use_state.test.js/i.

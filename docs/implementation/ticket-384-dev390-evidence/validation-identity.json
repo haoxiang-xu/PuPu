@@ -1,0 +1,396 @@
+{
+  "source": {
+    "commit": "30bf2126851ddb3adc27d1d06dfa1fbc19235f7a",
+    "tree": "8d0821998060c7ba19dd4bc03f64d301b44fe6b3",
+    "parents": [
+      "be7c0badc5ccc702709dcc4c8be89d8535d04a79",
+      "f689b9fa9732fc4dc3ae527eea96e56c82dc1873"
+    ],
+    "tracked_source_tests_changed_after_merge": false
+  },
+  "local_artifact": {
+    "schema": "pupu.release.unchain-artifact.v1",
+    "artifact": {
+      "name": "unchain-0.2.0-py3-none-any.whl",
+      "sha256": "sha256:819e097dee4ad8b934b76fabf83d04360c3081a48730d21792bf525b806e7e76",
+      "size_bytes": 1168438
+    },
+    "runtime_manifest": {
+      "manifest_digest": "sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "generation_rebase_live_interaction_cycles",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "source": {
+      "repository": "haoxiang-xu/unchain",
+      "ref": "358b96d723daa0d2882158985c8245c7f8c7fb23",
+      "revision": "358b96d723daa0d2882158985c8245c7f8c7fb23",
+      "dirty": false
+    },
+    "build": {
+      "wheel_count": 1,
+      "built_once": true
+    }
+  },
+  "ci_artifact": {
+    "schema": "pupu.release.unchain-artifact.v1",
+    "artifact": {
+      "name": "unchain-0.2.0-py3-none-any.whl",
+      "sha256": "sha256:f069e77fb9f230e9548f7f96d3e90083b1d5095935b985c7820fe700e1d9fee3",
+      "size_bytes": 1168438
+    },
+    "runtime_manifest": {
+      "manifest_digest": "sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672",
+      "protocols": [
+        {
+          "features": [
+            "artifact_handoff",
+            "canonical_journal",
+            "chat_deletion_sqlite_scope_closure",
+            "context_compiler",
+            "context_content_paging_v1",
+            "context_content_read_recovery_v1",
+            "context_contribution_manifest_v1",
+            "generation_rebase_live_interaction_cycles",
+            "interaction_resolution_compat",
+            "long_term_promotion",
+            "memory_curator",
+            "memory_toolkit",
+            "memory_workspace",
+            "tool_output_management_v1"
+          ],
+          "id": "context_memory",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "cancel_pending",
+            "expected_interaction_id_cas",
+            "fresh_run_lineage",
+            "graph_interaction_lineage_preflight_v1",
+            "host_controlled_resume",
+            "interaction_resolution_atomic_acceptance_v1"
+          ],
+          "id": "durable_interaction",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "atomic_receipt_cas",
+            "auxiliary_calls",
+            "enforce_mode",
+            "graph_runs",
+            "memory_off",
+            "ollama_reasoning_preview_v1",
+            "provider_response_outcomes_v1",
+            "provider_uncertainty_diagnostics_v1",
+            "subagent_runs"
+          ],
+          "id": "provider_turn_ownership",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "canonical_metrics",
+            "completion_diagnostics_ref",
+            "context_composition_ref_v1",
+            "continuation_claim",
+            "immutable_pricing_snapshot",
+            "provider_call_set_union",
+            "provider_call_usage_v1",
+            "run_bundle_v1",
+            "run_bundle_v2"
+          ],
+          "id": "run_bundle",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "features": [
+            "active_skills_snapshot_v1",
+            "catalog_v1",
+            "skill_md_registry_v1",
+            "skill_tool_v1",
+            "toolkit_embedded_skills_v1",
+            "user_invocation_v1"
+          ],
+          "id": "skills",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "runtime": "unchain",
+      "schema": "unchain.runtime_protocol_manifest.v1"
+    },
+    "source": {
+      "repository": "haoxiang-xu/unchain",
+      "ref": "358b96d723daa0d2882158985c8245c7f8c7fb23",
+      "revision": "358b96d723daa0d2882158985c8245c7f8c7fb23",
+      "dirty": false
+    },
+    "build": {
+      "wheel_count": 1,
+      "built_once": true
+    }
+  },
+  "source_hashes": {
+    "package-lock.json": "3e1a619d2b71b5947f2b99fec076f4bfac0804e324a83173a10ca5c059179c5a",
+    "src/PAGEs/chat/hooks/use_chat_stream.js": "3dc910b8be3786cf036cae4fe0f3ef72002782e3652e40557809df5172b3a1d9",
+    "src/PAGEs/chat/utils/chat_turn_utils.js": "0cd7f91805c127b4d2ff877176f1d9247f9a866f06a26bba99c9ea64101cad58",
+    "src/COMPONENTs/chat-bubble/trace_chain.js": "4e9add073787932850db10fbb5659802c9d6ef57eda21586da84400fad0b2859"
+  },
+  "graph": {
+    "index_commit": "be7c0badc5ccc702709dcc4c8be89d8535d04a79",
+    "checkpoint_all_scope": {
+      "changed_count": 32,
+      "affected_count": 20,
+      "changed_files": 33,
+      "risk_level": "critical"
+    },
+    "complete_compare_dev": {
+      "changed_count": 195,
+      "affected_count": 54,
+      "changed_files": 56,
+      "risk_level": "critical"
+    },
+    "partial": false,
+    "truncated": false,
+    "error": false,
+    "structured_complete_compare_sha256": "3b2ec8dd87f9baad94f456f47bc0aab72272378d736d28744d5e21d17f679eb2"
+  },
+  "web_build": {
+    "compiler_child": {
+      "command": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "args": [
+        "/workspace/scratch/0b50cbee41b6/PuPu-384/node_modules/react-scripts/scripts/build.js"
+      ],
+      "status": 0,
+      "signal": null,
+      "error": null
+    },
+    "bundle": "build/static/js/main.954838e0.js",
+    "bundle_sha256": "7cb8fef7bb420b47bf4cfbbf22ebce9bedd5d9b398a0cd154878ee6f31302ba5",
+    "controlled_snapshot_sha256": "e0f0360bfd4255c5968bdfa42771d490813ee918dffb9ed25aeea21e082f24ce"
+  },
+  "logs": {
+    "backend-aggregate.log": {
+      "sha256": "cee729c8470baa33c415f2af1e236b7f04876b378c1eb12682f8aa44a3c0d95e",
+      "bytes": 11038
+    },
+    "backend-pinned-aggregate.log": {
+      "sha256": "db8d94eaf0f4d4a705623d5624843535eb3c589b4742a16376300175091555ef",
+      "bytes": 3708
+    },
+    "context-v2-contract-pinned.log": {
+      "sha256": "c22d8dfd59f5043788332390363c53ca9ea627e8a51cd80e4f5990885c8f72f0",
+      "bytes": 1579
+    },
+    "context-v2-contract.log": {
+      "sha256": "ea53c573225a4cde53f45b87121bde962f87794d95d226f9777186d51ec67ba0",
+      "bytes": 1579
+    },
+    "electron-dependencies-ready.log": {
+      "sha256": "a5fa63b3545eb446b4962e72fb95fe619dcbc4fc1069fbe7c5360d434901bc9c",
+      "bytes": 159161
+    },
+    "electron-install-rerun.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "electron-install.log": {
+      "sha256": "7bff0a61878ba78a709e0313fd7f98f27a8bdbc484203a45a4e1d137eebbcfa2",
+      "bytes": 73
+    },
+    "electron-tracked-aggregate.log": {
+      "sha256": "172d804757fa978c9f3a37af7e50463a39eae49db8d1762dc0312ae628609420",
+      "bytes": 71024
+    },
+    "electron-vault-dev-baseline.log": {
+      "sha256": "c7b753d2a0df0630ff8f5e155dc322dde79491302632dc981ff61867e3bf8685",
+      "bytes": 33633
+    },
+    "electron.log": {
+      "sha256": "cf41b323a0795d90e82270dd2bc72a631ab8f171d1998809be2c424ea07d7fa0",
+      "bytes": 74191
+    },
+    "focused-backend.log": {
+      "sha256": "c3aeaeeef5568e438d5d379e8fd5edcdc5a014ad8a1e3fec43ed2988b42be99c",
+      "bytes": 193
+    },
+    "focused-frontend.log": {
+      "sha256": "bdf72110761c784158e10269e7698cb367d6e84fdb7ab4b109dc56aefe52ffa5",
+      "bytes": 1947
+    },
+    "frontend-aggregate.log": {
+      "sha256": "e3c2b1b084cc535a588ad85a42d8830ced133367a4747c490d574d54b2eb71c5",
+      "bytes": 1557266
+    },
+    "host-pinned-install-gcc.log": {
+      "sha256": "52a39dd7ce01ca84f6fb8599a0d4d8747f546c4c4042ee2e0d2c33c7a99aeeee",
+      "bytes": 22747
+    },
+    "host-pinned-install.log": {
+      "sha256": "0d10deb8f1908860056af095114f1a4d575e2b8df75f301d00e6c1fb0ff4c9c3",
+      "bytes": 23342
+    },
+    "host-wheel-install.log": {
+      "sha256": "2aaaae12b88a3a41826ab6fa317f3cacab0a43bbe5b823f546e819b48e66a8ac",
+      "bytes": 431
+    },
+    "host-wheel-verification.log": {
+      "sha256": "23e5b84a13980d99adddecc15d81787fad6f76e8aacc7dc92a067820fc093a06",
+      "bytes": 179
+    },
+    "mcp-ca-env-recovery-all.log": {
+      "sha256": "7b5ab41a6447fb409d2fa009970d63ddec9af5939138fddb27339e8dad9ad520",
+      "bytes": 99
+    },
+    "mcp-ca-env-recovery.log": {
+      "sha256": "99e8044fc3f678a461eac5028169567b70391313dd17617a58c7b6760262eb7c",
+      "bytes": 816
+    },
+    "mcp-registry.log": {
+      "sha256": "89b88174533326a225b7f7a2a7a7754035c03c296d9cd83485611c1ebfd79865",
+      "bytes": 494
+    },
+    "mcp-runtime.log": {
+      "sha256": "07b71cdde27f18d0ecd94d80a171ea77e19bcd0ed9bbf0ed044888cebc5476f2",
+      "bytes": 2272
+    },
+    "notices.log": {
+      "sha256": "90de738f81e225230622f5276b3fde0e689dcfb298537a110b4cbcacc50b99eb",
+      "bytes": 1022
+    },
+    "postinstall-patch.log": {
+      "sha256": "2b70c2d6ab1ae3ce5d763310c444acc3f121df4b936dfa9cef947a303c964d04",
+      "bytes": 58
+    },
+    "release-qa-dependencies-ready.log": {
+      "sha256": "987cf8f0e1b9c18f320976cb4869fa8a2650dbb2e4770e7c46941d6bc8ef663c",
+      "bytes": 45724
+    },
+    "release-qa.log": {
+      "sha256": "ff0b813e4d4ffba4db5ad018f9d97e0b58112d3b7e68a7dce2e5d3c910748688",
+      "bytes": 63091
+    },
+    "run-bundle-contract-pinned.log": {
+      "sha256": "c5803c231640599a964f08ff10ac83d63c81680f7213c4a4cec01d0c01e46b4e",
+      "bytes": 4123
+    },
+    "run-bundle-contract.log": {
+      "sha256": "fcfe43c21bb4ac7dbd6ec0511d5008dc540e31cd334318c3a7aa14877001a678",
+      "bytes": 4109
+    },
+    "unchain-aggregate.log": {
+      "sha256": "60a88329cbc174c821977303a3e096c066ed93d2a5dd3d66fc318506cb1a87b4",
+      "bytes": 8175
+    },
+    "unchain-environment-recovery.log": {
+      "sha256": "f6e6eecbb64088d589db3f785718e3f90375f6517568c8124779bc4a226eb5c4",
+      "bytes": 1247
+    },
+    "unchain-nogit-neutral.log": {
+      "sha256": "7fefcaf66f6e7137767bc25d16d128cbf7b8617ad0b6f14fbf9a0b8e7fdd81cd",
+      "bytes": 98
+    },
+    "unchain-tracked-aggregate.log": {
+      "sha256": "dc57f03885caa7d1479110a0449ef2592a9a6b0cea4ab4a8432e3344e05fd286",
+      "bytes": 5725
+    },
+    "web-build-2048.log": {
+      "sha256": "c6918466176ec42009980d34b9422697c0303231c84eefad2d8ed14474040ca1",
+      "bytes": 5920
+    },
+    "web-build-serial.log": {
+      "sha256": "4d6810a8dff8f1b4b038b9b958bb576c55d7dd03803623b05e0b2729b9729faa",
+      "bytes": 984
+    },
+    "web-build.log": {
+      "sha256": "9ab467718618f231388e99daf174c7586a7ce679b26bbc6e7e2b7cbb4ad75052",
+      "bytes": 984
+    }
+  }
+}
