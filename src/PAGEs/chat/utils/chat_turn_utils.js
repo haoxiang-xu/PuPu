@@ -27,10 +27,23 @@ const FRAME_METADATA_KEYS = new Set([
   "ts",
 ]);
 
+const TOOL_RESULT_METADATA_KEYS = new Set([
+  ...FRAME_METADATA_KEYS,
+  "call_id",
+  "tool_name",
+  "tool_display_name",
+  "toolkit_id",
+  "toolkit_name",
+  "call_ref",
+  "call_ref_metadata",
+  "timeline_merge_policy",
+]);
+
 const RETAINABLE_VISIBLE_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
   "tool_call",
+  "tool_result",
   "final_message",
   "error",
   "fyi_injected",
@@ -45,6 +58,14 @@ const hasVisibleFrameContent = (frame) => {
     case "tool_call":
       return [payload.tool_name, payload.tool_display_name].some(
         (value) => typeof value === "string" && value.trim(),
+      );
+    case "tool_result":
+      if (payload.result !== undefined) {
+        return hasMeaningfulPayloadValue(payload.result);
+      }
+      return Object.entries(payload).some(
+        ([key, value]) =>
+          !TOOL_RESULT_METADATA_KEYS.has(key) && hasMeaningfulPayloadValue(value),
       );
     case "reasoning":
       return [payload.content, payload.text, payload.message, payload.reasoning]

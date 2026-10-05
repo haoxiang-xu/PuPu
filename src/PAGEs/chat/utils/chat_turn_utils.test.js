@@ -133,4 +133,121 @@ describe("settleStreamingAssistantMessages", () => {
     }]);
     expect(nextMessages).toHaveLength(0);
   });
+
+  const capturedSequentialFrames = require("../../../../docs/implementation/ticket-383-evidence/observed-sequential.legacy-frames.json");
+  const capturedUnownedResult = capturedSequentialFrames.find(
+    (frame) => frame.type === "tool_result",
+  );
+
+  test.each(["root", "nested"])(
+    "#384: retains the captured unowned tool result identically in %s history without inventing a body or call",
+    (scope) => {
+      const originalFrameBytes = JSON.stringify(capturedUnownedResult);
+      const retainedFrames = [capturedUnownedResult];
+      const history = scope === "root"
+        ? { traceFrames: retainedFrames }
+        : { subagentFrames: { "orphan-worker-run": retainedFrames } };
+      const assistant = {
+        id: `orphan-result-${scope}`,
+        role: "assistant",
+        status: "streaming",
+        content: "",
+        ...history,
+      };
+
+      const { changed, nextMessages } = settleStreamingAssistantMessages([assistant]);
+
+      expect(changed).toBe(true);
+      expect(nextMessages).toHaveLength(1);
+      const retained = nextMessages[0];
+      expect(retained.id).toBe(assistant.id);
+      expect(retained.status).toBe("cancelled");
+      expect(retained.content).toBe("");
+      expect(Object.keys(retained).sort()).toEqual(
+        [...Object.keys(assistant), "updatedAt"].sort(),
+      );
+      const actualFrames = scope === "root"
+        ? retained.traceFrames
+        : retained.subagentFrames["orphan-worker-run"];
+      expect(actualFrames).toBe(retainedFrames);
+      expect(actualFrames).toHaveLength(1);
+      expect(actualFrames[0]).toBe(capturedUnownedResult);
+      expect(actualFrames[0].type).toBe("tool_result");
+      expect(JSON.stringify(actualFrames[0])).toBe(originalFrameBytes);
+      expect(actualFrames.some((frame) => frame.type === "tool_call")).toBe(false);
+    },
+  );
+
+  test.each([
+    ["false scalar result", { result: false }],
+    ["zero scalar result", { result: 0 }],
+    ["fallback error content", { status: "error", error: "Observed unowned error" }],
+  ])(
+    "#384: retains meaningful unowned tool output with %s",
+    (_label, payload) => {
+      const observedFrame = {
+        seq: 1,
+        ts: 1234,
+        type: "tool_result",
+        payload,
+      };
+      const originalFrameBytes = JSON.stringify(observedFrame);
+      const { nextMessages } = settleStreamingAssistantMessages([{
+        id: "orphan-output-value",
+        role: "assistant",
+        status: "streaming",
+        content: "",
+        traceFrames: [observedFrame],
+      }]);
+
+      expect(nextMessages).toHaveLength(1);
+      expect(nextMessages[0].content).toBe("");
+      expect(nextMessages[0].status).toBe("cancelled");
+      expect(nextMessages[0].traceFrames).toHaveLength(1);
+      expect(nextMessages[0].traceFrames[0]).toBe(observedFrame);
+      expect(JSON.stringify(nextMessages[0].traceFrames[0])).toBe(originalFrameBytes);
+    },
+  );
+
+  test.each([
+    ["empty result", { result: {} }],
+    ["empty payload", {}],
+    ["common metadata only", { status: "completed", run_id: "run", seq: 7, ts: 1234, timestamp: 1234 }],
+    ["null result with identity", {
+      result: null,
+      call_id: "null-result-call",
+      tool_name: "read_file",
+    }],
+    // These identity labels are observed alongside the captured result above;
+    // without a result/output they must not turn an empty placeholder into history.
+    ["tool identity metadata only", {
+      call_id: "orphan-identity-only",
+      tool_name: "read_file",
+      toolkit_id: "fixture.in_memory",
+      toolkit_name: "Fixture in-memory tools",
+      tool_display_name: "Read file",
+      call_ref: {
+        schema: "pupu.tool_call_ref.v1",
+        execution_id: "execution-one",
+        original_attempt_id: "attempt-one",
+        call_id: "orphan-identity-only",
+        tool_name: "read_file",
+      },
+      call_ref_metadata: { schema: "pupu.tool_call_ref_metadata.v1" },
+      timeline_merge_policy: "approved",
+      status: "completed",
+    }],
+  ])(
+    "#384: still drops an orphan tool-result placeholder with %s",
+    (_label, payload) => {
+      const { nextMessages } = settleStreamingAssistantMessages([{
+        id: "orphan-result-placeholder",
+        role: "assistant",
+        status: "streaming",
+        content: "",
+        traceFrames: [{ type: "tool_result", payload }],
+      }]);
+      expect(nextMessages).toHaveLength(0);
+    },
+  );
 });

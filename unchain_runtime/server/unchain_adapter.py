@@ -1234,6 +1234,12 @@ from interaction_channels import (
     register_interject_channels,
     release_interject_channels,
 )
+from pupu_tool_call_ref import (
+    TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY,
+    ToolCallDisplayMetadataSidecar,
+    ToolCallDisplayMetadataTracker,
+    resolve_tool_call_display_metadata_for_runtime_event,
+)
 from durable_interaction_host import (
     DurableInteractionHostError,
     DurableInteractionIdTracker,
@@ -2000,6 +2006,7 @@ _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
 _RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
+_TIMELINE_MERGE_POLICIES = frozenset({"never", "no_feedback", "approved", "always"})
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 
@@ -2831,6 +2838,7 @@ def _make_tool_confirm_callback(
     root_session_id: str = "",
     root_run_id: str = "",
     active_host_event_boundary: PupuUnchainHostEventBoundary | None = None,
+    tool_call_display_tracker: ToolCallDisplayMetadataTracker | None = None,
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
@@ -2865,6 +2873,24 @@ def _make_tool_confirm_callback(
         durable_interaction_id = str(
             interaction_owner.get("interaction_id") or ""
         ).strip()
+        display_sidecar = None
+        if tool_call_display_tracker is not None:
+            display_lookup = {
+                "execution_id": interaction_owner.get("session_id"),
+                "original_attempt_id": interaction_owner.get("source_run_id"),
+                "interaction_id": interaction_owner.get("interaction_id"),
+                "call_id": request_payload.get("call_id"),
+                "tool_name": request_payload.get("tool_name"),
+            }
+            if "intent_cursor" in request_payload:
+                display_lookup["explicit_intent_cursor"] = request_payload[
+                    "intent_cursor"
+                ]
+            if "call_ref" in request_payload:
+                display_lookup["explicit_call_ref"] = request_payload["call_ref"]
+            display_sidecar = tool_call_display_tracker.resolve_for_interaction(
+                **display_lookup
+            )
         if require_durable_interaction_id and not durable_interaction_id:
             raise DurableInteractionHostError(
                 "durable_interaction_id_unavailable",
@@ -2904,8 +2930,12 @@ def _make_tool_confirm_callback(
                 emit_payload = {
                     key: value
                     for key, value in request_payload.items()
-                    if key != "_skip_emit_event"
+                    if key not in {"_skip_emit_event", "call_ref", "intent_cursor"}
                 }
+                if display_sidecar is not None:
+                    emit_payload["_pupu_tool_call_display_metadata"] = (
+                        display_sidecar
+                    )
                 _emit_interaction_presentation_event(
                     emit_event,
                     emit_payload,
@@ -4270,6 +4300,12 @@ def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, An
                 "toolkit_name": toolkit_name or toolkit_id,
                 "vault_routed": toolkit_vault_routed
                 or getattr(tool_obj, "_pupu_vault_plugin", None) is not None,
+                **(
+                    {"timeline_merge_policy": tool_obj.timeline_merge_policy}
+                    if getattr(tool_obj, "timeline_merge_policy", None)
+                    in _TIMELINE_MERGE_POLICIES
+                    else {}
+                ),
             }
     return index
 
@@ -4472,6 +4508,25 @@ def _enrich_tool_event_with_toolkit_metadata(
     if not str(enriched.get("toolkit_name", "") or "").strip():
         enriched["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
     return enriched
+
+
+_TOOL_CALL_DISPLAY_METADATA_KEY = TOOL_CALL_DISPLAY_METADATA_SIDECAR_KEY
+
+
+def _remember_tool_call_display_metadata(
+    active_context_bridge: Any,
+    event: Dict[str, Any],
+    tracker: ToolCallDisplayMetadataTracker,
+) -> ToolCallDisplayMetadataSidecar | None:
+    supplied = event.get(_TOOL_CALL_DISPLAY_METADATA_KEY)
+    if isinstance(supplied, ToolCallDisplayMetadataSidecar):
+        return supplied
+    if active_context_bridge is None or "confirmation_id" in event:
+        return None
+    metadata = resolve_tool_call_display_metadata_for_runtime_event(
+        active_context_bridge, event, tracker
+    )
+    return tracker.remember(metadata) if metadata is not None else None
 
 
 def _read_builtin_icon_payload(
@@ -10558,6 +10613,7 @@ def _stream_recipe_graph_events(
                         or workflow_run_id
                     ).strip(),
                 )
+                tool_call_display_tracker = ToolCallDisplayMetadataTracker()
 
                 def step_emit(
                     event: Dict[str, Any],
@@ -10587,6 +10643,10 @@ def _stream_recipe_graph_events(
                         return
                     _execution_raise_if_cancelled(execution_token)
                     interaction_id_tracker.observe(event)
+                    tool_call_display_tracker.observe_interaction_request(event)
+                    display_sidecar = _remember_tool_call_display_metadata(
+                        graph_active_bridge, event, tool_call_display_tracker
+                    )
                     if (
                         execution_guard is not None
                         and event.get("type") != "token_delta"
@@ -10604,9 +10664,14 @@ def _stream_recipe_graph_events(
                         event.setdefault("workflow_step_index", _index)
                         event.setdefault("workflow_step_count", len(agents))
                     if graph_checkpoint_host is None:
+                        persisted_event = {
+                            key: value
+                            for key, value in event.items()
+                            if key != _TOOL_CALL_DISPLAY_METADATA_KEY
+                        }
                         _persist_memory_v2_semantic_event(
                             getattr(step_agent, "_memory_v2_admission", None),
-                            event,
+                            persisted_event,
                         )
                     event_type = event.get("type")
                     if event_is_current_step and event_type == "final_message":
@@ -10647,7 +10712,13 @@ def _stream_recipe_graph_events(
                     iteration = event.get("iteration")
                     if isinstance(iteration, int):
                         output_holder["last_iteration"] = iteration
-                    emit(event)
+                    delivered_event = dict(event)
+                    delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)
+                    if display_sidecar is not None:
+                        delivered_event[_TOOL_CALL_DISPLAY_METADATA_KEY] = (
+                            display_sidecar
+                        )
+                    emit(delivered_event)
 
                 _enable_ollama_reasoning_preview(step_emit)
                 if graph_active_bridge is not None:
@@ -10701,6 +10772,7 @@ def _stream_recipe_graph_events(
                         active_host_event_boundary=(
                             step_active_host_event_boundary
                         ),
+                        tool_call_display_tracker=tool_call_display_tracker,
                     )
                     max_iterations_cb = _make_continuation_callback(
                         step_host_emit,
@@ -11800,6 +11872,7 @@ def stream_chat_events(
         )
 
         interaction_id_tracker = DurableInteractionIdTracker()
+        tool_call_display_tracker = ToolCallDisplayMetadataTracker()
         active_context_bridge = getattr(
             agent,
             "_memory_v2_unchain_active_bridge",
@@ -11825,6 +11898,10 @@ def stream_chat_events(
             ):
                 _execution_raise_if_cancelled(execution_token)
             interaction_id_tracker.observe(event)
+            tool_call_display_tracker.observe_interaction_request(event)
+            display_sidecar = _remember_tool_call_display_metadata(
+                active_context_bridge, event, tool_call_display_tracker
+            )
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 _toolkit_meta_by_tool_name,
@@ -11833,7 +11910,11 @@ def stream_chat_events(
             if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
-                    event,
+                    {
+                        key: value
+                        for key, value in event.items()
+                        if key != _TOOL_CALL_DISPLAY_METADATA_KEY
+                    },
                 )
             event_type = event.get("type")
             # Suppress unchain-native events that are replaced by our callbacks
@@ -11857,7 +11938,11 @@ def stream_chat_events(
                 interject_channels.digest(event)
             except Exception:
                 pass
-            event_queue.put(event)
+            delivered_event = dict(event)
+            delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)
+            if display_sidecar is not None:
+                delivered_event[_TOOL_CALL_DISPLAY_METADATA_KEY] = display_sidecar
+            event_queue.put(delivered_event)
 
         _enable_ollama_reasoning_preview(on_event)
         if active_context_bridge is not None:
@@ -11908,6 +11993,7 @@ def stream_chat_events(
             root_session_id=normalized_session_id,
             root_run_id=execution_run_id,
             active_host_event_boundary=active_host_event_boundary,
+            tool_call_display_tracker=tool_call_display_tracker,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,
@@ -12755,6 +12841,7 @@ def resume_chat_interaction_events(
             getattr(agent, "_toolkits", []),
         )
         interaction_id_tracker = DurableInteractionIdTracker()
+        tool_call_display_tracker = ToolCallDisplayMetadataTracker()
         active_context_bridge = getattr(
             agent,
             "_memory_v2_unchain_active_bridge",
@@ -12774,6 +12861,10 @@ def resume_chat_interaction_events(
             if not isinstance(event_type, str) or not event_type:
                 return
             interaction_id_tracker.observe(event)
+            tool_call_display_tracker.observe_interaction_request(event)
+            display_sidecar = _remember_tool_call_display_metadata(
+                active_context_bridge, event, tool_call_display_tracker
+            )
             event = _enrich_tool_event_with_toolkit_metadata(
                 event,
                 toolkit_meta_by_tool_name,
@@ -12782,7 +12873,11 @@ def resume_chat_interaction_events(
             if active_context_bridge is None and not provisional_reasoning:
                 _persist_memory_v2_semantic_event(
                     getattr(agent, "_memory_v2_admission", None),
-                    event,
+                    {
+                        key: value
+                        for key, value in event.items()
+                        if key != _TOOL_CALL_DISPLAY_METADATA_KEY
+                    },
                 )
             if event_type in {"human_input_requested", "run_max_iterations"}:
                 return
@@ -12800,7 +12895,11 @@ def resume_chat_interaction_events(
                 interject_channels.digest(event)
             except Exception:
                 pass
-            event_queue.put(event)
+            delivered_event = dict(event)
+            delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)
+            if display_sidecar is not None:
+                delivered_event[_TOOL_CALL_DISPLAY_METADATA_KEY] = display_sidecar
+            event_queue.put(delivered_event)
 
         _enable_ollama_reasoning_preview(on_event)
         if active_context_bridge is not None:
@@ -12851,6 +12950,7 @@ def resume_chat_interaction_events(
             root_session_id=normalized_session_id,
             root_run_id=resume_run_id,
             active_host_event_boundary=active_host_event_boundary,
+            tool_call_display_tracker=tool_call_display_tracker,
         )
         human_input_cb = _make_human_input_callback(
             emit_if_active,

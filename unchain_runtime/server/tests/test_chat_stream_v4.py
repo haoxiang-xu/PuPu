@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import unittest
@@ -32,6 +33,52 @@ def _parse_sse_blocks(payload_text: str) -> list[tuple[str, dict]]:
 class ChatStreamV4RouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = miso_app.create_app().test_client()
+
+
+    def test_route_rejects_explicit_null_reference_and_metadata(self) -> None:
+        call_ref = {
+            "schema": "pupu.tool_call_ref.v1",
+            "execution_id": "execution-a",
+            "original_attempt_id": "attempt-a",
+            "call_id": "call-a",
+            "tool_name": "lookup",
+            "intent_cursor": {
+                "schema": "unchain.event_cursor.v1",
+                "store_seq": 7,
+                "event_id": "event-a",
+            },
+        }
+        sidecar = route_chat.ToolCallDisplayMetadataSidecar({
+            "call_ref": call_ref,
+            "timeline_merge_policy_declared": False,
+            "original_arguments_declared": False,
+        })
+        event = {
+            "schema_version": "v4",
+            "type": "step.started",
+            "session_id": "execution-a",
+            "run_id": "attempt-a",
+            "payload": {"call_id": "call-a", "tool_name": "lookup"},
+        }
+
+        projected = route_chat.project_tool_call_display_metadata(event, sidecar)
+        self.assertIsNotNone(projected)
+        self.assertNotIn("call_ref", event["payload"])
+        self.assertEqual(projected["payload"]["call_ref"], call_ref)
+
+        for explicit_null in ({"call_ref": None}, {"call_ref_metadata": None}):
+            with self.subTest(explicit_null=explicit_null):
+                conflicting = {
+                    **event,
+                    "payload": {**event["payload"], **explicit_null},
+                }
+                before = copy.deepcopy(conflicting)
+                self.assertIsNone(
+                    route_chat.project_tool_call_display_metadata(
+                        conflicting, sidecar
+                    )
+                )
+                self.assertEqual(conflicting, before)
 
     def test_chat_stream_v4_emits_safe_provider_retry_without_private_diagnostics(self) -> None:
         retry = {

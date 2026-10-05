@@ -1,0 +1,28 @@
+
+  GitNexus Detect Changes (1.6.12)
+{"level":40,"time":1790920719572,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+Changes: 5 files, 7 symbols
+Affected processes: 12
+Risk level: high
+
+Changed symbols:
+  Section Exact-runtime recovery backup → docs/implementation/ticket-383-evidence/runtime/README.md
+  Section Ticket 383: consistent same-tool grouping → docs/implementation/ticket-383.md
+  Section Verification and stopping condition → docs/implementation/ticket-383.md
+  Function TraceChain → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function handleMemoryJobProjection → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function handleInteractSubmit → src/COMPONENTs/chat-bubble/trace_chain.js
+  Function timelineItems → src/COMPONENTs/chat-bubble/trace_chain.js
+
+Affected execution flows:
+  • TimelineItems → ClampPct (10 steps) — changed: timelineItems
+  • TimelineItems → GetBar (10 steps) — changed: timelineItems
+  • TimelineItems → GetOverlay (10 steps) — changed: timelineItems
+  • TimelineItems → Notify (10 steps) — changed: timelineItems
+  • TimelineItems → HasLineEnd (10 steps) — changed: timelineItems
+  • TimelineItems → SplitLines (10 steps) — changed: timelineItems
+  • TimelineItems → EmitMisoRuntimeLog (10 steps) — changed: timelineItems
+  • TimelineItems → RelaySessionGuardDiagnostic (10 steps) — changed: timelineItems
+  • TimelineItems → SplitStreamingMarkdown (10 steps) — changed: timelineItems
+  • TimelineItems → ReadUserAgent (9 steps) — changed: timelineItems
+... and 2 more

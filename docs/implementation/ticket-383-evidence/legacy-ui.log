@@ -1,0 +1,11 @@
+PASS src/legacy-ui.test.js
+  ✓ actual pinned producer + actual legacy sidecar: silent-batch (43 ms)
+  ✓ actual pinned producer + actual legacy sidecar: content-batch (15 ms)
+  ✓ actual pinned producer + actual legacy sidecar: observed-batch (30 ms)
+  ✓ actual pinned producer + actual legacy sidecar: observed-sequential (26 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        0.978 s
+Ran all test suites within paths "/workspace/shared/pupu-383-producer/src/legacy-ui.test.js".

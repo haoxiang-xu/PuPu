@@ -1,3 +1,5 @@
+import { resolveToolCallOwnerForRequest } from "../../SERVICEs/runtime_events/tool_call_projection";
+
 const normalizePendingConfirmationRequests = (requests) => {
   if (!requests || typeof requests !== "object") {
     return [];
@@ -24,23 +26,41 @@ const normalizePendingConfirmationRequests = (requests) => {
         return 1;
       }
       return 0;
-    });
+  });
+};
+
+const hasOwn = (value, key) =>
+  Object.prototype.hasOwnProperty.call(value || {}, key);
+
+const requestField = (request, camelKey, wireKey = camelKey) => {
+  if (hasOwn(request, wireKey)) return { present: true, value: request[wireKey] };
+  if (hasOwn(request, camelKey)) return { present: true, value: request[camelKey] };
+  return { present: false };
 };
 
 export const buildPendingConfirmationTraceFrames = (requests) =>
   normalizePendingConfirmationRequests(requests).map((request, index) => {
-    const interactType =
-      typeof request.interactType === "string" && request.interactType.trim()
-        ? request.interactType.trim()
-        : "confirmation";
-    const interactConfig =
-      request.interactConfig && typeof request.interactConfig === "object"
-        ? request.interactConfig
-        : {};
-    const callId =
-      typeof request.callId === "string" && request.callId.trim()
-        ? request.callId.trim()
-        : `pending-confirmation-${index + 1}`;
+    const interactType = requestField(request, "interactType", "interact_type");
+    const interactConfig = requestField(request, "interactConfig", "interact_config");
+    const callId = requestField(request, "callId", "call_id");
+    const toolName = requestField(request, "toolName", "tool_name");
+    const toolkitId = requestField(request, "toolkitId", "toolkit_id");
+    const displayName = requestField(request, "toolDisplayName", "tool_display_name");
+    const description = requestField(request, "description");
+    const argumentsValue = requestField(request, "arguments");
+    const callRef = requestField(request, "callRef", "call_ref");
+    const callRefMetadata = requestField(
+      request,
+      "callRefMetadata",
+      "call_ref_metadata",
+    );
+    const runId = requestField(request, "runId", "run_id");
+    const executionId = requestField(request, "executionId", "execution_id");
+    const sessionId = requestField(request, "sessionId", "session_id");
+    const eventCursor = requestField(request, "eventCursor", "event_cursor");
+    const eventId = requestField(request, "eventId", "event_id");
+    const iteration = requestField(request, "iteration");
+    const links = requestField(request, "links");
     const requestedAt = Number(request.requestedAt);
 
     return {
@@ -48,44 +68,31 @@ export const buildPendingConfirmationTraceFrames = (requests) =>
       ts: Number.isFinite(requestedAt) ? requestedAt : Date.now() + index,
       type: "tool_call",
       stage: "client",
+      ...(runId.present ? { run_id: runId.value } : {}),
+      ...(executionId.present ? { execution_id: executionId.value } : {}),
+      ...(sessionId.present ? { session_id: sessionId.value } : {}),
+      ...(eventCursor.present ? { event_cursor: eventCursor.value } : {}),
+      ...(eventId.present ? { event_id: eventId.value } : {}),
+      ...(iteration.present ? { iteration: iteration.value } : {}),
+      ...(links.present ? { links: links.value } : {}),
       payload: {
-        call_id: callId,
-        confirmation_id: request.confirmationId.trim(),
+        ...(callId.present ? { call_id: callId.value } : {}),
+        confirmation_id: request.confirmationId,
         requires_confirmation: true,
-        tool_name:
-          typeof request.toolName === "string" && request.toolName.trim()
-            ? request.toolName.trim()
-            : "tool",
-        ...(typeof request.toolkitId === "string" && request.toolkitId.trim()
-          ? { toolkit_id: request.toolkitId.trim() }
+        ...(toolName.present ? { tool_name: toolName.value } : {}),
+        ...(toolkitId.present ? { toolkit_id: toolkitId.value } : {}),
+        ...(displayName.present ? { tool_display_name: displayName.value } : {}),
+        ...(description.present ? { description: description.value } : {}),
+        ...(argumentsValue.present ? { arguments: argumentsValue.value } : {}),
+        ...(callRef.present ? { call_ref: callRef.value } : {}),
+        ...(callRefMetadata.present
+          ? { call_ref_metadata: callRefMetadata.value }
           : {}),
-        ...(typeof request.toolDisplayName === "string" &&
-        request.toolDisplayName.trim()
-          ? { tool_display_name: request.toolDisplayName.trim() }
-          : {}),
-        ...(typeof request.description === "string" && request.description.trim()
-          ? { description: request.description.trim() }
-          : {}),
-        arguments:
-          request.arguments && typeof request.arguments === "object"
-            ? request.arguments
-            : {},
-        interact_type: interactType,
-        interact_config: interactConfig,
+        interact_type: interactType.present ? interactType.value : "confirmation",
+        ...(interactConfig.present ? { interact_config: interactConfig.value } : {}),
       },
     };
   });
-
-const frameIdentity = (frame) => ({
-  callId:
-    typeof frame?.payload?.call_id === "string"
-      ? frame.payload.call_id.trim()
-      : "",
-  confirmationId:
-    typeof frame?.payload?.confirmation_id === "string"
-      ? frame.payload.confirmation_id.trim()
-      : "",
-});
 
 export const mergePendingConfirmationTraceState = ({
   frames,
@@ -111,107 +118,146 @@ export const mergePendingConfirmationTraceState = ({
         ? mergedSubagentFrames[groupKey]
         : []
       : mergedFrames;
-  const findLocation = (pendingFrame, { bareOnly = false } = {}) => {
-    const pendingIdentity = frameIdentity(pendingFrame);
-    for (const groupKey of groupKeys) {
+  const requestProjectionOptions = (pendingFrame) => ({
+    ...(typeof pendingFrame?.execution_id === "string" && pendingFrame.execution_id.trim()
+      ? { executionId: pendingFrame.execution_id }
+      : {}),
+    ...(typeof pendingFrame?.session_id === "string" && pendingFrame.session_id.trim()
+      ? { sessionId: pendingFrame.session_id }
+      : {}),
+  });
+  const callFrameIsBareForRequest = (frame) => {
+    const payload = frame?.payload;
+    return ![
+      "confirmation_id",
+      "interaction_id",
+      "request_id",
+    ].some((key) => hasOwn(payload, key));
+  };
+  const findOwnerLocations = (pendingFrame) => {
+    const confirmationId = pendingFrame?.payload?.confirmation_id;
+    const exactLocations = [];
+    const bareLocations = [];
+    groupKeys.forEach((groupKey) => {
       const group = readGroup(groupKey);
-      const frameIndex = group.findIndex((frame) => {
-        if (frame?.type !== "tool_call") {
-          return false;
-        }
-        const identity = frameIdentity(frame);
-        if (bareOnly) {
-          return Boolean(
-            !identity.confirmationId &&
-              identity.callId &&
-              identity.callId === pendingIdentity.callId,
-          );
-        }
-        return Boolean(
-          identity.confirmationId &&
-            identity.confirmationId === pendingIdentity.confirmationId,
+      const combined = [...group, pendingFrame];
+      const resolution = resolveToolCallOwnerForRequest(
+        combined,
+        confirmationId,
+        requestProjectionOptions(pendingFrame),
+      );
+      if (!["qualified", "legacy"].includes(resolution.status)) return;
+      const pendingIndex = group.length;
+      const call = resolution.call;
+      const identityStatus = call?.identity?.status || resolution.status;
+      if (!call.callFrameIndexes.includes(pendingIndex)) return;
+      const priorCallIndexes = call.callFrameIndexes
+        .filter((frameIndex) => frameIndex < pendingIndex)
+        .sort((left, right) => left - right);
+      if (priorCallIndexes.length === 0) return;
+
+      const exactIndexes = priorCallIndexes.filter((frameIndex) => {
+        const existing = group[frameIndex];
+        return (
+          existing?.type === "tool_call" &&
+          existing.payload?.confirmation_id === confirmationId
         );
       });
-      if (frameIndex >= 0) {
-        return { groupKey, frameIndex };
+      if (exactIndexes.length > 0) {
+        const exactIndex = exactIndexes[0];
+        const earlierShadowingBare = priorCallIndexes.find((frameIndex) =>
+          frameIndex < exactIndex &&
+          group[frameIndex]?.type === "tool_call" &&
+          callFrameIsBareForRequest(group[frameIndex]),
+        );
+        exactLocations.push({
+          groupKey,
+          frameIndex: earlierShadowingBare ?? exactIndex,
+          identityStatus,
+        });
+        return;
       }
-    }
-    return null;
-  };
-  const findShadowingBareLocation = (pendingFrame, exactLocation) => {
-    if (!exactLocation) {
-      return null;
-    }
-    const pendingIdentity = frameIdentity(pendingFrame);
-    if (!pendingIdentity.callId) {
-      return null;
-    }
-    const group = readGroup(exactLocation.groupKey);
-    const frameIndex = group.findIndex((frame, index) => {
-      if (index >= exactLocation.frameIndex || frame?.type !== "tool_call") {
-        return false;
-      }
-      const identity = frameIdentity(frame);
-      return Boolean(
-        !identity.confirmationId &&
-          identity.callId &&
-          identity.callId === pendingIdentity.callId,
+
+      const bareIndex = priorCallIndexes.find((frameIndex) =>
+        group[frameIndex]?.type === "tool_call" &&
+        callFrameIsBareForRequest(group[frameIndex]),
       );
+      if (bareIndex !== undefined) {
+        bareLocations.push({
+          groupKey,
+          frameIndex: bareIndex,
+          identityStatus,
+        });
+      }
     });
-    return frameIndex >= 0
-      ? { groupKey: exactLocation.groupKey, frameIndex }
-      : null;
+    // An exact in-scope confirmation owns the pending overlay. Bare call-id
+    // candidates in other trace groups cannot shadow that exact owner.
+    return exactLocations.length > 0 ? exactLocations : bareLocations;
   };
-  const replaceAt = ({ groupKey, frameIndex }, pendingFrame) => {
+  const replaceAt = ({ groupKey, frameIndex, identityStatus }, pendingFrame) => {
     const group = readGroup(groupKey);
     const frame = group[frameIndex];
+    if (frame?.type !== "tool_call") return false;
     const framePayload =
-      frame?.payload && typeof frame.payload === "object" ? frame.payload : {};
-    const pendingPayload = pendingFrame.payload;
+      frame.payload && typeof frame.payload === "object" ? frame.payload : {};
+    const pendingPayload = { ...(pendingFrame.payload || {}) };
+    if (identityStatus === "legacy") {
+      // A pending overlay may enrich what the user sees, but it must not turn
+      // a legacy owner into a qualified v1 identity by copying request fields.
+      ["call_id", "tool_name", "toolkit_id", "call_ref", "call_ref_metadata"].forEach(
+        (key) => delete pendingPayload[key],
+      );
+    }
+    // Projection admitted the pending frame and source frame as one exact
+    // owner. Preserve source identity fields and only fill missing raw fields.
     const mergedPayload = { ...framePayload, ...pendingPayload };
-    if (
-      pendingPayload.call_id.startsWith("pending-confirmation-") &&
-      typeof framePayload.call_id === "string" &&
-      framePayload.call_id.trim()
-    ) {
-      mergedPayload.call_id = framePayload.call_id.trim();
-    }
-    if (
-      pendingPayload.tool_name === "tool" &&
-      typeof framePayload.tool_name === "string" &&
-      framePayload.tool_name.trim()
-    ) {
-      mergedPayload.tool_name = framePayload.tool_name;
-    }
+    [
+      "call_id",
+      "tool_name",
+      "toolkit_id",
+      "call_ref",
+      "call_ref_metadata",
+    ].forEach((key) => {
+      if (hasOwn(framePayload, key)) mergedPayload[key] = framePayload[key];
+    });
     const nextGroup = [...group];
-    nextGroup[frameIndex] = {
+    const mergedFrame = {
+      ...pendingFrame,
       ...frame,
+      ...Object.fromEntries(
+        (identityStatus === "legacy"
+          ? []
+          : ["run_id", "execution_id", "session_id", "event_cursor", "event_id", "iteration", "links"]
+        ).filter((key) => !hasOwn(frame, key) && hasOwn(pendingFrame, key))
+          .map((key) => [key, pendingFrame[key]]),
+      ),
       payload: mergedPayload,
     };
+    if (identityStatus === "legacy") {
+      ["run_id", "execution_id", "session_id", "event_cursor", "event_id", "iteration", "links"]
+        .forEach((key) => {
+          if (!hasOwn(frame, key)) delete mergedFrame[key];
+        });
+    }
+    nextGroup[frameIndex] = mergedFrame;
     if (!groupKey) {
       mergedFrames = nextGroup;
-      return;
+      return true;
     }
     if (mergedSubagentFrames === sourceSubagentFrames) {
       mergedSubagentFrames = { ...sourceSubagentFrames };
     }
     mergedSubagentFrames[groupKey] = nextGroup;
+    return true;
   };
 
   const unmatchedPendingFrames = [];
   pendingFrames.forEach((pendingFrame) => {
-    const exactLocation = findLocation(pendingFrame);
-    const location =
-      findShadowingBareLocation(pendingFrame, exactLocation) ||
-      exactLocation ||
-      findLocation(pendingFrame, {
-        bareOnly: true,
-      });
-    if (location) {
-      replaceAt(location, pendingFrame);
-    } else {
-      unmatchedPendingFrames.push(pendingFrame);
+    const locations = findOwnerLocations(pendingFrame);
+    if (locations.length === 1 && replaceAt(locations[0], pendingFrame)) {
+      return;
     }
+    unmatchedPendingFrames.push(pendingFrame);
   });
 
   let nextSeq = sourceFrames.reduce((highest, frame) => {

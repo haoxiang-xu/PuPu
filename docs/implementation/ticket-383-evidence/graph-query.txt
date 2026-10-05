@@ -1,0 +1,23 @@
+
+  GitNexus Query (1.6.12)
+{"level":40,"time":1790910934045,"name":"gitnexus","msg":"GitNexus: FTS extension unavailable; continuing without FTS features. load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts."}
+{
+  "processes": [],
+  "process_symbols": [],
+  "definitions": [],
+  "timing": {
+    "bm25": 1.1,
+    "vector": 5,
+    "merge": 0,
+    "symbol_lookup": 0,
+    "ranking": 0,
+    "formatting": 0,
+    "wall": 6.5
+  },
+  "warning": "FTS extension failed to load — keyword search degraded (load-only policy (no install attempted); LOAD fts failed: Binder exception: Extension: fts is an official extension and has not been installed. You can install it by: install fts). Run `gitnexus doctor` for details, then `gitnexus analyze --repair-fts` with network access to reinstall. (resolved: PuPu/branch:dev, indexed 2026-10-02T03:00:27.475Z)",
+  "staleness": {
+    "status": "behind",
+    "commitsBehind": 1,
+    "hint": "⚠️ Index is 1 commit behind HEAD. Run analyze tool to update."
+  }
+}

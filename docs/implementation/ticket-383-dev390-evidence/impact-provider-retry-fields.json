@@ -1,0 +1,1048 @@
+{
+  "target": {
+    "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:providerRetryFields",
+    "name": "providerRetryFields",
+    "type": "Function",
+    "filePath": "src/SERVICEs/runtime_events/activity_tree.js"
+  },
+  "direction": "upstream",
+  "impactedCount": 5,
+  "risk": "CRITICAL",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 102,
+    "modules_affected": 20
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 2,
+    "3": 2
+  },
+  "affected_processes": [
+    {
+      "name": "OllamaStore → MakeBlock",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 10,
+      "total_hits": 10,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "PluginsInstalledPage → IsObject",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 9,
+      "total_hits": 9,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "PluginsCategoriesPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugins_categories_page.js",
+      "affected_process_count": 9,
+      "total_hits": 9,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "AgentPanel → ClampPct",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 8,
+      "total_hits": 8,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "EndPanel → ClampPct",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 8,
+      "total_hits": 8,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "HandlePickFolder → SkillFrontmatterError",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 8,
+      "total_hits": 8,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "PluginsDiscoverPage → RelaySessionGuardDiagnostic",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 8,
+      "total_hits": 8,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "applyEvent",
+      "type": "Function",
+      "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+      "affected_process_count": 8,
+      "total_hits": 8,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "RecipesPage → Cleanup",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 7,
+      "total_hits": 7,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "ToolkitInspector → Delete",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 7,
+      "total_hits": 7,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "ToastHost",
+      "type": "Function",
+      "filePath": "src/BUILTIN_COMPONENTs/toast/toast_host.js",
+      "affected_process_count": 7,
+      "total_hits": 7,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "PluginsShell",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/plugins_shell.js",
+      "affected_process_count": 7,
+      "total_hits": 7,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "HandlePull → GetActive",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 6,
+      "total_hits": 6,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "RunPricingCatalogCli → ReadHeight",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 6,
+      "total_hits": 6,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "Tooltip → Delete",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 6,
+      "total_hits": 6,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "registerIpcHandlers",
+      "type": "Function",
+      "filePath": "electron/main/ipc/register_handlers.js",
+      "affected_process_count": 6,
+      "total_hits": 6,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "Rebase_session → _installed_rebase_reason_values",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 5,
+      "total_hits": 5,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "RegisterSettingsStorageHandlers → Prepare",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 5,
+      "total_hits": 5,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "handleLocalBetaToggle",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/computer_use/index.js",
+      "affected_process_count": 5,
+      "total_hits": 5,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "place_from_palette",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas.js",
+      "affected_process_count": 4,
+      "total_hits": 4,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "buildRecipeNodeContextMenuItems",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_canvas_context_menu_items.js",
+      "affected_process_count": 4,
+      "total_hits": 4,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "ProviderKeySection",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/model_providers/components/provider_key_section.js",
+      "affected_process_count": 4,
+      "total_hits": 4,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "handleConfirmDelete",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "handleConfirmNewAgent",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "handleConfirmRename",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "handleDuplicate",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "handleReorder",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "AttachPanel",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-input/components/attach_panel.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "DevSettings",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/dev/index.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "TokenUsageSettings",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/token_usage/index.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "ConfigContainer",
+      "type": "Function",
+      "filePath": "src/CONTAINERs/config/container.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "useChatSessionState",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_session_state.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "applyTurnMutationMemory",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 3,
+      "total_hits": 3,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "MessageMinimap",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-messages/components/message_minimap.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "onImport",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/appearance/theme_editor.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "handleSave",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/model_providers/components/provider_key_section.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "handleSave",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/model_providers/custom-providers/custom_provider_editor.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "ModelProvidersSettings",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/model_providers/index.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "PluginDetailPage",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/pages/plugin_detail_page.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "handleInstall",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/plugins_shell.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "handleOAuthConnect",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/toolkit/plugins_shell.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "dispatchInterjectChannel",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "runSend",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "prepare",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/context_memory_v2_repository.py",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "apply_job_candidate_new",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/memory_v2_store.py",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "get_computer_use_status",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/route_computer_use.py",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 2
+    },
+    {
+      "name": "StartPanel → Map",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "ToolPoolPanel → Is_all_on",
+      "type": "Function",
+      "filePath": "",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "loadOfficialSourceCapture",
+      "type": "Function",
+      "filePath": "scripts/pricing/catalog-runtime.mjs",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "SwipeCardContent",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/characters_page.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "RecipeList",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/recipe_list.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "grouped",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/agents/pages/recipes_page/variable_picker.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "ConflictReview",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "MemoryV2PendingReviews",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "decideReview",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "groupToolTimelineItems",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-bubble/trace_tool_grouping.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "onPointerMove",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/chat-messages/components/message_minimap.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 3
+    },
+    {
+      "name": "useTokenUsageData",
+      "type": "Function",
+      "filePath": "src/COMPONENTs/settings/token_usage/index.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "ChatInterface",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/chat.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "timerId",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/background_stream_persister.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 6
+    },
+    {
+      "name": "collectRawCandidates",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/secret_capture.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 9
+    },
+    {
+      "name": "processFiles",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_attachments.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "reconcileStoreSnapshot",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_session_state.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "acknowledgeConsumedRelay",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "appendLocalBtwResultForOwner",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "appendSyntheticToolConfirmationDecision",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "applyFyiParentInterjectionAndAck",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "applyLatestProjection",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "clearQueuedTurnsForChat",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "clearResolvedToolConfirmationByCallId",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "deleteTurn",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 6
+    },
+    {
+      "name": "discardTurnMutation",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "dispatchPromise",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "finishAttachedStream",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "handleToolConfirmationDecision",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "hydrateQueuedTurnsForAttempt",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "hydrateQueuedTurnsForClientOperation",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "lookupDurableInteraction",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "onError",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "onQueueUndo",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "onToken",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "processChildToolInteractionSideEffects",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "reconcileReplayInteractions",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "rejectQueueRelayBeforeAcceptance",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "relayQueuedTurnsAfterRun",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "restoreRejectedRelayedTurn",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "retryTurnMutation",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "rollbackOptimistic",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "scheduleAuthoritativeLookup",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "scheduleDurableResumeRetry",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "settleUnavailableStream",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "submitAutoApprovedToolConfirmation",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "syncDurableQueueForAttempt",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 7
+    },
+    {
+      "name": "useChatStream",
+      "type": "Function",
+      "filePath": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "searchLibrary",
+      "type": "Function",
+      "filePath": "src/SERVICEs/api.ollama.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 6
+    },
+    {
+      "name": "next",
+      "type": "Function",
+      "filePath": "src/SERVICEs/chat_storage/chat_storage_store.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "loadMemoryV2EntryPreview",
+      "type": "Function",
+      "filePath": "src/SERVICEs/memory_v2_tree_state.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 10
+    },
+    {
+      "name": "loadMemoryV2TreeState",
+      "type": "Function",
+      "filePath": "src/SERVICEs/memory_v2_tree_state.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 6
+    },
+    {
+      "name": "run",
+      "type": "Function",
+      "filePath": "src/SERVICEs/provider_credential_persistence.js",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 5
+    },
+    {
+      "name": "compare_and_swap",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/context_memory_v2_repository.py",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 4
+    },
+    {
+      "name": "decide_candidate_review",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/memory_v2_store.py",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    },
+    {
+      "name": "propose_job_candidate_review",
+      "type": "Function",
+      "filePath": "unchain_runtime/server/memory_v2_store.py",
+      "affected_process_count": 1,
+      "total_hits": 1,
+      "earliest_broken_step": 8
+    }
+  ],
+  "affected_modules": [
+    {
+      "name": "Runtime_events",
+      "hits": 5,
+      "impact": "direct"
+    },
+    {
+      "name": "Appearance",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Artifact-summary",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Backends",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Bridges",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Carousel",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Chat-messages",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Chat_storage",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Class",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Cluster_1098",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Cluster_235",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Code",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Color_picker",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Command-organizer",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Components",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Computer_control",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Computer_use",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Config",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Context-composition",
+      "hits": 1,
+      "impact": "indirect"
+    },
+    {
+      "name": "Context_menu",
+      "hits": 1,
+      "impact": "indirect"
+    }
+  ],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:applyEvent",
+        "name": "applyEvent",
+        "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+        "relationType": "CALLS",
+        "confidence": 0.8,
+        "processes": [
+          {
+            "id": "proc_846_applyevent",
+            "label": "ApplyEvent → EmitMisoRuntimeLog",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_957_applyevent",
+            "label": "ApplyEvent → HasLineEnd",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_915_applyevent",
+            "label": "ApplyEvent → Add",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_938_applyevent",
+            "label": "ApplyEvent → Exec",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_968_applyevent",
+            "label": "ApplyEvent → SplitLines",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_1141_applyevent",
+            "label": "ApplyEvent → ReadWidth",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_859_applyevent",
+            "label": "ApplyEvent → MakeBlock",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_947_applyevent",
+            "label": "ApplyEvent → IsBlankLine",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ],
+    "2": [
+      {
+        "depth": 2,
+        "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:reduceActivityTreeIncrementally",
+        "name": "reduceActivityTreeIncrementally",
+        "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+        "relationType": "CALLS",
+        "confidence": 0.8,
+        "processes": []
+      },
+      {
+        "depth": 2,
+        "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:reduceProjectedActivityTree",
+        "name": "reduceProjectedActivityTree",
+        "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+        "relationType": "CALLS",
+        "confidence": 0.8,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "name": "reduce",
+        "filePath": "",
+        "relationType": "CALLS",
+        "confidence": 0.8,
+        "processes": []
+      },
+      {
+        "depth": 3,
+        "id": "Function:src/SERVICEs/runtime_events/activity_tree.js:reduceActivityTree",
+        "name": "reduceActivityTree",
+        "filePath": "src/SERVICEs/runtime_events/activity_tree.js",
+        "relationType": "CALLS",
+        "confidence": 0.8,
+        "processes": []
+      }
+    ]
+  }
+}

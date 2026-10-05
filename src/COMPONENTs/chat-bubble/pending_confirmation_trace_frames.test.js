@@ -26,6 +26,38 @@ describe("buildPendingConfirmationTraceFrames", () => {
     );
   });
 
+  test("preserves own raw scope and malformed descriptor provenance on a pending overlay", () => {
+    const callRef = { schema: "unknown", call_id: "raw", unexpected: null };
+    const metadata = { schema: "unknown-metadata", timeline_merge_policy: false };
+    const frames = buildPendingConfirmationTraceFrames({
+      " confirm-raw ": {
+        confirmationId: " confirm-raw ",
+        callId: " call-raw ",
+        toolName: " raw_tool ",
+        runId: " run-raw ",
+        sessionId: null,
+        iteration: null,
+        callRef,
+        callRefMetadata: metadata,
+        requestedAt: 100,
+      },
+    });
+
+    expect(frames).toHaveLength(1);
+    expect(frames[0].run_id).toBe(" run-raw ");
+    expect(Object.prototype.hasOwnProperty.call(frames[0], "session_id")).toBe(true);
+    expect(frames[0].session_id).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(frames[0], "iteration")).toBe(true);
+    expect(frames[0].iteration).toBeNull();
+    expect(frames[0].payload).toMatchObject({
+      call_id: " call-raw ",
+      confirmation_id: " confirm-raw ",
+      tool_name: " raw_tool ",
+      call_ref: callRef,
+      call_ref_metadata: metadata,
+    });
+  });
+
   test("enriches an existing bare tool call instead of duplicating it", () => {
     const frames = mergePendingConfirmationTraceFrames(
       [
@@ -45,6 +77,7 @@ describe("buildPendingConfirmationTraceFrames", () => {
           callId: "call-gate",
           toolName: "soak_gate",
           arguments: { lane: "C" },
+          eventCursor: { schema: "unchain.event_cursor.v1", store_seq: 12, event_id: "pending-only" },
           interactType: "confirmation",
           interactConfig: {},
           requestedAt: 100,
@@ -65,6 +98,9 @@ describe("buildPendingConfirmationTraceFrames", () => {
         interact_type: "confirmation",
       },
     });
+    expect(Object.prototype.hasOwnProperty.call(frames[0], "event_cursor")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(frames[0].payload, "call_ref")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(frames[0].payload, "call_ref_metadata")).toBe(false);
   });
 
   test("enriches the earliest bare duplicate that shadows replayed confirmation frames", () => {

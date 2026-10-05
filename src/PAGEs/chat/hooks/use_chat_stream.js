@@ -19,6 +19,7 @@ import {
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
+import { resolveToolCallOwnerForRequest } from "../../../SERVICEs/runtime_events/tool_call_projection";
 import {
   createIncrementalActivityTreeProjector,
   removeReasoningPreviewFrames,
@@ -652,11 +653,40 @@ const buildToolConfirmationRequest = ({
   callId,
   chatId,
   sessionId,
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "session_id")
+    ? { session_id: frame.session_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "run_id")
+    ? { runId: frame.run_id, run_id: frame.run_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "execution_id")
+    ? { executionId: frame.execution_id, execution_id: frame.execution_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_cursor")
+    ? { eventCursor: frame.event_cursor, event_cursor: frame.event_cursor }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "event_id")
+    ? { eventId: frame.event_id, event_id: frame.event_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "iteration")
+    ? { iteration: frame.iteration }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame || {}, "links")
+    ? { links: frame.links }
+    : {}),
   toolName,
-  toolkitId:
-    typeof frame.payload?.toolkit_id === "string"
-      ? frame.payload.toolkit_id
-      : "",
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "toolkit_id")
+    ? { toolkitId: frame.payload.toolkit_id }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref")
+    ? { callRef: frame.payload.call_ref }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "call_ref_metadata")
+    ? { callRefMetadata: frame.payload.call_ref_metadata }
+    : {}),
+  ...(Object.prototype.hasOwnProperty.call(frame.payload || {}, "timeline_merge_policy")
+    ? { timelineMergePolicy: frame.payload.timeline_merge_policy }
+    : {}),
   toolDisplayName:
     typeof frame.payload?.tool_display_name === "string"
       ? frame.payload.tool_display_name
@@ -3298,166 +3328,274 @@ export const useChatStream = ({
   }, [setStreamErrorForChat]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ targetChatId, confirmationId, approved, userResponse }) => {
+    ({
+      targetChatId,
+      confirmationId,
+      approved,
+      userResponse,
+      feedbackAcknowledged = false,
+    }) => {
       const normalizedTargetChatId =
         typeof targetChatId === "string" && targetChatId.trim()
           ? targetChatId.trim()
           : activeChatIdRef.current;
       const normalizedConfirmationId =
-        typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedTargetChatId || !normalizedConfirmationId) {
+        typeof confirmationId === "string" ? confirmationId : "";
+      if (
+        !normalizedTargetChatId ||
+        !normalizedConfirmationId.trim()
+      ) {
         return false;
       }
 
-      const runtime = getConfirmationRuntimeForChat(normalizedTargetChatId, {
-        create: false,
-      });
-      const callId =
-        runtime?.confirmationCallIdById.get(normalizedConfirmationId) || "";
-      const hasAuthoritativeConfirmationRequest = Boolean(
-        pendingToolConfirmationRequestsByChatIdRef.current[
-          normalizedTargetChatId
-        ]?.[normalizedConfirmationId],
-      );
       const streamState = activeStreamsRef.current.get(normalizedTargetChatId);
       const hasActiveStreamMessages = Array.isArray(streamState?.messages);
-      const streamMessages = hasActiveStreamMessages
+      let streamMessages = hasActiveStreamMessages
         ? streamState.messages
         : activeChatIdRef.current === normalizedTargetChatId &&
             Array.isArray(messagesRef.current)
           ? messagesRef.current
-          : typeof storageApi.getChatMessages === "function"
-            ? storageApi.getChatMessages(normalizedTargetChatId)
-            : [];
-      if (!callId || streamMessages.length === 0) {
+            : typeof storageApi.getChatMessages === "function"
+              ? storageApi.getChatMessages(normalizedTargetChatId)
+              : [];
+      const messagesContainRequestBinding = (messages) =>
+        (Array.isArray(messages) ? messages : []).some((message) => {
+          const frames = [
+            ...(Array.isArray(message?.traceFrames) ? message.traceFrames : []),
+            ...Object.values(message?.subagentFrames || {}).flatMap((branch) =>
+              Array.isArray(branch) ? branch : [],
+            ),
+          ];
+          return frames.some((frame) =>
+            ["confirmation_id", "interaction_id", "request_id"].some(
+              (key) => frame?.payload &&
+                Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+                frame.payload[key] === normalizedConfirmationId,
+            ),
+          );
+        });
+      if (
+        hasActiveStreamMessages &&
+        !messagesContainRequestBinding(streamMessages) &&
+        activeChatIdRef.current === normalizedTargetChatId &&
+        messagesContainRequestBinding(messagesRef.current)
+      ) {
+        streamMessages = messagesRef.current;
+      }
+      if (streamMessages.length === 0) {
         return false;
       }
 
       const decisionFrameType = approved ? "tool_confirmed" : "tool_denied";
       const patchTime = Date.now();
-      let changed = false;
-      const containsExactRequest = (frames) =>
-        (Array.isArray(frames) ? frames : []).some(
-          (frame) =>
-            frame?.type === "tool_call" &&
-            frame?.payload?.confirmation_id === normalizedConfirmationId,
+      const frameLocations = [];
+      streamMessages.forEach((message, messageIndex) => {
+        (Array.isArray(message?.traceFrames) ? message.traceFrames : []).forEach(
+          (frame, frameIndex) =>
+            frameLocations.push({
+              frame,
+              messageIndex,
+              frameIndex,
+              container: "traceFrames",
+            }),
         );
-      const hasExactRequestFrame = streamMessages.some((message) => {
-        if (containsExactRequest(message?.traceFrames)) return true;
-        return Object.values(message?.subagentFrames || {}).some((frames) =>
-          containsExactRequest(frames),
+        Object.entries(message?.subagentFrames || {}).forEach(
+          ([branchId, frames]) => {
+            (Array.isArray(frames) ? frames : []).forEach((frame, frameIndex) =>
+              frameLocations.push({
+                frame,
+                messageIndex,
+                frameIndex,
+                container: "subagentFrames",
+                branchId,
+              }),
+            );
+          },
         );
       });
-      const allowCallIdFallback =
-        !hasAuthoritativeConfirmationRequest && !hasExactRequestFrame;
-
-      const appendDecisionFrame = (frames) => {
-        const list = Array.isArray(frames) ? frames : [];
-        const requestFrame = list.find(
-          (frame) =>
-            frame?.type === "tool_call" &&
-            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (allowCallIdFallback && frame?.payload?.call_id === callId)),
+      const ownerResult = resolveToolCallOwnerForRequest(
+        frameLocations.map(({ frame }) => frame),
+        normalizedConfirmationId,
+      );
+      if (
+        ownerResult.status !== "qualified" &&
+        ownerResult.status !== "legacy"
+      ) {
+        return false;
+      }
+      const owner = ownerResult.call;
+      if (!owner || !Array.isArray(owner.frameIndexes)) {
+        return false;
+      }
+      const legacyOwner =
+        ownerResult.status === "legacy" ||
+        owner.identity?.status === "legacy";
+      if (
+        !legacyOwner &&
+        owner.identity?.status &&
+        owner.identity.status !== "qualified"
+      ) {
+        return false;
+      }
+      const ownerFrameIndexes = new Set(owner.frameIndexes);
+      const requestLocation = frameLocations.find(
+        ({ frame }, frameIndex) =>
+          ownerFrameIndexes.has(frameIndex) &&
+          frame?.type === "tool_call" &&
+          ["confirmation_id", "interaction_id", "request_id"].some(
+            (key) => frame?.payload &&
+              Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+              frame.payload[key] === normalizedConfirmationId,
+          ),
+      );
+      if (!requestLocation) {
+        return false;
+      }
+      const alreadyRecorded = [...ownerFrameIndexes].some((frameIndex) => {
+        const frame = frameLocations[frameIndex]?.frame;
+        return (
+          (frame?.type === "tool_confirmed" || frame?.type === "tool_denied") &&
+          ["confirmation_id", "interaction_id", "request_id"].some(
+            (key) => frame?.payload &&
+              Object.prototype.hasOwnProperty.call(frame.payload, key) &&
+              frame.payload[key] === normalizedConfirmationId,
+          )
         );
-        if (!requestFrame) {
-          return { frames: list, changed: false };
-        }
+      });
+      if (alreadyRecorded) {
+        return false;
+      }
 
-        const alreadyRecorded = list.some(
-          (frame) =>
-            frame?.type === decisionFrameType &&
-            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
-              (allowCallIdFallback && frame?.payload?.call_id === callId)),
-        );
-        if (alreadyRecorded) {
-          return { frames: list, changed: false };
-        }
-
-        const maxSeq = list.reduce((highest, frame) => {
-          const seq = Number(frame?.seq);
-          return Number.isFinite(seq) && seq > highest ? seq : highest;
-        }, 0);
-        const toolName =
-          typeof requestFrame.payload?.tool_name === "string"
-            ? requestFrame.payload.tool_name
-            : "";
-        const toolDisplayName =
-          typeof requestFrame.payload?.tool_display_name === "string"
-            ? requestFrame.payload.tool_display_name
-            : "";
-
-        return {
-          frames: [
-            ...list,
-            {
-              seq: maxSeq + 0.1,
-              ts: patchTime,
-              type: decisionFrameType,
-              stage: "client",
-              ...(requestFrame.run_id ? { run_id: requestFrame.run_id } : {}),
-              payload: {
-                tool_name: toolName,
-                ...(toolDisplayName
-                  ? { tool_display_name: toolDisplayName }
-                  : {}),
-                call_id: callId,
-                confirmation_id: normalizedConfirmationId,
-                synthetic: true,
-                ...(userResponse !== undefined
-                  ? { user_response: userResponse }
-                  : {}),
-              },
-            },
-          ],
-          changed: true,
-        };
+      const parentFrames = requestLocation.container === "traceFrames"
+        ? streamMessages[requestLocation.messageIndex]?.traceFrames || []
+        : streamMessages[requestLocation.messageIndex]?.subagentFrames?.[
+            requestLocation.branchId
+          ] || [];
+      const maxSeq = parentFrames.reduce((highest, frame) => {
+        const seq = Number(frame?.seq);
+        return Number.isFinite(seq) && seq > highest ? seq : highest;
+      }, 0);
+      const requestFrame = requestLocation.frame;
+      const ownerScope = owner.scope || {};
+      const observedScope = {
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "runId")
+          ? { run_id: ownerScope.runId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "executionId")
+          ? { execution_id: ownerScope.executionId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "sessionId")
+          ? { session_id: ownerScope.sessionId }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(ownerScope, "iteration")
+          ? { iteration: ownerScope.iteration }
+          : {}),
       };
+      let decisionFrame;
+      if (legacyOwner) {
+        // Legacy history has exact request ownership, but no v1 descriptor.
+        // Keep the old acknowledgement shape and copy only identity/scope
+        // observed on that owner; never synthesize a cursor or call_ref.
+        const identity = owner.identity || {};
+        decisionFrame = {
+          seq: maxSeq + 0.1,
+          ts: patchTime,
+          type: decisionFrameType,
+          stage: "client",
+          ...observedScope,
+          ...(Object.prototype.hasOwnProperty.call(requestFrame, "links")
+            ? { links: requestFrame.links }
+            : {}),
+          payload: {
+            ...(typeof identity.toolName === "string"
+              ? { tool_name: identity.toolName }
+              : {}),
+            ...(typeof requestFrame.payload?.tool_display_name === "string"
+              ? { tool_display_name: requestFrame.payload.tool_display_name }
+              : {}),
+            ...(typeof identity.callId === "string"
+              ? { call_id: identity.callId }
+              : {}),
+            confirmation_id: normalizedConfirmationId,
+            ...(typeof identity.toolkitId === "string"
+              ? { toolkit_id: identity.toolkitId }
+              : {}),
+            synthetic: true,
+            ...(feedbackAcknowledged === true
+              ? { feedback_acknowledged: true }
+              : {}),
+            ...(userResponse !== undefined
+              ? { user_response: userResponse }
+              : {}),
+          },
+        };
+      } else {
+        const descriptor = owner.descriptor;
+        if (!descriptor) {
+          return false;
+        }
+        decisionFrame = {
+          seq: maxSeq + 0.1,
+          ts: patchTime,
+          type: decisionFrameType,
+          stage: "client",
+          ...observedScope,
+          ...(Object.prototype.hasOwnProperty.call(requestFrame, "links")
+            ? { links: requestFrame.links }
+            : {}),
+          payload: {
+            tool_name: descriptor.tool_name,
+            ...(typeof requestFrame.payload?.tool_display_name === "string"
+              ? { tool_display_name: requestFrame.payload.tool_display_name }
+              : {}),
+            call_id: descriptor.call_id,
+            confirmation_id: normalizedConfirmationId,
+            call_ref: descriptor,
+            ...(owner.callRefMetadata
+              ? { call_ref_metadata: owner.callRefMetadata }
+              : {}),
+            ...(owner.policy.present
+              ? { timeline_merge_policy: owner.policy.value }
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(ownerScope, "toolkitId")
+              ? { toolkit_id: ownerScope.toolkitId }
+              : {}),
+            synthetic: true,
+            ...(feedbackAcknowledged === true
+              ? { feedback_acknowledged: true }
+              : {}),
+            ...(userResponse !== undefined
+              ? { user_response: userResponse }
+              : {}),
+          },
+        };
+      }
 
-      const nextStreamMessages = streamMessages.map((message) => {
-        const traceFrames = Array.isArray(message?.traceFrames)
-          ? message.traceFrames
-          : [];
-        const rootResult = appendDecisionFrame(traceFrames);
-        if (rootResult.changed) {
-          changed = true;
+      const nextStreamMessages = streamMessages.map((message, messageIndex) => {
+        if (messageIndex !== requestLocation.messageIndex) return message;
+        if (requestLocation.container === "traceFrames") {
+          const traceFrames = Array.isArray(message?.traceFrames)
+            ? message.traceFrames
+            : [];
           return {
             ...message,
             updatedAt: patchTime,
-            traceFrames: rootResult.frames,
+            traceFrames: [...traceFrames, decisionFrame],
           };
         }
-
-        const subagentFrames =
-          message?.subagentFrames && typeof message.subagentFrames === "object"
-            ? message.subagentFrames
-            : {};
-        let nextSubagentFrames = null;
-        for (const [runId, frames] of Object.entries(subagentFrames)) {
-          const branchResult = appendDecisionFrame(frames);
-          if (!branchResult.changed) {
-            continue;
-          }
-          nextSubagentFrames = {
-            ...subagentFrames,
-            [runId]: branchResult.frames,
-          };
-          break;
-        }
-
-        if (!nextSubagentFrames) {
-          return message;
-        }
-        changed = true;
+        const subagentFrames = message?.subagentFrames || {};
+        const branchFrames = Array.isArray(subagentFrames[requestLocation.branchId])
+          ? subagentFrames[requestLocation.branchId]
+          : [];
         return {
           ...message,
           updatedAt: patchTime,
-          subagentFrames: nextSubagentFrames,
+          subagentFrames: {
+            ...subagentFrames,
+            [requestLocation.branchId]: [...branchFrames, decisionFrame],
+          },
         };
       });
-
-      if (!changed) {
-        return false;
-      }
 
       if (hasActiveStreamMessages) {
         activeStreamsRef.current.set(normalizedTargetChatId, {
@@ -3486,7 +3624,6 @@ export const useChatStream = ({
     [
       activeChatIdRef,
       activeStreamsRef,
-      getConfirmationRuntimeForChat,
       messagesRef,
       setMessages,
       storageApi,
@@ -3753,8 +3890,8 @@ export const useChatStream = ({
     async ({ confirmationId, approved, userResponse, scope }) => {
       const targetChatId = activeChatIdRef.current;
       const normalizedConfirmationId =
-        typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!targetChatId || !normalizedConfirmationId) {
+        typeof confirmationId === "string" ? confirmationId : "";
+      if (!targetChatId || !normalizedConfirmationId.trim()) {
         return;
       }
       const runGeneration = getRunGeneration(targetChatId);
@@ -3910,6 +4047,7 @@ export const useChatStream = ({
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
           userResponse,
+          feedbackAcknowledged: true,
         });
         updateToolConfirmationUiState(targetChatId, (previous) => ({
           ...previous,
@@ -4144,6 +4282,7 @@ export const useChatStream = ({
               targetChatId,
               confirmationId,
               approved: true,
+              feedbackAcknowledged: true,
             });
             continueFromRecordedReceipt(
               targetChatId,
@@ -8021,32 +8160,9 @@ export const useChatStream = ({
                         },
                       ];
 
-                  /* If this tool_call has a confirmation_id and an older
-                     frame with the same call_id already exists (emitted by
-                     on_event before the confirm callback), replace it so the
-                     confirmation UI renders correctly. */
-                  const frameCallId =
-                    typeof frame.payload?.call_id === "string"
-                      ? frame.payload.call_id
-                      : "";
-                  const frameHasConfirmation =
-                    typeof frame.payload?.confirmation_id === "string" &&
-                    frame.payload.confirmation_id;
-                  let mergedFrames = [...existingFrames, ...syntheticFrame];
-                  if (frameCallId && frameHasConfirmation) {
-                    const dupIdx = mergedFrames.findIndex(
-                      (f) =>
-                        f.type === "tool_call" &&
-                        f.payload?.call_id === frameCallId,
-                    );
-                    if (dupIdx >= 0) {
-                      mergedFrames[dupIdx] = frame;  // replace old frame
-                    } else {
-                      mergedFrames.push(frame);
-                    }
-                  } else {
-                    mergedFrames.push(frame);
-                  }
+                  // Keep every source frame. Logical-call deduplication and
+                  // ownership belong to the shared runtime projection.
+                  const mergedFrames = [...existingFrames, ...syntheticFrame, frame];
 
                   return {
                     ...clearStreamingMessageText(message),
@@ -9789,6 +9905,7 @@ export const useChatStream = ({
           confirmationId: pending.interactionId,
           approved,
           userResponse: recoveredUserResponse,
+          feedbackAcknowledged: true,
         });
 
         if (!pendingAttemptId) {
