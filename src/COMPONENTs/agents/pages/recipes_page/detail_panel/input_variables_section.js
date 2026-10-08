@@ -9,7 +9,6 @@ import {
   with_node_bindings,
 } from "../skeleton_document";
 import { binding_problems, make_binding, ref_expression } from "../skeleton_io";
-import { diagnostics_for_row } from "../skeleton_diagnostics";
 
 /* Input Variables: what this node reads, and from where.
  *
@@ -21,8 +20,13 @@ import { diagnostics_for_row } from "../skeleton_diagnostics";
  * Two kinds of problem show up on a row and they are not the same thing: the
  * builder's own refusal to compose something the runtime would reject, and a
  * diagnostic the store returned for the saved draft. The first is immediate and
- * local; the second arrives from `POST /skeleton_resources/diagnose` and is why
- * an incomplete draft can be saved at all. */
+ * local; the second arrives from `POST /skeleton_resources/diagnose`, which
+ * since the runtime's CP17 repair reports per-node IO as well as the graph, and
+ * is why an incomplete draft can be saved at all.
+ *
+ * The rows are handed their own problems rather than filtering a list: the
+ * panel knows how many rows exist and routes a path to a row only when that row
+ * is rendered, so nothing can claim a row that is not there and vanish. */
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -55,7 +59,7 @@ export function binding_sources(document, node_id) {
 export default function InputVariablesSection({
   document,
   node,
-  diagnostics,
+  rowDiagnostics,
   isDark,
   onChange,
 }) {
@@ -128,7 +132,7 @@ export default function InputVariablesSection({
             ...composed.filter((problem) =>
               problem.where.startsWith(`bindings[${index}]`),
             ),
-            ...diagnostics_for_row(diagnostics, document, node && node.id, "inputs", index),
+            ...((rowDiagnostics && rowDiagnostics[index]) || []),
           ]}
           onChange={(next) =>
             set_bindings(bindings.map((old, i) => (i === index ? next : old)))

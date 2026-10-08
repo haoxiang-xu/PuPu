@@ -84,13 +84,13 @@ const document_with = (inputs) => ({
   edges: [flow("e1", "start", "mid"), flow("e2", "mid", "end")],
 });
 
-const show = (doc, onChange = () => {}, diagnostics = []) => {
+const show = (doc, onChange = () => {}, rowDiagnostics = []) => {
   const node = doc.nodes.find((n) => n.id === "end");
   return render(
     <InputVariablesSection
       document={doc}
       node={node}
-      diagnostics={diagnostics}
+      rowDiagnostics={rowDiagnostics}
       isDark={false}
       onChange={onChange}
     />,
@@ -190,28 +190,82 @@ describe("problems are shown on the row that has them", () => {
     );
   });
 
-  test("a preflight diagnostic lands on its row", () => {
-    /* The real path the runtime produced for this exact document on
-     * 2026-10-03, through validate_skeleton_for_execution + _validate_all. */
+  test("a diagnostic routed to this row is shown on it", () => {
+    /* The panel decides which row a path belongs to — a row only claims one
+     * when it is actually rendered — and hands the row its own list. */
     show(document_with(bad), () => {}, [
-      {
-        code: "unknown_field",
-        path: ["document", "nodes", 2, "config", "execution", "inputs", 0, "default"],
-        message: "default is only allowed for default policy",
-      },
+      [
+        {
+          code: "unknown_field",
+          path: ["document", "nodes", 2, "config", "execution", "inputs", 0, "default"],
+          message: "default is only allowed for default policy",
+        },
+      ],
     ]);
     const row = screen.getByTestId("binding-row-0");
     expect(within(row).getAllByText(/only allowed for default policy/i).length).toBe(2);
   });
 
-  test("a diagnostic for another node is not shown here", () => {
-    show(document_with([]), () => {}, [
-      {
-        code: "unknown_field",
-        path: ["document", "nodes", 1, "config", "execution", "inputs", 0, "default"],
-        message: "belongs to mid",
-      },
-    ]);
-    expect(screen.queryByText(/belongs to mid/i)).not.toBeInTheDocument();
+  test("a row is given nothing when the panel routed nothing to it", () => {
+    show(document_with(bad), () => {}, []);
+    const row = screen.getByTestId("binding-row-0");
+    /* Only the builder's own refusal, not a second copy from the store. */
+    expect(within(row).getAllByText(/only allowed for default policy/i).length).toBe(1);
+  });
+});
+
+describe("R1 — a malformed expression is shown, not crashed on", () => {
+  /* The envelope keeps a node's config opaque, so this draft passes
+   * validate_skeleton_document and the real store saves and returns it
+   * unchanged. Rendering it must survive. */
+  const malformed = [
+    { name: "t", value: { kind: "first_present", values: "not-an-array" }, missing: "error" },
+    { name: "ok", value: { kind: "ref", node_id: "start", path: ["text"] }, missing: "error" },
+  ];
+
+  test("a first_present whose values is not an array renders", () => {
+    expect(() => show(document_with(malformed))).not.toThrow();
+    expect(screen.getByTestId("binding-row-0")).toBeInTheDocument();
+  });
+
+  test("the valid row beside it still works", () => {
+    show(document_with(malformed));
+    expect(screen.getByTestId("binding-row-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("binding-row-1-unreadable")).toBeNull();
+  });
+
+  test("the malformed row says what is wrong with it", () => {
+    show(document_with(malformed));
+    const row = screen.getByTestId("binding-row-0");
+    expect(within(row).getByTestId("binding-row-0-unreadable")).toBeInTheDocument();
+    expect(row.textContent).toMatch(/first_present requires at least two values/i);
+  });
+
+  test("the original value is kept, not normalized into an empty list", () => {
+    /* Rewriting it to `[]` would turn a draft the author can still fix into one
+     * that silently lost what they wrote. */
+    const onChange = jest.fn();
+    show(document_with(malformed), onChange);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("binding-row-0").textContent).toMatch(/not-an-array/);
+  });
+
+  test("no editing control can rewrite it by accident", () => {
+    /* Spreading a string into a new source list would produce one entry per
+     * character — a silent corruption rather than a refusal. */
+    const onChange = jest.fn();
+    show(document_with(malformed), onChange);
+    const row = screen.getByTestId("binding-row-0");
+    expect(within(row).queryByText("+ Add a source")).toBeNull();
+    expect(within(row).queryAllByTestId(/binding-row-0-alt-/)).toHaveLength(0);
+  });
+
+  test("the row can still be removed and its policy still set", () => {
+    /* The author has to be able to get rid of it. */
+    const onChange = jest.fn();
+    show(document_with(malformed), onChange);
+    const row = screen.getByTestId("binding-row-0");
+    fireEvent.click(within(row).getByLabelText("Remove t"));
+    expect(onChange).toHaveBeenCalled();
   });
 });

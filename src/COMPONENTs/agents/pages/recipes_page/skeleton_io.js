@@ -214,3 +214,41 @@ export function output_mapping_problems(mappings) {
   });
   return problems;
 }
+
+/* ── What the editor can safely take apart ──────────────────────────────── */
+
+/* A node's config is opaque to the envelope, so a draft whose expression is
+ * the wrong shape — `values` a string rather than an array, a literal holding
+ * an object, a kind nobody knows — saves and loads unchanged. The editor has
+ * to render it anyway.
+ *
+ * The danger is not only the crash. Spreading a string into a new source list
+ * yields one entry per character, and coercing an object literal through a
+ * text box replaces it with "[object Object]": both silently rewrite what the
+ * author wrote into something else. So an expression the controls cannot take
+ * apart is shown as it is and left alone until the author replaces it
+ * deliberately. */
+export function expression_is_editable(expression) {
+  if (!expression || typeof expression !== "object") return false;
+  switch (expression.kind) {
+    case "literal":
+      return typeof expression.value === "string";
+    case "ref":
+      return typeof expression.node_id === "string" && Array.isArray(expression.path);
+    case "first_present":
+      return Array.isArray(expression.values);
+    default:
+      return false;
+  }
+}
+
+/* The original value, readable, for a row that cannot offer controls. */
+export function expression_summary(expression) {
+  if (expression === undefined) return "(nothing)";
+  try {
+    const text = JSON.stringify(expression);
+    return text === undefined ? String(expression) : text;
+  } catch (error) {
+    return String(expression);
+  }
+}

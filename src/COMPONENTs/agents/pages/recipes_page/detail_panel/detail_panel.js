@@ -8,8 +8,14 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
-import SkeletonDiagnosticsNotice from "./skeleton_diagnostics_notice";
-import { find_node, is_skeleton_node } from "../skeleton_document";
+import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
+import {
+  find_node,
+  is_skeleton_node,
+  node_bindings,
+  node_output_mappings,
+} from "../skeleton_document";
+import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
 
 /* The shell: a fixed identity header above a hairline, and a body that is the
@@ -83,6 +89,19 @@ export default function DetailPanel({
           return is_skeleton_node(candidate) ? candidate : null;
         })()
       : null;
+
+  /* Routed once, here, because this is the only place that knows both which
+     node is open and how many rows it actually renders. A row only claims a
+     diagnostic when that row exists; everything else has somewhere to go. */
+  const routed = skeleton_node
+    ? route_diagnostics(diagnostics, document, {
+        node_id: skeleton_node.id,
+        row_counts: {
+          inputs: node_bindings(skeleton_node).length,
+          outputs: node_output_mappings(skeleton_node).length,
+        },
+      })
+    : null;
 
   const props = {
     recipe,
@@ -170,16 +189,17 @@ export default function DetailPanel({
             has no such config — nothing below changes. */}
         {skeleton_node && (
           <>
-            <SkeletonDiagnosticsNotice
+            <SkeletonDiagnostics
               document={document}
               diagnostics={diagnostics}
-              nodeId={node.id}
+              nodeId={skeleton_node.id}
+              rowCounts={routed.row_counts}
               isDark={isDark}
             />
             <InputVariablesSection
               document={document}
               node={skeleton_node}
-              diagnostics={diagnostics}
+              rowDiagnostics={routed.rows.inputs}
               isDark={isDark}
               onChange={onDocumentChange}
             />

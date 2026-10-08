@@ -3,7 +3,9 @@ import {
   diagnostics_for_node,
   diagnostics_for_row,
   has_diagnostics,
+  diagnostic_location_label,
   normalize_diagnostics,
+  route_diagnostics,
   unplaced_diagnostics,
 } from "./skeleton_diagnostics";
 
@@ -120,5 +122,71 @@ describe("nothing is silently dropped", () => {
     expect(normalize_diagnostics(undefined)).toEqual([]);
     expect(has_diagnostics([])).toBe(false);
     expect(has_diagnostics(list)).toBe(true);
+  });
+});
+
+describe("R2 — routing is a partition, so nothing can fall through", () => {
+  /* Paths taken from the real store's diagnose output, not invented. */
+  const real = [
+    { code: "end_count", path: ["document", "nodes"], message: "graph requires exactly one end node" },
+    { code: "flow_source_port", path: ["document", "edges", 0, "source_port_id"], message: "flow source port is invalid" },
+    { code: "unknown_field", path: ["document", "nodes", 1, "config", "execution", "inputs", 0, "default"], message: "default is only allowed for default policy" },
+    { code: "flow_output_required", path: ["document", "nodes", 1], message: "execution node requires flow output" },
+    { code: "something_new", path: ["document", "sidecar", "x"], message: "a path this build does not know" },
+    { code: "unknown_field", path: ["document", "nodes", 0, "config", "execution", "outputs", 0, "name"], message: "belongs to another node" },
+    { code: "invalid_value", path: ["document", "nodes", 1, "config", "execution", "inputs", 9, "value"], message: "a row that is not rendered" },
+  ];
+
+  test("every diagnostic lands in exactly one bucket", () => {
+    const routed = route_diagnostics(real, document, {
+      node_id: "end",
+      row_counts: { inputs: 1, outputs: 0 },
+    });
+    const placed =
+      routed.rows.inputs.flat().length +
+      routed.rows.outputs.flat().length +
+      routed.node.length +
+      routed.elsewhere.length;
+    expect(placed).toBe(real.length);
+  });
+
+  test("a graph-level problem is not lost for having no node", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.elsewhere.map((d) => d.code)).toContain("end_count");
+  });
+
+  test("an edge problem is not lost for not being a node", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.elsewhere.map((d) => d.code)).toContain("flow_source_port");
+  });
+
+  test("a path shape this build does not know is kept", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.elsewhere.map((d) => d.code)).toContain("something_new");
+  });
+
+  test("a claimed row with no rendered row falls back to the node, not away", () => {
+    /* `target.row` is non-null for it, which is exactly how it used to escape
+     * both the row and the fallback. */
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.node.map((d) => d.message)).toContain("a row that is not rendered");
+  });
+
+  test("another node's problem is scoped, not hidden", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.elsewhere.map((d) => d.message)).toContain("belongs to another node");
+  });
+
+  test("a rendered row still gets its own", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(routed.rows.inputs[0].map((d) => d.code)).toEqual(["unknown_field"]);
+  });
+
+  test("every entry carries where it belongs, so the fallback can say so", () => {
+    const routed = route_diagnostics(real, document, { node_id: "end", row_counts: { inputs: 1, outputs: 0 } });
+    expect(diagnostic_location_label(real[0], document)).toMatch(/graph/i);
+    expect(diagnostic_location_label(real[1], document)).toMatch(/edge/i);
+    expect(diagnostic_location_label(real[5], document)).toMatch(/start/);
+    expect(routed.elsewhere.length).toBeGreaterThan(0);
   });
 });

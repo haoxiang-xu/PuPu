@@ -4,6 +4,8 @@ import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import MissingPolicySelect from "./missing_policy_select";
 import {
+  expression_is_editable,
+  expression_summary,
   first_present_expression,
   literal_expression,
   ref_expression,
@@ -86,6 +88,9 @@ export default function BindingRow({
 }) {
   const value = binding && binding.value;
   const kind = value && value.kind;
+  /* A shape the controls cannot take apart is shown rather than edited: every
+     control here would rewrite it into something the author never wrote. */
+  const editable = expression_is_editable(value);
 
   function set_value(next) {
     onChange({ ...binding, value: next });
@@ -169,7 +174,7 @@ export default function BindingRow({
         />
       </div>
 
-      {kind === "ref" && (
+      {editable && kind === "ref" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefPicker
             value={value}
@@ -180,7 +185,7 @@ export default function BindingRow({
         </div>
       )}
 
-      {kind === "literal" && (
+      {editable && kind === "literal" && (
         <Input
           value={value && typeof value.value === "string" ? value.value : String(value?.value ?? "")}
           set_value={(next) => set_value(literal_expression(next))}
@@ -195,7 +200,7 @@ export default function BindingRow({
         />
       )}
 
-      {kind === "first_present" && (
+      {editable && kind === "first_present" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={CAPTION}>
             The first of these that has a value is used; the policy below applies
@@ -258,6 +263,29 @@ export default function BindingRow({
               color: "#4a5bd8",
             }}
           />
+        </div>
+      )}
+
+      {!editable && (
+        <div
+          data-testid={`binding-row-${index}-unreadable`}
+          style={{ display: "flex", flexDirection: "column", gap: 4 }}
+        >
+          <span style={CAPTION}>
+            This source is not a shape the editor can take apart, so it is left
+            exactly as it is. Choose a source kind above to replace it.
+          </span>
+          <span
+            style={{
+              ...MONO,
+              fontSize: 10.5,
+              lineHeight: 1.45,
+              wordBreak: "break-all",
+              color: isDark ? "#c9c9d1" : "#55555d",
+            }}
+          >
+            {expression_summary(value)}
+          </span>
         </div>
       )}
 
