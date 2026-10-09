@@ -110,7 +110,14 @@ export function has_diagnostics(diagnostics) {
  * So the routing is a partition: every diagnostic lands in exactly one bucket,
  * and the buckets together are the whole input. A row only claims one when
  * that row is actually rendered; everything else falls back to the node, and
- * everything with no node of its own falls back to the graph. */
+ * everything with no node of its own falls back to the graph.
+ *
+ * `row_counts` therefore means rows that HAVE A RENDERER, never entries in the
+ * document. Counting the document instead hands a diagnostic to a row nobody
+ * draws, and it is taken from the notices and shown nowhere — the same
+ * disappearance the partition exists to prevent, arrived at from the other
+ * side. Conservation of buckets does not catch it; only looking for the
+ * message on screen does. */
 
 function in_range(count, row) {
   return typeof row === "number" && row >= 0 && row < count;

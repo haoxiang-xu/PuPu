@@ -269,3 +269,62 @@ describe("R1 — a malformed expression is shown, not crashed on", () => {
     expect(onChange).toHaveBeenCalled();
   });
 });
+
+describe("R1 residual — an unusable ref path is opaque too", () => {
+  /* `[{toString: null}]` is ordinary JSON the envelope admits; the real store
+   * saves it unchanged and reports invalid_path at that exact segment. The
+   * picker used to build its option key with a template string, which throws
+   * `Cannot convert object to primitive value` before any problem could show. */
+  const bad_segment = [{ toString: null }];
+  const bad_ref = { kind: "ref", node_id: "start", path: bad_segment };
+
+  const plain = [
+    { name: "t", value: bad_ref, missing: "error" },
+    { name: "ok", value: { kind: "ref", node_id: "start", path: ["text"] }, missing: "error" },
+  ];
+  const nested = [
+    {
+      name: "t",
+      value: {
+        kind: "first_present",
+        values: [bad_ref, { kind: "literal", value: "fallback" }],
+      },
+      missing: "error",
+    },
+  ];
+
+  test("a plain ref with an unusable path renders", () => {
+    /* The upstream exports are real, so the picker is the control that renders
+     * — which is exactly where it threw. */
+    expect(() => show(document_with(plain))).not.toThrow();
+    expect(screen.getByTestId("binding-row-0-unreadable")).toBeInTheDocument();
+  });
+
+  test("the same path nested in a first_present renders", () => {
+    expect(() => show(document_with(nested))).not.toThrow();
+    expect(screen.getByTestId("binding-row-0-unreadable")).toBeInTheDocument();
+  });
+
+  test("the stored expression is kept, not coerced or emptied", () => {
+    const onChange = jest.fn();
+    show(document_with(plain), onChange);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("binding-row-0").textContent).toMatch(/toString/);
+  });
+
+  test("an ordinary ref beside it is still an ordinary control", () => {
+    show(document_with(plain));
+    expect(screen.queryByTestId("binding-row-1-unreadable")).toBeNull();
+  });
+
+  test("a path of ordinary segments stays editable", () => {
+    /* The guard must not swallow the normal case: strings and indices are what
+     * the runtime accepts. */
+    show(
+      document_with([
+        { name: "a", value: { kind: "ref", node_id: "start", path: ["text", 0] }, missing: "error" },
+      ]),
+    );
+    expect(screen.queryByTestId("binding-row-0-unreadable")).toBeNull();
+  });
+});

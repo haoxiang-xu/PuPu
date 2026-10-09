@@ -13,7 +13,6 @@ import {
   find_node,
   is_skeleton_node,
   node_bindings,
-  node_output_mappings,
 } from "../skeleton_document";
 import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
@@ -91,14 +90,21 @@ export default function DetailPanel({
       : null;
 
   /* Routed once, here, because this is the only place that knows both which
-     node is open and how many rows it actually renders. A row only claims a
-     diagnostic when that row exists; everything else has somewhere to go. */
+     node is open and which rows it actually renders.
+
+     The counts are rows with a renderer, NOT entries in the document. Output
+     mappings exist in the node's config and have no row of their own yet —
+     the legacy Start and End panels read the old `node.outputs` /
+     `outputs_schema`, not Skeleton mappings — so declaring their length would
+     hand their diagnostics to rows nobody draws, and they would be shown
+     nowhere. Zero until an output row exists to carry them; then pass the
+     real count and render `routed.rows.outputs`. */
   const routed = skeleton_node
     ? route_diagnostics(diagnostics, document, {
         node_id: skeleton_node.id,
         row_counts: {
           inputs: node_bindings(skeleton_node).length,
-          outputs: node_output_mappings(skeleton_node).length,
+          outputs: 0,
         },
       })
     : null;

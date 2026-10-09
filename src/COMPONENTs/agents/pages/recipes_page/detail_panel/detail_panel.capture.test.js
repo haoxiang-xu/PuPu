@@ -5,6 +5,7 @@ import DetailPanel from "./detail_panel";
 import {
   CAPTURED_DIAGNOSTICS,
   CAPTURED_DRAFT,
+  CAPTURED_OUTPUT_MAPPING_PROBLEM,
 } from "../skeleton_diagnostics_capture";
 
 /* The repaired panel against real store output rather than an invented shape.
@@ -72,5 +73,55 @@ describe("the repaired panel against real store output", () => {
       expect(container.textContent).toContain(item.message);
     });
     expect(screen.getByTestId("skeleton-elsewhere-notice").textContent).toMatch(/Node a1/);
+  });
+});
+
+describe("R2 residual — an output-mapping problem is visible too", () => {
+  /* A `type` left on an output mapping: the wire has no room for it, because
+   * the type is inherited from the source. The real store saves the document
+   * unchanged and reports it at
+   * ["document","nodes",1,"config","execution","outputs",0,"type"].
+   *
+   * It used to be claimed into `rows.outputs`, which nothing renders — so it
+   * was taken from the notices and shown nowhere. Counting buckets would not
+   * have caught that; only looking for the message does. */
+  const draft = CAPTURED_OUTPUT_MAPPING_PROBLEM.document;
+  const diagnostics = CAPTURED_OUTPUT_MAPPING_PROBLEM.diagnostics;
+
+  const showOutput = (nodeId) =>
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={{ name: "R", nodes: draft.nodes, edges: [] }}
+          selectedNodeId={nodeId}
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          document={draft}
+          diagnostics={diagnostics}
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+
+  test("the capture really is an output-row path", () => {
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].path).toEqual([
+      "document", "nodes", 1, "config", "execution", "outputs", 0, "type",
+    ]);
+  });
+
+  test("with End selected, the message is on screen", () => {
+    const { container } = showOutput("end");
+    expect(container.textContent).toContain(diagnostics[0].message);
+  });
+
+  test("with Start selected, the message is on screen", () => {
+    const { container } = showOutput("start");
+    expect(container.textContent).toContain(diagnostics[0].message);
+  });
+
+  test("it is named as belonging to the End node", () => {
+    showOutput("start");
+    expect(screen.getByTestId("skeleton-elsewhere-notice").textContent).toMatch(/Node end/);
   });
 });

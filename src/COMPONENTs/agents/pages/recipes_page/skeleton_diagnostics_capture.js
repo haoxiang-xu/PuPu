@@ -141,3 +141,277 @@ export const CAPTURED_DIAGNOSTICS = [
     "message": "first_present requires at least two values"
   }
 ];
+
+/* Three more drafts captured from the real store, 2026-10-08, for the shapes a
+ * second review found still unhandled. Each is ordinary JSON the envelope
+ * admits, each is saved and returned unchanged, and each reports precisely:
+ *
+ *   invalid_path   a ref path segment that is not a string or an index
+ *   invalid_path   the same, nested inside a first_present candidate
+ *   unknown_field  a `type` left on an output mapping, which the wire has no
+ *                  room for — the type is inherited from the source
+ */
+
+export const CAPTURED_BAD_REF_PATH = {
+  "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "r1a",
+    "name": "r1a",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "text",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "text"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "t",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    {
+                      "toString": null
+                    }
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": []
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "code": "invalid_path",
+      "path": [
+        "document",
+        "nodes",
+        1,
+        "config",
+        "execution",
+        "inputs",
+        0,
+        "value",
+        "path",
+        0
+      ],
+      "message": "path item must be a string or non-negative integer"
+    }
+  ]
+};
+
+export const CAPTURED_NESTED_BAD_REF_PATH = {
+  "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "r1b",
+    "name": "r1b",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "text",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "text"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "t",
+                "value": {
+                  "kind": "first_present",
+                  "values": [
+                    {
+                      "kind": "ref",
+                      "node_id": "start",
+                      "path": [
+                        {
+                          "toString": null
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "fallback"
+                    }
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": []
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "code": "invalid_path",
+      "path": [
+        "document",
+        "nodes",
+        1,
+        "config",
+        "execution",
+        "inputs",
+        0,
+        "value",
+        "values",
+        0,
+        "path",
+        0
+      ],
+      "message": "path item must be a string or non-negative integer"
+    }
+  ]
+};
+
+export const CAPTURED_OUTPUT_MAPPING_PROBLEM = {
+  "document": {
+    "schema_version": 1,
+    "kind": "workflow",
+    "id": "r2a",
+    "name": "r2a",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "config": {
+          "execution": {
+            "outputs": [
+              {
+                "name": "text",
+                "source": {
+                  "kind": "result",
+                  "path": [
+                    "text"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "config": {
+          "execution": {
+            "inputs": [
+              {
+                "name": "payload",
+                "value": {
+                  "kind": "ref",
+                  "node_id": "start",
+                  "path": [
+                    "text"
+                  ]
+                },
+                "missing": "error"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "payload",
+                "source": {
+                  "kind": "input",
+                  "path": [
+                    "payload"
+                  ]
+                },
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "kind": "flow",
+        "source_node_id": "start",
+        "source_port_id": "out",
+        "target_node_id": "end",
+        "target_port_id": "in"
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "code": "unknown_field",
+      "path": [
+        "document",
+        "nodes",
+        1,
+        "config",
+        "execution",
+        "outputs",
+        0,
+        "type"
+      ],
+      "message": "unknown field"
+    }
+  ]
+};

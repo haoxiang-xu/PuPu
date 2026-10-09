@@ -228,15 +228,38 @@ export function output_mapping_problems(mappings) {
  * author wrote into something else. So an expression the controls cannot take
  * apart is shown as it is and left alone until the author replaces it
  * deliberately. */
-export function expression_is_editable(expression) {
+const MAX_EXPRESSION_DEPTH = 8;
+
+/* The segments the picker can put in an option key and read back. Anything
+ * else — an object, a negative index, a fraction — is ordinary JSON the
+ * envelope admits and the runtime rejects with `invalid_path`, and coercing it
+ * through a template string throws before the row can say so. */
+function path_is_usable(path) {
+  return (
+    Array.isArray(path) &&
+    path.every(
+      (part) =>
+        typeof part === "string" ||
+        (typeof part === "number" && Number.isInteger(part) && part >= 0),
+    )
+  );
+}
+
+export function expression_is_editable(expression, depth = 0) {
+  if (depth > MAX_EXPRESSION_DEPTH) return false;
   if (!expression || typeof expression !== "object") return false;
   switch (expression.kind) {
     case "literal":
       return typeof expression.value === "string";
     case "ref":
-      return typeof expression.node_id === "string" && Array.isArray(expression.path);
+      return typeof expression.node_id === "string" && path_is_usable(expression.path);
     case "first_present":
-      return Array.isArray(expression.values);
+      /* A candidate the picker cannot render makes the whole row unusable, so
+       * the check goes all the way down rather than stopping at the array. */
+      return (
+        Array.isArray(expression.values) &&
+        expression.values.every((entry) => expression_is_editable(entry, depth + 1))
+      );
     default:
       return false;
   }
