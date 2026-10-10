@@ -976,6 +976,27 @@ class PupuUnchainContextMemoryV2HostFactory:
             return None
         return prepared.bundle.journal.capture_snapshot()
 
+    def build_skeleton_node_bundle(self, *, root_bundle, attempt, view, config,
+                                   compression_service=None):
+        """Bind an opt-in Skeleton node to this active host's existing stores."""
+        from unchain.skeleton.kernel_runtime import build_node_bundle
+        if not self.production_enabled or self.projection_mode is not SemanticEventProjectionMode.CANONICAL:
+            raise PupuUnchainHostFactoryError("Skeleton requires an active canonical host")
+        root = self.attempt(execution_id=root_bundle.attempt.generation.execution_id,
+                            attempt_id=self.root_run_id)
+        if (root.bundle is not root_bundle or attempt.generation != root_bundle.attempt.generation
+                or attempt.attempt_id == self.root_run_id):
+            raise PupuUnchainHostFactoryError("Skeleton node escaped its root bundle")
+        _assert_chat_active(database_path=self.database_path, owner_chat_id=self.owner_chat_id)
+        return build_node_bundle(journal=root_bundle.journal, compiler_store=self.compiler_store,
+            view=view, config=config, parent_attempt_id=self.root_run_id,
+            artifact_sanitizer=self._artifact_sanitizer,
+            user_message_artifact_sanitizer=self._user_message_artifact_sanitizer,
+            payload_sanitizer=self._event_payload_sanitizer,
+            partial_attempt_sink=self._partial_attempt_sink,
+            remote_source_decoder=decode_pupu_attachment_source,
+            compression_service=compression_service)
+
     def _build_bundle(self, attempt: AttemptRef) -> ContextExecutionBundle:
         _assert_chat_active(
             database_path=self.database_path,

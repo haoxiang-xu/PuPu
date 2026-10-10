@@ -168,6 +168,109 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_RECIPE, { recipeName }),
   listSubagentRefs: () =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS),
+  listSkeletonResources: (includeArchived = true) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "list",
+      payload: { include_archived: includeArchived === true },
+    }),
+  getSkeletonResource: (resourceId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "get",
+      payload: { resource_id: resourceId },
+    }),
+  saveSkeletonResource: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "save",
+      payload,
+    }),
+  diagnoseSkeletonResource: (document) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "diagnose",
+      payload: { document },
+    }),
+  importSkeletonResource: (document) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "import",
+      payload: { document },
+    }),
+  preflightSkeletonResource: (resourceId, legacyKernel = null) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "preflight",
+      payload: {
+        resource_id: resourceId,
+        ...(legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
+          ? { legacy_kernel: legacyKernel }
+          : {}),
+      },
+    }),
+  publishSkeletonWorkflow: (resourceId, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "publish",
+      payload: { resource_id: resourceId, expected_edit_token: expectedEditToken },
+    }),
+  getSkeletonWorkflowVersion: (workflowId, revisionId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "get_version",
+      payload: { workflow_id: workflowId, revision_id: revisionId },
+    }),
+  renameSkeletonResource: (resourceId, name, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "rename",
+      payload: { resource_id: resourceId, name, expected_edit_token: expectedEditToken },
+    }),
+  duplicateSkeletonResource: (resourceId, newId, name) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "duplicate",
+      payload: { resource_id: resourceId, new_id: newId, name },
+    }),
+  archiveSkeletonResource: (resourceId, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "archive",
+      payload: { resource_id: resourceId, expected_edit_token: expectedEditToken },
+    }),
+  restoreSkeletonResource: (resourceId, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "restore",
+      payload: { resource_id: resourceId, expected_edit_token: expectedEditToken },
+    }),
+  deleteSkeletonResource: (resourceId, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "delete",
+      payload: { resource_id: resourceId, expected_edit_token: expectedEditToken },
+    }),
+  migrateSkeletonResource: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "migrate",
+      payload,
+    }),
+  resolveSkeletonResource: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "resolve",
+      payload,
+    }),
+  listSkeletonPythonProfiles: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "list_profiles",
+      payload: {},
+    }),
+  saveSkeletonPythonProfile: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "save_profile",
+      payload,
+    }),
+  probeSkeletonPythonProfile: (profileId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "probe_profile",
+      payload: { profile_id: profileId },
+    }),
+  deleteSkeletonPythonProfile: (profileId, expectedEditToken) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+      action: "delete_profile",
+      payload: {
+        profile_id: profileId,
+        expected_edit_token: expectedEditToken,
+      },
+    }),
   previewCharacterDecision: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION, payload),
   buildCharacterAgentConfig: (payload = {}) =>

@@ -18,6 +18,7 @@ class InterjectChannels:
     digest: ProgressDigest
     original_task: str
     options: dict = field(default_factory=dict)
+    queue_only: bool = False
 
 
 _registry: dict[str, InterjectChannels] = {}
@@ -25,13 +26,16 @@ _registry_lock = threading.Lock()
 
 
 def register_interject_channels(
-    session_id: str, original_task: str, options: dict | None = None
+    session_id: str, original_task: str, options: dict | None = None, *, queue_only: bool = False
 ) -> InterjectChannels:
+    if type(queue_only) is not bool:
+        raise TypeError("queue_only must be a boolean")
     channels = InterjectChannels(
         fyi=FyiChannel(),
         digest=ProgressDigest(),
         original_task=original_task,
         options=dict(options) if options else {},
+        queue_only=queue_only,
     )
     with _registry_lock:
         _registry[session_id] = channels
