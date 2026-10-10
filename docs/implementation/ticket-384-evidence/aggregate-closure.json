@@ -1,0 +1,43 @@
+{
+  "source_commit": "ce9e434c069c14cf0ae6bf7997671d6d065d1394",
+  "command": "CI=true npm test -- --watchAll=false --runInBand",
+  "initial_run": {
+    "exit_status": 1,
+    "suite_summary": "Test Suites: 2 failed, 443 passed, 445 total",
+    "test_summary": "Tests:       8 failed, 5 skipped, 5402 passed, 5415 total",
+    "failed_suites": [
+      "src/electron/tests/main/memory_vault_sink_broker.test.js",
+      "src/electron/tests/main/memory_vault_use_state.test.js"
+    ],
+    "failed_tests": [
+      "memory vault sink broker › binds only an ephemeral 127.0.0.1 port and exposes child env in memory",
+      "memory vault sink broker › authenticates method/path/timestamp/nonce/raw-body hash and rejects nonce replay",
+      "memory vault sink broker › rejects forged and stale requests without poisoning their nonce",
+      "memory vault sink broker › enforces 64KiB raw bodies and JSON content type before dispatch",
+      "memory vault sink broker › has no decrypt/read endpoint and never serializes handler messages",
+      "memory vault sink broker › status is authenticated and contains no key or storage metadata",
+      "memory vault one-time use state machine › configureSinkExecutors is one-shot and locks once the broker has started",
+      "memory vault one-time use state machine › close stops the broker and drains the executor registry before closing the db"
+    ],
+    "raw_log_path": "/Users/red/Documents/Codex/2026-10-02/task-3/ticket-384-aggregate.log",
+    "raw_log_sha256": "33bb40366e2bd2e31c93a9e7282a609ec900b6b405f484cf835fe2bf62aebde7"
+  },
+  "diagnosis": {
+    "probe": "independent http.createServer().listen(0,127.0.0.1)",
+    "result": "listen EPERM: operation not permitted 127.0.0.1",
+    "isolation": "vault tests use mocked services, in-memory temporary keys and temporary SQLite fake userData; no Electron app/shared profile"
+  },
+  "targeted_rerun": {
+    "permission": "authorized isolated localhost listen",
+    "exit_status": 0,
+    "suites_passed": 2,
+    "tests_passed": 30,
+    "log": "loopback-rerun-green.log"
+  },
+  "combined_closure": {
+    "suites_passed": 445,
+    "tests_passed": 5410,
+    "tests_skipped": 5,
+    "note": "All initial failures passed the targeted environment-correct rerun on identical source. This is combined closure, not a single all-green aggregate run."
+  }
+}

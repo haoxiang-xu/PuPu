@@ -17,7 +17,7 @@ import contextV2Bridge from "../../../SERVICEs/bridges/context_v2_bridge";
  *  - §2铁律 edit re-expands (fresh composer) / edit-to-plain drops the stale
  *           sidecar (宁删勿 stale); resend keeps composer (content unchanged).
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   LocaleContext,
   NavigationContext,
@@ -25,6 +25,7 @@ import {
 } from "../../../CONTAINERs/config/context";
 import ChatInterface from "../chat";
 import {
+  getChatMessages,
   getChatsStore,
   setChatSelectedToolkits,
 } from "../../../SERVICEs/chat_storage";
@@ -436,5 +437,46 @@ describe("composer sidecar (write + 禁读 + rewrite paths)", () => {
     const [resendPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(deepHasKey(resendPayload, "composer")).toBe(false);
     expect(resendPayload).not.toHaveProperty("context_composition_hint");
+  });
+
+  test("#384: the composer Stop retains observed tool history through persisted messages", async () => {
+    renderChat();
+    await waitForReady();
+    sendText("inspect a file");
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+
+    await act(async () => streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      run_id: "run-stop-384",
+      payload: { call_id: "call-complete-384", tool_name: "read_file", arguments: { path: "a.txt" } },
+    }));
+    await act(async () => streamHandlers.onFrame({
+      seq: 2,
+      ts: 101,
+      type: "tool_result",
+      run_id: "run-stop-384",
+      payload: { call_id: "call-complete-384", result: { content: "file contents" } },
+    }));
+    await act(async () => streamHandlers.onFrame({
+      seq: 3,
+      ts: 102,
+      type: "tool_call",
+      run_id: "run-stop-384",
+      payload: { call_id: "call-running-384", tool_name: "search", arguments: { query: "needle" } },
+    }));
+    const chatId = getChatsStore().activeChatId;
+
+    await act(async () => lastChatInputProps.onStop());
+
+    const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    expect(assistant).toBeDefined();
+    expect(assistant.status).toBe("cancelled");
+    expect(assistant.content).toBe("");
+    expect(assistant.traceFrames.map((entry) => entry.payload.call_id)).toEqual([
+      "call-complete-384", "call-complete-384", "call-running-384",
+    ]);
+    expect(assistant.traceFrames[1].payload.result).toEqual({ content: "file contents" });
   });
 });

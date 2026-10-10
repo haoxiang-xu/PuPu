@@ -1,0 +1,935 @@
+import React from "react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { ConfigContext } from "../../CONTAINERs/config/context";
+import TraceChain from "./trace_chain";
+import { createRuntimeEventStore } from "../../SERVICEs/runtime_events/event_store";
+import { reduceActivityTree } from "../../SERVICEs/runtime_events/activity_tree";
+
+jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
+
+const observedSequentialFrames = require("../../../docs/implementation/ticket-383-evidence/observed-sequential.legacy-frames.json");
+const candidateGroupingFixture = require("./__fixtures__/ticket_383_tool_grouping_candidate.json");
+const testFrame = (seq, type, payload = {}, run_id = "run-a", iteration = 0) => ({
+  seq,
+  ts: seq * 100,
+  run_id,
+  iteration,
+  type,
+  payload,
+});
+
+const timelineVisible = (element) => {
+  let current = element;
+  while (current) {
+    if (
+      current.hidden ||
+      current.style?.display === "none" ||
+      current.style?.visibility === "hidden" ||
+      (["0", "0px"].includes(current.style?.height) &&
+        current.style?.overflow === "hidden")
+    ) {
+      return false;
+    }
+    current = current.parentElement;
+  }
+  return true;
+};
+const visibleText = (scope, text) =>
+  scope.queryAllByText(text).filter(timelineVisible);
+const timelineRowFor = (element) => {
+  let current = element;
+  while (
+    current &&
+    !(current.style?.flexDirection === "row" && current.style?.alignItems === "stretch")
+  ) {
+    current = current.parentElement;
+  }
+  return current;
+};
+const ownVisibleHeaderButtons = (row) =>
+  Array.from(row.querySelectorAll("button")).filter(
+    (button) => timelineRowFor(button) === row && timelineVisible(button),
+  );
+
+const interruptedGroupTestTheme = {
+  lineColor: "rgb(11, 12, 13)",
+  lineDoneColor: "rgb(21, 22, 23)",
+};
+
+const ownBottomTimelineTrack = (row) => {
+  // A retained reasoning row follows the group, so its lower track exists.
+  // Select only this row's track column, excluding any nested detail Timeline.
+  const trackColumn = row.firstElementChild;
+  return Array.from(trackColumn.children).find(
+    (node) => node.style.bottom === "0px" && node.style.width === "1px",
+  );
+};
+
+const renderTraceChain = (frames, props = {}, timelineTheme) =>
+  render(
+    <ConfigContext.Provider
+      value={{
+        theme: {
+          color: "#222",
+          font: { fontFamily: "sans-serif" },
+          timeline: timelineTheme,
+        },
+        onThemeMode: "light_mode",
+      }}
+    >
+      <TraceChain frames={frames} status="done" {...props} />
+    </ConfigContext.Provider>,
+  );
+
+describe("TraceChain consecutive tool grouping", () => {
+  test.each(candidateGroupingFixture.producer_cases)(
+    "renders one feedback member per logical $policy call from real candidate events ($name)",
+    async (producerCase) => {
+      const store = createRuntimeEventStore();
+      store.appendMany(producerCase.events);
+      const projected = reduceActivityTree(null, store.getSnapshot());
+
+      const onDecision = jest.fn();
+      renderTraceChain(projected.frames, {
+        onToolConfirmationDecision: onDecision,
+        toolConfirmationUiStateById: producerCase.ui,
+      });
+
+      expect(screen.getAllByText("×2")).toHaveLength(1);
+      if (producerCase.feedback === "approved") {
+        const groupRow = timelineRowFor(screen.getByText("×2"));
+        expect(visibleText(within(groupRow), "Approved")).toHaveLength(0);
+        const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+          (button) => button.textContent.trim() === "detail",
+        );
+        expect(groupDetails).toBeInTheDocument();
+        fireEvent.click(groupDetails);
+        await waitFor(() =>
+          expect(visibleText(screen, "Approved")).toHaveLength(2),
+        );
+        const memberDetails = screen
+          .getAllByRole("button")
+          .filter(
+            (button) =>
+              button.textContent.trim() === "detail" &&
+              timelineVisible(button) &&
+              timelineRowFor(button) !== groupRow,
+          );
+        expect(memberDetails).toHaveLength(2);
+        memberDetails.forEach((button) => fireEvent.click(button));
+        await waitFor(() => {
+          expect(visibleText(screen, "Pair output 1")).toHaveLength(1);
+          expect(visibleText(screen, "Pair output 2")).toHaveLength(1);
+        });
+      } else if (producerCase.feedback === "pending") {
+        const groupRow = timelineRowFor(screen.getByText("×2"));
+        expect(ownVisibleHeaderButtons(groupRow)).toHaveLength(0);
+        const allowButtons = screen.getAllByRole("button", { name: "Allow once" });
+        expect(allowButtons).toHaveLength(2);
+        fireEvent.click(allowButtons[1]);
+        expect(onDecision).toHaveBeenCalledTimes(1);
+        expect(onDecision).toHaveBeenCalledWith({
+          confirmationId: "pending-always-confirm-2",
+          approved: true,
+          scope: "once",
+        });
+      } else if (producerCase.feedback === "rejected") {
+        expect(screen.getAllByText("Denied")).toHaveLength(2);
+      }
+    },
+  );
+
+  test("keeps the sanitized representative sequence ungrouped when policy provenance is absent", () => {
+    renderTraceChain(candidateGroupingFixture.representative_frontend_frames, {
+      toolConfirmationUiStateById: candidateGroupingFixture.representative_ui,
+    });
+
+    expect(screen.queryByText("×3")).not.toBeInTheDocument();
+    expect(screen.getAllByText("web_fetch")).toHaveLength(3);
+    expect(screen.getAllByText("Approved")).toHaveLength(3);
+    screen
+      .getAllByRole("button")
+      .filter((button) => button.textContent.trim() === "detail")
+      .forEach((button) => fireEvent.click(button));
+    [1, 2, 3].forEach((callIndex) => {
+      expect(screen.getByText(`https://example.invalid/call-${callIndex}`)).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("301")).toHaveLength(2);
+    expect(screen.getByText("200")).toBeInTheDocument();
+  });
+
+  test("does not merge a projected call across foreign-scope confirmation feedback", () => {
+    const original = testFrame(1, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      arguments: { url: "https://example.invalid/original" },
+    }, "run-a", 1);
+    const foreignConfirmation = testFrame(2, "tool_confirmed", {
+      call_id: "reused-call",
+      tool_name: "other_tool",
+      toolkit_id: "other-kit",
+      confirmation_id: "same-confirmation",
+    }, "run-b", 2);
+    const projection = testFrame(3, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "same-confirmation",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Projected web fetch",
+      arguments: { request_id: "projection-only" },
+    }, "run-a", 1);
+
+    renderTraceChain([original, foreignConfirmation, projection], {
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "same-confirmation": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByText("web_fetch")).toHaveLength(2);
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+  });
+
+  test("uses toolkit name as a conservative scope when toolkit IDs are absent", () => {
+    const original = testFrame(1, "tool_call", {
+      call_id: "legacy-toolkit-call",
+      tool_name: "web_fetch",
+      toolkit_name: "files-a",
+      timeline_merge_policy: "always",
+      arguments: { url: "https://example.invalid/original" },
+    });
+    const projection = testFrame(2, "tool_call", {
+      call_id: "legacy-toolkit-call",
+      tool_name: "web_fetch",
+      toolkit_name: "files-b",
+      timeline_merge_policy: "always",
+      confirmation_id: "legacy-confirmation",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Projected web fetch",
+    });
+
+    renderTraceChain([original, projection], {
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "legacy-confirmation": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByText("web_fetch")).toHaveLength(2);
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+  });
+
+  test("checks fallback toolkit names on feedback gaps but ignores renamed labels for equal IDs", () => {
+    const original = testFrame(1, "tool_call", {
+      call_id: "legacy-toolkit-gap",
+      tool_name: "web_fetch",
+      toolkit_name: "files-core",
+      timeline_merge_policy: "always",
+    });
+    const foreignConfirmation = testFrame(2, "tool_confirmed", {
+      call_id: "legacy-toolkit-gap",
+      tool_name: "web_fetch",
+      toolkit_name: "files-custom",
+      confirmation_id: "legacy-gap-confirmation",
+    });
+    const projection = testFrame(3, "tool_call", {
+      call_id: "legacy-toolkit-gap",
+      tool_name: "web_fetch",
+      toolkit_name: "files-core",
+      timeline_merge_policy: "always",
+      confirmation_id: "legacy-gap-confirmation",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    });
+
+    const renamedSameIdOriginal = testFrame(4, "tool_call", {
+      call_id: "renamed-toolkit-label-call",
+      tool_name: "web_fetch",
+      toolkit_id: "toolkit.stable-id",
+      toolkit_name: "Old label",
+      timeline_merge_policy: "always",
+    });
+    const renamedSameIdProjection = testFrame(5, "tool_call", {
+      call_id: "renamed-toolkit-label-call",
+      tool_name: "web_fetch",
+      toolkit_id: "toolkit.stable-id",
+      toolkit_name: "New label",
+      timeline_merge_policy: "always",
+      confirmation_id: "renamed-toolkit-confirmation",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    });
+
+    const { unmount } = renderTraceChain(
+      [original, foreignConfirmation, projection],
+      {
+        onToolConfirmationDecision: jest.fn(),
+        toolConfirmationUiStateById: {
+          "legacy-gap-confirmation": { status: "idle" },
+        },
+      },
+    );
+    expect(screen.getAllByText("web_fetch")).toHaveLength(2);
+    unmount();
+
+    renderTraceChain([renamedSameIdOriginal, renamedSameIdProjection], {
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "renamed-toolkit-confirmation": { status: "idle" },
+      },
+    });
+    expect(screen.getAllByText("web_fetch")).toHaveLength(1);
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+  });
+
+  test("anchors late observation tails and expansion state to the full call scope", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-a",
+      timeline_merge_policy: "always",
+      arguments: { path: "alpha.txt" },
+    }, "run-a");
+    const observationA = testFrame(2, "observation", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-a",
+      content: "output alpha",
+    }, "run-a");
+    const callB = testFrame(3, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-b",
+      timeline_merge_policy: "always",
+      arguments: { path: "beta.txt" },
+    }, "run-b");
+    const observationB = testFrame(4, "observation", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-b",
+      content: "output beta",
+    }, "run-b");
+    const resultA = testFrame(5, "tool_result", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-a",
+      observation_omitted: 7,
+      observation_tail: ["tail alpha"],
+    }, "run-a");
+    const resultB = testFrame(6, "tool_result", {
+      call_id: "reused-call",
+      tool_name: "read_file",
+      toolkit_id: "files-b",
+      observation_omitted: 9,
+      observation_tail: ["tail beta"],
+    }, "run-b");
+
+    renderTraceChain([
+      callA,
+      observationA,
+      callB,
+      observationB,
+      resultA,
+      resultB,
+    ]);
+
+    const timelineRowFor = (element) => {
+      let current = element;
+      while (
+        current &&
+        !(current.style?.flexDirection === "row" && current.style?.alignItems === "stretch")
+      ) {
+        current = current.parentElement;
+      }
+      return current;
+    };
+    const noteA = screen.getByText("+7 more output lines coalesced");
+    const noteB = screen.getByText("+9 more output lines coalesced");
+    const noteARow = timelineRowFor(noteA);
+    const noteBRow = timelineRowFor(noteB);
+    const observationRows = screen
+      .getAllByText("Observation")
+      .map(timelineRowFor);
+    expect(noteARow.parentElement).toBe(observationRows[0].parentElement);
+    expect(noteBRow.parentElement).toBe(observationRows[0].parentElement);
+    const timelineItems = Array.from(noteARow.parentElement.children);
+    expect(timelineItems.indexOf(noteARow)).toBeLessThan(
+      timelineItems.indexOf(observationRows[1]),
+    );
+
+    fireEvent.click(noteARow.querySelector("button"));
+    expect(noteARow.querySelector("button").textContent).toContain("hide");
+    expect(noteBRow.querySelector("button").textContent).toContain("detail");
+  });
+
+  test("keeps real sequential legacy calls ungrouped when policy provenance is absent", () => {
+    renderTraceChain(observedSequentialFrames);
+
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Observation")).toHaveLength(2);
+
+    screen.getAllByRole("button").forEach((button) => {
+      if (button.textContent.trim() === "detail") {
+        fireEvent.click(button);
+      }
+    });
+
+    expect(screen.getAllByText("Fixture output reviewed safely")).toHaveLength(2);
+    expect(screen.getByText("fixture-1.txt")).toBeInTheDocument();
+    expect(screen.getByText("fixture-2.txt")).toBeInTheDocument();
+  });
+
+  test("keeps owned V4-style output and count-only truncation in member order", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      arguments: { path: "alpha.txt" },
+    });
+    const resultA = testFrame(2, "tool_result", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      result: { content: "result alpha" },
+    });
+    const outputA = testFrame(3, "observation", {
+      call_id: "call-a",
+      content: "output alpha",
+    });
+    const callB = testFrame(4, "tool_call", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      tool_display_name: "Read a file",
+      arguments: { path: "beta.txt" },
+    });
+    const resultB = testFrame(5, "tool_result", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      result: { content: "result beta" },
+      observation_omitted: 7,
+      observation_tail: [],
+    });
+    const outputB = testFrame(6, "observation", {
+      call_id: "call-b",
+      content: "output beta",
+    });
+
+    renderTraceChain([callA, resultA, outputA, callB, resultB, outputB]);
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getAllByText("Observation")).toHaveLength(2);
+    const groupDetails = screen
+      .getAllByRole("button")
+      .find((button) => button.textContent.trim() === "detail");
+    fireEvent.click(groupDetails);
+
+    expect(screen.getAllByText("Observation")).toHaveLength(2);
+    expect(screen.getByText("+7 more output lines coalesced")).toBeInTheDocument();
+    expect(screen.getByText("output alpha")).toBeInTheDocument();
+    expect(screen.getByText("output beta")).toBeInTheDocument();
+  });
+
+  test("keeps a same-tool call grouped when an earlier call’s truncation result arrives later", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      arguments: { path: "alpha.txt" },
+    });
+    const outputA = testFrame(2, "observation", {
+      call_id: "call-a",
+      content: "output alpha",
+    });
+    const callB = testFrame(3, "tool_call", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      arguments: { path: "beta.txt" },
+    });
+    const lateResultA = testFrame(4, "tool_result", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      result: { content: "result alpha" },
+      observation_omitted: 7,
+      observation_tail: [],
+    });
+
+    renderTraceChain([callA, outputA, callB, lateResultA]);
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getAllByText("Observation")).toHaveLength(1);
+    expect(screen.getByText("+7 more output lines coalesced")).toBeInTheDocument();
+    expect(screen.getByText("output alpha")).toBeInTheDocument();
+  });
+
+  test("keeps singleton and silent grouped-tool presentation unchanged", () => {
+    const singleton = [
+      testFrame(1, "tool_call", {
+        call_id: "single",
+        tool_name: "read_file",
+        arguments: { path: "single.txt" },
+      }),
+    ];
+    const { unmount } = renderTraceChain(singleton);
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+    expect(screen.getByText("read_file")).toBeInTheDocument();
+    unmount();
+
+    const silent = [
+      testFrame(1, "tool_call", {
+        call_id: "silent-a",
+        tool_name: "read_file",
+        timeline_merge_policy: "always",
+        arguments: { path: "one.txt" },
+      }),
+      testFrame(2, "tool_call", {
+        call_id: "silent-b",
+        tool_name: "read_file",
+        timeline_merge_policy: "always",
+        arguments: { path: "two.txt" },
+      }),
+    ];
+    renderTraceChain(silent);
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    const groupDetails = screen
+      .getAllByRole("button")
+      .find((button) => button.textContent.trim() === "detail");
+    fireEvent.click(groupDetails);
+    expect(screen.getByText("one.txt")).toBeInTheDocument();
+    expect(screen.getByText("two.txt")).toBeInTheDocument();
+  });
+
+  test("always mode groups pending confirmations with every member control visible and callable", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "pending-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-a",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Fetch alpha",
+    });
+    const callB = testFrame(2, "tool_call", {
+      ...callA.payload,
+      call_id: "pending-b",
+      confirmation_id: "confirm-b",
+      description: "Fetch beta",
+    });
+    const onDecision = jest.fn();
+
+    const foreignApproval = testFrame(3, "tool_confirmed", {
+      call_id: "pending-a",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "foreign-confirmation",
+    }, "run-b");
+    renderTraceChain([callA, callB, foreignApproval], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-a": { status: "idle" },
+        "confirm-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    const allowButtons = screen.getAllByRole("button", { name: "Allow once" });
+    expect(allowButtons).toHaveLength(2);
+    fireEvent.click(allowButtons[1]);
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-b",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("always mode preserves visible answered-question controls for explicit selection opt-in", () => {
+    const selectionCall = (seq, callId) =>
+      testFrame(seq, "tool_call", {
+        call_id: callId,
+        tool_name: "ask_user_question",
+        timeline_merge_policy: "always",
+        confirmation_id: `confirm-${callId}`,
+        requires_confirmation: true,
+        interact_type: "single",
+        interact_config: {
+          question: "Pick one thing",
+          options: [{ label: "Option A", value: "a" }],
+        },
+      });
+
+    const onDecision = jest.fn();
+    renderTraceChain([selectionCall(1, "question-a"), selectionCall(2, "question-b")], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-question-a": { status: "idle" },
+        "confirm-question-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getAllByText("Pick one thing")).toHaveLength(2);
+    const options = screen.getAllByText("Option A");
+    expect(options).toHaveLength(2);
+    fireEvent.click(options[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Submit" })[0]);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-question-a",
+      approved: true,
+      userResponse: { value: "a" },
+      scope: "once",
+    });
+  });
+
+  test("scopes duplicate call IDs across runs for approval, result, answer, and row rendering", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-run-a",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+      description: "Run A pending call",
+    }, "run-a");
+    const callB = testFrame(2, "tool_call", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "never",
+      confirmation_id: "confirm-run-b",
+      requires_confirmation: true,
+      interact_type: "single",
+      interact_config: {
+        question: "Run B answer",
+        options: [{ label: "Run B option", value: "b" }],
+      },
+    }, "run-b");
+    const confirmedB = testFrame(3, "tool_confirmed", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "confirm-run-b",
+    }, "run-b");
+    const resultB = testFrame(4, "tool_result", {
+      call_id: "reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      interact_type: "single",
+      result: { selected_values: ["b"] },
+    }, "run-b");
+    const onDecision = jest.fn();
+    const onSubmit = jest.fn();
+
+    renderTraceChain([callA, callB, confirmedB, resultB], {
+      onToolConfirmationDecision: onDecision,
+      onToolInteractionSubmit: onSubmit,
+      toolConfirmationUiStateById: {
+        "confirm-run-a": { status: "idle" },
+        "confirm-run-b": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(1);
+    expect(screen.getByText("Run B answer")).toBeInTheDocument();
+    expect(screen.getByText("Run B option")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-run-a",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("scopes approval and result lookups when a call ID is reused across toolkits", () => {
+    const coreCall = testFrame(1, "tool_call", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: "confirm-core",
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    }, "run-a");
+    const customCall = testFrame(2, "tool_call", {
+      ...coreCall.payload,
+      toolkit_id: "custom.fetch",
+      timeline_merge_policy: "never",
+      confirmation_id: "confirm-custom",
+    }, "run-a");
+    const customConfirmed = testFrame(3, "tool_confirmed", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "custom.fetch",
+      confirmation_id: "confirm-custom",
+    }, "run-a");
+    const customResult = testFrame(4, "tool_result", {
+      call_id: "toolkit-reused-call",
+      tool_name: "web_fetch",
+      toolkit_id: "custom.fetch",
+      result: { status: "custom result" },
+    }, "run-a");
+    const onDecision = jest.fn();
+
+    renderTraceChain([coreCall, customCall, customConfirmed, customResult], {
+      onToolConfirmationDecision: onDecision,
+      toolConfirmationUiStateById: {
+        "confirm-core": { status: "idle" },
+        "confirm-custom": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(1);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-core",
+      approved: true,
+      scope: "once",
+    });
+  });
+
+  test("leaves ambiguous or mismatched confirmation evidence pending", () => {
+    const call = (seq, confirmationId) => testFrame(seq, "tool_call", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      timeline_merge_policy: "always",
+      confirmation_id: confirmationId,
+      requires_confirmation: true,
+      interact_type: "confirmation",
+    }, "run-a");
+    const first = call(1, "confirm-first");
+    const second = call(2, "confirm-second");
+    const mismatched = testFrame(3, "tool_confirmed", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+      confirmation_id: "confirm-foreign",
+    }, "run-a");
+    const unscoped = testFrame(4, "tool_confirmed", {
+      call_id: "ambiguous-scope-call",
+      tool_name: "web_fetch",
+      toolkit_id: "core",
+    }, "run-a");
+
+    renderTraceChain([first, second, mismatched, unscoped], {
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-first": { status: "idle" },
+        "confirm-second": { status: "idle" },
+      },
+    });
+
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(2);
+    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
+  });
+
+  test("does not transfer expanded observation state to a shifted error row", () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      arguments: { path: "alpha.txt" },
+    });
+    const resultA = testFrame(2, "tool_result", {
+      call_id: "call-a",
+      tool_name: "read_file",
+      result: { content: "result alpha" },
+    });
+    const outputA = testFrame(3, "observation", {
+      call_id: "call-a",
+      content: "output alpha",
+    });
+    const firstFrames = [callA, resultA, outputA];
+    const { rerender } = renderTraceChain(firstFrames);
+    const detailButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.textContent.trim() === "detail");
+    expect(detailButtons).toHaveLength(2);
+    fireEvent.click(detailButtons[1]);
+    expect(screen.getAllByRole("button").some((button) => button.textContent.trim() === "hide")).toBe(true);
+
+    const callB = testFrame(4, "tool_call", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      timeline_merge_policy: "always",
+      arguments: { path: "beta.txt" },
+    });
+    const resultB = testFrame(5, "tool_result", {
+      call_id: "call-b",
+      tool_name: "read_file",
+      result: { content: "result beta" },
+    });
+    const error = testFrame(6, "error", { message: "after the grouped calls" });
+    rerender(
+      <ConfigContext.Provider
+        value={{
+          theme: { color: "#222", font: { fontFamily: "sans-serif" } },
+          onThemeMode: "light_mode",
+        }}
+      >
+        <TraceChain frames={[...firstFrames, callB, resultB, error]} status="done" />
+      </ConfigContext.Provider>,
+    );
+
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    expect(screen.getByText("after the grouped calls")).toBeInTheDocument();
+    expect(screen.queryByText("hide")).not.toBeInTheDocument();
+  });
+
+  test("#384: a stopped group keeps its unfinished first call visible when the last call completed", async () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "stopped-pending-a",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "pending-a.txt" },
+    });
+    const callB = testFrame(2, "tool_call", {
+      call_id: "stopped-completed-b",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-b.txt" },
+    });
+    const resultB = testFrame(3, "tool_result", {
+      call_id: "stopped-completed-b",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed B result" },
+    });
+    const reasoning = testFrame(4, "reasoning", {
+      reasoning: "Retained reasoning after these calls",
+    });
+
+    renderTraceChain(
+      [callA, callB, resultB, reasoning],
+      { status: "cancelled" },
+      interruptedGroupTestTheme,
+    );
+
+    expect(screen.getAllByText("×2")).toHaveLength(1);
+    const groupRow = timelineRowFor(screen.getByText("×2"));
+    expect(visibleText(within(groupRow), "Interrupted")).toHaveLength(1);
+    expect(visibleText(within(groupRow), "+100ms")).toHaveLength(0);
+    expect(ownBottomTimelineTrack(groupRow)).toHaveStyle({
+      background: interruptedGroupTestTheme.lineColor,
+    });
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+
+    const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+      (button) => button.textContent.trim() === "detail",
+    );
+    expect(groupDetails).toBeDefined();
+    fireEvent.click(groupDetails);
+
+    const pendingArguments = within(groupRow).getByText("pending-a.txt");
+    const completedArguments = within(groupRow).getByText("completed-b.txt");
+    const completedResult = within(groupRow).getByText("observed B result");
+    await waitFor(() => {
+      expect(visibleText(within(groupRow), "pending-a.txt")).toHaveLength(1);
+      expect(visibleText(within(groupRow), "completed-b.txt")).toHaveLength(1);
+      expect(visibleText(within(groupRow), "observed B result")).toHaveLength(1);
+    });
+    // Only B has a result; grouping must not manufacture one for A or show B twice.
+    expect(within(groupRow).getAllByText(/^result$/)).toHaveLength(1);
+    expect(
+      pendingArguments.compareDocumentPosition(completedArguments) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      completedArguments.compareDocumentPosition(completedResult) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("#384: a stopped group with two observed results keeps its completed header and each result once", async () => {
+    const callA = testFrame(1, "tool_call", {
+      call_id: "stopped-completed-a-control",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-a-control.txt" },
+    });
+    const resultA = testFrame(2, "tool_result", {
+      call_id: "stopped-completed-a-control",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed A control result" },
+    });
+    const callB = testFrame(3, "tool_call", {
+      call_id: "stopped-completed-b-control",
+      tool_name: "read_file",
+      timeline_merge_policy: "no_feedback",
+      arguments: { path: "completed-b-control.txt" },
+    });
+    const resultB = testFrame(4, "tool_result", {
+      call_id: "stopped-completed-b-control",
+      tool_name: "read_file",
+      status: "completed",
+      result: { content: "observed B control result" },
+    });
+    const reasoning = testFrame(5, "reasoning", {
+      reasoning: "Retained reasoning after the completed calls",
+    });
+
+    renderTraceChain(
+      [callA, resultA, callB, resultB, reasoning],
+      { status: "cancelled" },
+      interruptedGroupTestTheme,
+    );
+
+    expect(screen.getAllByText("×2")).toHaveLength(1);
+    const groupRow = timelineRowFor(screen.getByText("×2"));
+    expect(visibleText(within(groupRow), "Interrupted")).toHaveLength(0);
+    expect(visibleText(within(groupRow), "+100ms")).toHaveLength(1);
+    expect(ownBottomTimelineTrack(groupRow)).toHaveStyle({
+      background: interruptedGroupTestTheme.lineDoneColor,
+    });
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+
+    const groupDetails = ownVisibleHeaderButtons(groupRow).find(
+      (button) => button.textContent.trim() === "detail",
+    );
+    expect(groupDetails).toBeDefined();
+    fireEvent.click(groupDetails);
+
+    const argumentsA = within(groupRow).getByText("completed-a-control.txt");
+    const observedResultA = within(groupRow).getByText("observed A control result");
+    const argumentsB = within(groupRow).getByText("completed-b-control.txt");
+    const observedResultB = within(groupRow).getByText("observed B control result");
+    await waitFor(() => {
+      [
+        "completed-a-control.txt",
+        "observed A control result",
+        "completed-b-control.txt",
+        "observed B control result",
+      ].forEach((text) => {
+        expect(visibleText(within(groupRow), text)).toHaveLength(1);
+      });
+    });
+    expect(within(groupRow).getAllByText(/^result$/)).toHaveLength(2);
+    expect(
+      argumentsA.compareDocumentPosition(observedResultA) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      observedResultA.compareDocumentPosition(argumentsB) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      argumentsB.compareDocumentPosition(observedResultB) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

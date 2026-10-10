@@ -1,0 +1,124 @@
+{
+  "status": "independent_checks_complete",
+  "source_commit": "0eb843fe2312f0e5e4ba6edd98cb8056e9bfe40e",
+  "source_tree": "4c093d73604a550e3e95ab08fd6c0686fb41336d",
+  "source_and_fixture_sha256": {
+    "src/COMPONENTs/chat-bubble/trace_chain.js": "9c38823b599c76ba92256d8210de6e8ee18f3a0dae151d427056c12be111e502",
+    "src/COMPONENTs/chat-bubble/trace_tool_grouping.js": "65a7f4bf78bd3eb42418f307e9bd02788a184eff61d6dac2feace64c386a71c8",
+    "src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js": "3bfda65257790fabdacdb2e5def65c8b7703f6372067506854ce39c9e12c04bf",
+    "src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js": "a0014a3081a2ecf40a68e89c00437912864dd01879c015c64270d937584159e3",
+    "src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js": "ebf34fbbbb9bff2decd374769d0b1ab572b2246a226948d2eeac70ce5128af28",
+    "docs/implementation/ticket-383-evidence/observed-sequential.legacy-frames.json": "5d5580827b23fd1563c797633b4ccf2c2bb9ad3448caa010fc62adf94a71f87e",
+    "docs/implementation/ticket-383-evidence/observed-sequential.sidecar-runtime-events.json": "c517cae364772f1e0dc1cfbcb4fbf539102f95a50baf37a8613ae15079bb5f1f"
+  },
+  "checks": {
+    "ci-focused": {
+      "numPassedTestSuites": 17,
+      "numFailedTestSuites": 0,
+      "numPassedTests": 152,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "ci-producer-probes": {
+      "numPassedTestSuites": 5,
+      "numFailedTestSuites": 0,
+      "numPassedTests": 19,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "ci-frontend": {
+      "numPassedTestSuites": 445,
+      "numFailedTestSuites": 2,
+      "numPassedTests": 5375,
+      "numFailedTests": 38,
+      "numPendingTests": 5
+    },
+    "baseline-memory": {
+      "numPassedTestSuites": 0,
+      "numFailedTestSuites": 2,
+      "numPassedTests": 19,
+      "numFailedTests": 38,
+      "numPendingTests": 0
+    },
+    "ci_build": {
+      "child": {
+        "cwd": "/workspace/shared/pupu-383-planning-20261002",
+        "command": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+        "args": [
+          "/workspace/shared/pupu-383-planning-20261002/node_modules/react-scripts/scripts/build.js"
+        ],
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "pid": 50,
+        "duration_ms": 34962,
+        "node_options": "--require=/tmp/pupu-383-final-build-child-probe.cjs --max-old-space-size=1536",
+        "generate_sourcemap": "false"
+      },
+      "artifacts": {
+        "index_html": true,
+        "static_js_count": 72,
+        "feature_snapshot": true,
+        "index_html_sha256": "e689479a3efc01dd920e36543943040713a9bb19299444cc002e8a9304d48e5f",
+        "main_js_sha256": {
+          "main.25009fb3.js": "75f34e7f28643f9799c2b0f3ad0d56d31917627ede3c3678f044b7acec01f01c"
+        }
+      },
+      "compiled_successfully": true,
+      "exit": 0,
+      "ci": true,
+      "cpu_affinity": "0",
+      "build_version": "0.1.12",
+      "source_maps": false
+    },
+    "default_build_before_ci_dependency_correction": {
+      "child": {
+        "cwd": "/workspace/shared/pupu-383-planning-20261002",
+        "command": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+        "args": [
+          "/workspace/shared/pupu-383-planning-20261002/node_modules/react-scripts/scripts/build.js"
+        ],
+        "status": null,
+        "signal": "SIGKILL",
+        "error": null,
+        "pid": 51,
+        "duration_ms": 15469,
+        "node_options": "--require=/tmp/pupu-383-final-build-child-probe.cjs",
+        "generate_sourcemap": null
+      },
+      "artifacts": {
+        "index_html": false,
+        "static_js": [],
+        "feature_snapshot": false
+      },
+      "wrapper_exit": 0,
+      "verdict": "SIGKILL_NO_ARTIFACT_NOT_PASS"
+    }
+  },
+  "runtime_identity": {
+    "wheel_sha256": "f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889",
+    "wheel_size": 1160341,
+    "module_origin": "/workspace/shared/pupu-383-producer/venv/lib/python3.12/site-packages/unchain/__init__.py",
+    "direct_url": {
+      "archive_info": {
+        "hash": "sha256=f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889",
+        "hashes": {
+          "sha256": "f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889"
+        }
+      },
+      "url": "file:///workspace/shared/pupu-383-producer/artifact/unchain-0.2.0-py3-none-any.whl"
+    },
+    "imported_manifest_digest": "sha256:a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be",
+    "installed_file_bytes_match_wheel": true,
+    "matched_package_files": 344
+  },
+  "limits": [
+    "Two unchanged Electron memory-vault suites retain exactly the original-dev 38 failed assertions: 37 explicitly report secret_storage_unavailable, and one expects encryptString once but observes zero",
+    "Actual browser QA is NOT_RUN: cloud localhost returned ERR_BLOCKED_BY_CLIENT",
+    "Actual pinned KernelLoop, tool harness and host-route fixtures use fake ModelIO, in-memory tools and a captured-route source seam; full Agent, provider HTTP and production ownership were not exercised",
+    "The exact intermittent session reported by the user was not captured",
+    "GitNexus TraceChain caller impact remains UNKNOWN with text corroboration; inferred integration risk is HIGH across 12 flows, and FTS is unavailable",
+    "Default-build child SIGKILL is verified; OOM is not established. The successful CI build uses resource-only flags",
+    "No release qualification, feature-audit PASS, merge or deployment is implied"
+  ]
+}

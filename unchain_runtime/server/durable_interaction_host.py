@@ -3557,6 +3557,121 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         except DurableInteractionHostError as exc:
             context_unavailable_reason = exc.code
 
+    presentation = _presentation_for_request(request)
+    tool_presentation = presentation.get("tool_call")
+    if isinstance(tool_presentation, dict):
+        policy = None
+        source_metadata_resolved = False
+        request_subject = request.subject if isinstance(request.subject, dict) else {}
+        subject_extra = (
+            request_subject.get("extra")
+            if isinstance(request_subject.get("extra"), dict)
+            else {}
+        )
+        authority = subject_extra.get("context_v2_tool_authority")
+        intent_cursor = (
+            authority.get("intent_cursor")
+            if isinstance(authority, dict)
+            else None
+        )
+        call_id = str(tool_presentation.get("call_id") or "").strip()
+        tool_name = str(tool_presentation.get("tool_name") or "").strip()
+        if source_run_id and call_id and tool_name and isinstance(intent_cursor, dict):
+            try:
+                owner_chat_id = _cold_interaction_owner_chat_id(
+                    normalized_session_id, source_run_id
+                )
+                from memory_v2_unchain_active_bridge import (
+                    pupu_unchain_cold_tool_call_display_metadata,
+                )
+
+                display_metadata = pupu_unchain_cold_tool_call_display_metadata(
+                    owner_chat_id=owner_chat_id,
+                    session_id=normalized_session_id,
+                    source_attempt_id=source_run_id,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    intent_cursor=intent_cursor,
+                )
+                if display_metadata is not None:
+                    source_metadata_resolved = True
+                    from pupu_tool_call_ref import (
+                        TOOL_CALL_DISPLAY_METADATA_SCHEMA,
+                    )
+
+                    tool_presentation["call_ref"] = display_metadata["call_ref"]
+                    if "iteration" in display_metadata["call_ref"]:
+                        trace_frame = presentation.get("trace_frame")
+                        if isinstance(trace_frame, dict):
+                            trace_frame["iteration"] = display_metadata[
+                                "call_ref"
+                            ]["iteration"]
+                    metadata_payload = {
+                        "schema": TOOL_CALL_DISPLAY_METADATA_SCHEMA,
+                        "intent_cursor": copy.deepcopy(
+                            display_metadata["call_ref"]["intent_cursor"]
+                        ),
+                        "timeline_merge_policy_declared": display_metadata[
+                            "timeline_merge_policy_declared"
+                        ],
+                        "original_arguments_declared": display_metadata[
+                            "original_arguments_declared"
+                        ],
+                    }
+                    if display_metadata["timeline_merge_policy_declared"]:
+                        metadata_payload["timeline_merge_policy"] = copy.deepcopy(
+                            display_metadata["timeline_merge_policy"]
+                        )
+                        policy = display_metadata["timeline_merge_policy"]
+                    else:
+                        tool_presentation.pop("timeline_merge_policy", None)
+                    if display_metadata["original_arguments_declared"]:
+                        metadata_payload["original_arguments"] = copy.deepcopy(
+                            display_metadata["original_arguments"]
+                        )
+                        tool_presentation["arguments"] = copy.deepcopy(
+                            display_metadata["original_arguments"]
+                        )
+                    else:
+                        tool_presentation.pop("arguments", None)
+                    tool_presentation["call_ref_metadata"] = metadata_payload
+            except Exception:
+                # Missing or ambiguous historical provenance keeps legacy display behavior.
+                policy = None
+        if (
+            policy is None
+            and not source_metadata_resolved
+            and tool_name == "ask_user_question"
+        ):
+            policy = "never"
+        if policy in {"never", "no_feedback", "approved", "always"}:
+            tool_presentation["timeline_merge_policy"] = policy
+        elif source_metadata_resolved:
+            tool_presentation.pop("timeline_merge_policy", None)
+        if policy in {"never", "no_feedback", "approved", "always"} or source_metadata_resolved:
+            trace_frame = presentation.get("trace_frame")
+            trace_payload = (
+                trace_frame.get("payload")
+                if isinstance(trace_frame, dict)
+                else None
+            )
+            if isinstance(trace_payload, dict):
+                if policy is None:
+                    trace_payload.pop("timeline_merge_policy", None)
+                else:
+                    trace_payload["timeline_merge_policy"] = policy
+                for provenance_key in ("call_ref", "call_ref_metadata"):
+                    if provenance_key in tool_presentation:
+                        trace_payload[provenance_key] = copy.deepcopy(
+                            tool_presentation[provenance_key]
+                        )
+                if "arguments" in tool_presentation:
+                    trace_payload["arguments"] = copy.deepcopy(
+                        tool_presentation["arguments"]
+                    )
+                else:
+                    trace_payload.pop("arguments", None)
+
     result: dict[str, Any] = {
         "status": (
             "receipt_recorded"
@@ -3570,7 +3685,7 @@ def get_pending_interaction(session_id: str) -> dict[str, Any]:
         "kind": request.kind,
         "provider": subject_provider,
         "model": subject_model,
-        "presentation": _presentation_for_request(request),
+        "presentation": presentation,
         "resume_available": context is not None or graph_context is not None,
         "resume_options": (
             copy.deepcopy(

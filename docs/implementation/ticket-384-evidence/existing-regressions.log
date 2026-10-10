@@ -1,0 +1,18 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/hooks/runtime_event_batcher.test.js src/PAGEs/chat/hooks/use_chat_stream.turn_mutation_v2.test.js src/PAGEs/chat/hooks/execution_cancel_outbox.test.js src/PAGEs/chat/hooks/use_chat_stream.streaming_chunks.test.js src/PAGEs/chat/hooks/use_chat_stream.interject_channel.test.js src/SERVICEs/chat_storage.subagent_persistence.test.js src/SERVICEs/chat_storage/chat_storage_sanitize.test.js src/SERVICEs/runtime_events/stream_replay_projector.test.js
+
+PASS src/PAGEs/chat/hooks/use_chat_stream.turn_mutation_v2.test.js
+PASS src/SERVICEs/chat_storage/chat_storage_sanitize.test.js
+PASS src/SERVICEs/runtime_events/stream_replay_projector.test.js
+PASS src/PAGEs/chat/hooks/execution_cancel_outbox.test.js
+PASS src/PAGEs/chat/hooks/runtime_event_batcher.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.interject_channel.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.streaming_chunks.test.js
+PASS src/SERVICEs/chat_storage.subagent_persistence.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       90 passed, 90 total
+Snapshots:   0 total
+Time:        4.554 s
+Ran all test suites matching /src\/PAGEs\/chat\/hooks\/runtime_event_batcher.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.turn_mutation_v2.test.js|src\/PAGEs\/chat\/hooks\/execution_cancel_outbox.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.streaming_chunks.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.interject_channel.test.js|src\/SERVICEs\/chat_storage.subagent_persistence.test.js|src\/SERVICEs\/chat_storage\/chat_storage_sanitize.test.js|src\/SERVICEs\/runtime_events\/stream_replay_projector.test.js/i.

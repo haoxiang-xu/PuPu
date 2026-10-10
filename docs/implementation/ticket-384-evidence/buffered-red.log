@@ -1,0 +1,56 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js -t pending 64ms batch
+
+FAIL src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js
+  Memory V2 P0 payload seams
+    ✕ #384: stop preserves a canonical V4 call admitted to the pending 64ms batch (72 ms)
+    ○ skipped a v4 reset removes only its failed live reasoning from the assistant message
+    ○ skipped a fresh chat can send before a late none recovery lookup
+    ○ skipped a fresh chat can send before a late awaiting_response recovery lookup
+    ○ skipped a failed speculative lookup does not mark a fresh chat as restoring
+    ○ skipped a chat with persisted history stays blocked until its recovery lookup resolves
+    ○ skipped default: owner_chat_id and memory fields are sent without opting in
+    ○ skipped retired flags do not change bootstrap fields or legacy history
+    ○ skipped character chat: threadId is the character session while owner_chat_id stays the UI chat id
+    ○ skipped explicit answer to recovered human input resumes once without sealing the receipt
+    ○ skipped live human input callback does not start another stream
+    ○ skipped mismatched receipt cannot resume or cancel a recorded human answer
+    ○ skipped unavailable resume cannot resume or cancel a recorded human answer
+    ○ skipped passive recovery while an explicit answer POST is in flight cannot seal that answer
+    ○ skipped a new root question after resume remains actionable when that stream disconnects
+    ○ skipped a new child question after resume remains actionable when that stream disconnects
+    ○ skipped a resume startup error preserves the receipt and exposes the failure without cancellation
+    ○ skipped Stop while the answer is being recorded prevents the late receipt from resuming
+    ○ skipped Stop carries a live tool confirmation id and the same chat can send again
+    ○ skipped a failed confirmation stays actionable and retries the same decision
+    ○ skipped old Stop outbox recovers only a same attempt target
+    ○ skipped old Stop outbox recovers only a foreign attempt target
+    ○ skipped cancel failures stop retrying after three attempts and stay stopped after remount
+    ○ skipped Codex replaces a persisted minimal preference with its supported default
+    ○ skipped flag off: a durable receipt is sealed without a model payload
+    ○ skipped flag on: a durable receipt is still sealed without a model payload
+    ○ skipped a picked context window rides the request for a built-in Ollama model (#227)
+    ○ skipped no pick means no contextWindow key, and a model without a declared default hides the picker (#227)
+
+  ● Memory V2 P0 payload seams › #384: stop preserves a canonical V4 call admitted to the pending 64ms batch
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      322 |
+      323 |     const assistant = getChatMessages(chatId).find((message) => message.role === "assistant");
+    > 324 |     expect(assistant).toBeDefined();
+          |                       ^
+      325 |     expect(assistant.status).toBe("cancelled");
+      326 |     expect(assistant.traceFrames).toEqual([
+      327 |       expect.objectContaining({
+
+      at Object.<anonymous> (src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js:324:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 27 skipped, 28 total
+Snapshots:   0 total
+Time:        1.03 s
+Ran all test suites matching /src\/PAGEs\/chat\/hooks\/use_chat_stream.memory_v2_payload.test.js/i with tests matching "pending 64ms batch".

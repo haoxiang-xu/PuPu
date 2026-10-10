@@ -1,0 +1,21 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/PAGEs/chat/utils/chat_turn_utils.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js src/SERVICEs/chat_storage.interrupted_trace_persistence.test.js src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js src/SERVICEs/runtime_events/activity_tree.test.js
+
+FakeTimers: clearTimeout was invoked to clear a native timer instead of one created by this library.
+To automatically clean-up native timers, use `shouldClearNativeTimers`.
+PASS src/PAGEs/chat/hooks/use_chat_stream.memory_v2_payload.test.js (5.13 s)
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+PASS src/SERVICEs/runtime_events/activity_tree.test.js
+PASS src/PAGEs/chat/hooks/use_chat_stream.composer_sidecar.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js
+PASS src/PAGEs/chat/hooks/use_chat_session_state.straggler_settle.test.js
+PASS src/PAGEs/chat/utils/chat_turn_utils.test.js
+PASS src/SERVICEs/chat_storage.interrupted_trace_persistence.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       162 passed, 162 total
+Snapshots:   0 total
+Time:        8.574 s
+Ran all test suites matching /src\/PAGEs\/chat\/utils\/chat_turn_utils.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.test.js|src\/PAGEs\/chat\/hooks\/use_chat_session_state.straggler_settle.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.composer_sidecar.test.js|src\/PAGEs\/chat\/hooks\/use_chat_stream.memory_v2_payload.test.js|src\/SERVICEs\/chat_storage.interrupted_trace_persistence.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.provider_retry.test.js|src\/SERVICEs\/runtime_events\/activity_tree.test.js/i.

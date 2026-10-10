@@ -520,17 +520,48 @@ export const buildRecoveredConfirmationRequest = ({
   ownerMessageId,
   requestedAt = Date.now(),
 }) => {
-  const payload = isObject(pending?.traceFrame?.payload)
-    ? pending.traceFrame.payload
-    : {};
+  const traceFrame = isObject(pending?.traceFrame) ? pending.traceFrame : {};
+  const payload = isObject(traceFrame.payload) ? traceFrame.payload : {};
   return {
     confirmationId: pending.interactionId,
     callId: pending.callId,
     chatId: normalizedString(chatId),
     sessionId: pending.sessionId,
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "session_id")
+      ? { session_id: traceFrame.session_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "run_id")
+      ? { runId: traceFrame.run_id, run_id: traceFrame.run_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "execution_id")
+      ? { executionId: traceFrame.execution_id, execution_id: traceFrame.execution_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "event_cursor")
+      ? { eventCursor: traceFrame.event_cursor, event_cursor: traceFrame.event_cursor }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "event_id")
+      ? { eventId: traceFrame.event_id, event_id: traceFrame.event_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "iteration")
+      ? { iteration: traceFrame.iteration }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(traceFrame, "links")
+      ? { links: traceFrame.links }
+      : {}),
     ownerMessageId: normalizedString(ownerMessageId),
     toolName: normalizedString(payload.tool_name),
-    toolkitId: normalizedString(payload.toolkit_id),
+    ...(Object.prototype.hasOwnProperty.call(payload, "toolkit_id")
+      ? { toolkitId: payload.toolkit_id }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "call_ref")
+      ? { callRef: payload.call_ref }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "call_ref_metadata")
+      ? { callRefMetadata: payload.call_ref_metadata }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "timeline_merge_policy")
+      ? { timelineMergePolicy: payload.timeline_merge_policy }
+      : {}),
     toolDisplayName: normalizedString(payload.tool_display_name),
     arguments: isObject(payload.arguments) ? payload.arguments : {},
     description: normalizedString(payload.description),

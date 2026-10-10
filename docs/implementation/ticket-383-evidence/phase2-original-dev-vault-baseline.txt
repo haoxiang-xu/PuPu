@@ -1,0 +1,27 @@
+Original-dev aggregate failure reproduction
+
+Immutable source archive: 0047d58d0369d5c245a3fd8021d4d97c3e3f9a35
+Runner: CI=true npm run test:frontend -- --runInBand --silent --json --outputFile=... --runTestsByPath src/electron/tests/main/memory_vault_service.test.js src/electron/tests/main/memory_vault_use_state.test.js
+Exit: 1 (expected environment failure)
+Result: 2 suites failed; 38 failed; 19 passed; 57 total.
+
+Thirty-seven failed assertions explicitly report secret_storage_unavailable because
+encrypted safeStorage is unavailable. The remaining failure is
+"safeStorage fail-closed an encryptString failure latches unavailable for the
+session": it expected encryptString once and got zero, at
+electron/tests/main/memory_vault_service.test.cjs:653. This is the same fail-closed
+environmental behavior, not an assertion that literally contains the error code.
+
+The same two suites were independently rerun in an immutable 9b9b1e8 archive with
+the same runner and reproduced 2 suites / 38 failed / 19 passed. The relevant files
+are byte-identical between original dev and the final code candidate:
+
+- electron/main/services/memory_vault/service.js: sha256
+  86f90401ad4e1d6c452ca04e20d4d254f676049c3f289884ec37f5c41d5dd5ef
+- electron/tests/main/memory_vault_service.test.cjs: sha256
+  ed739aa24623e33b17e8c8dae12084d97cb62a89b2da02182e5e8fd49b85671e
+- electron/tests/main/memory_vault_use_state.test.cjs: sha256
+  e77f296d3b2936cea7d63289ff6111aa29827108d8cc9215713794e3a6dceb35
+
+No changes were made to these paths, encryption, platform safeStorage handling, or
+the failing assertions. This failure classification is independent of #383.

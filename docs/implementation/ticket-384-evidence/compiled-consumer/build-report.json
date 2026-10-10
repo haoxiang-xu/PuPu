@@ -1,0 +1,1237 @@
+{
+  "purpose": "isolated candidate-consumer fixture; not deployed bridge/runtime evidence",
+  "compiler": "candidate CRA webpack production configuration",
+  "entry": "docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+  "entryAndLockHashesIncluded": true,
+  "appStartupImported": false,
+  "bridgeOrModelTransportInvoked": false,
+  "acceptedManifestAttribution": "accepted baseline artifact provenance recorded before this browser fixture; the browser does not load a Python manifest",
+  "sourceFiles": [
+    {
+      "file": "src/COMPONENTs/chat-bubble/trace_chain.js",
+      "sha256": "f270244b6ba0e62d01713ea548cc6688937058e2b79648140957d984192a2afa"
+    },
+    {
+      "file": "src/PAGEs/chat/utils/chat_turn_utils.js",
+      "sha256": "0cd7f91805c127b4d2ff877176f1d9247f9a866f06a26bba99c9ea64101cad58"
+    },
+    {
+      "file": "src/SERVICEs/chat_storage/chat_storage_store.js",
+      "sha256": "6bba791af712442eb8c3bcd136afc16a0109b582b83e31fe8d58e74d412959ff"
+    },
+    {
+      "file": "src/SERVICEs/runtime_events/event_store.js",
+      "sha256": "7d16b22c052f78f16ce77122abc9ef1a6c189808ba23ef820ea68a7e57cb6bc7"
+    },
+    {
+      "file": "src/SERVICEs/runtime_events/activity_tree.js",
+      "sha256": "9e946282f767cd54632c4624d0eadafafea42cb162e5a1da8f6a9bbb4a79cf48"
+    },
+    {
+      "file": "src/SERVICEs/runtime_events/trace_chain_adapter.js",
+      "sha256": "6a0a2234a0167e5b797e012c9dcdad0013f51b6125ba6161a5d778184c11e623"
+    },
+    {
+      "file": "src/SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json",
+      "sha256": "b913b4f7aad9ed9a42be20f306d7e88a4b4529130aa4a3cc7effa0300cc4b356"
+    },
+    {
+      "file": "src/PAGEs/chat/hooks/use_chat_stream.js",
+      "sha256": "3dc910b8be3786cf036cae4fe0f3ef72002782e3652e40557809df5172b3a1d9"
+    },
+    {
+      "file": "docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+      "sha256": "5f604cc728db9b7e12d6a8ba744c2dec644941ea3e97d9289fda7eacfa59f1c0"
+    },
+    {
+      "file": "package-lock.json",
+      "sha256": "3e1a619d2b71b5947f2b99fec076f4bfac0804e324a83173a10ca5c059179c5a"
+    }
+  ],
+  "acceptedWheel": {
+    "file": ".local/ticket-384-runtime/unchain-0.2.0-py3-none-any.whl",
+    "sha256": "f62aa13af4525e5e98548612bc15171cbc01c784e7be55f73d704c7840164889"
+  },
+  "acceptedManifestSha256": "a4448f85fc219f8535a6dafca8cfe1f8ba7963a3219ef1a0f00f8f14e30079be",
+  "output": {
+    "bundle": {
+      "file": "ticket-384-consumer.js",
+      "bytes": 1768154,
+      "sha256": "789f1248c23473ba6b5dd04c18d34cabe1460fbb18c789bace9d5af43d92bf8a"
+    },
+    "html": {
+      "file": "index.html",
+      "bytes": 247,
+      "sha256": "5ec101b5a91602a2b4ed32af0227c07df25c86498678aba2bd3acf3f3dc251d9"
+    }
+  },
+  "moduleCount": 233,
+  "modules": [
+    {
+      "name": "",
+      "identifier": "",
+      "nameForCondition": ""
+    },
+    {
+      "name": "",
+      "identifier": "",
+      "nameForCondition": ""
+    },
+    {
+      "name": "./docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js + 92 modules",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js|a7eba5f793b6d92e3e506baefc4ccfe3",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js"
+    },
+    {
+      "name": "./docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/docs/implementation/ticket-384-evidence/compiled-consumer/qa-entry.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/trace_chain.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/trace_chain.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/trace_chain.js"
+    },
+    {
+      "name": "./src/CONTAINERs/config/context.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/CONTAINERs/config/context.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/CONTAINERs/config/context.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/components/streaming_message_store_context.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/streaming_message_store_context.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/streaming_message_store_context.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/event_store.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/event_store.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/event_store.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/activity_tree.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/activity_tree.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/activity_tree.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/trace_chain_adapter.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/trace_chain_adapter.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/trace_chain_adapter.js"
+    },
+    {
+      "name": "./src/PAGEs/chat/utils/chat_turn_utils.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/PAGEs/chat/utils/chat_turn_utils.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/PAGEs/chat/utils/chat_turn_utils.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/fixtures/ticket_384_observed_batch.json"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/mini_react/use_translation.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_translation.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_translation.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/memory_activity_labels.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/memory_activity_labels.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/memory_activity_labels.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/memory_agent_live_details.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_agent_live_details.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_agent_live_details.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/memory_v2_trace_audit.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_trace_audit.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_trace_audit.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/memory_v2_journal_reload.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_journal_reload.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_journal_reload.js"
+    },
+    {
+      "name": "./src/SERVICEs/runtime_events/memory_v2_trace_presenter.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/memory_v2_trace_presenter.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/runtime_events/memory_v2_trace_presenter.js"
+    },
+    {
+      "name": "./src/CONTAINERs/config/theme_highlight.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/CONTAINERs/config/theme_highlight.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/CONTAINERs/config/theme_highlight.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/class/animated_children.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/animated_children.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/animated_children.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/timeline/timeline.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/timeline/timeline.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/timeline/timeline.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/icon.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/icon.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/icon.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/branch_graph/branch_graph.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/branch_graph/branch_graph.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/branch_graph/branch_graph.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/components/seamless_markdown.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/seamless_markdown.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/seamless_markdown.js"
+    },
+    {
+      "name": "./src/SERVICEs/streaming_message_chunks.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/streaming_message_chunks.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/streaming_message_chunks.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/components/assistant_markdown_metrics.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/assistant_markdown_metrics.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/assistant_markdown_metrics.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/spinner/cell_split_spinner.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/spinner/cell_split_spinner.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/spinner/cell_split_spinner.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/interact_wrapper.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/interact_wrapper.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/interact_wrapper.js"
+    },
+    {
+      "name": "./src/SERVICEs/tool_confirmation_cache_policy.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/tool_confirmation_cache_policy.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/tool_confirmation_cache_policy.js"
+    },
+    {
+      "name": "./src/PAGEs/chat/utils/message_finality.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/PAGEs/chat/utils/message_finality.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/PAGEs/chat/utils/message_finality.js"
+    },
+    {
+      "name": "./src/SERVICEs/run_bundle_v1.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/run_bundle_v1.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/run_bundle_v1.js"
+    },
+    {
+      "name": "./src/SERVICEs/context_composition_v1.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/context_composition_v1.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/context_composition_v1.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/context-composition/context_composition_modal.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/context-composition/context_composition_modal.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/context-composition/context_composition_modal.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/provider_retry_step.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/provider_retry_step.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/provider_retry_step.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_store.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_store.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_store.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_constants.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_constants.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_constants.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_sanitize.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_sanitize.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_sanitize.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_tree.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_tree.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_tree.js"
+    },
+    {
+      "name": "./src/locales/en.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/en.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/en.json"
+    },
+    {
+      "name": "./src/locales/zh-CN.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/zh-CN.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/zh-CN.json"
+    },
+    {
+      "name": "./src/locales/zh-TW.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/zh-TW.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/zh-TW.json"
+    },
+    {
+      "name": "./src/locales/ja.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ja.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ja.json"
+    },
+    {
+      "name": "./src/locales/ko.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ko.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ko.json"
+    },
+    {
+      "name": "./src/locales/es.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/es.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/es.json"
+    },
+    {
+      "name": "./src/locales/fr.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/fr.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/fr.json"
+    },
+    {
+      "name": "./src/locales/de.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/de.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/de.json"
+    },
+    {
+      "name": "./src/locales/it.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/it.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/it.json"
+    },
+    {
+      "name": "./src/locales/pt-BR.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/pt-BR.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/pt-BR.json"
+    },
+    {
+      "name": "./src/locales/ru.json",
+      "identifier": "json|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ru.json",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/locales/ru.json"
+    },
+    {
+      "name": "./src/SERVICEs/bridges/context_v2_bridge.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/bridges/context_v2_bridge.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/bridges/context_v2_bridge.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_v2_pending_reviews.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/memory_job_discovery.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_job_discovery.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/memory_job_discovery.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/spinner/arc_spinner.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/spinner/arc_spinner.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/spinner/arc_spinner.js"
+    },
+    {
+      "name": "./src/SERVICEs/console_logger.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/console_logger.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/console_logger.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/icon_manifest.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/icon_manifest.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/icon_manifest.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/markdown/markdown.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/markdown.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/markdown.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/code/code.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/code/code.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/code/code.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/components/streaming_markdown_blocks.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/streaming_markdown_blocks.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/components/streaming_markdown_blocks.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/interact_registry.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/interact_registry.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/interact_registry.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/input/button.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/input/button.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/input/button.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/modal/modal.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/modal/modal.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/modal/modal.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/context-composition/context_composition_panel.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/context-composition/context_composition_panel.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/context-composition/context_composition_panel.js"
+    },
+    {
+      "name": "./src/SERVICEs/secure_random_id.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/secure_random_id.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/secure_random_id.js"
+    },
+    {
+      "name": "./src/SERVICEs/default_toolkit_store.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/default_toolkit_store.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/default_toolkit_store.js"
+    },
+    {
+      "name": "./src/SERVICEs/toolkit_id_aliases.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/toolkit_id_aliases.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/toolkit_id_aliases.js"
+    },
+    {
+      "name": "./src/SERVICEs/system_prompt_sections.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/system_prompt_sections.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/system_prompt_sections.js"
+    },
+    {
+      "name": "./src/SERVICEs/completion_diagnostics_v1.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/completion_diagnostics_v1.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/completion_diagnostics_v1.js"
+    },
+    {
+      "name": "./src/SERVICEs/run_bundle_v2.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/run_bundle_v2.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/run_bundle_v2.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_migrate.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_migrate.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_migrate.js"
+    },
+    {
+      "name": "./src/SERVICEs/chat_storage/chat_storage_backend.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_backend.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/chat_storage/chat_storage_backend.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react-showdown/dist/react-showdown.esm.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react-showdown/dist/react-showdown.esm.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react-showdown/dist/react-showdown.esm.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/markdown/code.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/code.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/code.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/es/common.js",
+      "identifier": "javascript/esm|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/es/common.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/es/common.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/markdown/markdown_style_registry.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/markdown_style_registry.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/markdown/markdown_style_registry.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/code_diff_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/code_diff_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/code_diff_interact.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/confirm_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/confirm_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/confirm_interact.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/multi_choice_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/multi_choice_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/multi_choice_interact.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/multi_select_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/multi_select_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/multi_select_interact.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/text_input_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/text_input_interact.js"
+    },
+    {
+      "name": "./src/COMPONENTs/chat-bubble/interact/single_select_interact.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/single_select_interact.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/chat-bubble/interact/single_select_interact.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/layer/z_layers.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/layer/z_layers.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/layer/z_layers.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/select/select.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/select.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/select.js"
+    },
+    {
+      "name": "./src/SERVICEs/bridges/settings_storage_bridge.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/bridges/settings_storage_bridge.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/bridges/settings_storage_bridge.js"
+    },
+    {
+      "name": "./src/SERVICEs/settings_repository.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/settings_repository.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/SERVICEs/settings_repository.js"
+    },
+    {
+      "name": "./src/COMPONENTs/diff/diff_body.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/diff/diff_body.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/COMPONENTs/diff/diff_body.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/input/textfield.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/input/textfield.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/input/textfield.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/tooltip/tooltip.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/tooltip/tooltip.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/tooltip/tooltip.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/class/scale_highlight.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/scale_highlight.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/scale_highlight.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/class/sliding_highlight.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/sliding_highlight.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/class/sliding_highlight.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/select/use_select.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/use_select.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/use_select.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/select/option_list.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/option_list.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/select/option_list.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/mini_react/use_reduced_motion.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_reduced_motion.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/use_reduced_motion.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/mini_react/mini_use.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/mini_use.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/mini_react/mini_use.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/tooltip/tooltip_trigger_listener.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[3]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/tooltip/tooltip_trigger_listener.js",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/tooltip/tooltip_trigger_listener.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react-dom/client.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/client.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/client.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react/cjs/react.production.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react/cjs/react.production.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react/cjs/react.production.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom-client.production.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom-client.production.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom-client.production.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react/jsx-runtime.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react/jsx-runtime.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react/jsx-runtime.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/scheduler/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/scheduler/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/scheduler/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react-dom/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react/cjs/react-jsx-runtime.production.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react/cjs/react-jsx-runtime.production.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react/cjs/react-jsx-runtime.production.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/ lazy ^\\.\\/.*\\.svg$ namespace object",
+      "identifier": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs|lazy|/^\\.\\/.*\\.svg$/|groupOptions: {}|namespace object",
+      "nameForCondition": ""
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/scheduler/cjs/scheduler.production.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/scheduler/cjs/scheduler.production.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/scheduler/cjs/scheduler.production.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom.production.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom.production.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/react-dom/cjs/react-dom.production.js"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/@svgr/webpack/lib/index.js??ruleSet[1].rules[1].oneOf[2].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/file-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[2].use[1]!/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/bolt.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/bolt.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/bolt.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/DS_store.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/c.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cpp.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/cs.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/css.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/dockerignore.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/docx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/env.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/git.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/git.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/git.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/gitignore.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/html.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ipynb.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/java.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/js.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/json.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/markdown.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/md.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pdf.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/php.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/png.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/pptx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/py.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/sql.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/svg.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/swift.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/ts.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/txt.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/xlsx.svg"
+    },
+    {
+      "name": "./src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg",
+      "identifier": "asset/resource|/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg",
+      "nameForCondition": "/Users/red/Documents/Codex/2026-10-02/task-3/pupu-384/src/BUILTIN_COMPONENTs/icon/SVGs/file_types/zip.svg"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/mini-css-extract-plugin/dist/loader.js??ruleSet[1].rules[1].oneOf[5].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!/Users/red/Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/mini-css-extract-plugin/dist/loader.js??ruleSet[1].rules[1].oneOf[5].use[0]!/Users/red/Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!/Users/red/Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/showdown/dist/showdown.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/showdown/dist/showdown.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/showdown/dist/showdown.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domhandler/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domhandler/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domhandler/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/common.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/common.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/common.js"
+    },
+    {
+      "name": "css ../../../../../Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!../../../../../Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!../../../../../Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css",
+      "identifier": "css|/Users/red/Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!/Users/red/Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css|0|||}}",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/vs2015.css"
+    },
+    {
+      "name": "css ../../../../../Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!../../../../../Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!../../../../../Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css",
+      "identifier": "css|/Users/red/Desktop/GITRepo/PuPu/node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[1]!/Users/red/Desktop/GITRepo/PuPu/node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[1].oneOf[5].use[2]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css|0|||}}",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/styles/atom-one-light.css"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Parser.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Parser.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Parser.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Tokenizer.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Tokenizer.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/Tokenizer.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domelementtype/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domelementtype/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domelementtype/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domhandler/lib/node.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domhandler/lib/node.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domhandler/lib/node.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/FeedHandler.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/FeedHandler.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/htmlparser2/lib/FeedHandler.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/core.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/core.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/core.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/xml.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/xml.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/xml.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/bash.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/bash.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/bash.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/c.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/c.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/c.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/cpp.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/cpp.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/cpp.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/csharp.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/csharp.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/csharp.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/css.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/css.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/css.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/markdown.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/markdown.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/markdown.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/diff.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/diff.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/diff.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ruby.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ruby.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ruby.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/go.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/go.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/go.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/graphql.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/graphql.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/graphql.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ini.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ini.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/ini.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/java.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/java.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/java.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/javascript.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/javascript.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/javascript.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/json.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/json.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/json.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/kotlin.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/kotlin.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/kotlin.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/less.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/less.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/less.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/lua.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/lua.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/lua.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/makefile.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/makefile.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/makefile.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/perl.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/perl.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/perl.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/objectivec.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/objectivec.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/objectivec.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php-template.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php-template.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/php-template.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/plaintext.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/plaintext.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/plaintext.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python-repl.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python-repl.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/python-repl.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/r.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/r.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/r.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/rust.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/rust.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/rust.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/scss.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/scss.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/scss.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/shell.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/shell.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/shell.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/sql.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/sql.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/sql.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/swift.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/swift.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/swift.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/yaml.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/yaml.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/yaml.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/typescript.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/typescript.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/typescript.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/vbnet.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/vbnet.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/vbnet.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/wasm.js",
+      "identifier": "javascript/dynamic|/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/wasm.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/highlight.js/lib/languages/wasm.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/decode_codepoint.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/decode_codepoint.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/decode_codepoint.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/entities.json",
+      "identifier": "json|/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/entities.json",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/entities.json"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/legacy.json",
+      "identifier": "json|/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/legacy.json",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/legacy.json"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/xml.json",
+      "identifier": "json|/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/xml.json",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/xml.json"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/stringify.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/stringify.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/stringify.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/traversal.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/traversal.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/traversal.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/manipulation.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/manipulation.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/manipulation.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/querying.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/querying.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/querying.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/legacy.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/legacy.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/legacy.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/helpers.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/helpers.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/helpers.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/domutils/lib/feeds.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/feeds.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/domutils/lib/feeds.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/decode.json",
+      "identifier": "json|/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/decode.json",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/maps/decode.json"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/index.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/index.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/index.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/foreignNames.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/foreignNames.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/dom-serializer/lib/foreignNames.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/decode.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/decode.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/decode.js"
+    },
+    {
+      "name": "../../../../../Desktop/GITRepo/PuPu/node_modules/entities/lib/encode.js",
+      "identifier": "/Users/red/Desktop/GITRepo/PuPu/node_modules/babel-loader/lib/index.js??ruleSet[1].rules[1].oneOf[4]!/Users/red/Desktop/GITRepo/PuPu/node_modules/source-map-loader/dist/cjs.js!/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/encode.js",
+      "nameForCondition": "/Users/red/Desktop/GITRepo/PuPu/node_modules/entities/lib/encode.js"
+    }
+  ],
+  "warnings": []
+}

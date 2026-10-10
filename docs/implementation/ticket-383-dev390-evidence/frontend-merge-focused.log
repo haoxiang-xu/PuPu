@@ -1,0 +1,17 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js src/COMPONENTs/chat-bubble/trace_chain.test.js src/SERVICEs/runtime_events/activity_tree.test.js
+
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.grouping_parity.test.js
+PASS src/SERVICEs/runtime_events/activity_tree.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.provider_retry.test.js
+PASS src/COMPONENTs/chat-bubble/trace_tool_grouping.test.js
+PASS src/COMPONENTs/chat-bubble/trace_chain.test.js
+
+Test Suites: 6 passed, 6 total
+Tests:       144 passed, 144 total
+Snapshots:   0 total
+Time:        4.619 s, estimated 6 s
+Ran all test suites matching /src\/COMPONENTs\/chat-bubble\/trace_tool_grouping.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.grouping.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.grouping_parity.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.provider_retry.test.js|src\/COMPONENTs\/chat-bubble\/trace_chain.test.js|src\/SERVICEs\/runtime_events\/activity_tree.test.js/i.

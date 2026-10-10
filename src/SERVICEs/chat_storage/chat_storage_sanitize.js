@@ -436,16 +436,30 @@ export const sanitizeArtifactSummariesByTurnId = (value) => {
 export const sanitizeRunArtifactSummary = (value) =>
   sanitizeArtifactBucket(value) || undefined;
 
+const TRACE_FRAME_PROVENANCE_FIELDS = [
+  "run_id",
+  "stage",
+  "links",
+  "event_id",
+  "execution_id",
+  "session_id",
+  "event_cursor",
+  "iteration",
+];
+
 const sanitizeTraceFrame = (frame) => {
   if (!isObject(frame)) return null;
   const cleanedFrame = {
     seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
     ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
-    run_id: typeof frame.run_id === "string" ? frame.run_id : "",
     type: trimText(String(frame.type || ""), 64),
   };
-  if (Number.isFinite(Number(frame.iteration))) {
-    cleanedFrame.iteration = Number(frame.iteration);
+  for (const field of TRACE_FRAME_PROVENANCE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(frame, field)) {
+      // These fields can contradict a logical-call descriptor. Keep their
+      // explicit JSON values, including malformed values, for strict readers.
+      cleanedFrame[field] = clone(frame[field]);
+    }
   }
   if (isObject(frame.payload)) {
     const payload = clone(frame.payload);

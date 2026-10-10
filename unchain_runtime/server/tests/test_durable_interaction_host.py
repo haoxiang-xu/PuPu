@@ -31,6 +31,7 @@ class DurableInteractionHostTests(unittest.TestCase):
         session_id: str = "chat-1",
         kind: str = "tool_approval",
         payload: dict | None = None,
+        subject: dict | None = None,
     ):
         from unchain.interaction.durable import (
             INTERACTION_JOURNAL_KEY,
@@ -55,7 +56,11 @@ class DurableInteractionHostTests(unittest.TestCase):
             payload=request_payload,
             response_contract=response_contract_for_kind(kind),
             created_revision=0,
-            subject={"provider": "openai", "model": "gpt-5"},
+            subject=(
+                subject
+                if subject is not None
+                else {"provider": "openai", "model": "gpt-5"}
+            ),
         )
         journal = register_interaction_request(
             new_interaction_journal(),
@@ -179,6 +184,100 @@ class DurableInteractionHostTests(unittest.TestCase):
             result["presentation"]["tool_call"]["toolkit_name"],
             "Computer",
         )
+
+    def test_cold_pending_preserves_declared_original_arguments_by_presence(self) -> None:
+        from memory_v2_unchain_active_bridge import (
+            pupu_unchain_cold_tool_call_display_metadata,
+        )
+
+        cases = (
+            ("null", True, None),
+            ("json-string", True, '{"value":"durable"}'),
+            ("object", True, {"value": "durable"}),
+            ("omitted", False, None),
+        )
+        for suffix, declared, original_arguments in cases:
+            with self.subTest(case=suffix):
+                session_id = f"chat-original-arguments-{suffix}"
+                cursor = {
+                    "schema": "unchain.event_cursor.v1",
+                    "store_seq": 10,
+                    "event_id": f"event-original-arguments-{suffix}",
+                }
+                self._seed_request(
+                    session_id=session_id,
+                    payload={
+                        "type": "tool_confirmation_request",
+                        "tool_name": "write",
+                        "call_id": f"call-{suffix}",
+                        "arguments": {"edited": "current request"},
+                        "description": "Write notes",
+                    },
+                    subject={
+                        "provider": "openai",
+                        "model": "gpt-5",
+                        "extra": {
+                            "context_v2_tool_authority": {
+                                "intent_cursor": cursor,
+                            }
+                        },
+                    },
+                )
+                display_metadata = {
+                    "call_ref": {
+                        "schema": "pupu.tool_call_ref.v1",
+                        "execution_id": session_id,
+                        "original_attempt_id": "run-1",
+                        "call_id": f"call-{suffix}",
+                        "tool_name": "write",
+                        "intent_cursor": cursor,
+                    },
+                    "timeline_merge_policy_declared": True,
+                    "timeline_merge_policy": "always",
+                    "original_arguments_declared": declared,
+                }
+                if declared:
+                    display_metadata["original_arguments"] = original_arguments
+
+                with mock.patch.object(
+                    sys.modules[
+                        pupu_unchain_cold_tool_call_display_metadata.__module__
+                    ],
+                    "pupu_unchain_cold_tool_call_display_metadata",
+                    return_value=display_metadata,
+                ), mock.patch.object(
+                    host,
+                    "_session_execution_guard_call",
+                    return_value=None,
+                ):
+                    result = host.get_pending_interaction(session_id)
+
+                presentation_arguments = result["presentation"]["tool_call"]
+                trace_arguments = result["presentation"]["trace_frame"]["payload"]
+                if declared:
+                    self.assertIn("arguments", presentation_arguments)
+                    self.assertIn("arguments", trace_arguments)
+                    self.assertEqual(
+                        presentation_arguments["arguments"],
+                        original_arguments,
+                    )
+                    self.assertEqual(
+                        trace_arguments["arguments"],
+                        original_arguments,
+                    )
+                    self.assertEqual(
+                        result["presentation"]["tool_call"]["call_ref_metadata"][
+                            "original_arguments"
+                        ],
+                        original_arguments,
+                    )
+                else:
+                    self.assertNotIn("arguments", presentation_arguments)
+                    self.assertNotIn("arguments", trace_arguments)
+                    self.assertNotIn(
+                        "original_arguments",
+                        result["presentation"]["tool_call"]["call_ref_metadata"],
+                    )
 
     def test_session_store_rehydrates_sanitized_checkpoint_before_validation(self) -> None:
         from unchain.kernel import RunState

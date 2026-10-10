@@ -1,0 +1,121 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 build:web
+> npm run version:prepare-build && node ./scripts/build-web.cjs
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> PuPu@0.1.12 version:prepare-build
+> node ./scripts/prepare-build-version.cjs
+
+[version:prepare-build] Version already 0.1.12; no update needed.
+[build:web] Using build feature flags: {} (snapshot not found; using local defaults)
+(node:50) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Creating an optimized production build...
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Compiled successfully.
+
+File sizes after gzip:
+
+  837.22 kB (+3 B)  build/static/js/main.25009fb3.js
+  173.75 kB         build/static/js/7705.b0aebac1.chunk.js
+  128.32 kB         build/static/js/3437.60af9c31.chunk.js
+  41.9 kB           build/static/js/7978.af286bfb.chunk.js
+  31.41 kB          build/static/js/1424.c55472aa.chunk.js
+  17.02 kB          build/static/js/7826.4a25063c.chunk.js
+  12.97 kB          build/static/js/9629.817e002c.chunk.js
+  12.83 kB          build/static/js/5.106eb61d.chunk.js
+  8.54 kB           build/static/js/7332.69e6a61f.chunk.js
+  1.71 kB           build/static/js/8206.6f29c91c.chunk.js
+  1.36 kB           build/static/js/5055.d6cdb984.chunk.js
+  1.35 kB           build/static/js/1789.3cf25df6.chunk.js
+  1.33 kB           build/static/js/8540.555fc339.chunk.js
+  1.3 kB            build/static/js/2550.f9a3c510.chunk.js
+  1.29 kB           build/static/js/4938.c6ba969c.chunk.js
+  1.29 kB           build/static/js/8586.2f5c99d1.chunk.js
+  1.2 kB            build/static/js/2383.f65fa5e2.chunk.js
+  1.15 kB           build/static/js/3687.3896169e.chunk.js
+  1.11 kB           build/static/js/3852.ae3cbd89.chunk.js
+  1.09 kB           build/static/js/7913.e20bd557.chunk.js
+  1.02 kB           build/static/js/9020.da942756.chunk.js
+  965 B             build/static/js/1814.fdf4aed0.chunk.js
+  922 B             build/static/js/6122.1221b19b.chunk.js
+  911 B             build/static/js/8799.ed9ae4e5.chunk.js
+  908 B             build/static/js/4537.e0629a63.chunk.js
+  876 B             build/static/js/2115.2eaf4c62.chunk.js
+  867 B             build/static/js/8613.eebcd3c2.chunk.js
+  820 B             build/static/js/4159.8ffab18d.chunk.js
+  818 B             build/static/css/main.6d03a10b.css
+  800 B             build/static/js/3230.801099d0.chunk.js
+  799 B             build/static/js/2150.ff616903.chunk.js
+  775 B             build/static/js/7225.bcc41565.chunk.js
+  761 B             build/static/js/6235.3d1c67be.chunk.js
+  758 B             build/static/js/4550.3ff74695.chunk.js
+  715 B             build/static/js/9065.e29a8d1d.chunk.js
+  700 B             build/static/js/3846.22f1bdbe.chunk.js
+  697 B             build/static/js/7513.60a3cff7.chunk.js
+  695 B             build/static/js/3276.21aab120.chunk.js
+  673 B             build/static/js/2916.cd78e742.chunk.js
+  665 B             build/static/js/59.514d168f.chunk.js
+  639 B             build/static/js/9752.92bb0439.chunk.js
+  473 B             build/static/css/2782.bb9b4cf8.chunk.css
+  401 B             build/static/css/3596.d41f99e4.chunk.css
+  157 B             build/static/js/9318.42125b2f.chunk.js
+  156 B             build/static/js/4825.f6b6f343.chunk.js
+  155 B             build/static/js/7890.8067c5a1.chunk.js
+  155 B             build/static/js/7999.0daaf033.chunk.js
+  153 B             build/static/js/4556.336d126a.chunk.js
+  153 B             build/static/js/1338.338054e7.chunk.js
+  153 B             build/static/js/5011.446a44f4.chunk.js
+  153 B             build/static/js/5066.9560b791.chunk.js
+  153 B             build/static/js/7521.dd72c168.chunk.js
+  153 B             build/static/js/4078.8a3256bd.chunk.js
+  152 B             build/static/js/3301.6cad38e8.chunk.js
+  152 B             build/static/js/4272.11170102.chunk.js
+  152 B             build/static/js/4836.610da5a0.chunk.js
+  152 B             build/static/js/5592.3b125eee.chunk.js
+  152 B             build/static/js/1233.51e4f84d.chunk.js
+  152 B             build/static/js/5577.c99c8da9.chunk.js
+  152 B             build/static/js/6457.fd27b8c3.chunk.js
+  152 B             build/static/js/6804.f7e84cd9.chunk.js
+  152 B             build/static/js/9724.be2ad2c2.chunk.js
+  152 B             build/static/js/8805.0780f294.chunk.js
+  151 B             build/static/js/1151.e13f955d.chunk.js
+  151 B             build/static/js/2124.b78eb846.chunk.js
+  151 B             build/static/js/5864.96002ef0.chunk.js
+  151 B             build/static/js/8681.9c0227ff.chunk.js
+  151 B             build/static/js/9054.9750cbc3.chunk.js
+  151 B             build/static/js/3835.a346de5a.chunk.js
+  151 B             build/static/js/6449.7b648fae.chunk.js
+  151 B             build/static/js/8630.e66a53bf.chunk.js
+  150 B             build/static/js/7167.a6bb8ea0.chunk.js
+  150 B             build/static/js/2023.6fc8e4eb.chunk.js
+  138 B             build/static/js/3596.64f22a4d.chunk.js
+  137 B             build/static/js/2782.38487c6c.chunk.js
+
+The bundle size is significantly larger than recommended.
+Consider reducing it with code splitting: https://goo.gl/9VhYWB
+You can also analyze the project dependencies: https://goo.gl/LeUzfb
+
+The project was built assuming it is hosted at ./.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+
+[acceptance child exit] {"cwd":"/workspace/shared/pupu-383-planning-20261002","command":"/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node","args":["/workspace/shared/pupu-383-planning-20261002/node_modules/react-scripts/scripts/build.js"],"status":0,"signal":null,"error":null,"pid":50,"duration_ms":34962,"node_options":"--require=/tmp/pupu-383-final-build-child-probe.cjs --max-old-space-size=1536","generate_sourcemap":"false"}

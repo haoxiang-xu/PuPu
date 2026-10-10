@@ -4,6 +4,7 @@ import {
   createInitialActivityTreeState,
   reduceActivityTree,
 } from "./activity_tree";
+import { projectToolCallLifecycle } from "./tool_call_projection";
 
 const event = ({
   id,
@@ -40,6 +41,304 @@ const reduceEvents = (events) => {
 };
 
 describe("runtime events activity tree", () => {
+  test("interaction adapters preserve original call reference metadata and event scope", () => {
+    const callRef = {
+      schema: "pupu.tool_call_ref.v1",
+      execution_id: "run-root",
+      original_attempt_id: "run-root",
+      call_id: "fetch-1",
+      tool_name: "web_fetch",
+      intent_cursor: {
+        schema: "unchain.event_cursor.v1",
+        store_seq: 7,
+        event_id: "canonical-intent-7",
+      },
+    };
+    const callRefMetadata = {
+      schema: "pupu.tool_call_ref_metadata.v1",
+      intent_cursor: callRef.intent_cursor,
+      timeline_merge_policy_declared: true,
+      timeline_merge_policy: "approved",
+      original_arguments_declared: true,
+      original_arguments: { url: "https://example.invalid/original" },
+    };
+    const state = reduceEvents([
+      {
+        ...event({
+          id: "request-event",
+          type: "interaction.requested",
+          seq: 1,
+          links: { tool_call_id: "fetch-1", interaction_id: "confirm-fetch-1" },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            call_ref: callRef,
+            call_ref_metadata: callRefMetadata,
+            timeline_merge_policy: "approved",
+            target: {
+              tool_call_id: "fetch-1",
+              tool_name: "web_fetch",
+              arguments: { url: "https://example.invalid/original" },
+            },
+          },
+        }),
+        metadata: { raw_type: "interaction_requested" },
+      },
+      {
+        ...event({
+          id: "resolved-event",
+          type: "interaction.resolved",
+          seq: 2,
+          links: {
+            tool_call_id: "fetch-1",
+            interaction_id: "confirm-fetch-1",
+            input_request_id: "stale-request-link",
+          },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            outcome: "submitted",
+            response: { selected_values: ["x"] },
+            call_ref: callRef,
+            call_ref_metadata: callRefMetadata,
+            timeline_merge_policy: "approved",
+          },
+        }),
+        metadata: { raw_type: "interaction_resolved" },
+      },
+    ]);
+
+    expect(state.frames).toHaveLength(2);
+    expect(state.frames[0].payload.call_ref).toEqual(callRef);
+    expect(state.frames[0].payload.call_ref_metadata).toEqual(callRefMetadata);
+    expect(state.frames[0].payload.runtime_source_type).toBe("interaction_requested");
+    expect(state.frames[0]).toMatchObject({ run_id: "run-root", session_id: "thread-1" });
+    expect(state.frames[0]).not.toHaveProperty("iteration");
+    expect(state.frames[1].payload.outcome).toBe("submitted");
+    expect(state.frames[1].payload.call_ref).toEqual(callRef);
+    expect(state.frames[1].payload.call_ref_metadata).toEqual(callRefMetadata);
+    expect(state.frames[1].payload.timeline_merge_policy).toBe("approved");
+    expect(state.frames[1].links.input_request_id).toBe("confirm-fetch-1");
+  });
+
+  test("keeps a malformed explicit call reference visible and unqualified", () => {
+    const malformedRef = { schema: "pupu.tool_call_ref.v2", call_id: "fetch-1" };
+    const state = reduceEvents([
+      {
+        ...event({
+          id: "malformed-request",
+          type: "interaction.requested",
+          seq: 1,
+          links: { tool_call_id: "fetch-1", interaction_id: "confirm-fetch-1" },
+          payload: {
+            interaction_id: "confirm-fetch-1",
+            call_ref: malformedRef,
+            target: { tool_call_id: "fetch-1", tool_name: "web_fetch" },
+          },
+        }),
+        metadata: { raw_type: "interaction_requested" },
+      },
+    ]);
+
+    expect(state.frames[0].payload.call_ref).toEqual(malformedRef);
+    const projection = projectToolCallLifecycle(state.frames);
+    expect(projection.calls).toEqual([]);
+    expect(projection.unresolved).toEqual([
+      expect.objectContaining({ frameIndex: 0, reason: "invalid_explicit_ref" }),
+    ]);
+  });
+
+  test("derives interaction toolkit identity from canonical own-properties, not a materialized target placeholder", () => {
+    const projectRequest = (id, payload) =>
+      reduceEvents([
+        {
+          ...event({
+            id,
+            type: "interaction.requested",
+            links: { tool_call_id: "call-1", interaction_id: "confirm-1" },
+            payload: {
+              interaction_id: "confirm-1",
+              target: {
+                tool_call_id: "call-1",
+                tool_name: "web_fetch",
+                toolkit_id: "",
+                toolkit_name: "",
+              },
+              ...payload,
+            },
+          }),
+          metadata: { raw_type: "interaction_requested" },
+        },
+      ]).frames[0];
+
+    const canonicalAbsent = projectRequest("request-absent", {
+      request: { payload: {} },
+    });
+    expect(canonicalAbsent.payload).not.toHaveProperty("toolkit_id");
+    expect(canonicalAbsent.payload).not.toHaveProperty("toolkit_name");
+
+    const canonicalNull = projectRequest("request-null", {
+      request: { payload: { toolkit_id: null } },
+    });
+    expect(canonicalNull.payload).toHaveProperty("toolkit_id", null);
+
+    const canonicalName = projectRequest("request-name", {
+      request: { payload: { toolkit_name: "" } },
+    });
+    expect(canonicalName.payload).toHaveProperty("toolkit_name", "");
+
+    const targetOnly = projectRequest("request-target-only", {});
+    expect(targetOnly.payload).toHaveProperty("toolkit_id", "");
+    expect(targetOnly.payload).toHaveProperty("toolkit_name", "");
+  });
+
+  test("interaction projection retains the original scoped tool merge policy", () => {
+    const state = reduceEvents([
+      event({ id: "run", type: "run.started", seq: 1 }),
+      event({
+        id: "tool-start",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:fetch-1", tool_call_id: "fetch-1" },
+        payload: {
+          step_id: "tool:fetch-1",
+          step_type: "tool",
+          call_id: "fetch-1",
+          tool_name: "web_fetch",
+          toolkit_id: "core",
+          timeline_merge_policy: "always",
+        },
+      }),
+      event({
+        id: "interaction-request",
+        type: "interaction.requested",
+        seq: 3,
+        links: {
+          tool_call_id: "fetch-1",
+          interaction_id: "confirm-fetch-1",
+        },
+        payload: {
+          interaction_id: "confirm-fetch-1",
+          kind: "tool_approval",
+          target: {
+            tool_call_id: "fetch-1",
+            tool_name: "web_fetch",
+            toolkit_id: "core",
+          },
+        },
+      }),
+    ]);
+
+    const projectedInteraction = state.frames.find(
+      (frame) => frame.seq === 3 && frame.type === "tool_call",
+    );
+    expect(projectedInteraction.payload.timeline_merge_policy).toBe("always");
+  });
+
+  test("preserves historical absence and uses only cold target metadata when no call exists", () => {
+    const legacy = reduceEvents([
+      event({ id: "legacy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy", tool_call_id: "legacy" },
+        payload: {
+          step_id: "tool:legacy",
+          step_type: "tool",
+          call_id: "legacy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy", interaction_id: "legacy-confirm" },
+        payload: {
+          interaction_id: "legacy-confirm",
+          target: {
+            tool_call_id: "legacy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "always",
+          },
+        },
+      }),
+    ]);
+    const legacyInteraction = legacy.frames.find((frame) => frame.seq === 3);
+    expect(legacyInteraction.payload).not.toHaveProperty("timeline_merge_policy");
+
+    const cold = reduceEvents([
+      event({ id: "cold-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold", interaction_id: "cold-confirm" },
+        payload: {
+          interaction_id: "cold-confirm",
+          target: {
+            tool_call_id: "cold",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+  });
+
+  test("uses top-level interaction projection policy only when the original call is absent", () => {
+    const cold = reduceEvents([
+      event({ id: "cold-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "cold-policy-interaction",
+        type: "interaction.requested",
+        seq: 2,
+        links: { tool_call_id: "cold-policy", interaction_id: "cold-policy-confirm" },
+        payload: {
+          interaction_id: "cold-policy-confirm",
+          timeline_merge_policy: "no_feedback",
+          target: { tool_call_id: "cold-policy", tool_name: "web_fetch" },
+        },
+      }),
+    ]);
+    expect(cold.frames.find((frame) => frame.seq === 2).payload.timeline_merge_policy)
+      .toBe("no_feedback");
+
+    const legacyOriginalWins = reduceEvents([
+      event({ id: "legacy-policy-run", type: "run.started", seq: 1 }),
+      event({
+        id: "legacy-policy-tool",
+        type: "step.started",
+        seq: 2,
+        links: { step_id: "tool:legacy-policy", tool_call_id: "legacy-policy" },
+        payload: {
+          step_id: "tool:legacy-policy",
+          step_type: "tool",
+          call_id: "legacy-policy",
+          tool_name: "web_fetch",
+        },
+      }),
+      event({
+        id: "legacy-policy-interaction",
+        type: "interaction.requested",
+        seq: 3,
+        links: { tool_call_id: "legacy-policy", interaction_id: "legacy-policy-confirm" },
+        payload: {
+          interaction_id: "legacy-policy-confirm",
+          timeline_merge_policy: "always",
+          target: {
+            tool_call_id: "legacy-policy",
+            tool_name: "web_fetch",
+            timeline_merge_policy: "no_feedback",
+          },
+        },
+      }),
+    ]);
+    expect(legacyOriginalWins.frames.find((frame) => frame.seq === 3).payload)
+      .not.toHaveProperty("timeline_merge_policy");
+  });
+
   test("preserves both retry formats and ignores grouped wait heartbeats", () => {
     const retry = (id, seq, fields) => ({
       ...event({
