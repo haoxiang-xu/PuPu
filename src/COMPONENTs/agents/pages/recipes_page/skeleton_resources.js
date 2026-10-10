@@ -3,6 +3,7 @@
  * The method names and payload shapes are the ones the store actually exposes
  * (`route_skeleton_resources.py`, and the facade added to `api.unchain.js`):
  *
+ *   getSkeletonResource(resourceId)                        GET  /skeleton_resources/<id>
  *   saveSkeletonResource({document, expected_edit_token})  POST /skeleton_resources
  *   diagnoseSkeletonResource(document)                     POST /skeleton_resources/diagnose
  *   preflightSkeletonResource(resourceId, legacyKernel)    POST .../preflight
@@ -68,6 +69,10 @@ async function call(method_name, invoke) {
 
 export function is_unavailable(result) {
   return Boolean(result) && result.ok === false && result.reason === "unavailable";
+}
+
+export async function load_resource(resource_id) {
+  return call("getSkeletonResource", (method) => method(resource_id));
 }
 
 /* A draft saves while it is still incomplete — the store validates the envelope
