@@ -10,6 +10,7 @@ import {
   withTimeout,
 } from "./api.shared";
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
+import { invokeSkeletonBridge } from "./skeleton_resource_errors";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
@@ -2516,32 +2517,32 @@ export const createUnchainApi = () => {
 
     listSkeletonResources: async (includeArchived = true) => {
       const method = assertBridgeMethod("unchainAPI", "listSkeletonResources");
-      const response = await withTimeout(() => method(includeArchived), 15000,
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method(includeArchived)), 15000,
         "skeleton_resource_list_timeout", "Skeleton resource list request timed out");
       return { resources: Array.isArray(response?.resources) ? response.resources : [] };
     },
 
     getSkeletonResource: async (resourceId) => {
       const method = assertBridgeMethod("unchainAPI", "getSkeletonResource");
-      return withTimeout(() => method(resourceId), 15000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId)), 15000,
         "skeleton_resource_get_timeout", "Skeleton resource get request timed out");
     },
 
     saveSkeletonResource: async (payload = {}) => {
       const method = assertBridgeMethod("unchainAPI", "saveSkeletonResource");
-      return withTimeout(() => method(isObject(payload) ? payload : {}), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 20000,
         "skeleton_resource_save_timeout", "Skeleton resource save request timed out");
     },
 
     diagnoseSkeletonResource: async (document) => {
       const method = assertBridgeMethod("unchainAPI", "diagnoseSkeletonResource");
-      return withTimeout(() => method(document), 15000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(document)), 15000,
         "skeleton_resource_diagnose_timeout", "Skeleton resource diagnosis timed out");
     },
 
     importSkeletonResource: async (document) => {
       const method = assertBridgeMethod("unchainAPI", "importSkeletonResource");
-      return withTimeout(() => method(document), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(document)), 20000,
         "skeleton_resource_import_timeout", "Skeleton resource import timed out");
     },
 
@@ -2550,86 +2551,86 @@ export const createUnchainApi = () => {
       const fixedKernel = legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
         ? legacyKernel
         : null;
-      return withTimeout(() => method(resourceId, fixedKernel), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, fixedKernel)), 20000,
         "skeleton_resource_preflight_timeout", "Skeleton resource preflight timed out");
     },
 
     publishSkeletonWorkflow: async (resourceId, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "publishSkeletonWorkflow");
-      return withTimeout(() => method(resourceId, expectedEditToken), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
         "skeleton_workflow_publish_timeout", "Workflow publish request timed out");
     },
 
     getSkeletonWorkflowVersion: async (workflowId, revisionId) => {
       const method = assertBridgeMethod("unchainAPI", "getSkeletonWorkflowVersion");
-      return withTimeout(() => method(workflowId, revisionId), 15000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(workflowId, revisionId)), 15000,
         "skeleton_workflow_version_timeout", "Workflow version request timed out");
     },
 
     renameSkeletonResource: async (resourceId, name, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "renameSkeletonResource");
-      return withTimeout(() => method(resourceId, name, expectedEditToken), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, name, expectedEditToken)), 20000,
         "skeleton_resource_rename_timeout", "Skeleton resource rename timed out");
     },
 
     duplicateSkeletonResource: async (resourceId, newId, name) => {
       const method = assertBridgeMethod("unchainAPI", "duplicateSkeletonResource");
-      return withTimeout(() => method(resourceId, newId, name), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, newId, name)), 20000,
         "skeleton_resource_duplicate_timeout", "Skeleton resource duplicate timed out");
     },
 
     archiveSkeletonResource: async (resourceId, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "archiveSkeletonResource");
-      return withTimeout(() => method(resourceId, expectedEditToken), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
         "skeleton_resource_archive_timeout", "Skeleton resource archive timed out");
     },
 
     restoreSkeletonResource: async (resourceId, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "restoreSkeletonResource");
-      return withTimeout(() => method(resourceId, expectedEditToken), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 20000,
         "skeleton_resource_restore_timeout", "Skeleton resource restore timed out");
     },
 
     deleteSkeletonResource: async (resourceId, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "deleteSkeletonResource");
-      return withTimeout(() => method(resourceId, expectedEditToken), 30000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(resourceId, expectedEditToken)), 30000,
         "skeleton_resource_delete_timeout", "Skeleton resource delete timed out");
     },
 
     migrateSkeletonResource: async (payload = {}) => {
       const method = assertBridgeMethod("unchainAPI", "migrateSkeletonResource");
-      return withTimeout(() => method(isObject(payload) ? payload : {}), 30000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 30000,
         "skeleton_resource_migrate_timeout", "Skeleton resource migration timed out");
     },
 
     resolveSkeletonResource: async (payload = {}) => {
       const method = assertBridgeMethod("unchainAPI", "resolveSkeletonResource");
-      return withTimeout(() => method(isObject(payload) ? payload : {}), 15000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 15000,
         "skeleton_resource_resolve_timeout", "Skeleton resource resolve timed out");
     },
 
     listSkeletonPythonProfiles: async () => {
       const method = assertBridgeMethod("unchainAPI", "listSkeletonPythonProfiles");
-      const response = await withTimeout(() => method(), 15000,
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
         "skeleton_python_profile_list_timeout", "Python profile list timed out");
       return { profiles: Array.isArray(response?.profiles) ? response.profiles : [] };
     },
 
     saveSkeletonPythonProfile: async (payload = {}) => {
       const method = assertBridgeMethod("unchainAPI", "saveSkeletonPythonProfile");
-      return withTimeout(() => method(isObject(payload) ? payload : {}), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(isObject(payload) ? payload : {})), 20000,
         "skeleton_python_profile_save_timeout", "Python profile save timed out");
     },
 
     probeSkeletonPythonProfile: async (profileId) => {
       const method = assertBridgeMethod("unchainAPI", "probeSkeletonPythonProfile");
-      return withTimeout(() => method(profileId), 10000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(profileId)), 10000,
         "skeleton_python_profile_probe_timeout", "Python profile probe timed out");
     },
 
     deleteSkeletonPythonProfile: async (profileId, expectedEditToken) => {
       const method = assertBridgeMethod("unchainAPI", "deleteSkeletonPythonProfile");
-      return withTimeout(() => method(profileId, expectedEditToken), 20000,
+      return withTimeout(() => invokeSkeletonBridge(() => method(profileId, expectedEditToken)), 20000,
         "skeleton_python_profile_delete_timeout", "Python profile delete timed out");
     },
 

@@ -2,6 +2,7 @@ const { request: nodeHttpRequest } = require("http");
 const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
+const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
   MEMORY_V2_ENV_KEYS,
@@ -4583,12 +4584,7 @@ const createUnchainService = ({
       },
       ...(request.body ? { body: JSON.stringify(request.body) } : {}),
     });
-    return readJsonResponse(
-      response,
-      "Skeleton resource request failed",
-      {},
-      "Invalid Skeleton resource response",
-    );
+    return readSkeletonResourceResponse(response);
   };
 
   const previewMisoCharacterDecision = async (payload = {}) => {
