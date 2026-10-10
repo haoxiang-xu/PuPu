@@ -73,6 +73,139 @@ const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_CUSTOM_PROVIDER_TEST_ENDPOINT =
   "/models/custom-providers/test";
 
+const buildSkeletonResourceRequest = (action, payload = {}) => {
+  const body =
+    payload !== null && typeof payload === "object" && !Array.isArray(payload)
+      ? payload
+      : {};
+  const requiredId = (field) => {
+    const value = typeof body[field] === "string" ? body[field].trim() : "";
+    if (!value) {
+      throw new Error(`${field} is required`);
+    }
+    return encodeURIComponent(value);
+  };
+  const pickedBody = (...fields) =>
+    fields.reduce((result, field) => {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        result[field] = body[field];
+      }
+      return result;
+    }, {});
+  const definitions = {
+    list: () => ({
+      method: "GET",
+      path: `/skeleton_resources?include_archived=${body.include_archived === false ? "false" : "true"}`,
+    }),
+    get: () => ({
+      method: "GET",
+      path: `/skeleton_resources/${requiredId("resource_id")}`,
+    }),
+    save: () => ({
+      method: "POST",
+      path: "/skeleton_resources",
+      body: pickedBody("document", "expected_edit_token"),
+    }),
+    diagnose: () => ({
+      method: "POST",
+      path: "/skeleton_resources/diagnose",
+      body: pickedBody("document"),
+    }),
+    import: () => ({
+      method: "POST",
+      path: "/skeleton_resources/import",
+      body: pickedBody("document"),
+    }),
+    preflight: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/preflight`,
+      body: pickedBody("legacy_kernel"),
+    }),
+    publish: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/publish`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    get_version: () => ({
+      method: "GET",
+      path: `/skeleton_resources/${requiredId("workflow_id")}/versions/${requiredId("revision_id")}`,
+    }),
+    rename: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/rename`,
+      body: pickedBody("name", "expected_edit_token"),
+    }),
+    duplicate: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/duplicate`,
+      body: pickedBody("new_id", "name"),
+    }),
+    archive: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/archive`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    restore: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/restore`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    delete: () => ({
+      method: "DELETE",
+      path: `/skeleton_resources/${requiredId("resource_id")}`,
+      body: pickedBody("expected_edit_token"),
+    }),
+    migrate: () => ({
+      method: "POST",
+      path: "/skeleton_resources/migrate",
+      body: pickedBody(
+        "source_identity",
+        "source_scope",
+        "source_kind",
+        "source",
+        "stop_after_stage",
+      ),
+    }),
+    resolve: () => ({
+      method: "POST",
+      path: "/skeleton_resources/resolve",
+      body: pickedBody(
+        "resource_id",
+        "revision_id",
+        "legacy_name",
+        "source_scope",
+        "default_if_unselected",
+      ),
+    }),
+    list_profiles: () => ({
+      method: "GET",
+      path: "/skeleton_python_profiles",
+    }),
+    save_profile: () => ({
+      method: "POST",
+      path: "/skeleton_python_profiles",
+      body: pickedBody("profile_id", "executable", "expected_edit_token"),
+    }),
+    probe_profile: () => ({
+      method: "POST",
+      path: `/skeleton_python_profiles/${requiredId("profile_id")}/probe`,
+      body: {},
+    }),
+    delete_profile: () => ({
+      method: "DELETE",
+      path: `/skeleton_python_profiles/${requiredId("profile_id")}`,
+      body: pickedBody("expected_edit_token"),
+    }),
+  };
+  if (
+    typeof action !== "string" ||
+    !Object.prototype.hasOwnProperty.call(definitions, action)
+  ) {
+    throw new Error("Unsupported Skeleton resource action");
+  }
+  return definitions[action]();
+};
+
 // Allowlisted macOS System Settings deep links. The renderer may only pass a
 // known target key; it can never hand us an arbitrary URL to open.
 const COMPUTER_USE_PRIVACY_DEEP_LINKS = Object.freeze({
@@ -4439,6 +4572,25 @@ const createUnchainService = ({
     );
   };
 
+  const runMisoSkeletonResourceCommand = async (action, payload = {}) => {
+    ensureMisoReady();
+    const request = buildSkeletonResourceRequest(action, payload);
+    const response = await fetch(`http://${UNCHAIN_HOST}:${unchainPort}${request.path}`, {
+      method: request.method,
+      headers: {
+        ...(request.body ? { "Content-Type": "application/json" } : {}),
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+    });
+    return readJsonResponse(
+      response,
+      "Skeleton resource request failed",
+      {},
+      "Invalid Skeleton resource response",
+    );
+  };
+
   const previewMisoCharacterDecision = async (payload = {}) => {
     ensureMisoReady();
 
@@ -6699,6 +6851,7 @@ const createUnchainService = ({
     saveMisoRecipe,
     deleteMisoRecipe,
     listMisoSubagentRefs,
+    runMisoSkeletonResourceCommand,
     previewMisoCharacterDecision,
     buildMisoCharacterAgentConfig,
     exportMisoCharacter,
@@ -6720,6 +6873,7 @@ const createUnchainService = ({
 };
 
 module.exports = {
+  buildSkeletonResourceRequest,
   createNodeStreamFetch,
   createUnchainService,
 };

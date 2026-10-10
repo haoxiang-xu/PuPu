@@ -255,7 +255,10 @@ export const normalizePendingInteraction = (
   const kind = normalizedString(rawPending.kind);
   const sourceRunId = normalizedString(rawPending.source_run_id);
   const activeAttemptId = normalizedString(rawPending.active_attempt_id);
-  const hasGraphResumeKeys = [
+  const isSkeletonResume = rawPending.resume_kind === "skeleton";
+  const interactionSourceRunId = normalizedString(rawPending.interaction_source_run_id);
+  const interactionSessionId = normalizedString(rawPending.interaction_session_id);
+  const hasGraphResumeKeys = !isSkeletonResume && [
     "resume_kind",
     "graph_step_attempt_id",
     "graph_coordinator_attempt_id",
@@ -264,7 +267,9 @@ export const normalizePendingInteraction = (
     rawPending,
     "resume_unavailable_reason",
   );
-  const resumeKeys = hasGraphResumeKeys
+  const resumeKeys = isSkeletonResume
+    ? ["resume_kind", "interaction_source_run_id", "interaction_session_id"]
+    : hasGraphResumeKeys
     ? [
         "resume_kind",
         "graph_step_attempt_id",
@@ -289,9 +294,12 @@ export const normalizePendingInteraction = (
     activeAttemptId !== sourceRunId ||
     typeof rawPending.resume_available !== "boolean" ||
     !isObject(rawPending.resume_options) ||
+    (isSkeletonResume &&
+      (!interactionSourceRunId || !interactionSessionId ||
+        rawPending.resume_available !== true || hasUnavailableReason)) ||
     (hasGraphResumeKeys &&
       (rawPending.resume_kind !== "graph_step" || hasUnavailableReason)) ||
-    (!hasGraphResumeKeys && rawPending.resume_kind !== undefined) ||
+    (!isSkeletonResume && !hasGraphResumeKeys && rawPending.resume_kind !== undefined) ||
     (rawPending.resume_available === false && !hasUnavailableReason) ||
     (rawPending.resume_available === true && hasUnavailableReason) ||
     !hasExactKeys(rawPending, [
@@ -308,7 +316,7 @@ export const normalizePendingInteraction = (
     !isCanonicalDurablePresentation(presentation, {
       kind,
       interactionId,
-      sourceRunId,
+      sourceRunId: isSkeletonResume ? interactionSourceRunId : sourceRunId,
     })
   ) {
     return null;
@@ -340,7 +348,7 @@ export const normalizePendingInteraction = (
 
   const resumeKind = normalizedString(rawPending.resume_kind);
   if (
-    (resumeKind && resumeKind !== "graph_step") ||
+    (resumeKind && !["graph_step", "skeleton"].includes(resumeKind)) ||
     (resumeKind === "graph_step" &&
       (normalizedString(rawPending.graph_step_attempt_id) !== sourceRunId ||
         !normalizedString(rawPending.graph_coordinator_attempt_id)))
@@ -386,6 +394,7 @@ export const normalizePendingInteraction = (
     kind,
     sourceRunId,
     activeAttemptId,
+    ...(isSkeletonResume ? { resumeKind, interactionSourceRunId, interactionSessionId } : {}),
     receiptId,
     resumeAvailable: rawPending.resume_available === true,
     resumeUnavailableReason: normalizedString(
