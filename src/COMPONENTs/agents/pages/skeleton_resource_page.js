@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
+import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
 
 /* One Skeleton resource, open for editing.
@@ -11,12 +12,12 @@ import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
  * through the real facade, hands the document to the shared detail panel, and
  * saves at the token it loaded, with the conflict choices in the bar.
  *
- * There is no canvas here yet, and not for want of one. A Skeleton node is
- * closed to `{id, type, config}` and neither the envelope nor the store keeps
- * a position for it, so there is nowhere to put the coordinates a graph view
- * needs — inventing a field would be a document the store refuses. Until
- * layout has somewhere to live, nodes are reached from a list, which is the
- * plain reading of the document rather than a layout decision made here. */
+ * The graph is drawn from two sources kept apart on purpose: the document says
+ * what it is, and `SERVICEs/skeleton_layout` says where it is drawn. A
+ * Skeleton node is closed to `{id, type, config}` and the store refuses a
+ * coordinate, so a position is not something this page may persist into the
+ * Agent — and because the canvas has no route to the document at all, moving a
+ * node cannot change what the Agent does. */
 
 const PANEL = (isDark) => ({
   display: "flex",
@@ -87,36 +88,47 @@ export default function SkeletonResourcePage({ resourceId }) {
 
       {session.status === SESSION_STATUS.READY && (
         <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
-          <div
-            data-testid="skeleton-node-list"
-            style={{
-              width: 180,
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              overflowY: "auto",
-            }}
-          >
-            {nodes.map((node) => (
-              <div
-                key={node.id}
-                data-testid={`skeleton-node-${node.id}`}
-                onClick={() => setSelectedNodeId(node.id)}
-                style={ROW(isDark, node.id === selectedNodeId)}
-              >
-                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
-                  {node.id}
-                </span>
-                <span style={{ marginLeft: "auto", fontSize: 10, color: "#86868b" }}>
-                  {node.type}
-                </span>
-              </div>
-            ))}
-            {nodes.length === 0 && <span style={NOTE}>This graph has no nodes.</span>}
+          {/* The graph, and the same nodes as a list beside it. The list is
+              not a fallback for the canvas — it is how a node is reached by
+              name when the graph is large, and it is what a keyboard can
+              use. */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <SkeletonCanvas
+              resourceId={session.resource_id}
+              document={document}
+              onSelectNode={setSelectedNodeId}
+              isDark={isDark}
+            />
+            <div
+              data-testid="skeleton-node-list"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 4,
+                paddingTop: 8,
+                flexShrink: 0,
+              }}
+            >
+              {nodes.map((node) => (
+                <div
+                  key={node.id}
+                  data-testid={`skeleton-node-${node.id}`}
+                  onClick={() => setSelectedNodeId(node.id)}
+                  style={ROW(isDark, node.id === selectedNodeId)}
+                >
+                  <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
+                    {node.id}
+                  </span>
+                  <span style={{ marginLeft: 6, fontSize: 10, color: "#86868b" }}>
+                    {node.type}
+                  </span>
+                </div>
+              ))}
+              {nodes.length === 0 && <span style={NOTE}>This graph has no nodes.</span>}
+            </div>
           </div>
 
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column" }}>
             <DetailPanel
               recipe={null}
               selectedNodeId={selectedNodeId}

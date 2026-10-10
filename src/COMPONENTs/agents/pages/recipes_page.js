@@ -14,6 +14,8 @@ import {
   useTopStripCenter,
 } from "../top_strip";
 import RecipeList from "./recipes_page/recipe_list";
+import SkeletonResourceList from "./recipes_page/skeleton_resource_list";
+import SkeletonResourcePage from "./skeleton_resource_page";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import PanelResizeHandle from "./recipes_page/panel_resize_handle";
@@ -70,6 +72,12 @@ export default function RecipesPage({
   const [dirty, setDirty] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  /* A Skeleton resource is addressed by id and a legacy recipe by name, so
+     they are held in two different pieces of state. Selecting one clears the
+     other rather than overwriting a single "current thing", which is what
+     would let a name be used as an id. */
+  const [skeletonResourceId, setSkeletonResourceId] = useState(null);
 
   /* ── Drilling into a subagent ──────────────────────────────────────────
      A referenced subagent is the shared Agent resource, not a copy living in
@@ -431,6 +439,9 @@ export default function RecipesPage({
           borderRadius: "inherit",
         }}
       >
+        {skeletonResourceId ? (
+          <SkeletonResourcePage resourceId={skeletonResourceId} />
+        ) : (
         <RecipeCanvas
           recipe={activeRecipe}
           selectedNodeId={selectedNodeId}
@@ -450,6 +461,7 @@ export default function RecipesPage({
           viewportOutRef={viewportOutRef}
           restoreViewport={restoreViewport}
         />
+        )}
       </div>
 
       {/* ── Floating recipe list (left side menu) ── */}
@@ -471,10 +483,18 @@ export default function RecipesPage({
           pointerEvents: listHidden ? "none" : "auto",
         }}
       >
+        <SkeletonResourceList
+          activeId={skeletonResourceId}
+          onSelect={(id) => setSkeletonResourceId(id)}
+          isDark={isDark}
+        />
         <RecipeList
           recipes={recipes}
           activeName={activeName}
-          onSelect={handleSelectRecipe}
+          onSelect={(name) => {
+            setSkeletonResourceId(null);
+            handleSelectRecipe(name);
+          }}
           onListChange={setRecipes}
           onCollapse={() => setListCollapsed(true)}
           isDark={isDark}
