@@ -652,6 +652,10 @@ export default function RecipesPage({
       )}
 
       {/* ── Floating inspector (right detail panel) ── */}
+      {/* The legacy inspector belongs to the recipe canvas. With a Skeleton
+          Agent open it was still mounted and still editable behind the new
+          page, so a click there wrote to a recipe the author had left. */}
+      {!skeletonResourceId && (
       <div
         data-testid="recipe-detail-panel-shell"
         style={{
@@ -679,8 +683,10 @@ export default function RecipesPage({
           onDrillIn={handleDrillIn}
         />
       </div>
+      )}
 
       {/* ── Detail resize pill (floats just outside the panel's left edge) ── */}
+      {!skeletonResourceId && (
       <PanelResizeHandle
         testId="recipe-detail-resize-handle"
         isDark={isDark}
@@ -695,6 +701,7 @@ export default function RecipesPage({
         onDrag={handleDetailResize}
         onDragEnd={() => endResize("detail")}
       />
+      )}
     </div>
   );
 }

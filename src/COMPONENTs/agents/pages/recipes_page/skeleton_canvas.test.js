@@ -154,3 +154,35 @@ describe("a dropped node stays where it was dropped", () => {
     expect(getByTestId("node-a1").getAttribute("data-x")).toBe("777");
   });
 });
+
+describe("a zoom survives closing the canvas", () => {
+  /* Zooming is a wheel gesture and never produces a mouseup, so persisting on
+   * mouseup alone remembered every pan and no zoom at all. */
+  test("a wheel zoom is remembered", () => {
+    const first = show();
+    lastProps.viewport_out_ref.current = { x: 0, y: 0, zoom: 2.5 };
+    fireEvent.wheel(screen.getByTestId("skeleton-canvas"), { deltaY: -120 });
+    first.unmount();
+    show();
+    expect(lastProps.restore_viewport).toMatchObject({ zoom: 2.5 });
+  });
+
+  test("leaving the canvas remembers wherever it was left", () => {
+    /* Whatever gesture moved it, closing the page is the last chance to keep
+     * it. */
+    const first = show();
+    lastProps.viewport_out_ref.current = { x: 5, y: 6, zoom: 1.75 };
+    first.unmount();
+    show();
+    expect(lastProps.restore_viewport).toMatchObject({ x: 5, y: 6, zoom: 1.75 });
+  });
+
+  test("a pan is still remembered", () => {
+    const first = show();
+    lastProps.viewport_out_ref.current = { x: 40, y: -12, zoom: 1 };
+    fireEvent.mouseUp(screen.getByTestId("skeleton-canvas"));
+    first.unmount();
+    show();
+    expect(lastProps.restore_viewport).toMatchObject({ x: 40, y: -12 });
+  });
+});

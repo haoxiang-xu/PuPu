@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
 import AgentNode from "./nodes/agent_node";
 import EndNode from "./nodes/end_node";
@@ -112,11 +112,24 @@ export default function SkeletonCanvas({
     writeSkeletonViewport(resourceId, viewportRef.current);
   }, [resourceId]);
 
+  /* A zoom is a wheel gesture and produces no mouseup, so remembering on
+     mouseup alone kept every pan and lost every zoom. Both gestures are
+     watched, and leaving is the last chance for whatever the final one was. */
+  const resourceRef = useRef(resourceId);
+  resourceRef.current = resourceId;
+  useEffect(
+    () => () => {
+      writeSkeletonViewport(resourceRef.current, viewportRef.current);
+    },
+    [],
+  );
+
   return (
     <div
       data-testid="skeleton-canvas"
       style={{ position: "relative", flex: 1, minHeight: 0 }}
       onMouseUp={rememberViewport}
+      onWheel={rememberViewport}
     >
       <FlowEditor
         style={{ width: "100%", height: "100%", borderRadius: 0 }}
