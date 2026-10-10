@@ -25,8 +25,17 @@ export const SESSION_STATUS = Object.freeze({
   LOAD_FAILED: "load_failed",
 });
 
+/* Monotonic for the life of the session, never reset — reopening the same
+   resource at the same token still counts as a different thing to have asked
+   about, so an answer in flight across it is discarded rather than accepted by
+   coincidence. */
+function next_version(session) {
+  return ((session && session.version) || 0) + 1;
+}
+
 export function empty_session() {
   return {
+    version: 0,
     status: SESSION_STATUS.EMPTY,
     resource_id: null,
     document: null,
@@ -47,6 +56,7 @@ export function empty_session() {
 export function loading(session, resource_id) {
   return {
     ...empty_session(),
+    version: next_version(session),
     status: SESSION_STATUS.LOADING,
     resource_id,
   };
@@ -57,6 +67,7 @@ export function loading(session, resource_id) {
 export function loaded(session, data) {
   return {
     ...empty_session(),
+    version: next_version(session),
     status: SESSION_STATUS.READY,
     resource_id: (data && data.id) || session.resource_id,
     document: (data && data.document) || null,
@@ -79,7 +90,13 @@ export function load_failed(session, result) {
 /* An edit clears the last preflight: it described a document that no longer
    exists, and leaving it on screen would read as a verdict on this one. */
 export function edited(session, document) {
-  return { ...session, document, dirty: true, preflight: null };
+  return {
+    ...session,
+    version: next_version(session),
+    document,
+    dirty: true,
+    preflight: null,
+  };
 }
 
 export function save_started(session) {
@@ -89,6 +106,7 @@ export function save_started(session) {
 export function save_succeeded(session, data) {
   return {
     ...session,
+    version: next_version(session),
     saving: false,
     dirty: false,
     conflict: null,
@@ -142,6 +160,7 @@ export function conflict_discarded(session, data) {
 export function conflict_overridden(session, data) {
   return {
     ...session,
+    version: next_version(session),
     conflict: null,
     dirty: true,
     saving: false,
@@ -151,7 +170,33 @@ export function conflict_overridden(session, data) {
   };
 }
 
-export function preflight_passed(session, data) {
+/* What a preflight was asked ABOUT. The answer is only a verdict on this.
+ *
+ * A check is issued against a saved version; the author keeps working while it
+ * is in flight, and the reply can land on a document the store has never seen.
+ * Binding it to the resource, the token it was saved at, and the edit version
+ * makes a stale answer identifiable instead of plausible. A disabled button
+ * cannot do this — the request was legitimate when it was made. */
+export function preflight_token(session) {
+  return {
+    resource_id: (session && session.resource_id) || null,
+    edit_token: (session && session.edit_token) || null,
+    version: (session && session.version) || 0,
+  };
+}
+
+export function preflight_is_current(session, issued) {
+  if (!issued) return false;
+  const now = preflight_token(session);
+  return (
+    now.resource_id === issued.resource_id &&
+    now.edit_token === issued.edit_token &&
+    now.version === issued.version
+  );
+}
+
+export function preflight_passed(session, data, issued) {
+  if (!preflight_is_current(session, issued)) return session;
   return {
     ...session,
     preflight: {
@@ -162,7 +207,8 @@ export function preflight_passed(session, data) {
 }
 
 /* One problem, because that is what the store returns — the first it hit. */
-export function preflight_refused(session, result) {
+export function preflight_refused(session, result, issued) {
+  if (!preflight_is_current(session, issued)) return session;
   return {
     ...session,
     preflight: {

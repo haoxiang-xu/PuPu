@@ -12,8 +12,10 @@ import {
   loaded,
   loading,
   preflight_message,
+  preflight_is_current,
   preflight_passed,
   preflight_refused,
+  preflight_token,
   save_refused,
   save_started,
   save_succeeded,
@@ -83,7 +85,8 @@ describe("opening a resource", () => {
 describe("editing and saving at a token", () => {
   test("an edit is dirty and drops the last preflight", () => {
     /* It answered about a document that no longer exists. */
-    const ready = preflight_passed(open_at("t1", doc("a")), { definition_digest: "d" });
+    const base = open_at("t1", doc("a"));
+    const ready = preflight_passed(base, { definition_digest: "d" }, preflight_token(base));
     const after = edited(ready, doc("b"));
     expect(after.dirty).toBe(true);
     expect(after.preflight).toBeNull();
@@ -172,10 +175,12 @@ describe("preflight is the Run gate, and reports one problem", () => {
   });
 
   test("a refusal is worded as not ready, never as the only problem", () => {
-    const after = preflight_refused(open_at("t1", doc("a")), {
-      reason: "refused",
-      error: PREFLIGHT_REFUSED_ERROR,
-    });
+    const base = open_at("t1", doc("a"));
+    const after = preflight_refused(
+      base,
+      { reason: "refused", error: PREFLIGHT_REFUSED_ERROR },
+      preflight_token(base),
+    );
     expect(after.preflight.ok).toBe(false);
     const message = preflight_message(after);
     expect(message).toMatch(/not ready to run/i);
@@ -184,12 +189,51 @@ describe("preflight is the Run gate, and reports one problem", () => {
   });
 
   test("passing says so and carries the digest it passed on", () => {
-    const after = preflight_passed(open_at("t1", doc("a")), { definition_digest: "sha256:abc" });
+    const base = open_at("t1", doc("a"));
+    const after = preflight_passed(base, { definition_digest: "sha256:abc" }, preflight_token(base));
     expect(after.preflight).toEqual({ ok: true, definition_digest: "sha256:abc" });
     expect(preflight_message(after)).toMatch(/ready to run/i);
   });
 
   test("nothing is said before anything was asked", () => {
     expect(preflight_message(open_at("t1", doc("a")))).toBeNull();
+  });
+});
+
+describe("an answer is a verdict only on what it was asked about", () => {
+  const base = () => open_at("t1", doc("a"));
+
+  test("the token names the resource, the save it was at, and the edit version", () => {
+    const token = preflight_token(base());
+    expect(token).toEqual({ resource_id: "life", edit_token: "t1", version: expect.any(Number) });
+  });
+
+  test("an edit makes an outstanding answer stale", () => {
+    const started = base();
+    const issued = preflight_token(started);
+    const after_edit = edited(started, doc("b"));
+    expect(preflight_is_current(after_edit, issued)).toBe(false);
+    expect(preflight_passed(after_edit, { definition_digest: "d" }, issued).preflight).toBeNull();
+  });
+
+  test("a save makes it stale, because the token it was asked at is gone", () => {
+    const dirty = edited(base(), doc("b"));
+    const issued = preflight_token(dirty);
+    const saved = save_succeeded(save_started(dirty), result({ document: doc("b"), edit_token: "t2" }));
+    expect(preflight_is_current(saved, issued)).toBe(false);
+  });
+
+  test("the version never goes back, so reopening does not make an old answer current again", () => {
+    /* Same resource, same token, freshly loaded — still a different thing to
+     * have asked about. */
+    const first = base();
+    const issued = preflight_token(first);
+    const reopened = loaded(loading(first, "life"), result({ document: doc("a"), edit_token: "t1" }));
+    expect(reopened.version).toBeGreaterThan(first.version);
+    expect(preflight_is_current(reopened, issued)).toBe(false);
+  });
+
+  test("nothing in flight is current against a session that never asked", () => {
+    expect(preflight_is_current(base(), null)).toBe(false);
   });
 });

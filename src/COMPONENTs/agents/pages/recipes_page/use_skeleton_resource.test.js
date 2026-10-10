@@ -188,3 +188,105 @@ describe("preflight", () => {
     expect(hook.result.current.session.preflight).toEqual({ ok: true, definition_digest: "sha256:abc" });
   });
 });
+
+describe("a preflight reply that arrives late", () => {
+  /* Checked version A, then edited to a dirty B, then A's answer lands. The
+   * answer describes a document that is no longer on screen, so it must not
+   * become B's verdict — the author would read "Ready to run" about work the
+   * store has never seen. A disabled button does not prevent this: the request
+   * was legitimate when it was made. */
+  const open_with = async (preflightImpl) => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc("A"), edit_token: "t1" }));
+    api.unchain.preflightSkeletonResource = jest.fn().mockImplementation(preflightImpl);
+    return open();
+  };
+
+  test("an answer for the version that was checked does not label the one on screen", async () => {
+    let release;
+    const hook = await open_with(
+      () => new Promise((resolve) => { release = () => resolve({ ok: true, definition_digest: "sha256:A" }); }),
+    );
+
+    let pending;
+    act(() => {
+      pending = hook.result.current.preflight();
+    });
+    /* The author keeps working while it is in flight. */
+    act(() => hook.result.current.edit(doc("B")));
+    expect(hook.result.current.session.dirty).toBe(true);
+
+    await act(async () => {
+      release();
+      await pending;
+    });
+
+    expect(hook.result.current.session.preflight).toBeNull();
+    expect(hook.result.current.session.document).toEqual(doc("B"));
+  });
+
+  test("a late refusal is discarded too, not pinned on the new draft", async () => {
+    let release;
+    const hook = await open_with(
+      () => new Promise((resolve) => { release = () => resolve({ error: PREFLIGHT_REFUSED_ERROR }); }),
+    );
+    let pending;
+    act(() => {
+      pending = hook.result.current.preflight();
+    });
+    act(() => hook.result.current.edit(doc("B")));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(hook.result.current.session.preflight).toBeNull();
+  });
+
+  test("an answer that arrives while nothing changed is kept", async () => {
+    const hook = await open_with(async () => ({ ok: true, definition_digest: "sha256:A" }));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(hook.result.current.session.preflight).toEqual({
+      ok: true,
+      definition_digest: "sha256:A",
+    });
+  });
+
+  test("an answer for a resource the author has left is discarded", async () => {
+    let release;
+    const hook = await open_with(
+      () => new Promise((resolve) => { release = () => resolve({ ok: true, definition_digest: "sha256:A" }); }),
+    );
+    let pending;
+    act(() => {
+      pending = hook.result.current.preflight();
+    });
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ id: "other", document: doc("Z"), edit_token: "z1" }));
+    await act(async () => {
+      await hook.result.current.load("other");
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(hook.result.current.session.preflight).toBeNull();
+    expect(hook.result.current.session.resource_id).toBe("other");
+  });
+
+  test("the session refuses to start one on a dirty draft at all", async () => {
+    /* The limit belongs in the session, not only on the button: anything else
+     * that calls preflight would otherwise ask about the stored version while
+     * the author looks at an edited one. */
+    const hook = await open_with(async () => ({ ok: true, definition_digest: "sha256:A" }));
+    act(() => hook.result.current.edit(doc("B")));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(api.unchain.preflightSkeletonResource).not.toHaveBeenCalled();
+    expect(hook.result.current.session.preflight).toBeNull();
+  });
+});

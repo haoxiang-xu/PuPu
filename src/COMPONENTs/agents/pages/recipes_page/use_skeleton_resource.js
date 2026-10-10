@@ -12,8 +12,10 @@ import {
   load_failed,
   loaded,
   loading,
+  can_preflight,
   preflight_passed,
   preflight_refused,
+  preflight_token,
   save_refused,
   save_started,
   save_succeeded,
@@ -86,12 +88,20 @@ export default function useSkeletonResource() {
     [apply],
   );
 
+  /* The limit lives here, not only on the button: any other caller would
+     otherwise ask the store about the stored version while the author is
+     looking at an edited one. The token is taken before the call and checked
+     against the session on return, so an answer that outlived what it was
+     asked about is dropped rather than shown. */
   const preflight = useCallback(async () => {
     const current = ref.current;
-    if (!current.resource_id) return current;
+    if (!can_preflight(current)) return current;
+    const issued = preflight_token(current);
     const result = await preflight_resource(current.resource_id);
     return apply((latest) =>
-      result.ok ? preflight_passed(latest, result.data) : preflight_refused(latest, result),
+      result.ok
+        ? preflight_passed(latest, result.data, issued)
+        : preflight_refused(latest, result, issued),
     );
   }, [apply]);
 

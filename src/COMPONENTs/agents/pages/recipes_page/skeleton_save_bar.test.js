@@ -8,6 +8,7 @@ import {
   load_failed,
   loading,
   preflight_refused,
+  preflight_token,
   save_refused,
   save_started,
 } from "./skeleton_resource_session";
@@ -117,7 +118,14 @@ describe("someone else saved first", () => {
 
 describe("the run check reports what the store said", () => {
   test("a refusal names the problem without calling it the only one", () => {
-    show(preflight_refused(ready(), { reason: "refused", error: PREFLIGHT_REFUSED_ERROR }));
+    const base = ready();
+    show(
+      preflight_refused(
+        base,
+        { reason: "refused", error: PREFLIGHT_REFUSED_ERROR },
+        preflight_token(base),
+      ),
+    );
     const state = screen.getByTestId("skeleton-preflight-state").textContent;
     expect(state).toMatch(/not ready to run/i);
     expect(state).toMatch(/one end node/i);

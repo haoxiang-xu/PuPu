@@ -34,7 +34,22 @@ export default function DetailPanel({
 }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
-  const node = recipe?.nodes?.find((n) => n.id === selectedNodeId);
+  /* The same node as seen in the Skeleton document, when one is being edited.
+     `onDocumentChange` is what writes it back, so the legacy `onChange` path is
+     left exactly as it was. */
+  const skeleton_node =
+    document && typeof onDocumentChange === "function"
+      ? (() => {
+          const candidate = find_node(document, selectedNodeId);
+          return is_skeleton_node(candidate) ? candidate : null;
+        })()
+      : null;
+
+  /* A Skeleton page has no legacy recipe at all, so the panel takes its node
+     from whichever model it was handed. Deriving it only from the recipe left
+     that page on the empty state with a document sitting right there. */
+  const legacy_node = recipe?.nodes?.find((n) => n.id === selectedNodeId);
+  const node = legacy_node || skeleton_node;
   const identity = node_identity(node);
 
   const shell_style = {
@@ -77,17 +92,6 @@ export default function DetailPanel({
       </div>
     );
   }
-
-  /* The same node as seen in the Skeleton document, when one is being edited.
-     `onDocumentChange` is what writes it back, so the legacy `onChange` path is
-     left exactly as it was. */
-  const skeleton_node =
-    document && typeof onDocumentChange === "function"
-      ? (() => {
-          const candidate = find_node(document, selectedNodeId);
-          return is_skeleton_node(candidate) ? candidate : null;
-        })()
-      : null;
 
   /* Routed once, here, because this is the only place that knows both which
      node is open and which rows it actually renders.
@@ -211,11 +215,11 @@ export default function DetailPanel({
             />
           </>
         )}
-        {node.type === "start" && <StartPanel {...props} />}
-        {node.type === "end" && <EndPanel {...props} />}
-        {node.type === "agent" && <AgentPanel {...props} />}
-        {is_toolkit_pool_type(node.type) && <ToolPoolPanel {...props} />}
-        {node.type === "subagent_pool" && <SubagentPoolPanel {...props} />}
+        {legacy_node && node.type === "start" && <StartPanel {...props} />}
+        {legacy_node && node.type === "end" && <EndPanel {...props} />}
+        {legacy_node && node.type === "agent" && <AgentPanel {...props} />}
+        {legacy_node && is_toolkit_pool_type(node.type) && <ToolPoolPanel {...props} />}
+        {legacy_node && node.type === "subagent_pool" && <SubagentPoolPanel {...props} />}
       </div>
     </div>
   );

@@ -1,0 +1,134 @@
+import React, { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
+import useSkeletonResource from "./recipes_page/use_skeleton_resource";
+import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
+
+/* One Skeleton resource, open for editing.
+ *
+ * This is the first product surface that talks to the resource store: it loads
+ * through the real facade, hands the document to the shared detail panel, and
+ * saves at the token it loaded, with the conflict choices in the bar.
+ *
+ * There is no canvas here yet, and not for want of one. A Skeleton node is
+ * closed to `{id, type, config}` and neither the envelope nor the store keeps
+ * a position for it, so there is nowhere to put the coordinates a graph view
+ * needs — inventing a field would be a document the store refuses. Until
+ * layout has somewhere to live, nodes are reached from a list, which is the
+ * plain reading of the document rather than a layout decision made here. */
+
+const PANEL = (isDark) => ({
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  padding: 12,
+  height: "100%",
+  minHeight: 0,
+  boxSizing: "border-box",
+  color: "var(--pupu-text)",
+  backgroundColor: isDark ? "var(--pupu-background)" : "var(--pupu-background)",
+});
+
+const NOTE = { fontSize: 11, color: "#86868b", lineHeight: 1.45 };
+
+const ROW = (isDark, selected) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "5px 9px",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 11.5,
+  background: selected
+    ? isDark
+      ? "rgba(255,255,255,0.07)"
+      : "rgba(0,0,0,0.05)"
+    : "transparent",
+});
+
+export default function SkeletonResourcePage({ resourceId }) {
+  const cfg = useContext(ConfigContext);
+  const isDark = cfg?.onThemeMode === "dark_mode";
+  const { session, load, edit, save, keepMine, takeTheirs, preflight } =
+    useSkeletonResource();
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+
+  useEffect(() => {
+    if (!resourceId) return;
+    load(resourceId);
+    setSelectedNodeId(null);
+  }, [resourceId, load]);
+
+  const document = session.document;
+  const nodes = (document && document.nodes) || [];
+
+  return (
+    <div style={PANEL(isDark)} data-testid="skeleton-resource-page">
+      <SkeletonSaveBar
+        session={session}
+        isDark={isDark}
+        onSave={save}
+        onKeepMine={keepMine}
+        onTakeTheirs={takeTheirs}
+        onPreflight={preflight}
+      />
+
+      {session.status === SESSION_STATUS.LOADING && (
+        <span style={NOTE}>Opening…</span>
+      )}
+
+      {session.status === SESSION_STATUS.LOAD_FAILED && (
+        <span data-testid="skeleton-load-failed" style={NOTE}>
+          {(session.error && session.error.message) ||
+            "This Agent could not be opened."}
+        </span>
+      )}
+
+      {session.status === SESSION_STATUS.READY && (
+        <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+          <div
+            data-testid="skeleton-node-list"
+            style={{
+              width: 180,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              overflowY: "auto",
+            }}
+          >
+            {nodes.map((node) => (
+              <div
+                key={node.id}
+                data-testid={`skeleton-node-${node.id}`}
+                onClick={() => setSelectedNodeId(node.id)}
+                style={ROW(isDark, node.id === selectedNodeId)}
+              >
+                <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
+                  {node.id}
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "#86868b" }}>
+                  {node.type}
+                </span>
+              </div>
+            ))}
+            {nodes.length === 0 && <span style={NOTE}>This graph has no nodes.</span>}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <DetailPanel
+              recipe={null}
+              selectedNodeId={selectedNodeId}
+              onChange={() => {}}
+              onChangeSilent={() => {}}
+              document={document}
+              diagnostics={session.diagnostics}
+              onDocumentChange={edit}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
