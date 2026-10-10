@@ -53,6 +53,22 @@ export function empty_session() {
   };
 }
 
+/* What a load or a save was issued against. An answer is only about this, and
+   the session may have moved on while it was in flight — to another edit, or
+   to another resource entirely. Applying it then would give the new resource's
+   identity with the old one's document and token, and the next save would
+   write that over it. */
+export function session_token(session) {
+  return {
+    resource_id: (session && session.resource_id) || null,
+    version: (session && session.version) || 0,
+  };
+}
+
+function same_resource(session, issued) {
+  return Boolean(issued) && session_token(session).resource_id === issued.resource_id;
+}
+
 export function loading(session, resource_id) {
   return {
     ...empty_session(),
@@ -64,7 +80,13 @@ export function loading(session, resource_id) {
 
 /* `data` is a store result: {id, kind, name, document, edit_token, diagnostics,
    archived, description, draft_digest, source_identity}. */
-export function loaded(session, data) {
+export function loaded(session, data, issued) {
+  /* A load answers about the resource that was asked for. Anything else has
+     happened since — another load, or a different resource — and this is no
+     longer the answer to the open question. */
+  if (issued && !(same_resource(session, issued) && session.version === issued.version)) {
+    return session;
+  }
   return {
     ...empty_session(),
     version: next_version(session),
@@ -76,7 +98,10 @@ export function loaded(session, data) {
   };
 }
 
-export function load_failed(session, result) {
+export function load_failed(session, result, issued) {
+  if (issued && !(same_resource(session, issued) && session.version === issued.version)) {
+    return session;
+  }
   return {
     ...session,
     status:
@@ -103,16 +128,28 @@ export function save_started(session) {
   return { ...session, saving: true, error: null };
 }
 
-export function save_succeeded(session, data) {
+/* A save stored the document it was handed, and nothing more. Anything typed
+   while it was in flight was never sent, so the echoed document must not
+   replace what is on screen — that deletes the newer work — and the draft is
+   still unsaved, so saying "Saved" would be the opposite of what happened.
+   The token moves either way, because the write really did land and the next
+   save has to compare against what the store now holds. */
+export function save_succeeded(session, data, issued) {
+  if (issued && !same_resource(session, issued)) return session;
+  const typed_since = Boolean(issued) && session.version !== issued.version;
   return {
     ...session,
     version: next_version(session),
     saving: false,
-    dirty: false,
+    dirty: typed_since,
     conflict: null,
     error: null,
-    document: (data && data.document) || session.document,
+    document: typed_since
+      ? session.document
+      : (data && data.document) || session.document,
     edit_token: (data && data.edit_token) || session.edit_token,
+    /* They describe what the store now holds, which is what they always
+       describe — the same state as saving and then editing. */
     diagnostics: (data && data.diagnostics) || [],
   };
 }
@@ -126,7 +163,8 @@ export function is_edit_conflict(result) {
 /* A conflict keeps the user's document in `conflict.document` and leaves the
    editor showing it, so nothing is replaced behind their back. `dirty` stays
    true, because it is still unsaved. */
-export function save_refused(session, result) {
+export function save_refused(session, result, issued) {
+  if (issued && !same_resource(session, issued)) return session;
   if (is_edit_conflict(result)) {
     return {
       ...session,

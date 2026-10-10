@@ -157,6 +157,19 @@ function FlowEditor({
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
 
+  /* The one place a viewport change is committed. */
+  const commit_viewport = useCallback(
+    (next, transform) => {
+      viewport_ref.current = next;
+      if (viewport_out_ref) viewport_out_ref.current = next;
+      if (viewport_div_ref.current && transform) {
+        viewport_div_ref.current.style.transform = transform;
+      }
+      setViewport(next);
+    },
+    [viewport_out_ref],
+  );
+
   /* ── Reset viewport (home button) ───────────────────────── */
   /*  With `reset_focus_node_id` the named node is centered in   */
   /*  the canvas at zoom 1; otherwise (or if the node is not     */
@@ -180,11 +193,7 @@ function FlowEditor({
         zoom: 1,
       };
     }
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(1)`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reset_token]);
 
@@ -193,9 +202,24 @@ function FlowEditor({
   /*  (drilling into a subagent) needs the viewport it is         */
   /*  leaving, and a callback would fire on every pan frame for   */
   /*  a value almost nobody reads.                                */
+  /*                                                              */
+  /*  Seeded here and kept current by `commit_viewport`, never by */
+  /*  an effect on the state: an effect runs a commit later than  */
+  /*  the gesture, so a caller reading it during a wheel — or in  */
+  /*  a cleanup when the canvas closes right after one — got the  */
+  /*  viewport from before the zoom. One writer, no window.       */
   useEffect(() => {
-    if (viewport_out_ref) viewport_out_ref.current = viewport;
-  }, [viewport, viewport_out_ref]);
+    if (!viewport_out_ref) return;
+    if (viewport_out_ref.current == null) {
+      viewport_out_ref.current = viewport_ref.current;
+      return;
+    }
+    /* One object, not two copies: the pan path moves the viewport by mutating
+       it in place between commits, and a caller reading a second object would
+       see that only at the next zoom. */
+    viewport_ref.current = viewport_out_ref.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewport_out_ref]);
 
   /* ── Restore a viewport ─────────────────────────────────── */
   /*  Same token idiom as the home reset. Coming back up from a   */
@@ -208,11 +232,7 @@ function FlowEditor({
       y: restore_viewport.y || 0,
       zoom: restore_viewport.zoom || 1,
     };
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restore_viewport && restore_viewport.token]);
 
@@ -256,11 +276,7 @@ function FlowEditor({
       y: rect.height / 2 - (min_y + span_y / 2) * zoom,
       zoom,
     };
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${zoom})`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(${zoom})`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fit_token]);
 
@@ -277,11 +293,7 @@ function FlowEditor({
       y: cy - ((cy - vp.y) / vp.zoom) * 1,
       zoom: 1,
     };
-    viewport_ref.current = next;
-    if (viewport_div_ref.current) {
-      viewport_div_ref.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(1)`;
-    }
-    setViewport(next);
+    commit_viewport(next, `translate(${next.x}px, ${next.y}px) scale(1)`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom_reset_token]);
 
@@ -582,10 +594,10 @@ function FlowEditor({
       c.style.backgroundImage = `radial-gradient(circle, ${theme.gridColor} ${dot}px, transparent ${dot}px)`;
       cancelAnimationFrame(zoom_raf_ref.current);
       zoom_raf_ref.current = requestAnimationFrame(() => {
-        setViewport({ ...viewport_ref.current });
+        commit_viewport({ ...viewport_ref.current });
       });
     },
-    [theme.gridColor, grid_size, min_zoom, max_zoom],
+    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport],
   );
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -698,7 +710,7 @@ function FlowEditor({
       if (pan_ref.current) {
         const was_click = pan_ref.current.is_click;
         pan_ref.current = null;
-        setViewport({ ...viewport_ref.current });
+        commit_viewport({ ...viewport_ref.current });
         if (canvas_ref.current) {
           canvas_ref.current.style.cursor = space_ref.current ? "grab" : "";
         }
@@ -840,6 +852,7 @@ function FlowEditor({
       window.removeEventListener("mouseup", handle_up);
     };
   }, [
+    commit_viewport,
     grid_size,
     on_nodes_change,
     on_edges_change,

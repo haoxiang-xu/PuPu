@@ -19,6 +19,7 @@ import {
   save_refused,
   save_started,
   save_succeeded,
+  session_token,
 } from "./skeleton_resource_session";
 
 /* The open resource, driven by the real store.
@@ -48,10 +49,13 @@ export default function useSkeletonResource() {
 
   const load = useCallback(
     async (resource_id) => {
-      apply((current) => loading(current, resource_id));
+      const started = apply((current) => loading(current, resource_id));
+      const issued = session_token(started);
       const result = await load_resource(resource_id);
       return apply((current) =>
-        result.ok ? loaded(current, result.data) : load_failed(current, result),
+        result.ok
+          ? loaded(current, result.data, issued)
+          : load_failed(current, result, issued),
       );
     },
     [apply],
@@ -65,10 +69,13 @@ export default function useSkeletonResource() {
   const save = useCallback(async () => {
     const current = ref.current;
     if (!current.document) return current;
+    const issued = session_token(current);
     apply(save_started(current));
     const result = await save_draft(current.document, current.edit_token);
     return apply((latest) =>
-      result.ok ? save_succeeded(latest, result.data) : save_refused(latest, result),
+      result.ok
+        ? save_succeeded(latest, result.data, issued)
+        : save_refused(latest, result, issued),
     );
   }, [apply]);
 
@@ -78,7 +85,7 @@ export default function useSkeletonResource() {
       const current = ref.current;
       if (!current.conflict) return current;
       const result = await load_resource(current.resource_id);
-      if (!result.ok) return apply((latest) => load_failed(latest, result));
+      if (!result.ok) return apply((latest) => load_failed(latest, result, null));
       return apply((latest) =>
         keep === "mine"
           ? conflict_overridden(latest, result.data)

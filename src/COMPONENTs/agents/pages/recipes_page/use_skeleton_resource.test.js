@@ -290,3 +290,167 @@ describe("a preflight reply that arrives late", () => {
     expect(hook.result.current.session.preflight).toBeNull();
   });
 });
+
+describe("a save that lands after the author kept typing", () => {
+  /* The save stored the document it was handed. Anything added while it was in
+   * flight was never sent, so replacing the editor with the echoed document
+   * deletes it — and calling the result "Saved" says the opposite of what
+   * happened. */
+  const open_and_save = async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc("A"), edit_token: "t1" }));
+    api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
+      () => new Promise((resolve) => {
+        release = () => resolve(result({ document: doc("B"), edit_token: "t2" }));
+      }),
+    );
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("B")));
+    let pending;
+    act(() => {
+      pending = hook.result.current.save();
+    });
+    /* Still typing while it is in flight. */
+    act(() => hook.result.current.edit(doc("C")));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    return hook;
+  };
+
+  test("the newer edit is still there", async () => {
+    const hook = await open_and_save();
+    expect(hook.result.current.session.document).toEqual(doc("C"));
+  });
+
+  test("it does not claim to be saved", async () => {
+    const hook = await open_and_save();
+    expect(hook.result.current.session.dirty).toBe(true);
+    expect(hook.result.current.session.saving).toBe(false);
+  });
+
+  test("the token still moves, because the save really happened", async () => {
+    /* The next save must compare against what the store now holds, or it
+     * would be refused as stale for no reason. */
+    const hook = await open_and_save();
+    expect(hook.result.current.session.edit_token).toBe("t2");
+  });
+
+  test("a save with nothing typed after it is clean, as before", async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc("A"), edit_token: "t1" }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc("B"), edit_token: "t2" }));
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("B")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    expect(hook.result.current.session).toMatchObject({ dirty: false, edit_token: "t2" });
+  });
+});
+
+describe("a reply that arrives after the author moved to another resource", () => {
+  /* The session now belongs to B. Applying A's answer gives B's identity with
+   * A's document and A's token — and the next save would write A's content
+   * over B at a token that is not B's. */
+  test("a load for the resource that was left is discarded", async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({ id: "A", document: doc("A"), edit_token: "ta" }));
+      }))
+      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+
+    const hook = renderHook(() => useSkeletonResource());
+    let first;
+    act(() => {
+      first = hook.result.current.load("A");
+    });
+    await act(async () => {
+      await hook.result.current.load("B");
+    });
+    await act(async () => {
+      release();
+      await first;
+    });
+
+    expect(hook.result.current.session.resource_id).toBe("B");
+    expect(hook.result.current.session.document).toEqual(doc("B"));
+    expect(hook.result.current.session.edit_token).toBe("tb");
+  });
+
+  test("a save for the resource that was left cannot touch the new one", async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
+      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+    api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
+      () => new Promise((resolve) => {
+        release = () => resolve(result({ id: "A", document: doc("A2"), edit_token: "ta2" }));
+      }),
+    );
+
+    const hook = renderHook(() => useSkeletonResource());
+    await act(async () => {
+      await hook.result.current.load("A");
+    });
+    act(() => hook.result.current.edit(doc("A2")));
+    let pending;
+    act(() => {
+      pending = hook.result.current.save();
+    });
+    await act(async () => {
+      await hook.result.current.load("B");
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+
+    expect(hook.result.current.session.resource_id).toBe("B");
+    expect(hook.result.current.session.edit_token).toBe("tb");
+    expect(hook.result.current.session.document).toEqual(doc("B"));
+    expect(hook.result.current.session.saving).toBe(false);
+  });
+
+  test("a refusal for the resource that was left does not land on the new one", async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
+      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+    api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
+      () => new Promise((resolve) => {
+        release = () => resolve({ error: EDIT_CONFLICT_ERROR });
+      }),
+    );
+
+    const hook = renderHook(() => useSkeletonResource());
+    await act(async () => {
+      await hook.result.current.load("A");
+    });
+    act(() => hook.result.current.edit(doc("A2")));
+    let pending;
+    act(() => {
+      pending = hook.result.current.save();
+    });
+    await act(async () => {
+      await hook.result.current.load("B");
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+
+    expect(hook.result.current.session.conflict).toBeNull();
+    expect(hook.result.current.session.resource_id).toBe("B");
+  });
+});

@@ -601,3 +601,66 @@ describe("FlowEditor viewport is readable and restorable", () => {
     expect(out.current).toEqual({ x: 5, y: 6, zoom: 2 });
   });
 });
+
+describe("the out ref never lags the viewport it reports", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("it is seeded before any gesture", () => {
+    const out = { current: null };
+    render(wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />));
+    expect(out.current).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  test("a restore writes it at the same moment as the transform", () => {
+    /* Both come from one commit, so a caller reading the ref in the same tick
+     * as the change — during a wheel, or in a cleanup when the canvas closes
+     * right after one — cannot see the value from before it. */
+    const out = { current: null };
+    const { getByTestId, rerender } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    rerender(
+      wrap(
+        <FlowEditor
+          nodes={nodes}
+          edges={[]}
+          viewport_out_ref={out}
+          restore_viewport={{ x: 9, y: 8, zoom: 2.25, token: 3 }}
+        />,
+      ),
+    );
+    expect(out.current).toEqual({ x: 9, y: 8, zoom: 2.25 });
+    expect(getByTestId("flow-editor-viewport").style.transform).toBe(
+      "translate(9px, 8px) scale(2.25)",
+    );
+  });
+
+  test("a caller's own value is not overwritten on mount", () => {
+    /* The seed only fills an empty ref: a canvas that remembered a viewport
+     * and handed it in must not have it reset to the origin. */
+    const out = { current: { x: 5, y: 5, zoom: 1.5 } };
+    render(wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />));
+    expect(out.current).toEqual({ x: 5, y: 5, zoom: 1.5 });
+  });
+});
+
+describe("a pan reaches the out ref too", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("the two refs are one object, so an in-place pan is visible outside", () => {
+    /* The pan path moves the viewport by mutating it between commits. With a
+     * caller holding a second object, a pan would only show up at the next
+     * zoom — which is how a remembered viewport ends up one gesture behind. */
+    const out = { current: { x: 3, y: 4, zoom: 1.2 } };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    fireEvent.mouseDown(canvas, { clientX: 0, clientY: 0, button: 1 });
+    fireEvent.mouseMove(window, { clientX: 50, clientY: 25 });
+    expect(out.current.x).toBe(53);
+    expect(out.current.y).toBe(29);
+    fireEvent.mouseUp(window, { clientX: 50, clientY: 25 });
+    expect(out.current).toMatchObject({ x: 53, y: 29 });
+  });
+});
