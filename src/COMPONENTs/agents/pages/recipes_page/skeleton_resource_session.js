@@ -206,8 +206,23 @@ export function save_refused(session, result, issued) {
 /* Taking the other edit: the editor shows theirs, at their token, and the
    user's own version is dropped — which is why it is only ever reached from an
    explicit action, never automatically. */
+/* Taking the other edit throws this one away, so it may only throw away the
+   document the choice was made about. Typing after choosing is newer intent
+   than the choice: applying it then deletes work the author added since, and
+   reports it as saved.
+   The conflict is kept rather than resolved, and marked, so the button does
+   not merely appear to do nothing — the author chooses again, now about what
+   is actually on screen.
+   `conflict_overridden` needs none of this: keeping this version and then
+   adding to it are the same intent. */
 export function conflict_discarded(session, data, issued) {
   if (issued && !same_open(session, issued)) return session;
+  if (issued && session.version !== issued.version) {
+    return {
+      ...session,
+      conflict: { ...session.conflict, stale_choice: true },
+    };
+  }
   return { ...loaded(session, data), status: SESSION_STATUS.READY };
 }
 
@@ -295,6 +310,9 @@ export function preflight_refused(session, result, issued) {
 
 export function conflict_message(session) {
   if (!session || !session.conflict) return null;
+  if (session.conflict.stale_choice) {
+    return "You changed this draft after choosing, so nothing was replaced. Choose again for what is on screen now — look at the newer version, or keep yours and replace it.";
+  }
   return "This was saved somewhere else after you opened it. Nothing has been overwritten — look at the newer version, or keep yours and replace it.";
 }
 

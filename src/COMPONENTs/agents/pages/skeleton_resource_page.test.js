@@ -195,3 +195,82 @@ describe("the run check, in the page", () => {
     expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(/not ready to run/i);
   });
 });
+
+describe("typing after choosing to take theirs, in the page", () => {
+  test("the rows added after the choice are still there, and still unsaved", async () => {
+    /* Two rows, unsaved → the reply lands → it used to be zero rows, "Saved". */
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: doc(), edit_token: "t1" }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({
+          document: { ...doc(), nodes: [doc().nodes[0], {
+            id: "end", type: "end",
+            config: { execution: { inputs: [], outputs: [] } },
+          }] },
+          edit_token: "t9",
+        }));
+      }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+
+    show();
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    /* One row to start with, then a second, then save into a conflict. */
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    expect(screen.getByTestId("skeleton-save-conflict")).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    /* Keeps adding while the re-read is in flight. */
+    fireEvent.click(screen.getByText("+ Add input"));
+    const rowsBefore = screen.getAllByTestId(/^binding-row-\d+$/).length;
+
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+
+    expect(screen.getAllByTestId(/^binding-row-\d+$/)).toHaveLength(rowsBefore);
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+  });
+
+  test("it says why nothing was replaced, instead of looking like a dead button", async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: doc(), edit_token: "t1" }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({ document: doc("theirs"), edit_token: "t9" }));
+      }));
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+
+    show();
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    act(() => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("skeleton-save-conflict").textContent).toMatch(
+      /changed this draft after choosing/i,
+    );
+    expect(screen.getByText("Look at theirs")).toBeInTheDocument();
+  });
+});

@@ -566,3 +566,113 @@ describe("reopening the same Agent is a different sitting", () => {
     expect(hook.result.current.session.conflict).toBeNull();
   });
 });
+
+describe("still typing after choosing to take theirs", () => {
+  /* Same Agent, same sitting, so the open-session check passes. The choice was
+   * made about a document that has since changed: applying it deletes what was
+   * typed after it, and calls the result saved. Typing after choosing is newer
+   * intent than the choice. */
+  const choose_then_type = async () => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: doc("mine"), edit_token: "t1" }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({ document: doc("theirs"), edit_token: "t9" }));
+      }));
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("mine-edited")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    expect(hook.result.current.session.conflict).not.toBeNull();
+
+    let pending;
+    act(() => {
+      pending = hook.result.current.takeTheirs();
+    });
+    /* Keeps working while the re-read is in flight. */
+    act(() => hook.result.current.edit(doc("mine-plus-more")));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    return hook;
+  };
+
+  test("what was typed after the choice is not deleted", async () => {
+    const hook = await choose_then_type();
+    expect(hook.result.current.session.document).toEqual(doc("mine-plus-more"));
+  });
+
+  test("it is not called saved", async () => {
+    const hook = await choose_then_type();
+    expect(hook.result.current.session.dirty).toBe(true);
+  });
+
+  test("the conflict stays, so the author can choose again", async () => {
+    /* Silently doing nothing would look like a broken button. */
+    const hook = await choose_then_type();
+    expect(hook.result.current.session.conflict).not.toBeNull();
+    expect(hook.result.current.session.conflict.stale_choice).toBe(true);
+  });
+
+  test("the token is not taken either", async () => {
+    const hook = await choose_then_type();
+    expect(hook.result.current.session.edit_token).toBe("t1");
+  });
+
+  test("taking theirs with nothing typed after still works", async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: doc("mine"), edit_token: "t1" }))
+      .mockResolvedValue(result({ document: doc("theirs"), edit_token: "t9" }));
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("mine-edited")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    await act(async () => {
+      await hook.result.current.takeTheirs();
+    });
+    expect(hook.result.current.session).toMatchObject({
+      document: doc("theirs"),
+      edit_token: "t9",
+      dirty: false,
+      conflict: null,
+    });
+  });
+
+  test("keeping mine after typing more keeps the newer document", async () => {
+    /* The opposite choice does not have this problem: the newer typing is the
+     * same intent as keeping it. */
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: doc("mine"), edit_token: "t1" }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({ document: doc("theirs"), edit_token: "t9" }));
+      }));
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("mine-edited")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    let pending;
+    act(() => {
+      pending = hook.result.current.keepMine();
+    });
+    act(() => hook.result.current.edit(doc("mine-plus-more")));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(hook.result.current.session.document).toEqual(doc("mine-plus-more"));
+    expect(hook.result.current.session.edit_token).toBe("t9");
+    expect(hook.result.current.session.conflict).toBeNull();
+  });
+});
