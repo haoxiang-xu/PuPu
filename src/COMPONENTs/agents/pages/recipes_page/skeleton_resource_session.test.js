@@ -237,3 +237,69 @@ describe("an answer is a verdict only on what it was asked about", () => {
     expect(preflight_is_current(base(), null)).toBe(false);
   });
 });
+
+describe("the server may have checked a different version", () => {
+  /* Observed against the real store: page opens at edit-1, another window
+   * saves, preflight runs against the newer document and returns edit-2. The
+   * client-side guard cannot see this — nothing changed on this page while the
+   * request was in flight — so the token the server reports is the only
+   * evidence that the answer is about someone else's work. */
+  const base = () => open_at("edit-1", doc("mine"));
+
+  test("a pass for a newer version is not a pass for what is open", () => {
+    const started = base();
+    const after = preflight_passed(
+      started,
+      { ok: true, definition_digest: "sha256:B", edit_token: "edit-2" },
+      preflight_token(started),
+    );
+    expect(after.preflight.ok).toBe(false);
+    expect(after.preflight.stale).toBe(true);
+    expect(after.preflight.checked_edit_token).toBe("edit-2");
+  });
+
+  test("it does not quietly adopt the newer token", () => {
+    /* Taking it would let the next save overwrite the other window's work
+     * without anyone choosing that. */
+    const started = base();
+    const after = preflight_passed(
+      started,
+      { ok: true, edit_token: "edit-2", document: doc("theirs") },
+      preflight_token(started),
+    );
+    expect(after.edit_token).toBe("edit-1");
+    expect(after.document).toEqual(doc("mine"));
+    expect(after.dirty).toBe(false);
+  });
+
+  test("the message says the content moved and asks for a reload", () => {
+    const started = base();
+    const after = preflight_passed(
+      started,
+      { ok: true, edit_token: "edit-2" },
+      preflight_token(started),
+    );
+    const message = preflight_message(after);
+    expect(message).toMatch(/saved somewhere else/i);
+    expect(message).toMatch(/reload/i);
+    expect(message).not.toMatch(/ready to run/i);
+  });
+
+  test("a pass for the version that is open is still a pass", () => {
+    const started = base();
+    const after = preflight_passed(
+      started,
+      { ok: true, definition_digest: "sha256:A", edit_token: "edit-1" },
+      preflight_token(started),
+    );
+    expect(after.preflight).toEqual({ ok: true, definition_digest: "sha256:A" });
+    expect(preflight_message(after)).toMatch(/ready to run/i);
+  });
+
+  test("an answer carrying no token at all is taken at face value", () => {
+    /* Nothing to compare against is not evidence of a mismatch. */
+    const started = base();
+    const after = preflight_passed(started, { ok: true }, preflight_token(started));
+    expect(after.preflight.ok).toBe(true);
+  });
+});

@@ -195,8 +195,22 @@ export function preflight_is_current(session, issued) {
   );
 }
 
+/* The client-side guard above only sees what changed on THIS page. Another
+   window can save between the request and the reply, and the store will have
+   checked that newer document — observed: page at edit-1, preflight returns
+   edit-2 and the other window's content. The reported token is the only
+   evidence, and the answer is not a verdict on what is open.
+   Nothing is adopted from it: taking the newer token would let the next save
+   overwrite the other window's work without anyone choosing that. */
 export function preflight_passed(session, data, issued) {
   if (!preflight_is_current(session, issued)) return session;
+  const checked = data && data.edit_token;
+  if (checked && session.edit_token && checked !== session.edit_token) {
+    return {
+      ...session,
+      preflight: { ok: false, stale: true, checked_edit_token: checked },
+    };
+  }
   return {
     ...session,
     preflight: {
@@ -252,6 +266,9 @@ export function can_preflight(session) {
 export function preflight_message(session) {
   const preflight = session && session.preflight;
   if (!preflight) return null;
+  if (preflight.stale) {
+    return "This Agent was saved somewhere else, so the check ran against that newer version, not the one open here. Reload before relying on it.";
+  }
   if (preflight.ok) return "Ready to run.";
   const error = preflight.error || {};
   const detail = error.message ? ` — ${error.message}` : "";
