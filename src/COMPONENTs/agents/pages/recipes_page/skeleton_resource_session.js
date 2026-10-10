@@ -33,9 +33,21 @@ function next_version(session) {
   return ((session && session.version) || 0) + 1;
 }
 
+/* Changes when a resource is opened, and only then. The version alone cannot
+   tell one sitting from another: A → B → A puts the same id back, and an
+   answer still in flight from the first visit passes a check that compares
+   ids. It must not — it can roll the token back, or raise a conflict that is
+   not happening. An edit must not change it either, or a save issued before
+   the edit would be discarded instead of recognised as "stored, but there is
+   newer work". */
+function next_open_id(session) {
+  return ((session && session.open_id) || 0) + 1;
+}
+
 export function empty_session() {
   return {
     version: 0,
+    open_id: 0,
     status: SESSION_STATUS.EMPTY,
     resource_id: null,
     document: null,
@@ -60,19 +72,24 @@ export function empty_session() {
    write that over it. */
 export function session_token(session) {
   return {
+    open_id: (session && session.open_id) || 0,
     resource_id: (session && session.resource_id) || null,
     version: (session && session.version) || 0,
   };
 }
 
-function same_resource(session, issued) {
-  return Boolean(issued) && session_token(session).resource_id === issued.resource_id;
+/* The same resource opened a second time is a different sitting. */
+function same_open(session, issued) {
+  if (!issued) return false;
+  const now = session_token(session);
+  return now.open_id === issued.open_id && now.resource_id === issued.resource_id;
 }
 
 export function loading(session, resource_id) {
   return {
     ...empty_session(),
     version: next_version(session),
+    open_id: next_open_id(session),
     status: SESSION_STATUS.LOADING,
     resource_id,
   };
@@ -84,12 +101,13 @@ export function loaded(session, data, issued) {
   /* A load answers about the resource that was asked for. Anything else has
      happened since — another load, or a different resource — and this is no
      longer the answer to the open question. */
-  if (issued && !(same_resource(session, issued) && session.version === issued.version)) {
+  if (issued && !(same_open(session, issued) && session.version === issued.version)) {
     return session;
   }
   return {
     ...empty_session(),
     version: next_version(session),
+    open_id: (session && session.open_id) || 0,
     status: SESSION_STATUS.READY,
     resource_id: (data && data.id) || session.resource_id,
     document: (data && data.document) || null,
@@ -99,7 +117,7 @@ export function loaded(session, data, issued) {
 }
 
 export function load_failed(session, result, issued) {
-  if (issued && !(same_resource(session, issued) && session.version === issued.version)) {
+  if (issued && !(same_open(session, issued) && session.version === issued.version)) {
     return session;
   }
   return {
@@ -135,7 +153,7 @@ export function save_started(session) {
    The token moves either way, because the write really did land and the next
    save has to compare against what the store now holds. */
 export function save_succeeded(session, data, issued) {
-  if (issued && !same_resource(session, issued)) return session;
+  if (issued && !same_open(session, issued)) return session;
   const typed_since = Boolean(issued) && session.version !== issued.version;
   return {
     ...session,
@@ -164,7 +182,7 @@ export function is_edit_conflict(result) {
    editor showing it, so nothing is replaced behind their back. `dirty` stays
    true, because it is still unsaved. */
 export function save_refused(session, result, issued) {
-  if (issued && !same_resource(session, issued)) return session;
+  if (issued && !same_open(session, issued)) return session;
   if (is_edit_conflict(result)) {
     return {
       ...session,
@@ -188,14 +206,16 @@ export function save_refused(session, result, issued) {
 /* Taking the other edit: the editor shows theirs, at their token, and the
    user's own version is dropped — which is why it is only ever reached from an
    explicit action, never automatically. */
-export function conflict_discarded(session, data) {
+export function conflict_discarded(session, data, issued) {
+  if (issued && !same_open(session, issued)) return session;
   return { ...loaded(session, data), status: SESSION_STATUS.READY };
 }
 
 /* Keeping the user's own: their document is re-based onto the newer token so
    the next save goes through. It will replace the other edit, which is what
    they chose, and nothing says otherwise. */
-export function conflict_overridden(session, data) {
+export function conflict_overridden(session, data, issued) {
+  if (issued && !same_open(session, issued)) return session;
   return {
     ...session,
     version: next_version(session),

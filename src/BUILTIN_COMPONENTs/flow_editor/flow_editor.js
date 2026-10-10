@@ -157,17 +157,29 @@ function FlowEditor({
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
 
-  /* The one place a viewport change is committed. */
-  const commit_viewport = useCallback(
-    (next, transform) => {
+  /* Publishing and committing are not the same moment.
+     Zoom draws itself imperatively and defers the React state to an animation
+     frame, which is right for the frame rate and wrong for the refs: a canvas
+     closing right after a wheel read a viewport the gesture had already
+     replaced. So the refs are published synchronously, always, and only the
+     state update is allowed to wait. */
+  const publish_viewport = useCallback(
+    (next) => {
       viewport_ref.current = next;
       if (viewport_out_ref) viewport_out_ref.current = next;
+    },
+    [viewport_out_ref],
+  );
+
+  const commit_viewport = useCallback(
+    (next, transform) => {
+      publish_viewport(next);
       if (viewport_div_ref.current && transform) {
         viewport_div_ref.current.style.transform = transform;
       }
       setViewport(next);
     },
-    [viewport_out_ref],
+    [publish_viewport],
   );
 
   /* ── Reset viewport (home button) ───────────────────────── */
@@ -582,7 +594,7 @@ function FlowEditor({
       const sc = new_zoom / vp.zoom;
       const new_x = mx - (mx - vp.x) * sc;
       const new_y = my - (my - vp.y) * sc;
-      viewport_ref.current = { x: new_x, y: new_y, zoom: new_zoom };
+      publish_viewport({ x: new_x, y: new_y, zoom: new_zoom });
       if (viewport_div_ref.current) {
         viewport_div_ref.current.style.transform = `translate(${new_x}px, ${new_y}px) scale(${new_zoom})`;
       }
@@ -597,7 +609,7 @@ function FlowEditor({
         commit_viewport({ ...viewport_ref.current });
       });
     },
-    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport],
+    [theme.gridColor, grid_size, min_zoom, max_zoom, commit_viewport, publish_viewport],
   );
 
   /* ═══════════════════════════════════════════════════════════ */

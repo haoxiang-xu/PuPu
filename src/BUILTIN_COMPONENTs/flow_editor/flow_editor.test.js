@@ -664,3 +664,49 @@ describe("a pan reaches the out ref too", () => {
     expect(out.current).toMatchObject({ x: 53, y: 29 });
   });
 });
+
+describe("a wheel zoom is published the moment it happens", () => {
+  const nodes = [{ id: "a", x: 10, y: 20, ports: [] }];
+
+  test("the out ref carries the new zoom before any frame is scheduled", () => {
+    /* The zoom replaced the shared viewport object and deferred the commit to
+     * an animation frame. A canvas closing right after the gesture read the
+     * value from before it — the 1.04 that never arrived. */
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    expect(out.current.zoom).toBeCloseTo(1.04, 5);
+  });
+
+  test("a second tick compounds on the first", () => {
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    expect(out.current.zoom).toBeCloseTo(1.04 * 1.04, 5);
+  });
+
+  test("a pan after a zoom still reaches the out ref", () => {
+    /* The zoom hands over a new object; the pan then moves it in place, so the
+     * two refs have to still be the same one afterwards. */
+    const out = { current: null };
+    const { container } = render(
+      wrap(<FlowEditor nodes={nodes} edges={[]} viewport_out_ref={out} />),
+    );
+    const canvas = container.firstChild;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    fireEvent.wheel(canvas, { deltaY: -120, clientX: 0, clientY: 0 });
+    const zoomed = out.current.x;
+    fireEvent.mouseDown(canvas, { clientX: 0, clientY: 0, button: 1 });
+    fireEvent.mouseMove(window, { clientX: 30, clientY: 0 });
+    expect(out.current.x).toBe(zoomed + 30);
+  });
+});

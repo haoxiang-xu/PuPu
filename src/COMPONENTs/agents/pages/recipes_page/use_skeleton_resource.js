@@ -84,12 +84,16 @@ export default function useSkeletonResource() {
     async (keep) => {
       const current = ref.current;
       if (!current.conflict) return current;
+      /* The re-read is an answer about this sitting of this resource. By the
+         time it lands the author may be editing a different Agent, and
+         applying it there would replace that draft with this one's content. */
+      const issued = session_token(current);
       const result = await load_resource(current.resource_id);
-      if (!result.ok) return apply((latest) => load_failed(latest, result, null));
+      if (!result.ok) return apply((latest) => load_failed(latest, result, issued));
       return apply((latest) =>
         keep === "mine"
-          ? conflict_overridden(latest, result.data)
-          : conflict_discarded(latest, result.data),
+          ? conflict_overridden(latest, result.data, issued)
+          : conflict_discarded(latest, result.data, issued),
       );
     },
     [apply],

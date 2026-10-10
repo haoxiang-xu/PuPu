@@ -454,3 +454,115 @@ describe("a reply that arrives after the author moved to another resource", () =
     expect(hook.result.current.session.resource_id).toBe("B");
   });
 });
+
+describe("a conflict choice that lands after the author moved on", () => {
+  /* Resolving a conflict re-reads the resource. That read is an answer about
+   * A, and by the time it arrives the author may be editing B — applying it
+   * then replaces B's document with A's and calls it saved. */
+  const conflicted_then_left = async (choice) => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ id: "A", document: doc("A"), edit_token: "ta" }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        release = () => resolve(result({ id: "A", document: doc("A-theirs"), edit_token: "ta9" }));
+      }))
+      .mockResolvedValue(result({ id: "B", document: doc("B"), edit_token: "tb" }));
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+
+    const hook = renderHook(() => useSkeletonResource());
+    await act(async () => {
+      await hook.result.current.load("A");
+    });
+    act(() => hook.result.current.edit(doc("A-mine")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    expect(hook.result.current.session.conflict).not.toBeNull();
+
+    let pending;
+    act(() => {
+      pending = choice === "mine" ? hook.result.current.keepMine() : hook.result.current.takeTheirs();
+    });
+    /* Off to another Agent, and typing in it. */
+    await act(async () => {
+      await hook.result.current.load("B");
+    });
+    act(() => hook.result.current.edit(doc("B-edited")));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    return hook;
+  };
+
+  test("taking theirs cannot replace the Agent now open", async () => {
+    const hook = await conflicted_then_left("theirs");
+    expect(hook.result.current.session.resource_id).toBe("B");
+    expect(hook.result.current.session.document).toEqual(doc("B-edited"));
+    expect(hook.result.current.session.edit_token).toBe("tb");
+  });
+
+  test("and it cannot claim the new draft is saved", async () => {
+    const hook = await conflicted_then_left("theirs");
+    expect(hook.result.current.session.dirty).toBe(true);
+  });
+
+  test("keeping mine cannot re-base the Agent now open onto another's token", async () => {
+    const hook = await conflicted_then_left("mine");
+    expect(hook.result.current.session.resource_id).toBe("B");
+    expect(hook.result.current.session.edit_token).toBe("tb");
+    expect(hook.result.current.session.document).toEqual(doc("B-edited"));
+  });
+});
+
+describe("reopening the same Agent is a different sitting", () => {
+  /* A → B → A. The resource id is the same again, so an answer still in
+   * flight from the first visit passes a check that only compares ids, and it
+   * can roll the token back or raise a conflict that never happened. */
+  const reopened = async (makeSave) => {
+    let release;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockImplementation(async (id) =>
+        id === "B"
+          ? result({ id: "B", document: doc("B"), edit_token: "tb" })
+          : result({ id: "A", document: doc("A"), edit_token: "ta2" }),
+      );
+    api.unchain.saveSkeletonResource = jest.fn().mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve(makeSave()); }),
+    );
+
+    const hook = renderHook(() => useSkeletonResource());
+    await act(async () => {
+      await hook.result.current.load("A");
+    });
+    act(() => hook.result.current.edit(doc("A-edited")));
+    let pending;
+    act(() => {
+      pending = hook.result.current.save();
+    });
+    await act(async () => {
+      await hook.result.current.load("B");
+    });
+    await act(async () => {
+      await hook.result.current.load("A");
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    return hook;
+  };
+
+  test("an old save cannot roll the token back", async () => {
+    const hook = await reopened(() => result({ id: "A", document: doc("A-old"), edit_token: "ta1" }));
+    expect(hook.result.current.session.edit_token).toBe("ta2");
+    expect(hook.result.current.session.document).toEqual(doc("A"));
+  });
+
+  test("an old refusal cannot raise a conflict that is not happening", async () => {
+    const hook = await reopened(() => ({ error: EDIT_CONFLICT_ERROR }));
+    expect(hook.result.current.session.conflict).toBeNull();
+  });
+});
