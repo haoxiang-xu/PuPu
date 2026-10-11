@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import {
+  convert_legacy_pools as convert_legacy_pools_in_store,
   load_resource,
   preflight as preflight_resource,
   save_draft,
 } from "./skeleton_resources";
 import {
+  can_convert_legacy_pools,
   conflict_discarded,
   conflict_overridden,
   edited,
@@ -116,6 +118,28 @@ export default function useSkeletonResource() {
     );
   }, [apply]);
 
+  /* The store converts a legacy Subagent Pool and saves it, so the answer is
+     the resource as it now stands — taken as loaded, because that is what it
+     is: the stored version, at a new token, with nothing of the author's
+     waiting to be written. A refusal goes through the save path, so a token
+     that went stale raises the same conflict a save would and is resolved the
+     same way. The limit lives here as well as on the button, for the reason
+     `preflight`'s does. */
+  const convertLegacyPools = useCallback(async () => {
+    const current = ref.current;
+    if (!can_convert_legacy_pools(current)) return current;
+    const issued = session_token(current);
+    const result = await convert_legacy_pools_in_store(
+      current.resource_id,
+      current.edit_token,
+    );
+    return apply((latest) =>
+      result.ok
+        ? loaded(latest, result.data, issued)
+        : save_refused(latest, result, issued),
+    );
+  }, [apply]);
+
   return {
     session,
     load,
@@ -124,5 +148,6 @@ export default function useSkeletonResource() {
     keepMine: () => resolve_conflict("mine"),
     takeTheirs: () => resolve_conflict("theirs"),
     preflight,
+    convertLegacyPools,
   };
 }

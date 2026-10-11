@@ -676,3 +676,88 @@ describe("still typing after choosing to take theirs", () => {
     expect(hook.result.current.session.conflict).toBeNull();
   });
 });
+
+describe("converting a legacy Subagent Pool", () => {
+  /* The store performs it and saves it, so what comes back is the stored
+     version at a new token — and the session has to take it as exactly that,
+     with nothing of the author's left waiting to be written. */
+  const legacy_document = {
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "life",
+    nodes: [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: [] } } }],
+    edges: [],
+  };
+
+  test("the stored resource comes back as loaded, at the new token", async () => {
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document: legacy_document, edit_token: "edit-1" }),
+    );
+    const hook = await open();
+    api.unchain.convertSkeletonLegacyPools = jest.fn(async () =>
+      result({
+        document: { ...legacy_document, nodes: [{ id: "pool", type: "subagent_pool", config: { subagents: [] } }] },
+        edit_token: "edit-2",
+      }),
+    );
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledWith(
+      "life", "edit-1", null,
+    );
+    expect(hook.result.current.session.edit_token).toBe("edit-2");
+    expect(hook.result.current.session.dirty).toBe(false);
+    expect(hook.result.current.session.document.nodes[0].config).toEqual({ subagents: [] });
+  });
+
+  test("a dirty draft is not converted, because the write is against the stored one", async () => {
+    /* The conversion rewrites what the store holds and bumps the token. Doing
+       that under unsaved work would leave the author unable to save it. */
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document: legacy_document, edit_token: "edit-1" }),
+    );
+    const hook = await open();
+    act(() => {
+      hook.result.current.edit({ ...legacy_document, description: "typed" });
+    });
+    api.unchain.convertSkeletonLegacyPools = jest.fn();
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+    expect(hook.result.current.session.dirty).toBe(true);
+  });
+
+  test("a token that went stale raises the same conflict a save would", async () => {
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document: legacy_document, edit_token: "edit-1" }),
+    );
+    const hook = await open();
+    api.unchain.convertSkeletonLegacyPools = jest.fn(async () => {
+      throw Object.assign(new Error("resource changed in another editor"), {
+        code: "edit_conflict",
+        path: ["expected_edit_token"],
+        status: 409,
+      });
+    });
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(hook.result.current.session.conflict).toBeTruthy();
+  });
+
+  test("a build that cannot reach the store leaves the session alone", async () => {
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document: legacy_document, edit_token: "edit-1" }),
+    );
+    const hook = await open();
+    const before = hook.result.current.session.document;
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(hook.result.current.session.document).toBe(before);
+    expect(hook.result.current.session.error).toBeTruthy();
+  });
+});

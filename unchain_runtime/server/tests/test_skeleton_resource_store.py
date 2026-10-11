@@ -11,9 +11,11 @@ from unittest.mock import patch
 
 import app as pupu_app
 from unchain.journal import AttemptRef, GenerationRef
+from unchain.skeleton.errors import SkeletonValidationError
 from unchain.persistence import SQLiteContextV2Store
 from unchain.skeleton import (
     FileCodeSourceResolver,
+    validate_subagent_pool_config,
     SkeletonCodeRuntime,
     WorkflowNodeCompleted,
     WorkflowNodeWaiting,
@@ -951,6 +953,229 @@ class SkeletonResourceRouteTests(unittest.TestCase):
         })
         self.assertEqual(deleted.status_code, 200)
         self.assertTrue(deleted.get_json()["ok"])
+
+
+LEGACY_KERNEL = {
+    "schema_version": 1,
+    "profile": {
+        "id": "legacy-choice", "provider": "openai", "model": "gpt-4.1",
+        "protocol": "openai-responses",
+        "endpoint": "https://api.openai.com/v1/responses",
+        "credential_ref": "openai", "context_window": 128000, "output_limit": 4096,
+        "capabilities": {"json_schema": True, "images": False, "files": False},
+    },
+    "prompt": "placeholder", "max_iterations": 1, "output_tokens": 1024,
+    "history": "none", "overflow": "error", "json_schema": None,
+}
+
+
+def legacy_recipe(name, *, pool=None, profile=None):
+    """A legacy recipe as the old builder saved one."""
+    document = {
+        "name": name, "description": f"{name} description",
+        "model": "openai:gpt-4.1", "max_iterations": 4,
+        "toolkits": [], "subagent_pool": [], "merge_with_user_selected": True,
+        "nodes": [
+            {"id": "start", "type": "start",
+             "outputs": [{"name": "text", "type": "string"}]},
+            {"id": "a1", "type": "agent", "override": {
+                "prompt_format": "soul", "prompt": f"Do {name}",
+                "model": "openai:gpt-4.1"}},
+            {"id": "end", "type": "end"},
+        ],
+        "edges": [
+            {"id": "e1", "source_node_id": "start", "source_port_id": "out",
+             "target_node_id": "a1", "target_port_id": "in"},
+            {"id": "e2", "source_node_id": "a1", "source_port_id": "out",
+             "target_node_id": "end", "target_port_id": "in"},
+        ],
+    }
+    if profile is not None:
+        document["subagent_profile"] = profile
+    if pool is not None:
+        document["nodes"].append(
+            {"id": "pool", "type": "subagent_pool", "subagents": pool})
+        document["edges"].append(
+            {"id": "e3", "source_node_id": "pool", "source_port_id": "attach_top",
+             "target_node_id": "a1", "target_port_id": "attach_bot"})
+    return json.dumps(document)
+
+
+class LegacySubagentPoolConversionTests(unittest.TestCase):
+    """Acceptance 7: a legacy pool entry becomes a real Agent entry, and stays.
+
+    The store already performed this conversion for every run, in memory, and
+    threw it away afterwards; the draft kept its `legacy_fields`. So the
+    settings were preserved at run time and invisible in the document, and
+    nothing an author could press made it permanent.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = SkeletonResourceStore(Path(self.tmp.name) / "skeletons")
+
+    def migrate(self, name, **kwargs):
+        return self.store.migrate_legacy(
+            source_identity=f"/legacy/{name}.recipe", source_scope="recipes",
+            source_kind="recipe", source=legacy_recipe(name, **kwargs))
+
+    def pool_of(self, resource_id):
+        document = self.store.get_resource(resource_id)["document"]
+        return next(node["config"] for node in document["nodes"]
+                    if node["type"] == "subagent_pool")
+
+    def parent_with(self, pool, *, profile=None, also=()):
+        """A migrated legacy Agent whose pool holds the given legacy entries."""
+        self.migrate("Summarizer", profile=profile)
+        for name in also:
+            self.migrate(name)
+        self.migrate("Reviewer", pool=pool)
+        resource_id = next(row["id"] for row in self.store.list_resources()
+                           if row["name"] == "Reviewer")
+        return resource_id, self.store.get_resource(resource_id)
+
+    def test_a_referenced_legacy_subagent_is_converted_and_stored(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"}])
+        self.assertIn("legacy_fields", self.pool_of(resource_id))
+
+        after = self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"])
+
+        config = self.pool_of(resource_id)
+        self.assertEqual(set(config), {"subagents"})
+        entry = config["subagents"][0]
+        self.assertEqual(entry["name"], "Summarizer")
+        self.assertEqual(entry["source"]["kind"], "agent_ref")
+        self.assertEqual(
+            entry["source"]["agent_id"],
+            next(row["id"] for row in self.store.list_resources()
+                 if row["name"] == "Summarizer"))
+        self.assertNotEqual(after["edit_token"], before["edit_token"])
+
+    def test_the_settings_are_carried_and_not_defaulted(self):
+        """Tools, delegation modes, memory and parallel safety, not just a prompt."""
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"}],
+            profile={"allowed_modes": ["delegate", "handoff"],
+                     "output_mode": "full_trace",
+                     "memory_policy": "scoped_persistent",
+                     "parallel_safe": False,
+                     "allowed_tools": ["write", "web_fetch"],
+                     "description": "summarises things"})
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"])
+        entry = self.pool_of(resource_id)["subagents"][0]
+        self.assertEqual(entry["allowed_modes"], ["delegate", "handoff"])
+        self.assertEqual(entry["output_mode"], "full_trace")
+        self.assertEqual(entry["memory_policy"], "scoped_persistent")
+        self.assertFalse(entry["parallel_safe"])
+        self.assertEqual(entry["allowed_tools"], ["write", "web_fetch"])
+        self.assertEqual(entry["description"], "summarises things")
+
+    def test_an_inline_subagent_needs_a_kernel_and_says_so(self):
+        """It cannot be materialised without one, and the refusal is typed."""
+        resource_id, before = self.parent_with(
+            [{"kind": "inline", "name": "Shortener", "prompt_format": "soul",
+              "template": {"prompt": "Be brief"}}])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=before["edit_token"])
+        self.assertEqual(caught.exception.code, "legacy_profile_required")
+        self.assertIn("legacy_fields", self.pool_of(resource_id))
+
+    def test_an_inline_subagent_becomes_an_embedded_agent_graph(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "inline", "name": "Shortener", "prompt_format": "soul",
+              "template": {"prompt": "Be brief"}}])
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"],
+            legacy_kernel=deepcopy(LEGACY_KERNEL))
+        entry = self.pool_of(resource_id)["subagents"][0]
+        self.assertEqual(entry["source"]["kind"], "embedded")
+        child = entry["source"]["document"]
+        self.assertEqual(child["kind"], "agent")
+        kernels = [node for node in child["nodes"]
+                   if node["type"] == "agent" and "kernel" in node["config"]]
+        self.assertEqual(len(kernels), 1)
+        self.assertIn("Be brief", kernels[0]["config"]["kernel"]["prompt"])
+        prepare_agent_graph(deepcopy(child))
+
+    def test_a_stale_token_changes_nothing(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"}])
+        self.store.save_draft(before["document"],
+                              expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=before["edit_token"])
+        self.assertEqual(caught.exception.code, "edit_conflict")
+        self.assertIn("legacy_fields", self.pool_of(resource_id))
+
+    def test_a_resource_with_nothing_to_convert_is_refused_rather_than_rewritten(self):
+        self.migrate("Summarizer")
+        resource_id = next(row["id"] for row in self.store.list_resources()
+                           if row["name"] == "Summarizer")
+        token = self.store.get_resource(resource_id)["edit_token"]
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(resource_id, expected_edit_token=token)
+        self.assertEqual(caught.exception.code, "legacy_pool_absent")
+        self.assertEqual(self.store.get_resource(resource_id)["edit_token"], token)
+
+    def test_converting_twice_is_refused_the_second_time(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"}])
+        after = self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=after["edit_token"])
+        self.assertEqual(caught.exception.code, "legacy_pool_absent")
+
+    def test_the_converted_pool_is_one_the_runtime_admits(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"},
+             {"kind": "ref", "template_name": "Checker"}],
+            also=("Checker",))
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"])
+        config = self.pool_of(resource_id)
+        validate_subagent_pool_config(
+            config, ("config",),
+            validate_embedded=lambda child, path: prepare_agent_graph(deepcopy(child)))
+        self.assertEqual(len(config["subagents"]), 2)
+        ids = [entry["id"] for entry in config["subagents"]]
+        names = [entry["name"] for entry in config["subagents"]]
+        self.assertEqual(len(set(ids)), 2)
+        self.assertEqual(sorted(names), ["Checker", "Summarizer"])
+
+    def test_two_legacy_entries_naming_one_Agent_are_both_kept(self):
+        """Faithfully, which means the duplicate name comes with them.
+
+        An entry is named after its target, and a legacy pool may list one
+        Agent twice — or two legacy sources may share a display name. The
+        runtime refuses a pool with a duplicated entry name, so such a pool
+        could never run, before this conversion or after it. What changes is
+        that the entries are now in the document, where the editor shows the
+        duplicate and the author can rename one. Choosing a name for them here
+        would be inventing user-facing data to make a validator happy.
+        """
+        resource_id, before = self.parent_with(
+            [{"kind": "recipe_ref", "recipe_name": "Summarizer"},
+             {"kind": "ref", "template_name": "Summarizer"}])
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"])
+        config = self.pool_of(resource_id)
+        self.assertEqual(len(config["subagents"]), 2)
+        self.assertEqual([entry["name"] for entry in config["subagents"]],
+                         ["Summarizer", "Summarizer"])
+        self.assertEqual(len({entry["id"] for entry in config["subagents"]}), 2)
+        with self.assertRaises(SkeletonValidationError) as caught:
+            validate_subagent_pool_config(
+                config, ("config",),
+                validate_embedded=lambda child, path: None)
+        self.assertEqual(caught.exception.code, "duplicate_name")
 
 
 if __name__ == "__main__":

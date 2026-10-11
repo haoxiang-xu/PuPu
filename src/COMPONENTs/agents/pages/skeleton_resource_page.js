@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
+import { can_convert_legacy_pools } from "./recipes_page/skeleton_resource_session";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
 
@@ -51,8 +52,16 @@ const ROW = (isDark, selected) => ({
 export default function SkeletonResourcePage({ resourceId }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
-  const { session, load, edit, save, keepMine, takeTheirs, preflight } =
-    useSkeletonResource();
+  const {
+    session,
+    load,
+    edit,
+    save,
+    keepMine,
+    takeTheirs,
+    preflight,
+    convertLegacyPools,
+  } = useSkeletonResource();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
 
   useEffect(() => {
@@ -137,6 +146,8 @@ export default function SkeletonResourcePage({ resourceId }) {
               document={document}
               diagnostics={session.diagnostics}
               onDocumentChange={edit}
+              onConvertLegacy={convertLegacyPools}
+              canConvertLegacy={can_convert_legacy_pools(session)}
             />
           </div>
         </div>

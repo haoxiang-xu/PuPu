@@ -1188,3 +1188,112 @@ describe("the other editor's version arriving underneath", () => {
     expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
   });
 });
+
+describe("converting a legacy pool", () => {
+  /* The store has always done this conversion for every run and thrown it
+     away, so the settings were preserved where nobody could see them. Making
+     it permanent is a write to the stored resource, which is why the panel
+     asks rather than does. */
+  const legacy = (entries) => pool({ legacy_fields: { subagents: entries } });
+
+  const named = [
+    { kind: "recipe_ref", recipe_name: "Summarizer" },
+    { kind: "ref", template_name: "Checker" },
+  ];
+
+  const show_legacy = async (entries, extra) => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const node = legacy(entries);
+    const onConvertLegacy = jest.fn();
+    render(
+      <SubagentPoolSection
+        document={doc(node)}
+        node={node}
+        isDark={false}
+        onChange={() => {}}
+        onConvertLegacy={onConvertLegacy}
+        canConvertLegacy
+        {...extra}
+      />,
+    );
+    await act(async () => {});
+    return { onConvertLegacy };
+  };
+
+  test("entries that name a definition are converted on request", async () => {
+    const { onConvertLegacy } = await show_legacy(named);
+    fireEvent.click(screen.getByText("Convert to Agent entries"));
+    expect(onConvertLegacy).toHaveBeenCalled();
+  });
+
+  test("and the notice says what the conversion carries", async () => {
+    await show_legacy(named);
+    expect(screen.getByTestId("subagent-pool-legacy").textContent).toMatch(
+      /tools, delegation modes, memory and parallel safety/i,
+    );
+  });
+
+  test("an inline entry is not offered, because it needs a model", async () => {
+    /* It carries a prompt rather than naming an Agent, so converting it means
+       building an Agent — and a profile carries an endpoint and a credential
+       reference that nothing in this build can choose yet. */
+    const { onConvertLegacy } = await show_legacy([
+      ...named,
+      { kind: "inline", name: "Shortener", prompt_format: "soul", template: { prompt: "Be brief" } },
+    ]);
+    expect(screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent).toMatch(
+      /needs a model/i,
+    );
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(onConvertLegacy).not.toHaveBeenCalled();
+  });
+
+  test("a draft with unsaved work is told to save first", async () => {
+    /* The conversion rewrites the stored resource and moves its token on,
+       which would leave unsaved work unable to save. */
+    await show_legacy(named, { canConvertLegacy: false });
+    expect(screen.getByTestId("subagent-pool-legacy-save-first").textContent).toMatch(
+      /save this draft first/i,
+    );
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+  });
+
+  test("a panel with no resource session says so instead of offering it", async () => {
+    await show_legacy(named, { onConvertLegacy: undefined });
+    expect(screen.getByTestId("subagent-pool-legacy-unreachable").textContent).toMatch(
+      /cannot reach/i,
+    );
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+  });
+
+  test("the legacy entries are still only listed, never edited", async () => {
+    await show_legacy(named);
+    expect(screen.getByTestId("subagent-legacy-entry-0").textContent).toBe("Summarizer");
+    expect(screen.getByTestId("subagent-legacy-entry-1").textContent).toBe("Checker");
+    expect(screen.queryByTestId("subagent-entry-0")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("name")).not.toBeInTheDocument();
+  });
+
+  test("once converted, the ordinary editor takes over", async () => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const before = legacy(named);
+    const panel = (node) => (
+      <SubagentPoolSection
+        document={doc(node)}
+        node={node}
+        isDark={false}
+        onChange={() => {}}
+        onConvertLegacy={() => {}}
+        canConvertLegacy
+      />
+    );
+    const view = render(panel(before));
+    await act(async () => {});
+    expect(screen.getByTestId("subagent-pool-legacy")).toBeInTheDocument();
+
+    view.rerender(panel(pool({ subagents: [entry()] })));
+    expect(screen.queryByTestId("subagent-pool-legacy")).not.toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
+    expect(screen.getByText("+ Add an Agent")).toBeInTheDocument();
+  });
+});

@@ -122,6 +122,11 @@ const buildSkeletonResourceRequest = (action, payload = {}) => {
       path: `/skeleton_resources/${requiredId("resource_id")}/preflight`,
       body: pickedBody("legacy_kernel"),
     }),
+    convert_legacy_pools: () => ({
+      method: "POST",
+      path: `/skeleton_resources/${requiredId("resource_id")}/convert_legacy_pools`,
+      body: pickedBody("expected_edit_token", "legacy_kernel"),
+    }),
     publish: () => ({
       method: "POST",
       path: `/skeleton_resources/${requiredId("resource_id")}/publish`,

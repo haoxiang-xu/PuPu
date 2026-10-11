@@ -277,6 +277,24 @@ export function free_entry_name(taken, base) {
   return `${wanted} ${used.length + 3}`;
 }
 
+/* Which legacy entries cannot be converted without a Kernel the author chose.
+ *
+ * A legacy entry naming another definition — `recipe_ref` by recipe name,
+ * `ref` by template name — becomes a reference to the Agent that definition
+ * migrated into, and that needs nothing but the alias lookup. An `inline`
+ * entry has no Agent to reference: it carries a prompt, and becoming an
+ * Agent graph means being materialised, which the store refuses without an
+ * explicit Kernel configuration (`legacy_profile_required`,
+ * `skeleton_resource_store.py`). It will not guess a model, and neither will
+ * this editor — a profile carries an endpoint and a credential reference, and
+ * inventing either is how a definition starts pointing somewhere nobody
+ * chose. */
+export function legacy_entries_needing_kernel(entries) {
+  return (Array.isArray(entries) ? entries : []).filter(
+    (entry) => is_object(entry) && entry.kind === "inline",
+  );
+}
+
 /* How many entries claim each name, or each id.
  *
  * Counted rather than collected: "this value already collides" and "it

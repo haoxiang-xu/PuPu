@@ -2546,6 +2546,19 @@ export const createUnchainApi = () => {
         "skeleton_resource_import_timeout", "Skeleton resource import timed out");
     },
 
+    convertSkeletonLegacyPools: async (resourceId, expectedEditToken, legacyKernel = null) => {
+      const method = assertBridgeMethod("unchainAPI", "convertSkeletonLegacyPools");
+      const fixedKernel = legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
+        ? legacyKernel
+        : null;
+      return withTimeout(
+        () => invokeSkeletonBridge(() => method(resourceId, expectedEditToken, fixedKernel)),
+        15000,
+        "skeleton_legacy_pool_conversion_timeout",
+        "Skeleton legacy pool conversion timed out",
+      );
+    },
+
     preflightSkeletonResource: async (resourceId, legacyKernel = null) => {
       const method = assertBridgeMethod("unchainAPI", "preflightSkeletonResource");
       const fixedKernel = legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)

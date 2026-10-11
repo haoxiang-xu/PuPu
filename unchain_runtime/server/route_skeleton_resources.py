@@ -123,6 +123,21 @@ def preflight_skeleton_resource(resource_id: str):
     ))
 
 
+@api_blueprint.post("/skeleton_resources/<resource_id>/convert_legacy_pools")
+def convert_skeleton_legacy_pools(resource_id: str):
+    denied = _authorized()
+    if denied is not None:
+        return denied
+    def operation():
+        body = _payload("expected_edit_token", "legacy_kernel")
+        return SkeletonResourceStore().convert_legacy_pools(
+            resource_id,
+            expected_edit_token=body.get("expected_edit_token"),
+            legacy_kernel=body.get("legacy_kernel"),
+        )
+    return _run(operation)
+
+
 @api_blueprint.post("/skeleton_resources/<resource_id>/publish")
 def publish_skeleton_workflow(resource_id: str):
     denied = _authorized()

@@ -339,6 +339,15 @@ export function can_preflight(session) {
   );
 }
 
+/* Converting a legacy Subagent Pool writes the STORED document, so what is on
+   screen has to be the stored version — the same condition a preflight needs,
+   plus the token the write is made against. A conversion while the draft is
+   dirty would bump the token under the author's unsaved work and leave them
+   unable to save it. */
+export function can_convert_legacy_pools(session) {
+  return can_preflight(session) && Boolean(session && session.edit_token);
+}
+
 export function preflight_message(session) {
   const preflight = session && session.preflight;
   if (!preflight) return null;

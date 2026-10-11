@@ -7,7 +7,7 @@ import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import useTakenName from "./taken_name";
 import useListIdentities from "./list_identity";
 import {
-  LEGACY_FIELDS_CONFIG_KEY,
+  node_legacy_pool_entries,
   node_pool_is_legacy,
   node_subagents,
   with_node_subagents,
@@ -19,6 +19,7 @@ import {
   free_entry_id,
   free_entry_name,
   introduces_collision,
+  legacy_entries_needing_kernel,
   new_subagent_entry,
   subagent_pool_problems,
 } from "../subagent_pool_config";
@@ -76,7 +77,16 @@ const EMPTY_CAPTION =
   "This pool holds no Agent yet. A pool that holds nothing is refused when the Agent runs, so add one or remove the pool node.";
 
 const LEGACY_CAPTION =
-  "This pool came from a legacy definition. Its entries are converted when the Agent runs, and are shown here as they are stored; converting them into Agent graphs is not available yet, so nothing here is editable — an edit would stop the conversion from happening and the subagents would be lost.";
+  "This pool came from a legacy definition. Its entries are shown as they are stored, and nothing here is editable until they are converted — an edit would stop the conversion from happening and the subagents would be lost. Converting writes the entries into this definition, with the tools, delegation modes, memory and parallel safety each subagent already declared.";
+
+const LEGACY_NEEDS_KERNEL =
+  "These entries carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model, which this build has no control for yet. The pool keeps working as it does: the conversion happens for every run and is thrown away afterwards.";
+
+const LEGACY_SAVE_FIRST =
+  "Converting rewrites what the store holds, so save this draft first — otherwise the conversion would move the resource on and leave your unsaved work unable to save.";
+
+const LEGACY_UNREACHABLE =
+  "The conversion writes to the Agent library, which this build cannot reach, so the entries stay as they are.";
 
 const UNAVAILABLE_CAPTION =
   "The Agent library is not reachable in this build, so an Agent cannot be referenced yet. Entries already stored are shown below.";
@@ -444,7 +454,18 @@ function EntryRow({
   );
 }
 
-export default function SubagentPoolSection({ document, node, isDark, onChange }) {
+export default function SubagentPoolSection({
+  document,
+  node,
+  isDark,
+  onChange,
+  /* Converting a legacy pool is a write to the stored resource, not an edit of
+     the document on screen, so the page that owns the resource session
+     performs it and this only asks. Absent where there is no session — the
+     legacy recipe page, or a panel rendered without one. */
+  onConvertLegacy,
+  canConvertLegacy,
+}) {
   /* The library is read once per panel, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
      build that cannot reach the store says so rather than looking like an
@@ -508,6 +529,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
   }, [read_library]);
 
   const legacy = node_pool_is_legacy(node);
+  const legacy_entries = legacy ? node_legacy_pool_entries(node) : [];
   const held = node_subagents(node);
   const entries = Array.isArray(held) ? held : [];
   /* The owner is the resource being edited, which is the document's own id:
@@ -642,11 +664,39 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
         </span>
       )}
 
+      {legacy && legacy_entries_needing_kernel(legacy_entries).length > 0 && (
+        <span data-testid="subagent-pool-legacy-needs-kernel" style={CAPTION}>
+          {LEGACY_NEEDS_KERNEL}
+        </span>
+      )}
+
       {legacy &&
-        (Array.isArray(node.config[LEGACY_FIELDS_CONFIG_KEY].subagents)
-          ? node.config[LEGACY_FIELDS_CONFIG_KEY].subagents
-          : []
-        ).map((raw, index) => (
+        legacy_entries_needing_kernel(legacy_entries).length === 0 &&
+        (typeof onConvertLegacy !== "function" ? (
+          <span data-testid="subagent-pool-legacy-unreachable" style={CAPTION}>
+            {LEGACY_UNREACHABLE}
+          </span>
+        ) : canConvertLegacy === false ? (
+          <span data-testid="subagent-pool-legacy-save-first" style={CAPTION}>
+            {LEGACY_SAVE_FIRST}
+          </span>
+        ) : (
+          <Button
+            label="Convert to Agent entries"
+            onClick={onConvertLegacy}
+            style={{
+              alignSelf: "flex-start",
+              fontSize: 11,
+              paddingVertical: 3,
+              paddingHorizontal: 8,
+              borderRadius: 5,
+              color: "#4a5bd8",
+            }}
+          />
+        ))}
+
+      {legacy &&
+        legacy_entries.map((raw, index) => (
           <span
             key={index}
             data-testid={`subagent-legacy-entry-${index}`}

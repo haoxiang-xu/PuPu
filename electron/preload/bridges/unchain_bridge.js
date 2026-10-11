@@ -222,6 +222,17 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
           : {}),
       },
     }),
+  convertSkeletonLegacyPools: (resourceId, expectedEditToken, legacyKernel = null) =>
+    invokeSkeletonResource(ipcRenderer, {
+      action: "convert_legacy_pools",
+      payload: {
+        resource_id: resourceId,
+        expected_edit_token: expectedEditToken,
+        ...(legacyKernel && typeof legacyKernel === "object" && !Array.isArray(legacyKernel)
+          ? { legacy_kernel: legacyKernel }
+          : {}),
+      },
+    }),
   publishSkeletonWorkflow: (resourceId, expectedEditToken) =>
     invokeSkeletonResource(ipcRenderer, {
       action: "publish",

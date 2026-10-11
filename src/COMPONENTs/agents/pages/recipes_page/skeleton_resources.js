@@ -107,6 +107,23 @@ export async function diagnose(document) {
 
 /* Run and Publish go through here: full validation, not the draft's envelope
  * check. A draft that saves happily can still fail this. */
+/* Make the Subagent Pool conversion permanent.
+ *
+ * The store has always performed it for each run and thrown it away, so the
+ * settings were preserved where nobody could see them and the entries stayed
+ * legacy in the document. This writes that same result once, under the
+ * compare-and-set token the resource was read with.
+ *
+ * `legacy_kernel` is required only by an inline legacy subagent: it has no
+ * Agent to reference, so it has to be materialised, and that needs a Kernel
+ * the author chose. Without one the store refuses with
+ * `legacy_profile_required` rather than guessing a model. */
+export async function convert_legacy_pools(resource_id, expected_edit_token, legacy_kernel) {
+  return call("convertSkeletonLegacyPools", (method) =>
+    method(resource_id, expected_edit_token, legacy_kernel === undefined ? null : legacy_kernel),
+  );
+}
+
 export async function preflight(resource_id, legacy_kernel) {
   return call("preflightSkeletonResource", (method) =>
     method(resource_id, legacy_kernel === undefined ? null : legacy_kernel),

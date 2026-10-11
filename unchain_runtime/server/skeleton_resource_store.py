@@ -354,6 +354,16 @@ class SkeletonResourceStore:
                 elif kind == "inline":
                     name = _text(raw.get("name"), entry_path + ("name",),
                                  "inline subagent name")
+                    # An inline subagent has no Agent to reference, so it has to
+                    # be materialised — and that needs a Kernel the caller chose.
+                    # Preflight and the closure resolver each check this before
+                    # they get here; the conversion entry point is reached
+                    # directly, and without this the missing Kernel arrived at
+                    # `validate_kernel_config` as "expected an object", which is
+                    # an untyped 500 about the wrong subject.
+                    if legacy_kernel is None:
+                        _fail("legacy_profile_required", entry_path,
+                              "legacy inline subagent requires an explicit Kernel configuration")
                     prompt_format = raw.get("prompt_format")
                     template = raw.get("template")
                     if prompt_format == "skeleton" and type(template) is dict:
@@ -386,6 +396,50 @@ class SkeletonResourceStore:
                 ))
             node["config"] = {"subagents": converted}
         return expanded
+
+    def convert_legacy_pools(self, resource_id: str, *, expected_edit_token: str,
+                             legacy_kernel: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Persist the Subagent Pool conversion that only ever existed at run time.
+
+        `_expand_legacy_subagent_pools` has always produced the real entries —
+        references resolved by declared kind, inline templates materialised into
+        complete Agent graphs, and every carried setting read from the target's
+        own legacy record. It did it for each run and threw it away, so the
+        stored draft kept `legacy_fields` and nothing an author pressed made it
+        permanent. This writes that same result once, under the ordinary
+        compare-and-set, and changes nothing else about the document.
+
+        A resource with no legacy pool is refused rather than rewritten: a
+        conversion that quietly did nothing would be indistinguishable from one
+        that worked, and converting twice has to be answerable.
+        """
+        resource_id = _resource_id(resource_id, ("resource_id",))
+        if type(expected_edit_token) is not str or not expected_edit_token:
+            _fail("invalid_type", ("expected_edit_token",),
+                  "an edit token is required to convert a stored resource")
+        # One read snapshot: the alias lookups inside the expansion resolve
+        # against the same connection, and `save_draft` takes its own.
+        with self._connect() as connection:
+            connection.execute("BEGIN")
+            resource = connection.execute(
+                "SELECT * FROM resources WHERE resource_id=?", (resource_id,),
+            ).fetchone()
+            if resource is None:
+                _fail("resource_missing", ("resource_id",),
+                      "Skeleton resource was not found", status=404)
+            if resource["archived"]:
+                _fail("resource_archived", ("resource_id",),
+                      "archived resource cannot be converted", status=409)
+            document = self._document(resource)
+            if not any(node["type"] == "subagent_pool"
+                       and "subagents" not in node.get("config", {})
+                       for node in document["nodes"]):
+                _fail("legacy_pool_absent", ("document", "nodes"),
+                      "no Subagent Pool in this resource carries legacy entries")
+            expanded = self._expand_legacy_subagent_pools(
+                connection, document, legacy_kernel,
+            )
+        return self.save_draft(expanded, expected_edit_token=expected_edit_token)
 
     def save_draft(self, document: Any, *, expected_edit_token: str | None = None,
                    source_identity: str | None = None) -> dict[str, Any]:

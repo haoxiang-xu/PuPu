@@ -19,6 +19,10 @@ describe("Skeleton resource preload bridge", () => {
     await bridge.publishSkeletonWorkflow("workflow/id", "edit-2");
     await bridge.getSkeletonWorkflowVersion("workflow/id", "rev/1");
     await bridge.resolveSkeletonResource({ legacy_name: "Default", source_scope: "recipes" });
+    /* The legacy pool conversion writes the document, so it carries the
+       compare-and-set token, and it carries the Kernel an inline legacy
+       subagent needs before it can be materialised into an Agent graph. */
+    await bridge.convertSkeletonLegacyPools("agent", "edit-3", { schema_version: 1 });
 
     expect(ipcRenderer.invoke.mock.calls).toEqual([
       [CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
@@ -50,6 +54,14 @@ describe("Skeleton resource preload bridge", () => {
       [CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
         action: "resolve",
         payload: { legacy_name: "Default", source_scope: "recipes" },
+      }],
+      [CHANNELS.UNCHAIN.SKELETON_RESOURCE_COMMAND, {
+        action: "convert_legacy_pools",
+        payload: {
+          resource_id: "agent",
+          expected_edit_token: "edit-3",
+          legacy_kernel: { schema_version: 1 },
+        },
       }],
     ]);
     for (const [, command] of ipcRenderer.invoke.mock.calls) {

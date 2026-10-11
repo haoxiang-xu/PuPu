@@ -45,6 +45,14 @@ describe("Skeleton resource main-process request builder", () => {
       path: "/skeleton_resources/agent%2Fone/preflight",
       body: { legacy_kernel: { schema_version: 1 } },
     });
+    /* The conversion writes the document, so it carries the compare-and-set
+       token, and it carries the Kernel an inline legacy subagent needs to be
+       materialised into an Agent graph. */
+    expect(buildSkeletonResourceRequest("convert_legacy_pools", shared)).toEqual({
+      method: "POST",
+      path: "/skeleton_resources/agent%2Fone/convert_legacy_pools",
+      body: { expected_edit_token: "edit-1", legacy_kernel: { schema_version: 1 } },
+    });
     expect(buildSkeletonResourceRequest("publish", shared)).toEqual({
       method: "POST",
       path: "/skeleton_resources/agent%2Fone/publish",

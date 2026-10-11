@@ -84,3 +84,36 @@ describe("api.unchain Skeleton resource methods", () => {
     );
   });
 });
+
+describe("making the legacy Subagent Pool conversion permanent", () => {
+  const original = window.unchainAPI;
+
+  afterEach(() => {
+    window.unchainAPI = original;
+  });
+
+  test("it carries the resource, the edit token and the chosen Kernel", async () => {
+    window.unchainAPI = {
+      convertSkeletonLegacyPools: jest.fn(async () => ({
+        id: "agent", kind: "agent", document: {}, diagnostics: [],
+      })),
+    };
+    await api.unchain.convertSkeletonLegacyPools("agent", "edit-1", { schema_version: 1 });
+    expect(window.unchainAPI.convertSkeletonLegacyPools).toHaveBeenCalledWith(
+      "agent", "edit-1", { schema_version: 1 },
+    );
+  });
+
+  test("a Kernel that is not an object is sent as none rather than as itself", async () => {
+    /* An inline legacy subagent needs a real Kernel; anything else is the
+       absence of one, and the store refuses that with its own code instead of
+       being handed a shape to validate. */
+    window.unchainAPI = {
+      convertSkeletonLegacyPools: jest.fn(async () => ({ id: "agent" })),
+    };
+    await api.unchain.convertSkeletonLegacyPools("agent", "edit-1", "gpt-4.1");
+    expect(window.unchainAPI.convertSkeletonLegacyPools).toHaveBeenCalledWith(
+      "agent", "edit-1", null,
+    );
+  });
+});

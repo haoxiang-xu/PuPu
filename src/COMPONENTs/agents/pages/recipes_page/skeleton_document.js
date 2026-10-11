@@ -274,6 +274,17 @@ export function node_pool_is_legacy(node) {
   return is_object(config[LEGACY_FIELDS_CONFIG_KEY]);
 }
 
+/* A legacy pool's entries, exactly as the old node carried them. The store
+   reads `legacy_fields.subagents` and nothing has ever asked their shapes
+   (`legacy.py:147` copies the old node's keys verbatim), so every reader here
+   treats them as untrusted. */
+export function node_legacy_pool_entries(node) {
+  const config = is_object(node) && is_object(node.config) ? node.config : null;
+  const fields = config ? config[LEGACY_FIELDS_CONFIG_KEY] : null;
+  const entries = is_object(fields) ? fields.subagents : null;
+  return Array.isArray(entries) ? entries : [];
+}
+
 /* Writing entries never deletes anything else the node carries, and it
  * refuses outright on a legacy pool. That refusal is not caution: the store
  * expands `legacy_fields` only while there is no `subagents` key, so adding

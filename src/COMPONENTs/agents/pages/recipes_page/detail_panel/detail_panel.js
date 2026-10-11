@@ -30,6 +30,10 @@ export default function DetailPanel({
   selectedNodeId,
   onChange,
   onChangeSilent,
+  /* Converting a legacy Subagent Pool writes the stored resource rather than
+     the document on screen, so the page that owns the session performs it. */
+  onConvertLegacy,
+  canConvertLegacy,
   recipes,
   onDrillIn,
   document,
@@ -220,6 +224,8 @@ export default function DetailPanel({
                 node={skeleton_node}
                 isDark={isDark}
                 onChange={onDocumentChange}
+                onConvertLegacy={onConvertLegacy}
+                canConvertLegacy={canConvertLegacy}
               />
             )}
             <InputVariablesSection
