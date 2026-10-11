@@ -13106,7 +13106,8 @@ export const useChatStream = ({
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
-          if (stillActive) {
+          const announceLiveQueueFallback = () => {
+            if (!stillActive) return;
             const fallbackSubject =
               channel === "fyi" || channel === "btw"
                 ? `/${channel}`
@@ -13117,7 +13118,7 @@ export const useChatStream = ({
                 dedupeKey: `interject-live-fallback-${targetChatId}-${channel}`,
               },
             );
-          }
+          };
           if (needsDurableFyiIntent) {
             const migrated = migratePendingFyiToQueue({
               chatId: targetChatId,
@@ -13140,6 +13141,7 @@ export const useChatStream = ({
               sourceAttemptId,
               migrated.queue,
             );
+            announceLiveQueueFallback();
             if (!stillActive && !clarifyBtwBarrier) {
               relayQueuedTurnsAfterRunRef.current?.({
                 targetChatId,
@@ -13160,7 +13162,15 @@ export const useChatStream = ({
               : true;
           }
           if (stillActive) {
-            return pushQueuedTurn(targetChatId, body, secretDisposition);
+            const queued = pushQueuedTurn(
+              targetChatId,
+              body,
+              secretDisposition,
+            );
+            if (queued) {
+              announceLiveQueueFallback();
+            }
+            return queued;
           }
 
           if (targetChatId === activeChatIdRef.current) {

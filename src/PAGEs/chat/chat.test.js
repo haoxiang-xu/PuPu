@@ -12479,6 +12479,53 @@ describe("ChatInterface stop flow", () => {
     );
   });
 
+  test("does not claim a permanent BTW refusal was queued when persistence fails", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "new_run",
+    }));
+    const infoSpy = jest
+      .spyOn(toast, "info")
+      .mockImplementation(() => "test-toast");
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    const nativeSetItem = window.localStorage.setItem.bind(
+      window.localStorage,
+    );
+    jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(key, value) {
+        if (key === QUEUED_TURN_OUTBOX_STORAGE_KEY) {
+          throw new DOMException("quota", "QuotaExceededError");
+        }
+        return nativeSetItem(key, value);
+      });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/btw Preserve this after write failure" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(4);
+      expect(screen.getByTestId("chat-input")).toHaveValue(
+        "/btw Preserve this after write failure",
+      );
+    });
+    expect(lastChatInputProps?.interjectState?.queueItems).toEqual([]);
+    expect(readQueuedTurnsForChat(chatId)).toEqual([]);
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+
   test("durably ACKs a duplicate child FYI and keeps one stable replay after immediate remount", async () => {
     const chatId = getChatsStore().activeChatId;
     const messageId = "fyi-child-durable";
