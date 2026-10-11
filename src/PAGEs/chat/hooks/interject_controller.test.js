@@ -1,6 +1,7 @@
 import {
   buildInterjectionRecord,
   createQueuedTurnBuffer,
+  dispatchInterjectWithStartupRetry,
   mergeQueuedTurnTexts,
   parseInterjectPrefix,
 } from "./interject_controller";
@@ -89,6 +90,177 @@ describe("parseInterjectPrefix", () => {
       channel: "fyi",
       body: "trim me",
     });
+  });
+});
+
+describe("dispatchInterjectWithStartupRetry", () => {
+  const request = {
+    threadId: "thread-381",
+    text: "keep this exact payload",
+    channel: "fyi",
+    messageId: "fyi-381",
+  };
+
+  test("retries a transient new_run response with the exact same request", async () => {
+    const send = jest
+      .fn()
+      .mockResolvedValueOnce({ resolved_channel: "new_run" })
+      .mockResolvedValueOnce({
+        resolved_channel: "fyi",
+        message_id: "fyi-381",
+      });
+    const wait = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive: () => true,
+        retryDelaysMs: [25, 75],
+        wait,
+      }),
+    ).resolves.toEqual({
+      resolved_channel: "fyi",
+      message_id: "fyi-381",
+    });
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][0]).toBe(request);
+    expect(send.mock.calls[1][0]).toBe(request);
+    expect(wait).toHaveBeenCalledTimes(1);
+    expect(wait).toHaveBeenCalledWith(25);
+  });
+
+  test("retries a transient new_run response that resolves to BTW", async () => {
+    const btwRequest = {
+      threadId: "thread-381",
+      text: "are you still running?",
+      channel: "btw",
+    };
+    const send = jest
+      .fn()
+      .mockResolvedValueOnce({ resolved_channel: "new_run" })
+      .mockResolvedValueOnce({
+        resolved_channel: "btw",
+        answer: "yes",
+      });
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request: btwRequest,
+        send,
+        isRunActive: () => true,
+        retryDelaysMs: [25],
+        wait: () => Promise.resolve(),
+      }),
+    ).resolves.toEqual({
+      resolved_channel: "btw",
+      answer: "yes",
+    });
+
+    expect(send.mock.calls.map(([payload]) => payload)).toEqual([
+      btwRequest,
+      btwRequest,
+    ]);
+  });
+
+  test("uses a bounded retry budget when new_run remains permanent", async () => {
+    const response = { resolved_channel: "new_run" };
+    const send = jest.fn().mockResolvedValue(response);
+    const wait = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive: () => true,
+        retryDelaysMs: [10, 20],
+        wait,
+      }),
+    ).resolves.toBe(response);
+
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(wait.mock.calls).toEqual([[10], [20]]);
+  });
+
+  test("does not retry a non-new_run response", async () => {
+    const response = { resolved_channel: "btw", answer: "still running" };
+    const send = jest.fn().mockResolvedValue(response);
+    const wait = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive: () => true,
+        retryDelaysMs: [10, 20],
+        wait,
+      }),
+    ).resolves.toBe(response);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(wait).not.toHaveBeenCalled();
+  });
+
+  test("stops before waiting when the addressed run is already inactive", async () => {
+    const response = { resolved_channel: "new_run" };
+    const send = jest.fn().mockResolvedValue(response);
+    const wait = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive: () => false,
+        retryDelaysMs: [10, 20],
+        wait,
+      }),
+    ).resolves.toBe(response);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(wait).not.toHaveBeenCalled();
+  });
+
+  test("does not send another request if the run ends during the delay", async () => {
+    const response = { resolved_channel: "new_run" };
+    const send = jest.fn().mockResolvedValue(response);
+    const wait = jest.fn().mockResolvedValue(undefined);
+    const isRunActive = jest
+      .fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive,
+        retryDelaysMs: [10, 20],
+        wait,
+      }),
+    ).resolves.toBe(response);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(wait).toHaveBeenCalledTimes(1);
+  });
+
+  test("propagates transport errors without retrying", async () => {
+    const error = new Error("network down");
+    const send = jest.fn().mockRejectedValue(error);
+    const wait = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      dispatchInterjectWithStartupRetry({
+        request,
+        send,
+        isRunActive: () => true,
+        retryDelaysMs: [10, 20],
+        wait,
+      }),
+    ).rejects.toBe(error);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(wait).not.toHaveBeenCalled();
   });
 });
 

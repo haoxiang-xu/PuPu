@@ -50,6 +50,7 @@ import { createRuntimeEventBatcher } from "./runtime_event_batcher";
 import {
   buildInterjectionRecord,
   createQueuedTurnBuffer,
+  dispatchInterjectWithStartupRetry,
 } from "./interject_controller";
 import {
   buildDurableResumePayload,
@@ -12809,19 +12810,20 @@ export const useChatStream = ({
             }, CLARIFY_BTW_SETTLEMENT_TIMEOUT_MS);
           })
         : null;
-      let interjectRequest;
-      try {
-        interjectRequest = Promise.resolve(
-          api.unchain.interject({
-          threadId,
-          text: body,
-          channel,
-          ...(messageId ? { messageId } : {}),
-          }),
-        );
-      } catch (error) {
-        interjectRequest = Promise.reject(error);
-      }
+      const interjectPayload = {
+        threadId,
+        text: body,
+        channel,
+        ...(messageId ? { messageId } : {}),
+      };
+      const interjectRequest = dispatchInterjectWithStartupRetry({
+        request: interjectPayload,
+        send: api.unchain.interject,
+        isRunActive: () =>
+          isCurrentDispatch() &&
+          streamingChatIdsRef.current.has(targetChatId) &&
+          streamHandlesRef.current.has(targetChatId),
+      });
       const dispatchPromise = (timeoutPromise
         ? Promise.race([interjectRequest, timeoutPromise])
         : interjectRequest)
@@ -12864,7 +12866,7 @@ export const useChatStream = ({
                   })
                 : true;
             }
-            toast.success("Queued — will be injected next step", {
+            toast.success("Accepted — will be injected at the next step", {
               dedupeKey: "interject-fyi-queued",
             });
             return clarifyBtwBarrier
@@ -13096,16 +13098,26 @@ export const useChatStream = ({
               : true;
           }
 
-          // resolved_channel === "new_run": graph-recipe runs never register
-          // an interject channel, so the server can (and will) report
-          // new_run even while the stream is still active — that must be
-          // treated as a queued turn, never a concurrent send. Only fall back
-          // to an actual new send once the stream is genuinely no longer
-          // active.
+          // resolved_channel === "new_run": some active run modes may not
+          // expose a live interject channel. Treat that final refusal as a
+          // queued turn, never a concurrent send. Only fall back to an actual
+          // new send once the stream is genuinely no longer active.
           const stillActive = Boolean(
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
+          if (stillActive) {
+            const fallbackSubject =
+              channel === "fyi" || channel === "btw"
+                ? `/${channel}`
+                : "This message";
+            toast.info(
+              `${fallbackSubject} could not reach the active run, so it was queued for the next turn.`,
+              {
+                dedupeKey: `interject-live-fallback-${targetChatId}-${channel}`,
+              },
+            );
+          }
           if (needsDurableFyiIntent) {
             const migrated = migratePendingFyiToQueue({
               chatId: targetChatId,

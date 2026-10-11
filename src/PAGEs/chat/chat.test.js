@@ -20,6 +20,7 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 import { dispatchComposerPrefill } from "../../SERVICEs/composer_prefill";
+import { toast } from "../../SERVICEs/toast";
 import * as bootProgress from "../../SERVICEs/boot_progress";
 import * as attachmentStorage from "../../SERVICEs/attachment_storage";
 import {
@@ -12397,6 +12398,87 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("retries a startup-window FYI against the same addressed run", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest
+      .fn()
+      .mockResolvedValueOnce({ resolved_channel: "new_run" })
+      .mockImplementation(async (payload) => ({
+        resolved_channel: "fyi",
+        message_id: payload.message_id,
+      }));
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/fyi Retry this startup message" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(2);
+    });
+    const firstRequest = window.unchainAPI.interject.mock.calls[0][0];
+    const retriedRequest = window.unchainAPI.interject.mock.calls[1][0];
+    expect(retriedRequest).toEqual(firstRequest);
+    expect(firstRequest).toMatchObject({
+      thread_id: chatId,
+      text: "Retry this startup message",
+      channel: "fyi",
+      message_id: expect.stringMatching(/^fyi-client-/),
+    });
+    expect(readQueuedTurnsForAttempt(chatId, runs[0].attemptId)).toBeNull();
+  });
+
+  test("bounds permanent new_run retries and explains the BTW queue fallback", async () => {
+    const chatId = getChatsStore().activeChatId;
+    setChatModel(chatId, { id: "openai:gpt-5" }, { source: "test" });
+    const runs = installAddressedV4Runs();
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "new_run",
+    }));
+    const infoSpy = jest
+      .spyOn(toast, "info")
+      .mockImplementation(() => "test-toast");
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Keep the owner run open" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(runs).toHaveLength(1));
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "/btw Queue this when live routing stays unavailable" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(4);
+      expect(lastChatInputProps?.interjectState?.queueItems).toEqual([
+        expect.objectContaining({
+          text: "Queue this when live routing stays unavailable",
+          status: "queued",
+        }),
+      ]);
+    });
+    expect(infoSpy).toHaveBeenCalledWith(
+      "/btw could not reach the active run, so it was queued for the next turn.",
+      expect.objectContaining({
+        dedupeKey: `interject-live-fallback-${chatId}-btw`,
+      }),
+    );
+  });
+
   test("durably ACKs a duplicate child FYI and keeps one stable replay after immediate remount", async () => {
     const chatId = getChatsStore().activeChatId;
     const messageId = "fyi-child-durable";
@@ -12774,13 +12856,9 @@ describe("ChatInterface stop flow", () => {
     );
     selectTreeNode({ nodeId: chatANodeId }, { source: "test" });
     const runs = installAddressedV4Runs();
-    let resolveInterject;
-    window.unchainAPI.interject = jest.fn(
-      () =>
-        new Promise((resolve) => {
-          resolveInterject = resolve;
-        }),
-    );
+    window.unchainAPI.interject = jest.fn(async () => ({
+      resolved_channel: "new_run",
+    }));
     renderChat();
     await waitForReady();
 
@@ -12793,22 +12871,20 @@ describe("ChatInterface stop flow", () => {
       target: { value: "A-only follow-up" },
     });
     fireEvent.click(screen.getByTestId("send-button"));
-    await waitFor(() => expect(resolveInterject).toEqual(expect.any(Function)));
+    await waitFor(() => expect(window.unchainAPI.interject).toHaveBeenCalled());
 
     act(() => {
       selectTreeNode({ nodeId: createdB.nodeId }, { source: "test" });
     });
     await waitFor(() => expect(lastChatMessagesProps?.chatId).toBe(createdB.chatId));
-    await act(async () => {
-      resolveInterject({ resolved_channel: "new_run" });
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(window.unchainAPI.interject).toHaveBeenCalledTimes(4);
+      expect(
+        readQueuedTurnsForAttempt(chatAId, runs[0].attemptId)?.items,
+      ).toEqual([
+        expect.objectContaining({ text: "A-only follow-up", status: "queued" }),
+      ]);
     });
-
-    expect(
-      readQueuedTurnsForAttempt(chatAId, runs[0].attemptId)?.items,
-    ).toEqual([
-      expect.objectContaining({ text: "A-only follow-up", status: "queued" }),
-    ]);
     expect(readQueuedTurnsForChat(createdB.chatId)).toEqual([]);
     expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
   });
