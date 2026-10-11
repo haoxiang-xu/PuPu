@@ -22,15 +22,18 @@ jest.mock("../workspace/workspace_modal_content", () => ({
   },
 }));
 
-jest.mock(
-  "../agents/agents_modal_content",
-  () => ({
-    AgentsModalContent: () => {
-      throw new Promise(() => {});
-    },
-  }),
-  { virtual: true },
-);
+/* Not `{virtual: true}`: that option is for a module that does not exist, and
+   this one does. Declared virtual, the mock outlived this file — a later suite
+   in the same worker asking for the same real path got the real module instead
+   of its own mock, and `agents_modal.test.js` rendered the whole Builder.
+   Whether the two suites share a worker is luck, so the full run failed about
+   one time in seven. Reproduce with
+   `--runInBand --testPathPattern "(side_menu|agents_modal)"`. */
+jest.mock("../agents/agents_modal_content", () => ({
+  AgentsModalContent: () => {
+    throw new Promise(() => {});
+  },
+}));
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => (
   <span data-testid="icon" />
