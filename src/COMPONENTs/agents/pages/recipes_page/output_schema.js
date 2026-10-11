@@ -240,16 +240,30 @@ function json_problems(value, where, problems) {
   }
 }
 
-/* The depth and node limits, counted the way `_validate_json_tree` counts
-   them: over the schema's own JSON, with a key and its value one step apart,
-   so each level of `properties` costs two. The boundary is probed in the
-   capture rather than derived — thirty levels of the nesting shape there is
-   the deepest the runtime takes, and thirty-one is `limit_depth`. */
-function limit_problems(schema, problems) {
+/* `_validate_json_tree` (`kernel_output.py:60-95`): the depth and node limits
+ * and the cycle check, over the schema's own JSON, before a single keyword is
+ * read. Iterative for the reason the Python is — a draft is edited, so it can
+ * be arbitrarily deep, and a recursive reader would fall over on it instead of
+ * reporting it. `JSON.stringify` is a recursive reader too, which is why the
+ * byte check comes after this and not before: asked first, a deep draft came
+ * back as "not encodable" rather than as too deep.
+ *
+ * Depth is counted with a key and its value one step apart, so each level of
+ * `properties` costs two. The boundary is probed in the capture rather than
+ * derived — thirty levels of the nesting shape there is the deepest the
+ * runtime takes, and thirty-one is `limit_depth`. */
+function json_tree_problems(schema, problems) {
+  const LEAVE = Symbol("leave");
   const stack = [[schema, 0]];
+  const active = new Set();
   let nodes = 0;
   while (stack.length) {
-    const [current, depth] = stack.pop();
+    const frame = stack.pop();
+    if (frame[0] === LEAVE) {
+      active.delete(frame[1]);
+      continue;
+    }
+    const [current, depth] = frame;
     nodes += 1;
     if (nodes > MAX_SCHEMA_NODES) {
       problems.push(problem("limit_nodes", "schema", "schema exceeds the node limit"));
@@ -259,11 +273,21 @@ function limit_problems(schema, problems) {
       problems.push(problem("limit_depth", "schema", "schema exceeds the depth limit"));
       return;
     }
-    if (Array.isArray(current)) {
-      current.forEach((entry) => stack.push([entry, depth + 1]));
-    } else if (is_object(current)) {
-      Object.values(current).forEach((entry) => stack.push([entry, depth + 1]));
+    if (current === null || typeof current !== "object") {
+      if (typeof current === "number" && !Number.isFinite(current)) {
+        problems.push(problem("invalid_json", "schema", "JSON number must be finite"));
+        return;
+      }
+      continue;
     }
+    if (active.has(current)) {
+      problems.push(problem("invalid_json", "schema", "JSON value cannot contain a cycle"));
+      return;
+    }
+    active.add(current);
+    stack.push([LEAVE, current]);
+    const children = Array.isArray(current) ? current : Object.values(current);
+    children.forEach((child) => stack.push([child, depth + 1]));
   }
 }
 
@@ -438,12 +462,16 @@ export function output_schema_problems(schema) {
     return [problem("invalid_schema", "schema", "schema must be an object")];
   }
 
+  /* In the runtime's order, and alone when it fails: everything after this
+     recurses — the keyword walk, the reference graph, `JSON.stringify` — so a
+     draft that broke those is reported rather than survived. */
+  json_tree_problems(schema, problems);
+  if (problems.length > 0) return problems;
+
   let encoded = null;
   try {
     encoded = JSON.stringify(schema);
   } catch (error) {
-    /* A cycle, or a value JSON cannot carry. `_validate_json_tree` says so
-       first too, before any keyword is read. */
     return [problem("invalid_json", "schema", "schema cannot be encoded as bounded JSON")];
   }
   if (encoded === undefined) {
@@ -452,7 +480,6 @@ export function output_schema_problems(schema) {
   if (utf8_length(encoded) > MAX_SCHEMA_BYTES) {
     problems.push(problem("limit_bytes", "schema", "schema exceeds eight MiB"));
   }
-  limit_problems(schema, problems);
 
   walk(schema, "schema", problems, { root: schema, seen: new Set() }, { root: true });
 

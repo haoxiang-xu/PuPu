@@ -52,3 +52,30 @@ describe("the case set is worth the name", () => {
     });
   });
 });
+
+describe("a draft deep enough to break a recursive reader", () => {
+  /* Both the keyword walk and the reference graph recurse, and an editor is
+     given drafts rather than admitted schemas. The limit is reported and the
+     recursive readers are not reached — the runtime's own order, and the
+     reason the panel does not fall over inside the code that was about to
+     explain the problem. */
+  const nest = (levels) => {
+    let node = { type: "string" };
+    for (let i = 0; i < levels; i += 1) {
+      node = { type: "object", properties: { n: node } };
+    }
+    return { type: "object", properties: { n: node } };
+  };
+
+  test("says the depth, once", () => {
+    expect(codes(nest(4000))).toEqual(["limit_depth"]);
+  });
+
+  test("and does not throw getting there", () => {
+    expect(() => output_schema_problems(nest(20000))).not.toThrow();
+  });
+
+  test("a draft just inside the limit is still read in full", () => {
+    expect(codes(nest(30))).toEqual([]);
+  });
+});

@@ -12,6 +12,8 @@ import {
   upstream_node_ids,
   with_node_bindings,
   with_node_output_mappings,
+  node_output_schema,
+  with_node_output_schema,
 } from "./skeleton_document";
 import { SKELETON_DOCUMENT_CASES } from "./skeleton_document_cases";
 
@@ -160,5 +162,81 @@ describe("the envelope's own rules", () => {
     expect(NODE_TYPES).toHaveLength(12);
     expect(NODE_TYPES).toContain("hooks_pool");
     expect(NODE_TYPES).not.toContain("llm");
+  });
+});
+
+describe("an Agent's output schema lives in its kernel config", () => {
+  const kernel = {
+    schema_version: 1,
+    profile: { id: "p" },
+    prompt: "go",
+    max_iterations: 1,
+    output_tokens: 10,
+    history: "none",
+    overflow: "error",
+    json_schema: null,
+  };
+
+  const doc = (config) => ({
+    schema_version: 1,
+    kind: "workflow",
+    id: "d",
+    name: "D",
+    nodes: [{ id: "k", type: "agent", config }],
+    edges: [],
+  });
+
+  test("null and absent are different answers", () => {
+    /* `null` is "this Agent replies in prose". Absent is "this node has no
+       model configuration", which is not the schema editor's to fix. */
+    expect(node_output_schema(doc({ kernel }).nodes[0])).toBe(null);
+    expect(node_output_schema(doc({ execution: {} }).nodes[0])).toBe(undefined);
+    expect(node_output_schema(null)).toBe(undefined);
+  });
+
+  test("writing a schema leaves the rest of the kernel alone", () => {
+    const next = with_node_output_schema(doc({ execution: {}, kernel }), "k", {
+      type: "object",
+      properties: {},
+    });
+    const written = next.nodes[0].config.kernel;
+    expect(written.json_schema).toEqual({ type: "object", properties: {} });
+    expect(written.prompt).toBe("go");
+    expect(Object.keys(written).sort()).toEqual(Object.keys(kernel).sort());
+    expect(next.nodes[0].config.execution).toEqual({});
+  });
+
+  test("the schema object is stored by reference, not copied", () => {
+    /* The editor compares the schema it last wrote against the one it is given
+       to tell its own edit from a reload. A copy here would break that. */
+    const schema = { type: "object", properties: {} };
+    const next = with_node_output_schema(doc({ kernel }), "k", schema);
+    expect(node_output_schema(next.nodes[0])).toBe(schema);
+  });
+
+  test("a node with no kernel is returned unchanged", () => {
+    /* `validate_kernel_config` closes that object to a fixed key set, so one
+       built here to hold a schema would be a refused document. */
+    const before = doc({ execution: {} });
+    const after = with_node_output_schema(before, "k", { type: "object" });
+    expect(after.nodes[0]).toBe(before.nodes[0]);
+  });
+
+  test("another node is not touched", () => {
+    const before = {
+      ...doc({ execution: {}, kernel }),
+      nodes: [
+        { id: "k", type: "agent", config: { execution: {}, kernel } },
+        { id: "other", type: "agent", config: { execution: {}, kernel } },
+      ],
+    };
+    const after = with_node_output_schema(before, "k", { type: "object" });
+    expect(after.nodes[1]).toBe(before.nodes[1]);
+    expect(before.nodes[0].config.kernel.json_schema).toBe(null);
+  });
+
+  test("a document that is not one does not throw", () => {
+    expect(() => with_node_output_schema(null, "k", {})).not.toThrow();
+    expect(with_node_output_schema(null, "k", {})).toBe(null);
   });
 });

@@ -691,3 +691,112 @@ describe("R-SCHEMA — a schema's own fields, through the real controls", () => 
     expect(row_text()).toMatch(/produces no result named "typo"/i);
   });
 });
+
+describe("the JSON Output section, and the two halves it joins", () => {
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const with_agent = (json_schema, outputs) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "kernel",
+        type: "agent",
+        config: {
+          execution: { inputs: [], outputs: outputs || [] },
+          kernel: kernel(json_schema),
+        },
+      },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open_agent = (json_schema, outputs) =>
+    show({
+      document: with_agent(json_schema, outputs),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("it is read downwards: given, produced, passed on", () => {
+    open_agent(null);
+    const text = screen.getByTestId("recipe-detail-panel").textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(text.indexOf("JSON Output"));
+  });
+
+  test("only an Agent has one, because only an Agent has a kernel", () => {
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.queryByTestId("skeleton-output-schema")).not.toBeInTheDocument();
+  });
+
+  test("a declared field becomes a source the output rows offer", () => {
+    /* The point of the section. Without it the author could only reach these
+       by typing the name and hoping. */
+    open_agent(
+      { type: "object", properties: { score: { type: "number" } } },
+      [{ name: "out", source: { kind: "result", path: ["score"] } }],
+    );
+    const row = screen.getByTestId("output-row-0");
+    expect(row.textContent).not.toMatch(/produces no result named/i);
+    expect(screen.getByTestId("skeleton-output-schema")).toBeInTheDocument();
+  });
+
+  test("closing the field list is what lets a row refuse a name", () => {
+    open_agent(
+      {
+        type: "object",
+        properties: { score: { type: "number" } },
+        additionalProperties: false,
+      },
+      [{ name: "out", source: { kind: "result", path: ["typo"] } }],
+    );
+    expect(screen.getByTestId("output-row-0").textContent).toMatch(
+      /produces no result named "typo"/i,
+    );
+  });
+
+  test("leaving it open means a row refuses nothing", () => {
+    open_agent(
+      { type: "object", properties: { score: { type: "number" } } },
+      [{ name: "out", source: { kind: "result", path: ["typo"] } }],
+    );
+    expect(screen.getByTestId("output-row-0").textContent).not.toMatch(
+      /produces no result named/i,
+    );
+  });
+
+  test("a schema the rows cannot hold is shown rather than rebuilt", () => {
+    open_agent({
+      type: "object",
+      anyOf: [
+        { type: "object", properties: { a: { type: "string" } } },
+        { type: "object", properties: { b: { type: "string" } } },
+      ],
+    });
+    expect(screen.getByTestId("schema-not-field-shaped").textContent).toMatch(
+      /alternative shapes/i,
+    );
+  });
+});

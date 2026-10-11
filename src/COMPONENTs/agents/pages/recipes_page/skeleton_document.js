@@ -80,6 +80,15 @@ export const EXECUTION_CONFIG_KEY = "execution";
 export const BINDINGS_CONFIG_KEY = "inputs";
 export const OUTPUT_MAPPINGS_CONFIG_KEY = "outputs";
 
+/* An Agent's other half of config. `validate_kernel_config` closes it to
+   exactly `{schema_version, profile, prompt, max_iterations, output_tokens,
+   history, overflow, json_schema}`, so this is a key inside an object the
+   editor must find rather than build: inventing a `kernel` to hold a schema
+   would mean inventing a profile, an endpoint and a credential as a side
+   effect of turning JSON output on. */
+export const KERNEL_CONFIG_KEY = "kernel";
+export const OUTPUT_SCHEMA_CONFIG_KEY = "json_schema";
+
 const EXECUTION_KEYS_BY_TYPE = {
   start: ["outputs"],
   end: ["inputs", "outputs"],
@@ -182,6 +191,43 @@ function with_node_execution_list(document, node_id, key, list) {
         config: {
           ...config,
           [EXECUTION_CONFIG_KEY]: { ...execution, [key]: list },
+        },
+      };
+    }),
+  };
+}
+
+export function node_kernel(node) {
+  const config = is_object(node) && is_object(node.config) ? node.config : null;
+  return config && is_object(config[KERNEL_CONFIG_KEY])
+    ? config[KERNEL_CONFIG_KEY]
+    : null;
+}
+
+/* `null` means the Agent replies in prose and its result is exactly the two
+   built-ins. `undefined` means this node has no kernel config at all, which is
+   not the same answer and is not the editor's to fix. */
+export function node_output_schema(node) {
+  const kernel = node_kernel(node);
+  return kernel ? kernel[OUTPUT_SCHEMA_CONFIG_KEY] : undefined;
+}
+
+/* Scoped to the one key, so the profile, prompt and history settings beside it
+   are left exactly as they were. A node with no kernel object is returned
+   unchanged — see `KERNEL_CONFIG_KEY`. */
+export function with_node_output_schema(document, node_id, schema) {
+  if (!is_object(document) || !Array.isArray(document.nodes)) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!node || node.id !== node_id) return node;
+      const kernel = node_kernel(node);
+      if (!kernel) return node;
+      return {
+        ...node,
+        config: {
+          ...node.config,
+          [KERNEL_CONFIG_KEY]: { ...kernel, [OUTPUT_SCHEMA_CONFIG_KEY]: schema },
         },
       };
     }),

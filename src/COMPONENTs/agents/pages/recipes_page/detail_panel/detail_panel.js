@@ -9,6 +9,7 @@ import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
+import OutputSchemaSection from "./output_schema_section";
 import OutputVariablesSection from "./output_variables_section";
 import {
   find_node,
@@ -215,6 +216,18 @@ export default function DetailPanel({
               isDark={isDark}
               onChange={onDocumentChange}
             />
+            {/* Between them, and only for an Agent: a schema declares what
+                this node's own result holds, which is what the output rows
+                below then offer as sources. Read downwards it is what the node
+                is given, what it produces, what it passes on. */}
+            {skeleton_node.type === "agent" && (
+              <OutputSchemaSection
+                document={document}
+                node={skeleton_node}
+                isDark={isDark}
+                onChange={onDocumentChange}
+              />
+            )}
             {/* Inputs at the top, outputs at the bottom: a node is read
                 downwards, and the order is the same in every panel so the two
                 halves of a wire are always found in the same place. */}
