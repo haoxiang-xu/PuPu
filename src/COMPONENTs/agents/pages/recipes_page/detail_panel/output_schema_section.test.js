@@ -996,3 +996,220 @@ describe("an Agent that gains its model configuration while open", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("a bound typed one character at a time", () => {
+  /* `0.5` is reached through `0.`, and `0.` read as a number is zero. The box
+     stored zero, redrew itself from the document as `0`, and the next
+     keystroke landed on `05` — so typing `0.5` wrote `5`, with nothing said.
+     A box that rewrites what the author typed into a different legal value is
+     the defect the path editor's header is about, one layer down.
+   *
+   * These type into the live box the way a person does, appending to whatever
+   * it is showing. A test that sets the whole value at once never reaches the
+   * intermediate spelling and cannot see this. */
+  let latest = null;
+
+  function Live({ initial }) {
+    const [document, setDocument] = React.useState(doc(agent(initial, "a1")));
+    latest = document;
+    return (
+      <OutputSchemaSection
+        document={document}
+        node={document.nodes[0]}
+        isDark={false}
+        onChange={setDocument}
+      />
+    );
+  }
+
+  const stored = () => node_output_schema(latest.nodes[0]).properties.a;
+  const box = () =>
+    within(screen.getByTestId("schema-field-0")).getAllByPlaceholderText("—")[0];
+
+  const type = (text) =>
+    text.split("").forEach((character) => {
+      const element = box();
+      fireEvent.change(element, { target: { value: element.value + character } });
+    });
+
+  beforeEach(() => {
+    latest = null;
+  });
+
+  test("stores the number that was typed, not what a prefix of it meant", () => {
+    render(<Live initial={{ type: "object", properties: { a: { type: "number" } } }} />);
+    type("0.5");
+    expect(box().value).toBe("0.5");
+    expect(stored().minimum).toBe(0.5);
+  });
+
+  test("a negative one survives its own minus sign", () => {
+    render(<Live initial={{ type: "object", properties: { a: { type: "number" } } }} />);
+    type("-1.25");
+    expect(box().value).toBe("-1.25");
+    expect(stored().minimum).toBe(-1.25);
+  });
+
+  test("the box shows the spelling, the document holds the number", () => {
+    render(<Live initial={{ type: "object", properties: { a: { type: "number" } } }} />);
+    type("0.");
+    expect(box().value).toBe("0.");
+    expect(stored().minimum).toBe(0);
+    expect(screen.queryByTestId("schema-bound-minimum-refused")).not.toBeInTheDocument();
+  });
+
+  test("an exponent is not rewritten into what it means", () => {
+    /* The author's spelling, kept — `1e2` is a hundred and the document is
+       given a hundred, but redrawing the box from the document is the move
+       that lost the point in `0.`, so it is not made here either. */
+    render(<Live initial={{ type: "object", properties: { a: { type: "number" } } }} />);
+    type("1e2");
+    expect(box().value).toBe("1e2");
+    expect(stored().minimum).toBe(100);
+  });
+
+  test("a count box refuses the point and says what the bound still is", () => {
+    /* The four length and item bounds take a whole number, so there is no
+       spelling of `0.5` they are partway through. The `0` that was typed
+       first was stored, and the caption says so rather than claiming the
+       whole of it was refused. */
+    render(
+      <Live initial={{ type: "object", properties: { a: { type: "string" } } }} />,
+    );
+    const counted = () =>
+      within(screen.getByTestId("schema-field-0")).getAllByPlaceholderText("—")[0];
+    const type_counted = (text) =>
+      text.split("").forEach((character) => {
+        const element = counted();
+        fireEvent.change(element, { target: { value: element.value + character } });
+      });
+    type_counted("0.5");
+    expect(counted().value).toBe("0.5");
+    expect(stored().minLength).toBe(0);
+    expect(screen.getByTestId("schema-bound-minLength-refused").textContent).toMatch(
+      /not stored/i,
+    );
+    expect(screen.getByTestId("schema-bound-minLength-refused").textContent).toMatch(
+      /still 0/i,
+    );
+  });
+
+  test("and says there is no bound when there is none", () => {
+    render(
+      <Live initial={{ type: "object", properties: { a: { type: "string" } } }} />,
+    );
+    const counted = () =>
+      within(screen.getByTestId("schema-field-0")).getAllByPlaceholderText("—")[0];
+    fireEvent.change(counted(), { target: { value: "-" } });
+    expect(screen.getByTestId("schema-bound-minLength-refused").textContent).toMatch(
+      /no min length/i,
+    );
+    expect(stored().minLength).toBeUndefined();
+  });
+});
+
+describe("a refused bound belongs to the field it was typed into", () => {
+  /* The row keeps its own identity across an edit the editor made. What it
+     cannot carry is a field arriving from outside: the document calls a field
+     by its name — `properties` is a map — and a row keyed only by position
+     went on showing one field's refused text over another field's equal
+     bound. */
+  const one = (name, minLength) => ({
+    type: "object",
+    properties: { [name]: { type: "string", minLength } },
+  });
+
+  const panel = (node) => (
+    <OutputSchemaSection
+      document={doc(node)}
+      node={node}
+      isDark={false}
+      onChange={() => {}}
+    />
+  );
+
+  test("a different field with the same bound does not inherit it", () => {
+    const view = render(panel(agent(one("a", 2), "a1")));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+      { target: { value: "-1" } },
+    );
+    expect(screen.getByTestId("schema-bound-minLength-refused")).toBeInTheDocument();
+
+    view.rerender(panel(agent(one("b", 2), "a1")));
+    const row = within(screen.getByTestId("schema-field-0"));
+    expect(row.getByDisplayValue("b")).toBeInTheDocument();
+    expect(row.getByDisplayValue("2")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-bound-minLength-refused")).not.toBeInTheDocument();
+  });
+
+  test("the same field still showing the same bound keeps it", () => {
+    /* The other direction: a render that changed nothing the author can see
+       must not throw away what they are in the middle of correcting. */
+    const view = render(panel(agent(one("a", 2), "a1")));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+      { target: { value: "-1" } },
+    );
+    view.rerender(panel(agent(one("a", 2), "a1")));
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("-1"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("schema-bound-minLength-refused")).toBeInTheDocument();
+  });
+
+  test("the list being reordered leaves it on no field at all", () => {
+    /* The row's own identity is minted by position, and a name box has to
+       keep the caret while it is being typed into, so a row cannot be keyed
+       by the name it is holding. The text is therefore held against the field
+       it describes and dropped when a different field arrives under it —
+       dropped, which is the harmless direction, rather than redrawn over the
+       other field's equal bound. */
+    const two = (first) => ({
+      type: "object",
+      properties:
+        first === "a"
+          ? { a: { type: "string", minLength: 2 }, b: { type: "string", minLength: 9 } }
+          : { b: { type: "string", minLength: 9 }, a: { type: "string", minLength: 2 } },
+    });
+    const view = render(panel(agent(two("a"), "a1")));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+      { target: { value: "-1" } },
+    );
+    view.rerender(panel(agent(two("b"), "a1")));
+    expect(screen.queryByDisplayValue("-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("schema-bound-minLength-refused")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("schema-field-1")).getByDisplayValue("2"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("a draft deeper than any save would take", () => {
+  /* The section is what the author is looking at while they make one, so
+     every reader it runs on each render has to answer for a draft rather than
+     fall over on it: the admission mirror, the question of whether the rows
+     can hold it, the reason they cannot, and the JSON encoding of it. One of
+     them was recursive and took the panel down — inside the code that was
+     about to explain the problem, which is the third time in this ticket. */
+  const nest = (levels) => {
+    let node = { type: "string" };
+    for (let i = 0; i < levels; i += 1) {
+      node = { type: "object", properties: { n: node } };
+    }
+    return { type: "object", properties: { n: node } };
+  };
+
+  test("renders, and says the depth", () => {
+    expect(() => show(agent(nest(4000)))).not.toThrow();
+    expect(screen.getByTestId("skeleton-output-schema")).toBeInTheDocument();
+    expect(screen.getByTestId("schema-problem-0").textContent).toMatch(/depth/i);
+  });
+
+  test("and the outputs beside it are still offered", () => {
+    /* `agent_result_sources` reads the same draft through the root inventory,
+       which is the entry point with no limit check in front of it. */
+    expect(() => show(agent(nest(20000)))).not.toThrow();
+  });
+});

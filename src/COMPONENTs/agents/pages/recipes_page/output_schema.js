@@ -159,19 +159,32 @@ function resolve_reference(root, reference) {
 }
 
 /* Which objects the walk read as schemas. Collected in the same pass and
-   consulted after it, in the runtime's two phases, because a reference may
-   point forward at a definition the walk has not reached yet. */
+ * consulted after it, in the runtime's two phases, because a reference may
+ * point forward at a definition the walk has not reached yet.
+ *
+ * Iterative, like `json_tree_problems` and for the same reason: a draft is as
+ * deep as it has been typed, and this is reached from `schema_root_scope`,
+ * which has no limit check in front of it — the outputs section asks what a
+ * schema's root declares on every render. Written recursive, it took the
+ * panel down on a draft whose depth the other entry point reports calmly.
+ *
+ * The collection stops at the node limit. Past it no save can admit the draft
+ * anyway, and a reference whose target was not reached is then read as not
+ * being a schema node — which costs the author a diagnostic they are already
+ * getting for the limit itself. */
 function schema_nodes(root) {
   const nodes = new Set();
-  const visit = (node) => {
-    if (!is_object(node) || nodes.has(node)) return;
+  const stack = [root];
+  while (stack.length > 0 && nodes.size <= MAX_SCHEMA_NODES) {
+    const node = stack.pop();
+    if (!is_object(node) || nodes.has(node)) continue;
     nodes.add(node);
-    if (is_object(node.$defs)) Object.values(node.$defs).forEach(visit);
-    if (is_object(node.properties)) Object.values(node.properties).forEach(visit);
-    if (Array.isArray(node.anyOf)) node.anyOf.forEach(visit);
-    if ("items" in node) visit(node.items);
-  };
-  visit(root);
+    const push = (child) => stack.push(child);
+    if (is_object(node.$defs)) Object.values(node.$defs).forEach(push);
+    if (is_object(node.properties)) Object.values(node.properties).forEach(push);
+    if (Array.isArray(node.anyOf)) node.anyOf.forEach(push);
+    if ("items" in node) stack.push(node.items);
+  }
   return nodes;
 }
 

@@ -15,6 +15,7 @@ import usePendingText from "./pending_text";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
+  bound_from_text,
   bounds_for,
   colliding_field_names,
   free_field_name,
@@ -90,27 +91,29 @@ function Bound({ field, bound, onChange }) {
   const counted = bound !== "minimum" && bound !== "maximum";
   /* Blank is not zero. Zero is a real bound — an empty string, an empty list —
      and clearing a box means "no bound", so the two cannot share a spelling.
-     What is refused stays on screen to be corrected and is not stored, which
-     is `usePendingText`'s whole subject. */
-  const pending = usePendingText(value);
+   *
+   * The box shows what was typed until the document's own value changes,
+   * which is `usePendingText`'s whole subject. Not only when it was refused:
+   * `0.` is a number being typed, it does mean zero, and redrawing the box
+   * from the stored zero dropped the point the author had just typed — so the
+   * next keystroke made `05` and `0.5` was stored as `5`. Held against the
+   * value it is about to be given rather than the one on screen, since that
+   * is the one it will be read beside.
+   *
+   * It is held against this field by name as well, because `properties` is a
+   * map: a row keyed only by position showed one field's refused bound over
+   * the next field's equal one when the schema was replaced underneath. A
+   * rename therefore drops a refusal held here, which is the harmless
+   * direction — the same trade the output rows above make. */
+  const pending = usePendingText(value, field.name);
   const shown =
     pending.text !== null ? pending.text : value === undefined ? "" : String(value);
+  const refused = pending.text !== null && !bound_from_text(pending.text, counted).ok;
 
   function type(next) {
-    if (next.trim() === "") {
-      pending.release();
-      onChange(undefined);
-      return;
-    }
-    const parsed = Number(next);
-    const usable =
-      Number.isFinite(parsed) && (!counted || (Number.isInteger(parsed) && parsed >= 0));
-    if (!usable) {
-      pending.hold(next);
-      return;
-    }
-    pending.release();
-    onChange(parsed);
+    const read = bound_from_text(next, counted);
+    pending.hold(next, read.ok ? read.value : value);
+    if (read.ok) onChange(read.value);
   }
 
   return (
@@ -131,11 +134,22 @@ function Bound({ field, bound, onChange }) {
           }}
         />
       </div>
-      {pending.text !== null && (
+      {refused && (
         <span data-testid={`schema-bound-${bound}-refused`} style={REFUSED}>
-          {counted
-            ? "A count is a whole number, 0 or more. This was not stored."
-            : "A bound is a number. This was not stored."}
+          {/* What the document holds, said out loud. The box is showing
+              something else, and a keystroke before this one may well have
+              been stored — `0` is a count even though `0.` is not — so
+              "this was not stored" on its own leaves the author guessing
+              which of the two the schema now says. */}
+          {`${
+            counted
+              ? "A count is a whole number, 0 or more."
+              : "A bound is a number."
+          } This was not stored — ${
+            value === undefined
+              ? `there is still no ${BOUND_LABEL[bound]}`
+              : `${BOUND_LABEL[bound]} is still ${value}`
+          }.`}
         </span>
       )}
     </div>

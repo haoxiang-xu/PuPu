@@ -1,4 +1,8 @@
-import { output_schema_problems } from "./output_schema";
+import {
+  agent_result_sources,
+  output_schema_problems,
+  schema_root_scope,
+} from "./output_schema";
 import { CAPTURED_SCHEMA_ADMISSION } from "./output_schema_admission_capture";
 
 /* The mirror against the validator it mirrors, rule by rule, both directions.
@@ -77,5 +81,39 @@ describe("a draft deep enough to break a recursive reader", () => {
 
   test("a draft just inside the limit is still read in full", () => {
     expect(codes(nest(30))).toEqual([]);
+  });
+
+  /* Admission is one reader of a draft and the result inventory is another.
+     The outputs section asks what a schema declares at its root on every
+     render, with no limit check in front of it, so every reader *it* reaches
+     has to be bounded too. Collecting which objects the walk read as schemas
+     — added so a `$ref` into a `const` could be refused — was written
+     recursive, and this draft is what found it: the panel stopped rendering
+     at all, rather than reporting a depth. */
+  test("the root inventory answers for it instead of falling over", () => {
+    expect(() => schema_root_scope(nest(4000))).not.toThrow();
+    expect(schema_root_scope(nest(4000)).names).toEqual(["n"]);
+    expect(schema_root_scope(nest(4000)).readable).toBe(true);
+  });
+
+  test("and so does the list of what an Agent exports", () => {
+    expect(() => agent_result_sources(nest(4000))).not.toThrow();
+    expect(agent_result_sources(nest(4000)).map((source) => source.name)).toEqual([
+      "message",
+      "context",
+      "n",
+    ]);
+  });
+
+  test("neither of them falls over on a draft far past the limit", () => {
+    expect(() => schema_root_scope(nest(50000))).not.toThrow();
+    expect(() => agent_result_sources(nest(50000))).not.toThrow();
+  });
+
+  test("a deeply nested alternative is bounded as well", () => {
+    let node = { type: "object", properties: { deep: { type: "string" } } };
+    for (let i = 0; i < 6000; i += 1) node = { type: "object", anyOf: [node] };
+    expect(() => schema_root_scope(node)).not.toThrow();
+    expect(() => output_schema_problems(node)).not.toThrow();
   });
 });

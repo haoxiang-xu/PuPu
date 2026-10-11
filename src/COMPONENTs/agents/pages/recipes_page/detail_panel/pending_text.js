@@ -10,13 +10,16 @@ import { useState } from "react";
  * copies each shipped the same two defects before being fixed — so this is
  * one implementation, and the rules live here rather than being rediscovered.
  *
- * The rules, both learned the hard way:
+ * The rules, all learned the hard way:
  *
- * It is held together with the value it was offered in place of. That value
- * cannot change by typing into this box — a refused edit is not written — so a
- * change always came from somewhere else: another node selected, the document
- * replaced by a reload or a conflict resolved the other way. The text was
- * typed against something that is no longer there.
+ * It is held against the value it is showing instead of. A refused edit is
+ * not written, so that value changing always came from somewhere else:
+ * another node selected, the document replaced by a reload or a conflict
+ * resolved the other way. The text was typed against something that is no
+ * longer there. `hold` takes that value explicitly for the one caller whose
+ * text is *not* a refusal — a bound box keeps the spelling `0.` on screen
+ * while the document is given the zero it means, and the value it is held
+ * against is therefore the one about to arrive, not the one on screen now.
  *
  * And it is discarded then, not hidden. Comparing the text against the current
  * value on each render reads correctly while they differ and leaves the text
@@ -24,21 +27,28 @@ import { useState } from "react";
  * with it — over a value it never described, by coincidence. Being void is a
  * fact about the moment the value changed, not about what the value is now.
  *
- * What this cannot answer is whether the control still belongs to the same
- * thing. A position cannot say it and neither can a value: removing the first
- * of two rows holding the same number leaves a successor that matches on both.
- * Only the list knows an edit moved its items, so the list mints an identity
- * per item and spends it as the React key — see `mint_identities`. */
-export default function usePendingText(stored) {
-  const [pending, setPending] = useState({ shown: stored, text: null });
-  if (!Object.is(pending.shown, stored)) {
-    setPending({ shown: stored, text: null });
+ * A value alone cannot say the control still belongs to the same thing, so
+ * `about` says what the text is about whenever the document names it: a field
+ * is called by its name, because `properties` is a map, and a row keyed only
+ * by position went on showing one field's refused bound over another field's
+ * equal bound after the schema was replaced underneath. Where the document
+ * names nothing — a path's steps are addressed by where they are — the
+ * identity is minted by the list instead and spent as the React key, which is
+ * what `mint_identities` is for. A list cannot be keyed by a name its own box
+ * is in the middle of typing, so these two are not the same mechanism and
+ * neither replaces the other. */
+export default function usePendingText(stored, about) {
+  const [pending, setPending] = useState({ about, shown: stored, text: null });
+  const void_now =
+    !Object.is(pending.about, about) || !Object.is(pending.shown, stored);
+  if (void_now) {
+    setPending({ about, shown: stored, text: null });
   }
-  const text = Object.is(pending.shown, stored) ? pending.text : null;
   return {
     /* `null` when there is nothing unstored — the caller shows the value. */
-    text,
-    hold: (next) => setPending({ shown: stored, text: next }),
-    release: () => setPending({ shown: stored, text: null }),
+    text: void_now ? null : pending.text,
+    hold: (next, against = stored) =>
+      setPending({ about, shown: against, text: next }),
+    release: () => setPending({ about, shown: stored, text: null }),
   };
 }

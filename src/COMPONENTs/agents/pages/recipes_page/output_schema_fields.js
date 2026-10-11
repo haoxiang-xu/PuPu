@@ -97,6 +97,46 @@ export const BOUND_LABEL = Object.freeze({
   maxItems: "max items",
 });
 
+/* What a bound box's text means, if it means anything yet.
+ *
+ * A box is typed into one character at a time, and the spellings on the way
+ * to a number are not that number: `0.5` passes through `0.`, and `-1.25`
+ * through `-`. Read with `Number` alone, `0.` is zero — so the box stored
+ * zero, redrew itself from the document as `0`, and the author's next
+ * keystroke landed on `05`. Typing `0.5` wrote `5`, and nothing said so.
+ * Rewriting what was typed into a different legal value is worse than
+ * refusing it, for the same reason a path step does not strip the minus out
+ * of `-1`: the wrong value is accepted everywhere the right one would be.
+ *
+ * So this reads the spelling rather than coercing it, the caller keeps the
+ * text on screen either way, and the two halves of the answer are separate:
+ * whether it is a number at all, and which number. `undefined` is a real
+ * answer — an empty box means there is no bound, which is not the bound zero.
+ *
+ * `Number` takes spellings this document would never hold — `0x10`, ` 12 `,
+ * `Infinity` — and they are refused here rather than silently canonicalised
+ * into something the author did not write. A leading zero is the one
+ * canonicalisation that loses nothing, so `02` is two.
+ *
+ * Counted bounds are the four the runtime requires to be non-negative
+ * integers (`_require_nonnegative_integer`, `kernel_output.py:410`), so there
+ * is no partial spelling of one: a point in that box is not a number being
+ * typed, it is a number that box cannot hold. */
+const NUMBER_TEXT = /^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
+const COUNT_TEXT = /^[0-9]+$/;
+
+export function bound_from_text(text, counted) {
+  const raw = String(text);
+  if (raw.trim() === "") return { ok: true, value: undefined };
+  if (!(counted ? COUNT_TEXT : NUMBER_TEXT).test(raw)) return { ok: false };
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return { ok: false };
+  /* Past the safe integers a count is no longer the number that was typed,
+     and storing a different one is the whole defect this guards. */
+  if (counted && !Number.isSafeInteger(value)) return { ok: false };
+  return { ok: true, value };
+}
+
 export function new_field(name) {
   return {
     name: name || "",

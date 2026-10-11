@@ -800,3 +800,82 @@ describe("the JSON Output section, and the two halves it joins", () => {
     );
   });
 });
+
+describe("the panel survives a draft no save would take", () => {
+  /* The whole panel, both sections, one render. A schema is composed inside
+     it, so it can be as deep as it has been typed — and the sections read it
+     for different things: admission, whether the rows hold it, and what its
+     root declares for the outputs beside it. That last reader had no limit
+     check in front of it and was written recursive, so the panel stopped
+     rendering rather than reporting the depth. */
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const nest = (levels) => {
+    let node = { type: "string" };
+    for (let i = 0; i < levels; i += 1) {
+      node = { type: "object", properties: { n: node } };
+    }
+    return { type: "object", properties: { n: node } };
+  };
+
+  const open_deep = (levels) =>
+    show({
+      document: {
+        ...skeleton_document,
+        nodes: [
+          skeleton_document.nodes[0],
+          {
+            id: "kernel",
+            type: "agent",
+            config: {
+              execution: {
+                inputs: [],
+                outputs: [{ name: "out", source: { kind: "result", path: ["n"] } }],
+              },
+              kernel: kernel(nest(levels)),
+            },
+          },
+          skeleton_document.nodes[1],
+        ],
+        edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+      },
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("it renders and says the depth instead of going down", () => {
+    expect(() => open_deep(4000)).not.toThrow();
+    expect(screen.getByTestId("skeleton-output-schema").textContent).toMatch(
+      /depth/i,
+    );
+    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
+  });
+
+  test("and the output row reading into it is not called wrong", () => {
+    /* The field really is declared at the root, so nothing may say it is
+       not — the inventory has to answer for this draft, not give up on it. */
+    open_deep(4000);
+    expect(screen.getByTestId("output-row-0").textContent).not.toMatch(
+      /produces no result named/i,
+    );
+  });
+});

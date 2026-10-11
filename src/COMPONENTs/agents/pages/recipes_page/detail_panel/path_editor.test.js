@@ -379,3 +379,37 @@ describe("refused text describes the step it was typed into, and no other", () =
     expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
   });
 });
+
+describe("a refusal says what the step still reads", () => {
+  /* The box accepts one keystroke at a time, so a refused text can sit on top
+     of a position that *was* stored — type `1` into a position box and the
+     path reads `[1]` before the `-` after it is refused. Saying only that
+     nothing was stored then leaves the author to guess which of the two
+     numbers the document now has. */
+  test("the position it still holds", () => {
+    const { onChange } = show({ path: [3] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("p-step-0-refused").textContent).toMatch(
+      /step 1 is still 3/i,
+    );
+  });
+
+  test("including the one a kept keystroke stored a moment earlier", () => {
+    /* Typed the way a person types, appending to what the box is showing:
+       `2` is stored, and the `-` after it is not. */
+    function Live() {
+      const [path, setPath] = React.useState([0]);
+      return <PathEditor path={path} testid="p" identity="row" onChange={setPath} />;
+    }
+    render(<Live />);
+    const box = () => screen.getByPlaceholderText("0");
+    fireEvent.change(box(), { target: { value: box().value + "2" } });
+    expect(box().value).toBe("2");
+    fireEvent.change(box(), { target: { value: box().value + "-" } });
+    expect(box().value).toBe("2-");
+    expect(screen.getByTestId("p-step-0-refused").textContent).toMatch(
+      /step 1 is still 2/i,
+    );
+  });
+});

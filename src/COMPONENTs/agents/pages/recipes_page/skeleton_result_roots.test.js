@@ -135,3 +135,23 @@ describe("a node type the inventory does not know", () => {
     });
   });
 });
+
+describe("a draft deep enough to break a recursive reader", () => {
+  /* The inventory is computed on every render of the outputs section, from
+     whatever the author has typed — so a draft no save would admit still has
+     to produce an answer rather than take the panel down with it. */
+  const nest = (levels) => {
+    let node = { type: "string" };
+    for (let i = 0; i < levels; i += 1) {
+      node = { type: "object", properties: { n: node } };
+    }
+    return { type: "object", properties: { n: node } };
+  };
+
+  test("an Agent's roots are still answered", () => {
+    const agent = node("agent", { json_schema: nest(4000) });
+    expect(() => result_roots_for(agent)).not.toThrow();
+    expect(result_roots_for(agent).roots).toContain("n");
+    expect(result_roots_for(agent).roots).toContain("message");
+  });
+});

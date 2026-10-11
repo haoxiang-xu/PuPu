@@ -1,5 +1,6 @@
 import {
   BOUNDS_BY_TYPE,
+  bound_from_text,
   FIELD_TYPES,
   ITEM_TYPES,
   colliding_field_names,
@@ -366,5 +367,61 @@ describe("a new row needs a name it can be written under", () => {
     );
     expect(Object.keys(schema.properties).sort()).toEqual(["", name].sort());
     expect(colliding_field_names([new_field(""), new_field(name)])).toEqual([]);
+  });
+});
+
+describe("what a bound box's text means, and when it means nothing yet", () => {
+  /* A box is typed into one character at a time, and `0.5` passes through
+     `0.` on the way. Read with `Number` alone, `0.` is the number zero, so
+     the box stored zero and redrew itself as `0` — and the next keystroke
+     landed on `05`, which is five. The author typed one number and the
+     document was given another, silently. So a text is read as the spelling
+     it is, and a spelling that is still being written is kept on screen
+     rather than rounded off to what it would mean if it stopped there. */
+  test("a whole number is itself", () => {
+    expect(bound_from_text("12", false)).toEqual({ ok: true, value: 12 });
+    expect(bound_from_text("12", true)).toEqual({ ok: true, value: 12 });
+  });
+
+  test("a trailing point is a number being typed, not a number", () => {
+    /* Taken, because it does mean zero and the author may stop there — but
+       the caller keeps the text, which is the half that was missing. */
+    expect(bound_from_text("0.", false)).toEqual({ ok: true, value: 0 });
+    expect(bound_from_text("0.5", false)).toEqual({ ok: true, value: 0.5 });
+  });
+
+  test("a count has no point at all", () => {
+    expect(bound_from_text("0.", true).ok).toBe(false);
+    expect(bound_from_text("0.5", true).ok).toBe(false);
+    expect(bound_from_text("-1", true).ok).toBe(false);
+  });
+
+  test("a bound may be negative, a count may not", () => {
+    expect(bound_from_text("-1", false)).toEqual({ ok: true, value: -1 });
+    expect(bound_from_text("-0.5", false)).toEqual({ ok: true, value: -0.5 });
+  });
+
+  test("a leading zero carries nothing and is taken", () => {
+    expect(bound_from_text("02", true)).toEqual({ ok: true, value: 2 });
+    expect(bound_from_text("02", false)).toEqual({ ok: true, value: 2 });
+  });
+
+  test("an empty box is no bound, which is not the bound zero", () => {
+    expect(bound_from_text("", true)).toEqual({ ok: true, value: undefined });
+    expect(bound_from_text("  ", false)).toEqual({ ok: true, value: undefined });
+  });
+
+  test("a spelling that is not a number is refused", () => {
+    ["-", ".", "e5", "1e", "abc", "1 2", "0x10", "Infinity", "NaN"].forEach(
+      (text) => {
+        expect(bound_from_text(text, false).ok).toBe(false);
+        expect(bound_from_text(text, true).ok).toBe(false);
+      },
+    );
+  });
+
+  test("a number too large to be itself is refused rather than rounded", () => {
+    expect(bound_from_text("1e999", false).ok).toBe(false);
+    expect(bound_from_text("99999999999999999999", true).ok).toBe(false);
   });
 });

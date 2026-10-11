@@ -29,8 +29,15 @@ export function path_segment_kind(segment) {
 }
 
 /* The wire takes a non-negative integer and nothing else, so this accepts
-   exactly that spelling: no sign, no point, no exponent, no spaces. An empty
-   box is not zero — zero is a real address and not what emptying one means. */
+ * exactly that spelling: no sign, no point, no exponent, no spaces. An empty
+ * box is not zero — zero is a real address and not what emptying one means.
+ *
+ * This box redraws itself from the document after an accepted keystroke and a
+ * bound box deliberately does not, because an integer has no partial
+ * spelling: the only difference between an accepted text and the number it
+ * means is leading zeros, which carry nothing. `0.` is a different matter —
+ * it means zero and the author is not finished — and redrawing that box cost
+ * the point, which is how typing `0.5` wrote `5`. See `bound_from_text`. */
 const INDEX_TEXT = /^[0-9]+$/;
 
 export function index_from_text(text) {
@@ -126,7 +133,13 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           data-testid={`${testid}-step-${index}-refused`}
           style={{ ...CAPTION, color: "rgba(176,32,32,0.95)" }}
         >
-          A list position is a whole number, 0 or more. This was not stored.
+          {/* What the document holds, said out loud: a keystroke before this
+              one may well have been stored — `1` is a position even though
+              `1-` is not — so "this was not stored" alone leaves the author
+              guessing which of the two the path now reads. */}
+          {`A list position is a whole number, 0 or more. This was not stored — step ${
+            index + 1
+          } is still ${segment}.`}
         </span>
       )}
     </div>
