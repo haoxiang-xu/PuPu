@@ -125,9 +125,27 @@ describe("the editor refuses what the runtime would reject", () => {
   });
 
   test("a cycle is refused rather than hanging the editor", () => {
+    /* The code was `invalid_schema` here, which is not the runtime's: a cycle
+       is caught by `_validate_json_tree` before any keyword is read, and it
+       says `invalid_json` with "JSON value cannot contain a cycle". Asked of
+       the pinned installation directly, that is the answer. A mirror that
+       refuses the right schema under the wrong name still tells the author
+       something false about why. */
     const schema = { type: "object", properties: {} };
     schema.properties.self = schema;
-    expect(codes(schema)).toContain("invalid_schema");
+    expect(codes(schema)).toEqual(["invalid_json"]);
+  });
+
+  test("a reference cycle is refused with the code the runtime uses for it", () => {
+    /* A different cycle: the JSON is finite, the reference graph is not.
+       `resolve_references` answers this one, with `reference_cycle`. */
+    expect(
+      codes({
+        type: "object",
+        $ref: "#/$defs/A",
+        $defs: { A: { type: "object", $ref: "#/$defs/B" }, B: { type: "object", $ref: "#/$defs/A" } },
+      }),
+    ).toContain("reference_cycle");
   });
 
   test("the config key is the one the runtime reads", () => {
