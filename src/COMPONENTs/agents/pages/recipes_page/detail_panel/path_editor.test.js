@@ -265,6 +265,53 @@ describe("refused text describes the step it was typed into, and no other", () =
     expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
   });
 
+  test("removing a step whose successor holds the same position", () => {
+    /* The hard one. `[0, 0]`: the successor slides into the removed step's
+       position *and* holds the removed step's value, so neither the position
+       nor the value distinguishes them. Nothing about a segment in the
+       document distinguishes them either — a path's steps are addressed by
+       where they are. So the identity has to be made here and carried. */
+    render(<Live initial={[0, 0]} />);
+    fireEvent.change(screen.getAllByPlaceholderText("0")[0], {
+      target: { value: "-1" },
+    });
+    expect(screen.getAllByPlaceholderText("0")[0].value).toBe("-1");
+
+    fireEvent.click(screen.getByLabelText("Remove step 1"));
+    expect(screen.getAllByPlaceholderText("0")).toHaveLength(1);
+    expect(screen.getAllByPlaceholderText("0")[0].value).toBe("0");
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("removing a later step leaves an earlier correction alone", () => {
+    /* The other direction of the same edit: the step being corrected is not
+       the one that moved, so it keeps what was typed into it. */
+    render(<Live initial={[0, 0]} />);
+    fireEvent.change(screen.getAllByPlaceholderText("0")[0], {
+      target: { value: "-1" },
+    });
+    fireEvent.click(screen.getByLabelText("Remove step 2"));
+    expect(screen.getAllByPlaceholderText("0")).toHaveLength(1);
+    expect(screen.getAllByPlaceholderText("0")[0].value).toBe("-1");
+    expect(screen.getByTestId("p-step-0-refused")).toBeInTheDocument();
+  });
+
+  test("the stored value changing under the step drops the correction", () => {
+    /* Not a structural edit: the same step, in the same place, now holds a
+       different number because the document was replaced beneath the panel —
+       a conflict resolved the other way, or a reload landing. The text was
+       typed against a value that is no longer there. */
+    const view = render(
+      <PathEditor path={[0]} testid="p" identity="row" onChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    view.rerender(
+      <PathEditor path={[5]} testid="p" identity="row" onChange={() => {}} />,
+    );
+    expect(screen.getByPlaceholderText("0").value).toBe("5");
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
   test("a step that belongs to something else does not inherit the text", () => {
     const view = render(
       <PathEditor path={[0]} testid="p" identity="rowA" onChange={() => {}} />,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 
@@ -43,32 +43,28 @@ export function index_from_text(text) {
    without being written to the document. The draft is dropped the moment the
    text is a position the wire accepts, and whenever the step changes kind.
  *
- * And it is dropped whenever it stops being about this value. The draft lives
- * in local state, because the document deliberately refuses to hold it — and
- * local state in a list is keyed by position, which is not identity. Selecting
- * another node, removing the row above or removing an earlier step all put a
- * different segment under the same key, and the text then described a value it
- * was never typed into: the box read `-1` while the document held `2`. Nothing
- * was written wrongly, which is what made it worse — the field was the only
- * account of the document the author had, and it was lying about it.
+ * It is also dropped when the value beneath it changes without this box doing
+ * it — the document replaced under the panel by a conflict resolved the other
+ * way, or by a reload landing. The text was typed against a value that is no
+ * longer there, and showing it over the new one makes the field misreport what
+ * is stored. That is the whole severity of this class: nothing is ever written
+ * wrongly, and the field is the author's only account of what was.
  *
- * So the draft records what it was typed against, and is shown only while that
- * is still what is on screen. Dropping a draft is never incorrect; keeping a
- * stale one always is. That asymmetry is why the check is the conjunction of
- * identity and stored value rather than either alone. */
-function Step({ segment, index, testid, identity, onReplace, onRemove }) {
+ * What it does *not* do is decide whether this is still the same step. A
+ * position cannot answer that and neither can a value: removing the first step
+ * of `[0, 0]` leaves a successor at the same position holding the same number,
+ * and it is not the same step. Only the editor below knows an edit moved
+ * things, so identity is kept there and spent as this component's key. */
+function Step({ segment, index, testid, onReplace, onRemove }) {
   const kind = path_segment_kind(segment);
   const [draft, setDraft] = useState(null);
-  const mine =
-    draft !== null &&
-    draft.identity === identity &&
-    Object.is(draft.segment, segment);
+  const mine = draft !== null && Object.is(draft.segment, segment);
   const refused = kind === "index" && mine;
 
   function type_index(next) {
     const value = index_from_text(next);
     if (value === null) {
-      setDraft({ identity, segment, text: next });
+      setDraft({ segment, text: next });
       return;
     }
     setDraft(null);
@@ -142,16 +138,27 @@ function Step({ segment, index, testid, identity, onReplace, onRemove }) {
   );
 }
 
+/* A step's identity, which the document does not have and cannot be given: the
+   wire addresses a path's steps by where they are, and `{name, source}` is
+   closed. So it is minted here, lives exactly as long as the step does, and is
+   spent as the step's React key — which is what ties a step's own unsent text
+   to the step rather than to a place in a list.
+   Only this component knows that an edit *moved* a step rather than changed
+   one, so only this component can carry the ids across it. */
+let minted = 0;
+const mint = (count) =>
+  Array.from({ length: count }, () => `step-${(minted += 1)}`);
+
 export default function PathEditor({
   path,
   testid,
   onChange,
   leading,
   addLabel = "+ Add a step",
-  /* Who these steps belong to. A path has no identity of its own — its steps
-     are addressed by position — so the caller that does have one says it, and
-     a step is `<identity>:<position>`. Defaulted to the testid so a lone
-     editor still has one rather than silently sharing `undefined`. */
+  /* Who this whole editor belongs to — a node, a row. When that changes these
+     are different steps even if they look identical, so the ids are reminted.
+     Defaulted to the testid so a lone editor still has one rather than
+     silently sharing `undefined`. */
   identity = testid,
 }) {
   const segments = Array.isArray(path) ? path : [];
@@ -160,8 +167,32 @@ export default function PathEditor({
   const offset = leading ? 1 : 0;
   const steps = segments.slice(offset);
 
+  /* Held in a ref rather than state: nothing is rendered from it but the keys,
+     and the edits below have to adjust it in the same tick they report the
+     edit. A length that no longer matches means the path was replaced from
+     outside this editor, and then there is nothing to carry. */
+  const ids_ref = useRef({ identity: null, ids: [] });
+  if (
+    ids_ref.current.identity !== identity ||
+    ids_ref.current.ids.length !== steps.length
+  ) {
+    ids_ref.current = { identity, ids: mint(steps.length) };
+  }
+  const ids = ids_ref.current.ids;
+
   function replace(index, segment) {
+    /* The step keeps its id: its value changed, it did not move. */
     onChange(segments.map((old, i) => (i === index + offset ? segment : old)));
+  }
+
+  function remove(index) {
+    ids_ref.current = { identity, ids: ids.filter((_, i) => i !== index) };
+    onChange(segments.filter((_, i) => i !== index + offset));
+  }
+
+  function add() {
+    ids_ref.current = { identity, ids: [...ids, ...mint(1)] };
+    onChange([...segments, ""]);
   }
 
   return (
@@ -170,19 +201,18 @@ export default function PathEditor({
 
       {steps.map((segment, i) => (
         <Step
-          key={i}
+          key={ids[i]}
           segment={segment}
           index={i}
           testid={testid}
-          identity={`${identity}:${i + offset}`}
           onReplace={(next) => replace(i, next)}
-          onRemove={() => onChange(segments.filter((_, j) => j !== i + offset))}
+          onRemove={() => remove(i)}
         />
       ))}
 
       <Button
         label={addLabel}
-        onClick={() => onChange([...segments, ""])}
+        onClick={add}
         style={{
           alignSelf: "flex-start",
           fontSize: 11,
