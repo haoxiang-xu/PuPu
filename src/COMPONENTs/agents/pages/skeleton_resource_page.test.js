@@ -375,3 +375,112 @@ describe("editing an output on the real page", () => {
     expect(sent.nodes[0].config.execution.outputs).toEqual([]);
   });
 });
+
+describe("the whole-value and result-root choices on the real page", () => {
+  const open_end = async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc(), edit_token: "t1" }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockImplementation(async ({ document }) => result({ document, edit_token: "t2" }));
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+  };
+
+  test("a saved empty input path is not shown as nothing chosen", async () => {
+    /* The real store accepts `path: []` with no diagnostics, and it means
+       export the whole resolved input object. */
+    const whole = doc();
+    whole.nodes[1].config.execution.outputs = [
+      { name: "all", source: { kind: "input", path: [] } },
+    ];
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: whole, edit_token: "t1" }));
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0").textContent).toMatch(
+      /Everything it was given/i,
+    );
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+  });
+
+  test("a hostile saved path renders the panel instead of taking it down", async () => {
+    /* The store keeps `[{toString: null}]`; composing it into a message threw
+       and the whole page went with it. */
+    const hostile = doc();
+    hostile.nodes[1].config.execution.outputs = [
+      { name: "a", source: { kind: "input", path: [{ toString: null }] } },
+    ];
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: hostile, edit_token: "t1" }));
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    expect(screen.getByTestId("output-row-0-unreadable")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-save-state")).toBeInTheDocument();
+  });
+
+  const open_with_output = async (source) => {
+    const loaded = doc();
+    loaded.nodes[1].config.execution.outputs = [{ name: "a", source }];
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: loaded, edit_token: "t1" }));
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+  };
+
+  test("a named first step offers deeper steps", async () => {
+    await open_with_output({ kind: "input", path: ["payload"] });
+    expect(screen.getByText(/Go deeper/)).toBeInTheDocument();
+  });
+
+  test("the whole object has no deeper steps to offer", async () => {
+    /* There is no inside to reach into, and offering one produced a first
+       segment that named no input. */
+    await open_with_output({ kind: "input", path: [] });
+    expect(screen.queryByText(/Go deeper/)).not.toBeInTheDocument();
+  });
+
+  test("a result naming a field the producer does not have is said on the row", async () => {
+    await open_end();
+    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    /* A Start's result is the caller's, so nothing is claimed about it. */
+    expect(screen.getByTestId("output-row-0-result-unknown")).toBeInTheDocument();
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+  });
+
+  test("a saved output keeps the whole-object path exactly as it was", async () => {
+    await open_with_output({ kind: "input", path: [] });
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockImplementation(async ({ document }) => result({ document, edit_token: "t2" }));
+    within(screen.getByTestId("output-row-0")).getByPlaceholderText("name");
+    fireEvent.change(
+      within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"),
+      { target: { value: "all" } },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
+    expect(sent.nodes[1].config.execution.outputs).toEqual([
+      { name: "all", source: { kind: "input", path: [] } },
+    ]);
+  });
+});

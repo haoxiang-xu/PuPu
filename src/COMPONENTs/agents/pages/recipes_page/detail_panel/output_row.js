@@ -17,9 +17,18 @@ import { output_mapping_is_editable } from "../skeleton_io";
  *
  * On the input side the first step is picked from this node's own declared
  * inputs, because `output_problem` refuses a path that opens on anything else.
- * On the result side there is nothing to pick from: a result's shape is known
- * only once the node has run, so the runtime makes no static promise about it
- * and neither does this row. */
+ * On the result side it is picked too wherever the runtime admits a closed
+ * shape — an Agent's `{message, context}`, a Tool Call's `{result, ok, error}`,
+ * a Skill Read's `{content, name}`. An earlier round of this row claimed a
+ * result's shape is knowable only after it has run, and that was wrong for
+ * most node types; where it is genuinely true the reason differs per type and
+ * is shown instead of being left implicit. See `skeleton_result_roots`.
+ *
+ * Either side can also export the whole object. `map_outputs` reads an empty
+ * path as the value itself, the store accepts it with no diagnostic, and it
+ * was previously inexpressible here: the picker showed "Select..." and offered
+ * only named fields, so a legal source could neither be understood nor
+ * returned to once left. */
 
 const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
@@ -34,6 +43,49 @@ const KIND_CAPTION = {
   result: "Read from the node's own result once it has run.",
 };
 
+const WHOLE = "\u0000whole";
+const WHOLE_INPUT = "Everything it was given";
+const WHOLE_RESULT = "The whole result";
+
+/* The first step, where the runtime admits a closed set of them. The whole
+   object sits in the same list rather than beside it, because choosing between
+   "the value" and "a field of the value" is one choice, and separating them is
+   what made the empty path a dead end. */
+function RootPicker({ roots, wholeLabel, path, onPath }) {
+  /* A root the inventory does not hold — a loaded `result: ["typo"]`, or a
+     list position where a name belongs — selects nothing. Showing it as chosen
+     would have the control vouch for an address that does not exist; the row's
+     problem says what is actually wrong. */
+  const first = path[0];
+  const value =
+    path.length === 0
+      ? WHOLE
+      : typeof first === "string" && roots.includes(first)
+        ? first
+        : "";
+  return (
+    <Select
+      options={[
+        { value: WHOLE, label: wholeLabel },
+        ...roots.map((name) => ({ value: name, label: name })),
+      ]}
+      value={value}
+      set_value={(next) =>
+        onPath(next === WHOLE ? [] : [next, ...path.slice(1)])
+      }
+      filterable={roots.length > 8}
+      style={{
+        width: "100%",
+        fontSize: 11.5,
+        paddingVertical: 4,
+        paddingHorizontal: 6,
+        borderRadius: 5,
+        gap: 4,
+      }}
+    />
+  );
+}
+
 const START_RESULT_CAPTION =
   "A Start's result is what the run was called with, so this reads from the run's own inputs.";
 
@@ -46,6 +98,7 @@ export default function OutputRow({
   nodeType,
   kinds,
   inputNames,
+  resultRoots,
   problems,
   isDark,
   onChange,
@@ -59,6 +112,14 @@ export default function OutputRow({
   const editable = output_mapping_is_editable(mapping);
   const path = Array.isArray(source.path) ? source.path : [];
   const rowProblems = problems || [];
+  /* Null means the first step is typed rather than picked: only a result whose
+     shape the runtime does not admit as closed. */
+  const roots =
+    kind === "input"
+      ? inputNames
+      : resultRoots && resultRoots.known
+        ? resultRoots.roots
+        : null;
 
   function set_source(next) {
     onChange({ ...mapping, source: { ...source, ...next } });
@@ -150,44 +211,47 @@ export default function OutputRow({
         <span style={CAPTION}>{KIND_CAPTION[kind]}</span>
       )}
 
-      {editable && kind === "input" && inputNames.length === 0 && (
-        <span data-testid={`output-row-${index}-no-inputs`} style={CAPTION}>
-          This node reads nothing yet, so it has nothing to pass on. Add an
-          input above first.
-        </span>
-      )}
-
-      {editable && kind === "input" && inputNames.length > 0 && (
-        <PathEditor
-          path={path}
-          testid={`output-row-${index}`}
-          onChange={(next) => set_source({ path: next })}
-          addLabel="+ Go deeper"
-          leading={
-            <Select
-              options={inputNames.map((name) => ({ value: name, label: name }))}
-              value={typeof path[0] === "string" ? path[0] : ""}
-              set_value={(name) => set_source({ path: [name, ...path.slice(1)] })}
-              filterable={inputNames.length > 8}
-              style={{
-                width: "100%",
-                fontSize: 11.5,
-                paddingVertical: 4,
-                paddingHorizontal: 6,
-                borderRadius: 5,
-                gap: 4,
-              }}
+      {editable && roots !== null && (
+        <>
+          <RootPicker
+            roots={roots}
+            wholeLabel={kind === "input" ? WHOLE_INPUT : WHOLE_RESULT}
+            path={path}
+            onPath={(next) => set_source({ path: next })}
+          />
+          {/* The whole object has no inside to reach into, so there are no
+              deeper steps to offer. */}
+          {path.length > 0 && (
+            <PathEditor
+              path={path}
+              testid={`output-row-${index}`}
+              onChange={(next) => set_source({ path: next })}
+              addLabel="+ Go deeper"
+              leading={<span />}
             />
-          }
-        />
+          )}
+          {kind === "input" && inputNames.length === 0 && (
+            <span data-testid={`output-row-${index}-no-inputs`} style={CAPTION}>
+              This node reads nothing yet, so everything it was given is an
+              empty object. Add an input above to export one by name.
+            </span>
+          )}
+        </>
       )}
 
-      {editable && kind === "result" && (
-        <PathEditor
-          path={path}
-          testid={`output-row-${index}`}
-          onChange={(next) => set_source({ path: next })}
-        />
+      {editable && roots === null && (
+        <>
+          <PathEditor
+            path={path}
+            testid={`output-row-${index}`}
+            onChange={(next) => set_source({ path: next })}
+          />
+          {resultRoots && resultRoots.reason && (
+            <span data-testid={`output-row-${index}-result-unknown`} style={CAPTION}>
+              {resultRoots.reason}
+            </span>
+          )}
+        </>
       )}
 
       {!editable && (

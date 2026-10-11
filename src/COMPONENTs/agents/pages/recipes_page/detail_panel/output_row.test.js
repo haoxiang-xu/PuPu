@@ -93,9 +93,11 @@ describe("switching which side the value comes from", () => {
 
 describe("the input side picks its first step", () => {
   test("the picker offers this node's own declared inputs", () => {
+    /* The whole object leads the list: choosing between the value and a field
+       of it is one choice. Written before that option existed. */
     show(mapping("input", ["question"]));
     const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
-    expect(options).toEqual(["question", "context"]);
+    expect(options).toEqual(["\u0000whole", "question", "context"]);
   });
 
   test("picking a different input keeps the deeper steps", () => {
@@ -187,5 +189,130 @@ describe("problems", () => {
     const { onRemove } = show(mapping("result", []));
     fireEvent.click(screen.getByLabelText("Remove a"));
     expect(onRemove).toHaveBeenCalled();
+  });
+});
+
+describe("the whole value is a choice, on both sides", () => {
+  /* `map_outputs` with an empty path exports the whole object, including an
+   * empty one. The real store accepts `path: []` with no diagnostics, so it is
+   * a legal source the editor was simply unable to express: it rendered as
+   * "Select..." and named inputs were the only options. */
+  test("an empty input-side path is named, not shown as nothing chosen", () => {
+    show(mapping("input", []));
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+      "\u0000whole",
+    );
+  });
+
+  test("the whole object is offered alongside the named inputs", () => {
+    show(mapping("input", ["question"]));
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).toContain("\u0000whole");
+    expect(options).toContain("question");
+  });
+
+  test("going back to the whole object from a named input is possible", () => {
+    const { onChange } = show(mapping("input", ["question", "body"]));
+    fireEvent.change(screen.getAllByTestId("select")[1], {
+      target: { value: "\u0000whole" },
+    });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "input", path: [] },
+    });
+  });
+
+  test("a node with no inputs can still export everything it was given", () => {
+    /* The old caption said this node "has nothing to pass on", which was not
+       true — it can export the whole object, which is empty. The caption stays
+       but now says that instead of refusing. */
+    show(mapping("input", []), { inputNames: [] });
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+      "\u0000whole",
+    );
+    expect(screen.getByTestId("output-row-0-no-inputs").textContent).toMatch(
+      /empty object/i,
+    );
+  });
+
+  test("the whole object has no deeper steps to add", () => {
+    show(mapping("input", []));
+    expect(screen.queryByText(/Go deeper/)).not.toBeInTheDocument();
+  });
+
+  test("a named input does offer deeper steps", () => {
+    show(mapping("input", ["question"]));
+    expect(screen.getByText(/Go deeper/)).toBeInTheDocument();
+  });
+});
+
+describe("a declared result is picked, not typed", () => {
+  /* The runtime admits exactly these roots, so typing one is typing into a
+   * closed set: `result: ["typo"]` draws no diagnostic and fails at run time
+   * with `missing_value`. */
+  test("an Agent offers message and context", () => {
+    show(mapping("result", ["message"]), {
+      nodeType: "agent",
+      resultRoots: { known: true, roots: ["message", "context"] },
+    });
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).toEqual(["\u0000whole", "message", "context"]);
+  });
+
+  test("a Tool Call offers result, ok and error", () => {
+    show(mapping("result", ["ok"]), {
+      nodeType: "tool_call",
+      resultRoots: { known: true, roots: ["result", "ok", "error"] },
+    });
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).toEqual(["\u0000whole", "result", "ok", "error"]);
+  });
+
+  test("picking a root keeps the deeper steps", () => {
+    const { onChange } = show(mapping("result", ["context", "usage"]), {
+      nodeType: "agent",
+      resultRoots: { known: true, roots: ["message", "context"] },
+    });
+    fireEvent.change(screen.getAllByTestId("select")[1], { target: { value: "message" } });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: ["message", "usage"] },
+    });
+  });
+
+  test("a Code node still types its path, and says why", () => {
+    show(mapping("result", ["anything"]), {
+      nodeType: "code",
+      resultRoots: { known: false, reason: "Code returns whatever its own source returns." },
+    });
+    expect(screen.getAllByTestId("select")).toHaveLength(1); /* the side picker only */
+    expect(screen.getByPlaceholderText("field")).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
+      /whatever its own source returns/i,
+    );
+  });
+
+  test("a loaded root that is not in the inventory is not silently accepted", () => {
+    show(mapping("result", ["typo"]), {
+      nodeType: "agent",
+      resultRoots: { known: true, roots: ["message", "context"] },
+      problems: [{ message: "An Agent produces no result named \"typo\"." }],
+    });
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe("");
+    expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(/no result named/);
+  });
+
+  test("the whole result stays available where the roots are known", () => {
+    const { onChange } = show(mapping("result", ["message"]), {
+      nodeType: "agent",
+      resultRoots: { known: true, roots: ["message", "context"] },
+    });
+    fireEvent.change(screen.getAllByTestId("select")[1], {
+      target: { value: "\u0000whole" },
+    });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: [] },
+    });
   });
 });

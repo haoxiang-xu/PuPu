@@ -119,7 +119,8 @@ describe("which side a row may read from", () => {
   test("a node that runs has both sides", () => {
     expect(output_source_kinds_for("agent")).toEqual(["input", "result"]);
     show(node("agent", { outputs: [mapping("a", "result", [])] }));
-    expect(screen.getByTestId("select")).toBeInTheDocument();
+    /* Two pickers now: the side, then the result root an Agent declares. */
+    expect(screen.getAllByTestId("select")).toHaveLength(2);
   });
 
   test("a type with no outputs offers no sides", () => {
@@ -289,5 +290,167 @@ describe("output_surface_problems mirrors the runtime and nothing more", () => {
        two messages for one defect. */
     const n = node("end", { outputs: [{ name: "a", source: { path: [] } }] });
     expect(output_surface_problems(n, node_output_mappings(n))).toEqual([]);
+  });
+});
+
+describe("a malformed first step must not be coerced into a message", () => {
+  /* The store keeps `path: [{toString: null}]` and returns `invalid_path` for
+   * it. Composing "no input named ${first}" converts it to a string, and the
+   * conversion throws before any diagnostic can be shown — the row's own
+   * editability guard never runs, because the section crashes first.
+   *
+   * This is the same defect as the earlier `ref` path residual, in a new
+   * place: an unvalidated segment reached a template literal. */
+  const hostile = [
+    ["an object with toString nulled", { toString: null }],
+    ["an object with toString throwing", { toString() { throw new Error("no"); } }],
+    ["an object with valueOf nulled", { toString: null, valueOf: null }],
+    ["a symbol-like object", Object.create(null)],
+  ];
+
+  test.each(hostile)("%s does not throw while composing problems", (_label, segment) => {
+    const n = node("agent", {
+      inputs: [{ name: "q", value: {}, missing: "error" }],
+      outputs: [{ name: "a", source: { kind: "input", path: [segment] } }],
+    });
+    expect(() => output_surface_problems(n, node_output_mappings(n))).not.toThrow();
+  });
+
+  test.each(hostile)("%s does not throw while rendering the section", (_label, segment) => {
+    expect(() =>
+      show(
+        node("agent", {
+          inputs: [{ name: "q", value: {}, missing: "error" }],
+          outputs: [{ name: "a", source: { kind: "input", path: [segment] } }],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  test("the row is shown as unreadable, which is what the path validator says", () => {
+    show(
+      node("agent", {
+        inputs: [{ name: "q", value: {}, missing: "error" }],
+        outputs: [{ name: "a", source: { kind: "input", path: [{ toString: null }] } }],
+      }),
+    );
+    expect(screen.getByTestId("output-row-0-unreadable")).toBeInTheDocument();
+  });
+
+  test("the undeclared-input message is left to a segment that can be named", () => {
+    /* A usable segment still gets the specific message. */
+    const n = node("agent", {
+      inputs: [{ name: "q", value: {}, missing: "error" }],
+      outputs: [{ name: "a", source: { kind: "input", path: ["answer"] } }],
+    });
+    expect(output_surface_problems(n, node_output_mappings(n))[0].message).toMatch(
+      /no input named "answer"/,
+    );
+  });
+
+  test("an unusable segment is reported by the wire check alone", () => {
+    /* `invalid_path` already says it. A second message about a name would be
+       two complaints for one defect, and would need the coercion to say it. */
+    const n = node("agent", {
+      inputs: [{ name: "q", value: {}, missing: "error" }],
+      outputs: [{ name: "a", source: { kind: "input", path: [{ toString: null }] } }],
+    });
+    expect(output_surface_problems(n, node_output_mappings(n))).toEqual([]);
+  });
+});
+
+describe("a result root the producer does not have", () => {
+  /* The static validator never looks at the result side, so these drew no
+   * diagnostic at all and failed only once the node ran. */
+  test("an Agent is told which name is wrong", () => {
+    show(node("agent", { outputs: [mapping("a", "result", ["typo"])] }));
+    expect(screen.getByTestId("output-row-0-problem-0").textContent).toBe(
+      'An Agent produces no result named "typo".',
+    );
+  });
+
+  test.each([
+    ["agent", "message"],
+    ["agent", "context"],
+    ["tool_call", "result"],
+    ["tool_call", "ok"],
+    ["tool_call", "error"],
+    ["skill_read", "content"],
+    ["skill_read", "name"],
+  ])("%s accepts %s", (type, root) => {
+    show(node(type, { outputs: [mapping("a", "result", [root])] }));
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+  });
+
+  test("a Skill Read's stripped metadata is not a choice", () => {
+    /* `_skeleton_skill` exists on the raw result and is removed before
+       publication, so mapping it reads nothing. */
+    show(node("skill_read", { outputs: [mapping("a", "result", ["_skeleton_skill"])] }));
+    expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(
+      /no result named "_skeleton_skill"/,
+    );
+  });
+
+  test("the whole result is never refused", () => {
+    show(node("agent", { outputs: [mapping("a", "result", [])] }));
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+  });
+
+  test("a Code node's result is not second-guessed", () => {
+    show(node("code", { outputs: [mapping("a", "result", ["anything"])] }));
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
+      /whatever its own source returns/i,
+    );
+  });
+
+  test("a called Workflow's result is not second-guessed, and says why", () => {
+    show(node("workflow_call", { outputs: [mapping("a", "result", ["whatever"])] }));
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
+      /declared in its own document/i,
+    );
+  });
+
+  test("a Start's result is not second-guessed, and says why", () => {
+    show(node("start", { outputs: [mapping("text", "result", ["text"])] }));
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-result-unknown").textContent).toMatch(
+      /called from different places/i,
+    );
+  });
+
+  test("an Agent with a loaded output schema offers its fields too", () => {
+    const n = {
+      id: "n",
+      type: "agent",
+      config: {
+        execution: { inputs: [], outputs: [mapping("a", "result", ["score"])] },
+        kernel: { json_schema: { type: "object", properties: { score: { type: "number" } } } },
+      },
+    };
+    show(n);
+    expect(screen.queryByTestId("output-row-0-problem-0")).not.toBeInTheDocument();
+  });
+
+  test("an Agent with no output schema does not offer schema fields", () => {
+    show(node("agent", { outputs: [mapping("a", "result", ["score"])] }));
+    expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(
+      /no result named "score"/,
+    );
+  });
+
+  test("a list position cannot name a field of a result object", () => {
+    show(node("agent", { outputs: [mapping("a", "result", [0])] }));
+    expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(
+      /list position cannot name a field/i,
+    );
+  });
+
+  test("a hostile first segment on the result side is left to the path check", () => {
+    expect(() =>
+      show(node("agent", { outputs: [mapping("a", "result", [{ toString: null }])] })),
+    ).not.toThrow();
+    expect(screen.getByTestId("output-row-0-unreadable")).toBeInTheDocument();
   });
 });

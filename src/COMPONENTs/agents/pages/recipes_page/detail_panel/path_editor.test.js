@@ -74,20 +74,24 @@ describe("a step says whether it is a field name or a list position", () => {
     expect(onChange).toHaveBeenCalledWith(["0"]);
   });
 
-  test("a position box takes digits only", () => {
+  /* These two asserted the defect: they were written when the box stripped
+     non-digits, and they pinned "1x2" becoming position 12 and an emptied box
+     becoming position 0 as if those were the contract. Both are addresses the
+     author never asked for. */
+  test("a position box refuses text that is not a position", () => {
     const { onChange } = show({ path: [0] });
     fireEvent.change(screen.getByPlaceholderText("0"), {
       target: { value: "1x2" },
     });
-    expect(onChange).toHaveBeenCalledWith([12]);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
-  test("an emptied position box is zero, not NaN", () => {
+  test("an emptied position box is not position zero", () => {
     const { onChange } = show({ path: [4] });
     fireEvent.change(screen.getByPlaceholderText("0"), {
       target: { value: "" },
     });
-    expect(onChange).toHaveBeenCalledWith([0]);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   test("path_segment_kind reads the stored type, not the text", () => {
@@ -161,5 +165,73 @@ describe("a leading step the caller renders itself", () => {
     );
     fireEvent.click(screen.getByLabelText("Remove step 1"));
     expect(onChange).toHaveBeenCalledWith(["answer", 0]);
+  });
+});
+
+describe("a position the wire would refuse is not quietly turned into another one", () => {
+  /* Stripping non-digits turned -1 into [1] and 1.5 into [15]: both are valid
+   * addresses, neither is the one the author typed, and nothing said so. A
+   * wrong address that reads an existing element is worse than a refused one. */
+  test.each([
+    ["a negative position", "-1"],
+    ["a fractional position", "1.5"],
+    ["an expression", "1+1"],
+    ["a word", "first"],
+    ["an exponent", "1e3"],
+  ])("%s is not written to the document", (_label, typed) => {
+    const { onChange } = show({ path: [7] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: typed } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("what was typed stays on screen to be corrected", () => {
+    show({ path: [7] });
+    const box = screen.getByPlaceholderText("0");
+    fireEvent.change(box, { target: { value: "-1" } });
+    expect(box.value).toBe("-1");
+  });
+
+  test("it says why nothing was stored", () => {
+    show({ path: [7] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    expect(screen.getByTestId("p-step-0-refused").textContent).toMatch(
+      /whole number|0 or more/i,
+    );
+  });
+
+  test("correcting it afterwards does store it", () => {
+    const { onChange } = show({ path: [7] });
+    const box = screen.getByPlaceholderText("0");
+    fireEvent.change(box, { target: { value: "-1" } });
+    fireEvent.change(box, { target: { value: "2" } });
+    expect(onChange).toHaveBeenLastCalledWith([2]);
+  });
+
+  test("a valid position is still stored as a number", () => {
+    const { onChange } = show({ path: [7] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "12" } });
+    expect(onChange).toHaveBeenCalledWith([12]);
+    expect(typeof onChange.mock.calls[0][0][0]).toBe("number");
+  });
+
+  test("an emptied box stores nothing and waits", () => {
+    /* Zero is a real address, not what an empty box means. */
+    const { onChange } = show({ path: [7] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "" } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("p-step-0-refused")).toBeInTheDocument();
+  });
+
+  test("switching the step to a field name clears the refusal", () => {
+    show({ path: [7] });
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    fireEvent.click(screen.getByLabelText(/switch to a field name/i));
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("a field name takes any text, including one that looks numeric", () => {
+    const { onChange } = show({ path: ["a"] });
+    fireEvent.change(screen.getByPlaceholderText("field"), { target: { value: "-1" } });
+    expect(onChange).toHaveBeenCalledWith(["-1"]);
   });
 });

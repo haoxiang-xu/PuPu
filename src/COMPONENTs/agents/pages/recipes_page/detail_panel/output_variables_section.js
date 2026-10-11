@@ -9,6 +9,7 @@ import {
   with_node_output_mappings,
 } from "../skeleton_document";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
+import { result_roots_for } from "../skeleton_result_roots";
 
 /* Output Variables: what this node passes on, and from where.
  *
@@ -17,10 +18,18 @@ import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
  * from the bottom of one panel to the top of the next.
  *
  * Nothing here decides admission. The store's `diagnose` and the runtime's
- * `validate_static_execution_io` do, and the two checks below only mirror them
- * so a row can say what is wrong with it before any round trip — the same
- * split the input rows use. The mirror is deliberately narrow: it repeats only
- * what is statically knowable, and a result's shape is not. */
+ * `validate_static_execution_io` do, and `output_surface_problems` only mirrors
+ * them so a row can say what is wrong with it before any round trip — the same
+ * split the input rows use.
+ *
+ * `result_root_problems` is not a mirror, and the difference is worth keeping
+ * visible. The static validator never looks at the result side at all, so a
+ * result naming a field its producer does not have passes every check and
+ * fails only once the node runs. The runtime does admit a closed result shape
+ * for most node types, so saying it here is saying something true sooner —
+ * but it is the builder speaking, not a repetition of a check that exists. An
+ * earlier round of this file claimed a result's shape was not statically
+ * knowable at all, which was wrong for every type but three. */
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -59,11 +68,72 @@ export function output_surface_problems(node, mappings) {
     if (source.kind !== "input") return;
     const [first] = Array.isArray(source.path) ? source.path : [];
     if (first === undefined) return; /* The whole inputs object; nothing to name. */
+    /* A segment of any other shape is already refused by the path check as
+       `invalid_path`, and it must not be touched to say so a second time. The
+       store keeps `[{toString: null}]`, and composing it into a message
+       converts it to a string, which throws — taking the whole panel with it
+       before any diagnostic could be shown. */
+    if (typeof first === "number") {
+      problems.push({
+        code: "missing_value",
+        where: `${where}.path[0]`,
+        message: "A list position cannot name an input. Choose one by name.",
+      });
+      return;
+    }
+    if (typeof first !== "string") return;
     if (!names.includes(first)) {
       problems.push({
         code: "missing_value",
         where: `${where}.path[0]`,
         message: `This node has no input named "${first}".`,
+      });
+    }
+  });
+  return problems;
+}
+
+const PRODUCER_LABEL = {
+  agent: "An Agent",
+  tool_call: "A Tool Call",
+  skill_read: "A Skill Read",
+};
+
+/* What the runtime will refuse, said earlier.
+ *
+ * This one is not a mirror: the static validator never looks at the result
+ * side, so `result: ["typo"]` on an Agent draws no diagnostic at all and fails
+ * only once the node runs, with `missing_value` at `mappings[0].source.path`.
+ * The roots are a closed set admitted by the runtime, so saying so here is
+ * saying something true sooner, not inventing a rule. */
+export function result_root_problems(node, mappings) {
+  const roots = result_roots_for(node);
+  if (!roots.known) return [];
+  const label = PRODUCER_LABEL[node && node.type] || "This node";
+  const problems = [];
+  mappings.forEach((mapping, index) => {
+    const source = mapping && mapping.source;
+    if (!source || typeof source !== "object" || source.kind !== "result") return;
+    const [first] = Array.isArray(source.path) ? source.path : [];
+    if (first === undefined) return; /* The whole result. */
+    const where = `mappings[${index}].source.path[0]`;
+    if (typeof first !== "string") {
+      /* A position cannot name a field of an object, and a shape the path
+         check already refused is left to it. */
+      if (typeof first === "number") {
+        problems.push({
+          code: "missing_value",
+          where,
+          message: `${label}'s result is an object, so a list position cannot name a field of it.`,
+        });
+      }
+      return;
+    }
+    if (!roots.roots.includes(first)) {
+      problems.push({
+        code: "missing_value",
+        where,
+        message: `${label} produces no result named "${first}".`,
       });
     }
   });
@@ -84,9 +154,11 @@ export default function OutputVariablesSection({
   const mappings = node_output_mappings(node);
   const kinds = output_source_kinds_for(node.type);
   const names = input_names(node);
+  const roots = result_roots_for(node);
   const composed = [
     ...output_mapping_problems(mappings),
     ...output_surface_problems(node, mappings),
+    ...result_root_problems(node, mappings),
   ];
 
   function set_mappings(next) {
@@ -151,6 +223,7 @@ export default function OutputVariablesSection({
           nodeType={node.type}
           kinds={kinds}
           inputNames={names}
+          resultRoots={roots}
           isDark={isDark}
           problems={[
             ...composed.filter((problem) =>
