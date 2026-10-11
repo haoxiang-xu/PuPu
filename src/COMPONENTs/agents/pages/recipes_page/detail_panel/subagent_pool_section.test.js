@@ -130,6 +130,15 @@ async function show(node, options = {}) {
   return { onChange, view };
 }
 
+/* Opening the picker starts a fresh read, and the list is not offered until
+   that read is the current answer — so a test opens it the way a person does,
+   by waiting the moment out. */
+async function open_picker() {
+  await act(async () => {
+    fireEvent.click(screen.getByText("+ Add an Agent"));
+  });
+}
+
 const written = (onChange, call = 0) =>
   node_subagents(onChange.mock.calls[call][0].nodes[1]);
 
@@ -165,7 +174,7 @@ describe("a pool that holds nothing", () => {
 describe("referencing an Agent from the library", () => {
   test("the entry written out carries every field the wire closes", async () => {
     const { onChange } = await show(pool({ subagents: [] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange)).toEqual([
       {
@@ -185,7 +194,7 @@ describe("referencing an Agent from the library", () => {
 
   test("it references the resource id, never the name", async () => {
     const { onChange } = await show(pool({ subagents: [] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Checker"));
     expect(written(onChange)[0].source).toEqual({
       kind: "agent_ref",
@@ -197,7 +206,7 @@ describe("referencing an Agent from the library", () => {
     /* The negative that matters. A pool holds Agents; a Workflow reaching an
        entry is a definition the store refuses at Run with `wrong_kind`. */
     const { onChange } = await show(pool({ subagents: [] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.queryByText("Nightly flow")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Reference Nightly flow/)).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
@@ -205,14 +214,14 @@ describe("referencing an Agent from the library", () => {
 
   test("neither is this Agent itself, nor an archived one", async () => {
     await show(pool({ subagents: [] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.queryByText("Reviewer")).not.toBeInTheDocument();
     expect(screen.queryByText("Retired")).not.toBeInTheDocument();
   });
 
   test("and the absence is explained rather than left to be noticed", async () => {
     await show(pool({ subagents: [] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.getByTestId("subagent-picker-withheld").textContent).toMatch(
       /3 other resources are not offered/i,
     );
@@ -220,7 +229,7 @@ describe("referencing an Agent from the library", () => {
 
   test("the same Agent can be referenced twice, under a free name", async () => {
     const { onChange } = await show(pool({ subagents: [entry()] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange).map((row) => row.name)).toEqual([
       "Summarizer",
@@ -236,7 +245,7 @@ describe("referencing an Agent from the library", () => {
     await show(pool({ subagents: [] }), {
       library: { ok: false, reason: "unavailable", error: { code: "bridge_unavailable" } },
     });
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.getByTestId("subagent-library-unavailable").textContent).toMatch(
       /not reachable in this build/i,
     );
@@ -251,7 +260,7 @@ describe("referencing an Agent from the library", () => {
         error: { code: "skeleton_store_failed", message: "the store is locked", path: [] },
       },
     });
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.getByTestId("subagent-library-failed").textContent).toMatch(/locked/);
   });
 });
@@ -487,7 +496,7 @@ describe("the library is read again on the way into the picker", () => {
     await show(pool({ subagents: [] }));
     expect(list_resources).toHaveBeenCalledTimes(1);
     await act(async () => {
-      fireEvent.click(screen.getByText("+ Add an Agent"));
+      await open_picker();
     });
     expect(list_resources).toHaveBeenCalledTimes(2);
   });
@@ -495,7 +504,7 @@ describe("the library is read again on the way into the picker", () => {
   test("closing it again does not", async () => {
     await show(pool({ subagents: [] }));
     await act(async () => {
-      fireEvent.click(screen.getByText("+ Add an Agent"));
+      await open_picker();
     });
     fireEvent.click(screen.getByText("Cancel"));
     expect(list_resources).toHaveBeenCalledTimes(2);
@@ -503,12 +512,12 @@ describe("the library is read again on the way into the picker", () => {
 
   test("an Agent that has since appeared is offered", async () => {
     await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: [] } } });
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
     list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
     fireEvent.click(screen.getByText("Cancel"));
     await act(async () => {
-      fireEvent.click(screen.getByText("+ Add an Agent"));
+      await open_picker();
     });
     expect(screen.getByLabelText("Reference Summarizer")).toBeInTheDocument();
   });
@@ -589,7 +598,7 @@ describe("a draft the store accepted but no control can show", () => {
 
   test("and an Agent can still be added beside it", async () => {
     const { onChange } = await show(pool({ subagents: [null] }));
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     fireEvent.click(screen.getByLabelText("Reference Summarizer"));
     expect(written(onChange)).toHaveLength(2);
     expect(written(onChange)[1].source.agent_id).toBe("res-1");
@@ -678,7 +687,7 @@ describe("a late reply from an older read", () => {
     );
     list_resources.mockResolvedValue({ ok: true, data: { resources: [] } });
     await act(async () => {
-      fireEvent.click(screen.getByText("+ Add an Agent"));
+      await open_picker();
     });
     expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
 
@@ -742,7 +751,7 @@ describe("the library is data too", () => {
 
   test("a name that cannot become text does not take the picker down", async () => {
     await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: ODD } } });
-    fireEvent.click(screen.getByText("+ Add an Agent"));
+    await open_picker();
     expect(screen.getByLabelText("Reference res-1")).toBeInTheDocument();
   });
 
@@ -788,5 +797,204 @@ describe("a legacy entry's own fields were never validated either", () => {
     await show(pool({ legacy_fields: { subagents: { "0": { kind: "inline" } } } }));
     expect(screen.getByTestId("subagent-pool-legacy")).toBeInTheDocument();
     expect(screen.queryByTestId("subagent-legacy-entry-0")).not.toBeInTheDocument();
+  });
+});
+
+describe("a mode that cannot become a property key", () => {
+  /* The guard was written against `__proto__` and read the table with
+     `hasOwnProperty.call(table, key)` — which coerces the key, so the lookup
+     itself threw on a value that refuses to be text. Guarding what the table
+     answers was not enough; the question had to be admissible too. */
+  test("does not take the panel down at the caption lookup", async () => {
+    await show(pool({ subagents: [entry({ allowed_modes: [{ toString: null }] })] }));
+    expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-problem-0").textContent).toMatch(
+      /unknown mode/i,
+    );
+  });
+});
+
+describe("a draft that already holds duplicates can be repaired a step at a time", () => {
+  /* Three entries sharing one id. The boundary refused any list that still
+     held a duplicate, so the first repair could never happen: removing one of
+     three leaves two, which it also refused. Entry ids have no edit control,
+     so removal is the only repair there is — and it was the one blocked. */
+  const three = [
+    entry({ id: "dup", name: "A" }),
+    entry({ id: "dup", name: "B" }),
+    entry({ id: "dup", name: "C" }),
+  ];
+
+  test("removing one of three writes the remaining two", async () => {
+    const { onChange } = await show(pool({ subagents: three }));
+    fireEvent.click(screen.getByLabelText("Remove A"));
+    expect(written(onChange).map((row) => row.name)).toEqual(["B", "C"]);
+  });
+
+  test("and removing again gets down to one", async () => {
+    const { onChange } = await show(pool({ subagents: three.slice(0, 2) }));
+    fireEvent.click(screen.getByLabelText("Remove B"));
+    expect(written(onChange).map((row) => row.name)).toEqual(["A"]);
+  });
+
+  test("an unrelated edit beside them is not held back either", async () => {
+    const { onChange } = await show(
+      pool({ subagents: [...three.slice(0, 2), entry({ id: "sa9", name: "Unique" })] }),
+    );
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-2")).getByPlaceholderText(
+        "what it is for (optional)",
+      ),
+      { target: { value: "checks the summary" } },
+    );
+    expect(written(onChange)[2].description).toBe("checks the summary");
+  });
+
+  test("but a collision this edit would create is still refused", async () => {
+    /* The point of the boundary: the composer is never handed a collision it
+       did not already have. */
+    const { onChange } = await show(
+      pool({ subagents: [entry({ id: "sa1", name: "A" }), entry({ id: "sa2", name: "B" })] }),
+    );
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("A"),
+      { target: { value: "B" } },
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("an identity is not two names with a colon between them", () => {
+  /* `pool:a` is a legal node id and `a:b` a legal entry id — the real store
+     saves and reloads both — so `resource:pool:a:b` is the identity of two
+     different things. Held text was drawn over the wrong entry again, one
+     layer out from the last time. */
+  const document_with = (node_id, entry_id) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "parent",
+    name: "Reviewer",
+    nodes: [
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      {
+        id: node_id,
+        type: "subagent_pool",
+        config: {
+          subagents: [
+            entry({ id: entry_id, name: "Summarizer" }),
+            entry({ id: `${entry_id}-2`, name: "Checker" }),
+          ],
+        },
+      },
+    ],
+    edges: [],
+  });
+
+  const Panel = ({ node_id, entry_id }) => {
+    const document = document_with(node_id, entry_id);
+    return (
+      <SubagentPoolSection
+        document={document}
+        node={document.nodes[1]}
+        isDark={false}
+        onChange={() => {}}
+      />
+    );
+  };
+
+  test("two tuples that concatenate alike are still two identities", async () => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const view = render(<Panel node_id="pool:a" entry_id="b" />);
+    await act(async () => {});
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("Summarizer"),
+      { target: { value: "Checker" } },
+    );
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+
+    view.rerender(<Panel node_id="pool" entry_id="a:b" />);
+    expect(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("Summarizer"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-entry-0-name-taken")).not.toBeInTheDocument();
+  });
+});
+
+describe("while a newer library is being read", () => {
+  /* Ordering the replies was not enough: the old answer stayed on screen and
+     stayed clickable, so an Agent the newer read would exclude could still be
+     referenced. An action has to be answered by the read that is current, not
+     by the one that has been superseded. */
+  test("the old candidates are not offered", async () => {
+    let settle = null;
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const onChange = jest.fn();
+    const node = pool({ subagents: [] });
+    render(
+      <SubagentPoolSection
+        document={doc(node)}
+        node={node}
+        isDark={false}
+        onChange={onChange}
+      />,
+    );
+    await act(async () => {});
+
+    list_resources.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        settle = () => resolve({ ok: true, data: { resources: [] } });
+      }),
+    );
+    fireEvent.click(screen.getByText("+ Add an Agent"));
+    expect(screen.getByTestId("subagent-library-reading")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reference Summarizer")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      settle();
+    });
+    expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
+  });
+});
+
+describe("a repair cannot deepen a collision either", () => {
+  test("a third claim on a name two entries already share is refused", async () => {
+    /* A set of colliding values cannot tell a repair that leaves two
+       duplicates from an edit that makes a third. The counts can. */
+    const { onChange } = await show(
+      pool({
+        subagents: [
+          entry({ id: "sa1", name: "A" }),
+          entry({ id: "sa2", name: "A" }),
+          entry({ id: "sa3", name: "B" }),
+        ],
+      }),
+    );
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-2")).getByDisplayValue("B"),
+      { target: { value: "A" } },
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("subagent-entry-2-name-taken")).toBeInTheDocument();
+  });
+
+  test("while removing one of them is still the way out", async () => {
+    const { onChange } = await show(
+      pool({ subagents: [entry({ id: "sa1", name: "A" }), entry({ id: "sa2", name: "A" })] }),
+    );
+    fireEvent.click(screen.getAllByLabelText("Remove A")[0]);
+    expect(written(onChange)).toHaveLength(1);
+  });
+});
+
+describe("a read that throws instead of answering", () => {
+  test("leaves the picker saying so rather than reading for ever", async () => {
+    await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: [] } } });
+    list_resources.mockRejectedValueOnce(new Error("the bridge went away"));
+    await open_picker();
+    expect(screen.queryByTestId("subagent-library-reading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("subagent-library-failed").textContent).toMatch(
+      /went away/,
+    );
   });
 });

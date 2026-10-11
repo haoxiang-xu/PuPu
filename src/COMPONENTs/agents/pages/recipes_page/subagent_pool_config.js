@@ -277,6 +277,45 @@ export function free_entry_name(taken, base) {
   return `${wanted} ${used.length + 3}`;
 }
 
+/* How many entries claim each name, or each id.
+ *
+ * Counted rather than collected: "this value already collides" and "it
+ * collides this many times" are different facts, and only the second can tell
+ * a repair that leaves two duplicates from an edit that makes a third. An
+ * entry that states neither takes no part — a draft can hold `null` where an
+ * entry should be, and it claims nothing. */
+export function entry_claims(list, key) {
+  const counts = new Map();
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    if (!is_object(entry) || typeof entry[key] !== "string") return;
+    counts.set(entry[key], (counts.get(entry[key]) || 0) + 1);
+  });
+  return counts;
+}
+
+/* Whether a write would make the pool's two unique fields worse than it found
+ * them.
+ *
+ * Not "whether the result has duplicates". A saved draft can hold three
+ * entries with one id — the store's format check asks nothing of a pool's
+ * contents — and refusing every list that still held a duplicate refused the
+ * first repair too, because removing one of three leaves two. Entry ids have
+ * no edit control, so removal is the only repair there is, and it was the one
+ * blocked; an unrelated edit elsewhere in the pool was blocked with it.
+ *
+ * So the rule is about claims: a value may end up claimed once, always, and
+ * beyond that only as many times as it already was. A removal always passes,
+ * an edit that touches neither field always passes, and nothing can add a
+ * claim to a name or an id that is already taken. */
+export function introduces_collision(before, next) {
+  return ["name", "id"].some((key) => {
+    const held = entry_claims(before, key);
+    return [...entry_claims(next, key).entries()].some(
+      ([value, count]) => count > Math.max(held.get(value) || 0, 1),
+    );
+  });
+}
+
 export function subagent_pool_problems(config, base = ["config"]) {
   const problems = [];
   if (!closed(config, base, [SUBAGENTS_CONFIG_KEY], problems)) return problems;

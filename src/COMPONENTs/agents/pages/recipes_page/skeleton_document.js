@@ -1,3 +1,5 @@
+import { own } from "./document_values";
+
 /* The Skeleton document the builder edits.
  *
  * Shapes read from `unchain/skeleton/schema.py` and `execution.py` on
@@ -60,17 +62,13 @@ export const WORKFLOW_FORBIDDEN_NODE_TYPES = Object.freeze([
   "hooks_pool",
 ]);
 
+
 const is_object = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/* A table read with a node's type, which comes out of a draft and can be
-   anything. `EXECUTION_KEYS_BY_TYPE["__proto__"]` is `Object.prototype` —
-   truthy, and with no `includes` — so a node of that type took the panel down
-   inside the code deciding which sections to draw. `is_skeleton_node` asks
-   only for a config object, so such a node does reach here. */
-function own(table, key) {
-  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
-}
+/* Every table here is read with a node's type, which comes out of a draft and
+   can be anything — `__proto__`, or a value that refuses to be a property key
+   at all. `own` is the one reader for that, in `document_values`. */
 
 /* ── Where the two IO lists live ─────────────────────────────────────────
  *

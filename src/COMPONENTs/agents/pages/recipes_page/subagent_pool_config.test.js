@@ -1,5 +1,7 @@
 import {
   SUBAGENT_ENTRY_KEYS,
+  entry_claims,
+  introduces_collision,
   free_entry_id,
   free_entry_name,
   new_subagent_entry,
@@ -99,5 +101,55 @@ describe("a legacy pool is not this wire", () => {
     );
     expect(codes).toContain("missing_field @ config.subagents");
     expect(codes).toContain("unknown_field @ config.legacy_fields");
+  });
+});
+
+describe("what a write to a pool may not make worse", () => {
+  /* The two unique fields, and a draft that already breaks them. The store's
+     format check asks nothing of a pool's contents, so three entries sharing
+     one id is a document that saves and reloads — and the author has to be
+     able to get out of it, one step at a time, with the only control there is
+     for an id: removal. */
+  const row = (id, name) => ({ id, name });
+  const three = [row("dup", "A"), row("dup", "B"), row("dup", "C")];
+
+  test("a removal never does", () => {
+    expect(introduces_collision(three, three.slice(1))).toBe(false);
+    expect(introduces_collision(three, [row("dup", "C")])).toBe(false);
+    expect(introduces_collision(three, [])).toBe(false);
+  });
+
+  test("an edit that touches neither field never does", () => {
+    const edited = three.map((entry, index) =>
+      index === 2 ? { ...entry, description: "later" } : entry,
+    );
+    expect(introduces_collision(three, edited)).toBe(false);
+  });
+
+  test("a new collision does", () => {
+    const two = [row("sa1", "A"), row("sa2", "B")];
+    expect(introduces_collision(two, [row("sa1", "A"), row("sa2", "A")])).toBe(true);
+    expect(introduces_collision(two, [row("sa1", "A"), row("sa1", "B")])).toBe(true);
+  });
+
+  test("and so does one more claim on a value that already collides", () => {
+    /* The part a set of colliding values cannot say. Two entries called `A`
+       and a third renamed onto it leaves the same set and a worse document. */
+    const two_of_a = [row("sa1", "A"), row("sa2", "A"), row("sa3", "B")];
+    const three_of_a = [row("sa1", "A"), row("sa2", "A"), row("sa3", "A")];
+    expect(introduces_collision(two_of_a, three_of_a)).toBe(true);
+  });
+
+  test("an entry that states nothing claims nothing", () => {
+    expect(introduces_collision([null, null], [null, null, null])).toBe(false);
+    expect(entry_claims([null, row("sa1", "A"), "text"], "name").get("A")).toBe(1);
+  });
+
+  test("the empty name is a name, and is counted like one", () => {
+    /* `""` is a legal name the wire allows, so two entries claiming it is a
+       collision like any other. */
+    expect(introduces_collision([row("sa1", "")], [row("sa1", ""), row("sa2", "")])).toBe(
+      true,
+    );
   });
 });

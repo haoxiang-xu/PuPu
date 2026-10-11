@@ -17,6 +17,7 @@ import {
   SUBAGENT_OUTPUT_MODES,
   free_entry_id,
   free_entry_name,
+  introduces_collision,
   new_subagent_entry,
   subagent_pool_problems,
 } from "../subagent_pool_config";
@@ -28,6 +29,7 @@ import {
   why_not_this_reference,
 } from "../skeleton_subagent_eligibility";
 import { is_unavailable, list_resources } from "../skeleton_resources";
+import { identity_of, own, safe_text } from "../document_values";
 
 /* The Subagent Pool: which Agents this one may call, and how.
  *
@@ -101,30 +103,10 @@ const MEMORY_LABEL = {
 const is_object = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/* A value out of a document, shown as text, without asking it what it is.
- *
- * `${value}`, `String(value)` and `[...].join(", ")` all call `toString`, and
- * a stored object can refuse: `{"toString": null}` round-trips through the
- * real store and throws "Cannot convert object to primitive value" — the
- * panel falling over inside the code about to explain the problem, which is
- * the shape this ticket keeps paying for. The value is kept and shown, the
- * diagnostic beside it says what it should have been, and nothing here asks
- * an object to be a string. */
-function safe_text(value) {
-  if (typeof value === "string") return value;
-  if (value === null) return "null";
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (typeof value === "undefined") return "nothing";
-  return Array.isArray(value) ? "a list" : "an unreadable value";
-}
-
-/* A table is not read with a name out of a document. `MODE_CAPTION[mode]`
-   where the mode came from the draft answers `Object.prototype` for
-   `__proto__` — truthy, not a string, and rendering it as a child takes the
-   panel down inside the sentence that was about to explain the mode. */
-function own(table, key) {
-  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
-}
+/* Reading a stored value — as text, or as a key, or as an identity — is
+   `document_values`' subject, and it is imported rather than restated: the
+   mode this panel used as a key threw on the lookup itself, and three other
+   readers in this page were sitting on the same copy of the rule. */
 
 /* What to call a resource from the library. Its name is a column of the
    store's own table, but it still arrives over IPC without its shape being
@@ -224,7 +206,13 @@ function EntryRow({
      stays mounted across a selection change — it is the same component in the
      same place — and text held against `sa1` alone followed the author from
      one pool to another and was drawn over that pool's own entry. */
-  const name = useTakenName(entry.name, taken, `${owner}:${safe_text(entry.id)}`);
+  /* An entry id is unique inside its pool and nowhere else, so the identity
+     text is held against is the whole tuple — the resource, the pool and the
+     entry — encoded rather than concatenated. `pool:a` is a legal node id and
+     `a:b` a legal entry id, both of which the real store saves and reloads,
+     and joining them with a colon made those two different things one
+     identity. */
+  const name = useTakenName(entry.name, taken, identity_of([...owner, entry.id]));
   const agent_id = entry_agent_id(entry);
   const referenced =
     library.status === "ready" && agent_id !== null
@@ -460,7 +448,12 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
      reference, and saying that an entry's reference is no longer there. A
      build that cannot reach the store says so rather than looking like an
      account with no Agents in it. */
-  const [library, setLibrary] = useState({ status: "loading", items: [], error: null });
+  const [library, setLibrary] = useState({
+    status: "loading",
+    items: [],
+    error: null,
+    reading: true,
+  });
   const [picking, setPicking] = useState(false);
   const alive = useRef(true);
   /* Which read is the current one. `alive` only knows about unmounting, so an
@@ -472,6 +465,11 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
   const read_library = useCallback(() => {
     const ticket = asked.current + 1;
     asked.current = ticket;
+    /* Ordering the replies was not enough. While a newer read is in flight the
+       previous answer is no longer the current one, and leaving it on screen
+       left an Agent the newer read would exclude one click from being
+       referenced. The picker says it is reading instead. */
+    setLibrary((previous) => ({ ...previous, reading: true }));
     return Promise.resolve(list_resources(false)).then((answer) => {
       if (!alive.current || ticket !== asked.current) return;
       if (answer && answer.ok) {
@@ -480,6 +478,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
           status: "ready",
           items: Array.isArray(data.resources) ? data.resources : [],
           error: null,
+          reading: false,
         });
         return;
       }
@@ -487,7 +486,15 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
         status: is_unavailable(answer) ? "unavailable" : "failed",
         items: [],
         error: (answer && answer.error) || null,
+        reading: false,
       });
+    }).catch((error) => {
+      /* The facade answers rather than throwing, which is its whole subject —
+         but a read that threw anyway would leave this reading for ever, and a
+         picker that says nothing while waiting for nothing is worse than one
+         that says it failed. */
+      if (!alive.current || ticket !== asked.current) return;
+      setLibrary({ status: "failed", items: [], error, reading: false });
     });
   }, []);
 
@@ -524,21 +531,10 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
   const withheld = library.items.length - offered.length;
 
   function set_entries(next) {
-    /* The composer is never handed a collision, on either unique field. The
-       name box is what tells the author; this is the belt at the boundary.
-     *
-     * Only entries that have a name or an id take part. A draft can hold a
-     * `null` entry — the store's format check asks nothing of a pool's
-     * contents — and reading `.name` off it threw, which is how adding an
-     * Agent beside a broken one failed instead of fixing the pool. */
-    const stated = (key) =>
-      next
-        .filter((entry) => is_object(entry) && typeof entry[key] === "string")
-        .map((entry) => entry[key]);
-    const next_names = stated("name");
-    const next_ids = stated("id");
-    if (new Set(next_names).size !== next_names.length) return;
-    if (new Set(next_ids).size !== next_ids.length) return;
+    /* The composer is never handed a collision it did not already have. The
+       name box is what tells the author; this is the belt at the boundary, and
+       the rule itself lives with the pool's other rules. */
+    if (introduces_collision(entries, next)) return;
     onChange(with_node_subagents(document, node.id, next));
   }
 
@@ -633,7 +629,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
               key={index}
               entry={entry}
               index={index}
-              owner={`${safe_text(owner_id)}:${safe_text(node.id)}`}
+              owner={[owner_id, node.id]}
               owner_id={owner_id}
               taken={names.filter(
                 (name, position) => position !== index && name !== null,
@@ -710,13 +706,19 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
         </span>
       )}
 
-      {!legacy && picking && library.status === "unavailable" && (
+      {!legacy && picking && library.reading && (
+        <span data-testid="subagent-library-reading" style={CAPTION}>
+          Reading the Agent library…
+        </span>
+      )}
+
+      {!legacy && picking && !library.reading && library.status === "unavailable" && (
         <span data-testid="subagent-library-unavailable" style={CAPTION}>
           {UNAVAILABLE_CAPTION}
         </span>
       )}
 
-      {!legacy && picking && library.status === "failed" && (
+      {!legacy && picking && !library.reading && library.status === "failed" && (
         <span data-testid="subagent-library-failed" style={REFUSED}>
           {`The Agent library could not be read, so nothing can be referenced: ${
             (library.error && library.error.message) || "the store refused the request."
@@ -724,7 +726,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
         </span>
       )}
 
-      {!legacy && picking && library.status === "ready" && (
+      {!legacy && picking && !library.reading && library.status === "ready" && (
         <div
           data-testid="subagent-picker"
           style={{ display: "flex", flexDirection: "column", gap: 4 }}

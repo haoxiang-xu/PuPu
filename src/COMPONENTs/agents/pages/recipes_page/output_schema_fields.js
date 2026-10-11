@@ -20,19 +20,13 @@
  * array is ordered and compared in order, because `required` and `enum` are
  * arrays whose order the runtime preserves. */
 
+import { own } from "./document_values";
+
 const is_object = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/* A table read with a name the author chose.
- *
- * `BOUNDS_BY_TYPE["__proto__"]` is `Object.prototype`, which is truthy, so
- * `(BOUNDS_BY_TYPE[type] || []).forEach` was not a function and the panel went
- * down inside the code that was about to say the type was unknown. Every table
- * in this file is read with a name out of a draft, so every read goes through
- * here. */
-function own(table, key) {
-  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
-}
+/* Every table in this file is read with a name out of a draft, so every read
+   goes through `own` — the one reader for that, in `document_values`. */
 
 /* `properties[name] = ...` is not how you add a property whose name the author
    chose. For `__proto__` it calls the prototype setter and adds nothing, so a

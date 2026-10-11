@@ -45,11 +45,10 @@
  *                   graph authored here may be run from anywhere. */
 
 import { schema_root_scope } from "./output_schema";
+import { own } from "./document_values";
 
-/* A table read with a node's type, out of a draft. `CLOSED_ROOTS["__proto__"]`
-   is `Object.prototype`, which is truthy, and spreading it is a TypeError. */
-const own = (table, key) =>
-  Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+/* The tables below are read with a node's type, out of a draft, so they are
+   read through `own`. */
 
 const KERNEL_BUILT_INS = Object.freeze(["message", "context"]);
 
