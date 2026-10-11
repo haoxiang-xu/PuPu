@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
 
@@ -323,5 +323,371 @@ describe("the Output Variables section in the panel", () => {
     show({ selectedNodeId: "start" });
     expect(screen.getAllByText("Output Variables")).toHaveLength(1);
     expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+  });
+});
+
+describe("UI-L1 — refused text belongs to one node, one row, one step", () => {
+  /* A refused position stays on screen so it can be corrected. It stays in
+     local state, because the document deliberately does not hold it — and
+     local state in a list is keyed by position, which is not identity. Select
+     another node, or remove the row above, and the same key carries a
+     different value: the field then showed `-1` while the document held `2`.
+     Nothing was written wrongly; the editor misreported what was stored, which
+     is the half an author acts on. */
+  const end_with = (id, index) => ({
+    id,
+    type: "end",
+    config: {
+      execution: {
+        inputs: [
+          {
+            name: "q",
+            value: { kind: "ref", node_id: "start", path: ["text"] },
+            missing: "error",
+          },
+        ],
+        outputs: [{ name: "out", source: { kind: "input", path: ["q", index] } }],
+      },
+    },
+  });
+
+  const two_ends = {
+    ...skeleton_document,
+    nodes: [skeleton_document.nodes[0], end_with("endA", 0), end_with("endB", 2)],
+    edges: [flow("e1", "start", "endA")],
+  };
+
+  const position_box = (row) =>
+    within(screen.getByTestId(`output-row-${row}`)).getByPlaceholderText("0");
+
+  test("selecting another node shows that node's stored position", () => {
+    const view = render(
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={legacy_recipe}
+          document={two_ends}
+          selectedNodeId="endA"
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    expect(position_box(0).value).toBe("-1");
+
+    view.rerender(
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={legacy_recipe}
+          document={two_ends}
+          selectedNodeId="endB"
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>,
+    );
+    expect(position_box(0).value).toBe("2");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("removing a row shows the surviving row's own stored position", () => {
+    const node = {
+      id: "end",
+      type: "end",
+      config: {
+        execution: {
+          inputs: [
+            {
+              name: "q",
+              value: { kind: "ref", node_id: "start", path: ["text"] },
+              missing: "error",
+            },
+          ],
+          outputs: [
+            { name: "first", source: { kind: "input", path: ["q", 0] } },
+            { name: "second", source: { kind: "input", path: ["q", 2] } },
+          ],
+        },
+      },
+    };
+    const start = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], node],
+      edges: [flow("e1", "start", "end")],
+    };
+
+    function Live() {
+      const [doc, setDoc] = React.useState(start);
+      return (
+        <ConfigContext.Provider value={cfg}>
+          <DetailPanel
+            recipe={legacy_recipe}
+            document={doc}
+            selectedNodeId="end"
+            onChange={() => {}}
+            onChangeSilent={() => {}}
+            onDocumentChange={setDoc}
+          />
+        </ConfigContext.Provider>
+      );
+    }
+
+    render(<Live />);
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    expect(position_box(0).value).toBe("-1");
+
+    fireEvent.click(screen.getByLabelText("Remove first"));
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(1);
+    expect(position_box(0).value).toBe("2");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("another row holding the same position does not inherit the text", () => {
+    /* Comparing the stored value catches a survivor that differs. It cannot
+       catch one that happens to agree — and then the box is describing a
+       mapping the text was never typed into, which is the whole defect. So
+       the row says who it is as well. */
+    const node = {
+      id: "end",
+      type: "end",
+      config: {
+        execution: {
+          inputs: [
+            {
+              name: "q",
+              value: { kind: "ref", node_id: "start", path: ["text"] },
+              missing: "error",
+            },
+          ],
+          outputs: [
+            { name: "first", source: { kind: "input", path: ["q", 0] } },
+            { name: "second", source: { kind: "input", path: ["q", 0] } },
+          ],
+        },
+      },
+    };
+    const start = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], node],
+      edges: [flow("e1", "start", "end")],
+    };
+
+    function Live() {
+      const [doc, setDoc] = React.useState(start);
+      return (
+        <ConfigContext.Provider value={cfg}>
+          <DetailPanel
+            recipe={legacy_recipe}
+            document={doc}
+            selectedNodeId="end"
+            onChange={() => {}}
+            onChangeSilent={() => {}}
+            onDocumentChange={setDoc}
+          />
+        </ConfigContext.Provider>
+      );
+    }
+
+    render(<Live />);
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    fireEvent.click(screen.getByLabelText("Remove first"));
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(1);
+    expect(position_box(0).value).toBe("0");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("another node holding the same position does not inherit it either", () => {
+    const same = {
+      ...skeleton_document,
+      nodes: [skeleton_document.nodes[0], end_with("endA", 0), end_with("endB", 0)],
+      edges: [flow("e1", "start", "endA")],
+    };
+    const panel = (selected) => (
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={legacy_recipe}
+          document={same}
+          selectedNodeId={selected}
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          onDocumentChange={() => {}}
+        />
+      </ConfigContext.Provider>
+    );
+    const view = render(panel("endA"));
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    view.rerender(panel("endB"));
+    expect(position_box(0).value).toBe("0");
+    expect(screen.queryByTestId("output-row-0-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("the refusal survives what does not change the step", () => {
+    /* Dropping it on any render at all would be the opposite defect: the
+       author would lose what they were correcting the moment anything else on
+       the panel moved. */
+    const view = render(
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={legacy_recipe}
+          document={two_ends}
+          selectedNodeId="endA"
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          onDocumentChange={() => {}}
+          diagnostics={[]}
+        />
+      </ConfigContext.Provider>,
+    );
+    fireEvent.change(position_box(0), { target: { value: "-1" } });
+    view.rerender(
+      <ConfigContext.Provider value={cfg}>
+        <DetailPanel
+          recipe={legacy_recipe}
+          document={two_ends}
+          selectedNodeId="endA"
+          onChange={() => {}}
+          onChangeSilent={() => {}}
+          onDocumentChange={() => {}}
+          diagnostics={[
+            { code: "end_count", path: ["document", "nodes"], message: "needs one end" },
+          ]}
+        />
+      </ConfigContext.Provider>,
+    );
+    expect(position_box(0).value).toBe("-1");
+    expect(screen.getByTestId("output-row-0-step-0-refused")).toBeInTheDocument();
+  });
+});
+
+describe("R-SCHEMA — a schema's own fields, through the real controls", () => {
+  /* The real Select, the real Input, the real section. The earlier round read
+     a schema's direct `properties` and treated that list as exhaustive; these
+     schemas declare their fields the other three ways the runtime admits, and
+     `skeleton_result_schema_capture` records the real pipeline publishing each
+     one. */
+  const kernel = (json_schema) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1/responses",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "do the thing",
+    max_iterations: 1,
+    output_tokens: 1024,
+    history: "none",
+    overflow: "error",
+    json_schema,
+  });
+
+  const with_schema = (json_schema, path) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "kernel",
+        type: "agent",
+        config: {
+          execution: {
+            inputs: [],
+            outputs: [{ name: "out", source: { kind: "result", path } }],
+          },
+          kernel: kernel(json_schema),
+        },
+      },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open_agent = (json_schema, path) =>
+    show({
+      document: with_schema(json_schema, path),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  const row_text = () => screen.getByTestId("output-row-0").textContent;
+
+  test("a field declared through a root $ref is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        $ref: "#/$defs/Payload",
+        $defs: {
+          Payload: { type: "object", properties: { score: { type: "number" } } },
+        },
+      },
+      ["score"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field declared through anyOf is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        anyOf: [
+          { type: "object", properties: { score: { type: "number" } } },
+          { type: "object", properties: { label: { type: "string" } } },
+        ],
+      },
+      ["label"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field whose name is the empty string is not called nonexistent", () => {
+    open_agent({ type: "object", properties: { "": { type: "string" } } }, [""]);
+    expect(row_text()).not.toMatch(/produces no result named/i);
+  });
+
+  test("a field an open schema permits but does not name is not called nonexistent", () => {
+    open_agent(
+      {
+        type: "object",
+        properties: { answer: { type: "string" } },
+        additionalProperties: true,
+      },
+      ["extra"],
+    );
+    expect(row_text()).not.toMatch(/produces no result named/i);
+    expect(row_text()).toMatch(/does not close its own field list/i);
+  });
+
+  test("an open schema's unlisted field stays editable rather than frozen", () => {
+    open_agent(
+      { type: "object", properties: { answer: { type: "string" } } },
+      ["extra"],
+    );
+    const row = within(screen.getByTestId("output-row-0"));
+    expect(row.getByPlaceholderText("field").value).toBe("extra");
+  });
+
+  test("a schema that does close its list still refuses a name it cannot hold", () => {
+    /* The repair is not a retreat: where the runtime really does bound the
+       keys, the diagnostic that round three added has to survive. */
+    open_agent(
+      {
+        type: "object",
+        properties: { answer: { type: "string" } },
+        additionalProperties: false,
+      },
+      ["typo"],
+    );
+    expect(row_text()).toMatch(/produces no result named "typo"/i);
+  });
+
+  test("an Agent with no schema at all is still closed on its two built-ins", () => {
+    open_agent(null, ["typo"]);
+    expect(row_text()).toMatch(/produces no result named "typo"/i);
   });
 });

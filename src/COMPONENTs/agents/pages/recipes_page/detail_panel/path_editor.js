@@ -41,16 +41,34 @@ export function index_from_text(text) {
 
 /* A step holds what is being typed, so a refused position can stay visible
    without being written to the document. The draft is dropped the moment the
-   text is a position the wire accepts, and whenever the step changes kind. */
-function Step({ segment, index, testid, onReplace, onRemove }) {
+   text is a position the wire accepts, and whenever the step changes kind.
+ *
+ * And it is dropped whenever it stops being about this value. The draft lives
+ * in local state, because the document deliberately refuses to hold it — and
+ * local state in a list is keyed by position, which is not identity. Selecting
+ * another node, removing the row above or removing an earlier step all put a
+ * different segment under the same key, and the text then described a value it
+ * was never typed into: the box read `-1` while the document held `2`. Nothing
+ * was written wrongly, which is what made it worse — the field was the only
+ * account of the document the author had, and it was lying about it.
+ *
+ * So the draft records what it was typed against, and is shown only while that
+ * is still what is on screen. Dropping a draft is never incorrect; keeping a
+ * stale one always is. That asymmetry is why the check is the conjunction of
+ * identity and stored value rather than either alone. */
+function Step({ segment, index, testid, identity, onReplace, onRemove }) {
   const kind = path_segment_kind(segment);
   const [draft, setDraft] = useState(null);
-  const refused = kind === "index" && draft !== null;
+  const mine =
+    draft !== null &&
+    draft.identity === identity &&
+    Object.is(draft.segment, segment);
+  const refused = kind === "index" && mine;
 
   function type_index(next) {
     const value = index_from_text(next);
     if (value === null) {
-      setDraft(next);
+      setDraft({ identity, segment, text: next });
       return;
     }
     setDraft(null);
@@ -86,7 +104,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           }}
         />
         <Input
-          value={draft === null ? String(segment) : draft}
+          value={mine ? draft.text : String(segment)}
           set_value={(next) => (kind === "index" ? type_index(next) : onReplace(next))}
           placeholder={kind === "index" ? "0" : "field"}
           style={{
@@ -130,6 +148,11 @@ export default function PathEditor({
   onChange,
   leading,
   addLabel = "+ Add a step",
+  /* Who these steps belong to. A path has no identity of its own — its steps
+     are addressed by position — so the caller that does have one says it, and
+     a step is `<identity>:<position>`. Defaulted to the testid so a lone
+     editor still has one rather than silently sharing `undefined`. */
+  identity = testid,
 }) {
   const segments = Array.isArray(path) ? path : [];
   /* `leading` renders segment 0 itself — the input side picks it from a list
@@ -151,6 +174,7 @@ export default function PathEditor({
           segment={segment}
           index={i}
           testid={testid}
+          identity={`${identity}:${i + offset}`}
           onReplace={(next) => replace(i, next)}
           onRemove={() => onChange(segments.filter((_, j) => j !== i + offset))}
         />

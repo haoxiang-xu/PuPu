@@ -208,10 +208,121 @@ export function output_schema_problems(schema) {
   return problems;
 }
 
+/* Which names an instance of this schema may carry at its own root, and
+ * whether that list is the whole of them.
+ *
+ * `properties` alone does not answer the first half. `validate_output_schema`
+ * admits `$ref` into `$defs` and `anyOf` alternatives, and
+ * `reject_effective_root_reservations` (`kernel_output.py:269-297`) treats
+ * exactly that expansion as the result's own root — which is why the reserved
+ * names are refused through it. A schema below `properties` describes a nested
+ * object and is deliberately outside it. A field declared only through a
+ * reference or an alternative is a real field: the runtime publishes it, and
+ * an editor reading direct properties alone called it nonexistent.
+ *
+ * `closed` is the half that licenses refusing a name, so it is answered
+ * conservatively. Draft 2020-12 bounds an object's keys when
+ * `additionalProperties: false` sits beside the `properties` it bounds — in
+ * the *same* schema object, because an adjacent `$ref` or `anyOf` applies a
+ * separate constraint rather than widening that one. A bounded root therefore
+ * refuses the name its own `$ref` declares, which is the easy thing to get
+ * wrong by reading and is recorded as a real runtime call in
+ * `skeleton_result_schema_capture`. So: the keys are bounded when any schema
+ * applied to the instance bounds them, and an `anyOf` bounds them only when
+ * every alternative does. Anything this cannot read — a reference the runtime
+ * would not resolve either, a cycle, a budget overrun — proves no bound and
+ * leaves the list open. Open means "may be incomplete", and nothing may be
+ * called nonexistent on the strength of an incomplete list. */
+
+/* A draft is edited, so it can hold a shape no save would admit. The walk is
+   bounded rather than trusting the 8 MiB limit to have been enforced yet. */
+const MAX_ROOT_SCHEMA_STEPS = 2000;
+
+/* `_resolve_local_reference` takes `#/$defs/` and refuses percent-encoding. A
+   bound read through anything else would be a bound the runtime never agreed
+   to, so such a reference contributes names and no bound. */
+const bounded_reference = (reference) =>
+  typeof reference === "string" &&
+  !reference.includes("%") &&
+  reference.startsWith("#/$defs/");
+
+function intersect_bounds(left, right) {
+  if (left === null) return right;
+  if (right === null) return left;
+  return left.filter((name) => right.includes(name));
+}
+
+function root_scope(node, root, state) {
+  if (state.steps <= 0 || !is_object(node) || state.active.has(node)) {
+    return { names: [], bound: null };
+  }
+  state.steps -= 1;
+  state.active.add(node);
+
+  const own = is_object(node.properties) ? Object.keys(node.properties) : [];
+  own.forEach((name) => {
+    if (!state.declared.has(name)) state.declared.set(name, node.properties[name]);
+  });
+  let names = own.slice();
+  let bound = node.additionalProperties === false ? own.slice() : null;
+
+  if ("$ref" in node) {
+    const target = bounded_reference(node.$ref)
+      ? resolve_local_ref(root, node.$ref)
+      : null;
+    const via = root_scope(target, root, state);
+    names = names.concat(via.names);
+    bound = intersect_bounds(bound, via.bound);
+  }
+
+  if (Array.isArray(node.anyOf) && node.anyOf.length > 0) {
+    let union = [];
+    let every_alternative_bounded = true;
+    node.anyOf.forEach((alternative) => {
+      const via = root_scope(alternative, root, state);
+      names = names.concat(via.names);
+      if (via.bound === null) every_alternative_bounded = false;
+      else union = union.concat(via.bound);
+    });
+    if (every_alternative_bounded) bound = intersect_bounds(bound, union);
+  }
+
+  state.active.delete(node);
+  return { names, bound };
+}
+
+export function schema_root_scope(schema) {
+  /* `readable: false` is not the same as declaring nothing. A draft can hold a
+     schema that is not a schema, and the two cases need different words: one
+     adds no fields, the other means the fields are unknown. */
+  if (!is_object(schema)) {
+    return { names: [], closed: false, readable: false, declared: new Map() };
+  }
+  const state = {
+    active: new Set(),
+    declared: new Map(),
+    steps: MAX_ROOT_SCHEMA_STEPS,
+  };
+  const { names, bound } = root_scope(schema, schema, state);
+  /* Where the keys are bounded the bound *is* the list: a name declared only
+     outside it cannot arrive, so offering it would offer an address the
+     runtime refuses. */
+  const chosen = bound === null ? names : bound;
+  return {
+    names: chosen.filter((name, index) => chosen.indexOf(name) === index),
+    closed: bound !== null,
+    readable: true,
+    declared: state.declared,
+  };
+}
+
 /* What an Agent node can export. The two built-ins are always there and cannot
- * be renamed or removed; JSON output adds the schema's own top-level fields
- * beside them, at the same level, because the runtime merges the parsed object
- * into the same result. */
+ * be renamed or removed; JSON output adds the schema's own root fields beside
+ * them, at the same level, because the runtime merges the parsed object into
+ * the same result — which is why those two names are reserved. The root fields
+ * come from `schema_root_scope` rather than from `properties`, so a field
+ * declared through a reference or an alternative is listed too; its `type` and
+ * `description` are read from wherever it was declared. */
 export function agent_result_sources(schema) {
   const sources = [
     {
@@ -229,10 +340,10 @@ export function agent_result_sources(schema) {
       description: "The publishable execution record",
     },
   ];
-  const properties = is_object(schema) ? schema.properties : null;
-  if (!is_object(properties)) return sources;
-  Object.entries(properties).forEach(([name, node]) => {
+  const { names, declared } = schema_root_scope(schema);
+  names.forEach((name) => {
     if (RESERVED.has(name)) return;
+    const node = declared.get(name);
     sources.push({
       name,
       type: is_object(node) && typeof node.type === "string" ? node.type : null,

@@ -29,7 +29,9 @@ import { result_roots_for } from "../skeleton_result_roots";
  * for most node types, so saying it here is saying something true sooner —
  * but it is the builder speaking, not a repetition of a check that exists. An
  * earlier round of this file claimed a result's shape was not statically
- * knowable at all, which was wrong for every type but three. */
+ * knowable at all, which was wrong for every type but three; the round after
+ * it over-corrected and spoke as if an Agent's schema always closed its own
+ * field list, which is wrong whenever the schema does not say so. */
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -104,11 +106,17 @@ const PRODUCER_LABEL = {
  * This one is not a mirror: the static validator never looks at the result
  * side, so `result: ["typo"]` on an Agent draws no diagnostic at all and fails
  * only once the node runs, with `missing_value` at `mappings[0].source.path`.
- * The roots are a closed set admitted by the runtime, so saying so here is
- * saying something true sooner, not inventing a rule. */
+ * Saying so here is saying something true sooner, not inventing a rule — but
+ * only where the inventory is closed, and that is the whole of the second
+ * half. An earlier round read an Agent's schema for its direct `properties`
+ * and then spoke as if that list were exhaustive. It is not: without
+ * `additionalProperties: false` the result may carry fields the schema never
+ * names, and the runtime publishes them. A list that may be incomplete cannot
+ * prove a name absent, so an open one says nothing at all rather than
+ * something categorical about a field that really does arrive. */
 export function result_root_problems(node, mappings) {
   const roots = result_roots_for(node);
-  if (!roots.known) return [];
+  if (!roots.known || !roots.closed) return [];
   const label = PRODUCER_LABEL[node && node.type] || "This node";
   const problems = [];
   mappings.forEach((mapping, index) => {
@@ -220,6 +228,15 @@ export default function OutputVariablesSection({
           key={index}
           mapping={mapping}
           index={index}
+          /* What a row is, for the controls that hold text the document does
+             not. The position alone is not it: remove a row and the next one
+             takes its place, and anything still keyed to that place now
+             describes a different mapping. The node and the row's own name
+             narrow it as far as the wire allows — `{name, source}` is closed,
+             so there is no id to carry — and the rest is caught by comparing
+             the stored value. A rename drops a pending refusal, which is the
+             harmless direction. */
+          identity={`${node.id}:${index}:${(mapping && mapping.name) || ""}`}
           nodeType={node.type}
           kinds={kinds}
           inputNames={names}

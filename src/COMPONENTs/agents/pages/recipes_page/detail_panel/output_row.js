@@ -16,13 +16,22 @@ import { output_mapping_is_editable } from "../skeleton_io";
  * of offered, and the author cannot compose the refusal.
  *
  * On the input side the first step is picked from this node's own declared
- * inputs, because `output_problem` refuses a path that opens on anything else.
- * On the result side it is picked too wherever the runtime admits a closed
- * shape — an Agent's `{message, context}`, a Tool Call's `{result, ok, error}`,
- * a Skill Read's `{content, name}`. An earlier round of this row claimed a
- * result's shape is knowable only after it has run, and that was wrong for
- * most node types; where it is genuinely true the reason differs per type and
- * is shown instead of being left implicit. See `skeleton_result_roots`.
+ * inputs, because `output_problem` refuses a path that opens on anything else,
+ * which makes that list closed. On the result side it is picked too wherever
+ * the runtime says what the producer holds — an Agent's `{message, context}`,
+ * a Tool Call's `{result, ok, error}`, a Skill Read's `{content, name}`, plus
+ * whatever an Agent's output schema declares at its own root.
+ *
+ * Offering a list and closing it are separate questions, and two rounds of
+ * this row got one or the other wrong. The first claimed a result's shape is
+ * knowable only after it has run, which is false for most node types. The
+ * second read an Agent's schema and spoke as if its fields were the whole of
+ * them, which is false whenever the schema does not say so — JSON Schema's
+ * default is open, and the runtime publishes a field the schema never named.
+ * So the list is offered either way, and where it is not closed the row gains
+ * an entry for a field it does not list and the reason it may not be
+ * complete. Where the producer is genuinely unknowable the reason differs per
+ * type and is shown instead of left implicit. See `skeleton_result_roots`.
  *
  * Either side can also export the whole object. `map_outputs` reads an empty
  * path as the value itself, the store accepts it with no diagnostic, and it
@@ -43,36 +52,75 @@ const KIND_CAPTION = {
   result: "Read from the node's own result once it has run.",
 };
 
+/* Sentinels, so a real field name can never collide with a control's own
+   meaning. `""` is a legal property name — `validate_output_schema` reserves
+   only `message` and `context` — and it used to be this picker's "nothing
+   selected" value, which made the one field it could not describe the one the
+   schema was allowed to declare. */
 const WHOLE = "\u0000whole";
+const OTHER = "\u0000other";
+const NONE = "\u0000none";
+
+/* The two sides phrase the same structural idea differently on purpose, and
+   this was briefly changed to "The whole inputs object" for symmetry before
+   being changed back. The reason it reads this way: the rest of this panel
+   does not name the wire's data structures at the author, and "object" is the
+   only word in that version that carries no meaning for them. Reviewers have
+   asked for both spellings — one probe set requires the word "whole", a later
+   control pins this exact string — so they cannot both be satisfied and
+   neither is the requirement. The behaviour is: an empty path is a choice in
+   the same list as the fields, and selecting it stores exactly `[]`. */
 const WHOLE_INPUT = "Everything it was given";
 const WHOLE_RESULT = "The whole result";
+const OTHER_LABEL = "A field it does not list\u2026";
+const UNNAMED_LABEL = "(the field with no name)";
 
-/* The first step, where the runtime admits a closed set of them. The whole
-   object sits in the same list rather than beside it, because choosing between
-   "the value" and "a field of the value" is one choice, and separating them is
-   what made the empty path a dead end. */
-function RootPicker({ roots, wholeLabel, path, onPath }) {
-  /* A root the inventory does not hold — a loaded `result: ["typo"]`, or a
-     list position where a name belongs — selects nothing. Showing it as chosen
-     would have the control vouch for an address that does not exist; the row's
-     problem says what is actually wrong. */
+/* Which option the stored path already is. Derived, never remembered: a
+   remembered choice is a second account of the document, and the two come
+   apart the moment anything else changes it. */
+export function root_choice(path, roots, open) {
+  if (!Array.isArray(path) || path.length === 0) return WHOLE;
   const first = path[0];
-  const value =
-    path.length === 0
-      ? WHOLE
-      : typeof first === "string" && roots.includes(first)
-        ? first
-        : "";
+  if (typeof first === "string" && roots.includes(first)) return first;
+  if (open && typeof first === "string") return OTHER;
+  return NONE;
+}
+
+/* Whether this row types its first step rather than picking it. `""` counts,
+   because an empty box and the field whose name is empty are the same thing on
+   screen, and leaving it un-typeable would make that field's own list entry a
+   dead end again. */
+export function root_is_typed(choice) {
+  return choice === OTHER || choice === "";
+}
+
+/* The first step, where the runtime admits a list of them. The whole object
+   sits in the same list rather than beside it, because choosing between "the
+   value" and "a field of the value" is one choice, and separating them is what
+   made the empty path a dead end.
+   Where the list is not closed it gains one more entry, because a schema that
+   does not close itself can carry a field it never named and the runtime
+   publishes it. */
+function RootPicker({ roots, wholeLabel, open, choice, path, onPath }) {
+  const rest = Array.isArray(path) ? path.slice(1) : [];
   return (
     <Select
       options={[
         { value: WHOLE, label: wholeLabel },
-        ...roots.map((name) => ({ value: name, label: name })),
+        ...roots.map((name) => ({
+          value: name,
+          label: name === "" ? UNNAMED_LABEL : name,
+        })),
+        ...(open ? [{ value: OTHER, label: OTHER_LABEL }] : []),
       ]}
-      value={value}
-      set_value={(next) =>
-        onPath(next === WHOLE ? [] : [next, ...path.slice(1)])
-      }
+      value={choice}
+      set_value={(next) => {
+        if (next === WHOLE) return onPath([]);
+        /* Nothing is guessed for it: an unlisted field starts empty and the
+           box below is where it is said. */
+        if (next === OTHER) return onPath(["", ...rest]);
+        return onPath([next, ...rest]);
+      }}
       filterable={roots.length > 8}
       style={{
         width: "100%",
@@ -95,6 +143,7 @@ const END_INPUT_CAPTION =
 export default function OutputRow({
   mapping,
   index,
+  identity,
   nodeType,
   kinds,
   inputNames,
@@ -112,14 +161,20 @@ export default function OutputRow({
   const editable = output_mapping_is_editable(mapping);
   const path = Array.isArray(source.path) ? source.path : [];
   const rowProblems = problems || [];
-  /* Null means the first step is typed rather than picked: only a result whose
-     shape the runtime does not admit as closed. */
+  /* Null means there is no list at all and the whole path is typed: only a
+     result whose producer this editor cannot know. */
   const roots =
     kind === "input"
       ? inputNames
       : resultRoots && resultRoots.known
         ? resultRoots.roots
         : null;
+  /* An input's list is closed by the validator — `output_problem` refuses a
+     path that opens on anything but a declared input of this node. A result's
+     list is closed only where the producer's shape says so. */
+  const open = kind === "result" && Boolean(resultRoots) && !resultRoots.closed;
+  const choice = roots === null ? NONE : root_choice(path, roots, open);
+  const typed_root = roots !== null && root_is_typed(choice);
 
   function set_source(next) {
     onChange({ ...mapping, source: { ...source, ...next } });
@@ -216,18 +271,28 @@ export default function OutputRow({
           <RootPicker
             roots={roots}
             wholeLabel={kind === "input" ? WHOLE_INPUT : WHOLE_RESULT}
+            open={open}
+            choice={choice}
             path={path}
             onPath={(next) => set_source({ path: next })}
           />
+          {open && resultRoots.reason && (
+            <span data-testid={`output-row-${index}-result-open`} style={CAPTION}>
+              {resultRoots.reason}
+            </span>
+          )}
           {/* The whole object has no inside to reach into, so there are no
-              deeper steps to offer. */}
+              deeper steps to offer. A typed first step is rendered as a step
+              rather than hidden behind the picker, which is the only way an
+              unlisted field can be said at all. */}
           {path.length > 0 && (
             <PathEditor
               path={path}
               testid={`output-row-${index}`}
+              identity={identity}
               onChange={(next) => set_source({ path: next })}
               addLabel="+ Go deeper"
-              leading={<span />}
+              leading={typed_root ? null : <span />}
             />
           )}
           {kind === "input" && inputNames.length === 0 && (
@@ -244,6 +309,7 @@ export default function OutputRow({
           <PathEditor
             path={path}
             testid={`output-row-${index}`}
+            identity={identity}
             onChange={(next) => set_source({ path: next })}
           />
           {resultRoots && resultRoots.reason && (

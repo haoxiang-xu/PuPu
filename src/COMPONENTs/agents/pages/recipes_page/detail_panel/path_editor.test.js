@@ -235,3 +235,79 @@ describe("a position the wire would refuse is not quietly turned into another on
     expect(onChange).toHaveBeenCalledWith(["-1"]);
   });
 });
+
+describe("refused text describes the step it was typed into, and no other", () => {
+  /* The draft lives in local state and local state in a list is keyed by
+     position. Remove an earlier step and the successor slides into the same
+     key: the box went on showing `-1` while the stored segment was `2`. The
+     document was never wrong; the field's account of it was. */
+  function Live({ initial, identity }) {
+    const [path, setPath] = React.useState(initial);
+    return (
+      <PathEditor
+        path={path}
+        testid="p"
+        identity={identity}
+        onChange={setPath}
+      />
+    );
+  }
+
+  test("removing the step above shows the survivor's own position", () => {
+    render(<Live initial={[0, 2]} />);
+    const boxes = screen.getAllByPlaceholderText("0");
+    fireEvent.change(boxes[0], { target: { value: "-1" } });
+    expect(screen.getAllByPlaceholderText("0")[0].value).toBe("-1");
+
+    fireEvent.click(screen.getByLabelText("Remove step 1"));
+    expect(screen.getAllByPlaceholderText("0")).toHaveLength(1);
+    expect(screen.getAllByPlaceholderText("0")[0].value).toBe("2");
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("a step that belongs to something else does not inherit the text", () => {
+    const view = render(
+      <PathEditor path={[0]} testid="p" identity="rowA" onChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    expect(screen.getByPlaceholderText("0").value).toBe("-1");
+
+    view.rerender(
+      <PathEditor path={[2]} testid="p" identity="rowB" onChange={() => {}} />,
+    );
+    expect(screen.getByPlaceholderText("0").value).toBe("2");
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("the same identity and the same stored position keeps the text", () => {
+    const view = render(
+      <PathEditor path={[0]} testid="p" identity="rowA" onChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    view.rerender(
+      <PathEditor path={[0]} testid="p" identity="rowA" onChange={() => {}} />,
+    );
+    expect(screen.getByPlaceholderText("0").value).toBe("-1");
+    expect(screen.getByTestId("p-step-0-refused")).toBeInTheDocument();
+  });
+
+  test("adding a step below does not disturb the one being corrected", () => {
+    render(<Live initial={[0]} />);
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    fireEvent.click(screen.getByText("+ Add a step"));
+    expect(screen.getByPlaceholderText("0").value).toBe("-1");
+    expect(screen.getByTestId("p-step-0-refused")).toBeInTheDocument();
+  });
+
+  test("correcting it to a real position stores exactly that one", () => {
+    render(<Live initial={[0, 2]} />);
+    const box = screen.getAllByPlaceholderText("0")[0];
+    fireEvent.change(box, { target: { value: "-1" } });
+    fireEvent.change(screen.getAllByPlaceholderText("0")[0], {
+      target: { value: "3" },
+    });
+    const boxes = screen.getAllByPlaceholderText("0");
+    expect(boxes.map((b) => b.value)).toEqual(["3", "2"]);
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+});

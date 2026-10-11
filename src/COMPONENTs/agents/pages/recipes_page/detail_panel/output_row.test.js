@@ -121,7 +121,11 @@ describe("the input side picks its first step", () => {
        jsdom snaps an unmatched <select> to its first option and would report
        the row as naming "question" whatever the component passed. */
     show(mapping("input", [0]));
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe("");
+    /* The empty string stopped being the "nothing selected" value: it is a
+       legal field name, so nothing selected now has a sentinel of its own. */
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+      "\u0000none",
+    );
   });
 });
 
@@ -253,7 +257,7 @@ describe("a declared result is picked, not typed", () => {
   test("an Agent offers message and context", () => {
     show(mapping("result", ["message"]), {
       nodeType: "agent",
-      resultRoots: { known: true, roots: ["message", "context"] },
+      resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
     const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
     expect(options).toEqual(["\u0000whole", "message", "context"]);
@@ -262,7 +266,7 @@ describe("a declared result is picked, not typed", () => {
   test("a Tool Call offers result, ok and error", () => {
     show(mapping("result", ["ok"]), {
       nodeType: "tool_call",
-      resultRoots: { known: true, roots: ["result", "ok", "error"] },
+      resultRoots: { known: true, roots: ["result", "ok", "error"], closed: true },
     });
     const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
     expect(options).toEqual(["\u0000whole", "result", "ok", "error"]);
@@ -271,7 +275,7 @@ describe("a declared result is picked, not typed", () => {
   test("picking a root keeps the deeper steps", () => {
     const { onChange } = show(mapping("result", ["context", "usage"]), {
       nodeType: "agent",
-      resultRoots: { known: true, roots: ["message", "context"] },
+      resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
     fireEvent.change(screen.getAllByTestId("select")[1], { target: { value: "message" } });
     expect(onChange).toHaveBeenCalledWith({
@@ -295,17 +299,19 @@ describe("a declared result is picked, not typed", () => {
   test("a loaded root that is not in the inventory is not silently accepted", () => {
     show(mapping("result", ["typo"]), {
       nodeType: "agent",
-      resultRoots: { known: true, roots: ["message", "context"] },
+      resultRoots: { known: true, roots: ["message", "context"], closed: true },
       problems: [{ message: "An Agent produces no result named \"typo\"." }],
     });
-    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe("");
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+      "\u0000none",
+    );
     expect(screen.getByTestId("output-row-0-problem-0").textContent).toMatch(/no result named/);
   });
 
   test("the whole result stays available where the roots are known", () => {
     const { onChange } = show(mapping("result", ["message"]), {
       nodeType: "agent",
-      resultRoots: { known: true, roots: ["message", "context"] },
+      resultRoots: { known: true, roots: ["message", "context"], closed: true },
     });
     fireEvent.change(screen.getAllByTestId("select")[1], {
       target: { value: "\u0000whole" },
@@ -314,5 +320,135 @@ describe("a declared result is picked, not typed", () => {
       name: "a",
       source: { kind: "result", path: [] },
     });
+  });
+});
+
+describe("a result list that is not closed is not spoken of as if it were", () => {
+  /* JSON Schema's default is open: without `additionalProperties: false` an
+   * output may carry fields the schema never names, and the runtime publishes
+   * them. The earlier round offered a schema's direct properties and treated
+   * every other name as impossible — the field could neither be chosen nor
+   * written, and a loaded mapping to it was told it did not exist. */
+  const open_agent = {
+    known: true,
+    roots: ["message", "context", "score"],
+    closed: false,
+    reason: "This Agent's output schema does not close its own field list.",
+  };
+
+  test("the list is still offered", () => {
+    show(mapping("result", ["score"]), { resultRoots: open_agent });
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).toEqual([
+      "\u0000whole",
+      "message",
+      "context",
+      "score",
+      "\u0000other",
+    ]);
+  });
+
+  test("a declared field is still selected by name", () => {
+    show(mapping("result", ["score"]), { resultRoots: open_agent });
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe("score");
+    expect(screen.queryByTestId("output-row-0-step-0")).not.toBeInTheDocument();
+  });
+
+  test("it says why the list may not be the whole of them", () => {
+    show(mapping("result", ["score"]), { resultRoots: open_agent });
+    expect(screen.getByTestId("output-row-0-result-open").textContent).toMatch(
+      /does not close its own field list/i,
+    );
+  });
+
+  test("a field the list does not hold is shown as what it is, and stays editable", () => {
+    show(mapping("result", ["extra"]), { resultRoots: open_agent });
+    expect(screen.getAllByTestId("select")[1].getAttribute("data-value")).toBe(
+      "\u0000other",
+    );
+    expect(screen.getByPlaceholderText("field").value).toBe("extra");
+  });
+
+  test("an unlisted field can be reached from the whole value", () => {
+    const { onChange } = show(mapping("result", []), { resultRoots: open_agent });
+    fireEvent.change(screen.getAllByTestId("select")[1], {
+      target: { value: "\u0000other" },
+    });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: [""] },
+    });
+  });
+
+  test("choosing it keeps the steps below the first", () => {
+    const { onChange } = show(mapping("result", ["score", "inner"]), {
+      resultRoots: open_agent,
+    });
+    fireEvent.change(screen.getAllByTestId("select")[1], {
+      target: { value: "\u0000other" },
+    });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: ["", "inner"] },
+    });
+  });
+
+  test("typing the unlisted field writes it and nothing else", () => {
+    const { onChange } = show(mapping("result", ["extra"]), { resultRoots: open_agent });
+    fireEvent.change(screen.getByPlaceholderText("field"), {
+      target: { value: "extras" },
+    });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: ["extras"] },
+    });
+  });
+
+  test("a closed list offers no such entry", () => {
+    show(mapping("result", ["message"]), {
+      resultRoots: { known: true, roots: ["message", "context"], closed: true },
+    });
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).not.toContain("\u0000other");
+  });
+
+  test("the input side is closed, so it offers no such entry either", () => {
+    /* `output_problem` refuses a path that opens on anything but a declared
+       input of this node, so there is nothing unlisted to reach. */
+    show(mapping("input", ["question"]));
+    const options = [...screen.getAllByTestId("select")[1].options].map((o) => o.value);
+    expect(options).not.toContain("\u0000other");
+  });
+});
+
+describe("the field whose legal name is the empty string", () => {
+  /* `validate_output_schema` reserves `message` and `context` and nothing
+   * else, so `""` is a name a schema may declare and the runtime publishes.
+   * It was also this picker's "nothing selected" value, which made the one
+   * field it could not describe the one that was legal. */
+  const unnamed = {
+    known: true,
+    roots: ["message", "context", ""],
+    closed: true,
+  };
+
+  test("it is offered with a label that can be read", () => {
+    show(mapping("result", [""]), { resultRoots: unnamed });
+    const labels = [...screen.getAllByTestId("select")[1].options].map((o) => o.textContent);
+    expect(labels).toContain("(the field with no name)");
+  });
+
+  test("selecting it is not mistaken for selecting nothing", () => {
+    const { onChange } = show(mapping("result", ["message"]), { resultRoots: unnamed });
+    fireEvent.change(screen.getAllByTestId("select")[1], { target: { value: "" } });
+    expect(onChange).toHaveBeenCalledWith({
+      name: "a",
+      source: { kind: "result", path: [""] },
+    });
+  });
+
+  test("it stays typeable, because an empty box and it look the same", () => {
+    show(mapping("result", [""]), { resultRoots: unnamed });
+    expect(screen.getByPlaceholderText("field").value).toBe("");
   });
 });
