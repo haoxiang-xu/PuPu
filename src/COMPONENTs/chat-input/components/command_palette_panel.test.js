@@ -169,6 +169,8 @@ describe("CommandPalettePanel frame follows the rows", () => {
 });
 
 describe("CommandPalettePanel organize action", () => {
+  afterEach(() => jest.useRealTimers());
+
   test("lives in the hint bar, not in the list, and carries its label", () => {
     renderPanel({ onOrganize: () => {}, organizeLabel: "Organize" });
 
@@ -185,10 +187,33 @@ describe("CommandPalettePanel organize action", () => {
     expect(listbox.contains(action)).toBe(false);
   });
 
-  test("re-enables pointer events for itself inside the decorative header", () => {
-    renderPanel({ onOrganize: () => {}, organizeLabel: "Organize" });
+  test("only enables pointer events after the open entrance latch", () => {
+    jest.useFakeTimers();
+    const onOrganize = jest.fn();
+    const { rerender } = renderPanel({
+      open: false,
+      onOrganize,
+      organizeLabel: "Organize",
+    });
     const action = document.querySelector("[data-command-organize-action]");
     const wrapper = action.parentElement;
+
+    expect(wrapper.style.pointerEvents).toBe("none");
+
+    rerender(
+      <CommandPalettePanel
+        open
+        items={items}
+        activeIndex={0}
+        onOrganize={onOrganize}
+        organizeLabel="Organize"
+      >
+        <div>pill</div>
+      </CommandPalettePanel>,
+    );
+    expect(wrapper.style.pointerEvents).toBe("none");
+
+    act(() => jest.advanceTimersByTime(50)); // double-rAF entrance latch
     expect(wrapper.style.pointerEvents).toBe("auto");
   });
 
