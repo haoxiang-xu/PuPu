@@ -1,6 +1,10 @@
 import {
   EXECUTION_CONFIG_KEY,
+  LEGACY_FIELDS_CONFIG_KEY,
   NODE_TYPES,
+  node_pool_is_legacy,
+  node_subagents,
+  with_node_subagents,
   WORKFLOW_FORBIDDEN_NODE_TYPES,
   document_problems,
   execution_keys_for,
@@ -262,4 +266,114 @@ describe("a node type the document does not know", () => {
     expect(output_source_kinds_for("start")).toEqual(["result"]);
     expect(output_source_kinds_for("agent")).toEqual(["input", "result"]);
   });
+});
+
+describe("what a Subagent Pool node holds", () => {
+  const pool = (config) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "d",
+    name: "D",
+    nodes: [{ id: "pool", type: "subagent_pool", config }],
+    edges: [],
+  });
+
+  const entry = {
+    id: "subagent-1",
+    name: "Summarizer",
+    description: "",
+    source: { kind: "agent_ref", agent_id: "res-1" },
+    allowed_modes: ["delegate"],
+    output_mode: "summary",
+    memory_policy: "ephemeral",
+    parallel_safe: true,
+    allowed_tools: null,
+    disabled_tools: [],
+  };
+
+  test("the entries are returned as the document has them", () => {
+    expect(node_subagents({ config: { subagents: [entry] } })).toEqual([entry]);
+  });
+
+  test("a pool with no subagents key is not a pool holding nothing", () => {
+    /* The runtime refuses the two differently — `missing_field` against
+       `missing_value` — so flattening them into one empty array here would
+       make one of them unsayable and the editor's account of the document
+       wrong. */
+    expect(node_subagents({ config: {} })).toBeUndefined();
+    expect(node_subagents({ config: { subagents: [] } })).toEqual([]);
+  });
+
+  test("a shape that is not an array comes back as it is, not as empty", () => {
+    expect(node_subagents({ config: { subagents: "Summarizer" } })).toBe("Summarizer");
+  });
+
+  test("a node with no config at all answers nothing", () => {
+    expect(node_subagents({ id: "pool", type: "subagent_pool" })).toBeUndefined();
+    expect(node_subagents(null)).toBeUndefined();
+  });
+
+  test("writing entries leaves everything else on the node alone", () => {
+    const next = with_node_subagents(pool({ subagents: [] }), "pool", [entry]);
+    expect(next.nodes[0].config.subagents).toEqual([entry]);
+    expect(next.nodes[0].type).toBe("subagent_pool");
+  });
+
+  test("an unknown node id changes nothing", () => {
+    const document = pool({ subagents: [] });
+    expect(with_node_subagents(document, "nope", [entry])).toBe(document);
+  });
+});
+
+describe("a pool converted from a legacy definition", () => {
+  const legacy = {
+    schema_version: 1,
+    kind: "agent",
+    id: "d",
+    name: "D",
+    nodes: [
+      {
+        id: "pool",
+        type: "subagent_pool",
+        config: { [LEGACY_FIELDS_CONFIG_KEY]: { subagents: [{ kind: "recipe_ref", recipe_name: "S" }] } },
+      },
+    ],
+    edges: [],
+  };
+
+  test("is recognised by the store's own test, which is the subagents key", () => {
+    /* `skeleton_resource_store.py:328`: the store expands `legacy_fields`
+       only while there is no `subagents` key. */
+    expect(node_pool_is_legacy(legacy.nodes[0])).toBe(true);
+    expect(
+      node_pool_is_legacy({ config: { subagents: [], legacy_fields: { subagents: [] } } }),
+    ).toBe(false);
+    expect(node_pool_is_legacy({ config: { subagents: [] } })).toBe(false);
+    expect(node_pool_is_legacy({ config: {} })).toBe(false);
+  });
+
+  test("cannot be written to, because one entry would delete all of them", () => {
+    /* Adding a `subagents` key is exactly the condition that stops the store
+       expanding the legacy entries. The author would lose every subagent they
+       had, at Run, with nothing said. */
+    expect(with_node_subagents(legacy, "pool", [entry_for_legacy()])).toBe(legacy);
+    expect(
+      with_node_subagents(legacy, "pool", []).nodes[0].config[LEGACY_FIELDS_CONFIG_KEY],
+    ).toEqual(legacy.nodes[0].config[LEGACY_FIELDS_CONFIG_KEY]);
+  });
+
+  function entry_for_legacy() {
+    return {
+      id: "subagent-1",
+      name: "Summarizer",
+      description: "",
+      source: { kind: "agent_ref", agent_id: "res-1" },
+      allowed_modes: ["delegate"],
+      output_mode: "summary",
+      memory_policy: "ephemeral",
+      parallel_safe: true,
+      allowed_tools: null,
+      disabled_tools: [],
+    };
+  }
 });

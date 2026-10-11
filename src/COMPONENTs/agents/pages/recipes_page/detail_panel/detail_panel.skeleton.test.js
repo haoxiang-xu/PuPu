@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
 
@@ -876,6 +876,74 @@ describe("the panel survives a draft no save would take", () => {
     open_deep(4000);
     expect(screen.getByTestId("output-row-0").textContent).not.toMatch(
       /produces no result named/i,
+    );
+  });
+});
+
+describe("a Subagent Pool node in the panel", () => {
+  /* A pool attaches to a Kernel rather than running in the flow, so it has no
+     execution IO at all — the shared sections render nothing for it, and what
+     it does carry gets its own section. */
+  const with_pool = (config) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      { id: "pool", type: "subagent_pool", config },
+      skeleton_document.nodes[1],
+    ],
+    edges: [
+      flow("e1", "start", "k"),
+      flow("e2", "k", "end"),
+      {
+        id: "a1",
+        kind: "attach",
+        source_node_id: "pool",
+        source_port_id: "attach_top",
+        target_node_id: "k",
+        target_port_id: "attach_bot",
+      },
+    ],
+  });
+
+  const open_pool = async (config) => {
+    const view = show({
+      document: with_pool(config),
+      onDocumentChange: () => {},
+      selectedNodeId: "pool",
+    });
+    /* The Agent library is read in an effect. There is no bridge in this
+       build, so it settles as unavailable; letting it land keeps the state
+       update inside the test. */
+    await act(async () => {});
+    return view;
+  };
+
+  test("gets the Subagent Pool section", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.getByTestId("skeleton-subagent-pool")).toBeInTheDocument();
+  });
+
+  test("and not the Input or Output Variables sections", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.queryByTestId("skeleton-input-variables")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+  });
+
+  test("an Agent node does not get the pool section", async () => {
+    show({
+      document: with_pool({ subagents: [] }),
+      onDocumentChange: () => {},
+      selectedNodeId: "k",
+    });
+    await act(async () => {});
+    expect(screen.queryByTestId("skeleton-subagent-pool")).not.toBeInTheDocument();
+  });
+
+  test("the pool says what the runtime would refuse about it", async () => {
+    await open_pool({ subagents: [] });
+    expect(screen.getByTestId("subagent-pool-problem-0").textContent).toMatch(
+      /must contain an Agent/i,
     );
   });
 });

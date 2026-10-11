@@ -10,6 +10,7 @@ import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import OutputSchemaSection from "./output_schema_section";
+import SubagentPoolSection from "./subagent_pool_section";
 import OutputVariablesSection from "./output_variables_section";
 import {
   find_node,
@@ -209,6 +210,18 @@ export default function DetailPanel({
               rowCounts={routed.row_counts}
               isDark={isDark}
             />
+            {/* A pool attaches to a Kernel rather than running in the flow,
+                so it carries no execution IO at all — the sections around
+                this one render nothing for it — and what it does carry is
+                invisible to every boundary before Run. */}
+            {skeleton_node.type === "subagent_pool" && (
+              <SubagentPoolSection
+                document={document}
+                node={skeleton_node}
+                isDark={isDark}
+                onChange={onDocumentChange}
+              />
+            )}
             <InputVariablesSection
               document={document}
               node={skeleton_node}

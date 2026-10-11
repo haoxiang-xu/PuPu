@@ -12,6 +12,7 @@ import {
 } from "../skeleton_document";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
+import useTakenName from "./taken_name";
 import useListIdentities from "./list_identity";
 import {
   BOUND_LABEL,
@@ -164,22 +165,20 @@ function Bound({ field, bound, onChange }) {
  * marker across, then saved that. So a colliding name is held here, shown,
  * said, and not composed, until the author frees it. */
 function FieldName({ field, taken, onChange }) {
-  const pending = usePendingText(field.name);
-  const shown = pending.text !== null ? pending.text : field.name;
-  /* Whatever is held is unstored, and says so — not only while it still
-     collides. Freeing the name by renaming the *other* field stopped the
+  /* The rules are `useTakenName`'s, shared with the Subagent Pool's entry
+     names. Whatever is held is unstored and says so — not only while it still
+     collides: freeing the name by renaming the *other* field stopped the
      collision without storing anything, and a message conditional on the
      collision then left this box showing a name the document does not have
      with nothing to say about it. */
-  const taken_now = pending.text !== null && taken.includes(pending.text);
+  const name = useTakenName(field.name, taken, undefined);
+  const shown = name.shown;
+  const pending = { text: name.held };
+  const taken_now = name.taken;
 
   function type(next) {
-    if (next !== field.name && taken.includes(next)) {
-      pending.hold(next);
-      return;
-    }
-    pending.release();
-    onChange(next);
+    const stored = name.type(next);
+    if (stored !== null) onChange(stored);
   }
 
   return (

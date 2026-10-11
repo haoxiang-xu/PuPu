@@ -1,5 +1,6 @@
 import {
   diagnose,
+  list_resources,
   edit_conflict_message,
   is_unavailable,
   preflight,
@@ -106,5 +107,44 @@ describe("a refusal is reported as one", () => {
       ok: true,
       data: { ok: true, edit_token: "t2" },
     });
+  });
+});
+
+describe("listing the resources a Subagent Pool can reference", () => {
+  test("a build with no bridge method says it could not ask", () => {
+    /* Not an empty library. An account with no Agents and a build that cannot
+       reach the store look identical to a caller that flattens them, and only
+       one of the two is worth telling the author about. */
+    return list_resources().then((result) => {
+      expect(is_unavailable(result)).toBe(true);
+    });
+  });
+
+  test("the store's own envelope is handed through as it is", async () => {
+    /* `{resources: [...]}` is what the route returns and what the bridge
+       guarantees; nothing here reshapes it into an array. */
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({
+      resources: [{ id: "res-1", kind: "agent", name: "Summarizer" }],
+    });
+    const result = await list_resources();
+    expect(result).toMatchObject({ ok: true });
+    expect(result.data.resources[0].kind).toBe("agent");
+  });
+
+  test("archived resources are left out of the request, not filtered after", async () => {
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    await list_resources();
+    expect(api.unchain.listSkeletonResources).toHaveBeenCalledWith(false);
+    await list_resources(true);
+    expect(api.unchain.listSkeletonResources).toHaveBeenLastCalledWith(true);
+  });
+
+  test("a refusal is a refusal, not an empty library", async () => {
+    api.unchain.listSkeletonResources = jest.fn().mockRejectedValue(
+      Object.assign(new Error("the store is locked"), { code: "skeleton_store_failed", path: [] }),
+    );
+    const result = await list_resources();
+    expect(result).toMatchObject({ ok: false, reason: "refused" });
+    expect(result.error.message).toMatch(/locked/);
   });
 });

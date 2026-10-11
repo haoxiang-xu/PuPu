@@ -71,6 +71,15 @@ export function is_unavailable(result) {
   return Boolean(result) && result.ok === false && result.reason === "unavailable";
 }
 
+/* The resource listing, for the one caller that has to choose among them: a
+ * Subagent Pool picking an Agent to reference. Archived resources are left
+ * out of the request rather than filtered afterwards — an archived Agent
+ * cannot start a run, so offering one composes a definition the store refuses
+ * at Run. The gate refuses them too, for a listing that includes them. */
+export async function list_resources(include_archived = false) {
+  return call("listSkeletonResources", (method) => method(include_archived));
+}
+
 export async function load_resource(resource_id) {
   return call("getSkeletonResource", (method) => method(resource_id));
 }

@@ -243,6 +243,59 @@ export function with_node_output_schema(document, node_id, schema) {
   };
 }
 
+/* ── A Subagent Pool's entries ───────────────────────────────────────────── */
+
+/* The pool's `config` is CLOSED to exactly `{subagents}`
+ * (`subagent_config.py:47`), so this is the whole of what a pool node holds.
+ *
+ * Returned exactly as the document has it, not normalised into an array: "no
+ * `subagents` key at all" and "a pool holding nothing" are different
+ * documents and the runtime refuses them with different codes
+ * (`missing_field` and `missing_value`). Flattening them here would make one
+ * of the two unsayable and the editor's account of the document wrong.
+ *
+ * A pool converted from a legacy definition is the third shape: it carries
+ * `legacy_fields` and NO `subagents`, and the store expands it at preflight
+ * (`skeleton_resource_store.py:328`). */
+export const SUBAGENTS_CONFIG_KEY = "subagents";
+export const LEGACY_FIELDS_CONFIG_KEY = "legacy_fields";
+
+export function node_subagents(node) {
+  const config = is_object(node) && is_object(node.config) ? node.config : null;
+  return config ? config[SUBAGENTS_CONFIG_KEY] : undefined;
+}
+
+/* Whether this pool is a converted legacy definition rather than a Skeleton
+   one. The store's own test decides it — `"subagents" in config`
+   (`skeleton_resource_store.py:328`) — because that is the condition under
+   which the store expands `legacy_fields` and the condition under which it
+   does not. */
+export function node_pool_is_legacy(node) {
+  const config = is_object(node) && is_object(node.config) ? node.config : null;
+  if (!config || SUBAGENTS_CONFIG_KEY in config) return false;
+  return is_object(config[LEGACY_FIELDS_CONFIG_KEY]);
+}
+
+/* Writing entries never deletes anything else the node carries, and it
+ * refuses outright on a legacy pool. That refusal is not caution: the store
+ * expands `legacy_fields` only while there is no `subagents` key, so adding
+ * one entry to a legacy pool would make every legacy entry stop being
+ * expanded — the author would lose the subagents they had, at Run, silently.
+ * The panel shows a legacy pool read-only; this makes that unreachable rather
+ * than merely documented. */
+export function with_node_subagents(document, node_id, entries) {
+  const node = find_node(document, node_id);
+  if (node === null || node_pool_is_legacy(node)) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((candidate) => {
+      if (!candidate || candidate.id !== node_id) return candidate;
+      const config = is_object(candidate.config) ? candidate.config : {};
+      return { ...candidate, config: { ...config, [SUBAGENTS_CONFIG_KEY]: entries } };
+    }),
+  };
+}
+
 export function with_node_bindings(document, node_id, bindings) {
   return with_node_execution_list(document, node_id, BINDINGS_CONFIG_KEY, bindings);
 }
