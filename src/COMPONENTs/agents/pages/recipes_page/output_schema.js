@@ -118,7 +118,17 @@ export const REFERENCE_PREFIX = "#/$defs/";
 
 /* `{ ok: true, target }`, or `{ ok: false, code }` carrying the runtime's own
    code — "this kind of reference is not supported" and "this reference points
-   at nothing" are different faults and the author fixes them differently. */
+   at nothing" are different faults and the author fixes them differently.
+ *
+ * Resolving is only half the question. `resolve_references`
+ * (`kernel_output.py:246-252`) also requires the target to be a schema node
+ * the walker registered, and the walker registers only what it read *as* a
+ * schema. An object inside a `const` or an `enum` entry is a JSON value the
+ * schema carries, not a schema — so a pointer into one lands on a dict and is
+ * still `invalid_reference`. This mirror checked only that the destination was
+ * an object, and admitted both. `#/$defs/A/required` was refused by accident,
+ * because an array is not an object; the rule is about what the thing is, not
+ * about its shape. */
 function resolve_reference(root, reference) {
   if (typeof reference !== "string") return { ok: false, code: "invalid_schema" };
   if (reference.includes("%")) return { ok: false, code: "unsupported_reference" };
@@ -146,6 +156,23 @@ function resolve_reference(root, reference) {
   }
   if (!is_object(current)) return { ok: false, code: "invalid_reference" };
   return { ok: true, target: current };
+}
+
+/* Which objects the walk read as schemas. Collected in the same pass and
+   consulted after it, in the runtime's two phases, because a reference may
+   point forward at a definition the walk has not reached yet. */
+function schema_nodes(root) {
+  const nodes = new Set();
+  const visit = (node) => {
+    if (!is_object(node) || nodes.has(node)) return;
+    nodes.add(node);
+    if (is_object(node.$defs)) Object.values(node.$defs).forEach(visit);
+    if (is_object(node.properties)) Object.values(node.properties).forEach(visit);
+    if (Array.isArray(node.anyOf)) node.anyOf.forEach(visit);
+    if ("items" in node) visit(node.items);
+  };
+  visit(root);
+  return nodes;
 }
 
 /* For the readers that ask the narrower question: not whether a reference is
@@ -337,7 +364,17 @@ function walk(node, where, problems, state, options) {
       /* :189-192, resolved at :246-252 */
       case "$ref": {
         const found = resolve_reference(state.root, child);
-        if (found.ok) return;
+        if (found.ok && state.nodes.has(found.target)) return;
+        if (found.ok) {
+          problems.push(
+            problem(
+              "invalid_reference",
+              at,
+              "reference target must be a schema object",
+            ),
+          );
+          return;
+        }
         problems.push(
           problem(
             found.code,
@@ -481,7 +518,13 @@ export function output_schema_problems(schema) {
     problems.push(problem("limit_bytes", "schema", "schema exceeds eight MiB"));
   }
 
-  walk(schema, "schema", problems, { root: schema, seen: new Set() }, { root: true });
+  walk(
+    schema,
+    "schema",
+    problems,
+    { root: schema, seen: new Set(), nodes: schema_nodes(schema) },
+    { root: true },
+  );
 
   /* `validate_output_schema:323-324` asks this of the root a second time after
      the walk, which is why a root carrying no `type` at all is refused even
@@ -570,10 +613,12 @@ function root_scope(node, root, state) {
   let bound = node.additionalProperties === false ? own.slice() : null;
 
   if ("$ref" in node) {
-    const target = bounded_reference(node.$ref)
-      ? resolve_local_ref(root, node.$ref)
-      : null;
-    const via = root_scope(target, root, state);
+    /* Only a reference the runtime would follow, and only to something it
+       would accept as a schema: a pointer into a `const` lands on an ordinary
+       object, and reading field names out of it would offer roots that cannot
+       exist. */
+    const target = bounded_reference(node.$ref) ? resolve_local_ref(root, node.$ref) : null;
+    const via = root_scope(state.nodes.has(target) ? target : null, root, state);
     names = names.concat(via.names);
     bound = intersect_bounds(bound, via.bound);
   }
@@ -604,6 +649,7 @@ export function schema_root_scope(schema) {
   const state = {
     active: new Set(),
     declared: new Map(),
+    nodes: schema_nodes(schema),
     steps: MAX_ROOT_SCHEMA_STEPS,
   };
   const { names, bound } = root_scope(schema, schema, state);

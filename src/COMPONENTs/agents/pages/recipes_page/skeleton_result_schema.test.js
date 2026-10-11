@@ -1,5 +1,6 @@
 import { result_roots_for } from "./skeleton_result_roots";
 import { result_root_problems } from "./detail_panel/output_variables_section";
+import { output_schema_problems } from "./output_schema";
 import { CAPTURED_RESULT_SCHEMAS } from "./skeleton_result_schema_capture";
 
 /* The inventory against the runtime that produced it, both directions: every
@@ -167,5 +168,43 @@ describe("the fields a declaration construct contributes", () => {
     expect(roots.roots).toEqual(BUILT_INS);
     expect(roots.closed).toBe(false);
     expect(roots.reason).toBeTruthy();
+  });
+});
+
+describe("the inventory follows only references the runtime would follow", () => {
+  /* A pointer into a `const` lands on an ordinary JSON object. The runtime
+     refuses the schema outright — `invalid_reference`, because the target is
+     not a schema node its walker registered — so whatever field names happen
+     to be spelled inside that value describe nothing. Offering them would put
+     a root on the picker that cannot exist, in a draft that cannot be saved. */
+  const through_a_const = {
+    type: "object",
+    $ref: "#/$defs/A/const",
+    $defs: { A: { const: { properties: { ghost: { type: "string" } } } } },
+  };
+
+  test("a name spelled inside a const value is not offered as a root", () => {
+    const { roots } = result_roots_for(agent(through_a_const));
+    expect(roots).toEqual(BUILT_INS);
+    expect(roots).not.toContain("ghost");
+  });
+
+  test("and the list is not called closed on the strength of it", () => {
+    expect(result_roots_for(agent(through_a_const)).closed).toBe(false);
+  });
+
+  test("the editor refuses that schema, the way the runtime does", () => {
+    expect(output_schema_problems(through_a_const).map((p) => p.code)).toContain(
+      "invalid_reference",
+    );
+  });
+
+  test("a reference to a real schema node is still followed", () => {
+    const node = agent({
+      type: "object",
+      $ref: "#/$defs/A",
+      $defs: { A: { type: "object", properties: { real: { type: "string" } } } },
+    });
+    expect(result_roots_for(node).roots).toEqual([...BUILT_INS, "real"]);
   });
 });

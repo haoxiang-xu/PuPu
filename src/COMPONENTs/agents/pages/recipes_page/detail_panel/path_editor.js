@@ -1,4 +1,6 @@
-import React, { useRef, useState } from "react";
+import React from "react";
+import usePendingText from "./pending_text";
+import useListIdentities from "./list_identity";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Input from "../../../../../BUILTIN_COMPONENTs/input/input";
 
@@ -40,56 +42,33 @@ export function index_from_text(text) {
 
 
 /* A step holds what is being typed, so a refused position can stay visible
-   without being written to the document. The draft is dropped the moment the
-   text is a position the wire accepts, and whenever the step changes kind.
+   without being written to the document. The rules for text the document
+   deliberately does not hold are in `usePendingText`, which this was the first
+   of three places to need and the first to get wrong twice.
  *
- * It is also discarded when the value beneath it changes without this box
- * doing it — the document replaced under the panel by a conflict resolved the
- * other way, or by a reload landing. The text was typed against a value that
- * is no longer there, and showing it over the new one makes the field
- * misreport what is stored. That is the whole severity of this class: nothing
- * is ever written wrongly, and the field is the author's only account of what
- * was.
- *
- * Discarded, not hidden. Comparing the text against the current value on every
- * render reads correctly while they differ and keeps the text alive behind it,
- * so `[0] → [5] → [0]` brought it back — over a value it had never described,
- * by coincidence. A correction is void once the thing it was correcting is
- * gone, which is a fact about the moment the value changed, not about what the
- * value happens to be now. So the state itself is reset then.
- *
- * What it does *not* do is decide whether this is still the same step. A
- * position cannot answer that and neither can a value: removing the first step
- * of `[0, 0]` leaves a successor at the same position holding the same number,
- * and it is not the same step. Only the editor below knows an edit moved
- * things, so identity is kept there and spent as this component's key. */
+ * What that cannot answer is whether this is still the same step. A position
+ * cannot say it and neither can a value: removing the first step of `[0, 0]`
+ * leaves a successor at the same position holding the same number, and it is
+ * not the same step. Only the editor below knows an edit moved things, so the
+ * identity is kept there and spent as this component's key. */
 function Step({ segment, index, testid, onReplace, onRemove }) {
   const kind = path_segment_kind(segment);
-  /* The text is held together with the value it was offered in place of, so
-     the two cannot drift apart. The value it was typed against cannot change
-     by typing here — a refused position is not written — so a change means it
-     came from elsewhere, and the text is dropped rather than compared away. */
-  const [pending, setPending] = useState({ shown: segment, text: null });
-  if (!Object.is(pending.shown, segment)) {
-    setPending({ shown: segment, text: null });
-  }
-  const text = Object.is(pending.shown, segment) ? pending.text : null;
-  const refused = kind === "index" && text !== null;
+  const pending = usePendingText(segment);
+  const refused = kind === "index" && pending.text !== null;
 
   function type_index(next) {
     const value = index_from_text(next);
     if (value === null) {
-      setPending({ shown: segment, text: next });
+      pending.hold(next);
       return;
     }
-    setPending({ shown: value, text: null });
+    pending.release();
     onReplace(value);
   }
 
   function flip() {
-    const next = kind === "index" ? "" : 0;
-    setPending({ shown: next, text: null });
-    onReplace(next);
+    pending.release();
+    onReplace(kind === "index" ? "" : 0);
   }
 
   return (
@@ -116,7 +95,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           }}
         />
         <Input
-          value={text !== null ? text : String(segment)}
+          value={pending.text !== null ? pending.text : String(segment)}
           set_value={(next) => (kind === "index" ? type_index(next) : onReplace(next))}
           placeholder={kind === "index" ? "0" : "field"}
           style={{
@@ -154,17 +133,6 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
   );
 }
 
-/* A step's identity, which the document does not have and cannot be given: the
-   wire addresses a path's steps by where they are, and `{name, source}` is
-   closed. So it is minted here, lives exactly as long as the step does, and is
-   spent as the step's React key — which is what ties a step's own unsent text
-   to the step rather than to a place in a list.
-   Only this component knows that an edit *moved* a step rather than changed
-   one, so only this component can carry the ids across it. */
-let minted = 0;
-const mint = (count) =>
-  Array.from({ length: count }, () => `step-${(minted += 1)}`);
-
 export default function PathEditor({
   path,
   testid,
@@ -183,18 +151,7 @@ export default function PathEditor({
   const offset = leading ? 1 : 0;
   const steps = segments.slice(offset);
 
-  /* Held in a ref rather than state: nothing is rendered from it but the keys,
-     and the edits below have to adjust it in the same tick they report the
-     edit. A length that no longer matches means the path was replaced from
-     outside this editor, and then there is nothing to carry. */
-  const ids_ref = useRef({ identity: null, ids: [] });
-  if (
-    ids_ref.current.identity !== identity ||
-    ids_ref.current.ids.length !== steps.length
-  ) {
-    ids_ref.current = { identity, ids: mint(steps.length) };
-  }
-  const ids = ids_ref.current.ids;
+  const rows = useListIdentities(identity, steps.length);
 
   function replace(index, segment) {
     /* The step keeps its id: its value changed, it did not move. */
@@ -202,12 +159,12 @@ export default function PathEditor({
   }
 
   function remove(index) {
-    ids_ref.current = { identity, ids: ids.filter((_, i) => i !== index) };
+    rows.removed(index);
     onChange(segments.filter((_, i) => i !== index + offset));
   }
 
   function add() {
-    ids_ref.current = { identity, ids: [...ids, ...mint(1)] };
+    rows.added();
     onChange([...segments, ""]);
   }
 
@@ -217,7 +174,7 @@ export default function PathEditor({
 
       {steps.map((segment, i) => (
         <Step
-          key={ids[i]}
+          key={rows.ids[i]}
           segment={segment}
           index={i}
           testid={testid}

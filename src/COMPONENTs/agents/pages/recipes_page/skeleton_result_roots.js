@@ -46,6 +46,11 @@
 
 import { schema_root_scope } from "./output_schema";
 
+/* A table read with a node's type, out of a draft. `CLOSED_ROOTS["__proto__"]`
+   is `Object.prototype`, which is truthy, and spreading it is a TypeError. */
+const own = (table, key) =>
+  Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+
 const KERNEL_BUILT_INS = Object.freeze(["message", "context"]);
 
 const CLOSED_ROOTS = {
@@ -99,12 +104,12 @@ function agent_result_roots(node) {
 export function result_roots_for(node) {
   const type = node && node.type;
   if (type === "agent") return agent_result_roots(node);
-  const closed = CLOSED_ROOTS[type];
+  const closed = own(CLOSED_ROOTS, type);
   if (closed) return closed_on(closed);
   return {
     known: false,
     roots: [],
     closed: false,
-    reason: UNKNOWN_REASON[type] || null,
+    reason: own(UNKNOWN_REASON, type) || null,
   };
 }

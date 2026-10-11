@@ -11,9 +11,13 @@ import {
   with_node_output_schema,
 } from "../skeleton_document";
 import { output_schema_problems } from "../output_schema";
+import usePendingText from "./pending_text";
+import useListIdentities from "./list_identity";
 import {
-  BOUNDS_BY_TYPE,
   BOUND_LABEL,
+  bounds_for,
+  colliding_field_names,
+  free_field_name,
   FIELD_TYPES,
   ITEM_TYPES,
   fields_hold_schema,
@@ -57,6 +61,7 @@ const SECTION_LABEL = {
 const CAPTION = { fontSize: 10.5, color: "#86868b", lineHeight: 1.45 };
 const MONO = { fontFamily: "ui-monospace, Menlo, monospace" };
 const PROBLEM = { fontSize: 10.5, lineHeight: 1.45 };
+const REFUSED = { ...PROBLEM, color: "rgba(176,32,32,0.95)" };
 
 const EMPTY_SCHEMA = Object.freeze({ type: "object", properties: {} });
 
@@ -82,47 +87,117 @@ function parse_json(text) {
 
 function Bound({ field, bound, onChange }) {
   const value = field.bounds ? field.bounds[bound] : undefined;
+  const counted = bound !== "minimum" && bound !== "maximum";
   /* Blank is not zero. Zero is a real bound — an empty string, an empty list —
-     and clearing a box means "no bound", so the two cannot share a spelling. */
-  const [text, setText] = useState(null);
-  const shown = text !== null ? text : value === undefined ? "" : String(value);
+     and clearing a box means "no bound", so the two cannot share a spelling.
+     What is refused stays on screen to be corrected and is not stored, which
+     is `usePendingText`'s whole subject. */
+  const pending = usePendingText(value);
+  const shown =
+    pending.text !== null ? pending.text : value === undefined ? "" : String(value);
 
   function type(next) {
-    setText(next);
     if (next.trim() === "") {
+      pending.release();
       onChange(undefined);
       return;
     }
     const parsed = Number(next);
-    if (!Number.isFinite(parsed)) return;
-    if (bound !== "minimum" && bound !== "maximum") {
-      if (!Number.isInteger(parsed) || parsed < 0) return;
+    const usable =
+      Number.isFinite(parsed) && (!counted || (Number.isInteger(parsed) && parsed >= 0));
+    if (!usable) {
+      pending.hold(next);
+      return;
     }
+    pending.release();
     onChange(parsed);
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-      <span style={{ ...CAPTION, flexShrink: 0 }}>{BOUND_LABEL[bound]}</span>
-      <Input
-        value={shown}
-        set_value={type}
-        placeholder="—"
-        style={{
-          width: 44,
-          fontSize: 11,
-          ...MONO,
-          paddingVertical: 3,
-          paddingHorizontal: 5,
-          borderRadius: 4,
-        }}
-      />
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+        <span style={{ ...CAPTION, flexShrink: 0 }}>{BOUND_LABEL[bound]}</span>
+        <Input
+          value={shown}
+          set_value={type}
+          placeholder="—"
+          style={{
+            width: 44,
+            fontSize: 11,
+            ...MONO,
+            paddingVertical: 3,
+            paddingHorizontal: 5,
+            borderRadius: 4,
+          }}
+        />
+      </div>
+      {pending.text !== null && (
+        <span data-testid={`schema-bound-${bound}-refused`} style={REFUSED}>
+          {counted
+            ? "A count is a whole number, 0 or more. This was not stored."
+            : "A bound is a number. This was not stored."}
+        </span>
+      )}
     </div>
   );
 }
 
-function FieldRow({ field, index, isDark, onChange, onRemove }) {
-  const bounds = BOUNDS_BY_TYPE[field.type] || [];
+/* The name box, which can hold a name the document cannot take.
+ *
+ * A JSON object has one value per key, so renaming a field to a name another
+ * field already has is not a rename the document can represent — and writing
+ * it anyway deleted the other field's declaration and moved its `required`
+ * marker across, then saved that. So a colliding name is held here, shown,
+ * said, and not composed, until the author frees it. */
+function FieldName({ field, taken, onChange }) {
+  const pending = usePendingText(field.name);
+  const shown = pending.text !== null ? pending.text : field.name;
+  /* Whatever is held is unstored, and says so — not only while it still
+     collides. Freeing the name by renaming the *other* field stopped the
+     collision without storing anything, and a message conditional on the
+     collision then left this box showing a name the document does not have
+     with nothing to say about it. */
+  const taken_now = pending.text !== null && taken.includes(pending.text);
+
+  function type(next) {
+    if (next !== field.name && taken.includes(next)) {
+      pending.hold(next);
+      return;
+    }
+    pending.release();
+    onChange(next);
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+      <Input
+        value={shown}
+        set_value={type}
+        placeholder="field name"
+        style={{
+          width: 120,
+          fontSize: 11.5,
+          ...MONO,
+          paddingVertical: 4,
+          paddingHorizontal: 6,
+          borderRadius: 5,
+        }}
+      />
+      {pending.text !== null && (
+        <span data-testid="schema-name-taken" style={REFUSED}>
+          {taken_now
+            ? pending.text === ""
+              ? "Another field already has no name. This was not stored."
+              : `Another field is already called ${pending.text}. This was not stored.`
+            : "This was not stored. The name is free now — type it again to use it."}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FieldRow({ field, index, taken, isDark, onChange, onRemove }) {
+  const bounds = bounds_for(field.type);
   return (
     <div
       data-testid={`schema-field-${index}`}
@@ -147,19 +222,10 @@ function FieldRow({ field, index, isDark, onChange, onRemove }) {
           flexWrap: "wrap",
         }}
       >
-        <Input
-          value={field.name}
-          set_value={(next) => onChange({ ...field, name: next })}
-          placeholder="field name"
-          style={{
-            width: 120,
-            flexShrink: 0,
-            fontSize: 11.5,
-            ...MONO,
-            paddingVertical: 4,
-            paddingHorizontal: 6,
-            borderRadius: 5,
-          }}
+        <FieldName
+          field={field}
+          taken={taken}
+          onChange={(next) => onChange({ ...field, name: next })}
         />
         <Select
           options={FIELD_TYPES.map((value) => ({ value, label: value }))}
@@ -292,6 +358,21 @@ export default function OutputSchemaSection({
     onChange(with_node_output_schema(document, node.id, next_schema));
   }
 
+  const on = schema !== null && schema !== undefined;
+  const held = on && fields_hold_schema(schema);
+  const as_json = on && (!held || editor.as_json);
+  const problems = on ? output_schema_problems(schema) : [];
+  const { fields, closed, root } = schema_fields(on ? schema : EMPTY_SCHEMA);
+  /* A field's identity, because the document gives it none: the rows are
+     ordered and anonymous, a name is not an identity while it is being
+     renamed, and a position is not one at all once a row is removed. */
+  const rows = useListIdentities(node.id, fields.length);
+
+  /* Every hook above this line, unconditionally. An Agent gains its kernel
+     config while the panel is open — that is the author setting the model —
+     so an early return before a hook would change the hook order on the render
+     that happens. The lint caught this; the tests did not, because none of
+     them flips it on a mounted section. */
   if (!has_kernel) {
     return (
       <div
@@ -306,13 +387,12 @@ export default function OutputSchemaSection({
     );
   }
 
-  const on = schema !== null && schema !== undefined;
-  const held = on && fields_hold_schema(schema);
-  const as_json = on && (!held || editor.as_json);
-  const problems = on ? output_schema_problems(schema) : [];
-  const { fields, closed, root } = schema_fields(on ? schema : EMPTY_SCHEMA);
-
+  /* The composer cannot be asked to resolve a collision — every resolution is
+     a choice about which of the author's two declarations to destroy — so it
+     is never handed one. The name box is what tells the author; this is the
+     belt at the boundary, for a caller that forgets to. */
   function set_fields(next_fields, next_closed, next_root) {
+    if (colliding_field_names(next_fields).length > 0) return;
     store(schema_from_fields(next_fields, next_closed, next_root));
   }
 
@@ -412,9 +492,12 @@ export default function OutputSchemaSection({
 
           {fields.map((field, index) => (
             <FieldRow
-              key={index}
+              key={rows.ids[index]}
               field={field}
               index={index}
+              taken={fields
+                .filter((_, i) => i !== index)
+                .map((other) => (other && other.name) || "")}
               isDark={isDark}
               onChange={(next) =>
                 set_fields(
@@ -423,19 +506,32 @@ export default function OutputSchemaSection({
                   root,
                 )
               }
-              onRemove={() =>
+              onRemove={() => {
+                rows.removed(index);
                 set_fields(
                   fields.filter((_, i) => i !== index),
                   closed,
                   root,
-                )
-              }
+                );
+              }}
             />
           ))}
 
           <Button
             label="+ Add field"
-            onClick={() => set_fields([...fields, new_field("")], closed, root)}
+            onClick={() => {
+              rows.added();
+              set_fields(
+                [
+                  ...fields,
+                  new_field(
+                    free_field_name(fields.map((field) => (field && field.name) || "")),
+                  ),
+                ],
+                closed,
+                root,
+              );
+            }}
             style={{
               alignSelf: "flex-start",
               fontSize: 11,

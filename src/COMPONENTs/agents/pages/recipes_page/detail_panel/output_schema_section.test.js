@@ -593,3 +593,406 @@ describe("the JSON text belongs to one node and one schema", () => {
     expect(screen.getByTestId("json-text").value).toBe(typed);
   });
 });
+
+describe("a bound box reports the value it is a bound on", () => {
+  /* The third place in this panel to hold text the document does not: a
+     refused position, a refused bound, a name another field already has. The
+     first two each shipped the same two defects before being fixed, which is
+     why the rules now live in one place. */
+  const one = (minLength) => ({
+    type: "object",
+    properties: { a: { type: "string", minLength } },
+  });
+
+  const panel = (node) => (
+    <OutputSchemaSection
+      document={doc(node)}
+      node={node}
+      isDark={false}
+      onChange={() => {}}
+    />
+  );
+
+  test("a refused bound stays visible, unstored, and says so", () => {
+    const { onChange } = show(agent(one(2)));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("2"), { target: { value: "-1" } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(row.getByDisplayValue("-1")).toBeInTheDocument();
+    expect(screen.getByTestId("schema-bound-minLength-refused").textContent).toMatch(
+      /not stored/i,
+    );
+  });
+
+  test("the value being replaced underneath discards the refused text", () => {
+    const view = render(panel(agent(one(2), "a1")));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+      { target: { value: "-1" } },
+    );
+    view.rerender(panel(agent(one(5), "a1")));
+    const row = within(screen.getByTestId("schema-field-0"));
+    expect(row.getByDisplayValue("5")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-bound-minLength-refused")).not.toBeInTheDocument();
+  });
+
+  test("a value that comes back does not bring the refused text back", () => {
+    const a = agent(one(2), "a1");
+    const b = agent(one(5), "a1");
+    const view = render(panel(a));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+      { target: { value: "-1" } },
+    );
+    view.rerender(panel(b));
+    view.rerender(panel(a));
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("2"),
+    ).toBeInTheDocument();
+  });
+
+  test("removing the row above does not hand its refused text to the survivor", () => {
+    /* Two rows, the survivor's own bound differing: position cannot tell them
+       apart once the first is gone, so the row carries an identity. */
+    const two = {
+      type: "object",
+      properties: {
+        a: { type: "string", minLength: 3 },
+        b: { type: "string", minLength: 7 },
+      },
+    };
+    function Live() {
+      const [document, setDocument] = React.useState(doc(agent(two, "a1")));
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("3"),
+      { target: { value: "-1" } },
+    );
+    fireEvent.click(screen.getByLabelText("Remove a"));
+    expect(screen.getAllByTestId(/^schema-field-\d+$/)).toHaveLength(1);
+    const row = within(screen.getByTestId("schema-field-0"));
+    expect(row.getByDisplayValue("7")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-bound-minLength-refused")).not.toBeInTheDocument();
+  });
+
+  test("and does not hand its refused text to the survivor's equal bound", () => {
+    /* Same value as well as same position: only the identity separates them. */
+    const two = {
+      type: "object",
+      properties: {
+        a: { type: "string", minLength: 3 },
+        b: { type: "string", minLength: 3 },
+      },
+    };
+    function Live() {
+      const [document, setDocument] = React.useState(doc(agent(two, "a1")));
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getAllByDisplayValue("3")[0],
+      { target: { value: "-1" } },
+    );
+    fireEvent.click(screen.getByLabelText("Remove a"));
+    const row = within(screen.getByTestId("schema-field-0"));
+    expect(row.getByDisplayValue("3")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-bound-minLength-refused")).not.toBeInTheDocument();
+  });
+
+  test("correcting it to a usable bound stores exactly that", () => {
+    const { onChange } = show(agent(one(2)));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("2"), { target: { value: "-1" } });
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("-1"),
+      { target: { value: "4" } },
+    );
+    expect(written(onChange).properties.a.minLength).toBe(4);
+  });
+});
+
+describe("renaming a field onto a name another field has", () => {
+  /* It deleted the other field's whole declaration, moved its required marker
+     across, and saved that — reported as Saved, and gone after reopening. A
+     JSON object holds one value per key, so the rename is not something the
+     document can represent at all. */
+  const two = {
+    type: "object",
+    properties: {
+      answer: { type: "string" },
+      score: { type: "number", minimum: 0, maximum: 1 },
+    },
+    required: ["answer"],
+  };
+
+  test("is not written", () => {
+    const { onChange } = show(agent(two));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("answer"), { target: { value: "score" } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("keeps both rows, with the other field's declaration intact", () => {
+    show(agent(two));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("answer"), { target: { value: "score" } });
+    expect(screen.getAllByTestId(/^schema-field-\d+$/)).toHaveLength(2);
+    const other = within(screen.getByTestId("schema-field-1"));
+    expect(other.getByDisplayValue("score")).toBeInTheDocument();
+    expect(other.getAllByTestId("select")[0].getAttribute("data-value")).toBe("number");
+  });
+
+  test("shows what was typed, and says it was not stored", () => {
+    show(agent(two));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("answer"), { target: { value: "score" } });
+    expect(screen.getByTestId("schema-field-0").textContent).toMatch(
+      /already called score/i,
+    );
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("score"),
+    ).toBeInTheDocument();
+  });
+
+  test("a free name still renames, and keeps the required marker on it", () => {
+    const { onChange } = show(agent(two));
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("answer"), { target: { value: "reply" } });
+    const next = written(onChange);
+    expect(Object.keys(next.properties)).toEqual(["reply", "score"]);
+    expect(next.required).toEqual(["reply"]);
+    expect(next.properties.score).toEqual({ type: "number", minimum: 0, maximum: 1 });
+  });
+
+  test("a name taken by nothing but itself is not a collision", () => {
+    /* Renaming away and back: the second rename must not see the row's own
+       former name as taken by someone else. */
+    function Live() {
+      const [document, setDocument] = React.useState(doc(agent(two, "a1")));
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    const named = (value) =>
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue(value);
+    fireEvent.change(named("answer"), { target: { value: "x" } });
+    fireEvent.change(named("x"), { target: { value: "answer" } });
+    expect(named("answer")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-name-taken")).not.toBeInTheDocument();
+  });
+
+  test("every row's name is distinct, which is what makes the rows a schema", () => {
+    /* `Object.keys` cannot yield two of the same name, so the row list is
+       unique by construction — and that is exactly why a colliding rename has
+       to be refused before composing rather than reported afterwards: after
+       composing there is nothing left to report. */
+    show(agent(two));
+    const names = screen
+      .getAllByPlaceholderText("field name")
+      .map((box) => box.value);
+    expect(names).toEqual(["answer", "score"]);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  test("a second new field gets a name it can be written under", () => {
+    /* Two rows cannot both be unnamed, because a row only exists once it has
+       a key — so adding a second one used to do nothing at all. */
+    function Live() {
+      const [document, setDocument] = React.useState(
+        doc(agent({ type: "object", properties: {} }, "a1")),
+      );
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    fireEvent.click(screen.getByText("+ Add field"));
+    fireEvent.click(screen.getByText("+ Add field"));
+    expect(screen.getAllByTestId(/^schema-field-\d+$/)).toHaveLength(2);
+    fireEvent.click(screen.getByText("+ Add field"));
+    const names = screen
+      .getAllByPlaceholderText("field name")
+      .map((box) => box.value);
+    expect(names).toHaveLength(3);
+    expect(new Set(names).size).toBe(3);
+  });
+
+  test("the first new field is still unnamed, because that name is free", () => {
+    const { onChange } = show(agent({ type: "object", properties: {} }));
+    fireEvent.click(screen.getByText("+ Add field"));
+    expect(Object.keys(written(onChange).properties)).toEqual([""]);
+  });
+
+  test("freeing the name by renaming the other field still says nothing was stored", () => {
+    /* The collision ends without anything being written, so a message
+       conditional on the collision left this box showing a name the document
+       does not have and saying nothing about it. */
+    function Live() {
+      const [document, setDocument] = React.useState(doc(agent(two, "a1")));
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("answer"),
+      { target: { value: "score" } },
+    );
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-1")).getByDisplayValue("score"),
+      { target: { value: "rating" } },
+    );
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("score"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("schema-name-taken").textContent).toMatch(
+      /not stored/i,
+    );
+    expect(screen.getByTestId("schema-name-taken").textContent).toMatch(
+      /free now/i,
+    );
+  });
+
+  test("typing it again then stores it", () => {
+    function Live() {
+      const [document, setDocument] = React.useState(doc(agent(two, "a1")));
+      return (
+        <OutputSchemaSection
+          document={document}
+          node={document.nodes[0]}
+          isDark={false}
+          onChange={setDocument}
+        />
+      );
+    }
+    render(<Live />);
+    const first = () => within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(first().getByDisplayValue("answer"), { target: { value: "score" } });
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-1")).getByDisplayValue("score"),
+      { target: { value: "rating" } },
+    );
+    fireEvent.change(first().getByDisplayValue("score"), { target: { value: "scores" } });
+    expect(first().getByDisplayValue("scores")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-name-taken")).not.toBeInTheDocument();
+  });
+});
+
+describe("a field name JavaScript treats specially", () => {
+  test("__proto__ can be typed and is stored as a field", () => {
+    const { onChange } = show(
+      agent({ type: "object", properties: { a: { type: "string" } } }),
+    );
+    const row = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(row.getByDisplayValue("a"), { target: { value: "__proto__" } });
+    const next = written(onChange);
+    expect(Object.keys(next.properties)).toEqual(["__proto__"]);
+    expect(JSON.parse(JSON.stringify(next)).properties.__proto__).toEqual({
+      type: "string",
+    });
+  });
+
+  test("and the row for it is drawn from the stored schema", () => {
+    show(agent(JSON.parse('{"type":"object","properties":{"__proto__":{"type":"string"}}}')));
+    expect(screen.getAllByTestId(/^schema-field-\d+$/)).toHaveLength(1);
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("__proto__"),
+    ).toBeInTheDocument();
+  });
+
+  test("a type the rows have no control for does not take the panel down", () => {
+    expect(() =>
+      show(agent({ type: "object", properties: { a: { type: "__proto__" } } })),
+    ).not.toThrow();
+    expect(screen.getByTestId("schema-not-field-shaped").textContent).toMatch(/\S/);
+  });
+});
+
+describe("an Agent that gains its model configuration while open", () => {
+  /* Setting the model is how a node gets its kernel, and it happens with this
+     panel on screen. Every hook therefore has to run on both sides of that —
+     the lint said so and no test did, because none of them flipped it on a
+     mounted section. */
+  const bare = { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } };
+
+  const panel = (node) => (
+    <OutputSchemaSection
+      document={doc(node)}
+      node={node}
+      isDark={false}
+      onChange={() => {}}
+    />
+  );
+
+  test("turns from an explanation into an editor without complaint", () => {
+    const warn = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const view = render(panel(bare));
+      expect(screen.getByTestId("schema-no-kernel")).toBeInTheDocument();
+
+      view.rerender(panel(agent({ type: "object", properties: { a: { type: "string" } } }, "k")));
+      expect(screen.queryByTestId("schema-no-kernel")).not.toBeInTheDocument();
+      expect(screen.getAllByTestId(/^schema-field-\d+$/)).toHaveLength(1);
+
+      view.rerender(panel(bare));
+      expect(screen.getByTestId("schema-no-kernel")).toBeInTheDocument();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("and keeps its field identities across the flip", () => {
+    const two = {
+      type: "object",
+      properties: {
+        a: { type: "string", minLength: 3 },
+        b: { type: "string", minLength: 7 },
+      },
+    };
+    const view = render(panel(agent(two, "k")));
+    fireEvent.change(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("3"),
+      { target: { value: "-1" } },
+    );
+    view.rerender(panel(bare));
+    view.rerender(panel(agent(two, "k")));
+    /* Gone, because the section was something else in between. Dropping it is
+       never the incorrect direction. */
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("3"),
+    ).toBeInTheDocument();
+  });
+});

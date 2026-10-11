@@ -2,7 +2,9 @@ import {
   BOUNDS_BY_TYPE,
   FIELD_TYPES,
   ITEM_TYPES,
+  colliding_field_names,
   fields_hold_schema,
+  free_field_name,
   new_field,
   same_json,
   schema_fields,
@@ -229,5 +231,140 @@ describe("the reason is derived, not guessed", () => {
       required: ["a", "b"],
     };
     expect(fields_hold_schema(schema)).toBe(true);
+  });
+});
+
+describe("a name JavaScript treats specially is still a field name", () => {
+  /* The runtime reserves `message` and `context` and nothing else. It admits
+     a field called `__proto__`, and publishes one — the capture records the
+     real `parse_kernel_output` doing it. Assigning that key onto a plain
+     object calls the prototype setter instead of creating the property, so
+     the field was composed away into an empty `properties`. */
+  ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"].forEach((name) => {
+    test(`${name} survives composition`, () => {
+      const schema = schema_from_fields([{ ...new_field(name), type: "string" }], false);
+      expect(Object.keys(schema.properties)).toEqual([name]);
+      expect(JSON.parse(JSON.stringify(schema)).properties[name]).toEqual({
+        type: "string",
+      });
+    });
+
+    test(`${name} survives the round trip`, () => {
+      const schema = JSON.parse(
+        JSON.stringify({ type: "object", properties: { [name]: { type: "string" } } }),
+      );
+      expect(fields_hold_schema(schema)).toBe(true);
+      expect(schema_fields(schema).fields.map((f) => f.name)).toEqual([name]);
+    });
+  });
+
+  test("required carries such a name too", () => {
+    const schema = schema_from_fields(
+      [{ ...new_field("__proto__"), type: "string", required: true }],
+      true,
+    );
+    expect(schema.required).toEqual(["__proto__"]);
+    expect(fields_hold_schema(JSON.parse(JSON.stringify(schema)))).toBe(true);
+  });
+});
+
+describe("two fields cannot share a name, and neither is thrown away", () => {
+  /* A JSON object has one value per key, so a colliding rename cannot be
+     written at all — and writing it anyway deleted the other field's whole
+     declaration and moved its required marker across. The composer must not be
+     the thing that decides; it must not be able to lose a row. */
+  test("the composer reports the collision instead of resolving it", () => {
+    const rows = [
+      { ...new_field("score"), type: "string", required: true },
+      { ...new_field("score"), type: "number" },
+    ];
+    expect(colliding_field_names(rows)).toEqual(["score"]);
+  });
+
+  test("a list with no collision reports none", () => {
+    expect(colliding_field_names([new_field("a"), new_field("b")])).toEqual([]);
+  });
+
+  test("the empty name collides with itself like any other", () => {
+    expect(colliding_field_names([new_field(""), new_field("")])).toEqual([""]);
+  });
+
+  test("a name JavaScript treats specially collides like any other", () => {
+    expect(
+      colliding_field_names([new_field("__proto__"), new_field("__proto__")]),
+    ).toEqual(["__proto__"]);
+  });
+
+  test("three rows sharing a name report it once", () => {
+    expect(
+      colliding_field_names([new_field("a"), new_field("a"), new_field("a")]),
+    ).toEqual(["a"]);
+  });
+});
+
+describe("a declared type the rows have no control for", () => {
+  test("does not throw on the way to saying so", () => {
+    /* `BOUNDS_BY_TYPE[type]` on a plain object answers `Object.prototype` for
+       `__proto__`, and `.forEach` on that is not a function — so the panel
+       died inside the code that was about to explain the problem. Third time
+       in this ticket. */
+    const schema = { type: "object", properties: { a: { type: "__proto__" } } };
+    expect(() => fields_hold_schema(schema)).not.toThrow();
+    expect(fields_hold_schema(schema)).toBe(false);
+    expect(() => why_fields_cannot_hold(schema)).not.toThrow();
+  });
+
+  test("the reason says the type is not one the rows know", () => {
+    expect(
+      why_fields_cannot_hold({ type: "object", properties: { a: { type: "constructor" } } }),
+    ).toMatch(/type/i);
+  });
+
+  test("a keyword named like a prototype member is not read off the prototype", () => {
+    expect(() =>
+      why_fields_cannot_hold({
+        type: "object",
+        properties: JSON.parse('{"a":{"type":"string","__proto__":{}}}'),
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("a new row needs a name it can be written under", () => {
+  test("nothing is taken, so the empty name is free", () => {
+    expect(free_field_name([])).toBe("");
+  });
+
+  test("the empty name is taken, so a placeholder is used", () => {
+    expect(free_field_name([""])).toBe("field");
+  });
+
+  test("the placeholder is taken too, so the next one is used", () => {
+    expect(free_field_name(["", "field"])).toBe("field_2");
+    expect(free_field_name(["", "field", "field_2"])).toBe("field_3");
+  });
+
+  test("the name it returns is never one of the taken ones", () => {
+    [
+      [],
+      [""],
+      ["", "field"],
+      ["", "field", "field_2", "field_3"],
+      ["a", "b"],
+      ["", "__proto__"],
+    ].forEach((taken) => {
+      expect(taken).not.toContain(free_field_name(taken));
+    });
+  });
+
+  test("a row added under that name composes to a real field", () => {
+    const taken = [""];
+    const name = free_field_name(taken);
+    const schema = schema_from_fields(
+      [{ ...new_field("") }, { ...new_field(name) }],
+      false,
+    );
+    expect(Object.keys(schema.properties).sort()).toEqual(["", name].sort());
+    expect(colliding_field_names([new_field(""), new_field(name)])).toEqual([]);
   });
 });

@@ -9,6 +9,7 @@ import {
   node_declares_outputs,
   node_output_mappings,
   node_takes_inputs,
+  output_source_kinds_for,
   upstream_node_ids,
   with_node_bindings,
   with_node_output_mappings,
@@ -238,5 +239,27 @@ describe("an Agent's output schema lives in its kernel config", () => {
   test("a document that is not one does not throw", () => {
     expect(() => with_node_output_schema(null, "k", {})).not.toThrow();
     expect(with_node_output_schema(null, "k", {})).toBe(null);
+  });
+});
+
+describe("a node type the document does not know", () => {
+  /* `is_skeleton_node` asks for a config object and nothing else, so a draft
+     node of any type reaches the panel. A table read with that type answered
+     `Object.prototype` for `__proto__` — truthy, and with no `includes` — and
+     the panel went down inside the code deciding which sections to draw. */
+  ["__proto__", "constructor", "toString", "valueOf", "something_new"].forEach((type) => {
+    test(`${type} is unknown, not whatever a prototype answers`, () => {
+      expect(execution_keys_for(type)).toBe(null);
+      expect(node_takes_inputs(type)).toBe(false);
+      expect(node_declares_outputs(type)).toBe(false);
+      expect(output_source_kinds_for(type)).toEqual([]);
+    });
+  });
+
+  test("and the types it does know are unaffected", () => {
+    expect(execution_keys_for("agent")).toEqual(["inputs", "outputs"]);
+    expect(output_source_kinds_for("end")).toEqual(["input"]);
+    expect(output_source_kinds_for("start")).toEqual(["result"]);
+    expect(output_source_kinds_for("agent")).toEqual(["input", "result"]);
   });
 });

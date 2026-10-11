@@ -14,897 +14,396 @@
  * whole — and a negative and a fractional `minimum`, which the subset admits
  * there and refuses on the four length and count bounds.
  *
+ * A later round added the names JavaScript treats specially — `__proto__`,
+ * `constructor`, `toString`, `hasOwnProperty`, `valueOf`, `prototype` — and
+ * the placeholder a second new row is seeded with. The runtime admits all of
+ * them as field names and publishes a `__proto__` field; plain assignment
+ * composed that one away into an empty `properties`, and the five that
+ * survive plain assignment are why nobody noticed.
+ *
  * Composed by `schema_from_fields` and then offered to the fixed installed
  * `unchain==0.2.0`
  * (`df33867b3737569fa4a5272b6fdd735fa76a6ec92343517d06e278b9c537c178`).
  * Nothing was rebuilt. A refusal here would mean the rows can build something
  * that cannot be saved, which is the defect the mirror was just corrected for,
- * one layer up. */
+ * one layer up.
+ *
+ * The schemas are held as the JSON text the validator was given, and parsed at
+ * load. Not for tidiness: a JavaScript object literal cannot carry a
+ * `__proto__` key at all — quoted or not, that spelling sets the prototype —
+ * so a fixture written as a literal silently loses the very field this set
+ * exists to pin. `JSON.parse` creates it as an own property, which is also how
+ * a schema actually reaches this editor: out of the store, as text.
+ */
 
-export const CAPTURED_FIELD_SCHEMAS = Object.freeze(
-[
+const CAPTURED = [
  {
   "label": "one string field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one string field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one string field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one string field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "description": "what it holds"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one number field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one number field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"number\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one number field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one number field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "description": "what it holds"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one integer field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one integer field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"integer\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one integer field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one integer field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "description": "what it holds"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one boolean field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "boolean"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"boolean\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one boolean field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "boolean"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"boolean\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one boolean field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "boolean"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"boolean\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one boolean field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "boolean",
-     "description": "what it holds"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"type\": \"boolean\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one array field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one array field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one array field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one array field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "description": "what it holds",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one null field",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "null"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"null\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one null field, required",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "null"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"null\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "one null field, closed",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "null"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"null\"}}, \"type\": \"object\"}"
  },
  {
   "label": "one null field, described",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "null",
-     "description": "what it holds"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"description\": \"what it holds\", \"type\": \"null\"}}, \"type\": \"object\"}"
  },
  {
   "label": "string with minLength at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "minLength": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minLength\": 0, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "string with minLength at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "minLength": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minLength\": 7, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "string with maxLength at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "maxLength": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maxLength\": 0, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "string with maxLength at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "maxLength": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maxLength\": 7, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "string with both bounds",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "minLength": 1,
-     "maxLength": 9
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maxLength\": 9, \"minLength\": 1, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "number with minimum at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": 0, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "number with minimum at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": 7, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "number with maximum at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "maximum": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 0, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "number with maximum at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "maximum": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 7, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "number with both bounds",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": 1,
-     "maximum": 9
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 9, \"minimum\": 1, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "integer with minimum at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "minimum": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": 0, \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "integer with minimum at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "minimum": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": 7, \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "integer with maximum at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "maximum": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 0, \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "integer with maximum at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "maximum": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 7, \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "integer with both bounds",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "integer",
-     "minimum": 1,
-     "maximum": 9
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 9, \"minimum\": 1, \"type\": \"integer\"}}, \"type\": \"object\"}"
  },
  {
   "label": "array with minItems at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "minItems": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"minItems\": 0, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "array with minItems at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "minItems": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"minItems\": 7, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "array with maxItems at 0",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "maxItems": 0
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"maxItems\": 0, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "array with maxItems at 7",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "maxItems": 7
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"maxItems\": 7, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "array with both bounds",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "minItems": 1,
-     "maxItems": 9
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"maxItems\": 9, \"minItems\": 1, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a number with a negative minimum",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": -5
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": -5, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a number with a fractional bound",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": 0.5,
-     "maximum": 1.5
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maximum\": 1.5, \"minimum\": 0.5, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a list of string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a list of number",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"number\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a list of integer",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "integer"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a list of boolean",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "boolean"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"boolean\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a list of null",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "null"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"null\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "an empty name",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a name with a dot",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a.b": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a.b\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a name with a slash",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a/b": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a/b\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a name with a tilde",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a~b": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a~b\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a unicode name",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "\u8f93\u51fa": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"输出\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a name with a space",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "two words": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"two words\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "several fields of mixed types and requirements",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "answer": {
-     "type": "string",
-     "description": "the reply"
-    },
-    "score": {
-     "type": "number",
-     "minimum": 0,
-     "maximum": 1
-    },
-    "tags": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     },
-     "maxItems": 5
-    },
-    "ok": {
-     "type": "boolean"
-    }
-   },
-   "required": [
-    "answer",
-    "ok"
-   ],
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"answer\": {\"description\": \"the reply\", \"type\": \"string\"}, \"ok\": {\"type\": \"boolean\"}, \"score\": {\"maximum\": 1, \"minimum\": 0, \"type\": \"number\"}, \"tags\": {\"items\": {\"type\": \"string\"}, \"maxItems\": 5, \"type\": \"array\"}}, \"required\": [\"answer\", \"ok\"], \"type\": \"object\"}"
  },
  {
   "label": "no fields at all",
-  "doc": {
-   "type": "object",
-   "properties": {}
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {}, \"type\": \"object\"}"
  },
  {
   "label": "no fields at all, closed",
-  "doc": {
-   "type": "object",
-   "properties": {},
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {}, \"type\": \"object\"}"
  },
  {
   "label": "carrying the declared dialect",
-  "doc": {
-   "$schema": "https://json-schema.org/draft/2020-12/schema",
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\", \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "carrying a description of the whole output",
-  "doc": {
-   "type": "object",
-   "description": "the classification and why",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"description\": \"the classification and why\", \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "carrying both",
-  "doc": {
-   "$schema": "https://json-schema.org/draft/2020-12/schema",
-   "type": "object",
-   "description": "both at once",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\", \"additionalProperties\": false, \"description\": \"both at once\", \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "carrying a dialect with no fields",
-  "doc": {
-   "$schema": "https://json-schema.org/draft/2020-12/schema",
-   "type": "object",
-   "properties": {}
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\", \"properties\": {}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named __proto__",
+  "accepted": true,
+  "json": "{\"properties\": {\"__proto__\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named constructor",
+  "accepted": true,
+  "json": "{\"properties\": {\"constructor\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named toString",
+  "accepted": true,
+  "json": "{\"properties\": {\"toString\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named hasOwnProperty",
+  "accepted": true,
+  "json": "{\"properties\": {\"hasOwnProperty\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named valueOf",
+  "accepted": true,
+  "json": "{\"properties\": {\"valueOf\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field named prototype",
+  "accepted": true,
+  "json": "{\"properties\": {\"prototype\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a required field named __proto__",
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"__proto__\": {\"type\": \"string\"}}, \"required\": [\"__proto__\"], \"type\": \"object\"}"
+ },
+ {
+  "label": "__proto__ beside an ordinary field",
+  "accepted": true,
+  "json": "{\"properties\": {\"__proto__\": {\"minimum\": 0, \"type\": \"number\"}, \"answer\": {\"type\": \"string\"}}, \"required\": [\"answer\"], \"type\": \"object\"}"
+ },
+ {
+  "label": "the seeded placeholder beside an unnamed field",
+  "accepted": true,
+  "json": "{\"properties\": {\"\": {\"type\": \"string\"}, \"field\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  }
-]
-,);
+];
+
+export const CAPTURED_FIELD_SCHEMAS = Object.freeze(
+  CAPTURED.map((entry) => Object.freeze({ ...entry, doc: JSON.parse(entry.json) })),
+);

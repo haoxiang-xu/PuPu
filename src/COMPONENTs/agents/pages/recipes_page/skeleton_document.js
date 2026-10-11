@@ -63,6 +63,15 @@ export const WORKFLOW_FORBIDDEN_NODE_TYPES = Object.freeze([
 const is_object = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+/* A table read with a node's type, which comes out of a draft and can be
+   anything. `EXECUTION_KEYS_BY_TYPE["__proto__"]` is `Object.prototype` —
+   truthy, and with no `includes` — so a node of that type took the panel down
+   inside the code deciding which sections to draw. `is_skeleton_node` asks
+   only for a config object, so such a node does reach here. */
+function own(table, key) {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
 /* ── Where the two IO lists live ─────────────────────────────────────────
  *
  * Not at the top of `config`: a node's config holds an `execution` object, and
@@ -110,7 +119,7 @@ export const NON_EXECUTING_NODE_TYPES = Object.freeze([
 ]);
 
 export function execution_keys_for(node_type) {
-  return EXECUTION_KEYS_BY_TYPE[node_type] || null;
+  return own(EXECUTION_KEYS_BY_TYPE, node_type) || null;
 }
 
 export function node_takes_inputs(node_type) {
@@ -149,7 +158,7 @@ const OUTPUT_SOURCE_KINDS_BY_TYPE = Object.freeze({
 
 export function output_source_kinds_for(node_type) {
   if (!node_declares_outputs(node_type)) return [];
-  return OUTPUT_SOURCE_KINDS_BY_TYPE[node_type] || ["input", "result"];
+  return own(OUTPUT_SOURCE_KINDS_BY_TYPE, node_type) || ["input", "result"];
 }
 
 export function is_skeleton_node(node) {

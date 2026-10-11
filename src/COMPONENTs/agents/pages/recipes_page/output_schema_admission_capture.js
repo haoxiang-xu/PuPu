@@ -22,230 +22,157 @@
  * is a whole JSON Schema implementation and is not mirrored; it is the reason
  * the editor still has to survive a save rejection it did not predict.
  *
+ * Later rounds added the rules a review found the mirror still missing: a
+ * `$ref` whose target is an ordinary JSON object rather than a schema node
+ * the walker registered — reachable through `const` and `enum`, and through
+ * `required`, which is an array of names — and the property names that are
+ * legal here and dangerous in JavaScript: `__proto__`, `constructor`,
+ * `toString`. The runtime admits all three as field names and publishes a
+ * `__proto__` field; this editor erased it.
+ *
  * Captured from the fixed installed `unchain==0.2.0`
  * (`df33867b3737569fa4a5272b6fdd735fa76a6ec92343517d06e278b9c537c178`).
  * Nothing was rebuilt. The depth boundary is probed, not assumed: thirty
  * levels of the nesting shape below is the deepest it takes, thirty-one is
- * `limit_depth`. */
+ * `limit_depth`.
+ *
+ * The schemas are held as the JSON text the validator was given, and parsed at
+ * load. Not for tidiness: a JavaScript object literal cannot carry a
+ * `__proto__` key at all — quoted or not, that spelling sets the prototype —
+ * so a fixture written as a literal silently loses the very field this set
+ * exists to pin. `JSON.parse` creates it as an own property, which is also how
+ * a schema actually reaches this editor: out of the store, as text.
+ */
 
-export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
-[
+const CAPTURED = [
  {
   "label": "$schema at the admitted dialect",
-  "doc": {
-   "type": "object",
-   "$schema": "https://json-schema.org/draft/2020-12/schema",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\", \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "$schema at another dialect",
-  "doc": {
-   "type": "object",
-   "$schema": "http://json-schema.org/draft-07/schema#"
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "$schema"
-  ]
+  ],
+  "json": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\"}"
  },
  {
   "label": "$schema that is not a string",
-  "doc": {
-   "type": "object",
-   "$schema": 7
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "$schema"
-  ]
+  ],
+  "json": "{\"$schema\": 7, \"type\": \"object\"}"
  },
  {
   "label": "$defs that is not an object",
-  "doc": {
-   "type": "object",
-   "$defs": [],
-   "properties": {}
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "$defs"
-  ]
+  ],
+  "json": "{\"$defs\": [], \"properties\": {}, \"type\": \"object\"}"
  },
  {
   "label": "$defs holding something that is not a schema",
-  "doc": {
-   "type": "object",
-   "$defs": {
-    "A": "nope"
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "$defs",
    "A"
-  ]
+  ],
+  "json": "{\"$defs\": {\"A\": \"nope\"}, \"type\": \"object\"}"
  },
  {
   "label": "$ref that is not a string",
-  "doc": {
-   "type": "object",
-   "$ref": 7
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "$ref"
-  ]
+  ],
+  "json": "{\"$ref\": 7, \"type\": \"object\"}"
  },
  {
   "label": "$ref to a definition that is absent",
-  "doc": {
-   "type": "object",
-   "$ref": "#/$defs/Missing"
-  },
   "accepted": false,
   "code": "invalid_reference",
   "path": [
    "schema",
    "$ref"
-  ]
+  ],
+  "json": "{\"$ref\": \"#/$defs/Missing\", \"type\": \"object\"}"
  },
  {
   "label": "$ref that is percent-encoded",
-  "doc": {
-   "type": "object",
-   "$ref": "#/$defs/A%20B",
-   "$defs": {
-    "A B": {
-     "type": "object"
-    }
-   }
-  },
   "accepted": false,
   "code": "unsupported_reference",
   "path": [
    "schema",
    "$ref"
-  ]
+  ],
+  "json": "{\"$defs\": {\"A B\": {\"type\": \"object\"}}, \"$ref\": \"#/$defs/A%20B\", \"type\": \"object\"}"
  },
  {
   "label": "$ref outside $defs",
-  "doc": {
-   "type": "object",
-   "$ref": "#/properties/a",
-   "properties": {
-    "a": {
-     "type": "object"
-    }
-   }
-  },
   "accepted": false,
   "code": "unsupported_reference",
   "path": [
    "schema",
    "$ref"
-  ]
+  ],
+  "json": "{\"$ref\": \"#/properties/a\", \"properties\": {\"a\": {\"type\": \"object\"}}, \"type\": \"object\"}"
  },
  {
   "label": "$ref to the root itself",
-  "doc": {
-   "type": "object",
-   "$ref": "#"
-  },
   "accepted": false,
   "code": "unsupported_reference",
   "path": [
    "schema",
    "$ref"
-  ]
+  ],
+  "json": "{\"$ref\": \"#\", \"type\": \"object\"}"
  },
  {
   "label": "$ref with a ~1 escape",
-  "doc": {
-   "type": "object",
-   "$ref": "#/$defs/a~1b",
-   "$defs": {
-    "a/b": {
-     "type": "object",
-     "properties": {
-      "x": {
-       "type": "string"
-      }
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"$defs\": {\"a/b\": {\"properties\": {\"x\": {\"type\": \"string\"}}, \"type\": \"object\"}}, \"$ref\": \"#/$defs/a~1b\", \"type\": \"object\"}"
  },
  {
   "label": "title that is not a string",
-  "doc": {
-   "type": "object",
-   "title": 7
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "title"
-  ]
+  ],
+  "json": "{\"title\": 7, \"type\": \"object\"}"
  },
  {
   "label": "description that is not a string",
-  "doc": {
-   "type": "object",
-   "description": []
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "description"
-  ]
+  ],
+  "json": "{\"description\": [], \"type\": \"object\"}"
  },
  {
   "label": "a nested type given as a list",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": [
-      "string",
-      "null"
-     ]
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": [\"string\", \"null\"]}}, \"type\": \"object\"}"
  },
  {
   "label": "a nested type list with a repeat",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": [
-      "string",
-      "string"
-     ]
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -253,18 +180,11 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "type"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": [\"string\", \"string\"]}}, \"type\": \"object\"}"
  },
  {
   "label": "a nested type list that is empty",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": []
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -272,135 +192,66 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "type"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": []}}, \"type\": \"object\"}"
  },
  {
   "label": "required naming its properties",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "a"
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"required\": [\"a\"], \"type\": \"object\"}"
  },
  {
   "label": "required that is not an array",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "required": "a"
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "required"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"required\": \"a\", \"type\": \"object\"}"
  },
  {
   "label": "required holding a non-string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "required": [
-    7
-   ]
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "required"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"required\": [7], \"type\": \"object\"}"
  },
  {
   "label": "required with a repeated name",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "required": [
-    "a",
-    "a"
-   ]
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "required"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}, \"required\": [\"a\", \"a\"], \"type\": \"object\"}"
  },
  {
   "label": "additionalProperties as a schema",
-  "doc": {
-   "type": "object",
-   "additionalProperties": {
-    "type": "string"
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "additionalProperties"
-  ]
+  ],
+  "json": "{\"additionalProperties\": {\"type\": \"string\"}, \"type\": \"object\"}"
  },
  {
   "label": "additionalProperties as false",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   },
-   "additionalProperties": false
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "items on an array property",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": {
-      "type": "string"
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "enum that is empty",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "enum": []
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -408,18 +259,11 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "enum"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"enum\": []}}, \"type\": \"object\"}"
  },
  {
   "label": "enum that is not an array",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "enum": "ab"
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -427,47 +271,21 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "enum"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"enum\": \"ab\"}}, \"type\": \"object\"}"
  },
  {
   "label": "enum of scalars",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "enum": [
-      "x",
-      1,
-      null
-     ]
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"enum\": [\"x\", 1, null]}}, \"type\": \"object\"}"
  },
  {
   "label": "const of null",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "const": null
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"const\": null}}, \"type\": \"object\"}"
  },
  {
   "label": "minItems that is negative",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "minItems": -1
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -475,19 +293,11 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "minItems"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"minItems\": -1, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "minItems that is a float",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "minItems": 1.5
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -495,19 +305,11 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "minItems"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"minItems\": 1.5, \"type\": \"array\"}}, \"type\": \"object\"}"
  },
  {
   "label": "maxLength that is a string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "maxLength": "10"
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -515,32 +317,16 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "maxLength"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"maxLength\": \"10\", \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "minimum that is a float",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": 0.5
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"minimum\": 0.5, \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "minimum that is a string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "number",
-     "minimum": "0"
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -548,494 +334,102 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "minimum"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"minimum\": \"0\", \"type\": \"number\"}}, \"type\": \"object\"}"
  },
  {
   "label": "anyOf that is empty",
-  "doc": {
-   "type": "object",
-   "anyOf": []
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "anyOf"
-  ]
+  ],
+  "json": "{\"anyOf\": [], \"type\": \"object\"}"
  },
  {
   "label": "anyOf that is not an array",
-  "doc": {
-   "type": "object",
-   "anyOf": {}
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "anyOf"
-  ]
+  ],
+  "json": "{\"anyOf\": {}, \"type\": \"object\"}"
  },
  {
   "label": "anyOf of two object alternatives",
-  "doc": {
-   "type": "object",
-   "anyOf": [
-    {
-     "type": "object",
-     "properties": {
-      "a": {
-       "type": "string"
-      }
-     }
-    },
-    {
-     "type": "object",
-     "properties": {
-      "b": {
-       "type": "string"
-      }
-     }
-    }
-   ]
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"anyOf\": [{\"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}, {\"properties\": {\"b\": {\"type\": \"string\"}}, \"type\": \"object\"}], \"type\": \"object\"}"
  },
  {
   "label": "a reserved name reached through a root anyOf",
-  "doc": {
-   "type": "object",
-   "anyOf": [
-    {
-     "type": "object",
-     "properties": {
-      "message": {
-       "type": "string"
-      }
-     }
-    }
-   ]
-  },
   "accepted": false,
   "code": "reserved_name",
   "path": [
    "schema",
    "properties"
-  ]
+  ],
+  "json": "{\"anyOf\": [{\"properties\": {\"message\": {\"type\": \"string\"}}, \"type\": \"object\"}], \"type\": \"object\"}"
  },
  {
   "label": "a root with no type at all",
-  "doc": {
-   "properties": {
-    "a": {
-     "type": "string"
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "type"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": \"string\"}}}"
  },
  {
   "label": "a root type given as a list holding object",
-  "doc": {
-   "type": [
-    "object"
-   ],
-   "properties": {}
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "type"
-  ]
+  ],
+  "json": "{\"properties\": {}, \"type\": [\"object\"]}"
  },
  {
   "label": "properties that is not an object",
-  "doc": {
-   "type": "object",
-   "properties": []
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "properties"
-  ]
+  ],
+  "json": "{\"properties\": [], \"type\": \"object\"}"
  },
  {
   "label": "a property whose schema is not an object",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": 7
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
    "schema",
    "properties",
    "a"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": 7}, \"type\": \"object\"}"
  },
  {
   "label": "a property named with the empty string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "": {
-     "type": "string"
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "minLength on a nested string",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "minLength": 0,
-     "maxLength": 5
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"a\": {\"maxLength\": 5, \"minLength\": 0, \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "nesting at the deepest the runtime takes",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "n": {
-     "type": "object",
-     "properties": {
-      "n": {
-       "type": "object",
-       "properties": {
-        "n": {
-         "type": "object",
-         "properties": {
-          "n": {
-           "type": "object",
-           "properties": {
-            "n": {
-             "type": "object",
-             "properties": {
-              "n": {
-               "type": "object",
-               "properties": {
-                "n": {
-                 "type": "object",
-                 "properties": {
-                  "n": {
-                   "type": "object",
-                   "properties": {
-                    "n": {
-                     "type": "object",
-                     "properties": {
-                      "n": {
-                       "type": "object",
-                       "properties": {
-                        "n": {
-                         "type": "object",
-                         "properties": {
-                          "n": {
-                           "type": "object",
-                           "properties": {
-                            "n": {
-                             "type": "object",
-                             "properties": {
-                              "n": {
-                               "type": "object",
-                               "properties": {
-                                "n": {
-                                 "type": "object",
-                                 "properties": {
-                                  "n": {
-                                   "type": "object",
-                                   "properties": {
-                                    "n": {
-                                     "type": "object",
-                                     "properties": {
-                                      "n": {
-                                       "type": "object",
-                                       "properties": {
-                                        "n": {
-                                         "type": "object",
-                                         "properties": {
-                                          "n": {
-                                           "type": "object",
-                                           "properties": {
-                                            "n": {
-                                             "type": "object",
-                                             "properties": {
-                                              "n": {
-                                               "type": "object",
-                                               "properties": {
-                                                "n": {
-                                                 "type": "object",
-                                                 "properties": {
-                                                  "n": {
-                                                   "type": "object",
-                                                   "properties": {
-                                                    "n": {
-                                                     "type": "object",
-                                                     "properties": {
-                                                      "n": {
-                                                       "type": "object",
-                                                       "properties": {
-                                                        "n": {
-                                                         "type": "object",
-                                                         "properties": {
-                                                          "n": {
-                                                           "type": "object",
-                                                           "properties": {
-                                                            "n": {
-                                                             "type": "object",
-                                                             "properties": {
-                                                              "n": {
-                                                               "type": "object",
-                                                               "properties": {
-                                                                "n": {
-                                                                 "type": "string"
-                                                                }
-                                                               }
-                                                              }
-                                                             }
-                                                            }
-                                                           }
-                                                          }
-                                                         }
-                                                        }
-                                                       }
-                                                      }
-                                                     }
-                                                    }
-                                                   }
-                                                  }
-                                                 }
-                                                }
-                                               }
-                                              }
-                                             }
-                                            }
-                                           }
-                                          }
-                                         }
-                                        }
-                                       }
-                                      }
-                                     }
-                                    }
-                                   }
-                                  }
-                                 }
-                                }
-                               }
-                              }
-                             }
-                            }
-                           }
-                          }
-                         }
-                        }
-                       }
-                      }
-                     }
-                    }
-                   }
-                  }
-                 }
-                }
-               }
-              }
-             }
-            }
-           }
-          }
-         }
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "accepted": true
+  "accepted": true,
+  "json": "{\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"type\": \"string\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}"
  },
  {
   "label": "nesting one step past it",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "n": {
-     "type": "object",
-     "properties": {
-      "n": {
-       "type": "object",
-       "properties": {
-        "n": {
-         "type": "object",
-         "properties": {
-          "n": {
-           "type": "object",
-           "properties": {
-            "n": {
-             "type": "object",
-             "properties": {
-              "n": {
-               "type": "object",
-               "properties": {
-                "n": {
-                 "type": "object",
-                 "properties": {
-                  "n": {
-                   "type": "object",
-                   "properties": {
-                    "n": {
-                     "type": "object",
-                     "properties": {
-                      "n": {
-                       "type": "object",
-                       "properties": {
-                        "n": {
-                         "type": "object",
-                         "properties": {
-                          "n": {
-                           "type": "object",
-                           "properties": {
-                            "n": {
-                             "type": "object",
-                             "properties": {
-                              "n": {
-                               "type": "object",
-                               "properties": {
-                                "n": {
-                                 "type": "object",
-                                 "properties": {
-                                  "n": {
-                                   "type": "object",
-                                   "properties": {
-                                    "n": {
-                                     "type": "object",
-                                     "properties": {
-                                      "n": {
-                                       "type": "object",
-                                       "properties": {
-                                        "n": {
-                                         "type": "object",
-                                         "properties": {
-                                          "n": {
-                                           "type": "object",
-                                           "properties": {
-                                            "n": {
-                                             "type": "object",
-                                             "properties": {
-                                              "n": {
-                                               "type": "object",
-                                               "properties": {
-                                                "n": {
-                                                 "type": "object",
-                                                 "properties": {
-                                                  "n": {
-                                                   "type": "object",
-                                                   "properties": {
-                                                    "n": {
-                                                     "type": "object",
-                                                     "properties": {
-                                                      "n": {
-                                                       "type": "object",
-                                                       "properties": {
-                                                        "n": {
-                                                         "type": "object",
-                                                         "properties": {
-                                                          "n": {
-                                                           "type": "object",
-                                                           "properties": {
-                                                            "n": {
-                                                             "type": "object",
-                                                             "properties": {
-                                                              "n": {
-                                                               "type": "object",
-                                                               "properties": {
-                                                                "n": {
-                                                                 "type": "object",
-                                                                 "properties": {
-                                                                  "n": {
-                                                                   "type": "string"
-                                                                  }
-                                                                 }
-                                                                }
-                                                               }
-                                                              }
-                                                             }
-                                                            }
-                                                           }
-                                                          }
-                                                         }
-                                                        }
-                                                       }
-                                                      }
-                                                     }
-                                                    }
-                                                   }
-                                                  }
-                                                 }
-                                                }
-                                               }
-                                              }
-                                             }
-                                            }
-                                           }
-                                          }
-                                         }
-                                        }
-                                       }
-                                      }
-                                     }
-                                    }
-                                   }
-                                  }
-                                 }
-                                }
-                               }
-                              }
-                             }
-                            }
-                           }
-                          }
-                         }
-                        }
-                       }
-                      }
-                     }
-                    }
-                   }
-                  }
-                 }
-                }
-               }
-              }
-             }
-            }
-           }
-          }
-         }
-        }
-       }
-      }
-     }
-    }
-   }
-  },
   "accepted": false,
   "code": "limit_depth",
   "path": [
@@ -1105,19 +499,11 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "n",
    "type"
-  ]
+  ],
+  "json": "{\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"properties\": {\"n\": {\"type\": \"string\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a keyword outside the allowed subset",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "string",
-     "pattern": "^x$"
-    }
-   }
-  },
   "accepted": false,
   "code": "unknown_keyword",
   "path": [
@@ -1125,36 +511,21 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "pattern"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"pattern\": \"^x$\", \"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a root property named message",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "message": {
-     "type": "string"
-    }
-   }
-  },
   "accepted": false,
   "code": "reserved_name",
   "path": [
    "schema",
    "properties"
-  ]
+  ],
+  "json": "{\"properties\": {\"message\": {\"type\": \"string\"}}, \"type\": \"object\"}"
  },
  {
   "label": "a node that is not an object under items",
-  "doc": {
-   "type": "object",
-   "properties": {
-    "a": {
-     "type": "array",
-     "items": 7
-    }
-   }
-  },
   "accepted": false,
   "code": "invalid_schema",
   "path": [
@@ -1162,7 +533,94 @@ export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
    "properties",
    "a",
    "items"
-  ]
+  ],
+  "json": "{\"properties\": {\"a\": {\"items\": 7, \"type\": \"array\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference into an object inside const",
+  "accepted": false,
+  "code": "invalid_reference",
+  "path": [
+   "schema",
+   "properties",
+   "a",
+   "$ref"
+  ],
+  "json": "{\"$defs\": {\"A\": {\"const\": {}}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/const\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference into an object inside enum",
+  "accepted": false,
+  "code": "invalid_reference",
+  "path": [
+   "schema",
+   "properties",
+   "a",
+   "$ref"
+  ],
+  "json": "{\"$defs\": {\"A\": {\"enum\": [{}]}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/enum/0\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference to a real nested schema node",
+  "accepted": true,
+  "json": "{\"$defs\": {\"A\": {\"properties\": {\"a\": {\"type\": \"string\"}}, \"type\": \"object\"}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/properties/a\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference to a definition itself",
+  "accepted": true,
+  "json": "{\"$defs\": {\"A\": {\"type\": \"object\"}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field whose legal name is __proto__",
+  "accepted": true,
+  "json": "{\"additionalProperties\": false, \"properties\": {\"__proto__\": {\"type\": \"string\"}}, \"required\": [\"__proto__\"], \"type\": \"object\"}"
+ },
+ {
+  "label": "a field whose name is constructor",
+  "accepted": true,
+  "json": "{\"properties\": {\"constructor\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field whose name is toString",
+  "accepted": true,
+  "json": "{\"properties\": {\"toString\": {\"type\": \"string\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a field whose declared type is __proto__",
+  "accepted": false,
+  "code": "invalid_schema",
+  "path": [
+   "schema",
+   "properties",
+   "a",
+   "type"
+  ],
+  "json": "{\"properties\": {\"a\": {\"type\": \"__proto__\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference into items of a real schema",
+  "accepted": true,
+  "json": "{\"$defs\": {\"A\": {\"items\": {\"type\": \"string\"}, \"type\": \"array\"}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/items\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference into an anyOf alternative",
+  "accepted": true,
+  "json": "{\"$defs\": {\"A\": {\"anyOf\": [{\"type\": \"object\"}], \"type\": \"object\"}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/anyOf/0\"}}, \"type\": \"object\"}"
+ },
+ {
+  "label": "a reference into required, which is not a schema",
+  "accepted": false,
+  "code": "invalid_reference",
+  "path": [
+   "schema",
+   "properties",
+   "a",
+   "$ref"
+  ],
+  "json": "{\"$defs\": {\"A\": {\"properties\": {\"x\": {\"type\": \"string\"}}, \"required\": [\"x\"], \"type\": \"object\"}}, \"properties\": {\"a\": {\"$ref\": \"#/$defs/A/required\"}}, \"type\": \"object\"}"
  }
-]
-,);
+];
+
+export const CAPTURED_SCHEMA_ADMISSION = Object.freeze(
+  CAPTURED.map((entry) => Object.freeze({ ...entry, doc: JSON.parse(entry.json) })),
+);

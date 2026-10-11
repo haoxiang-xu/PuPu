@@ -122,3 +122,16 @@ describe("a loaded output schema adds its fields", () => {
     ).toEqual(["message", "context"]);
   });
 });
+
+describe("a node type the inventory does not know", () => {
+  ["__proto__", "constructor", "toString", "valueOf"].forEach((type) => {
+    test(`${type} is unknowable, not whatever a prototype answers`, () => {
+      expect(() => result_roots_for(node(type))).not.toThrow();
+      const roots = result_roots_for(node(type));
+      expect(roots.known).toBe(false);
+      expect(roots.roots).toEqual([]);
+      expect(roots.closed).toBe(false);
+      expect(roots.reason).toBe(null);
+    });
+  });
+});
