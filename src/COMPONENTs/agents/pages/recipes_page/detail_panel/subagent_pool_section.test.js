@@ -998,3 +998,97 @@ describe("a read that throws instead of answering", () => {
     );
   });
 });
+
+describe("two entries the document cannot tell apart", () => {
+  /* A draft the real store saves: two entries with one id AND one name,
+     distinguished only by their descriptions. The document's own identity is
+     not an identity here, position is not one once a row is removed, and the
+     stored value is not one either — so the only thing left is an identity
+     the editor mints and carries across its own edits, which is what
+     `mint_identities` is for. The blanket duplicate guard that used to hide
+     this is not coming back: a duplicate draft must stay repairable. */
+  const twins = [
+    entry({ id: "dup", name: "Summarizer", description: "A" }),
+    entry({ id: "dup", name: "Summarizer", description: "B" }),
+    entry({ id: "sa3", name: "Checker", description: "C" }),
+  ];
+
+  function Live({ initial }) {
+    const [document, setDocument] = React.useState(doc(pool({ subagents: initial })));
+    return (
+      <SubagentPoolSection
+        document={document}
+        node={document.nodes[1]}
+        isDark={false}
+        onChange={setDocument}
+      />
+    );
+  }
+
+  const live = async (initial) => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    render(<Live initial={initial} />);
+    await act(async () => {});
+  };
+
+  const first = () => within(screen.getByTestId("subagent-entry-0"));
+
+  test("a removal does not hand the first row's refused name to the survivor", async () => {
+    await live(twins);
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Remove Summarizer")[0]);
+    expect(screen.getAllByTestId(/^subagent-entry-\d+$/)).toHaveLength(2);
+    expect(first().getByDisplayValue("Summarizer")).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-entry-0-name-taken")).not.toBeInTheDocument();
+  });
+
+  test("the survivor is the other entry, by its own description", async () => {
+    /* The two are the same everywhere the document can be asked, so the
+       description is the only witness that the right one is on screen. */
+    await live(twins);
+    fireEvent.click(screen.getAllByLabelText("Remove Summarizer")[0]);
+    expect(first().getByDisplayValue("B")).toBeInTheDocument();
+  });
+
+  test("and the row being corrected keeps its text when another is removed", async () => {
+    /* The other direction of the same edit: the row holding the text is not
+       the one that moved, so it still holds it. */
+    await live(twins);
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    fireEvent.click(screen.getByLabelText("Remove Checker"));
+    expect(first().getByDisplayValue("Checker")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+  });
+
+  test("adding an Agent below does not disturb the row being corrected", async () => {
+    await live(twins);
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    await open_picker();
+    fireEvent.click(screen.getByLabelText("Reference Summarizer"));
+    expect(first().getByDisplayValue("Checker")).toBeInTheDocument();
+  });
+
+  test("a refused write leaves the rows exactly as they were", async () => {
+    /* `set_entries` can refuse, and the identities must not be told about an
+       edit that did not happen — a list whose ids no longer match its entries
+       re-mints all of them, which would drop what every row is holding. */
+    await live(twins);
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-1")).getByDisplayValue("B"),
+      { target: { value: "B2" } },
+    );
+    expect(first().getByDisplayValue("Checker")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+  });
+});

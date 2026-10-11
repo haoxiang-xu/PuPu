@@ -5,6 +5,7 @@ import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { BUILDER_SWITCH_SIZE } from "../builder_switch_size";
 import useTakenName from "./taken_name";
+import useListIdentities from "./list_identity";
 import {
   LEGACY_FIELDS_CONFIG_KEY,
   node_pool_is_legacy,
@@ -509,6 +510,24 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
   const legacy = node_pool_is_legacy(node);
   const held = node_subagents(node);
   const entries = Array.isArray(held) ? held : [];
+  /* The owner is the resource being edited, which is the document's own id:
+     referencing it would be an Agent calling itself, and an entry id means
+     nothing outside the pool it sits in. */
+  const owner_id = (document && document.id) || null;
+
+  /* An identity per row, minted here and spent as the row's React key.
+   *
+   * The document names an entry — `id` is unique in a valid pool — and that
+   * is what held text is held *against*. But a draft the store accepts can
+   * hold two entries with one id and one name, told apart only by their
+   * descriptions, and then the document names nothing: position is not an
+   * identity once a row is removed, the stored value is not one either, and
+   * the editor's own text was drawn over the survivor. So the list carries an
+   * identity across its own edits, which only the list can do — see
+   * `mint_identities`. The duplicate guard is NOT the answer to this; it was
+   * loosened on purpose so a duplicate draft stays repairable. */
+  const rows = useListIdentities(identity_of([owner_id, node.id]), entries.length);
+
   /* A legacy pool is not in this wire at all, so the wire's rules would
      describe it wrongly — `legacy_fields` would read as an unknown field and
      the missing `subagents` as a missing one, for a document the store
@@ -524,9 +543,6 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
     .filter((entry) => is_object(entry) && typeof entry.id === "string")
     .map((entry) => entry.id);
 
-  /* The owner is the resource being edited, which is the document's own id:
-     referencing it would be an Agent calling itself. */
-  const owner_id = (document && document.id) || null;
   const offered = subagent_candidates(library.items, { owner_id });
   const withheld = library.items.length - offered.length;
 
@@ -538,8 +554,21 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
     onChange(with_node_subagents(document, node.id, next));
   }
 
+  /* The identities are told in the same tick as the edit is reported, so the
+     render that follows sees a count that already matches and keeps them.
+     Only these two edits move rows, and neither can be refused: a removal
+     cannot introduce a collision, and an added entry takes a name and an id
+     nothing is using. A write that IS refused — a rename onto a taken name —
+     never reaches here, so no identity is spent on an edit that did not
+     happen. */
+  function remove_entry(index) {
+    rows.removed(index);
+    set_entries(entries.filter((_, position) => position !== index));
+  }
+
   function add(resource) {
     setPicking(false);
+    rows.added();
     set_entries([
       ...entries,
       new_subagent_entry({
@@ -626,7 +655,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
         entries.map((entry, index) =>
           is_object(entry) ? (
             <EntryRow
-              key={index}
+              key={rows.ids[index]}
               entry={entry}
               index={index}
               owner={[owner_id, node.id]}
@@ -640,9 +669,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
               onChange={(next) =>
                 set_entries(entries.map((old, position) => (position === index ? next : old)))
               }
-              onRemove={() =>
-                set_entries(entries.filter((_, position) => position !== index))
-              }
+              onRemove={() => remove_entry(index)}
             />
           ) : (
             /* A draft can hold anything the format check takes, and a `config`
@@ -651,7 +678,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
                this position in the list and a reader looking for them will
                look where the entry should have been. */
             <div
-              key={index}
+              key={rows.ids[index]}
               style={{ display: "flex", flexDirection: "column", gap: 4 }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -665,9 +692,7 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
                 <Button
                   prefix_icon="close"
                   ariaLabel={remove_label(entry, index)}
-                  onClick={() =>
-                    set_entries(entries.filter((_, position) => position !== index))
-                  }
+                  onClick={() => remove_entry(index)}
                   style={{
                     flexShrink: 0,
                     paddingVertical: 4,
