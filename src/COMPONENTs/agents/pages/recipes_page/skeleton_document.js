@@ -348,66 +348,137 @@ function problem(code, where, message) {
   return { code, where, message };
 }
 
+/* `_closed_object` (`io.py:27-38`): the object itself, then its unknown keys,
+   then its missing required ones. The runtime raises at the first of those
+   and names one key; this reports every one, because an editor that gives a
+   fault per attempt makes a document something the author discovers by
+   repeated rejection. */
+function closed_object(value, where, required, optional, problems) {
+  if (!is_object(value)) {
+    problems.push(problem("invalid_type", where, "expected an object"));
+    return false;
+  }
+  const allowed = new Set([...required, ...(optional || [])]);
+  Object.keys(value).forEach((key) => {
+    if (!allowed.has(key)) {
+      problems.push(problem("unknown_field", `${where}.${key}`, "unknown field"));
+    }
+  });
+  required.forEach((key) => {
+    if (!(key in value)) {
+      problems.push(problem("missing_field", `${where}.${key}`, "required field is missing"));
+    }
+  });
+  return true;
+}
+
+/* `_nonempty_string` (`schema.py:16-20`). Three verdicts, not one: absent,
+   the wrong type, and empty are different faults with different codes, and
+   collapsing them was most of what this mirror had wrong. */
+function nonempty_string(value, where, label, problems) {
+  if (typeof value !== "string") {
+    problems.push(problem("invalid_type", where, `${label} must be a string`));
+    return false;
+  }
+  if (!value) {
+    problems.push(problem("invalid_value", where, `${label} must be non-empty`));
+    return false;
+  }
+  return true;
+}
+
+/* `validate_skeleton_document` (`schema.py:32-96`), mirrored rule by rule.
+ *
+ * This is the layer `save_draft` runs, so it is the only thing between a
+ * draft and the store. The frozen answers are
+ * `skeleton_document_envelope_capture`, enumerated from the validator against
+ * the fixed installation pair; the version of this function written from a
+ * reading of it disagreed on twenty of a hundred assertions, and every
+ * disagreement was either a missing rule or one verdict standing in for
+ * three.
+ *
+ * Not mirrored, and declared: `io.py`'s `_validate_json` limits — depth, node
+ * count, byte size, cycles — which the runtime applies to the document before
+ * this grammar. Those numbers are already mirrored for schemas in
+ * `output_schema`. */
 export function document_problems(document) {
   const problems = [];
-  if (!is_object(document)) {
-    return [problem("invalid_type", "document", "document must be an object")];
+  if (
+    !closed_object(
+      document,
+      "document",
+      DOCUMENT_REQUIRED_KEYS,
+      DOCUMENT_OPTIONAL_KEYS,
+      problems,
+    )
+  ) {
+    return problems;
   }
-  const allowed = new Set([...DOCUMENT_REQUIRED_KEYS, ...DOCUMENT_OPTIONAL_KEYS]);
-  Object.keys(document).forEach((key) => {
-    if (!allowed.has(key)) {
-      problems.push(problem("unknown_field", `document.${key}`, "unknown field"));
-    }
-  });
-  DOCUMENT_REQUIRED_KEYS.forEach((key) => {
-    if (!(key in document)) {
-      problems.push(problem("missing_field", `document.${key}`, "required field is missing"));
-    }
-  });
-  if (document.schema_version !== SKELETON_SCHEMA_VERSION) {
+
+  /* Each rule asks only about a key that is there: a key that is absent is
+     already a `missing_field`, and saying a second thing about it would be
+     describing a value the document does not have. */
+  if (
+    "schema_version" in document &&
+    (typeof document.schema_version !== "number" ||
+      document.schema_version !== SKELETON_SCHEMA_VERSION)
+  ) {
     problems.push(
       problem("invalid_value", "document.schema_version", "schema_version must be integer 1"),
     );
   }
-  if (!DOCUMENT_KINDS.includes(document.kind)) {
-    problems.push(problem("unknown_variant", "document.kind", "kind must be agent or workflow"));
+  if ("kind" in document) {
+    if (typeof document.kind !== "string") {
+      problems.push(problem("invalid_type", "document.kind", "kind must be a string"));
+    } else if (!DOCUMENT_KINDS.includes(document.kind)) {
+      problems.push(
+        problem("unknown_variant", "document.kind", "kind must be agent or workflow"),
+      );
+    }
   }
   ["id", "name"].forEach((key) => {
-    if (typeof document[key] !== "string" || !document[key]) {
-      problems.push(problem("invalid_value", `document.${key}`, `${key} must be non-empty`));
+    if (key in document) {
+      nonempty_string(document[key], `document.${key}`, key, problems);
     }
   });
+  if ("description" in document && typeof document.description !== "string") {
+    problems.push(
+      problem("invalid_type", "document.description", "description must be a string"),
+    );
+  }
+  if ("nodes" in document && !Array.isArray(document.nodes)) {
+    problems.push(problem("invalid_type", "document.nodes", "nodes must be an array"));
+  }
+  if ("edges" in document && !Array.isArray(document.edges)) {
+    problems.push(problem("invalid_type", "document.edges", "edges must be an array"));
+  }
 
   const node_ids = new Set();
   (Array.isArray(document.nodes) ? document.nodes : []).forEach((node, index) => {
     const where = `document.nodes[${index}]`;
-    if (!is_object(node)) {
-      problems.push(problem("invalid_type", where, "node must be an object"));
-      return;
-    }
-    Object.keys(node).forEach((key) => {
-      if (!NODE_KEYS.includes(key)) {
-        problems.push(problem("unknown_field", `${where}.${key}`, "unknown field"));
+    if (!closed_object(node, where, NODE_KEYS, [], problems)) return;
+    if ("id" in node && nonempty_string(node.id, `${where}.id`, "node id", problems)) {
+      if (node_ids.has(node.id)) {
+        problems.push(problem("duplicate_name", `${where}.id`, "node id is duplicated"));
+      } else {
+        node_ids.add(node.id);
       }
-    });
-    if (typeof node.id !== "string" || !node.id) {
-      problems.push(problem("invalid_value", `${where}.id`, "node id must be non-empty"));
-    } else if (node_ids.has(node.id)) {
-      problems.push(problem("duplicate_name", `${where}.id`, "node id is duplicated"));
-    } else {
-      node_ids.add(node.id);
     }
-    if (!NODE_TYPES.includes(node.type)) {
-      problems.push(problem("unknown_variant", `${where}.type`, "unknown node type"));
-    } else if (
-      document.kind === "workflow" &&
-      WORKFLOW_FORBIDDEN_NODE_TYPES.includes(node.type)
-    ) {
-      problems.push(
-        problem("invalid_value", `${where}.type`, "node type is forbidden in workflow"),
-      );
+    if ("type" in node) {
+      if (typeof node.type !== "string") {
+        problems.push(problem("invalid_type", `${where}.type`, "node type must be a string"));
+      } else if (!NODE_TYPES.includes(node.type)) {
+        problems.push(problem("unknown_variant", `${where}.type`, "unknown node type"));
+      } else if (
+        document.kind === "workflow" &&
+        WORKFLOW_FORBIDDEN_NODE_TYPES.includes(node.type)
+      ) {
+        problems.push(
+          problem("invalid_value", `${where}.type`, "node type is forbidden in workflow"),
+        );
+      }
     }
-    if (!is_object(node.config)) {
+    if ("config" in node && !is_object(node.config)) {
       problems.push(problem("invalid_type", `${where}.config`, "node config must be an object"));
     }
   });
@@ -415,36 +486,37 @@ export function document_problems(document) {
   const edge_ids = new Set();
   (Array.isArray(document.edges) ? document.edges : []).forEach((edge, index) => {
     const where = `document.edges[${index}]`;
-    if (!is_object(edge)) {
-      problems.push(problem("invalid_type", where, "edge must be an object"));
-      return;
-    }
-    Object.keys(edge).forEach((key) => {
-      if (!EDGE_KEYS.includes(key)) {
-        problems.push(problem("unknown_field", `${where}.${key}`, "unknown field"));
-      }
-    });
-    if (!EDGE_KINDS.includes(edge.kind)) {
-      problems.push(problem("unknown_variant", `${where}.kind`, "edge kind must be flow or attach"));
-    }
-    if (typeof edge.id === "string" && edge.id) {
+    if (!closed_object(edge, where, EDGE_KEYS, [], problems)) return;
+    if ("id" in edge && nonempty_string(edge.id, `${where}.id`, "edge id", problems)) {
       if (edge_ids.has(edge.id)) {
         problems.push(problem("duplicate_name", `${where}.id`, "edge id is duplicated"));
       } else {
         edge_ids.add(edge.id);
       }
     }
-    EDGE_KEYS.filter((key) => key !== "kind").forEach((key) => {
-      if (typeof edge[key] !== "string" || !edge[key]) {
-        problems.push(problem("invalid_value", `${where}.${key}`, `${key} must be non-empty`));
+    if ("kind" in edge) {
+      if (typeof edge.kind !== "string") {
+        problems.push(problem("invalid_type", `${where}.kind`, "edge kind must be a string"));
+      } else if (!EDGE_KINDS.includes(edge.kind)) {
+        problems.push(
+          problem("unknown_variant", `${where}.kind`, "edge kind must be flow or attach"),
+        );
       }
+    }
+    EDGE_KEYS.filter((key) => key !== "kind" && key !== "id").forEach((key) => {
+      if (key in edge) nonempty_string(edge[key], `${where}.${key}`, key, problems);
     });
-    if (edge.source_node_id && !node_ids.has(edge.source_node_id)) {
+    /* Asked only of a name that could be one: a node id that is not a
+       non-empty string has already been reported as that, and calling it
+       unavailable as well would describe a lookup nobody made. */
+    if (typeof edge.source_node_id === "string" && edge.source_node_id &&
+        !node_ids.has(edge.source_node_id)) {
       problems.push(
         problem("missing_value", `${where}.source_node_id`, "edge source node is unavailable"),
       );
     }
-    if (edge.target_node_id && !node_ids.has(edge.target_node_id)) {
+    if (typeof edge.target_node_id === "string" && edge.target_node_id &&
+        !node_ids.has(edge.target_node_id)) {
       problems.push(
         problem("missing_value", `${where}.target_node_id`, "edge target node is unavailable"),
       );

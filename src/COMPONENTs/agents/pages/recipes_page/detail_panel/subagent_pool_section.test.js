@@ -544,3 +544,249 @@ describe("a control that is not offered says why", () => {
     expect(screen.queryByTestId("subagent-pool-tools-note")).not.toBeInTheDocument();
   });
 });
+
+describe("a draft the store accepted but no control can show", () => {
+  /* Everything below is a shape the real store takes: a pool `config` only
+     has to be an object, so every one of these round-trips through a save and
+     reopen. The panel's job is to show the diagnostic, not to be the thing
+     that falls over before the diagnostic is drawn. */
+
+  test("a tool name that cannot become text does not take the panel down", async () => {
+    /* `[{toString: null}].join(", ")` throws "Cannot convert object to
+       primitive value" — the panel dying inside the code about to explain the
+       problem, which is the shape this ticket keeps paying for. */
+    await show(pool({ subagents: [entry({ allowed_tools: [{ toString: null }] })] }));
+    expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-tools").textContent).toMatch(
+      /unreadable/i,
+    );
+    expect(screen.getByTestId("subagent-entry-0-problem-0").textContent).toMatch(
+      /non-empty strings/i,
+    );
+  });
+
+  test("neither does a name that cannot become text", async () => {
+    await show(pool({ subagents: [entry({ name: { toString: null } })] }));
+    expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-problem-0").textContent).toMatch(
+      /must be a string/i,
+    );
+  });
+
+  test("nor a description that cannot become text", async () => {
+    await show(pool({ subagents: [entry({ description: { toString: null } })] }));
+    expect(screen.getByTestId("subagent-entry-0")).toBeInTheDocument();
+  });
+
+  test("an entry that is only null can be removed, which is the only way out", async () => {
+    /* The row said "remove it and add the Agent again" and then offered no
+       way to remove it. A draft the author cannot repair from the page it is
+       shown on is a dead end. */
+    const { onChange } = await show(pool({ subagents: [null, entry()] }));
+    fireEvent.click(screen.getByLabelText("Remove entry 1"));
+    expect(written(onChange)).toEqual([entry()]);
+  });
+
+  test("and an Agent can still be added beside it", async () => {
+    const { onChange } = await show(pool({ subagents: [null] }));
+    fireEvent.click(screen.getByText("+ Add an Agent"));
+    fireEvent.click(screen.getByLabelText("Reference Summarizer"));
+    expect(written(onChange)).toHaveLength(2);
+    expect(written(onChange)[1].source.agent_id).toBe("res-1");
+  });
+
+  test("a broken entry does not stop the one beside it from working", async () => {
+    const { onChange } = await show(pool({ subagents: [null, entry()] }));
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-1")).getByDisplayValue("Summarizer"),
+      { target: { value: "Shortener" } },
+    );
+    expect(written(onChange)[1].name).toBe("Shortener");
+  });
+});
+
+describe("an entry id is unique inside its pool and nowhere else", () => {
+  /* Two pools in one Agent, each with its own `sa1`. The panel stays mounted
+     across a selection change — it is the same component in the same place —
+     so text held against `sa1` alone followed the author from one pool to the
+     other and was drawn over the other pool's entry. An identity that is
+     unique within a container is not an identity outside it. */
+  const two_pools = (first_name, second_name) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "parent",
+    name: "Reviewer",
+    nodes: [
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      { id: "pool-a", type: "subagent_pool", config: { subagents: [entry({ id: "sa1", name: first_name }), entry({ id: "sa2", name: "Checker" })] } },
+      { id: "pool-b", type: "subagent_pool", config: { subagents: [entry({ id: "sa1", name: second_name }), entry({ id: "sa2", name: "Checker" })] } },
+    ],
+    edges: [],
+  });
+
+  const Panel = ({ node_id, first_name, second_name }) => {
+    const document = two_pools(first_name, second_name);
+    const node = document.nodes.find((candidate) => candidate.id === node_id);
+    return (
+      <SubagentPoolSection
+        document={document}
+        node={node}
+        isDark={false}
+        onChange={() => {}}
+      />
+    );
+  };
+
+  test("held text does not follow the author into another pool", async () => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const view = render(<Panel node_id="pool-a" first_name="Summarizer" second_name="Summarizer" />);
+    await act(async () => {});
+    fireEvent.change(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("Summarizer"),
+      { target: { value: "Checker" } },
+    );
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+
+    view.rerender(<Panel node_id="pool-b" first_name="Summarizer" second_name="Summarizer" />);
+    expect(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("Summarizer"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-entry-0-name-taken")).not.toBeInTheDocument();
+  });
+});
+
+describe("a late reply from an older read", () => {
+  /* The first read hangs; opening the picker starts a second; the second
+     answers first and the first answers afterwards. `alive` only knows about
+     unmounting, so the stale library replaced the fresh one and offered an
+     Agent the newer answer had excluded. */
+  test("does not replace a newer library", async () => {
+    let settle_first = null;
+    list_resources.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        settle_first = () => resolve({ ok: true, data: { resources: LIBRARY } });
+      }),
+    );
+    const onChange = jest.fn();
+    render(
+      <SubagentPoolSection
+        document={doc(pool({ subagents: [] }))}
+        node={pool({ subagents: [] })}
+        isDark={false}
+        onChange={onChange}
+      />,
+    );
+    list_resources.mockResolvedValue({ ok: true, data: { resources: [] } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("+ Add an Agent"));
+    });
+    expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
+
+    await act(async () => {
+      settle_first();
+    });
+    expect(screen.getByTestId("subagent-picker-empty")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reference Summarizer")).not.toBeInTheDocument();
+  });
+});
+
+describe("a reference the gate would have refused", () => {
+  /* The gate was only asked when an entry was being added. An entry that is
+     already in the document — hand-written, converted from a legacy
+     definition, or saved by another build — gets the same answer, because the
+     store will refuse it at Run either way. */
+  test("a reference to a known Workflow says which it is", async () => {
+    await show(pool({ subagents: [entry({ source: { kind: "agent_ref", agent_id: "res-flow" } })] }));
+    expect(screen.getByTestId("subagent-entry-0-refused").textContent).toMatch(
+      /Workflow/,
+    );
+  });
+
+  test("a reference to this Agent itself says so, library or no library", async () => {
+    await show(
+      pool({ subagents: [entry({ source: { kind: "agent_ref", agent_id: "parent" } })] }),
+      { library: { ok: false, reason: "unavailable", error: {} } },
+    );
+    expect(screen.getByTestId("subagent-entry-0-refused").textContent).toMatch(
+      /its own subagent/i,
+    );
+  });
+
+  test("a reference to an archived Agent says so", async () => {
+    await show(pool({ subagents: [entry({ source: { kind: "agent_ref", agent_id: "res-old" } })] }));
+    expect(screen.getByTestId("subagent-entry-0-refused").textContent).toMatch(
+      /archived/i,
+    );
+  });
+
+  test("a reference that is fine says nothing", async () => {
+    await show(pool({ subagents: [entry()] }));
+    expect(screen.queryByTestId("subagent-entry-0-refused")).not.toBeInTheDocument();
+  });
+
+  test("and nothing is claimed while the library is unreadable", async () => {
+    await show(pool({ subagents: [entry()] }), {
+      library: { ok: false, reason: "unavailable", error: {} },
+    });
+    expect(screen.queryByTestId("subagent-entry-0-refused")).not.toBeInTheDocument();
+  });
+});
+
+describe("the library is data too", () => {
+  /* Its names are columns of the store's own table, but they arrive over IPC
+     without their shape being checked, and `${name}` on an object is the same
+     throw a stored tool name was. */
+  const ODD = [
+    { id: "res-1", kind: "agent", name: { toString: null }, archived: false },
+  ];
+
+  test("a name that cannot become text does not take the picker down", async () => {
+    await show(pool({ subagents: [] }), { library: { ok: true, data: { resources: ODD } } });
+    fireEvent.click(screen.getByText("+ Add an Agent"));
+    expect(screen.getByLabelText("Reference res-1")).toBeInTheDocument();
+  });
+
+  test("nor the row that references it", async () => {
+    await show(pool({ subagents: [entry()] }), {
+      library: { ok: true, data: { resources: ODD } },
+    });
+    expect(screen.getByTestId("subagent-entry-0-source").textContent).toBe(
+      "Referenced · res-1",
+    );
+  });
+});
+
+describe("a legacy entry's own fields were never validated either", () => {
+  /* `legacy_fields` is the old node's keys copied verbatim, and nothing has
+     ever asked their shapes. A name that is an object is a React child React
+     refuses, which would take the panel down on a document the store expands
+     happily. */
+  test("a name that is not text is named rather than rendered", async () => {
+    await show(
+      pool({
+        legacy_fields: {
+          subagents: [
+            { kind: "recipe_ref", recipe_name: { toString: null } },
+            { kind: "inline" },
+            "Summarizer",
+          ],
+        },
+      }),
+    );
+    expect(screen.getByTestId("subagent-legacy-entry-0").textContent).toMatch(
+      /no name/i,
+    );
+    expect(screen.getByTestId("subagent-legacy-entry-1").textContent).toMatch(
+      /no name/i,
+    );
+    expect(screen.getByTestId("subagent-legacy-entry-2").textContent).toMatch(
+      /not an object/i,
+    );
+  });
+
+  test("a legacy pool whose entries are not a list still draws", async () => {
+    await show(pool({ legacy_fields: { subagents: { "0": { kind: "inline" } } } }));
+    expect(screen.getByTestId("subagent-pool-legacy")).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-legacy-entry-0")).not.toBeInTheDocument();
+  });
+});

@@ -3,6 +3,7 @@ import {
   CAPTURED_POOL_ADMISSION,
   CAPTURED_POOL_REACHABILITY,
 } from "./subagent_pool_admission_capture";
+import { CAPTURED_EMBEDDED_DOCUMENTS } from "./skeleton_document_envelope_capture";
 
 /* The mirror against the validator it mirrors, rule by rule, both directions.
    The direction that matters is the second: a pool the runtime refuses and
@@ -133,5 +134,44 @@ describe("why this mirror exists at all", () => {
       /* And the editor says the same thing about it, before Run does. */
       expect(codes(row.config)).toContain(row.prepare.code);
     });
+  });
+});
+
+describe("an embedded Agent is a whole document, and these are asked of it", () => {
+  /* The envelope has no objection to a legal Workflow — it refuses one only
+     for holding an Agent node — so the pool's own headline rule, that it
+     holds Agents and never Workflows, is said by exactly one check. This
+     mirror passed the one document shape that states it. */
+  const found = (config) =>
+    subagent_pool_problems(config).map((p) => `${p.code} @ ${p.where}`);
+
+  CAPTURED_EMBEDDED_DOCUMENTS.forEach((case_) => {
+    test(`${case_.accepted ? "admits" : "refuses"}: ${case_.label}`, () => {
+      expect(subagent_pool_problems(case_.config).length === 0).toBe(case_.accepted);
+    });
+  });
+
+  CAPTURED_EMBEDDED_DOCUMENTS.filter((case_) => !case_.accepted).forEach((case_) => {
+    test(`says why, at the runtime's own path: ${case_.label}`, () => {
+      const where = case_.path
+        .reduce(
+          (text, step) =>
+            typeof step === "number" ? `${text}[${step}]` : `${text}.${step}`,
+          "",
+        )
+        .replace(/^\./, "");
+      expect(found(case_.config)).toContain(`${case_.code} @ ${where}`);
+    });
+  });
+
+  test("a pure Workflow is refused for being one, not for its contents", () => {
+    const workflow = CAPTURED_EMBEDDED_DOCUMENTS.find(
+      (case_) => case_.label === "a complete and legal pure Workflow",
+    );
+    /* Its own envelope is fine. Only the kind is wrong, and the diagnostic
+       says so at the kind rather than somewhere inside the graph. */
+    expect(found(workflow.config)).toEqual([
+      "wrong_kind @ config.subagents[0].source.document.kind",
+    ]);
   });
 });

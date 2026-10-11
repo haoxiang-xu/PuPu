@@ -28,13 +28,34 @@ const is_object = (value) =>
 
 export const SUBAGENT_RESOURCE_KIND = "agent";
 
+/* Said in one place because it is asked in two: of a resource being offered,
+   and of a reference already in the document. */
+const SELF_REFERENCE =
+  "This is the Agent being edited. An Agent cannot be its own subagent.";
+
+/* The half of the question an id alone can answer. A reference already stored
+ * gets asked this even when the library cannot be read, because a cycle
+ * through this very resource needs nothing but the document — and the store
+ * refuses it at Run with `recursive_reference` either way.
+ *
+ * It is only this half. A cycle through a third Agent needs every
+ * candidate's own pool read, which is the store's job with the resource-id
+ * stack; nothing here claims to see it. */
+export function why_not_this_reference(agent_id, options) {
+  const owner_id = (options && options.owner_id) || null;
+  if (typeof agent_id !== "string" || !agent_id) {
+    return "This entry has no resource id, so there is nothing to reference.";
+  }
+  return agent_id === owner_id ? SELF_REFERENCE : null;
+}
+
 export function why_not_a_subagent(resource, options) {
   const owner_id = (options && options.owner_id) || null;
   if (!is_object(resource) || typeof resource.id !== "string" || !resource.id) {
     return "This entry has no resource id, so there is nothing to reference.";
   }
   if (resource.id === owner_id) {
-    return "This is the Agent being edited. An Agent cannot be its own subagent.";
+    return SELF_REFERENCE;
   }
   if (resource.kind === "workflow") {
     return "This is a Workflow. A Subagent Pool holds Agents.";

@@ -24,6 +24,8 @@ import {
   entry_agent_id,
   entry_source_label,
   subagent_candidates,
+  why_not_a_subagent,
+  why_not_this_reference,
 } from "../skeleton_subagent_eligibility";
 import { is_unavailable, list_resources } from "../skeleton_resources";
 
@@ -99,12 +101,51 @@ const MEMORY_LABEL = {
 const is_object = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/* A value out of a document, shown as text, without asking it what it is.
+ *
+ * `${value}`, `String(value)` and `[...].join(", ")` all call `toString`, and
+ * a stored object can refuse: `{"toString": null}` round-trips through the
+ * real store and throws "Cannot convert object to primitive value" — the
+ * panel falling over inside the code about to explain the problem, which is
+ * the shape this ticket keeps paying for. The value is kept and shown, the
+ * diagnostic beside it says what it should have been, and nothing here asks
+ * an object to be a string. */
+function safe_text(value) {
+  if (typeof value === "string") return value;
+  if (value === null) return "null";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "undefined") return "nothing";
+  return Array.isArray(value) ? "a list" : "an unreadable value";
+}
+
 /* A table is not read with a name out of a document. `MODE_CAPTION[mode]`
    where the mode came from the draft answers `Object.prototype` for
    `__proto__` — truthy, not a string, and rendering it as a child takes the
    panel down inside the sentence that was about to explain the mode. */
 function own(table, key) {
   return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
+/* What to call a resource from the library. Its name is a column of the
+   store's own table, but it still arrives over IPC without its shape being
+   checked, and `${resource.name}` on an object is the same throw as a stored
+   tool name. The id is always a non-empty string — the gate requires it
+   before anything is offered — so it is the fallback. */
+function resource_label(resource) {
+  return typeof resource.name === "string" && resource.name
+    ? resource.name
+    : resource.id;
+}
+
+/* What to call a legacy entry. The three keys are the three legacy kinds —
+   `recipe_ref` names a recipe, `ref` a template, `inline` itself — and the
+   store reads exactly these (`skeleton_resource_store.py:345-357`). */
+function legacy_entry_name(raw) {
+  if (!is_object(raw)) return "an entry that is not an object";
+  const stated = ["recipe_name", "template_name", "name"].find(
+    (key) => typeof raw[key] === "string" && raw[key],
+  );
+  return stated ? raw[stated] : "an entry with no name";
 }
 
 /* Which problems belong to this row, by the path the mirror reports — the
@@ -122,6 +163,7 @@ function tools_text(entry) {
      distinction. An absent key is neither: the entry does not say, and
      reading it as "every tool" would state something the document does not,
      over a draft the runtime refuses for the missing field. */
+  const names = (list) => list.map(safe_text).join(", ");
   const allowed_text =
     allowed === null
       ? "every tool"
@@ -130,11 +172,21 @@ function tools_text(entry) {
         : Array.isArray(allowed)
           ? allowed.length === 0
             ? "no tool"
-            : allowed.join(", ")
+            : names(allowed)
           : "an unreadable list";
   return disabled.length > 0
-    ? `Tools: ${allowed_text}, except ${disabled.join(", ")}`
+    ? `Tools: ${allowed_text}, except ${names(disabled)}`
     : `Tools: ${allowed_text}`;
+}
+
+/* Every entry can be removed, whatever shape it is in. The row that said
+   "remove it and add the Agent again" offered no way to do that, which left
+   the author on a page that named the repair and withheld it. A name that is
+   not a string cannot be in the label either. */
+function remove_label(entry, index) {
+  return is_object(entry) && typeof entry.name === "string" && entry.name
+    ? `Remove ${entry.name}`
+    : `Remove entry ${index + 1}`;
 }
 
 function ModeToggle({ mode, on, onToggle }) {
@@ -155,14 +207,43 @@ function ModeToggle({ mode, on, onToggle }) {
   );
 }
 
-function EntryRow({ entry, index, taken, library, isDark, problems, onChange, onRemove }) {
-  const name = useTakenName(entry.name, taken, entry.id);
+function EntryRow({
+  entry,
+  index,
+  owner,
+  owner_id,
+  taken,
+  library,
+  isDark,
+  problems,
+  onChange,
+  onRemove,
+}) {
+  /* An entry id is unique inside its pool and nowhere else, so the identity
+     text is held against carries the pool and the document too. The panel
+     stays mounted across a selection change — it is the same component in the
+     same place — and text held against `sa1` alone followed the author from
+     one pool to another and was drawn over that pool's own entry. */
+  const name = useTakenName(entry.name, taken, `${owner}:${safe_text(entry.id)}`);
   const agent_id = entry_agent_id(entry);
   const referenced =
     library.status === "ready" && agent_id !== null
       ? library.items.find((item) => item && item.id === agent_id) || null
       : null;
   const missing = library.status === "ready" && agent_id !== null && referenced === null;
+  /* The gate, asked of a reference that is already stored. It was asked only
+     of one being added, so an entry written by hand, converted from a legacy
+     definition or saved by another build pointed at a Workflow and the row
+     said "Referenced" with nothing else — while the store refuses it at Run.
+     The id-only half is asked even when the library cannot be read. */
+  const refused =
+    agent_id === null
+      ? null
+      : why_not_this_reference(agent_id, { owner_id }) ||
+        (referenced === null ? null : why_not_a_subagent(referenced, { owner_id }));
+  const name_editable = typeof entry.name === "string";
+  const description_editable =
+    typeof entry.description === "string" || entry.description === undefined;
   const modes = Array.isArray(entry.allowed_modes) ? entry.allowed_modes : [];
 
   function set(patch) {
@@ -192,22 +273,34 @@ function EntryRow({ entry, index, taken, library, isDark, problems, onChange, on
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
-          <Input
-            value={name.shown}
-            set_value={(next) => {
-              const stored = name.type(next);
-              if (stored !== null) set({ name: stored });
-            }}
-            placeholder="name"
-            style={{
-              width: 140,
-              fontSize: 11.5,
-              ...MONO,
-              paddingVertical: 4,
-              paddingHorizontal: 6,
-              borderRadius: 5,
-            }}
-          />
+          {/* A name the box cannot hold is shown rather than edited, for the
+              reason an unreadable source is: putting it in the control would
+              either ask the value to be a string or quietly replace it. */}
+          {name_editable ? (
+            <Input
+              value={name.shown}
+              set_value={(next) => {
+                const stored = name.type(next);
+                if (stored !== null) set({ name: stored });
+              }}
+              placeholder="name"
+              style={{
+                width: 140,
+                fontSize: 11.5,
+                ...MONO,
+                paddingVertical: 4,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+          ) : (
+            <span
+              data-testid={`subagent-entry-${index}-name-unreadable`}
+              style={{ ...CAPTION, ...MONO, width: 140, flexShrink: 0 }}
+            >
+              {safe_text(entry.name)}
+            </span>
+          )}
           {name.held !== null && (
             <span data-testid={`subagent-entry-${index}-name-taken`} style={REFUSED}>
               {name.taken
@@ -219,7 +312,7 @@ function EntryRow({ entry, index, taken, library, isDark, problems, onChange, on
         <span data-testid={`subagent-entry-${index}-source`} style={{ ...CAPTION, flex: 1, minWidth: 0 }}>
           {`${entry_source_label(entry)}${
             referenced !== null
-              ? ` · ${referenced.name}`
+              ? ` · ${resource_label(referenced)}`
               : agent_id !== null
                 ? ` · ${agent_id}`
                 : ""
@@ -227,7 +320,7 @@ function EntryRow({ entry, index, taken, library, isDark, problems, onChange, on
         </span>
         <Button
           prefix_icon="close"
-          ariaLabel={`Remove ${entry.name || "subagent"}`}
+          ariaLabel={remove_label(entry, index)}
           onClick={onRemove}
           style={{
             flexShrink: 0,
@@ -239,24 +332,39 @@ function EntryRow({ entry, index, taken, library, isDark, problems, onChange, on
         />
       </div>
 
-      {missing && (
+      {refused !== null && (
+        <span data-testid={`subagent-entry-${index}-refused`} style={REFUSED}>
+          {refused}
+        </span>
+      )}
+
+      {missing && refused === null && (
         <span data-testid={`subagent-entry-${index}-missing`} style={REFUSED}>
           {`No Agent with the id ${agent_id} is in the library, so this entry cannot run. Remove it or reference an Agent that exists.`}
         </span>
       )}
 
-      <Input
-        value={typeof entry.description === "string" ? entry.description : ""}
-        set_value={(next) => set({ description: next })}
-        placeholder="what it is for (optional)"
-        style={{
-          width: "100%",
-          fontSize: 11,
-          paddingVertical: 3,
-          paddingHorizontal: 6,
-          borderRadius: 5,
-        }}
-      />
+      {description_editable ? (
+        <Input
+          value={typeof entry.description === "string" ? entry.description : ""}
+          set_value={(next) => set({ description: next })}
+          placeholder="what it is for (optional)"
+          style={{
+            width: "100%",
+            fontSize: 11,
+            paddingVertical: 3,
+            paddingHorizontal: 6,
+            borderRadius: 5,
+          }}
+        />
+      ) : (
+        <span
+          data-testid={`subagent-entry-${index}-description-unreadable`}
+          style={{ ...CAPTION, ...MONO }}
+        >
+          {safe_text(entry.description)}
+        </span>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
         <span style={{ ...CAPTION, flexShrink: 0 }}>called as</span>
@@ -355,10 +463,17 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
   const [library, setLibrary] = useState({ status: "loading", items: [], error: null });
   const [picking, setPicking] = useState(false);
   const alive = useRef(true);
+  /* Which read is the current one. `alive` only knows about unmounting, so an
+     older request that answered late replaced a newer library — and then
+     offered an Agent the newer answer had excluded. A reply is applied only
+     while it is still the latest question asked. */
+  const asked = useRef(0);
 
   const read_library = useCallback(() => {
+    const ticket = asked.current + 1;
+    asked.current = ticket;
     return Promise.resolve(list_resources(false)).then((answer) => {
-      if (!alive.current) return;
+      if (!alive.current || ticket !== asked.current) return;
       if (answer && answer.ok) {
         const data = answer.data || {};
         setLibrary({
@@ -392,8 +507,15 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
      the missing `subagents` as a missing one, for a document the store
      expands on its own. */
   const problems = legacy ? [] : subagent_pool_problems(node.config);
-  const names = entries.map((entry) => (is_object(entry) && entry.name) || "");
-  const ids = entries.map((entry) => (is_object(entry) && entry.id) || "");
+  /* What is taken, read only from entries that state it. A broken entry does
+     not occupy the empty name — that would make the one name the wire allows
+     unusable because of a value nobody can see. */
+  const names = entries.map((entry) =>
+    is_object(entry) && typeof entry.name === "string" ? entry.name : null,
+  );
+  const ids = entries
+    .filter((entry) => is_object(entry) && typeof entry.id === "string")
+    .map((entry) => entry.id);
 
   /* The owner is the resource being edited, which is the document's own id:
      referencing it would be an Agent calling itself. */
@@ -403,9 +525,18 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
 
   function set_entries(next) {
     /* The composer is never handed a collision, on either unique field. The
-       name box is what tells the author; this is the belt at the boundary. */
-    const next_names = next.map((entry) => entry.name);
-    const next_ids = next.map((entry) => entry.id);
+       name box is what tells the author; this is the belt at the boundary.
+     *
+     * Only entries that have a name or an id take part. A draft can hold a
+     * `null` entry — the store's format check asks nothing of a pool's
+     * contents — and reading `.name` off it threw, which is how adding an
+     * Agent beside a broken one failed instead of fixing the pool. */
+    const stated = (key) =>
+      next
+        .filter((entry) => is_object(entry) && typeof entry[key] === "string")
+        .map((entry) => entry[key]);
+    const next_names = stated("name");
+    const next_ids = stated("id");
     if (new Set(next_names).size !== next_names.length) return;
     if (new Set(next_ids).size !== next_ids.length) return;
     onChange(with_node_subagents(document, node.id, next));
@@ -417,7 +548,10 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
       ...entries,
       new_subagent_entry({
         id: free_entry_id(ids),
-        name: free_entry_name(names, resource.name),
+        name: free_entry_name(
+          names.filter((name) => name !== null),
+          resource.name,
+        ),
         agent_id: resource.id,
       }),
     ]);
@@ -477,9 +611,12 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
             data-testid={`subagent-legacy-entry-${index}`}
             style={{ ...CAPTION, ...MONO }}
           >
-            {(is_object(raw) &&
-              (raw.recipe_name || raw.template_name || raw.name)) ||
-              "an entry with no name"}
+            {/* `legacy_fields` is the old node's keys copied verbatim
+                (`legacy.py:147`) and nothing has ever asked their shapes, so
+                a name here can be any JSON at all — including an object,
+                which React refuses as a child and which `${}` refuses to make
+                text. */}
+            {legacy_entry_name(raw)}
           </span>
         ))}
 
@@ -496,7 +633,11 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
               key={index}
               entry={entry}
               index={index}
-              taken={names.filter((_, position) => position !== index)}
+              owner={`${safe_text(owner_id)}:${safe_text(node.id)}`}
+              owner_id={owner_id}
+              taken={names.filter(
+                (name, position) => position !== index && name !== null,
+              )}
               library={library}
               isDark={isDark}
               problems={problems_at(problems, `config.subagents[${index}]`)}
@@ -517,13 +658,29 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
               key={index}
               style={{ display: "flex", flexDirection: "column", gap: 4 }}
             >
-              <span
-                data-testid={`subagent-entry-${index}-unreadable`}
-                style={REFUSED}
-              >
-                This entry is not an object, so none of its controls can be
-                shown. Remove it and add the Agent again.
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  data-testid={`subagent-entry-${index}-unreadable`}
+                  style={{ ...REFUSED, flex: 1, minWidth: 0 }}
+                >
+                  This entry is not an object, so none of its controls can be
+                  shown. Remove it and add the Agent again.
+                </span>
+                <Button
+                  prefix_icon="close"
+                  ariaLabel={remove_label(entry, index)}
+                  onClick={() =>
+                    set_entries(entries.filter((_, position) => position !== index))
+                  }
+                  style={{
+                    flexShrink: 0,
+                    paddingVertical: 4,
+                    paddingHorizontal: 4,
+                    borderRadius: 4,
+                    content: { icon: { width: 11, height: 11 } },
+                  }}
+                />
+              </div>
               {problems_at(problems, `config.subagents[${index}]`).map(
                 (problem, position) => (
                   <span
@@ -581,8 +738,8 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
           {offered.map((resource) => (
             <Button
               key={resource.id}
-              label={resource.name || resource.id}
-              ariaLabel={`Reference ${resource.name || resource.id}`}
+              label={resource_label(resource)}
+              ariaLabel={`Reference ${resource_label(resource)}`}
               onClick={() => add(resource)}
               style={{
                 alignSelf: "stretch",

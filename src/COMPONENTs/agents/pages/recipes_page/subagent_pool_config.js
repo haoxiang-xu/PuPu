@@ -135,12 +135,34 @@ function tool_list(value, path, field, problems) {
   }
 }
 
-/* `prepare_agent_graph`'s own first question of an embedded document, and the
-   ticket's definition of a subagent: a complete Agent graph with its own
-   Start, End and at least one Kernel Loop (`validation.py:43-49`). The rest
-   of a graph's structure — reachability, outlets, cycles — is the child's
-   own subject and is not re-derived here. */
+/* `prepare_agent_graph`'s own first questions of an embedded document.
+ *
+ * The first is the one this whole node is about: `if snapshot["kind"] !=
+ * "agent"` → `wrong_kind` (`agent_preparation.py:21-22`). A complete, legal,
+ * pure Workflow is a perfectly good document, and the envelope has no
+ * objection to it — a Workflow is refused there only for holding an Agent
+ * node — so nothing but this says that a Subagent Pool may not hold one.
+ * Which is exactly what this mirror missed: the pool's own headline rule,
+ * passing silently for the one document shape that states it.
+ *
+ * Asked only of `workflow`, because that is the only other kind the envelope
+ * admits: an absent or unrecognised kind is already refused there, and the
+ * runtime never reaches this question for it.
+ *
+ * Then the ticket's definition of a subagent: a complete Agent graph with its
+ * own Start, End and at least one Kernel Loop (`validation.py:43-49`). The
+ * rest of a graph's structure — reachability, outlets, cycles — is the
+ * child's own subject and is not re-derived here. */
 function agent_graph_problems(child, path, problems) {
+  if (child.kind === "workflow") {
+    problems.push(
+      problem(
+        "wrong_kind",
+        pool_where([...path, "kind"]),
+        "Agent preparation requires agent kind",
+      ),
+    );
+  }
   const nodes = Array.isArray(child.nodes) ? child.nodes : [];
   const count = (type) =>
     nodes.filter((node) => is_object(node) && node.type === type).length;
