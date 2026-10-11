@@ -1092,3 +1092,99 @@ describe("two entries the document cannot tell apart", () => {
     expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
   });
 });
+
+describe("the other editor's version arriving underneath", () => {
+  /* "Take theirs" replaces the document with one that was read back, so every
+     object in it is new — but the row count can be the same and, for two
+     entries the document cannot tell apart, so can every value the panel
+     could compare. The minted identities were carried across it as though the
+     editor had made the change itself, and the text held against the first
+     row was drawn over the entry that took its place. */
+  const twin = (description) =>
+    entry({ id: "dup", name: "Summarizer", description });
+
+  /* Three entries, as the witness has them: the two the document cannot tell
+     apart, and a third whose name is the one typed over the first — so the
+     name really is refused and there really is something held. A fixture
+     where nothing is taken makes the box store what was typed, and then the
+     test is red for the wrong reason. */
+  const version = (first, second) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "parent",
+    name: "Reviewer",
+    nodes: [
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      {
+        id: "pool",
+        type: "subagent_pool",
+        config: {
+          subagents: [
+            twin(first),
+            twin(second),
+            entry({ id: "sa3", name: "Checker", description: "C" }),
+          ],
+        },
+      },
+    ],
+    edges: [],
+  });
+
+  const panel = (document) => (
+    <SubagentPoolSection
+      document={document}
+      node={document.nodes[1]}
+      isDark={false}
+      onChange={() => {}}
+    />
+  );
+
+  const first = () => within(screen.getByTestId("subagent-entry-0"));
+
+  const open = async (document) => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const view = render(panel(document));
+    await act(async () => {});
+    return view;
+  };
+
+  test("a reorder with the same count does not keep the old row's text", async () => {
+    const view = await open(version("A", "B"));
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+
+    view.rerender(panel(version("B", "A")));
+    expect(first().getByDisplayValue("Summarizer")).toBeInTheDocument();
+    expect(first().getByDisplayValue("B")).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-entry-0-name-taken")).not.toBeInTheDocument();
+  });
+
+  test("and neither does a version that is identical in every value", async () => {
+    /* The panel cannot tell this version from the one it had, and it does not
+       have to: a version that arrived from outside is not an edit this editor
+       made, so what it was holding against the old rows is void either way. */
+    const view = await open(version("A", "B"));
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    view.rerender(panel(version("A", "B")));
+    expect(first().getByDisplayValue("Summarizer")).toBeInTheDocument();
+    expect(screen.queryByTestId("subagent-entry-0-name-taken")).not.toBeInTheDocument();
+  });
+
+  test("a render that changed nothing at all still keeps it", async () => {
+    /* The other direction: re-rendering with the same document is not a new
+       version, and throwing away what the author is typing on every parent
+       render would make the box unusable. */
+    const document = version("A", "B");
+    const view = await open(document);
+    fireEvent.change(first().getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    view.rerender(panel(document));
+    expect(first().getByDisplayValue("Checker")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+  });
+});

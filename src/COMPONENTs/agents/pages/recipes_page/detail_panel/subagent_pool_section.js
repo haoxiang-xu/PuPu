@@ -525,8 +525,20 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
    * the editor's own text was drawn over the survivor. So the list carries an
    * identity across its own edits, which only the list can do — see
    * `mint_identities`. The duplicate guard is NOT the answer to this; it was
-   * loosened on purpose so a duplicate draft stays repairable. */
-  const rows = useListIdentities(identity_of([owner_id, node.id]), entries.length);
+   * loosened on purpose so a duplicate draft stays repairable.
+   *
+   * The entry list itself is handed over as well, because carrying an
+   * identity across the editor's own edit and carrying it across somebody
+   * else's version are not the same thing. Taking the other editor's version
+   * can reorder two entries the document cannot tell apart while the count
+   * stays the same, and then nothing the panel is able to compare has changed
+   * — so the ids are kept only for a list this editor announced it was
+   * writing. */
+  const rows = useListIdentities(
+    identity_of([owner_id, node.id]),
+    entries.length,
+    held,
+  );
 
   /* A legacy pool is not in this wire at all, so the wire's rules would
      describe it wrongly — `legacy_fields` would read as an unknown field and
@@ -551,6 +563,10 @@ export default function SubagentPoolSection({ document, node, isDark, onChange }
        name box is what tells the author; this is the belt at the boundary, and
        the rule itself lives with the pool's other rules. */
     if (introduces_collision(entries, next)) return;
+    /* This list is about to be the document's. Anything else that arrives is
+       a version from somewhere else, and the row identities do not survive
+       it. */
+    rows.carrying(next);
     onChange(with_node_subagents(document, node.id, next));
   }
 
