@@ -33,6 +33,46 @@ export const parseInterjectPrefix = (text) => {
   return { channel: "auto", body: stripped };
 };
 
+const INTERJECT_STARTUP_RETRY_DELAYS_MS = Object.freeze([40, 80, 160]);
+
+const waitForInterjectRetry = (delayMs) =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
+/**
+ * A stream can announce `session.started` a few milliseconds before its
+ * runtime interject channel is registered. During that window the server
+ * answers `new_run`, even though the addressed run is still active. Retry
+ * only that transient answer, with the exact same request object, while the
+ * same run remains active. All other answers and transport errors are final.
+ */
+export const dispatchInterjectWithStartupRetry = async ({
+  request,
+  send,
+  isRunActive,
+  retryDelaysMs = INTERJECT_STARTUP_RETRY_DELAYS_MS,
+  wait = waitForInterjectRetry,
+}) => {
+  if (typeof send !== "function") {
+    throw new TypeError("send must be a function");
+  }
+  const runIsActive =
+    typeof isRunActive === "function" ? isRunActive : () => false;
+  const delays = Array.isArray(retryDelaysMs) ? retryDelaysMs : [];
+
+  let result = await send(request);
+  for (const delayMs of delays) {
+    if (result?.resolved_channel !== "new_run" || !runIsActive()) {
+      return result;
+    }
+    await wait(delayMs);
+    if (!runIsActive()) {
+      return result;
+    }
+    result = await send(request);
+  }
+  return result;
+};
+
 const MERGE_HEADER =
   "The user sent several follow-up requests while the previous task was " +
   "running. Address all of them, in order:\n";
