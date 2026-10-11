@@ -114,6 +114,35 @@ export function node_declares_outputs(node_type) {
   return Boolean(keys) && keys.includes(OUTPUT_MAPPINGS_CONFIG_KEY);
 }
 
+/* Which side of a node an exported value may come from.
+ *
+ * `map_outputs` is handed two objects — the node's resolved inputs and its
+ * result — and a mapping names one of them. Which of the two actually holds
+ * anything is the runtime's decision, not a matter of taste, and at the two
+ * ends of a graph only ever one of them does:
+ *
+ *   Start   result = inputs; _map_node_outputs(cfg["outputs"], {}, result)
+ *   End     _map_node_outputs(cfg["outputs"], resolved, {})
+ *
+ * So a Start exports from the run's own inputs, which reach it as its result,
+ * and its input side is the empty object: every non-empty path there fails,
+ * statically in `StaticIOSurfaces.output_problem` and again at run time. An
+ * End is the mirror image, and the runtime says so in its own words — "end
+ * outputs may only use inputs". Offering the other side would be offering a
+ * value that can never arrive, which is the empty-value trap the legacy output
+ * picker was built to close.
+ *
+ * Everything else runs and so has both. */
+const OUTPUT_SOURCE_KINDS_BY_TYPE = Object.freeze({
+  start: Object.freeze(["result"]),
+  end: Object.freeze(["input"]),
+});
+
+export function output_source_kinds_for(node_type) {
+  if (!node_declares_outputs(node_type)) return [];
+  return OUTPUT_SOURCE_KINDS_BY_TYPE[node_type] || ["input", "result"];
+}
+
 export function is_skeleton_node(node) {
   return is_object(node) && is_object(node.config);
 }

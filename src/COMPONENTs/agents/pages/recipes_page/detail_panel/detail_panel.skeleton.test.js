@@ -181,3 +181,147 @@ describe("R2 — every diagnostic has a visible outlet", () => {
     expect(screen.queryByTestId("skeleton-elsewhere-notice")).not.toBeInTheDocument();
   });
 });
+
+describe("the Output Variables section in the panel", () => {
+  const two_outputs = {
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      {
+        id: "end",
+        type: "end",
+        config: {
+          execution: {
+            inputs: [
+              {
+                name: "answer",
+                value: { kind: "ref", node_id: "start", path: ["text"] },
+                missing: "error",
+              },
+            ],
+            outputs: [
+              { name: "first", source: { kind: "input", path: ["answer"] } },
+              { name: "second", source: { kind: "input", path: ["answer"] } },
+            ],
+          },
+        },
+      },
+    ],
+    edges: skeleton_document.edges,
+  };
+
+  test("inputs are above outputs, in every panel", () => {
+    /* A node is read downwards, and a wire's two halves are always found in
+       the same place. */
+    show({ document: two_outputs, onDocumentChange: () => {}, selectedNodeId: "end" });
+    const panel = screen.getByTestId("recipe-detail-panel");
+    const text = panel.textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(
+      text.indexOf("Input Variables"),
+    );
+  });
+
+  test("a row is drawn for each mapping", () => {
+    show({ document: two_outputs, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.getAllByTestId(/^output-row-\d+$/)).toHaveLength(2);
+  });
+
+  test("a store diagnostic for an output row reaches that row", () => {
+    /* This is what the zero row count used to prevent: the diagnostic existed,
+       the panel routed it nowhere, and it was reported in no place at all. */
+    show({
+      document: two_outputs,
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "missing_value",
+          path: ["document", "nodes", 1, "config", "execution", "outputs", 1, "source", "path", 0],
+          message: "captured by the second output row",
+        },
+      ],
+    });
+    expect(screen.getByTestId("output-row-1-problem-0").textContent).toBe(
+      "captured by the second output row",
+    );
+  });
+
+  test("a diagnostic for an output row that does not exist is still reported", () => {
+    show({
+      document: two_outputs,
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "missing_value",
+          path: ["document", "nodes", 1, "config", "execution", "outputs", 9, "source"],
+          message: "past the last row",
+        },
+      ],
+    });
+    expect(screen.queryByTestId("output-row-1-problem-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("recipe-detail-panel").textContent).toContain(
+      "past the last row",
+    );
+  });
+
+  test("a section-level refusal is reported even though no row carries it", () => {
+    /* A branch's whole outputs key is refused — `unknown_field` at the section
+       — and the section is not rendered at all, so only the notice can say it. */
+    show({
+      document: {
+        ...skeleton_document,
+        nodes: [
+          skeleton_document.nodes[0],
+          {
+            id: "end",
+            type: "end",
+            config: { execution: { inputs: [], outputs: [] } },
+          },
+        ],
+      },
+      onDocumentChange: () => {},
+      selectedNodeId: "end",
+      diagnostics: [
+        {
+          code: "unknown_field",
+          path: ["document", "nodes", 1, "config", "execution", "outputs"],
+          message: "node does not support this IO section",
+        },
+      ],
+    });
+    expect(screen.getByTestId("recipe-detail-panel").textContent).toContain(
+      "node does not support this IO section",
+    );
+  });
+
+  test("a Start shows its outputs and no inputs", () => {
+    /* A Start reads from the calling context, so it has no inputs key at all;
+       addressed by testid because the legacy Start panel heads its own section
+       with the same words. */
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "start" });
+    expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-input-variables")).not.toBeInTheDocument();
+  });
+
+  test("a Skeleton page draws one outputs section, not two", () => {
+    /* The legacy Start panel's section carries `node.outputs` from the old
+       recipe format, which is a different shape entirely. They never render
+       together because a Skeleton page has no recipe — this is what says so. */
+    show({
+      recipe: undefined,
+      document: skeleton_document,
+      onDocumentChange: () => {},
+      selectedNodeId: "start",
+    });
+    expect(screen.getAllByText("Output Variables")).toHaveLength(1);
+    expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
+  });
+
+  test("a legacy recipe page draws the legacy section and none of mine", () => {
+    show({ selectedNodeId: "start" });
+    expect(screen.getAllByText("Output Variables")).toHaveLength(1);
+    expect(screen.queryByTestId("skeleton-output-variables")).not.toBeInTheDocument();
+  });
+});

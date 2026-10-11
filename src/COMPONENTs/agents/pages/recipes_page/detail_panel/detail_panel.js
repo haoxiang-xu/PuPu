@@ -9,10 +9,12 @@ import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
+import OutputVariablesSection from "./output_variables_section";
 import {
   find_node,
   is_skeleton_node,
   node_bindings,
+  node_output_mappings,
 } from "../skeleton_document";
 import { route_diagnostics } from "../skeleton_diagnostics";
 import { is_toolkit_pool_type } from "../recipe_graph";
@@ -96,19 +98,19 @@ export default function DetailPanel({
   /* Routed once, here, because this is the only place that knows both which
      node is open and which rows it actually renders.
 
-     The counts are rows with a renderer, NOT entries in the document. Output
-     mappings exist in the node's config and have no row of their own yet —
-     the legacy Start and End panels read the old `node.outputs` /
-     `outputs_schema`, not Skeleton mappings — so declaring their length would
-     hand their diagnostics to rows nobody draws, and they would be shown
-     nowhere. Zero until an output row exists to carry them; then pass the
-     real count and render `routed.rows.outputs`. */
+     The counts are rows with a renderer, NOT entries in the document. Both
+     sections now draw a row per entry, so both counts are the real lengths —
+     but the distinction still holds and still has to be kept: a count passed
+     for a section nobody renders hands its diagnostics to rows that are never
+     drawn, and they are then reported nowhere at all. The legacy Start and End
+     panels read the old `node.outputs` / `outputs_schema` rather than Skeleton
+     mappings, and they are not what these counts describe. */
   const routed = skeleton_node
     ? route_diagnostics(diagnostics, document, {
         node_id: skeleton_node.id,
         row_counts: {
           inputs: node_bindings(skeleton_node).length,
-          outputs: 0,
+          outputs: node_output_mappings(skeleton_node).length,
         },
       })
     : null;
@@ -210,6 +212,16 @@ export default function DetailPanel({
               document={document}
               node={skeleton_node}
               rowDiagnostics={routed.rows.inputs}
+              isDark={isDark}
+              onChange={onDocumentChange}
+            />
+            {/* Inputs at the top, outputs at the bottom: a node is read
+                downwards, and the order is the same in every panel so the two
+                halves of a wire are always found in the same place. */}
+            <OutputVariablesSection
+              document={document}
+              node={skeleton_node}
+              rowDiagnostics={routed.rows.outputs}
               isDark={isDark}
               onChange={onDocumentChange}
             />

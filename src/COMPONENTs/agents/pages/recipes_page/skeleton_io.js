@@ -245,6 +245,20 @@ function path_is_usable(path) {
   );
 }
 
+/* The same question for an output mapping, and for the same reason: a draft
+   whose `source` is a string or whose `path` is an object saves and loads
+   unchanged, and every control below would rewrite it into something the
+   author never typed. `name` is excluded deliberately — a row with a bad name
+   is still a row whose source can be fixed, and the name box corrects itself
+   the moment it is typed in. */
+export function output_mapping_is_editable(mapping) {
+  if (!mapping || typeof mapping !== "object") return false;
+  const source = mapping.source;
+  if (!source || typeof source !== "object") return false;
+  if (!OUTPUT_SOURCE_KINDS.includes(source.kind)) return false;
+  return path_is_usable(source.path);
+}
+
 export function expression_is_editable(expression, depth = 0) {
   if (depth > MAX_EXPRESSION_DEPTH) return false;
   if (!expression || typeof expression !== "object") return false;

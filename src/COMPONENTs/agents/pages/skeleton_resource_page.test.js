@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SkeletonResourcePage from "./skeleton_resource_page";
 import { api } from "../../../SERVICEs/api";
@@ -272,5 +272,106 @@ describe("typing after choosing to take theirs, in the page", () => {
       /changed this draft after choosing/i,
     );
     expect(screen.getByText("Look at theirs")).toBeInTheDocument();
+  });
+});
+
+describe("editing an output on the real page", () => {
+  const open_end = async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: doc(), edit_token: "t1" }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockImplementation(async ({ document }) =>
+        result({ document, edit_token: "t2" }),
+      );
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-end")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+  };
+
+  test("the End has an outputs section and it starts empty", async () => {
+    await open_end();
+    expect(screen.getByTestId("skeleton-output-variables")).toBeInTheDocument();
+    expect(screen.queryByTestId("output-row-0")).not.toBeInTheDocument();
+  });
+
+  test("adding one marks the draft unsaved", async () => {
+    await open_end();
+    fireEvent.click(screen.getByText("+ Add output"));
+    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+  });
+
+  test("it is seeded on the only side an End has, pointing at a real input", async () => {
+    /* The document's End declares one input, `payload`, and an End can only
+       export what it was given. */
+    await open_end();
+    fireEvent.click(screen.getByText("+ Add output"));
+    /* Scoped to the row: an input row's name box carries the same placeholder,
+       and both are on screen at once. */
+    fireEvent.change(
+      within(screen.getByTestId("output-row-0")).getByPlaceholderText("name"),
+      { target: { value: "answer" } },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
+    expect(sent.nodes[1].config.execution.outputs).toEqual([
+      { name: "answer", source: { kind: "input", path: ["payload"] } },
+    ]);
+  });
+
+  test("the saved document keeps the closed envelope and node shapes", async () => {
+    await open_end();
+    fireEvent.click(screen.getByText("+ Add output"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
+    expect(Object.keys(sent).sort()).toEqual(
+      ["edges", "id", "kind", "name", "nodes", "schema_version"].sort(),
+    );
+    expect(Object.keys(sent.nodes[1]).sort()).toEqual(["config", "id", "type"]);
+    expect(Object.keys(sent.nodes[1].config.execution).sort()).toEqual([
+      "inputs",
+      "outputs",
+    ]);
+  });
+
+  test("editing an output does not disturb the node's inputs", async () => {
+    await open_end();
+    fireEvent.click(screen.getByText("+ Add output"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
+    expect(sent.nodes[1].config.execution.inputs).toEqual(
+      doc().nodes[1].config.execution.inputs,
+    );
+    expect(sent.nodes[0]).toEqual(doc().nodes[0]);
+  });
+
+  test("a Start's output is editable too, on its result side", async () => {
+    await open_end();
+    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    expect(screen.getByTestId("output-row-0")).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-fixed-kind").textContent).toMatch(
+      /what the run was called with/i,
+    );
+  });
+
+  test("an output the author removes is gone from what is sent", async () => {
+    await open_end();
+    fireEvent.click(screen.getByTestId("skeleton-node-start"));
+    fireEvent.click(screen.getByLabelText("Remove text"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0].document;
+    expect(sent.nodes[0].config.execution.outputs).toEqual([]);
   });
 });

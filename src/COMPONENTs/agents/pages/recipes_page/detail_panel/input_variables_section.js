@@ -93,7 +93,13 @@ export default function InputVariablesSection({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    /* Addressable on its own, like the outputs section: the legacy Start and
+       End panels head sections with the same words, and a probe searching by
+       text cannot tell which model it found. */
+    <div
+      data-testid="skeleton-input-variables"
+      style={{ display: "flex", flexDirection: "column", gap: 8 }}
+    >
       <div
         style={{
           display: "flex",
