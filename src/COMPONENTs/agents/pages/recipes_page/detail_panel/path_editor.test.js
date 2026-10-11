@@ -312,6 +312,27 @@ describe("refused text describes the step it was typed into, and no other", () =
     expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
   });
 
+  test("a value that changes away and back does not bring the correction back", () => {
+    /* Hiding the text is not discarding it. While the stored value differed
+       the box read correctly, but the text was still there — and when the
+       value came back the text came back with it, over a value it had never
+       described. A correction is void once the thing it was correcting is
+       gone, and it does not become valid again by coincidence. */
+    const step = (path) => (
+      <PathEditor path={path} testid="p" identity="row" onChange={() => {}} />
+    );
+    const view = render(step([0]));
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "-1" } });
+    expect(screen.getByPlaceholderText("0").value).toBe("-1");
+
+    view.rerender(step([5]));
+    expect(screen.getByPlaceholderText("0").value).toBe("5");
+
+    view.rerender(step([0]));
+    expect(screen.getByPlaceholderText("0").value).toBe("0");
+    expect(screen.queryByTestId("p-step-0-refused")).not.toBeInTheDocument();
+  });
+
   test("a step that belongs to something else does not inherit the text", () => {
     const view = render(
       <PathEditor path={[0]} testid="p" identity="rowA" onChange={() => {}} />,

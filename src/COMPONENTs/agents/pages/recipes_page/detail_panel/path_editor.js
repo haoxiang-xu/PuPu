@@ -43,12 +43,20 @@ export function index_from_text(text) {
    without being written to the document. The draft is dropped the moment the
    text is a position the wire accepts, and whenever the step changes kind.
  *
- * It is also dropped when the value beneath it changes without this box doing
- * it — the document replaced under the panel by a conflict resolved the other
- * way, or by a reload landing. The text was typed against a value that is no
- * longer there, and showing it over the new one makes the field misreport what
- * is stored. That is the whole severity of this class: nothing is ever written
- * wrongly, and the field is the author's only account of what was.
+ * It is also discarded when the value beneath it changes without this box
+ * doing it — the document replaced under the panel by a conflict resolved the
+ * other way, or by a reload landing. The text was typed against a value that
+ * is no longer there, and showing it over the new one makes the field
+ * misreport what is stored. That is the whole severity of this class: nothing
+ * is ever written wrongly, and the field is the author's only account of what
+ * was.
+ *
+ * Discarded, not hidden. Comparing the text against the current value on every
+ * render reads correctly while they differ and keeps the text alive behind it,
+ * so `[0] → [5] → [0]` brought it back — over a value it had never described,
+ * by coincidence. A correction is void once the thing it was correcting is
+ * gone, which is a fact about the moment the value changed, not about what the
+ * value happens to be now. So the state itself is reset then.
  *
  * What it does *not* do is decide whether this is still the same step. A
  * position cannot answer that and neither can a value: removing the first step
@@ -57,23 +65,31 @@ export function index_from_text(text) {
  * things, so identity is kept there and spent as this component's key. */
 function Step({ segment, index, testid, onReplace, onRemove }) {
   const kind = path_segment_kind(segment);
-  const [draft, setDraft] = useState(null);
-  const mine = draft !== null && Object.is(draft.segment, segment);
-  const refused = kind === "index" && mine;
+  /* The text is held together with the value it was offered in place of, so
+     the two cannot drift apart. The value it was typed against cannot change
+     by typing here — a refused position is not written — so a change means it
+     came from elsewhere, and the text is dropped rather than compared away. */
+  const [pending, setPending] = useState({ shown: segment, text: null });
+  if (!Object.is(pending.shown, segment)) {
+    setPending({ shown: segment, text: null });
+  }
+  const text = Object.is(pending.shown, segment) ? pending.text : null;
+  const refused = kind === "index" && text !== null;
 
   function type_index(next) {
     const value = index_from_text(next);
     if (value === null) {
-      setDraft({ segment, text: next });
+      setPending({ shown: segment, text: next });
       return;
     }
-    setDraft(null);
+    setPending({ shown: value, text: null });
     onReplace(value);
   }
 
   function flip() {
-    setDraft(null);
-    onReplace(kind === "index" ? "" : 0);
+    const next = kind === "index" ? "" : 0;
+    setPending({ shown: next, text: null });
+    onReplace(next);
   }
 
   return (
@@ -100,7 +116,7 @@ function Step({ segment, index, testid, onReplace, onRemove }) {
           }}
         />
         <Input
-          value={mine ? draft.text : String(segment)}
+          value={text !== null ? text : String(segment)}
           set_value={(next) => (kind === "index" ? type_index(next) : onReplace(next))}
           placeholder={kind === "index" ? "0" : "field"}
           style={{
