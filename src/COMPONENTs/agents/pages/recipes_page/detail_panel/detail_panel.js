@@ -34,6 +34,7 @@ export default function DetailPanel({
      the document on screen, so the page that owns the session performs it. */
   onConvertLegacy,
   canConvertLegacy,
+  convertingLegacy,
   recipes,
   onDrillIn,
   document,
@@ -226,6 +227,7 @@ export default function DetailPanel({
                 onChange={onDocumentChange}
                 onConvertLegacy={onConvertLegacy}
                 canConvertLegacy={canConvertLegacy}
+                convertingLegacy={convertingLegacy}
               />
             )}
             <InputVariablesSection

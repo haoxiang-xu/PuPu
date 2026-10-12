@@ -148,6 +148,7 @@ export default function SkeletonResourcePage({ resourceId }) {
               onDocumentChange={edit}
               onConvertLegacy={convertLegacyPools}
               canConvertLegacy={can_convert_legacy_pools(session)}
+              convertingLegacy={session.converting}
             />
           </div>
         </div>

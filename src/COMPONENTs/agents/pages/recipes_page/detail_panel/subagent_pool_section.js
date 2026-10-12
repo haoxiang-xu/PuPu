@@ -19,7 +19,7 @@ import {
   free_entry_id,
   free_entry_name,
   introduces_collision,
-  legacy_entries_needing_kernel,
+  legacy_pools_needing_kernel,
   new_subagent_entry,
   subagent_pool_problems,
 } from "../subagent_pool_config";
@@ -77,10 +77,29 @@ const EMPTY_CAPTION =
   "This pool holds no Agent yet. A pool that holds nothing is refused when the Agent runs, so add one or remove the pool node.";
 
 const LEGACY_CAPTION =
-  "This pool came from a legacy definition. Its entries are shown as they are stored, and nothing here is editable until they are converted — an edit would stop the conversion from happening and the subagents would be lost. Converting writes the entries into this definition, with the tools, delegation modes, memory and parallel safety each subagent already declared.";
+  "This pool came from a legacy definition. Its entries are shown as they are stored, and nothing here is editable until they are converted — an edit would stop the conversion from happening and the subagents would be lost. Converting is one write covering every Subagent Pool in this Agent, and it keeps the tools, delegation modes, memory and parallel safety each subagent already declared.";
 
-const LEGACY_NEEDS_KERNEL =
-  "These entries carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model, which this build has no control for yet. The pool keeps working as it does: the conversion happens for every run and is thrown away afterwards.";
+/* Why the conversion is not offered, and where the reason is.
+ *
+ * Naming the other pool matters: the entries on screen can all be
+ * convertible and the button still withheld, because the store converts every
+ * pool in the Agent in one write. Without the name that reads as the panel
+ * refusing for no reason. */
+function needs_kernel_caption(pool_ids, node_id) {
+  const elsewhere = pool_ids.filter((id) => id !== node_id);
+  const here = pool_ids.includes(node_id);
+  const others =
+    elsewhere.length === 1
+      ? `another pool (${elsewhere[0]})`
+      : `other pools (${elsewhere.join(", ")})`;
+  let subject = "Some of these entries";
+  if (here && elsewhere.length > 0) subject = `Some of these entries, and entries in ${others},`;
+  else if (!here) subject = `Entries in ${others}`;
+  return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model, which this build has no control for yet. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one. The pools keep working as they do: the conversion happens for every run and is thrown away afterwards.`;
+}
+
+const LEGACY_CONVERTING =
+  "Converting. The store is writing the entries into this definition; it will be here when that lands.";
 
 const LEGACY_SAVE_FIRST =
   "Converting rewrites what the store holds, so save this draft first — otherwise the conversion would move the resource on and leave your unsaved work unable to save.";
@@ -465,6 +484,7 @@ export default function SubagentPoolSection({
      legacy recipe page, or a panel rendered without one. */
   onConvertLegacy,
   canConvertLegacy,
+  convertingLegacy,
 }) {
   /* The library is read once per panel, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
@@ -530,6 +550,9 @@ export default function SubagentPoolSection({
 
   const legacy = node_pool_is_legacy(node);
   const legacy_entries = legacy ? node_legacy_pool_entries(node) : [];
+  /* Every pool in this Agent, because the conversion is one write over all of
+     them: an inline entry in another pool refuses this button too. */
+  const blocked_pools = legacy ? legacy_pools_needing_kernel(document) : [];
   const held = node_subagents(node);
   const entries = Array.isArray(held) ? held : [];
   /* The owner is the resource being edited, which is the document's own id:
@@ -664,17 +687,21 @@ export default function SubagentPoolSection({
         </span>
       )}
 
-      {legacy && legacy_entries_needing_kernel(legacy_entries).length > 0 && (
+      {legacy && blocked_pools.length > 0 && (
         <span data-testid="subagent-pool-legacy-needs-kernel" style={CAPTION}>
-          {LEGACY_NEEDS_KERNEL}
+          {needs_kernel_caption(blocked_pools, node.id)}
         </span>
       )}
 
       {legacy &&
-        legacy_entries_needing_kernel(legacy_entries).length === 0 &&
+        blocked_pools.length === 0 &&
         (typeof onConvertLegacy !== "function" ? (
           <span data-testid="subagent-pool-legacy-unreachable" style={CAPTION}>
             {LEGACY_UNREACHABLE}
+          </span>
+        ) : convertingLegacy ? (
+          <span data-testid="subagent-pool-legacy-converting" style={CAPTION}>
+            {LEGACY_CONVERTING}
           </span>
         ) : canConvertLegacy === false ? (
           <span data-testid="subagent-pool-legacy-save-first" style={CAPTION}>

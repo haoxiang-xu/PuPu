@@ -761,3 +761,79 @@ describe("converting a legacy Subagent Pool", () => {
     expect(hook.result.current.session.error).toBeTruthy();
   });
 });
+
+describe("a conversion that is already in flight", () => {
+  /* It writes the stored resource and moves its token on, so a second request
+     is answered about a version that no longer exists — and the first one's
+     success then arrives as an edit conflict that never happened. */
+  const legacy_document = {
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "life",
+    nodes: [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: [] } } }],
+    edges: [],
+  };
+
+  const opened = async () => {
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document: legacy_document, edit_token: "edit-1" }),
+    );
+    return open();
+  };
+
+  test("is not started a second time", async () => {
+    let settle = null;
+    api.unchain.convertSkeletonLegacyPools = jest.fn(
+      () => new Promise((resolve) => {
+        settle = () => resolve(result({ document: legacy_document, edit_token: "edit-2" }));
+      }),
+    );
+    const hook = await opened();
+    let first = null;
+    act(() => {
+      first = hook.result.current.convertLegacyPools();
+    });
+    expect(hook.result.current.session.converting).toBe(true);
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      settle();
+      await first;
+    });
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.edit_token).toBe("edit-2");
+  });
+
+  test("a refusal that outlived its question raises no conflict", async () => {
+    /* The author typed while it was in flight. The answer is about the
+       version that was asked about, not this one, so it settles the flag and
+       says nothing else — a phantom conflict would send them to a resolution
+       screen for an edit nobody made. */
+    let fail = null;
+    api.unchain.convertSkeletonLegacyPools = jest.fn(
+      () => new Promise((_, reject) => {
+        fail = () => reject(Object.assign(new Error("resource changed in another editor"), {
+          code: "edit_conflict", path: ["expected_edit_token"], status: 409,
+        }));
+      }),
+    );
+    const hook = await opened();
+    let pending = null;
+    act(() => {
+      pending = hook.result.current.convertLegacyPools();
+    });
+    act(() => {
+      hook.result.current.edit({ ...legacy_document, description: "typed" });
+    });
+    await act(async () => {
+      fail();
+      await pending;
+    });
+    expect(hook.result.current.session.conflict).toBeFalsy();
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.dirty).toBe(true);
+  });
+});

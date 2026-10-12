@@ -55,6 +55,11 @@ export function empty_session() {
        this, never the one that came back from someone else's write. */
     edit_token: null,
     dirty: false,
+    /* A write the store performs on the stored document rather than one the
+       author composed. Kept apart from `saving` so the save bar never claims
+       a save is happening, and so nothing else that asks about the stored
+       version runs while it is being rewritten. */
+    converting: false,
     saving: false,
     diagnostics: [],
     /* Set when a save was refused for staleness. It holds the user's own
@@ -335,6 +340,7 @@ export function can_preflight(session) {
       session.status === SESSION_STATUS.READY &&
       !session.dirty &&
       !session.saving &&
+      !session.converting &&
       !session.conflict,
   );
 }
@@ -343,9 +349,33 @@ export function can_preflight(session) {
    screen has to be the stored version — the same condition a preflight needs,
    plus the token the write is made against. A conversion while the draft is
    dirty would bump the token under the author's unsaved work and leave them
-   unable to save it. */
+   unable to save it.
+ *
+ * Not while one is already in flight either: the second request is answered
+ * about a token the first has already moved on, so its answer is an edit
+ * conflict that never happened. That exclusion comes from `can_preflight`,
+ * which is where "the stored version is what is on screen, and nothing is
+ * writing it" is decided — a second clause here would be one that can never
+ * be true. */
 export function can_convert_legacy_pools(session) {
   return can_preflight(session) && Boolean(session && session.edit_token);
+}
+
+export function conversion_started(session) {
+  return { ...session, converting: true, error: null };
+}
+
+/* The answer to the question that was asked. A conversion that outlived its
+   own version — the author typed while it was in flight — settles the flag
+   and says nothing else: a phantom conflict would send them to a resolution
+   screen for an edit nobody made. Otherwise it means what a refused save
+   means, including the conflict a stale token really does raise. */
+export function conversion_failed(session, result, issued) {
+  const settled = { ...session, converting: false };
+  if (issued && !(same_open(session, issued) && session.version === issued.version)) {
+    return settled;
+  }
+  return save_refused(settled, result, null);
 }
 
 export function preflight_message(session) {

@@ -1150,6 +1150,50 @@ class LegacySubagentPoolConversionTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 2)
         self.assertEqual(sorted(names), ["Checker", "Summarizer"])
 
+    def test_a_malformed_kernel_keeps_its_field_diagnostic(self):
+        """The runtime names the field; the author has to be told which one.
+
+        `validate_kernel_config` answers `missing_field` at
+        `legacy_kernel.profile.endpoint` and the like. Those arrived here as a
+        raw `SkeletonValidationError`, which is not this store's error type, so
+        the route turned every one of them into a 500 with no path at all — a
+        model configuration refused for a reason nobody could read.
+        """
+        resource_id, before = self.parent_with(
+            [{"kind": "inline", "name": "Shortener", "prompt_format": "soul",
+              "template": {"prompt": "Be brief"}}])
+        malformed = deepcopy(LEGACY_KERNEL)
+        del malformed["profile"]["endpoint"]
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=before["edit_token"],
+                legacy_kernel=malformed)
+        self.assertEqual(caught.exception.code, "missing_field")
+        self.assertEqual(list(caught.exception.path),
+                         ["legacy_kernel", "profile", "endpoint"])
+        self.assertEqual(caught.exception.status, 400)
+        self.assertIn("legacy_fields", self.pool_of(resource_id))
+
+    def test_every_malformed_kernel_is_typed_rather_than_a_crash(self):
+        resource_id, before = self.parent_with(
+            [{"kind": "inline", "name": "Shortener", "prompt_format": "soul",
+              "template": {"prompt": "Be brief"}}])
+        cases = {
+            "missing_field": {k: v for k, v in deepcopy(LEGACY_KERNEL).items()
+                              if k != "profile"},
+            "invalid_type": {**deepcopy(LEGACY_KERNEL), "profile": "openai:gpt-4.1"},
+            "unknown_field": {**deepcopy(LEGACY_KERNEL), "temperature": 0.2},
+            "unknown_variant": {**deepcopy(LEGACY_KERNEL), "history": "all"},
+        }
+        for code, kernel in cases.items():
+            with self.subTest(code=code):
+                with self.assertRaises(SkeletonResourceError) as caught:
+                    self.store.convert_legacy_pools(
+                        resource_id, expected_edit_token=before["edit_token"],
+                        legacy_kernel=kernel)
+                self.assertEqual(caught.exception.code, code)
+                self.assertEqual(list(caught.exception.path)[0], "legacy_kernel")
+
     def test_two_legacy_entries_naming_one_Agent_are_both_kept(self):
         """Faithfully, which means the duplicate name comes with them.
 

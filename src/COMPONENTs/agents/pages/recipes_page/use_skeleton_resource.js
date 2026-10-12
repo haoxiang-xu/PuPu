@@ -8,6 +8,8 @@ import {
 import {
   can_convert_legacy_pools,
   conflict_discarded,
+  conversion_failed,
+  conversion_started,
   conflict_overridden,
   edited,
   empty_session,
@@ -128,15 +130,16 @@ export default function useSkeletonResource() {
   const convertLegacyPools = useCallback(async () => {
     const current = ref.current;
     if (!can_convert_legacy_pools(current)) return current;
-    const issued = session_token(current);
+    const started = apply(conversion_started(current));
+    const issued = session_token(started);
     const result = await convert_legacy_pools_in_store(
       current.resource_id,
       current.edit_token,
     );
     return apply((latest) =>
       result.ok
-        ? loaded(latest, result.data, issued)
-        : save_refused(latest, result, issued),
+        ? { ...loaded(latest, result.data, issued), converting: false }
+        : conversion_failed(latest, result, issued),
     );
   }, [apply]);
 

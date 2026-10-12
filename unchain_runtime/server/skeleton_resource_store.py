@@ -366,26 +366,43 @@ class SkeletonResourceStore:
                               "legacy inline subagent requires an explicit Kernel configuration")
                     prompt_format = raw.get("prompt_format")
                     template = raw.get("template")
-                    if prompt_format == "skeleton" and type(template) is dict:
-                        legacy_source = deepcopy(template)
-                        legacy_source.setdefault("name", name)
-                        legacy_source.setdefault("description", name)
-                        if "instructions" not in legacy_source and type(legacy_source.get("prompt")) is str:
-                            legacy_source["instructions"] = legacy_source["prompt"]
-                        converted_document = convert_legacy_definition(
-                            "skeleton_template", legacy_source,
-                            resource_id=f"embedded-{node['id']}-{entry_index}",
-                        )
-                    elif prompt_format == "soul" and type(template) is dict and type(template.get("prompt")) is str:
-                        soul = f"---\nname: {name}\ndescription: {name}\n---\n{template['prompt']}"
-                        converted_document = convert_legacy_definition(
-                            "soul", soul,
-                            resource_id=f"embedded-{node['id']}-{entry_index}",
-                        )
-                    else:
-                        _fail("invalid_shape", entry_path, "legacy inline subagent is invalid")
-                    metadata = self._legacy_agent_metadata(converted_document)
-                    embedded = materialize_legacy_agent(converted_document, legacy_kernel)
+                    # The runtime answers with a code and the exact field —
+                    # `missing_field` at `legacy_kernel.profile.endpoint`, and
+                    # so on. Its error type is not this store's, so without
+                    # this every one of them left as a 500 with no path: a
+                    # model configuration refused for a reason nobody could
+                    # read. A fault in the Kernel the caller supplied keeps the
+                    # runtime's own path, because that is what the author has
+                    # to go and fix; anything else is about this entry and is
+                    # reported there.
+                    try:
+                        if prompt_format == "skeleton" and type(template) is dict:
+                            legacy_source = deepcopy(template)
+                            legacy_source.setdefault("name", name)
+                            legacy_source.setdefault("description", name)
+                            if "instructions" not in legacy_source and type(legacy_source.get("prompt")) is str:
+                                legacy_source["instructions"] = legacy_source["prompt"]
+                            converted_document = convert_legacy_definition(
+                                "skeleton_template", legacy_source,
+                                resource_id=f"embedded-{node['id']}-{entry_index}",
+                            )
+                        elif prompt_format == "soul" and type(template) is dict and type(template.get("prompt")) is str:
+                            soul = f"---\nname: {name}\ndescription: {name}\n---\n{template['prompt']}"
+                            converted_document = convert_legacy_definition(
+                                "soul", soul,
+                                resource_id=f"embedded-{node['id']}-{entry_index}",
+                            )
+                        else:
+                            _fail("invalid_shape", entry_path, "legacy inline subagent is invalid")
+                        metadata = self._legacy_agent_metadata(converted_document)
+                        embedded = materialize_legacy_agent(converted_document, legacy_kernel)
+                    except SkeletonValidationError as exc:
+                        raise SkeletonResourceError(
+                            exc.code,
+                            tuple(exc.path) if exc.path and exc.path[0] == "legacy_kernel"
+                            else entry_path + tuple(exc.path[1:]),
+                            str(exc),
+                        ) from exc
                     source = {"kind": "embedded", "document": embedded}
                 else:
                     _fail("unknown_variant", entry_path + ("kind",),

@@ -1297,3 +1297,93 @@ describe("converting a legacy pool", () => {
     expect(screen.getByText("+ Add an Agent")).toBeInTheDocument();
   });
 });
+
+describe("the conversion covers the whole Agent, so the button has to as well", () => {
+  /* `convert_legacy_pools` expands every legacy pool in the document. A
+     button that asked only about the pool it is drawn on offered a conversion
+     that the store would refuse because of a pool somewhere else. */
+  const two_pools = (other_entries) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "parent",
+    name: "Reviewer",
+    nodes: [
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      {
+        id: "pool-a",
+        type: "subagent_pool",
+        config: { legacy_fields: { subagents: [{ kind: "recipe_ref", recipe_name: "Summarizer" }] } },
+      },
+      {
+        id: "pool-b",
+        type: "subagent_pool",
+        config: { legacy_fields: { subagents: other_entries } },
+      },
+    ],
+    edges: [],
+  });
+
+  const open_first = async (other_entries) => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const document = two_pools(other_entries);
+    const onConvertLegacy = jest.fn();
+    render(
+      <SubagentPoolSection
+        document={document}
+        node={document.nodes[1]}
+        isDark={false}
+        onChange={() => {}}
+        onConvertLegacy={onConvertLegacy}
+        canConvertLegacy
+      />,
+    );
+    await act(async () => {});
+    return { onConvertLegacy };
+  };
+
+  test("an inline entry in another pool withholds the button here too", async () => {
+    const { onConvertLegacy } = await open_first([
+      { kind: "inline", name: "Shortener", prompt_format: "soul", template: { prompt: "Be brief" } },
+    ]);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(onConvertLegacy).not.toHaveBeenCalled();
+    expect(screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent).toMatch(
+      /pool-b/,
+    );
+  });
+
+  test("and the notice says the conversion is for every pool in this Agent", async () => {
+    await open_first([{ kind: "ref", template_name: "Checker" }]);
+    expect(screen.getByText("Convert to Agent entries")).toBeInTheDocument();
+    expect(screen.getByTestId("subagent-pool-legacy").textContent).toMatch(
+      /every Subagent Pool in this Agent/i,
+    );
+  });
+});
+
+describe("while the conversion is in flight", () => {
+  /* The session refuses a second one, which also makes `canConvertLegacy`
+     false — and the reason it is false matters: "save this draft first" would
+     be a sentence about a state the author is not in. */
+  test("it says it is converting rather than telling the author to save", async () => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const node = pool({ legacy_fields: { subagents: [{ kind: "recipe_ref", recipe_name: "Summarizer" }] } });
+    render(
+      <SubagentPoolSection
+        document={doc(node)}
+        node={node}
+        isDark={false}
+        onChange={() => {}}
+        onConvertLegacy={() => {}}
+        canConvertLegacy={false}
+        convertingLegacy
+      />,
+    );
+    await act(async () => {});
+    expect(screen.getByTestId("subagent-pool-legacy-converting").textContent).toMatch(
+      /converting/i,
+    );
+    expect(screen.queryByTestId("subagent-pool-legacy-save-first")).not.toBeInTheDocument();
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+  });
+});
