@@ -10,6 +10,7 @@ import {
   conflict_discarded,
   conversion_failed,
   conversion_started,
+  conversion_succeeded,
   conflict_overridden,
   edited,
   empty_session,
@@ -138,7 +139,7 @@ export default function useSkeletonResource() {
     );
     return apply((latest) =>
       result.ok
-        ? { ...loaded(latest, result.data, issued), converting: false }
+        ? conversion_succeeded(latest, result.data, issued)
         : conversion_failed(latest, result, issued),
     );
   }, [apply]);

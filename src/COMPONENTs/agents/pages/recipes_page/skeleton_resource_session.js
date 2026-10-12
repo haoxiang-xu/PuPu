@@ -365,16 +365,39 @@ export function conversion_started(session) {
   return { ...session, converting: true, error: null };
 }
 
-/* The answer to the question that was asked. A conversion that outlived its
-   own version — the author typed while it was in flight — settles the flag
-   and says nothing else: a phantom conflict would send them to a resolution
-   screen for an edit nobody made. Otherwise it means what a refused save
-   means, including the conflict a stale token really does raise. */
+/* Whether an answer is the one this sitting is waiting for.
+ *
+ * Settling the flag and applying the answer are two decisions, and treating
+ * them as one is how a reply still in flight from the resource the author
+ * left cleared the flag on the resource they are converting now — which let
+ * that one be submitted again before it had finished. A sitting has its own
+ * identity for exactly this reason: `A → B → A` puts the same id back, and
+ * `open_id` is what tells the visits apart.
+ *
+ * There can only ever be one conversion pending per sitting, because a second
+ * is refused while the first is in flight, so the sitting identifies it. */
+function answers_conversion(session, issued) {
+  return Boolean(session && session.converting) && same_open(session, issued);
+}
+
+/* The flag is settled because THIS conversion finished. The document is
+   applied only if nothing has moved since — `loaded`'s own question — so an
+   answer that outlived the author's typing stops the spinner and leaves their
+   work alone. */
+export function conversion_succeeded(session, data, issued) {
+  if (!answers_conversion(session, issued)) return session;
+  return { ...loaded(session, data, issued), converting: false };
+}
+
+/* The same two decisions. A refusal that outlived its own version says
+   nothing beyond settling: a phantom conflict would send the author to a
+   resolution screen for an edit nobody made. One that is still current means
+   what a refused save means, including the conflict a stale token really does
+   raise. */
 export function conversion_failed(session, result, issued) {
+  if (!answers_conversion(session, issued)) return session;
   const settled = { ...session, converting: false };
-  if (issued && !(same_open(session, issued) && session.version === issued.version)) {
-    return settled;
-  }
+  if (!issued || session.version !== issued.version) return settled;
   return save_refused(settled, result, null);
 }
 

@@ -837,3 +837,149 @@ describe("a conversion that is already in flight", () => {
     expect(hook.result.current.session.dirty).toBe(true);
   });
 });
+
+describe("a conversion answer belongs to one sitting", () => {
+  /* Settling the flag and applying the document are two decisions, and last
+     round I made them one: the answer cleared `converting` whatever it was an
+     answer to. So a reply still in flight from the resource the author left
+     cleared the flag on the one they are converting now, and that one could
+     be submitted again before it finished. */
+  const legacy_document = (id) => ({
+    schema_version: 1,
+    kind: "agent",
+    id,
+    name: id,
+    nodes: [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: [] } } }],
+    edges: [],
+  });
+
+  const open_both = async () => {
+    api.unchain.getSkeletonResource = jest.fn(async (resource_id) =>
+      result({ id: resource_id, document: legacy_document(resource_id), edit_token: `${resource_id}-1` }),
+    );
+    const hook = renderHook(() => useSkeletonResource());
+    await act(async () => {
+      await hook.result.current.load("first");
+    });
+    return hook;
+  };
+
+  /* Every request held open and settled by hand, in call order — two of them
+     can be for the same resource, so the resource id is not a key. */
+  const pending_conversions = () => {
+    const settle = [];
+    api.unchain.convertSkeletonLegacyPools = jest.fn(
+      (resource_id) =>
+        new Promise((resolve, reject) => {
+          settle.push({
+            resource_id,
+            ok: () =>
+              resolve(
+                result({
+                  id: resource_id,
+                  document: { ...legacy_document(resource_id), description: "converted" },
+                  edit_token: `${resource_id}-2`,
+                }),
+              ),
+            fail: () =>
+              reject(
+                Object.assign(new Error("resource changed in another editor"), {
+                  code: "edit_conflict",
+                  path: ["expected_edit_token"],
+                  status: 409,
+                }),
+              ),
+          });
+        }),
+    );
+    return settle;
+  };
+
+  const start_both = async (hook) => {
+    const settle = pending_conversions();
+    let first = null;
+    act(() => {
+      first = hook.result.current.convertLegacyPools();
+    });
+    await act(async () => {
+      await hook.result.current.load("second");
+    });
+    let second = null;
+    act(() => {
+      second = hook.result.current.convertLegacyPools();
+    });
+    expect(hook.result.current.session.resource_id).toBe("second");
+    expect(hook.result.current.session.converting).toBe(true);
+    return { settle, first, second };
+  };
+
+  test("a late success from the resource left behind clears nothing here", async () => {
+    const hook = await open_both();
+    const { settle, first } = await start_both(hook);
+    await act(async () => {
+      settle[0].ok();
+      await first;
+    });
+    expect(hook.result.current.session.resource_id).toBe("second");
+    expect(hook.result.current.session.converting).toBe(true);
+    expect(hook.result.current.session.document.description).toBeUndefined();
+  });
+
+  test("and neither does a late refusal", async () => {
+    const hook = await open_both();
+    const { settle, first } = await start_both(hook);
+    await act(async () => {
+      settle[0].fail();
+      await first.catch(() => {});
+    });
+    expect(hook.result.current.session.converting).toBe(true);
+    expect(hook.result.current.session.conflict).toBeFalsy();
+  });
+
+  test("the one that belongs here still settles it", async () => {
+    const hook = await open_both();
+    const { settle, second } = await start_both(hook);
+    await act(async () => {
+      settle[1].ok();
+      await second;
+    });
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.edit_token).toBe("second-2");
+    expect(hook.result.current.session.document.description).toBe("converted");
+  });
+
+  test("the same resource opened again is a different sitting", async () => {
+    /* `A → B → A` puts the same id back, which is why a sitting has its own
+       identity: an answer from the first visit must not settle the second. */
+    const hook = await open_both();
+    const settle = pending_conversions();
+    let first = null;
+    act(() => {
+      first = hook.result.current.convertLegacyPools();
+    });
+    await act(async () => {
+      await hook.result.current.load("first");
+    });
+    let again = null;
+    act(() => {
+      again = hook.result.current.convertLegacyPools();
+    });
+    expect(hook.result.current.session.converting).toBe(true);
+
+    /* The first visit's answer arrives. Same resource id, different sitting. */
+    await act(async () => {
+      settle[0].ok();
+      await first;
+    });
+    expect(hook.result.current.session.converting).toBe(true);
+    expect(hook.result.current.session.document.description).toBeUndefined();
+
+    /* This sitting's own answer settles it. */
+    await act(async () => {
+      settle[1].ok();
+      await again;
+    });
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.document.description).toBe("converted");
+  });
+});
