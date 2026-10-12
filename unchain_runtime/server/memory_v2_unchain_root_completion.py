@@ -25,6 +25,7 @@ from unchain.memory.curator import (
     RunCaptureStatus,
     SourceRunStatus,
 )
+from unchain.memory.curator.host import MemoryAgentEnqueueReceipt
 
 
 class PupuMemoryV2RootCompletionError(RuntimeError):
@@ -85,6 +86,10 @@ PupuMemoryV2JournalCaptureResult = (
 PupuMemoryV2JournalCaptureCallback = Callable[
     [MemoryAttachmentRequest],
     PupuMemoryV2JournalCaptureResult,
+]
+PupuMemoryV2EnqueueResultCallback = Callable[
+    [RootRunCompletion, MemoryAgentEnqueueReceipt],
+    None,
 ]
 
 
@@ -260,6 +265,10 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
     request: MemoryAttachmentRequest
     capture_journal: PupuMemoryV2JournalCaptureCallback = field(repr=False)
     before_enqueue: Callable[[], None] | None = field(default=None, repr=False)
+    enqueue_result_callback: PupuMemoryV2EnqueueResultCallback | None = field(
+        default=None,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.request, MemoryAttachmentRequest):
@@ -275,6 +284,10 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
             raise TypeError("capture_journal must be callable")
         if self.before_enqueue is not None and not callable(self.before_enqueue):
             raise TypeError("before_enqueue must be callable")
+        if self.enqueue_result_callback is not None and not callable(
+            self.enqueue_result_callback
+        ):
+            raise TypeError("enqueue_result_callback must be callable")
 
     def build(self, *, result: KernelRunResult) -> RootRunCompletion | None:
         if not isinstance(result, KernelRunResult):
@@ -307,6 +320,27 @@ class PupuMemoryV2RootCompletionFactory(MemoryCompletionFactory):
             self.before_enqueue()
         return completion
 
+    def record_enqueue_result(
+        self,
+        *,
+        completion: RootRunCompletion,
+        receipt: MemoryAgentEnqueueReceipt,
+    ) -> None:
+        if not isinstance(completion, RootRunCompletion):
+            raise TypeError("completion must be a RootRunCompletion")
+        if not isinstance(receipt, MemoryAgentEnqueueReceipt):
+            raise TypeError("receipt must be a MemoryAgentEnqueueReceipt")
+        if (
+            completion.session_id != self.request.session_id
+            or completion.attempt_id != self.request.attempt_id
+            or completion.run_id != self.request.run_id
+        ):
+            raise PupuMemoryV2RootCompletionError(
+                "enqueue result changed the attached run identity"
+            )
+        if self.enqueue_result_callback is not None:
+            self.enqueue_result_callback(completion, receipt)
+
 
 @dataclass(frozen=True, slots=True)
 class PupuMemoryV2RootCompletionFactoryResolver:
@@ -314,12 +348,20 @@ class PupuMemoryV2RootCompletionFactoryResolver:
 
     capture_journal: PupuMemoryV2JournalCaptureCallback = field(repr=False)
     before_enqueue: Callable[[], None] | None = field(default=None, repr=False)
+    enqueue_result_callback: PupuMemoryV2EnqueueResultCallback | None = field(
+        default=None,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         if not callable(self.capture_journal):
             raise TypeError("capture_journal must be callable")
         if self.before_enqueue is not None and not callable(self.before_enqueue):
             raise TypeError("before_enqueue must be callable")
+        if self.enqueue_result_callback is not None and not callable(
+            self.enqueue_result_callback
+        ):
+            raise TypeError("enqueue_result_callback must be callable")
 
     def resolve(
         self,
@@ -336,6 +378,7 @@ class PupuMemoryV2RootCompletionFactoryResolver:
             request=request,
             capture_journal=self.capture_journal,
             before_enqueue=self.before_enqueue,
+            enqueue_result_callback=self.enqueue_result_callback,
         )
 
 
@@ -343,12 +386,14 @@ def build_pupu_memory_v2_root_completion_resolver(
     *,
     capture_journal: PupuMemoryV2JournalCaptureCallback,
     before_enqueue: Callable[[], None] | None = None,
+    enqueue_result_callback: PupuMemoryV2EnqueueResultCallback | None = None,
 ) -> PupuMemoryV2RootCompletionFactoryResolver:
     """Create the host-owned resolver accepted by the official attachment factory."""
 
     return PupuMemoryV2RootCompletionFactoryResolver(
         capture_journal=capture_journal,
         before_enqueue=before_enqueue,
+        enqueue_result_callback=enqueue_result_callback,
     )
 
 
@@ -356,6 +401,7 @@ __all__ = [
     "PupuMemoryV2JournalCapture",
     "PupuMemoryV2JournalCaptureCallback",
     "PupuMemoryV2JournalCaptureResult",
+    "PupuMemoryV2EnqueueResultCallback",
     "PupuMemoryV2RootCompletionError",
     "PupuMemoryV2RootCompletionFactory",
     "PupuMemoryV2RootCompletionFactoryResolver",

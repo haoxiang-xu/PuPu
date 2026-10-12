@@ -5,6 +5,7 @@ import pytest
 from memory_v2_unchain_root_completion import (
     PupuMemoryV2JournalCapture,
     PupuMemoryV2RootCompletionFactory,
+    PupuMemoryV2RootCompletionError,
     build_pupu_memory_v2_root_completion_resolver,
 )
 from unchain.memory import (
@@ -20,7 +21,14 @@ from unchain.journal import (
     capture_journal_snapshot,
 )
 from unchain.kernel.types import KernelRunResult
-from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
+from unchain.memory.curator import (
+    EnqueueDisposition,
+    EnqueueResult,
+    RootRunCompletion,
+    RunCaptureStatus,
+    SourceRunStatus,
+)
+from unchain.memory.curator.host import MemoryAgentEnqueueReceipt
 from unchain.runtime import ExecutionIdentity, ModuleGrant
 
 
@@ -254,6 +262,40 @@ def test_capture_failure_maps_to_unavailable_without_changing_run_identity() -> 
     assert completion.run_id == request.run_id
     assert completion.run_status is SourceRunStatus.COMPLETED
     assert completion.capture_status is RunCaptureStatus.UNAVAILABLE
+
+
+def test_enqueue_receipt_is_forwarded_only_for_the_exact_attached_run() -> None:
+    request = _request()
+    observed = []
+    factory = build_pupu_memory_v2_root_completion_resolver(
+        capture_journal=lambda _request: None,
+        enqueue_result_callback=lambda completion, receipt: observed.append(
+            (completion, receipt)
+        ),
+    ).resolve(request)
+    completion = factory.build(result=_result("completed"))
+    receipt = MemoryAgentEnqueueReceipt(
+        enabled=True,
+        reason="no_pending_candidates",
+        result=EnqueueResult(
+            EnqueueDisposition.NO_OP,
+            "no_pending_candidates",
+        ),
+    )
+
+    factory.record_enqueue_result(completion=completion, receipt=receipt)
+
+    assert observed == [(completion, receipt)]
+    changed = RootRunCompletion(
+        session_id=completion.session_id,
+        attempt_id=completion.attempt_id,
+        run_id="other-run",
+        is_root_run=True,
+        run_status=completion.run_status,
+        capture_status=completion.capture_status,
+    )
+    with pytest.raises(PupuMemoryV2RootCompletionError, match="attached run identity"):
+        factory.record_enqueue_result(completion=changed, receipt=receipt)
 
 
 def test_complete_capture_record_requires_a_snapshot() -> None:

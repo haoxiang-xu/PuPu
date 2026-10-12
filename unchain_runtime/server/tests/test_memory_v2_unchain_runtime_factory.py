@@ -55,9 +55,17 @@ from unchain.execution import ExecutionFence, ExecutionRuntime
 from unchain.kernel.harness import HarnessContext
 from unchain.kernel.state import RunState
 from unchain.kernel.types import KernelRunResult
-from unchain.memory.curator import RunCaptureStatus, SourceRunStatus
+from unchain.memory.curator import (
+    EnqueueDisposition,
+    EnqueueResult,
+    RunCaptureStatus,
+    SourceRunStatus,
+)
 from unchain.memory.toolkit.models import MemoryToolkitError
-from unchain.memory.curator.host import MemoryAgentWorkerDisposition
+from unchain.memory.curator.host import (
+    MemoryAgentEnqueueReceipt,
+    MemoryAgentWorkerDisposition,
+)
 from unchain.runtime import AgentRuntimeContext, ExecutionIdentity, ModuleGrant
 from unchain.subagents.types import SubagentResult
 from unchain.providers import OpenAIModelIO
@@ -701,6 +709,55 @@ def test_active_root_attachment_captures_canonical_terminal_journal(
 
     assert completion.run_status is SourceRunStatus.COMPLETED
     assert completion.capture_status is RunCaptureStatus.COMPLETE
+
+    receipt = MemoryAgentEnqueueReceipt(
+        enabled=True,
+        reason="no_pending_candidates",
+        result=EnqueueResult(
+            EnqueueDisposition.NO_OP,
+            "no_pending_candidates",
+        ),
+    )
+    attachment.completion_factory.record_enqueue_result(
+        completion=completion,
+        receipt=receipt,
+    )
+    attempt = host.attempt(
+        execution_id="execution-a",
+        attempt_id="attempt-a",
+    )
+    decision_events = tuple(
+        event
+        for event in attempt.bundle.journal.capture_snapshot().events
+        if event.event_type.startswith("memory.curator.")
+    )
+
+    assert len(decision_events) == 1
+    assert decision_events[0].event_type == "memory.curator.noop"
+    assert decision_events[0].payload == {
+        "schema": "pupu.memory_curator_completion.v1",
+        "backend": "unchain",
+        "status": "NoOp",
+        "enqueue_status": "NoOp",
+        "reason": "no_pending_candidates",
+        "trigger": "completed_root_run",
+        "run_id": "attempt-a",
+        "job_id": "",
+        "candidate_count": 0,
+        "worker_status": "NotScheduled",
+    }
+
+    attachment.completion_factory.record_enqueue_result(
+        completion=completion,
+        receipt=receipt,
+    )
+    replayed_decisions = tuple(
+        event
+        for event in attempt.bundle.journal.capture_snapshot().events
+        if event.event_type.startswith("memory.curator.")
+    )
+
+    assert replayed_decisions == decision_events
 
 
 def test_official_memory_toolkit_reads_scope_bound_context_content(
