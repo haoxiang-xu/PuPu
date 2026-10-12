@@ -327,7 +327,7 @@ def _completion_from_attachment(
     factory: object,
     request: MemoryAttachmentRequest,
     final_text: str,
-) -> RootRunCompletion:
+) -> tuple[RootRunCompletion, object]:
     attachment = factory.normal_attachment_factory.attach(request)
     if type(attachment) is not MemoryAttachment:
         _fail("graph_root_completion_attachment_invalid")
@@ -361,7 +361,9 @@ def _completion_from_attachment(
         )
     ):
         _fail("graph_root_completion_capture_incomplete")
-    return completion
+    if not callable(getattr(completion_factory, "record_enqueue_result", None)):
+        _fail("graph_root_completion_recorder_unavailable")
+    return completion, completion_factory
 
 
 def _worker_failure_code(error: Exception) -> str:
@@ -392,6 +394,7 @@ def _run_memory_completion(
     owner_chat_id: str,
     root_run_id: str,
     completion: RootRunCompletion,
+    completion_recorder: object,
 ) -> PupuUnchainGraphRootMemoryReceipt:
     factory.prepare_memory_completion()
     enqueue = factory.memory_host.enqueue_root_completion(completion)
@@ -420,6 +423,14 @@ def _run_memory_completion(
         job_id = ""
         job_revision = 0
         candidate_count = 0
+
+    try:
+        completion_recorder.record_enqueue_result(
+            completion=completion,
+            receipt=enqueue,
+        )
+    except Exception as error:
+        _fail("graph_root_completion_audit_failed", error)
 
     worker_receipt = None
     worker_failure_code = ""
@@ -495,7 +506,7 @@ def complete_pupu_unchain_graph_root(
         grant=binding.grant,
     )
     try:
-        completion = _completion_from_attachment(
+        completion, completion_recorder = _completion_from_attachment(
             factory=factory,
             request=request,
             final_text=final_text,
@@ -510,6 +521,7 @@ def complete_pupu_unchain_graph_root(
         owner_chat_id=binding.owner_chat_id,
         root_run_id=binding.root_run_id,
         completion=completion,
+        completion_recorder=completion_recorder,
     )
     output_artifact = final_completion.output_artifact
     return PupuUnchainGraphRootCompletionReceipt(

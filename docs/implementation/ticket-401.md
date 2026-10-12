@@ -125,12 +125,54 @@ Checkpoints:
 
 Stop if the implementation would require a new memory/job schema, an automatic `user:local` promotion, foreground model work, weakened secret rules, or any change to existing message/tool records; those are architecture or product changes outside this ticket.
 
-## Verification evidence
+## Post-acceptance repair — 2026-10-12
 
-- Unchain commit: `aea1cc8ec21f39aa3a29325e479306671e15e46f`.
-- Exact wheel: `unchain-0.2.0-py3-none-any.whl`, SHA-256 `5af9e85ef532243e1aefddc75880a7d7f138b2c9056a848d07ec5f40119f2d3f`.
+Real-provider acceptance disproved AC-401-02 and exposed a separate Agent Builder completion-path omission. The root model called `memory_propose` three times, but the provider contract allowed it to invent an unsupported `kind`, omit `source_refs`, and finally pass a raw event identifier where the runtime required an encoded authorized context-event reference. All calls failed, the model still claimed success, and the live profile contained zero candidates, jobs, entries, or `memory.curator.*` audit events. The earlier audit is therefore stale.
+
+The repair changes the normal proposal boundary without changing the durable candidate schema:
+
+- the provider-visible `memory_propose` contract creates a markdown candidate and no longer exposes internal `kind`, binary/link, or `source_refs` arguments;
+- the host supplies bounded current-run provenance through the attachment factory at tool execution time, and Unchain validates and authorizes those structured references before proposing the candidate;
+- a successful proposal is defined only by a returned non-empty `candidate_ref`; tool errors never justify a saved/proposed claim;
+- Agent Builder graph completion forwards the exact enqueue receipt through the same completion-factory recorder used by single-agent runs.
+
+### BC-401-04 — runtime-owned proposal provenance
+
+Producer: PuPu's attempt-bound canonical journal resolver. Consumer: Unchain's normal Memory toolkit candidate proposal.
+
+- The model supplies candidate content and metadata only; it cannot construct or override internal event references or candidate kind.
+- The resolver returns only structured, bare `context_event` references from the exact attached attempt, bounded to the current user/interaction input and completed tool results available before the proposal.
+- Unchain rejects an empty, foreign, fragmented, duplicated, or unauthorized runtime-owned source set before any candidate mutation.
+- The persisted candidate keeps the existing `FrozenCandidateSnapshot` and source-reference schema.
+
+### BC-401-05 — post-terminal curator audit classification
+
+Producer: PuPu's root-completion recorder. Consumer: Unchain's generation-rebase quiescence check.
+
+- The recorder may append only the closed `memory.curator.enqueued`, `memory.curator.noop`, `memory.curator.isolated`, or `memory.curator.failed` audit family after a canonical run terminal.
+- Those content-free events describe the completed run's enqueue disposition and do not reopen provider or tool execution.
+- Any other event after the terminal remains incompatible and blocks rebase; duplicate or ambiguous terminals remain rejected.
+
+### SEQ-401-04 — real provider proposal and graph completion
+
+1. The provider receives a schema requiring path, description, and markdown content, with no internal provenance parameter.
+2. On `memory_propose`, PuPu resolves exact-attempt evidence from the canonical journal; Unchain validates and authorizes it, then returns a candidate result containing `candidate_ref`.
+3. The model may report that a candidate was proposed only after that result; formal-memory wording remains forbidden until curator application is proven.
+4. Agent Builder root completion enqueues the frozen candidate and passes the same receipt to the attached completion recorder before waking the background worker.
+5. PuPu appends one replay-safe `memory.curator.enqueued` or `memory.curator.noop` event, and the existing worker/apply path continues unchanged.
+
+### Additional acceptance checks
+
+- **AC-401-08:** The exact provider schema for OpenAI, Anthropic, Gemini, Ollama, and default routes exposes a markdown-only proposal with no `kind` or `source_refs`; a deterministic model call that supplies only path, description, and content persists a candidate with host-owned current-run provenance and returns `candidate_ref`.
+- **AC-401-09:** Agent Builder graph completion records exactly one content-free curator decision for enqueue, no-op, replay, and isolated background-notification paths without changing final output, terminal ordering, job identity, or worker scheduling.
+- **AC-401-10:** Generation rebase accepts the closed curator-audit family after a canonical terminal for ordinary and graph-root attempts, while continuing to reject every other post-terminal continuation.
+
+## Repair verification evidence
+
+- Unchain repair commit: `7a8717cb3089d0d6300488cc591ec50772a28baf`.
+- Exact wheel: `unchain-0.2.0-py3-none-any.whl`, SHA-256 `99cd57f1f817fdc50d5e04bf03d4227659951a8238ee5040715290a24b83b966`.
 - Runtime manifest: `sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672`.
-- The exact wheel was installed into an isolated Python 3.12 runtime site and used for both repositories' tests: Unchain Memory V2/tool-discovery matrix `465 passed, 4 xfailed`; PuPu completion/runtime-factory matrix `46 passed`.
+- Source and exact-wheel runs both pass the affected matrix: Unchain Memory V2 plus generation-rebase `570 passed, 4 xfailed`; PuPu runtime factory, graph-root completion, background worker, restart, selection-race, deferred-preparation and audit regressions `116 passed`.
 - A fresh PuPu sidecar process was started with that installed wheel, returned `status=ok` from `/health`, reported the same runtime manifest digest, and resolved `unchain_runtime_source` from the isolated wheel installation. The process was then shut down cleanly.
-- Both repositories completed full-scope GitNexus change analysis with low reported aggregate risk and no affected indexed execution process. The pre-edit HIGH risk on `MemoryV2Module.configure` remains covered by the broader module, SQLite attachment, optimizer, tool-discovery and PuPu active-host matrices above.
+- Both repositories completed full-scope GitNexus change analysis without partial or truncated output: Unchain reports medium aggregate risk with the `Memory_propose` flow affected; PuPu reports low aggregate risk and no affected indexed execution process. The pre-edit HIGH risk on PuPu graph-root completion remains covered by graph, replay, rebase and background-worker tests above.
 - All provider behavior in the tests is deterministic fake-provider behavior; no local model inference was run.

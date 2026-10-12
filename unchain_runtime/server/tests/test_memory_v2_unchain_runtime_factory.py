@@ -617,6 +617,15 @@ def test_active_host_builds_agent_with_only_official_normal_memory_tools(
             current_input="current objective",
         )
     )
+    proposal = prepared.toolkit.tools["memory_propose"].func(
+        path="/preferences/canonical-journal.md",
+        description="Standing preference for canonical execution journals",
+        content="Keep a canonical execution journal for long-running work.",
+        rationale="The user stated a durable collaboration preference.",
+        confidence=1.0,
+    )
+    assert proposal["candidate_ref"].startswith("pupu://memory/candidate/")
+    assert _row_count(host.database_path, "candidates") == 1
     host.context_module.runtime.persist_event(
         {
             "type": "final_message",

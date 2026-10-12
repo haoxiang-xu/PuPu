@@ -39,7 +39,7 @@ from memory_v2_unchain_worker import (
     build_pupu_unchain_memory_agent_worker_module,
 )
 from unchain.agent.modules import ContextModule, ContextShadowModule
-from unchain.memory import MemoryV2Module
+from unchain.memory import MemoryAttachmentRequest, MemoryV2Module
 from unchain.agent.modules.task_state_bootstrap import (
     PinnedTaskStateBootstrapModule,
 )
@@ -715,6 +715,9 @@ class PupuUnchainContextMemoryV2HostFactory:
                     ),
                 )
             ),
+            proposal_source_refs_resolver=(
+                self._resolve_memory_proposal_source_refs
+            ),
         )
         self.memory_host = MemoryAgentHostAdapter(
             self.curation_repository,
@@ -983,6 +986,54 @@ class PupuUnchainContextMemoryV2HostFactory:
         ):
             return None
         return prepared.bundle.journal.capture_snapshot()
+
+    def _resolve_memory_proposal_source_refs(
+        self,
+        request: MemoryAttachmentRequest,
+    ) -> tuple[ResourceRef, ...]:
+        """Bind a normal proposal to exact-attempt evidence owned by the host."""
+
+        if not isinstance(request, MemoryAttachmentRequest):
+            raise TypeError("request must be a MemoryAttachmentRequest")
+        prepared = self.attempt(
+            execution_id=request.session_id,
+            attempt_id=request.attempt_id,
+        )
+        attempt = prepared.bundle.attempt
+        if (
+            request.session_id != attempt.generation.execution_id
+            or request.attempt_id != attempt.attempt_id
+        ):
+            raise PupuUnchainHostFactoryError(
+                "memory proposal provenance changed the attempt identity"
+            )
+        events = tuple(
+            event
+            for event in prepared.bundle.journal.capture_snapshot().events
+            if event.attempt == attempt
+        )
+        input_events = tuple(
+            event
+            for event in events
+            if event.event_type in {"message.user", "interaction.resolved"}
+        )
+        tool_results = tuple(
+            event
+            for event in events
+            if event.event_type in {"tool_result", "tool.result"}
+        )
+        selected = []
+        if input_events:
+            selected.append(input_events[-1])
+        selected.extend(tool_results[-127:])
+        if not selected:
+            raise PupuUnchainHostFactoryError(
+                "memory proposal requires current-run evidence"
+            )
+        return tuple(
+            ResourceRef("context_event", event.event_id, 1)
+            for event in selected
+        )
 
     def _record_memory_completion_result(
         self,
