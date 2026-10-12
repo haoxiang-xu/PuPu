@@ -983,3 +983,127 @@ describe("a conversion answer belongs to one sitting", () => {
     expect(hook.result.current.session.document.description).toBe("converted");
   });
 });
+
+describe("a conflict resolved while a conversion is in flight", () => {
+  /* The sitting identifies the pending conversion because there can only be
+     one — a second is refused while the first is in flight. Taking the other
+     version is the one thing in a sitting that rebuilds the session from the
+     stored document, and it was dropping that mark: the request did not stop
+     existing because the document on screen was replaced. With the mark gone
+     the conversion could be submitted again, and the first answer then
+     settled the second one's flag. */
+  const legacy_document = (tag) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "life",
+    nodes: [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: [] } } }],
+    edges: [],
+    description: tag,
+  });
+
+  /* Held open and settled by hand, in call order. */
+  const pending_conversions = () => {
+    const settle = [];
+    api.unchain.convertSkeletonLegacyPools = jest.fn(
+      () =>
+        new Promise((resolve, reject) => {
+          settle.push({
+            ok: () =>
+              resolve(
+                result({
+                  document: legacy_document("converted"),
+                  edit_token: "edit-2",
+                }),
+              ),
+            fail: () =>
+              reject(
+                Object.assign(new Error("resource changed in another editor"), {
+                  code: "edit_conflict",
+                  path: ["expected_edit_token"],
+                  status: 409,
+                }),
+              ),
+          });
+        }),
+    );
+    return settle;
+  };
+
+  /* Convert, type, save into someone else's newer version, take theirs. */
+  const took_theirs_mid_conversion = async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: legacy_document("mine"), edit_token: "edit-1" }))
+      .mockResolvedValue(result({ document: legacy_document("theirs"), edit_token: "edit-9" }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+    const hook = await open();
+    const settle = pending_conversions();
+    let pending = null;
+    act(() => {
+      pending = hook.result.current.convertLegacyPools();
+    });
+    act(() => hook.result.current.edit(legacy_document("typed")));
+    await act(async () => {
+      await hook.result.current.save();
+    });
+    expect(hook.result.current.session.conflict).toBeTruthy();
+    await act(async () => {
+      await hook.result.current.takeTheirs();
+    });
+    expect(hook.result.current.session.document).toEqual(legacy_document("theirs"));
+    return { hook, settle, pending };
+  };
+
+  test("the reload keeps the request still in flight marked", async () => {
+    const { hook, settle, pending } = await took_theirs_mid_conversion();
+    expect(hook.result.current.session.converting).toBe(true);
+    await act(async () => {
+      settle[0].ok();
+      await pending;
+    });
+  });
+
+  test("so it cannot be submitted a second time", async () => {
+    const { hook, settle, pending } = await took_theirs_mid_conversion();
+    /* Not awaited: the second request would be held open like the first, and
+       waiting for it would report this as a timeout instead of as the extra
+       submission it is. The store is called before the first await, so the
+       count is already final here. */
+    act(() => {
+      hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      settle[0].ok();
+      await pending;
+    });
+  });
+
+  test("its own answer still settles it, and leaves the chosen version alone", async () => {
+    /* The mark has to be settleable by the answer it belongs to, or the
+       author is left unable to Run or Publish for the rest of the sitting.
+       The document is not applied: they chose this version after the request
+       was made. */
+    const { hook, settle, pending } = await took_theirs_mid_conversion();
+    await act(async () => {
+      settle[0].ok();
+      await pending;
+    });
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.document).toEqual(legacy_document("theirs"));
+    expect(hook.result.current.session.edit_token).toBe("edit-9");
+  });
+
+  test("and so does a refusal, without a second conflict screen", async () => {
+    const { hook, settle, pending } = await took_theirs_mid_conversion();
+    await act(async () => {
+      settle[0].fail();
+      await pending.catch(() => {});
+    });
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.conflict).toBeFalsy();
+  });
+});

@@ -228,7 +228,17 @@ export function conflict_discarded(session, data, issued) {
       conflict: { ...session.conflict, stale_choice: true },
     };
   }
-  return { ...loaded(session, data), status: SESSION_STATUS.READY };
+  /* A request already made is still in flight: it did not stop existing
+     because the document on screen was replaced. `loaded` rebuilds the
+     session from the stored document, and this is the only place inside a
+     sitting that calls it — dropping the mark here is what let the conversion
+     be submitted a second time, after which the first answer settled the
+     second one's flag. */
+  return {
+    ...loaded(session, data),
+    status: SESSION_STATUS.READY,
+    converting: session.converting,
+  };
 }
 
 /* Keeping the user's own: their document is re-based onto the newer token so
@@ -375,7 +385,9 @@ export function conversion_started(session) {
  * `open_id` is what tells the visits apart.
  *
  * There can only ever be one conversion pending per sitting, because a second
- * is refused while the first is in flight, so the sitting identifies it. */
+ * is refused while the first is in flight, so the sitting identifies it. That
+ * holds only as long as nothing inside a sitting forgets the request —
+ * `conflict_discarded` carries it, for the reason written there. */
 function answers_conversion(session, issued) {
   return Boolean(session && session.converting) && same_open(session, issued);
 }
