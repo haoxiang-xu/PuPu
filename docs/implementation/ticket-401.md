@@ -169,10 +169,10 @@ Producer: PuPu's root-completion recorder. Consumer: Unchain's generation-rebase
 
 ## Repair verification evidence
 
-- Unchain repair commit: `7a8717cb3089d0d6300488cc591ec50772a28baf`.
-- Exact wheel: `unchain-0.2.0-py3-none-any.whl`, SHA-256 `99cd57f1f817fdc50d5e04bf03d4227659951a8238ee5040715290a24b83b966`.
+- Unchain repair commit: `41d66884933258ac459ff406c8512f7501aacf63` (the accepted #401 repair plus the already reviewed #383 timeline-policy runtime required by PuPu's current `dev` contract).
+- Exact wheel: `unchain-0.2.0-py3-none-any.whl`, SHA-256 `cdf213ebf3d121e6234f0fa3097e6245405b6000292514ace6fcb03e2911b694`.
 - Runtime manifest: `sha256:b80cde70e35f93c21ed069990f26817d353e4fd1c9d3ff109cfda933f5295672`.
-- Source and exact-wheel runs both pass the affected matrix: Unchain Memory V2 plus generation-rebase `570 passed, 4 xfailed`; PuPu runtime factory, graph-root completion, background worker, restart, selection-race, deferred-preparation and audit regressions `116 passed`.
-- A fresh PuPu sidecar process was started with that installed wheel, returned `status=ok` from `/health`, reported the same runtime manifest digest, and resolved `unchain_runtime_source` from the isolated wheel installation. The process was then shut down cleanly.
+- Unchain's complete source suite passes: `4212 passed, 16 skipped, 5 xfailed`. PuPu's complete Python sidecar suite passes against the exact installed wheel: `2705 passed, 17 skipped, 3605 subtests passed`; the focused proposal, graph-root, replay and audit matrix passes `35 passed`.
+- Real-provider acceptance with Gemini produced one durable chat-memory entry, one candidate/job lineage, and exactly one `memory.curator.enqueued` event for the tested chat. The final compatibility repair additionally binds that audit event to the canonical semantic operation receipt; the exact-wheel second-turn replay regression passes after this correction.
 - Both repositories completed full-scope GitNexus change analysis without partial or truncated output: Unchain reports medium aggregate risk with the `Memory_propose` flow affected; PuPu reports low aggregate risk and no affected indexed execution process. The pre-edit HIGH risk on PuPu graph-root completion remains covered by graph, replay, rebase and background-worker tests above.
 - All provider behavior in the tests is deterministic fake-provider behavior; no local model inference was run.

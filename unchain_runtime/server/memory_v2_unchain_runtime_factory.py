@@ -78,9 +78,8 @@ from unchain.journal import (
     AttemptRef,
     DurableEventSink,
     EventRange,
-    JournalAppendRequest,
-    OperationRef,
     ResourceRef,
+    SemanticEventDraft,
 )
 from unchain.journal.models import _required_text
 from unchain.kernel.harness import HarnessContext
@@ -1122,18 +1121,14 @@ class PupuUnchainContextMemoryV2HostFactory:
             allow_nan=False,
         ).encode("utf-8")
         digest = hashlib.sha256(encoded).hexdigest()
-        prepared.bundle.journal.append(
-            request=JournalAppendRequest(
-                event_id=f"memory-curator-audit-{digest}",
-                event_type=event_type,
-                attempt=attempt,
-                operation=OperationRef(
-                    operation_id=f"memory-curator-audit.{digest}",
-                    payload_sha256=digest,
-                ),
-                payload=payload,
-            )
+        draft = SemanticEventDraft(
+            event_id=f"memory-curator-audit-{digest}",
+            event_type=event_type,
+            attempt=attempt,
+            operation_id=f"memory-curator-audit.{digest}",
+            payload=payload,
         )
+        prepared.bundle.journal.append(request=draft.to_append_request())
 
     def _build_bundle(self, attempt: AttemptRef) -> ContextExecutionBundle:
         _assert_chat_active(

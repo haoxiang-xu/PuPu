@@ -320,6 +320,7 @@ class _Builder:
             runtime_context=runtime_context,
         )
         self.toolkit = Toolkit()
+        self.harnesses = []
         self.run_hooks = []
 
     def add_tool(self, toolkit):
@@ -328,6 +329,9 @@ class _Builder:
 
     def add_run_hook(self, hook):
         self.run_hooks.append(hook)
+
+    def add_harness(self, harness):
+        self.harnesses.append(harness)
 
 
 def _runtime_context(

@@ -35,7 +35,7 @@ on:
         type: string
         # Integrated #383 + #386/#390 runtime (Unchain PR #47): timeline policy,
         # native replay, strict diagnostics and interruptible bounded retries.
-        default: 7a8717cb3089d0d6300488cc591ec50772a28baf
+        default: 41d66884933258ac459ff406c8512f7501aacf63
 
 permissions:
   contents: read
@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/_shared-release-deterministic.yml
     with:
       qa_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.qa_scope == 'windows-playwright' && 'release' || (github.event_name == 'workflow_dispatch' && inputs.qa_mode) || (startsWith(github.ref, 'refs/tags/v') && 'release') || 'lite' }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '7a8717cb3089d0d6300488cc591ec50772a28baf' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '41d66884933258ac459ff406c8512f7501aacf63' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -124,7 +124,7 @@ jobs:
       target_id: ${{ matrix.target_id }}
       platform_name: ${{ matrix.name }}
       signing_platform: ${{ matrix.signing_platform }}
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '7a8717cb3089d0d6300488cc591ec50772a28baf' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '41d66884933258ac459ff406c8512f7501aacf63' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -145,7 +145,7 @@ jobs:
       target_id: linux-x64
       platform_name: linux
       signing_platform: linux
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '7a8717cb3089d0d6300488cc591ec50772a28baf' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '41d66884933258ac459ff406c8512f7501aacf63' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}
@@ -166,7 +166,7 @@ jobs:
       target_id: windows-x64
       platform_name: windows
       signing_platform: windows
-      unchain_ref: ${{ github.event.inputs.unchain_ref || '7a8717cb3089d0d6300488cc591ec50772a28baf' }}
+      unchain_ref: ${{ github.event.inputs.unchain_ref || '41d66884933258ac459ff406c8512f7501aacf63' }}
       source_ref: ${{ github.ref }}
       source_sha: ${{ github.sha }}
       release_tag: ${{ github.ref_name }}

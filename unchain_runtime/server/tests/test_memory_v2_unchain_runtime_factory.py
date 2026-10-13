@@ -48,6 +48,7 @@ from unchain.journal import (
     EventRange,
     GenerationRef,
     ResourceRef,
+    SemanticEventDraft,
     journal_event_to_semantic_event,
 )
 from unchain.journal.runtime import build_operation_ref
@@ -755,6 +756,14 @@ def test_active_root_attachment_captures_canonical_terminal_journal(
         "candidate_count": 0,
         "worker_status": "NotScheduled",
     }
+    assert decision_events[0].operation == SemanticEventDraft(
+        event_id=decision_events[0].event_id,
+        event_type=decision_events[0].event_type,
+        attempt=decision_events[0].attempt,
+        operation_id=decision_events[0].operation.operation_id,
+        payload=decision_events[0].payload,
+        resource_refs=decision_events[0].resource_refs,
+    ).operation
 
     attachment.completion_factory.record_enqueue_result(
         completion=completion,
