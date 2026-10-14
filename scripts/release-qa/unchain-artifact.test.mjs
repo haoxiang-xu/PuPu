@@ -458,3 +458,33 @@ test("manifest verification rejects bad digest, empty strings, Unicode drift, an
     /sorted and unique by id/,
   );
 });
+
+test("release admission rejects an older wheel without graph failure terminals", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "graph_failure_terminals_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.graph_failure_terminals_v1/,
+  );
+});
+
+test("release admission rejects an older wheel without durable interaction settlement fencing", () => {
+  const manifest = runtimeManifest({
+    protocolFeatures: {
+      ...REQUIRED_RUNTIME_PROTOCOLS,
+      context_memory: REQUIRED_RUNTIME_PROTOCOLS.context_memory.filter(
+        (feature) => feature !== "durable_interaction_settlement_fence_v1",
+      ),
+    },
+  });
+  assert.throws(
+    () => validateRuntimeManifestForRelease(manifest),
+    /context_memory\.durable_interaction_settlement_fence_v1/,
+  );
+});

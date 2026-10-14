@@ -1,0 +1,220 @@
+[
+  {
+    "status": "awaiting_response",
+    "session_id": "execution-active-graph-interaction-resume",
+    "interaction_id": "interaction_0514699423514f39ce2f9361a1624f99",
+    "source_run_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "active_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "kind": "tool_approval",
+    "provider": "openai",
+    "model": "graph-collect",
+    "presentation": {
+      "trace_frame": {
+        "seq": 0,
+        "ts": 1791762821254,
+        "type": "tool_call",
+        "run_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+        "stage": "durable_recovery",
+        "payload": {
+          "tool_name": "approval_probe",
+          "tool_display_name": "",
+          "toolkit_id": "",
+          "toolkit_name": "",
+          "call_id": "approval-1",
+          "arguments": "{}",
+          "description": "",
+          "confirmation_id": "interaction_0514699423514f39ce2f9361a1624f99",
+          "requires_confirmation": true,
+          "interact_type": "confirmation",
+          "interact_config": {},
+          "timeline_merge_policy": "approved",
+          "call_ref": {
+            "schema": "pupu.tool_call_ref.v1",
+            "execution_id": "execution-active-graph-interaction-resume",
+            "original_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+            "call_id": "approval-1",
+            "tool_name": "approval_probe",
+            "intent_cursor": {
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 13,
+              "event_id": "event-c6a607a4d217aa843f088fce2fb789e62797969e154edcb29d383f01ef587779"
+            },
+            "iteration": 0
+          },
+          "call_ref_metadata": {
+            "schema": "pupu.tool_call_ref_metadata.v1",
+            "intent_cursor": {
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 13,
+              "event_id": "event-c6a607a4d217aa843f088fce2fb789e62797969e154edcb29d383f01ef587779"
+            },
+            "timeline_merge_policy_declared": true,
+            "original_arguments_declared": true,
+            "timeline_merge_policy": "approved",
+            "original_arguments": "{}"
+          }
+        },
+        "iteration": 0
+      },
+      "tool_call": {
+        "tool_name": "approval_probe",
+        "tool_display_name": "",
+        "toolkit_id": "",
+        "toolkit_name": "",
+        "call_id": "approval-1",
+        "arguments": "{}",
+        "description": "",
+        "confirmation_id": "interaction_0514699423514f39ce2f9361a1624f99",
+        "requires_confirmation": true,
+        "interact_type": "confirmation",
+        "interact_config": {},
+        "call_ref": {
+          "schema": "pupu.tool_call_ref.v1",
+          "execution_id": "execution-active-graph-interaction-resume",
+          "original_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+          "call_id": "approval-1",
+          "tool_name": "approval_probe",
+          "intent_cursor": {
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 13,
+            "event_id": "event-c6a607a4d217aa843f088fce2fb789e62797969e154edcb29d383f01ef587779"
+          },
+          "iteration": 0
+        },
+        "call_ref_metadata": {
+          "schema": "pupu.tool_call_ref_metadata.v1",
+          "intent_cursor": {
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 13,
+            "event_id": "event-c6a607a4d217aa843f088fce2fb789e62797969e154edcb29d383f01ef587779"
+          },
+          "timeline_merge_policy_declared": true,
+          "original_arguments_declared": true,
+          "timeline_merge_policy": "approved",
+          "original_arguments": "{}"
+        },
+        "timeline_merge_policy": "approved"
+      }
+    },
+    "resume_available": true,
+    "resume_options": {
+      "_memory_v2_owner_chat_id": "chat-active-graph-interaction-resume",
+      "durable_interactions_required": true,
+      "memory_enabled": true,
+      "modelId": "openai:graph-base",
+      "recipe_name": "Active Graph Interaction Resume"
+    },
+    "resume_kind": "graph_step",
+    "graph_step_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "graph_coordinator_attempt_id": "workflow-active-graph-interaction-resume"
+  },
+  {
+    "status": "awaiting_response",
+    "session_id": "execution-active-graph-interaction-resume",
+    "interaction_id": "interaction_9aa1ea43d70d4484378142acb47a2f23",
+    "source_run_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "active_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "kind": "tool_approval",
+    "provider": "openai",
+    "model": "graph-collect",
+    "presentation": {
+      "trace_frame": {
+        "seq": 0,
+        "ts": 1791762821968,
+        "type": "tool_call",
+        "run_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+        "stage": "durable_recovery",
+        "payload": {
+          "tool_name": "approval_probe",
+          "tool_display_name": "",
+          "toolkit_id": "",
+          "toolkit_name": "",
+          "call_id": "approval-2",
+          "arguments": "{}",
+          "description": "",
+          "confirmation_id": "interaction_9aa1ea43d70d4484378142acb47a2f23",
+          "requires_confirmation": true,
+          "interact_type": "confirmation",
+          "interact_config": {},
+          "timeline_merge_policy": "approved",
+          "call_ref": {
+            "schema": "pupu.tool_call_ref.v1",
+            "execution_id": "execution-active-graph-interaction-resume",
+            "original_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+            "call_id": "approval-2",
+            "tool_name": "approval_probe",
+            "intent_cursor": {
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 26,
+              "event_id": "event-8ab59abe7aac65d98bc97c966167454ada527a0e8b0aecf9d86ed58fc81554f5"
+            },
+            "iteration": 1
+          },
+          "call_ref_metadata": {
+            "schema": "pupu.tool_call_ref_metadata.v1",
+            "intent_cursor": {
+              "schema": "unchain.event_cursor.v1",
+              "store_seq": 26,
+              "event_id": "event-8ab59abe7aac65d98bc97c966167454ada527a0e8b0aecf9d86ed58fc81554f5"
+            },
+            "timeline_merge_policy_declared": true,
+            "original_arguments_declared": true,
+            "timeline_merge_policy": "approved",
+            "original_arguments": "{}"
+          }
+        },
+        "iteration": 1
+      },
+      "tool_call": {
+        "tool_name": "approval_probe",
+        "tool_display_name": "",
+        "toolkit_id": "",
+        "toolkit_name": "",
+        "call_id": "approval-2",
+        "arguments": "{}",
+        "description": "",
+        "confirmation_id": "interaction_9aa1ea43d70d4484378142acb47a2f23",
+        "requires_confirmation": true,
+        "interact_type": "confirmation",
+        "interact_config": {},
+        "call_ref": {
+          "schema": "pupu.tool_call_ref.v1",
+          "execution_id": "execution-active-graph-interaction-resume",
+          "original_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+          "call_id": "approval-2",
+          "tool_name": "approval_probe",
+          "intent_cursor": {
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 26,
+            "event_id": "event-8ab59abe7aac65d98bc97c966167454ada527a0e8b0aecf9d86ed58fc81554f5"
+          },
+          "iteration": 1
+        },
+        "call_ref_metadata": {
+          "schema": "pupu.tool_call_ref_metadata.v1",
+          "intent_cursor": {
+            "schema": "unchain.event_cursor.v1",
+            "store_seq": 26,
+            "event_id": "event-8ab59abe7aac65d98bc97c966167454ada527a0e8b0aecf9d86ed58fc81554f5"
+          },
+          "timeline_merge_policy_declared": true,
+          "original_arguments_declared": true,
+          "timeline_merge_policy": "approved",
+          "original_arguments": "{}"
+        },
+        "timeline_merge_policy": "approved"
+      }
+    },
+    "resume_available": true,
+    "resume_options": {
+      "_memory_v2_owner_chat_id": "chat-active-graph-interaction-resume",
+      "durable_interactions_required": true,
+      "memory_enabled": true,
+      "modelId": "openai:graph-base",
+      "recipe_name": "Active Graph Interaction Resume"
+    },
+    "resume_kind": "graph_step",
+    "graph_step_attempt_id": "graph-step-ee562aa2ae0f177467ad49a3c606507ec576d93ca26b853417af456d59fbb359",
+    "graph_coordinator_attempt_id": "workflow-active-graph-interaction-resume"
+  }
+]

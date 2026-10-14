@@ -575,6 +575,11 @@
   },
   "chat": {
     "placeholder": "Message à PuPu...",
+    "settlement": {
+      "waiting": "En attente de la fin de l’exécution précédente…",
+      "cancelled": "Attente annulée. Vous pouvez réessayer ou abandonner cette modification du message.",
+      "timeout": "L’exécution précédente est toujours en cours de finalisation. Vous pouvez réessayer ou abandonner cette modification du message."
+    },
     "minimap": {
       "top": "Début",
       "prev": "Préc.",

@@ -1,5 +1,7 @@
 import copy
 import json
+import os
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -32,6 +34,11 @@ def _parse_sse_blocks(payload_text: str) -> list[tuple[str, dict]]:
 
 class ChatStreamV4RouteTests(unittest.TestCase):
     def setUp(self) -> None:
+        data = tempfile.TemporaryDirectory()
+        self.addCleanup(data.cleanup)
+        environment = mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data.name})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.client = miso_app.create_app().test_client()
 
 

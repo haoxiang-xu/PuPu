@@ -1250,6 +1250,10 @@ from durable_interaction_host import (
     clear_graph_step_resume_context,
     clear_resume_context,
     get_pending_interaction,
+    finalize_cancelled_execution_interactions,
+    finish_cancelled_interaction_writer,
+    retire_cancelled_callback_interaction,
+    defer_cancelled_interaction_settlement,
     load_graph_step_resume_context,
     resolve_graph_step_resume_options,
     resolve_resume_options,
@@ -1423,6 +1427,21 @@ class _AppliedExecutionOwnerScope:
             or _execution_is_cancelled(self._execution_token)
         )
         if cancelled:
+            try:
+                finalize_cancelled_execution_interactions(
+                    session_id=self._session_id,
+                    attempt_id=self._attempt_id,
+                )
+            except Exception:
+                # Keep the guard and durable context for explicit recovery,
+                # while letting the setup caller finish disconnecting resources.
+                self._settled = True
+                if error is None:
+                    raise
+                _execution_owner_logger.exception(
+                    "cancelled setup could not retire its durable interaction"
+                )
+                return
             _execution_control_call(
                 "finish_cancelled_run",
                 self._session_id,
@@ -1830,6 +1849,41 @@ def _wait_for_cancel_or_done(
         if cancel_event.wait(0.05):
             return True
     return cancel_event.is_set()
+
+
+def _stream_cancelled_error(message: str) -> RuntimeError:
+    """A callback's Stop error, carrying the host's cancel code so the kernel
+    journals ``run_cancelled`` (not ``run_failed``) for it."""
+
+    error = RuntimeError(message)
+    error.code = "execution_cancelled"  # type: ignore[attr-defined]
+    return error
+
+
+def _is_interaction_settlement_pending(error: BaseException | None) -> bool:
+    from unchain.interaction import DurableInteractionSettlementPending
+
+    return isinstance(error, DurableInteractionSettlementPending)
+
+
+def _graph_run_lost_ownership(error: BaseException | None) -> bool:
+    """True when another owner may be running this attempt.
+
+    The graph runner then writes no seal and no terminal: a second terminal
+    would corrupt the other owner's attempt. A cancellation is not a loss.
+    """
+
+    from session_execution_guard import SessionExecutionGuardError
+    from unchain.execution import ExecutionCancelledError, ExecutionLeaseError
+
+    for candidate in (error, getattr(error, "__cause__", None)):
+        if candidate is None:
+            continue
+        if isinstance(candidate, ExecutionCancelledError) or _is_execution_cancelled_error(candidate):
+            return False
+        if isinstance(candidate, (ExecutionLeaseError, SessionExecutionGuardError)):
+            return True
+    return False
 
 
 def _is_execution_cancelled_error(error: BaseException | None) -> bool:
@@ -2962,7 +3016,13 @@ def _make_tool_confirm_callback(
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
         ):
-            raise RuntimeError("stream cancelled during tool confirmation")
+            if require_durable_interaction_id and active_host_event_boundary is not None:
+                retire_cancelled_callback_interaction(
+                    session_id=str(interaction_owner.get("session_id") or root_session_id),
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_id=confirmation_id,
+                )
+            raise _stream_cancelled_error("stream cancelled during tool confirmation")
         if isinstance(response, dict):
             return _normalize_tool_confirmation_response(response)
 
@@ -3062,7 +3122,13 @@ def _make_continuation_callback(
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
         ):
-            raise RuntimeError("stream cancelled during continuation request")
+            if require_durable_interaction_id and active_host_event_boundary is not None:
+                retire_cancelled_callback_interaction(
+                    session_id=str(interaction_owner.get("session_id") or root_session_id),
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_id=confirmation_id,
+                )
+            raise _stream_cancelled_error("stream cancelled during continuation request")
         if isinstance(response, dict):
             return {"approved": bool(response.get("approved", False))}
 
@@ -9065,7 +9131,13 @@ def _make_human_input_callback(
             isinstance(response, dict)
             and response.get("_transport_cancelled") is True
         ):
-            raise RuntimeError("stream cancelled during human input")
+            if require_durable_interaction_id and active_host_event_boundary is not None:
+                retire_cancelled_callback_interaction(
+                    session_id=str(interaction_owner.get("session_id") or root_session_id),
+                    source_attempt_id=interaction_source_run_id,
+                    interaction_id=confirmation_id,
+                )
+            raise _stream_cancelled_error("stream cancelled during human input")
 
         if not isinstance(response, dict) or not response.get("approved"):
             raise RuntimeError("human input denied or cancelled")
@@ -9873,6 +9945,7 @@ def _stream_recipe_graph_events(
 
     def run_workflow() -> None:
         execution_guard = None
+        graph_checkpoint_host = None
         graph_bundle_started_at = _run_bundle_timestamp()
         materialize_graph_bundle = None
         try:
@@ -9948,7 +10021,6 @@ def _stream_recipe_graph_events(
             }
 
             agents = list(compiled["agents"])
-            graph_checkpoint_host = None
             graph_resume_step_index = None
             if (
                 graph_active_bridge is not None
@@ -11149,13 +11221,41 @@ def _stream_recipe_graph_events(
                         accounting_error
                     )
 
-            if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+            if _is_interaction_settlement_pending(run_error):
+                output_holder["settlement_pending"] = run_error
+                output_holder["error"] = run_error
+            elif _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                 execution_token
             ):
                 output_holder["cancelled"] = True
             else:
                 output_holder["error_traceback"] = _tb.format_exc()
                 output_holder["error"] = run_error
+            if (graph_checkpoint_host is not None
+                and not output_holder.get("settlement_pending")
+                and not _graph_run_lost_ownership(run_error)
+            ):
+                # Leave exactly one canonical terminal per attempt in the
+                # journal so the chat can be edited and resent. Journal only:
+                # nothing is emitted, and a failure here never replaces the
+                # run's own error.
+                try:
+                    from memory_v2_unchain_graph_failure import (
+                        settle_pupu_unchain_graph_failure,
+                    )
+
+                    if output_holder.get("cancelled"):
+                        finalize_cancelled_execution_interactions(
+                            session_id=str(getattr(execution_token, "session_id", "") or ""),
+                            attempt_id=str(getattr(execution_token, "attempt_id", "") or ""),
+                        )
+                    settle_pupu_unchain_graph_failure(
+                        graph_checkpoint_host,
+                        cancelled=bool(output_holder.get("cancelled")),
+                        iteration=int(output_holder.get("last_iteration") or 0),
+                    )
+                except Exception as settle_error:
+                    output_holder["graph_settle_error"] = settle_error
         finally:
             if execution_guard is not None:
                 try:
@@ -11166,41 +11266,79 @@ def _stream_recipe_graph_events(
                         or _execution_is_cancelled(execution_token)
                     ) and output_holder.get("error") is None:
                         output_holder["error"] = release_error
-            token_session_id = str(
-                getattr(execution_token, "session_id", "") or ""
-            ).strip()
-            token_attempt_id = str(
-                getattr(execution_token, "attempt_id", "") or ""
-            ).strip()
-            if token_session_id and token_attempt_id:
-                if output_holder.get("error") is not None:
-                    _execution_control_call(
-                        "mark_failed",
-                        token_session_id,
-                        token_attempt_id,
-                        reason=_memory_v2_failure_reason(output_holder.get("error")),
-                    )
-                elif not (
-                    output_holder.get("cancelled")
-                    or _execution_is_cancelled(execution_token)
-                    or output_holder.get("suspended")
-                ):
-                    _execution_control_call(
-                        "mark_completed",
-                        token_session_id,
-                        token_attempt_id,
-                    )
-                elif output_holder.get("cancelled") or _execution_is_cancelled(
-                    execution_token
-                ):
-                    _execution_control_call(
-                        "finish_cancelled_run",
-                        token_session_id,
-                        token_attempt_id,
-                    )
-            _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
-            run_done_event.set()
-            event_queue.put(done_marker)
+            try:
+                token_session_id = str(
+                    getattr(execution_token, "session_id", "") or ""
+                ).strip()
+                token_attempt_id = str(
+                    getattr(execution_token, "attempt_id", "") or ""
+                ).strip()
+                if token_session_id and token_attempt_id:
+                    if output_holder.get("settlement_pending") is not None:
+                        defer_cancelled_interaction_settlement(
+                            session_id=token_session_id, attempt_id=token_attempt_id,
+                            pending=output_holder["settlement_pending"],
+                        )
+                    elif output_holder.get("error") is not None:
+                        _execution_control_call(
+                            "mark_failed",
+                            token_session_id,
+                            token_attempt_id,
+                            reason=_memory_v2_failure_reason(output_holder.get("error")),
+                        )
+                    elif not (
+                        output_holder.get("cancelled")
+                        or _execution_is_cancelled(execution_token)
+                        or output_holder.get("suspended")
+                    ):
+                        _execution_control_call(
+                            "mark_completed",
+                            token_session_id,
+                            token_attempt_id,
+                        )
+                    elif output_holder.get("cancelled") or _execution_is_cancelled(
+                        execution_token
+                    ):
+                        finalize_cancelled_execution_interactions(
+                            session_id=token_session_id,
+                            attempt_id=token_attempt_id,
+                        )
+                        if graph_checkpoint_host is not None and output_holder.get("suspended"):
+                            # Stop can win after the step's cancellation check but
+                            # before the worker returns its parked result.
+                            try:
+                                from memory_v2_unchain_graph_failure import (
+                                    settle_pupu_unchain_graph_failure,
+                                )
+
+                                settle_pupu_unchain_graph_failure(
+                                    graph_checkpoint_host, cancelled=True,
+                                    iteration=int(output_holder.get("last_iteration") or 0),
+                                )
+                            except Exception as settle_error:
+                                output_holder["graph_settle_error"] = settle_error
+                        if output_holder.get("graph_settle_error") is not None:
+                            raise output_holder["graph_settle_error"]
+                        finish_cancelled_interaction_writer(
+                            session_id=token_session_id, attempt_id=token_attempt_id,
+                        )
+                        _execution_control_call(
+                            "finish_cancelled_run",
+                            token_session_id,
+                            token_attempt_id,
+                        )
+            except Exception as finalization_error:
+                if output_holder.get("error") is None:
+                    output_holder["error"] = finalization_error
+            finally:
+                try:
+                    _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
+                except Exception as cleanup_error:
+                    if output_holder.get("error") is None:
+                        output_holder["error"] = cleanup_error
+                finally:
+                    run_done_event.set()
+                    event_queue.put(done_marker)
 
     emit_latency_phase(
         "graph_setup",
@@ -12165,7 +12303,10 @@ def stream_chat_events(
                             failed_owner.ledger
                         )
 
-                if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+                if _is_interaction_settlement_pending(run_error):
+                    output_holder["settlement_pending"] = run_error
+                    output_holder["error"] = run_error
+                elif _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                     execution_token
                 ):
                     output_holder["cancelled"] = True
@@ -12173,42 +12314,64 @@ def stream_chat_events(
                     output_holder["error_traceback"] = _tb.format_exc()
                     output_holder["error"] = run_error
             finally:
-                if normalized_session_id and normalized_attempt_id:
-                    if output_holder.get("error") is not None:
-                        _execution_control_call(
-                            "mark_failed",
-                            normalized_session_id,
-                            normalized_attempt_id,
-                            reason=_memory_v2_failure_reason(output_holder.get("error")),
+                try:
+                    if normalized_session_id and normalized_attempt_id:
+                        if output_holder.get("settlement_pending") is not None:
+                            defer_cancelled_interaction_settlement(
+                                session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+                                pending=output_holder["settlement_pending"],
+                            )
+                        elif output_holder.get("error") is not None:
+                            _execution_control_call(
+                                "mark_failed",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                                reason=_memory_v2_failure_reason(output_holder.get("error")),
+                            )
+                        elif (
+                            not output_holder.get("cancelled")
+                            and not _execution_is_cancelled(execution_token)
+                            and result_status
+                            not in {"awaiting_human_input", "awaiting_interaction"}
+                        ):
+                            _execution_control_call(
+                                "mark_completed",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                            )
+                        elif output_holder.get("cancelled") or _execution_is_cancelled(
+                            execution_token
+                        ):
+                            finalize_cancelled_execution_interactions(
+                                session_id=normalized_session_id,
+                                attempt_id=normalized_attempt_id,
+                            )
+                            finish_cancelled_interaction_writer(
+                                session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+                            )
+                            _execution_control_call(
+                                "finish_cancelled_run",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                            )
+                    if durable_context_saved and not output_holder.get("settlement_pending"):
+                        _cleanup_durable_resume_contexts(
+                            session_id,
+                            (execution_run_id,),
                         )
-                    elif (
-                        not output_holder.get("cancelled")
-                        and not _execution_is_cancelled(execution_token)
-                        and result_status
-                        not in {"awaiting_human_input", "awaiting_interaction"}
-                    ):
-                        _execution_control_call(
-                            "mark_completed",
-                            normalized_session_id,
-                            normalized_attempt_id,
-                        )
-                    elif output_holder.get("cancelled") or _execution_is_cancelled(
-                        execution_token
-                    ):
-                        _execution_control_call(
-                            "finish_cancelled_run",
-                            normalized_session_id,
-                            normalized_attempt_id,
-                        )
-                if durable_context_saved:
-                    _cleanup_durable_resume_contexts(
-                        session_id,
-                        (execution_run_id,),
-                    )
-                _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
-                release_interject_channels(interject_key, interject_channels)
-                run_done_event.set()
-                event_queue.put(done_marker)
+                except Exception as finalization_error:
+                    if output_holder.get("error") is None:
+                        output_holder["error"] = finalization_error
+                finally:
+                    try:
+                        _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+                        release_interject_channels(interject_key, interject_channels)
+                    except Exception as cleanup_error:
+                        if output_holder.get("error") is None:
+                            output_holder["error"] = cleanup_error
+                    finally:
+                        run_done_event.set()
+                        event_queue.put(done_marker)
 
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
@@ -13108,7 +13271,10 @@ def resume_chat_interaction_events(
             except Exception as run_error:
                 import traceback as _tb
 
-                if _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
+                if _is_interaction_settlement_pending(run_error):
+                    output_holder["settlement_pending"] = run_error
+                    output_holder["error"] = run_error
+                elif _is_execution_cancelled_error(run_error) or _execution_is_cancelled(
                     execution_token
                 ):
                     output_holder["cancelled"] = True
@@ -13116,49 +13282,72 @@ def resume_chat_interaction_events(
                     output_holder["error_traceback"] = _tb.format_exc()
                     output_holder["error"] = run_error
             finally:
-                if normalized_attempt_id:
-                    if output_holder.get("error") is not None:
-                        terminal_transition = _execution_control_call(
-                            "mark_failed",
+                try:
+                    if normalized_attempt_id:
+                        if output_holder.get("settlement_pending") is not None:
+                            defer_cancelled_interaction_settlement(
+                                session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+                                pending=output_holder["settlement_pending"],
+                            )
+                        elif output_holder.get("error") is not None:
+                            terminal_transition = _execution_control_call(
+                                "mark_failed",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                                reason=_memory_v2_failure_reason(output_holder.get("error")),
+                            )
+                        elif (
+                            not output_holder.get("cancelled")
+                            and not _execution_is_cancelled(execution_token)
+                            and result_status
+                            not in {"awaiting_human_input", "awaiting_interaction"}
+                        ):
+                            terminal_transition = _execution_control_call(
+                                "mark_completed",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                            )
+                        elif output_holder.get("cancelled") or _execution_is_cancelled(
+                            execution_token
+                        ):
+                            finalize_cancelled_execution_interactions(
+                                session_id=normalized_session_id,
+                                attempt_id=normalized_attempt_id,
+                            )
+                            finish_cancelled_interaction_writer(
+                                session_id=normalized_session_id, attempt_id=normalized_attempt_id,
+                            )
+                            _execution_control_call(
+                                "finish_cancelled_run",
+                                normalized_session_id,
+                                normalized_attempt_id,
+                            )
+                        if _execution_result_status(terminal_transition) in {
+                            "completed",
+                            "failed",
+                        }:
+                            clear_execution_attempt_binding(
+                                normalized_session_id,
+                                normalized_attempt_id,
+                            )
+                    if not output_holder.get("settlement_pending"):
+                        _cleanup_durable_resume_contexts(
                             normalized_session_id,
-                            normalized_attempt_id,
-                            reason=_memory_v2_failure_reason(output_holder.get("error")),
+                            (source_run_id, resume_run_id),
                         )
-                    elif (
-                        not output_holder.get("cancelled")
-                        and not _execution_is_cancelled(execution_token)
-                        and result_status
-                        not in {"awaiting_human_input", "awaiting_interaction"}
-                    ):
-                        terminal_transition = _execution_control_call(
-                            "mark_completed",
-                            normalized_session_id,
-                            normalized_attempt_id,
-                        )
-                    elif output_holder.get("cancelled") or _execution_is_cancelled(
-                        execution_token
-                    ):
-                        _execution_control_call(
-                            "finish_cancelled_run",
-                            normalized_session_id,
-                            normalized_attempt_id,
-                        )
-                    if _execution_result_status(terminal_transition) in {
-                        "completed",
-                        "failed",
-                    }:
-                        clear_execution_attempt_binding(
-                            normalized_session_id,
-                            normalized_attempt_id,
-                        )
-                _cleanup_durable_resume_contexts(
-                    normalized_session_id,
-                    (source_run_id, resume_run_id),
-                )
-                _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
-                release_interject_channels(interject_key, interject_channels)
-                run_done_event.set()
-                event_queue.put(done_marker)
+                except Exception as finalization_error:
+                    if output_holder.get("error") is None:
+                        output_holder["error"] = finalization_error
+                finally:
+                    try:
+                        _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+                        release_interject_channels(interject_key, interject_channels)
+                    except Exception as cleanup_error:
+                        if output_holder.get("error") is None:
+                            output_holder["error"] = cleanup_error
+                    finally:
+                        run_done_event.set()
+                        event_queue.put(done_marker)
 
         threading.Thread(
             target=run_agent,

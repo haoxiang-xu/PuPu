@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 import app as miso_app
 import context_memory_v2_capability as capability_gate
 import route_chat
@@ -133,3 +135,9 @@ def test_windows_contract_requires_uncertainty_diagnostics_feature():
 
     assert "provider_uncertainty_diagnostics_v1" in ownership["features"]
     assert ownership["features"] == sorted(set(ownership["features"]))
+
+
+@pytest.fixture(autouse=True)
+def _route_execution_data(tmp_path, monkeypatch):
+    # Fresh V4 admission persists its attempt before the init handshake.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "execution-data"))

@@ -27,7 +27,8 @@
  * Harness mirrors use_chat_stream.memory_v2_payload.test.js: real
  * ChatInterface, mocked ChatMessages / ChatInput, bridges installed on window.
  */
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   LocaleContext,
   NavigationContext,
@@ -45,6 +46,7 @@ import {
   readTurnMutationOutbox,
 } from "../../../SERVICEs/turn_mutation_outbox";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
+import { enqueueExecutionCancel, readExecutionCancelOutbox } from "./execution_cancel_outbox";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -992,36 +994,449 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
     ).toHaveLength(1);
   });
 
-  test("a retryable rebase failure keeps the durable intent", async () => {
+  test("a new send after Stop shows waiting until admission, and Stop rejects late content", async () => {
     setMemoryV2Flag(true);
-    installContextV2({
-      rebaseError: codedError("context_v2_rebase_in_progress"),
-    });
+    installContextV2();
+    await seedChat();
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "first send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    const oldCallbacks = window.unchainAPI.startStreamV2.mock.calls[0][1];
+    act(() => lastChatInputProps.onStop());
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "new send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+    expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…");
+    act(() => oldCallbacks.onToken?.("late old content"));
+    expect(lastChatMessagesProps.messages.some((message) => message.content.includes("late old content"))).toBe(false);
+    const callbacks = window.unchainAPI.startStreamV2.mock.calls[1][1];
+    // V4 session.started is projected as stream_started before guard admission.
+    act(() => callbacks.onFrame({ type: "stream_started", payload: {} }));
+    expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…");
+    act(() => callbacks.onFrame({ type: "run_started", payload: {} }));
+    await waitFor(() => expect(lastChatInputProps.disclaimer).not.toContain("previous run"));
+    act(() => lastChatInputProps.onStop());
+    expect(lastChatInputProps.isStreaming).toBe(false);
+  });
+
+  test.each([false, true])("a successor is saved and registered before Stop acknowledgement (outbox write fails: %s)", async (outboxWriteFails) => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    window.unchainAPI.startStreamV2.mockImplementation(() => ({ attemptId: `attempt-${window.unchainAPI.startStreamV2.mock.calls.length}`, cancel: jest.fn() }));
+    let resolveCancellation;
+    window.unchainAPI.cancelExecution = jest.fn((payload) => new Promise((resolve) => {
+      resolveCancellation = () => resolve({ status: "cancelled", state: "cancelled", execution_id: payload.session_id, attempt_id: payload.attempt_id });
+    }));
     const chatId = await seedChat();
-
-    await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
-
-    await waitFor(() => expect(rebaseCalls.length).toBeGreaterThanOrEqual(1));
-    const pending = readTurnMutationOutbox().filter(
-      (item) => item.chatId === chatId,
-    );
-    expect(pending).toHaveLength(1);
-    expect(pending[0].memoryMode).toBe("v2");
-    expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
-    expect(
-      lastChatMessagesProps.messages.map((message) => message.id),
-    ).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 350));
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "old send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0].stopped_attempts).toBeUndefined();
+    if (outboxWriteFails) {
+      const original = Storage.prototype.setItem;
+      jest.spyOn(Storage.prototype, "setItem").mockImplementation(function (key, value) {
+        if (key === "pupu.execution_cancel_outbox.v1") throw new Error("fixture quota");
+        return original.call(this, key, value);
+      });
+    }
+    act(() => lastChatInputProps.onStop());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "successor message" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+    expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…");
+    expect(screen.getByTestId("chat-input")).toHaveValue("");
+    expect(getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "successor message")).toHaveLength(1);
+    expect(window.unchainAPI.startStreamV2.mock.calls[1][0]).toMatchObject({
+      owner_chat_id: chatId, threadId: chatId, stopped_attempts: [{ attempt_id: "attempt-1" }],
     });
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    // Backend admission may arrive even while the old renderer IPC is hung.
+    act(() => window.unchainAPI.startStreamV2.mock.calls[1][1].onFrame({ type: "run_started", payload: {} }));
+    await waitFor(() => expect(lastChatInputProps.disclaimer).not.toContain("previous run"));
+    const successorDisclaimer = lastChatInputProps.disclaimer;
+    await act(async () => resolveCancellation());
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(lastChatInputProps.disclaimer).toBe(successorDisclaimer);
+  });
+
+  test.each(["unconfirmed", "error", "mismatch"])("a late old Stop %s cannot overwrite the current successor", async (outcome) => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    window.unchainAPI.startStreamV2.mockImplementation(() => ({ attemptId: `attempt-${window.unchainAPI.startStreamV2.mock.calls.length}`, cancel: jest.fn() }));
+    let finishCancellation;
+    window.unchainAPI.cancelExecution = jest.fn((payload) => new Promise((resolve, reject) => {
+      finishCancellation = () => {
+        if (outcome === "error") reject(new Error("late old cancellation failure"));
+        else resolve({ status: outcome === "unconfirmed" ? "cancel_requested" : "cancelled", execution_id: payload.session_id, attempt_id: outcome === "mismatch" ? "different-attempt" : payload.attempt_id });
+      };
+    }));
+    const chatId = await seedChat();
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "old send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    act(() => lastChatInputProps.onStop());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "accepted successor" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+    const callbacks = window.unchainAPI.startStreamV2.mock.calls[1][1];
+    act(() => callbacks.onFrame({ type: "run_started", payload: {} }));
+    await waitFor(() => expect(lastChatInputProps.disclaimer).not.toContain("previous run"));
+    const successorDisclaimer = lastChatInputProps.disclaimer;
+    await act(async () => { finishCancellation(); await Promise.resolve(); });
+    expect(lastChatInputProps.disclaimer).toBe(successorDisclaimer);
+    expect(lastChatInputProps.isStreaming).toBe(true);
+    expect(screen.getByTestId("chat-input")).toHaveValue("");
+    expect(getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "accepted successor")).toHaveLength(1);
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+  });
+
+  test("resend still waits for rebase, then registers without old cancellation acknowledgement", async () => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    const chatId = await seedChat();
+    const originalRebase = window.contextV2API.rebaseSession;
+    let finishRebase;
+    window.contextV2API.rebaseSession = jest.fn((payload) => new Promise((resolve) => {
+      finishRebase = async () => resolve(await originalRebase(payload));
+    }));
+    let resolveCancellation;
+    window.unchainAPI.cancelExecution = jest.fn((payload) => new Promise((resolve) => {
+      resolveCancellation = () => resolve({ status: "cancelled", state: "cancelled", execution_id: payload.session_id, attempt_id: payload.attempt_id });
+    }));
+    enqueueExecutionCancel({ ownerChatId: chatId, sessionId: chatId, attemptId: "previous-stopped-attempt" });
+    let resend;
+    act(() => { resend = lastChatMessagesProps.onResendMessage(targetMessage("user-2")); });
+    await waitFor(() => expect(window.contextV2API.rebaseSession).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(getChatMessages(chatId).map((message) => message.id)).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+    await act(async () => { await finishRebase(); await resend; });
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    act(() => lastChatInputProps.onStop());
+    expect(lastChatInputProps.isStreaming).toBe(false);
+    await act(async () => resolveCancellation());
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(["owner", "session"])("a cancellation for another %s is excluded from the fresh send", async (different) => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    const chatId = await seedChat();
+    enqueueExecutionCancel({ ownerChatId: different === "owner" ? "another-chat" : chatId, sessionId: different === "session" ? "another-session" : chatId, attemptId: "unrelated-attempt" });
+    window.unchainAPI.cancelExecution = jest.fn(() => new Promise(() => {}));
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "independent send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0].stopped_attempts).toBeUndefined();
+  });
+
+  test("unmount preserves the submitted successor and a late Stop acknowledgement cannot start another run", async () => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    window.unchainAPI.startStreamV2.mockImplementation(() => ({ attemptId: `attempt-unmount-${window.unchainAPI.startStreamV2.mock.calls.length}`, cancel: jest.fn() }));
+    let resolveCancellation;
+    window.unchainAPI.cancelExecution = jest.fn((payload) => new Promise((resolve) => {
+      resolveCancellation = () => resolve({ status: "cancelled", state: "cancelled", execution_id: payload.session_id, attempt_id: payload.attempt_id });
+    }));
+    const chatId = await seedChat();
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "old send" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    act(() => lastChatInputProps.onStop());
+    await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "submitted before unmount" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+    cleanup();
+    await act(async () => resolveCancellation());
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "submitted before unmount")).toHaveLength(1);
+  });
+
+  test.each(["terminal", "unconfirmed", "error", "mismatch"])("explicit send accepts the successor while retrying one blocked exact Stop (%s)", async (outcome) => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    const chatId = getChatsStore().activeChatId;
+    const oldAttemptId = "blocked-old-attempt";
+    enqueueExecutionCancel({ ownerChatId: chatId, sessionId: chatId, attemptId: oldAttemptId, interactionId: "blocked-interaction", retryBlocked: true, retryCount: 3, lastError: "Earlier Stop confirmation failed." });
+    window.unchainAPI.cancelExecution = jest.fn(async (payload) => {
+      if (outcome === "error") throw new Error("fixture cancellation transport failure");
+      return {
+        status: outcome === "unconfirmed" ? "cancel_requested" : "cancelled",
+        ...(outcome === "unconfirmed" ? {} : { state: "cancelled" }),
+        execution_id: payload.session_id,
+        attempt_id: outcome === "mismatch" ? "different-attempt" : payload.attempt_id,
+      };
+    });
+    await seedChat();
+    expect(window.unchainAPI.cancelExecution).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "explicit successor message" } });
+    fireEvent.click(screen.getByTestId("send-button"));
+    await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.cancelExecution).toHaveBeenCalledWith(expect.objectContaining({ owner_chat_id: chatId, session_id: chatId, attempt_id: oldAttemptId, interaction_id: "blocked-interaction" }));
+    expect(window.unchainAPI.startStreamV2.mock.calls[0][0]).toMatchObject({
+      message: "explicit successor message", owner_chat_id: chatId, threadId: chatId,
+      stopped_attempts: [{ attempt_id: oldAttemptId, interaction_id: "blocked-interaction" }],
+    });
+    expect(screen.getByTestId("chat-input")).toHaveValue("");
+    expect(getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "explicit successor message")).toHaveLength(1);
+    expect(lastChatInputProps.disclaimer || "").not.toContain("has not confirmed Stop");
+    if (outcome === "terminal") expect(readExecutionCancelOutbox()).toHaveLength(0);
+    else {
+      expect(readExecutionCancelOutbox()[0]).toMatchObject({ attemptId: oldAttemptId, retryBlocked: true });
+      cleanup();
+      renderChat();
+      await waitForReady();
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  describe("Stop immediate user admission contract", () => {
+    const beginStoppedRun = async () => {
+      setMemoryV2Flag(true);
+      installContextV2();
+      window.unchainAPI.startStreamV2.mockImplementation(() => ({
+        attemptId: `attempt-admission-${window.unchainAPI.startStreamV2.mock.calls.length}`,
+        cancel: jest.fn(),
+      }));
+      let confirmOldStop;
+      window.unchainAPI.cancelExecution = jest.fn((payload) => new Promise((resolve) => {
+        confirmOldStop = () => resolve({ status: "cancelled", state: "cancelled", execution_id: payload.session_id, attempt_id: payload.attempt_id });
+      }));
+      const chatId = await seedChat();
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "old model request" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+      const oldCallbacks = window.unchainAPI.startStreamV2.mock.calls[0][1];
+      act(() => lastChatInputProps.onStop());
+      // Stop returns the composer to ready without waiting on its IPC promise.
+      expect(lastChatInputProps.isStreaming).toBe(false);
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1));
+      return { chatId, oldCallbacks, confirmOldStop };
+    };
+
+    const submitSuccessor = async () => {
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "accepted successor message" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    };
+
+    test("shows and saves the next user message immediately while prior Stop confirmation hangs", async () => {
+      const { chatId } = await beginStoppedRun();
+      await submitSuccessor();
+      expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…");
+      const accepted = getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "accepted successor message");
+      expect(accepted).toHaveLength(1);
+      expect(lastChatMessagesProps.messages).toEqual(expect.arrayContaining([expect.objectContaining({ id: accepted[0].id, role: "user", content: "accepted successor message" })]));
+      expect(screen.getByTestId("chat-input")).toHaveValue("");
+      // Registration does not mean model/tool execution has been admitted.
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      // Neither old cancellation acknowledgement nor model acceptance was needed.
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(1);
+    });
+
+    test("ignores old confirmation while waiting, and Stop preserves the accepted message without a later auto-start", async () => {
+      const { chatId, oldCallbacks, confirmOldStop } = await beginStoppedRun();
+      await submitSuccessor();
+      const streamsAfterSubmission = window.unchainAPI.startStreamV2.mock.calls.length;
+      expect(streamsAfterSubmission).toBe(2);
+      const successorCallbacks = window.unchainAPI.startStreamV2.mock.calls[1][1];
+      const beforeLateEvent = JSON.stringify(getChatMessages(chatId));
+      act(() => {
+        oldCallbacks.onFrame?.({ type: "tool_call", run_id: "attempt-admission-1", payload: { call_id: "late-old-call", confirmation_id: "late-old-confirmation", requires_confirmation: true, interact_type: "confirmation", tool_name: "shell", arguments: "{}" } });
+        oldCallbacks.onToken?.("late old content");
+      });
+      expect(JSON.stringify(getChatMessages(chatId))).toBe(beforeLateEvent);
+      expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…");
+      act(() => lastChatInputProps.onStop());
+      expect(lastChatInputProps.isStreaming).toBe(false);
+      await waitFor(() => expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(2));
+      expect(window.unchainAPI.cancelExecution.mock.calls[1][0]).toMatchObject({
+        owner_chat_id: chatId, session_id: chatId, attempt_id: "attempt-admission-2",
+      });
+      await act(async () => {
+        confirmOldStop();
+        successorCallbacks.onFrame?.({ type: "run_started", payload: {} });
+        successorCallbacks.onToken?.("late stopped successor content");
+        oldCallbacks.onFrame?.({ type: "tool_result", run_id: "attempt-admission-1", payload: { call_id: "late-old-call", content: "late old approval result" } });
+        oldCallbacks.onDone?.({ finished_at: Date.now() });
+        await Promise.resolve();
+      });
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(streamsAfterSubmission);
+      expect(lastChatInputProps.isStreaming).toBe(false);
+      expect(getChatMessages(chatId).filter((message) => message.role === "user" && message.content === "accepted successor message")).toHaveLength(1);
+      expect(JSON.stringify(getChatMessages(chatId))).not.toContain("late old");
+      expect(JSON.stringify(getChatMessages(chatId))).not.toContain("late stopped successor");
+      expect(getChatMessages(chatId).some((message) => message.id === "user-1")).toBe(true);
+    });
+  });
+
+  describe("settlement messages follow the current locale", () => {
+    const renderLocaleSwitchingChat = async () => {
+      const chatId = getChatsStore().activeChatId;
+      setChatMessages(chatId, PRIOR_MESSAGES, { source: "test" });
+      function LocaleSwitchingChat() {
+        const [locale, setLocale] = useState("en");
+        return (
+          <ThemeContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+            <NavigationContext.Provider value={{ onFragment: "main", setOnFragment: jest.fn() }}>
+              <LocaleContext.Provider value={{ locale, setLocale }}>
+                <button onClick={() => setLocale((current) => current === "en" ? "zh-CN" : "en")}>Switch settlement locale</button>
+                <ChatInterface />
+              </LocaleContext.Provider>
+            </NavigationContext.Provider>
+          </ThemeContext.Provider>
+        );
+      }
+      render(<LocaleSwitchingChat />);
+      await waitForReady();
+      await waitFor(() => expect(lastChatMessagesProps.messages).toHaveLength(4));
+      return chatId;
+    };
+
+    const switchToChinese = async (englishMessage) => {
+      fireEvent.click(screen.getByRole("button", { name: "Switch settlement locale" }));
+      await waitFor(() => {
+        expect(lastChatInputProps.disclaimer).not.toContain(englishMessage);
+        expect(lastChatInputProps.disclaimer).toMatch(/[\u3400-\u9fff]/u);
+      });
+    };
+
+    test("waiting cleanup translates without changing or resending the accepted attempt", async () => {
+      setMemoryV2Flag(true);
+      installContextV2();
+      window.unchainAPI.startStreamV2.mockImplementation(() => ({
+        attemptId: `locale-attempt-${window.unchainAPI.startStreamV2.mock.calls.length}`,
+        cancel: jest.fn(),
+      }));
+      window.unchainAPI.cancelExecution = jest.fn(() => new Promise(() => {}));
+      const chatId = await renderLocaleSwitchingChat();
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "old locale request" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1));
+      act(() => lastChatInputProps.onStop());
+      fireEvent.change(screen.getByTestId("chat-input"), { target: { value: "accepted locale successor" } });
+      fireEvent.click(screen.getByTestId("send-button"));
+      await waitFor(() => expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2));
+      const englishMessage = "Waiting for the previous run to finish…";
+      expect(lastChatInputProps.disclaimer).toBe(englishMessage);
+      const stored = JSON.stringify(getChatMessages(chatId));
+      const calls = window.unchainAPI.startStreamV2.mock.calls.slice();
+      const cancellations = window.unchainAPI.cancelExecution.mock.calls.length;
+      await switchToChinese(englishMessage);
+      expect(window.unchainAPI.startStreamV2.mock.calls).toEqual(calls);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(cancellations);
+      expect(JSON.stringify(getChatMessages(chatId))).toBe(stored);
+      expect(lastChatInputProps.isStreaming).toBe(true);
+      expect(rebaseCalls).toHaveLength(0);
+      fireEvent.click(screen.getByRole("button", { name: "Switch settlement locale" }));
+      await waitFor(() => expect(lastChatInputProps.disclaimer).toBe(englishMessage));
+      expect(window.unchainAPI.startStreamV2.mock.calls).toEqual(calls);
+      expect(window.unchainAPI.cancelExecution).toHaveBeenCalledTimes(cancellations);
+      expect(JSON.stringify(getChatMessages(chatId))).toBe(stored);
+      expect(lastChatInputProps.isStreaming).toBe(true);
+      expect(rebaseCalls).toHaveLength(0);
+    });
+
+    test.each([
+      ["cancelled", "Waiting cancelled. You can retry or discard this message change."],
+      ["timeout", "The previous run is still finishing. You can retry or discard this message change."],
+    ])("an existing %s error translates while the same mutation stays held", async (outcome, englishMessage) => {
+      setMemoryV2Flag(true);
+      installContextV2({ rebaseError: codedError("context_v2_rebase_in_progress") });
+      const chatId = await renderLocaleSwitchingChat();
+      let pending;
+      act(() => { pending = lastChatMessagesProps.onDeleteMessage(targetMessage("user-2")); });
+      await waitFor(() => expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…"));
+      if (outcome === "cancelled") act(() => lastChatInputProps.onStop());
+      else jest.spyOn(Date, "now").mockReturnValue(Date.now() + 31000);
+      await act(async () => { await pending; });
+      expect(lastChatInputProps.disclaimer).toContain(englishMessage);
+      const held = readTurnMutationOutbox().find((entry) => entry.chatId === chatId);
+      expect(held).toMatchObject({ retryStatus: "quarantined", lastFailureCode: `context_v2_settlement_${outcome}` });
+      const stored = JSON.stringify(getChatMessages(chatId));
+      const rebaseCount = rebaseCalls.length;
+      await switchToChinese(englishMessage);
+      expect(readTurnMutationOutbox().find((entry) => entry.chatId === chatId)).toEqual(held);
+      expect(JSON.stringify(getChatMessages(chatId))).toBe(stored);
+      expect(rebaseCalls).toHaveLength(rebaseCount);
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(lastChatInputProps.isStreaming).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Switch settlement locale" }));
+      await waitFor(() => expect(lastChatInputProps.disclaimer).toContain(englishMessage));
+      expect(readTurnMutationOutbox().find((entry) => entry.chatId === chatId)).toEqual(held);
+      expect(JSON.stringify(getChatMessages(chatId))).toBe(stored);
+      expect(rebaseCalls).toHaveLength(rebaseCount);
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(lastChatInputProps.isStreaming).toBe(false);
+    });
+  });
+
+  test("a busy rebase waits, is cancellable, and preserves the user's intent", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({ rebaseError: codedError("context_v2_rebase_in_progress") });
+    const chatId = await seedChat();
+    let pending;
+    act(() => { pending = lastChatMessagesProps.onDeleteMessage(targetMessage("user-2")); });
+    await waitFor(() => expect(lastChatInputProps.disclaimer).toBe("Waiting for the previous run to finish…"));
+    expect(lastChatInputProps.isStreaming).toBe(true);
     expect(rebaseCalls).toHaveLength(1);
-    const [held] = readTurnMutationOutbox().filter(
-      (item) => item.chatId === chatId,
-    );
-    expect(held.retryStatus).toBe("in_progress");
-    expect(held.replayAttempts).toBe(0);
-    expect(held.retryAt).toBe(0);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    act(() => lastChatInputProps.onStop());
+    await act(async () => { await pending; });
+    const [held] = readTurnMutationOutbox().filter((item) => item.chatId === chatId);
+    expect(held.retryStatus).toBe("quarantined");
+    expect(held.lastFailureCode).toBe("context_v2_settlement_cancelled");
+    expect(streamErrorText()).toBe("Waiting cancelled. You can retry or discard this message change.");
+    expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
+    expect(lastChatMessagesProps.messages.map((message) => message.id)).toEqual(["user-1", "assistant-1", "user-2", "assistant-2"]);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 350)); });
+    expect(rebaseCalls).toHaveLength(1);
+  });
+
+  test("settlement timeout holds the intent for explicit retry or discard", async () => {
+    setMemoryV2Flag(true);
+    installContextV2({ rebaseError: codedError("context_v2_rebase_in_progress") });
+    const chatId = await seedChat();
+    let pending;
+    act(() => { pending = lastChatMessagesProps.onDeleteMessage(targetMessage("user-2")); });
+    await waitFor(() => expect(lastChatInputProps.disclaimer).toContain("previous run"));
+    const future = Date.now() + 31000;
+    jest.spyOn(Date, "now").mockReturnValue(future);
+    await act(async () => { await pending; });
+    const [held] = readTurnMutationOutbox().filter((item) => item.chatId === chatId);
+    expect(held.retryStatus).toBe("quarantined");
+    expect(held.lastFailureCode).toBe("context_v2_settlement_timeout");
+    expect(streamErrorText()).toBe("The previous run is still finishing. You can retry or discard this message change.");
+    expect(lastChatInputProps.isStreaming).toBe(false);
+    expect(lastChatInputProps.disclaimer).not.toBe("Waiting for the previous run to finish…");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    expect(rebaseCalls).toHaveLength(1);
+  });
+
+  test("settlement retries the same user rebase then applies once", async () => {
+    setMemoryV2Flag(true);
+    installContextV2();
+    await seedChat();
+    const successful = contextV2API.rebaseSession;
+    let firstPayload;
+    contextV2API.rebaseSession = jest.fn(async (payload) => {
+      if (!firstPayload) {
+        firstPayload = payload;
+        throw codedError("context_v2_rebase_in_progress");
+      }
+      expect(payload).toBe(firstPayload);
+      return successful(payload);
+    });
+    await act(async () => { await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2")); });
+    expect(contextV2API.rebaseSession).toHaveBeenCalledTimes(2);
+    expect(headCalls).toHaveLength(1);
+    expect(lastChatMessagesProps.messages.map((message) => message.id)).toEqual(["user-1", "assistant-1"]);
+    expect(readTurnMutationOutbox()).toEqual([]);
   });
 
   test("recovery-required spends two durable calls across a remount, then waits for the user", async () => {
@@ -1696,7 +2111,8 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
       });
       const chatId = await seedChat();
 
-      await lastChatMessagesProps.onDeleteMessage(targetMessage("user-2"));
+      let pending;
+      act(() => { pending = lastChatMessagesProps.onDeleteMessage(targetMessage("user-2")); });
 
       await waitFor(() => expect(rebaseCalls.length).toBeGreaterThanOrEqual(1));
       expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
@@ -1706,6 +2122,8 @@ describe("Memory V2 P0 turn-mutation rebase", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].v1MirrorState).toBe("pending");
       expect(rows[0].v2Ack).toBeNull();
+      act(() => lastChatInputProps.onStop());
+      await act(async () => { await pending; });
     });
 
     test.each([

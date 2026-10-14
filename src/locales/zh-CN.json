@@ -575,6 +575,11 @@
   },
   "chat": {
     "placeholder": "向 PuPu 发送消息...",
+    "settlement": {
+      "waiting": "正在等待上一条任务收尾…",
+      "cancelled": "已取消等待。你可以重试或放弃这次消息修改。",
+      "timeout": "上一条任务仍在收尾。你可以重试或放弃这次消息修改。"
+    },
     "minimap": {
       "top": "顶部",
       "prev": "上一条",

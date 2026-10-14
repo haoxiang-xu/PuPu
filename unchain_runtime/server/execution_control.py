@@ -20,6 +20,7 @@ _VALID_STATUSES = frozenset(
     {"registered", "running", "completed", "failed", "cancelled"}
 )
 _TOKEN_REFRESH_INTERVAL_SECONDS = 0.05
+_SETTLEMENT_WAIT_SECONDS = 30.0
 _PROCESS_OWNER_ID = uuid.uuid4().hex
 
 
@@ -842,9 +843,51 @@ def register(session_id: str, attempt_id: str) -> ExecutionControlResult:
 
 
 def mark_running(session_id: str, attempt_id: str) -> ExecutionControlResult:
-    from session_execution_guard import acquire_run_guard, release_run_guard
+    from session_execution_guard import (
+        SessionExecutionInProgress,
+        acquire_run_guard,
+        release_run_guard,
+        snapshot_session_guard,
+    )
 
-    guard_disposition = acquire_run_guard(session_id, attempt_id)
+    deadline = time.monotonic() + _SETTLEMENT_WAIT_SECONDS
+    while True:
+        # Cancellation is acknowledged before admission too. In particular,
+        # never release the predecessor's guard when this waiting request stops.
+        current = _DEFAULT_REGISTRY.snapshot(session_id, attempt_id)
+        if current is not None and current.terminal:
+            return ExecutionControlResult(disposition="already_terminal", snapshot=current)
+        try:
+            guard_disposition = acquire_run_guard(session_id, attempt_id)
+            break
+        except SessionExecutionInProgress:
+            guard = snapshot_session_guard(session_id=session_id)
+            if guard is None and time.monotonic() < deadline:
+                continue
+            predecessor = (
+                _DEFAULT_REGISTRY.snapshot(session_id, guard.attempt_id)
+                if guard is not None
+                and guard.state in {"active", "parked"}
+                and guard.operation == "run"
+                and guard.attempt_id != attempt_id
+                else None
+            )
+            if predecessor is None or not predecessor.cancelled:
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ExecutionControlError(
+                    "execution_settlement_timeout",
+                    "The previous run is still finishing. Please try again shortly.",
+                    status_code=409,
+                    retryable=False,
+                ) from None
+            # A local Stop wakes this immediately; snapshots above also notice
+            # cancellation from another process. Only ordinary guarded admission
+            # may acquire ownership after the old writer's finalizer releases it.
+            _DEFAULT_REGISTRY.cancellation_event(session_id, attempt_id).wait(
+                min(0.1, remaining)
+            )
     guard_was_new = guard_disposition in {"acquired", "reclaimed"}
     try:
         result = _DEFAULT_REGISTRY.mark_running(session_id, attempt_id)

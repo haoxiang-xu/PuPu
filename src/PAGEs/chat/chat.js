@@ -43,6 +43,7 @@ import { LogoSVGs, UISVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
+import { CONTEXT_V2_SETTLEMENT_MESSAGES } from "./hooks/context_v2_settlement_messages";
 import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { usePluginSkillSync } from "./hooks/use_plugin_skill_sync";
@@ -854,6 +855,15 @@ const ChatInterface = () => {
   );
 
   const effectiveDisclaimer = useMemo(() => {
+    if (stream.isWaitingForSettlement) {
+      return t("chat.settlement.waiting");
+    }
+    const streamErrorMessage =
+      stream.streamError === CONTEXT_V2_SETTLEMENT_MESSAGES.CANCELLED
+        ? t("chat.settlement.cancelled")
+        : stream.streamError === CONTEXT_V2_SETTLEMENT_MESSAGES.TIMEOUT
+          ? t("chat.settlement.timeout")
+          : stream.streamError;
     if (
       stream.durableInteractionStatus === "awaiting" ||
       stream.durableInteractionStatus === "awaiting_response"
@@ -874,11 +884,11 @@ const ChatInterface = () => {
     }
     if (stream.durableInteractionStatus === "resume_failed") {
       return stream.streamError
-        ? `Unchain could not restore the interrupted run: ${stream.streamError}`
+        ? `Unchain could not restore the interrupted run: ${streamErrorMessage}`
         : "Unchain could not restore the interrupted run.";
     }
     if (stream.streamError) {
-      return `Unchain error: ${stream.streamError}`;
+      return `Unchain error: ${streamErrorMessage}`;
     }
     if (stream.isStreaming) {
       return "Unchain is streaming a response...";
@@ -901,7 +911,9 @@ const ChatInterface = () => {
     unchainStatus,
     stream.durableInteractionStatus,
     stream.isStreaming,
+    stream.isWaitingForSettlement,
     stream.streamError,
+    t,
   ]);
 
   const isSendDisabled =

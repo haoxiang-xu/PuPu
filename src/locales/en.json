@@ -575,6 +575,11 @@
   },
   "chat": {
     "placeholder": "Message PuPu...",
+    "settlement": {
+      "waiting": "Waiting for the previous run to finish…",
+      "cancelled": "Waiting cancelled. You can retry or discard this message change.",
+      "timeout": "The previous run is still finishing. You can retry or discard this message change."
+    },
     "minimap": {
       "top": "Top",
       "prev": "Prev",
