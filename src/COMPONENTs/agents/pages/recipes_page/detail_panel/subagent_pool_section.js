@@ -95,7 +95,7 @@ function needs_kernel_caption(pool_ids, node_id) {
   let subject = "Some of these entries";
   if (here && elsewhere.length > 0) subject = `Some of these entries, and entries in ${others},`;
   else if (!here) subject = `Entries in ${others}`;
-  return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model, which this build has no control for yet. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one. The pools keep working as they do: the conversion happens for every run and is thrown away afterwards.`;
+  return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model. A model can now be chosen on an Agent node, but handing one to this conversion is not wired up yet, so the button is still withheld. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one. The pools keep working as they do: the conversion happens for every run and is thrown away afterwards.`;
 }
 
 const LEGACY_CONVERTING =

@@ -8,6 +8,7 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { node_identity } from "./node_identity";
 import InputVariablesSection from "./input_variables_section";
+import KernelSection from "./kernel_section";
 import SkeletonDiagnostics from "./skeleton_diagnostics_notice";
 import OutputSchemaSection from "./output_schema_section";
 import SubagentPoolSection from "./subagent_pool_section";
@@ -237,10 +238,21 @@ export default function DetailPanel({
               isDark={isDark}
               onChange={onDocumentChange}
             />
-            {/* Between them, and only for an Agent: a schema declares what
-                this node's own result holds, which is what the output rows
-                below then offer as sources. Read downwards it is what the node
-                is given, what it produces, what it passes on. */}
+            {/* Between them, and only for an Agent: the model it thinks with,
+                then a schema declaring what its result holds — which is what
+                the output rows below offer as sources. Read downwards it is
+                what the node is given, what it thinks with, what it produces,
+                what it passes on. The model comes first because the schema
+                depends on it: a model that cannot be asked for structured
+                output makes the section below unavailable. */}
+            {skeleton_node.type === "agent" && (
+              <KernelSection
+                document={document}
+                node={skeleton_node}
+                isDark={isDark}
+                onChange={onDocumentChange}
+              />
+            )}
             {skeleton_node.type === "agent" && (
               <OutputSchemaSection
                 document={document}

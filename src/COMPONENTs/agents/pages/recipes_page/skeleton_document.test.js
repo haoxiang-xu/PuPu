@@ -18,6 +18,7 @@ import {
   with_node_bindings,
   with_node_output_mappings,
   node_output_schema,
+  with_node_kernel,
   with_node_output_schema,
 } from "./skeleton_document";
 import { SKELETON_DOCUMENT_CASES } from "./skeleton_document_cases";
@@ -243,6 +244,75 @@ describe("an Agent's output schema lives in its kernel config", () => {
   test("a document that is not one does not throw", () => {
     expect(() => with_node_output_schema(null, "k", {})).not.toThrow();
     expect(with_node_output_schema(null, "k", {})).toBe(null);
+  });
+});
+
+describe("writing the whole kernel is how a node gets a model", () => {
+  const kernel = {
+    schema_version: 1,
+    profile: { id: "p" },
+    prompt: "go",
+    max_iterations: 1,
+    output_tokens: 10,
+    history: "none",
+    overflow: "error",
+    json_schema: null,
+  };
+  const doc = (config) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "d",
+    name: "D",
+    nodes: [{ id: "k", type: "agent", config }],
+    edges: [],
+  });
+
+  test("a node with no kernel is given one", () => {
+    /* The one write that may create it. `with_node_output_schema` refuses to,
+       because turning JSON output on must not invent a profile; choosing a
+       model is the act that makes a Kernel exist. */
+    const after = with_node_kernel(doc({ execution: { inputs: [] } }), "k", kernel);
+    expect(after.nodes[0].config.kernel).toBe(kernel);
+  });
+
+  test("the execution half is left exactly as it was", () => {
+    const execution = { inputs: [{ name: "a" }], outputs: [] };
+    const after = with_node_kernel(doc({ execution }), "k", kernel);
+    expect(after.nodes[0].config.execution).toBe(execution);
+    expect(Object.keys(after.nodes[0].config).sort()).toEqual(["execution", "kernel"]);
+  });
+
+  test("an existing kernel is replaced whole", () => {
+    /* The runtime closes the object, so there is no partial kernel it would
+       keep — a merge would be a way to leave a key from the previous model
+       behind. */
+    const next = { ...kernel, prompt: "other" };
+    const after = with_node_kernel(doc({ kernel }), "k", next);
+    expect(after.nodes[0].config.kernel).toBe(next);
+  });
+
+  test("another node is not touched", () => {
+    const before = {
+      ...doc({ kernel }),
+      nodes: [
+        { id: "k", type: "agent", config: { kernel } },
+        { id: "other", type: "agent", config: { kernel } },
+      ],
+    };
+    const after = with_node_kernel(before, "k", { ...kernel, prompt: "x" });
+    expect(after.nodes[1]).toBe(before.nodes[1]);
+  });
+
+  test("nothing that is not a kernel is written", () => {
+    const before = doc({ execution: {} });
+    expect(with_node_kernel(before, "k", null)).toBe(before);
+    expect(with_node_kernel(before, "k", [kernel])).toBe(before);
+    expect(with_node_kernel(before, "k", "kernel")).toBe(before);
+  });
+
+  test("a document that is not one does not throw", () => {
+    expect(with_node_kernel(null, "k", kernel)).toBe(null);
+    expect(() => with_node_kernel({ nodes: "none" }, "k", kernel)).not.toThrow();
   });
 });
 

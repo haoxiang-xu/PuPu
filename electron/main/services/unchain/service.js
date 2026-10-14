@@ -187,6 +187,10 @@ const buildSkeletonResourceRequest = (action, payload = {}) => {
       method: "GET",
       path: "/skeleton_python_profiles",
     }),
+    kernel_profiles: () => ({
+      method: "GET",
+      path: "/skeleton_kernel_profiles",
+    }),
     save_profile: () => ({
       method: "POST",
       path: "/skeleton_python_profiles",

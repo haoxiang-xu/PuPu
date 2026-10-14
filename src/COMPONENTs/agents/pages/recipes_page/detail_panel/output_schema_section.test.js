@@ -188,6 +188,69 @@ describe("an Agent with no model configuration", () => {
   });
 });
 
+describe("a model that cannot be asked for structured output", () => {
+  /* Acceptance 5's negative. The rule is the runtime's:
+     `validate_kernel_config` refuses a `json_schema` whenever the profile
+     says `capabilities.json_schema` is false, and it refuses it at Run — the
+     one boundary the author meets last. */
+  const plain = (json_schema = null) => ({
+    id: "k",
+    type: "agent",
+    config: {
+      execution: { inputs: [], outputs: [] },
+      kernel: {
+        ...KERNEL,
+        json_schema,
+        profile: {
+          ...KERNEL.profile,
+          capabilities: { json_schema: false, images: false, files: false },
+        },
+      },
+    },
+  });
+
+  test("the node says it is unavailable rather than offering the editor", () => {
+    show(plain());
+    expect(
+      screen.getByTestId("schema-no-structured-output").textContent,
+    ).toMatch(/cannot be asked for structured output/i);
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+    expect(screen.queryByTestId("schema-no-kernel")).not.toBeInTheDocument();
+  });
+
+  test("it never falls back to plain text quietly", () => {
+    /* The words matter: "unavailable" and "it will answer in prose instead"
+       are different promises, and only one of them is true. */
+    show(plain());
+    expect(
+      screen.getByTestId("schema-no-structured-output").textContent,
+    ).toMatch(/nothing falls back to plain text/i);
+  });
+
+  test("there is no control here that could turn it on", () => {
+    const { onChange } = show(plain());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  test("a schema already stored beside it is refused, not quietly kept editable", () => {
+    /* Reachable without this panel: a stored definition whose model was
+       replaced elsewhere, or a wheel that stopped declaring the capability.
+       The section refuses rather than editing on — and it does not delete the
+       schema either, because deleting the author's work is the model
+       section's decision to state, not this one's to perform silently. */
+    const { onChange } = show(plain({
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    }));
+    expect(screen.getByTestId("schema-no-structured-output")).toBeInTheDocument();
+    expect(screen.queryByTestId("schema-field-name-0")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 describe("the field rows", () => {
   const two = {
     type: "object",

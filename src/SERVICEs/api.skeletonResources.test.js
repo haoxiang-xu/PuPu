@@ -20,6 +20,10 @@ describe("api.unchain Skeleton resource methods", () => {
         expected_edit_token: editToken,
       })),
       resolveSkeletonResource: jest.fn(async (payload) => payload),
+      listSkeletonKernelProfiles: jest.fn(async () => ({
+        profiles: [{ id: "openai:gpt-6-sol" }],
+        unavailable: [{ id: "openai:gpt-5", reason: "output_limit_unknown" }],
+      })),
       listSkeletonPythonProfiles: jest.fn(async () => ({
         profiles: [{ id: "builtin", kind: "bundled" }],
       })),
@@ -65,6 +69,24 @@ describe("api.unchain Skeleton resource methods", () => {
     expect(window.unchainAPI.resolveSkeletonResource).toHaveBeenCalledWith({});
     expect(window.unchainAPI.importSkeletonResource).toHaveBeenCalledWith({
       id: "imported",
+    });
+  });
+
+  test("carries both halves of the Kernel profile answer", async () => {
+    /* The second half is the reason a model is not offered. A facade that
+       kept only the first would leave the panel unable to say anything about
+       a model the author expected to find. */
+    await expect(api.unchain.listSkeletonKernelProfiles()).resolves.toEqual({
+      profiles: [{ id: "openai:gpt-6-sol" }],
+      unavailable: [{ id: "openai:gpt-5", reason: "output_limit_unknown" }],
+    });
+  });
+
+  test("a Kernel profile answer missing either half reads as empty, not undefined", async () => {
+    window.unchainAPI.listSkeletonKernelProfiles = jest.fn(async () => ({}));
+    await expect(api.unchain.listSkeletonKernelProfiles()).resolves.toEqual({
+      profiles: [],
+      unavailable: [],
     });
   });
 

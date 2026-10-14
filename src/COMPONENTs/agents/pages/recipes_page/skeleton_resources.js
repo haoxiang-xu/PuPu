@@ -21,6 +21,7 @@
  *   {ok: false, reason: "refused", error} — the store answered and said no */
 
 import { api } from "../../../../SERVICEs/api";
+import { kernel_admission_problems } from "./kernel_config";
 import { normalize_diagnostics } from "./skeleton_diagnostics";
 
 const UNAVAILABLE_CODES = new Set(["bridge_unavailable", "bridge_missing"]);
@@ -122,6 +123,57 @@ export async function convert_legacy_pools(resource_id, expected_edit_token, leg
   return call("convertSkeletonLegacyPools", (method) =>
     method(resource_id, expected_edit_token, legacy_kernel === undefined ? null : legacy_kernel),
   );
+}
+
+/* The Kernel profiles this build can offer, checked on arrival.
+ *
+ * The producer validates every profile with the runtime's own
+ * `validate_kernel_config` before offering it; this side checks the same
+ * profiles against the editor's mirror. The two are not the same code, and
+ * that is the point — a profile both accept is one the author can pick
+ * without the panel having to refuse it afterwards, and a disagreement
+ * between them becomes a row saying so rather than a crash in a picker.
+ *
+ * The second half is passed through untouched. A model that is absent because
+ * this build declares no output cap for it is a thing the panel has to be
+ * able to say; a picker that silently omitted it would read as PuPu having
+ * forgotten the model. */
+export async function kernel_profiles() {
+  const result = await call("listSkeletonKernelProfiles", (method) => method());
+  if (!result.ok) return result;
+  const offered = [];
+  const unavailable = [];
+  (Array.isArray(result.data && result.data.profiles) ? result.data.profiles : []).forEach(
+    (profile) => {
+      const problems = kernel_admission_problems({
+        schema_version: 1,
+        profile,
+        prompt: "",
+        max_iterations: 1,
+        output_tokens: 1,
+        history: "root",
+        overflow: "error",
+        json_schema: null,
+      });
+      if (problems.length === 0) {
+        offered.push(profile);
+        return;
+      }
+      const first = problems[0];
+      unavailable.push({
+        id: (profile && profile.id) || null,
+        provider: (profile && profile.provider) || null,
+        model: (profile && profile.model) || null,
+        reason: "profile_refused",
+        code: first.code,
+        path: first.where,
+      });
+    },
+  );
+  (Array.isArray(result.data && result.data.unavailable) ? result.data.unavailable : []).forEach(
+    (entry) => unavailable.push(entry),
+  );
+  return { ok: true, data: { profiles: offered, unavailable } };
 }
 
 export async function preflight(resource_id, legacy_kernel) {

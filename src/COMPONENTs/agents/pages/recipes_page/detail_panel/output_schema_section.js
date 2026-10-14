@@ -71,7 +71,16 @@ const OFF_CAPTION =
   "This Agent replies in prose. Its result is message and context, and nothing else.";
 
 const NO_KERNEL_CAPTION =
-  "This Agent has no model configuration yet, and JSON output is part of it. Set the model first — a schema stored beside nothing would be refused.";
+  "This Agent has no model configuration yet, and JSON output is part of it. Pick a model above first — a schema stored beside nothing would be refused.";
+
+/* Acceptance 5's negative, and it is the runtime's rule rather than a caution
+   this panel invented: `validate_kernel_config` refuses a `json_schema`
+   whenever the profile's `capabilities.json_schema` is false
+   (`unsupported_capability` at `kernel.json_schema`). So the node is
+   explicitly unavailable here, and there is no path through this section that
+   writes a schema instead and lets the model answer in prose. */
+const NO_STRUCTURED_OUTPUT_CAPTION =
+  "This model cannot be asked for structured output, so JSON output is unavailable for it. Nothing falls back to plain text behind your back — pick a model that can, or leave this Agent replying in prose.";
 
 const CLOSED_CAPTION =
   "Only these fields. An output row can then say that a field the schema does not name cannot exist.";
@@ -334,7 +343,20 @@ export default function OutputSchemaSection({
   onChange,
 }) {
   const schema = node_output_schema(node);
-  const has_kernel = Boolean(node_kernel(node));
+  const kernel = node_kernel(node);
+  const has_kernel = Boolean(kernel);
+  /* Whether this model may be asked at all. The profile is the document's own,
+     so this reads what is stored rather than asking the catalog — a model the
+     catalog no longer offers still says what it was declared able to do. */
+  const profile = kernel && kernel.profile;
+  const capabilities =
+    profile && typeof profile === "object" && !Array.isArray(profile)
+      ? profile.capabilities
+      : null;
+  const asks_for_json =
+    capabilities && typeof capabilities === "object" && !Array.isArray(capabilities)
+      ? capabilities.json_schema === true
+      : false;
 
   /* The JSON text, and the schema it belongs to. Held together for the reason
      a path step holds its own: text the document does not store has to be
@@ -386,16 +408,22 @@ export default function OutputSchemaSection({
      so an early return before a hook would change the hook order on the render
      that happens. The lint caught this; the tests did not, because none of
      them flips it on a mounted section. */
-  if (!has_kernel) {
+  if (!has_kernel || !asks_for_json) {
     return (
       <div
         data-testid="skeleton-output-schema"
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
         <span style={SECTION_LABEL}>JSON Output</span>
-        <span data-testid="schema-no-kernel" style={CAPTION}>
-          {NO_KERNEL_CAPTION}
-        </span>
+        {!has_kernel ? (
+          <span data-testid="schema-no-kernel" style={CAPTION}>
+            {NO_KERNEL_CAPTION}
+          </span>
+        ) : (
+          <span data-testid="schema-no-structured-output" style={CAPTION}>
+            {NO_STRUCTURED_OUTPUT_CAPTION}
+          </span>
+        )}
       </div>
     );
   }

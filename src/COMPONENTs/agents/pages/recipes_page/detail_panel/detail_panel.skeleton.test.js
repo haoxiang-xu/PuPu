@@ -2,6 +2,32 @@ import React from "react";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import { kernel_profiles, list_resources } from "../skeleton_resources";
+
+/* An Agent node's Model section reads the Kernel profile catalog on mount, so
+   the panel is shown one here. Without it the catalog read settles after the
+   test has finished — act() noise, and a state update nobody is looking at.
+   What the section does with the answer has its own suite.
+ *
+ * The implementation is set in `beforeEach` and not in the factory: this repo
+ * runs with `react-scripts`' jest defaults, which include `resetMocks: true`,
+ * so every implementation given to a `jest.fn` is wiped before each test and a
+ * factory-supplied one would be gone by the time a component called it. */
+jest.mock("../skeleton_resources", () => ({
+  is_unavailable: (result) =>
+    Boolean(result) && result.ok === false && result.reason === "unavailable",
+  list_resources: jest.fn(),
+  kernel_profiles: jest.fn(),
+}));
+
+beforeEach(() => {
+  list_resources.mockResolvedValue({ ok: true, data: { resources: [] } });
+  /* Held open rather than resolved: these tests are about which sections a
+     node shows, and a catalog that settles mid-test updates state nobody here
+     awaits — which is an act() warning for every Agent node in the file. The
+     section is shown a real catalog in its own suite. */
+  kernel_profiles.mockReturnValue(new Promise(() => {}));
+});
 
 const cfg = { theme: {}, onThemeMode: "light_mode" };
 
@@ -689,6 +715,56 @@ describe("R-SCHEMA — a schema's own fields, through the real controls", () => 
   test("an Agent with no schema at all is still closed on its two built-ins", () => {
     open_agent(null, ["typo"]);
     expect(row_text()).toMatch(/produces no result named "typo"/i);
+  });
+});
+
+describe("the Model section in the panel", () => {
+  const agent_doc = (config) => ({
+    ...skeleton_document,
+    nodes: [
+      skeleton_document.nodes[0],
+      { id: "kernel", type: "agent", config },
+      skeleton_document.nodes[1],
+    ],
+    edges: [flow("e1", "start", "kernel"), flow("e2", "kernel", "end")],
+  });
+
+  const open = (config) =>
+    show({
+      document: agent_doc(config),
+      onDocumentChange: () => {},
+      selectedNodeId: "kernel",
+    });
+
+  test("an Agent reads downwards: inputs, model, result, outputs", () => {
+    /* The model comes before JSON Output because the schema depends on it —
+       a model that cannot be asked for structured output makes that section
+       unavailable — and both stay between the two IO sections rule 2 pins to
+       the top and the bottom. */
+    open({ execution: { inputs: [], outputs: [] } });
+    const text = screen.getByTestId("recipe-detail-panel").textContent;
+    expect(text.indexOf("Input Variables")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("Model")).toBeGreaterThan(text.indexOf("Input Variables"));
+    expect(text.indexOf("JSON Output")).toBeGreaterThan(text.indexOf("Model"));
+    expect(text.indexOf("Output Variables")).toBeGreaterThan(
+      text.indexOf("JSON Output"),
+    );
+  });
+
+  test("an Agent with no model says the run will refuse it", () => {
+    open({ execution: { inputs: [], outputs: [] } });
+    expect(screen.getByTestId("kernel-absent").textContent).toMatch(
+      /refused the moment it runs/i,
+    );
+  });
+
+  test("no other node type carries one", () => {
+    /* Only an Agent graph may invoke a Kernel Loop, and only a Kernel Loop
+       node holds this config at all. */
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "start" });
+    expect(screen.queryByTestId("skeleton-kernel")).not.toBeInTheDocument();
+    show({ document: skeleton_document, onDocumentChange: () => {}, selectedNodeId: "end" });
+    expect(screen.queryByTestId("skeleton-kernel")).not.toBeInTheDocument();
   });
 });
 

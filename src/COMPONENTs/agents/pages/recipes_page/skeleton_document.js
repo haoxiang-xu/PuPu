@@ -241,6 +241,33 @@ export function with_node_output_schema(document, node_id, schema) {
   };
 }
 
+/* The whole Kernel object, which is the one write that may CREATE it.
+ *
+ * `with_node_output_schema` above deliberately refuses to: turning JSON output
+ * on must not invent a profile, an endpoint and a credential as a side effect.
+ * Choosing a model is the act that makes a Kernel exist, so this is where it
+ * is written, and it is written whole — the runtime closes the object, so
+ * there is no partial kernel it would keep.
+ *
+ * `execution` beside it is left exactly as it is: an Agent node's config is
+ * closed to `{execution, kernel}`, and the bindings in the first half are not
+ * the model's business. */
+export function with_node_kernel(document, node_id, kernel) {
+  if (!is_object(document) || !Array.isArray(document.nodes)) return document;
+  if (!is_object(kernel)) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!node || node.id !== node_id) return node;
+      const config = is_object(node.config) ? node.config : {};
+      return {
+        ...node,
+        config: { ...config, [KERNEL_CONFIG_KEY]: kernel },
+      };
+    }),
+  };
+}
+
 /* ── A Subagent Pool's entries ───────────────────────────────────────────── */
 
 /* The pool's `config` is CLOSED to exactly `{subagents}`

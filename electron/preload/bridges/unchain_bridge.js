@@ -278,6 +278,11 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       action: "resolve",
       payload,
     }),
+  listSkeletonKernelProfiles: () =>
+    invokeSkeletonResource(ipcRenderer, {
+      action: "kernel_profiles",
+      payload: {},
+    }),
   listSkeletonPythonProfiles: () =>
     invokeSkeletonResource(ipcRenderer, {
       action: "list_profiles",

@@ -251,6 +251,28 @@ def resolve_skeleton_resource():
     return _run(operation)
 
 
+@api_blueprint.get("/skeleton_kernel_profiles")
+def list_skeleton_kernel_profiles():
+    """Candidate Kernel Loop profiles for the builder.
+
+    Read-only and derived: nothing here is stored, and the answer is a
+    function of the installed wheel's capability catalog plus this host's
+    official endpoints. It carries both halves — what can be configured and
+    why the rest cannot — because a model that is simply absent from a picker
+    is indistinguishable from one PuPu forgot.
+    """
+    denied = _authorized()
+    if denied is not None:
+        return denied
+
+    def operation():
+        from skeleton_kernel_profiles import kernel_profiles
+
+        return kernel_profiles()
+
+    return _run(operation)
+
+
 @api_blueprint.get("/skeleton_python_profiles")
 def list_skeleton_python_profiles():
     denied = _authorized()

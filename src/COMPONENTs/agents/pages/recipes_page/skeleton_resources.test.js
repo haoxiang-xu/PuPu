@@ -1,5 +1,6 @@
 import {
   diagnose,
+  kernel_profiles,
   list_resources,
   edit_conflict_message,
   is_unavailable,
@@ -146,5 +147,84 @@ describe("listing the resources a Subagent Pool can reference", () => {
     const result = await list_resources();
     expect(result).toMatchObject({ ok: false, reason: "refused" });
     expect(result.error.message).toMatch(/locked/);
+  });
+});
+
+
+describe("the Kernel profiles this build can offer", () => {
+  const profile = (over) => ({
+    id: "openai:gpt-6-sol",
+    provider: "openai",
+    model: "gpt-6-sol",
+    protocol: "openai-responses",
+    endpoint: "https://api.openai.com/v1",
+    credential_ref: "openai",
+    context_window: 1050000,
+    output_limit: 128000,
+    capabilities: { json_schema: true, images: true, files: false },
+    ...over,
+  });
+
+  test("a build with no bridge method says it could not ask", async () => {
+    expect(is_unavailable(await kernel_profiles())).toBe(true);
+  });
+
+  test("a profile both sides admit is offered unchanged", async () => {
+    const offered = profile();
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: [offered],
+      unavailable: [],
+    }));
+    const result = await kernel_profiles();
+    expect(result.data.profiles).toEqual([offered]);
+    expect(result.data.unavailable).toEqual([]);
+  });
+
+  test("a profile the editor's own rules refuse becomes a row saying why", async () => {
+    /* The producer checks every profile with the runtime's validator before
+       offering it, so this cannot happen while the two agree. It is exactly
+       the case where they do not — a wheel whose rules moved — and the
+       author gets a reason instead of a picker that writes a kernel which
+       cannot be saved. */
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: [profile({ endpoint: "https://api.openai.com/v1?key=secret" })],
+      unavailable: [],
+    }));
+    const result = await kernel_profiles();
+    expect(result.data.profiles).toEqual([]);
+    expect(result.data.unavailable).toEqual([
+      {
+        id: "openai:gpt-6-sol",
+        provider: "openai",
+        model: "gpt-6-sol",
+        reason: "profile_refused",
+        code: "invalid_value",
+        path: "kernel.profile.endpoint",
+      },
+    ]);
+  });
+
+  test("the producer's own reasons are carried through untouched", async () => {
+    const reason = {
+      id: "openai:gpt-5",
+      provider: "openai",
+      model: "gpt-5",
+      reason: "output_limit_unknown",
+    };
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: [],
+      unavailable: [reason],
+    }));
+    const result = await kernel_profiles();
+    expect(result.data.unavailable).toEqual([reason]);
+  });
+
+  test("a refusal is a refusal, not an empty catalog", async () => {
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      error: { code: "unauthorized", message: "no" },
+    }));
+    const result = await kernel_profiles();
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe("unauthorized");
   });
 });

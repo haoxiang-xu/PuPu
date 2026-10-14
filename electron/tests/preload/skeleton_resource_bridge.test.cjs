@@ -85,6 +85,7 @@ describe("Skeleton resource preload bridge", () => {
   test("exposes fixed Python profile operations", async () => {
     const ipcRenderer = { invoke: jest.fn(() => Promise.resolve({ schema: "pupu.skeleton-resource-response.v1", ok: true, data: { ok: true } })) };
     const bridge = createMisoBridge(ipcRenderer, {});
+    await bridge.listSkeletonKernelProfiles();
     await bridge.listSkeletonPythonProfiles();
     await bridge.saveSkeletonPythonProfile({
       profile_id: "project", executable: "/venv/bin/python",
@@ -92,6 +93,7 @@ describe("Skeleton resource preload bridge", () => {
     await bridge.probeSkeletonPythonProfile("project");
     await bridge.deleteSkeletonPythonProfile("project", "edit-1");
     expect(ipcRenderer.invoke.mock.calls.map((call) => call[1])).toEqual([
+      { action: "kernel_profiles", payload: {} },
       { action: "list_profiles", payload: {} },
       {
         action: "save_profile",

@@ -1235,15 +1235,18 @@ describe("converting a legacy pool", () => {
 
   test("an inline entry is not offered, because it needs a model", async () => {
     /* It carries a prompt rather than naming an Agent, so converting it means
-       building an Agent — and a profile carries an endpoint and a credential
-       reference that nothing in this build can choose yet. */
+       building an Agent — and that needs a model. The Model section on an
+       Agent node can now choose one, so the notice no longer says the build
+       has no control for it; what is still missing is handing that choice to
+       this conversion, which is the next slice and is what the notice says. */
     const { onConvertLegacy } = await show_legacy([
       ...named,
       { kind: "inline", name: "Shortener", prompt_format: "soul", template: { prompt: "Be brief" } },
     ]);
-    expect(screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent).toMatch(
-      /needs a model/i,
-    );
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/needs a model/i);
+    expect(notice).toMatch(/not wired up yet/i);
+    expect(notice).not.toMatch(/no control for/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
     expect(onConvertLegacy).not.toHaveBeenCalled();
   });

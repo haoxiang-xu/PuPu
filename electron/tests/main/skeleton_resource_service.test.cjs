@@ -102,6 +102,12 @@ describe("Skeleton resource main-process request builder", () => {
       method: "GET",
       path: "/skeleton_python_profiles",
     });
+    /* Derived and read-only: no identifier in the route and no body, so a
+       renderer cannot steer it anywhere. */
+    expect(buildSkeletonResourceRequest("kernel_profiles", shared)).toEqual({
+      method: "GET",
+      path: "/skeleton_kernel_profiles",
+    });
     expect(buildSkeletonResourceRequest("save_profile", {
       profile_id: "project", executable: "/venv/bin/python",
       expected_edit_token: "profile-edit", path: "/arbitrary",

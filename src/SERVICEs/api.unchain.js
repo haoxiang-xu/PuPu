@@ -2622,6 +2622,19 @@ export const createUnchainApi = () => {
         "skeleton_resource_resolve_timeout", "Skeleton resource resolve timed out");
     },
 
+    /* Candidate Kernel Loop profiles. Both halves are carried through: the
+       second one is why a model the author expects to see is not offered, and
+       dropping it would leave the panel unable to say anything. */
+    listSkeletonKernelProfiles: async () => {
+      const method = assertBridgeMethod("unchainAPI", "listSkeletonKernelProfiles");
+      const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
+        "skeleton_kernel_profile_list_timeout", "Kernel profile list timed out");
+      return {
+        profiles: Array.isArray(response?.profiles) ? response.profiles : [],
+        unavailable: Array.isArray(response?.unavailable) ? response.unavailable : [],
+      };
+    },
+
     listSkeletonPythonProfiles: async () => {
       const method = assertBridgeMethod("unchainAPI", "listSkeletonPythonProfiles");
       const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
