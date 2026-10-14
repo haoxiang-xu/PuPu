@@ -63,7 +63,7 @@ const isJsonValue = (value) => {
 };
 const copyJsonValue = (value) => JSON.parse(JSON.stringify(value));
 
-const validateToolCallRefMetadata = (value, descriptor) => {
+export const validateToolCallRefMetadata = (value, descriptor) => {
   const required = [
     "schema",
     "intent_cursor",

@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
@@ -262,3 +264,9 @@ def test_capability_unavailable_never_blocks_ordinary_v4() -> None:
         "schema": "pupu.context_composition_availability.v2",
         "code": "capability_unavailable",
     }
+
+
+@pytest.fixture(autouse=True)
+def _route_execution_data(tmp_path, monkeypatch):
+    # Fresh V4 admission persists its attempt before the init handshake.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "execution-data"))

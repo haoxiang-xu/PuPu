@@ -575,6 +575,11 @@
   },
   "chat": {
     "placeholder": "Nachricht an PuPu...",
+    "settlement": {
+      "waiting": "Warten, bis der vorherige Durchlauf abgeschlossen ist…",
+      "cancelled": "Warten abgebrochen. Du kannst diese Nachrichtenänderung erneut versuchen oder verwerfen.",
+      "timeout": "Der vorherige Durchlauf wird noch abgeschlossen. Du kannst diese Nachrichtenänderung erneut versuchen oder verwerfen."
+    },
     "minimap": {
       "top": "Anfang",
       "prev": "Zurück",

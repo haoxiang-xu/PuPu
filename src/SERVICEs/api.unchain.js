@@ -26,6 +26,7 @@ import {
 import { isFeatureFlagEnabled } from "./feature_flags";
 import { isShippedSlug } from "./shipped_provider_registry";
 import { readNamespace } from "./settings_repository";
+import { validateDurablePresentationMetadata } from "./durable_interaction_presentation";
 import { getLastSkillInventoryRevision } from "./skill_inventory_store";
 import { readProviderSecret } from "./settings_secret_adapter";
 import {
@@ -1070,20 +1071,24 @@ const isCanonicalHumanInputPayload = (toolCall) => {
 
 const isCanonicalDurablePresentation = (
   presentation,
-  { kind, interactionId, sourceRunId },
+  { kind, interactionId, sourceRunId, sessionId },
 ) => {
   if (!isObject(presentation) || !hasExactKeys(presentation, DURABLE_PRESENTATION_KEYS)) {
     return false;
   }
   const traceFrame = presentation.trace_frame;
   const toolCall = presentation.tool_call;
+  const extensions = validateDurablePresentationMetadata(presentation, {
+    kind, sessionId, sourceRunId, equalJson: jsonValuesEqual,
+  });
+  if (!extensions) return false;
   const expectedToolKeys =
     kind === "max_budget"
       ? DURABLE_MAX_BUDGET_TOOL_CALL_KEYS
       : DURABLE_TOOL_CALL_KEYS;
   if (
     !isObject(traceFrame) ||
-    !hasExactKeys(traceFrame, DURABLE_TRACE_FRAME_KEYS) ||
+    !hasExactKeys(traceFrame, [...DURABLE_TRACE_FRAME_KEYS, ...extensions.traceKeys]) ||
     traceFrame.seq !== 0 ||
     !Number.isSafeInteger(traceFrame.ts) ||
     traceFrame.ts < 0 ||
@@ -1092,15 +1097,14 @@ const isCanonicalDurablePresentation = (
     traceFrame.stage !== "durable_recovery" ||
     !isObject(toolCall) ||
     !isObject(traceFrame.payload) ||
-    !hasExactKeys(toolCall, expectedToolKeys) ||
-    !hasExactKeys(traceFrame.payload, expectedToolKeys) ||
+    !hasExactKeys(toolCall, [...expectedToolKeys, ...extensions.toolKeys]) ||
+    !hasExactKeys(traceFrame.payload, [...expectedToolKeys, ...extensions.toolKeys]) ||
     !jsonValuesEqual(toolCall, traceFrame.payload) ||
     boundaryString(toolCall.confirmation_id) !== interactionId ||
     toolCall.requires_confirmation !== true ||
     !boundaryString(toolCall.call_id) ||
     !boundaryString(toolCall.tool_name) ||
     typeof toolCall.tool_display_name !== "string" ||
-    !isObject(toolCall.arguments) ||
     typeof toolCall.description !== "string" ||
     !boundaryString(toolCall.interact_type) ||
     (!isObject(toolCall.interact_config) &&
@@ -1202,6 +1206,7 @@ const normalizePendingInteractionResponse = (response, expectedSessionId) => {
       kind,
       interactionId,
       sourceRunId,
+      sessionId,
     }) ||
     typeof response.resume_available !== "boolean" ||
     !isObject(response.resume_options) ||

@@ -1098,9 +1098,19 @@ class DurableInteractionHostTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.code, "injected_cancel_guard_crash")
 
+        previous_guard = session_execution_guard.snapshot_session_guard(
+            session_id="chat-cancel-guard-restart",
+        )
+        # Changing only owner_id leaves the old PID demonstrably alive and
+        # models a foreign live owner, not a restart. Explicitly model the old
+        # process's death; the separate subprocess regression uses a real exit.
+        process_identity = mock.Mock(return_value=("dead", ""))
         restarted_registry = session_execution_guard.SessionExecutionGuardRegistry(
             data_dir=self.temp_dir.name,
             process_owner_id="cancel-restart-owner",
+            process_pid=previous_guard.owner_pid + 1,
+            process_incarnation="cancel-restart-incarnation",
+            process_identity=process_identity,
         )
         self.assertEqual(
             restarted_registry.snapshot("chat-cancel-guard-restart").state,
@@ -1123,6 +1133,7 @@ class DurableInteractionHostTests(unittest.TestCase):
             {"status": "none", "session_id": "chat-cancel-guard-restart"},
         )
         self.assertIsNone(guard_snapshot)
+        process_identity.assert_called_with(previous_guard.owner_pid)
 
     def test_cancel_old_attempt_does_not_consume_newer_pending_interaction(self) -> None:
         request = self._seed_cancellable_request(

@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import re
+import sqlite3
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -660,6 +661,37 @@ class MemoryV2UnchainGenerationAPI:
                 error,
                 expected_revision=expected_revision,
             )
+            detail = _structured_rebase_failure_detail(error)
+            if (
+                detail is not None
+                and detail[0] in {
+                    "attempt_open", "graph_step_seal_missing", "graph_execution_seal_missing",
+                }
+            ):
+                from memory_v2_cold_terminal_repair import repair_cold_graph_terminals
+
+                try:
+                    repaired = repair_cold_graph_terminals(
+                        service=self._service, request=request,
+                        data_dir=self._guard_data_dir,
+                    )
+                except (OSError, sqlite3.Error) as repair_error:
+                    raise MemoryV2UnchainGenerationAPIError(
+                        "context_v2_rebase_unavailable", "Cold terminal repair unavailable",
+                        status_code=503, retryable=True,
+                    ) from repair_error
+                except Exception as repair_error:
+                    raise MemoryV2UnchainGenerationAPIError(
+                        "context_v2_rebase_journal_incompatible", "Cold terminal repair failed",
+                        status_code=409, retryable=False,
+                    ) from repair_error
+                if repaired:
+                    try:
+                        return self._service.rebase(request)
+                    except (GenerationRebaseConflict, GenerationRebaseUnavailable) as replay_error:
+                        raise self._translate_rebase_error(
+                            replay_error, expected_revision=expected_revision,
+                        ) from replay_error
             if translated.code != "context_v2_rebase_recovery_required":
                 raise translated from error
             from memory_v2_unchain_graph_recovery import (

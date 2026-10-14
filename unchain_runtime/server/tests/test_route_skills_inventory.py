@@ -249,3 +249,9 @@ def test_p1_menu_stale_check_and_run_share_one_effective_inventory(tmp_path) -> 
             workspace_root=str(workspace), include_user_dirs=False, selected_toolkit_ids=["core", "mcp.reviewer"], packs=[]
         )
         assert run_inventory.revision == with_mcp["revision"]
+
+
+@pytest.fixture(autouse=True)
+def _route_execution_data(tmp_path, monkeypatch):
+    # Fresh V4 admission persists its attempt before the init handshake.
+    monkeypatch.setenv("UNCHAIN_DATA_DIR", str(tmp_path / "execution-data"))

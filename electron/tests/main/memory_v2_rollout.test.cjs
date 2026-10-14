@@ -24,7 +24,9 @@ const REQUIRED_PROTOCOLS = Object.freeze([
       "context_compiler",
       "context_content_paging_v1",
       "context_content_read_recovery_v1",
+      "durable_interaction_settlement_fence_v1",
       "generation_rebase_live_interaction_cycles",
+      "graph_failure_terminals_v1",
       "interaction_resolution_compat",
       "long_term_promotion",
       "memory_curator",
@@ -578,5 +580,31 @@ describe("Memory V2 runtime protocol admission", () => {
     expect(
       validateMemoryV2Status({ ...status, rollout_mode: "all" }, config),
     ).toMatchObject({ ok: false, reason: "context_v2_rollout_mismatch" });
+  });
+});
+
+test("an older wheel without graph failure terminals cannot activate Memory V2", () => {
+  const config = packagedConfig(createBuildFeatureSnapshot({}, {}));
+  const protocols = cloneProtocols();
+  const context = protocols.find((item) => item.id === "context_memory");
+  context.features = context.features.filter((feature) => feature !== "graph_failure_terminals_v1");
+  expect(validateMemoryV2Status(statusFor(config, {
+    runtime_protocol_manifest: runtimeProtocolManifest(protocols),
+  }), config)).toMatchObject({
+    ok: false,
+    reason: "context_v2_unchain_protocol_incompatible",
+  });
+});
+
+test("an older wheel without graph failure terminals cannot activate Memory V2", () => {
+  const config = packagedConfig(createBuildFeatureSnapshot({}, {}));
+  const protocols = cloneProtocols();
+  const context = protocols.find((item) => item.id === "context_memory");
+  context.features = context.features.filter((feature) => feature !== "durable_interaction_settlement_fence_v1");
+  expect(validateMemoryV2Status(statusFor(config, {
+    runtime_protocol_manifest: runtimeProtocolManifest(protocols),
+  }), config)).toMatchObject({
+    ok: false,
+    reason: "context_v2_unchain_protocol_incompatible",
   });
 });

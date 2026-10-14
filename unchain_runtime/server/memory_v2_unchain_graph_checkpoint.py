@@ -32,6 +32,7 @@ from unchain.context.graph_checkpoint import (
     GraphRecovery,
     GraphStepBinding,
     GraphStepCompletion,
+    GraphTerminalStatus,
     JournalGraphCheckpointRepository,
 )
 from unchain.context.graph_harness import GraphStepBootstrapBinding
@@ -655,6 +656,20 @@ class PupuUnchainGraphCheckpointHost:
 
     def finalize(self) -> GraphRecovery:
         return self.service.finalize(self.plan)
+
+    def fail_step(self, index: int, *, status: GraphTerminalStatus) -> GraphRecovery:
+        """Seal a step whose run ended failed or cancelled (see the service)."""
+
+        self._step(index)
+        return self.service.fail_step(self.plan, index, status=status)
+
+    def step_event_sink(self, index: int) -> Any:
+        """The durable sink of one step attempt, for a terminal its run never wrote."""
+
+        step = self._step(index)
+        return self._prepare_attempt_bundle(
+            step.attempt.attempt_id
+        ).bundle.durable_event_sink
 
 
 def prepare_pupu_unchain_graph_checkpoint_host(

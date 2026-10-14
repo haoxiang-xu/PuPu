@@ -1100,6 +1100,17 @@ def chat_stream_v4() -> Response:
         )
     mode = str(payload.get("mode") or "").strip().lower()
     resume_interaction = mode == "resume_interaction"
+    from execution_admission import validate_stopped_attempts
+
+    try:
+        stopped_attempts = validate_stopped_attempts(
+            payload["stopped_attempts"], attempt_id=attempt_id, resume=resume_interaction,
+        ) if "stopped_attempts" in payload else ()
+    except ValueError as error:
+        return root._json_error("invalid_request", str(error), 400)
+    admission_owner_chat_id = str(payload.get("owner_chat_id") or "").strip()
+    if stopped_attempts and not _MEMORY_V2_OWNER_RE.fullmatch(admission_owner_chat_id):
+        return root._json_error("invalid_request", "owner_chat_id is required for stopped_attempts", 400)
     message = str(payload.get("message", ""))
     attachments = _sanitize_attachments(payload.get("attachments"))
     if not resume_interaction and not message.strip() and not attachments:
@@ -1288,6 +1299,10 @@ def chat_stream_v4() -> Response:
             root.cancel_tool_confirmations(confirmation_cancel_event)
 
         try:
+            if not resume_interaction:
+                import execution_control
+
+                execution_control.register(thread_id, attempt_id)
             session_event = bridge.emit_session_started(
                 {
                     "model": root.get_display_model_id(options),
@@ -1300,6 +1315,19 @@ def chat_stream_v4() -> Response:
                 }
             )
             yield _sse_event("runtime_event", session_event.to_dict())
+
+            if not resume_interaction:
+                from execution_admission import reconcile_stopped_attempts
+
+                reconcile_stopped_attempts(
+                    session_id=thread_id, owner_chat_id=admission_owner_chat_id,
+                    attempt_id=attempt_id, stopped_attempts=stopped_attempts,
+                )
+                if _execution_attempt_cancelled(thread_id, attempt_id):
+                    yield _sse_event("done", {"finished_at": int(time.time() * 1000),
+                        "execution_id": thread_id, "attempt_id": attempt_id,
+                        "cancelled": True, "diagnostics": bridge.diagnostics()})
+                    return
 
             event_source = (
                 root.resume_chat_interaction_events(
