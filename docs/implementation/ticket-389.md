@@ -1170,3 +1170,47 @@ The fresh Electron report is under
 The historical failing audit remains recorded against its old candidate. The
 new audit must bind the refreshed candidate digest and the unchanged wheel and
 runtime manifest. No delivery commit or PR is part of this repair instruction.
+
+### PR integration with current dev — 2026-10-13
+
+The owner explicitly requested paired PRs after manual acceptance. The accepted
+patches are replayed onto PuPu `82e46033` and Unchain `5706c99`, including the
+already merged Memory V3 work (#401). The inherited Unchain #383 evidence-only
+commit is excluded from the #389 PR. Earlier candidate evidence remains history;
+it cannot establish acceptance of this new integrated artifact pair.
+
+BC-389-18 / SEQ-389-16 / AC-389-20: GitHub workflow input `unchain_ref` is the
+producer of the immutable source revision consumed by the shared deterministic
+and package workflows and `build-unchain-artifact.mjs`. Admission is VERSIONED:
+the full revision identifies provenance, while only the actual imported runtime's
+strict manifest grants capabilities. All five default/fallback references must
+point to the same companion commit containing both Memory V3 and #389. The old
+default lacks `graph_failure_terminals_v1` and
+`durable_interaction_settlement_fence_v1` and must fail the existing feature gate.
+No missing-feature fallback or manifest gate weakening is permitted. Sequence:
+commit companion runtime → build one wheel → install and verify that exact wheel
+→ pin its commit → exercise the current PuPu source host and Electron renderer.
+Record wheel SHA-256, imported path, manifest digest and both repository heads
+in the new delivery evidence. Reuse that one wheel for all pair checks; retry
+must not rebuild or silently switch to the mutable sibling source. Signed
+packaging and active release rollout remain outside this PR request.
+
+BC-389-19 / SEQ-389-17 / AC-389-21: Unchain's graph coordinator terminal is the
+producer of journal events consumed by generation rebase. Admission is CLOSED:
+the existing terminal-tail allowlist admits only the four Memory V3 curator
+audit types after the terminal. A failed/cancelled root without an execution
+seal must have its admission immediately before the terminal, located by that
+terminal's position rather than the end of the complete event list. Repeat,
+retry and rebase accept the allowed audit tail; ordinary provider/tool events
+after a terminal and duplicate terminals still fail closed. Regression evidence
+must cover both failed/cancelled terminals with all four audit types, plus the
+invalid tails, while preserving #401's audit provenance validation.
+
+GitNexus reports both complete accepted patches as CRITICAL overall (PuPu:
+421 changed symbols / 74 processes; Unchain: 88 / 21). The rebase preflight's
+specific upstream impact is LOW: `_assert_durable_preflight` → `rebase`, two
+modules and no indexed process. Workflow and plan file impact are UNKNOWN;
+direct source references establish their shared-workflow/artifact consumers
+and documentation-only role. UNKNOWN is not interpreted as an all-clear.
+Fresh combined-source suites, strict pair matrix and diagnostic source-host
+smoke are required before reporting the delivered candidate as verified.
