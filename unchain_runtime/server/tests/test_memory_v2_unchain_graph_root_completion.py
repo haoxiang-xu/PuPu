@@ -338,6 +338,11 @@ def test_candidate_free_root_completion_is_model_free_and_restart_idempotent(
     )
     assert sum(event.event_type == "final_message" for event in root_events) == 1
     assert sum(event.event_type == "run_completed" for event in root_events) == 1
+    curator_events = tuple(
+        event for event in root_events if event.event_type.startswith("memory.curator.")
+    )
+    assert [event.event_type for event in curator_events] == ["memory.curator.noop"]
+    assert curator_events[0].payload["reason"] == "no_pending_candidates"
 
 
 def test_graph_step_candidate_is_aggregated_by_root_job_and_processed(
@@ -398,6 +403,18 @@ def test_graph_step_candidate_is_aggregated_by_root_job_and_processed(
     assert [entry.path for entry in listing.entries] == [
         "/graph/decision.md"
     ]
+    root_events = tuple(
+        event
+        for event in host.coordinator.bundle.journal.capture_snapshot().events
+        if event.attempt == host.plan.orchestration_attempt
+    )
+    curator_events = tuple(
+        event for event in root_events if event.event_type.startswith("memory.curator.")
+    )
+    assert [event.event_type for event in curator_events] == [
+        "memory.curator.enqueued"
+    ]
+    assert curator_events[0].payload["candidate_count"] == 1
 
 
 def test_memory_model_failure_is_isolated_after_graph_and_root_journal_complete(
