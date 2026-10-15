@@ -82,8 +82,37 @@ describe("api.unchain Skeleton resource methods", () => {
     });
   });
 
-  test("a Kernel profile answer missing either half reads as empty, not undefined", async () => {
-    window.unchainAPI.listSkeletonKernelProfiles = jest.fn(async () => ({}));
+  /* This used to assert that an answer missing either half "reads as empty".
+     It does not any more, and the old expectation was the defect: two empty
+     lists is how "this build can configure no model" is reported, so a
+     malformed answer was handed to the panel wearing that meaning, and the
+     panel said it. An answer that is not a catalog is refused here. */
+  [
+    ["neither half", {}],
+    ["only the profiles", { profiles: [] }],
+    ["only the refusals", { unavailable: [] }],
+    ["a profiles half that is not a list", { profiles: {}, unavailable: [] }],
+    ["a refusals half that is not a list", { profiles: [], unavailable: "none" }],
+    ["a profile that is not an object", { profiles: ["openai"], unavailable: [] }],
+    ["a profile that is a list", { profiles: [[]], unavailable: [] }],
+    ["a refusal that is not an object", { profiles: [], unavailable: [null] }],
+    ["nothing at all", null],
+    ["a list", []],
+    ["a string", "profiles"],
+  ].forEach(([what, answer]) => {
+    test(`a Kernel profile answer with ${what} is refused, not emptied`, async () => {
+      window.unchainAPI.listSkeletonKernelProfiles = jest.fn(async () => answer);
+      await expect(api.unchain.listSkeletonKernelProfiles()).rejects.toMatchObject({
+        code: "skeleton_kernel_profile_list_malformed",
+      });
+    });
+  });
+
+  test("an empty catalog is still an answer, because it says something true", async () => {
+    window.unchainAPI.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: [],
+      unavailable: [],
+    }));
     await expect(api.unchain.listSkeletonKernelProfiles()).resolves.toEqual({
       profiles: [],
       unavailable: [],

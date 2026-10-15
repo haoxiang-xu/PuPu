@@ -10,6 +10,7 @@ import {
   node_output_schema,
   with_node_output_schema,
 } from "../skeleton_document";
+import { identity_of } from "../document_values";
 import { output_schema_problems } from "../output_schema";
 import usePendingText from "./pending_text";
 import useTakenName from "./taken_name";
@@ -96,7 +97,7 @@ function parse_json(text) {
   }
 }
 
-function Bound({ field, bound, onChange }) {
+function Bound({ field, bound, revision, onChange }) {
   const value = field.bounds ? field.bounds[bound] : undefined;
   const counted = bound !== "minimum" && bound !== "maximum";
   /* Blank is not zero. Zero is a real bound — an empty string, an empty list —
@@ -114,8 +115,13 @@ function Bound({ field, bound, onChange }) {
    * map: a row keyed only by position showed one field's refused bound over
    * the next field's equal one when the schema was replaced underneath. A
    * rename therefore drops a refusal held here, which is the harmless
-   * direction — the same trade the output rows above make. */
-  const pending = usePendingText(value, field.name);
+   * direction — the same trade the output rows above make.
+   *
+   * And against the document it was typed into. The name and the value
+   * together still cannot see a replacement that lands on both: taking the
+   * other editor's version of a schema with this same field and this same
+   * bound left the refused text on screen, on a page that said Saved. */
+  const pending = usePendingText(value, identity_of([revision, field.name]));
   const shown =
     pending.text !== null ? pending.text : value === undefined ? "" : String(value);
   const refused = pending.text !== null && !bound_from_text(pending.text, counted).ok;
@@ -173,14 +179,17 @@ function Bound({ field, bound, onChange }) {
  * it anyway deleted the other field's declaration and moved its `required`
  * marker across, then saved that. So a colliding name is held here, shown,
  * said, and not composed, until the author frees it. */
-function FieldName({ field, taken, onChange }) {
+function FieldName({ field, taken, revision, onChange }) {
   /* The rules are `useTakenName`'s, shared with the Subagent Pool's entry
      names. Whatever is held is unstored and says so — not only while it still
      collides: freeing the name by renaming the *other* field stopped the
      collision without storing anything, and a message conditional on the
      collision then left this box showing a name the document does not have
-     with nothing to say about it. */
-  const name = useTakenName(field.name, taken, undefined);
+     with nothing to say about it.
+     The only identity this box can have is the document it is typed into: the
+     name IS what the document calls this field, so holding the text against
+     the name would void it on the first keystroke that lands. */
+  const name = useTakenName(field.name, taken, identity_of([revision]));
   const shown = name.shown;
   const pending = { text: name.held };
   const taken_now = name.taken;
@@ -218,7 +227,7 @@ function FieldName({ field, taken, onChange }) {
   );
 }
 
-function FieldRow({ field, index, taken, isDark, onChange, onRemove }) {
+function FieldRow({ field, index, taken, revision, isDark, onChange, onRemove }) {
   const bounds = bounds_for(field.type);
   return (
     <div
@@ -247,6 +256,7 @@ function FieldRow({ field, index, taken, isDark, onChange, onRemove }) {
         <FieldName
           field={field}
           taken={taken}
+          revision={revision}
           onChange={(next) => onChange({ ...field, name: next })}
         />
         <Select
@@ -323,6 +333,7 @@ function FieldRow({ field, index, taken, isDark, onChange, onRemove }) {
             key={bound}
             field={field}
             bound={bound}
+            revision={revision}
             onChange={(value) => {
               const next = { ...(field.bounds || {}) };
               if (value === undefined) delete next[bound];
@@ -339,6 +350,9 @@ function FieldRow({ field, index, taken, isDark, onChange, onRemove }) {
 export default function OutputSchemaSection({
   document,
   node,
+  /* Which handed-over document this is — see `DetailPanel`. Carried down to
+     the two boxes that hold text this document does not. */
+  revision,
   isDark,
   onChange,
 }) {
@@ -536,6 +550,7 @@ export default function OutputSchemaSection({
               key={rows.ids[index]}
               field={field}
               index={index}
+              revision={revision}
               taken={fields
                 .filter((_, i) => i !== index)
                 .map((other) => (other && other.name) || "")}

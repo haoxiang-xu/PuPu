@@ -125,7 +125,7 @@ function offering(profiles, unavailable = []) {
   });
 }
 
-async function show(item) {
+async function show(item, revision = 1) {
   const onChange = jest.fn();
   let view = null;
   await act(async () => {
@@ -133,13 +133,33 @@ async function show(item) {
       <KernelSection
         document={doc(item)}
         node={item}
+        revision={revision}
         isDark={false}
         onChange={onChange}
       />,
     );
   });
-  return { onChange, view };
+  /* What the page does with what the section hands over: the section is
+     controlled, so nothing it writes is on screen until the document comes
+     back. A test that only inspected `onChange` could not see any of the
+     defects below, which are all about what is on screen afterwards. */
+  const again = (next, next_revision = revision) =>
+    act(async () => {
+      view.rerender(
+        <KernelSection
+          document={doc(next)}
+          node={next}
+          revision={next_revision}
+          isDark={false}
+          onChange={onChange}
+        />,
+      );
+    });
+  return { onChange, view, again };
 }
+
+/* The node carrying the kernel the section just wrote. */
+const node_with = (onChange, call = 0) => onChange.mock.calls[call][0].nodes[0];
 
 /* The kernel the section would have written, read back out of the document it
    handed over — so every assertion is about the document, never about the
@@ -212,10 +232,58 @@ describe("when the runtime cannot be reached", () => {
     expect(written(onChange).prompt).toBe("Changed.");
   });
 
+  /* `kernel_profiles` answers rather than throwing, so a rejection is a fault
+     in the code above it — which is not evidence that the runtime is out of
+     reach, and must not be reported as if it were. */
   test("a rejected read does not leave it reading forever", async () => {
     kernel_profiles.mockRejectedValue(new Error("boom"));
     await show(bare());
-    expect(screen.getByTestId("kernel-catalog-unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("kernel-catalog-unreadable")).toBeInTheDocument();
+    expect(screen.queryByTestId("kernel-catalog-unavailable")).toBeNull();
+    expect(screen.queryByTestId("kernel-catalog-empty")).toBeNull();
+  });
+});
+
+describe("an answer that is not a catalog", () => {
+  /* The negative case that found this: the malformed answer was coerced to
+     two empty lists, and this panel then stated "this build offers no model
+     that can be configured as a Kernel" — about an answer nobody could read.
+     Both are now their own thing, and neither wears the other's words. */
+  test("is said as unreadable, not as a build with no models", async () => {
+    kernel_profiles.mockResolvedValue({
+      ok: false,
+      reason: "refused",
+      error: { code: "skeleton_kernel_profile_list_malformed" },
+    });
+    await show(bare());
+    const said = screen.getByTestId("kernel-catalog-unreadable").textContent;
+    expect(said).toMatch(/not with a list of models/i);
+    expect(said).toMatch(/fault in this build/i);
+    expect(screen.queryByTestId("kernel-catalog-empty")).toBeNull();
+    expect(screen.queryByTestId("kernel-catalog-unavailable")).toBeNull();
+  });
+
+  test("an empty catalog still says what it means", async () => {
+    offering([]);
+    await show(bare());
+    expect(screen.getByTestId("kernel-catalog-empty").textContent).toMatch(
+      /offers no model/i,
+    );
+    expect(screen.queryByTestId("kernel-catalog-unreadable")).toBeNull();
+  });
+
+  test("a stored model stays editable through it", async () => {
+    kernel_profiles.mockResolvedValue({
+      ok: false,
+      reason: "refused",
+      error: { code: "skeleton_kernel_profile_list_malformed" },
+    });
+    const { onChange } = await show(configured());
+    expect(screen.getByTestId("kernel-profile-facts").textContent).toMatch(
+      /api\.openai\.com/,
+    );
+    fireEvent.change(prompt_box(), { target: { value: "Changed." } });
+    expect(written(onChange).prompt).toBe("Changed.");
   });
 });
 
@@ -438,5 +506,97 @@ describe("a stored kernel the runtime would refuse", () => {
       /config\.kernel\.max_iterations/,
     );
     expect(screen.getAllByPlaceholderText("—")[0].value).toBe("");
+  });
+});
+
+
+describe("a refused number and the model underneath it", () => {
+  const box = () => screen.getAllByPlaceholderText("—")[1];
+
+  /* The reported defect. 20000 is refused against this model's 16384 limit;
+     picking a model that allows 128000 made it storable, so the refusal
+     disappeared — and the box went on showing 20000 while the document still
+     held 4096. Nothing had written it, and nothing was going to: the text was
+     never a value, only a refusal, and a refusal that stops being refused is
+     not thereby stored. */
+  test("a new ceiling discards the text instead of validating it", async () => {
+    const { onChange, again } = await show(
+      configured({ profile: PLAIN, output_tokens: 4096, json_schema: null }),
+    );
+    fireEvent.change(box(), { target: { value: "20000" } });
+    expect(box().value).toBe("20000");
+    expect(screen.getByTestId("kernel-reservation-refused")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(model_picker(), { target: { value: "openai:gpt-6-sol" } });
+    const stored = written(onChange);
+    expect(stored.output_tokens).toBe(4096);
+    await again(node_with(onChange));
+
+    expect(box().value).toBe("4096");
+    expect(screen.queryByTestId("kernel-reservation-refused")).toBeNull();
+    expect(screen.getByText(/at most 128000/i)).toBeInTheDocument();
+  });
+
+  test("a model with a lower ceiling does not leave the text either", async () => {
+    const { onChange, again } = await show(configured({ output_tokens: 100000 }));
+    fireEvent.change(box(), { target: { value: "999999" } });
+    expect(screen.getByTestId("kernel-reservation-refused")).toBeInTheDocument();
+    fireEvent.change(model_picker(), {
+      target: { value: "anthropic:claude-sonnet-4" },
+    });
+    await again(node_with(onChange));
+    expect(box().value).toBe("16384");
+    expect(screen.queryByTestId("kernel-reservation-refused")).toBeNull();
+  });
+
+  test("the same ceiling and the same number keep the text, so the box is still usable", async () => {
+    /* The control case. Were the identity simply remade on every render, the
+       box could not hold `2.` long enough to become `2048`, and the number
+       editor would be back to deleting characters under the cursor. */
+    const { onChange, again } = await show(configured());
+    fireEvent.change(box(), { target: { value: "2." } });
+    await again(configured());
+    expect(box().value).toBe("2.");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("a document that arrives from the store", () => {
+  const box = () => screen.getAllByPlaceholderText("—")[1];
+  const turns = () => screen.getAllByPlaceholderText("—")[0];
+
+  /* The reported defect: taking the other editor's version replaced the
+     document, the page said Saved, and the refused number was still in the
+     box — because the value it was held against came back by coincidence. */
+  test("a refused reservation is discarded, not left on a saved page", async () => {
+    const { again } = await show(configured());
+    fireEvent.change(box(), { target: { value: "999999" } });
+    expect(screen.getByTestId("kernel-reservation-refused")).toBeInTheDocument();
+
+    await again(configured(), 2);
+
+    expect(box().value).toBe("4096");
+    expect(screen.queryByTestId("kernel-reservation-refused")).toBeNull();
+  });
+
+  test("a refused turn count is discarded with it", async () => {
+    const { again } = await show(configured());
+    fireEvent.change(turns(), { target: { value: "0" } });
+    expect(screen.getByTestId("kernel-iterations-refused")).toBeInTheDocument();
+    await again(configured(), 2);
+    expect(turns().value).toBe("12");
+    expect(screen.queryByTestId("kernel-iterations-refused")).toBeNull();
+  });
+
+  test("the author's own edit is not a replacement, so what they are typing stays", async () => {
+    /* The other half, and the reason this is not simply keyed to the
+       document: an edit replaces the document object on every keystroke that
+       lands, and a box that lost its text then could not be typed in. */
+    const { again } = await show(configured());
+    fireEvent.change(box(), { target: { value: "999999" } });
+    await again(configured({ prompt: "Changed." }), 1);
+    expect(box().value).toBe("999999");
+    expect(screen.getByTestId("kernel-reservation-refused")).toBeInTheDocument();
   });
 });

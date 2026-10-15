@@ -39,6 +39,18 @@ export default function DetailPanel({
   recipes,
   onDrillIn,
   document,
+  /* Which handed-over document this is. Several controls below show text the
+     document deliberately does not hold — a refused position, a refused
+     bound, a refused count, a name another field already has — and each one
+     holds it against the value it is showing instead of. That cannot tell a
+     replacement apart from a coincidence: taking the other editor's version
+     can land on the same value, and the refused text then sat on a page that
+     said Saved. So the identity those controls hold text against carries this
+     too, and a document arriving from the store discards it.
+     Absent on the legacy recipe page, which has no store session; the
+     sections then see `undefined` for the life of the panel, which is what
+     they saw before this existed. */
+  documentRevision,
   diagnostics,
   onDocumentChange,
 }) {
@@ -248,6 +260,7 @@ export default function DetailPanel({
             {skeleton_node.type === "agent" && (
               <KernelSection
                 document={document}
+                revision={documentRevision}
                 node={skeleton_node}
                 isDark={isDark}
                 onChange={onDocumentChange}
@@ -256,6 +269,7 @@ export default function DetailPanel({
             {skeleton_node.type === "agent" && (
               <OutputSchemaSection
                 document={document}
+                revision={documentRevision}
                 node={skeleton_node}
                 isDark={isDark}
                 onChange={onDocumentChange}
@@ -266,6 +280,7 @@ export default function DetailPanel({
                 halves of a wire are always found in the same place. */}
             <OutputVariablesSection
               document={document}
+              revision={documentRevision}
               node={skeleton_node}
               rowDiagnostics={routed.rows.outputs}
               isDark={isDark}

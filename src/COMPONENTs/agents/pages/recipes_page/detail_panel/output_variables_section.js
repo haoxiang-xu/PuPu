@@ -8,6 +8,7 @@ import {
   output_source_kinds_for,
   with_node_output_mappings,
 } from "../skeleton_document";
+import { identity_of } from "../document_values";
 import { make_output_mapping, output_mapping_problems } from "../skeleton_io";
 import { result_roots_for } from "../skeleton_result_roots";
 
@@ -151,6 +152,9 @@ export function result_root_problems(node, mappings) {
 export default function OutputVariablesSection({
   document,
   node,
+  /* Which handed-over document this is — see `DetailPanel`. It belongs in the
+     row identity below, where the rest of "which row is this" already is. */
+  revision,
   rowDiagnostics,
   isDark,
   onChange,
@@ -233,10 +237,22 @@ export default function OutputVariablesSection({
              takes its place, and anything still keyed to that place now
              describes a different mapping. The node and the row's own name
              narrow it as far as the wire allows — `{name, source}` is closed,
-             so there is no id to carry — and the rest is caught by comparing
-             the stored value. A rename drops a pending refusal, which is the
-             harmless direction. */
-          identity={`${node.id}:${index}:${(mapping && mapping.name) || ""}`}
+             so there is no id to carry. A rename drops a pending refusal,
+             which is the harmless direction.
+             This used to end "and the rest is caught by comparing the stored
+             value", which is not true: a document arriving from the store can
+             land on the same value, and the refused step then stayed on
+             screen beside a page that said Saved. So the document it was
+             typed against is part of what a row is, and a replacement remints
+             the steps rather than leaving them to a comparison that cannot
+             see it. Joined through `identity_of`, because a node id may hold
+             a colon and `a + ":" + b` is not an encoding. */
+          identity={identity_of([
+            revision,
+            node.id,
+            index,
+            (mapping && mapping.name) || "",
+          ])}
           nodeType={node.type}
           kinds={kinds}
           inputNames={names}

@@ -44,10 +44,31 @@ function next_open_id(session) {
   return ((session && session.open_id) || 0) + 1;
 }
 
+/* Changes when the document ON SCREEN was replaced by one from the store, and
+ * only then. `version` cannot answer this and `edit_token` cannot either: the
+ * first changes on every keystroke that lands, which is exactly when a control
+ * holding unstored text must keep it, and the second changes when the author's
+ * own version is re-based onto a newer token, which replaces nothing.
+ *
+ * It exists because a control cannot tell "the same number in a different
+ * document" from "the same number". Measured: a refused reservation typed into
+ * an Agent, a save refused for staleness, the other version taken — and the
+ * refused number was still sitting in the box on a page that now said Saved,
+ * because the value it was held against came back by coincidence. Unstored
+ * text is discarded when the thing it was typed against is gone, and a
+ * document arriving from the store is that.
+ *
+ * Monotonic like `version`, never reset: reopening a resource is another thing
+ * to have been handed. */
+function next_document_revision(session) {
+  return ((session && session.document_revision) || 0) + 1;
+}
+
 export function empty_session() {
   return {
     version: 0,
     open_id: 0,
+    document_revision: 0,
     status: SESSION_STATUS.EMPTY,
     resource_id: null,
     document: null,
@@ -95,6 +116,7 @@ export function loading(session, resource_id) {
     ...empty_session(),
     version: next_version(session),
     open_id: next_open_id(session),
+    document_revision: next_document_revision(session),
     status: SESSION_STATUS.LOADING,
     resource_id,
   };
@@ -113,6 +135,9 @@ export function loaded(session, data, issued) {
     ...empty_session(),
     version: next_version(session),
     open_id: (session && session.open_id) || 0,
+    /* Every load replaces what is on screen, and `conflict_discarded` and
+       `conversion_succeeded` are loads, so both are counted from here. */
+    document_revision: next_document_revision(session),
     status: SESSION_STATUS.READY,
     resource_id: (data && data.id) || session.resource_id,
     document: (data && data.document) || null,
@@ -163,6 +188,13 @@ export function save_succeeded(session, data, issued) {
   return {
     ...session,
     version: next_version(session),
+    /* The echoed document replaces the one on screen unless newer work is
+       sitting on it, and a page that says Saved may not be showing text the
+       store does not hold. Nothing is counted when the author's own newer
+       document is kept, because then nothing was replaced. */
+    document_revision: typed_since
+      ? session.document_revision
+      : next_document_revision(session),
     saving: false,
     dirty: typed_since,
     conflict: null,

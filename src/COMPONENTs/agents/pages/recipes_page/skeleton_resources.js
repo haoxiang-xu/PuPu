@@ -138,12 +138,34 @@ export async function convert_legacy_pools(resource_id, expected_edit_token, leg
  * this build declares no output cap for it is a thing the panel has to be
  * able to say; a picker that silently omitted it would read as PuPu having
  * forgotten the model. */
+export const CATALOG_MALFORMED = "skeleton_kernel_profile_list_malformed";
+
+const is_entry = (value) =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 export async function kernel_profiles() {
   const result = await call("listSkeletonKernelProfiles", (method) => method());
   if (!result.ok) return result;
+  /* Asked here as well as in the facade, and not because one of them might be
+     skipped: a strict consumer that trusts its transport to have checked the
+     shape is not a strict consumer. An answer that is not a catalog is
+     refused, never emptied — "no model can be configured" is a statement
+     about this build, and it must not be how an unreadable answer looks. */
+  const data = result.data;
+  const shaped =
+    is_entry(data) &&
+    Array.isArray(data.profiles) &&
+    Array.isArray(data.unavailable) &&
+    [...data.profiles, ...data.unavailable].every(is_entry);
+  if (!shaped) {
+    return refused({
+      code: CATALOG_MALFORMED,
+      message: "The runtime's answer was not a list of Kernel profiles.",
+    });
+  }
   const offered = [];
   const unavailable = [];
-  (Array.isArray(result.data && result.data.profiles) ? result.data.profiles : []).forEach(
+  data.profiles.forEach(
     (profile) => {
       const problems = kernel_admission_problems({
         schema_version: 1,
@@ -170,9 +192,7 @@ export async function kernel_profiles() {
       });
     },
   );
-  (Array.isArray(result.data && result.data.unavailable) ? result.data.unavailable : []).forEach(
-    (entry) => unavailable.push(entry),
-  );
+  data.unavailable.forEach((entry) => unavailable.push(entry));
   return { ok: true, data: { profiles: offered, unavailable } };
 }
 

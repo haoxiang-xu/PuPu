@@ -1276,3 +1276,65 @@ describe("a draft deeper than any save would take", () => {
     expect(() => show(agent(nest(20000)))).not.toThrow();
   });
 });
+
+
+describe("a schema that arrives from the store", () => {
+  /* The same defect the Kernel's number box had, one row down. Taking the
+     other editor's version replaces the document; if their schema holds this
+     same field with this same bound, the value and the name are both back,
+     and the refused text was still on screen beside a page saying Saved. */
+  const one = (minLength) => ({
+    type: "object",
+    properties: { a: { type: "string", minLength } },
+  });
+  const panel = (node, revision) => (
+    <OutputSchemaSection
+      document={doc(node)}
+      node={node}
+      revision={revision}
+      isDark={false}
+      onChange={() => {}}
+    />
+  );
+  const row = () => within(screen.getByTestId("schema-field-0"));
+
+  test("a refused bound is discarded even when the same bound comes back", () => {
+    const view = render(panel(agent(one(2), "a1"), 1));
+    fireEvent.change(row().getByDisplayValue("2"), { target: { value: "-1" } });
+    expect(screen.getByTestId("schema-bound-minLength-refused")).toBeInTheDocument();
+
+    view.rerender(panel(agent(one(2), "a1"), 2));
+
+    expect(row().getByDisplayValue("2")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("schema-bound-minLength-refused"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("an edit by the author keeps what is being typed", () => {
+    /* The control: without it, a bound could not be typed at all, because
+       every keystroke that lands replaces the document. */
+    const view = render(panel(agent(one(2), "a1"), 1));
+    fireEvent.change(row().getByDisplayValue("2"), { target: { value: "-1" } });
+    view.rerender(panel(agent(one(2), "a1"), 1));
+    expect(row().getByDisplayValue("-1")).toBeInTheDocument();
+    expect(screen.getByTestId("schema-bound-minLength-refused")).toBeInTheDocument();
+  });
+
+  test("a name another field already has is discarded with it", () => {
+    const two = {
+      type: "object",
+      properties: { a: { type: "string" }, b: { type: "string" } },
+    };
+    const view = render(panel(agent(two, "a1"), 1));
+    const first = within(screen.getByTestId("schema-field-0"));
+    fireEvent.change(first.getByDisplayValue("a"), { target: { value: "b" } });
+    expect(first.getByDisplayValue("b")).toBeInTheDocument();
+
+    view.rerender(panel(agent(two, "a1"), 2));
+
+    expect(
+      within(screen.getByTestId("schema-field-0")).getByDisplayValue("a"),
+    ).toBeInTheDocument();
+  });
+});

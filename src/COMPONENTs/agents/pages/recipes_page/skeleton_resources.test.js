@@ -1,4 +1,5 @@
 import {
+  CATALOG_MALFORMED,
   diagnose,
   kernel_profiles,
   list_resources,
@@ -8,6 +9,7 @@ import {
   save_draft,
 } from "./skeleton_resources";
 import { api } from "../../../../SERVICEs/api";
+import { CAPTURED_KERNEL_CATALOG } from "./kernel_profile_catalog_capture";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
 
@@ -226,5 +228,63 @@ describe("the Kernel profiles this build can offer", () => {
     const result = await kernel_profiles();
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe("unauthorized");
+  });
+
+  /* And neither is an answer that is not a catalog. Two empty lists is how
+     "this build can configure no model" is said, so an unreadable answer must
+     not be able to wear it — the panel would state the one about the other,
+     which is what a negative test found it doing. Asked here as well as in
+     the facade: a consumer that trusts its transport to have checked the
+     shape is not a strict consumer. */
+  [
+    ["neither half", {}],
+    ["only the profiles", { profiles: [] }],
+    ["only the refusals", { unavailable: [] }],
+    ["a profiles half that is not a list", { profiles: {}, unavailable: [] }],
+    ["a refusals half that is not a list", { profiles: [], unavailable: 0 }],
+    ["a profile that is not an object", { profiles: ["openai"], unavailable: [] }],
+    ["a profile that is a list", { profiles: [[]], unavailable: [] }],
+    ["a refusal that is not an object", { profiles: [], unavailable: ["gpt-5"] }],
+    ["nothing at all", null],
+    ["a list", []],
+    ["a string", "profiles"],
+    ["a number", 7],
+  ].forEach(([what, answer]) => {
+    test(`an answer with ${what} is refused, not emptied`, async () => {
+      api.unchain.listSkeletonKernelProfiles = jest.fn(async () => answer);
+      const result = await kernel_profiles();
+      expect(result.ok).toBe(false);
+      expect(result.reason).toBe("refused");
+      expect(result.error.code).toBe(CATALOG_MALFORMED);
+      expect(result.error.message).toMatch(/not a list of Kernel profiles/i);
+    });
+  });
+
+  /* The direction a stricter consumer can break: it must still accept the
+     real producer's own bytes. `CAPTURED_KERNEL_CATALOG` is what the route
+     answered on the pinned pair, after JSON. */
+  test("the real catalog passes the strict consumer whole", async () => {
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: CAPTURED_KERNEL_CATALOG.profiles.map((item) => ({ ...item })),
+      unavailable: CAPTURED_KERNEL_CATALOG.unavailable.map((item) => ({ ...item })),
+    }));
+    const result = await kernel_profiles();
+    expect(result.ok).toBe(true);
+    expect(result.data.profiles).toHaveLength(CAPTURED_KERNEL_CATALOG.profiles.length);
+    expect(result.data.unavailable).toHaveLength(
+      CAPTURED_KERNEL_CATALOG.unavailable.length,
+    );
+    expect(
+      result.data.unavailable.some((row) => row.reason === "profile_refused"),
+    ).toBe(false);
+  });
+
+  test("an empty catalog is an answer, because it says something true", async () => {
+    api.unchain.listSkeletonKernelProfiles = jest.fn(async () => ({
+      profiles: [],
+      unavailable: [],
+    }));
+    const result = await kernel_profiles();
+    expect(result).toEqual({ ok: true, data: { profiles: [], unavailable: [] } });
   });
 });

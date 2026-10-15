@@ -1,10 +1,13 @@
 import {
+  CAPTURED_ENDPOINTS,
   CAPTURED_KERNEL_ADMISSION,
   CAPTURED_KERNEL_REACHABILITY,
+  CAPTURED_PROVIDER_TRANSPORTS,
 } from "./kernel_config_capture";
 import { CAPTURED_KERNEL_CATALOG } from "./kernel_profile_catalog_capture";
 import {
   DEFAULT_MAX_ITERATIONS,
+  endpoint_is_addressable,
   kernel_admission_problems,
   KERNEL_PROTOCOLS,
   NATIVE_PROTOCOL_BY_PROVIDER,
@@ -339,5 +342,168 @@ describe("the producer's own profiles, through this editor's rules", () => {
   test("nothing is offered and withheld at once", () => {
     const offered = new Set(profiles.map((profile) => profile.id));
     unavailable.forEach((entry) => expect(offered.has(entry.id)).toBe(false));
+  });
+});
+
+
+describe("the endpoint, address by address", () => {
+  const profile = (endpoint) => ({
+    id: "p",
+    provider: "openai",
+    model: "gpt-4.1",
+    protocol: "openai-responses",
+    endpoint,
+    credential_ref: "c",
+    context_window: 100000,
+    output_limit: 4096,
+    capabilities: { json_schema: true, images: true, files: false },
+  });
+  const kernel = (endpoint) => ({
+    schema_version: 1,
+    profile: profile(endpoint),
+    prompt: "",
+    max_iterations: 1,
+    output_tokens: 1,
+    history: "root",
+    overflow: "error",
+    json_schema: null,
+  });
+
+  test("the capture is a shape enumeration and not a list of good addresses", () => {
+    expect(CAPTURED_ENDPOINTS.length).toBeGreaterThanOrEqual(140);
+    const accepted = CAPTURED_ENDPOINTS.filter((entry) => entry.accepted);
+    expect(accepted.length).toBeGreaterThan(40);
+    expect(CAPTURED_ENDPOINTS.length - accepted.length).toBeGreaterThan(40);
+    /* Every address this build's producer actually emits is in it, so the
+       corpus cannot drift into describing only the exotic. */
+    [
+      "https://api.openai.com/v1",
+      "https://api.anthropic.com",
+      "https://generativelanguage.googleapis.com",
+      "http://127.0.0.1:11434",
+      "http://localhost:11434",
+    ].forEach((endpoint) => {
+      const row = CAPTURED_ENDPOINTS.find((entry) => entry.endpoint === endpoint);
+      expect(row).toBeDefined();
+      expect(row.accepted).toBe(true);
+    });
+  });
+
+  CAPTURED_ENDPOINTS.forEach((entry) => {
+    test(`${entry.accepted ? "addressable" : "refused"}: ${JSON.stringify(
+      entry.endpoint,
+    )}`, () => {
+      expect(endpoint_is_addressable(entry.endpoint)).toBe(entry.accepted);
+    });
+  });
+
+  test("the whole kernel answers the same way, at the runtime's own path", () => {
+    CAPTURED_ENDPOINTS.forEach((entry) => {
+      const problems = kernel_admission_problems(kernel(entry.endpoint));
+      if (entry.accepted) {
+        expect(problems).toEqual([]);
+        return;
+      }
+      expect(problems).toEqual([
+        {
+          code: "invalid_value",
+          where: "kernel.profile.endpoint",
+          message:
+            "endpoint must be an http or https address with no credentials, query or fragment",
+        },
+      ]);
+    });
+  });
+
+  /* The seven the previous mirror passed in silence. Named, because a corpus
+     that happened to stop covering them would still be 135 green cases. */
+  [
+    "http://@host/",
+    "https://@api.openai.com/v1",
+    "http:\\\\host/",
+    "http:\\\\\\\\host/",
+    "https:\\\\api.openai.com\\v1",
+    "http:/host/",
+    "http:host/",
+  ].forEach((endpoint) => {
+    test(`still refused: ${JSON.stringify(endpoint)}`, () => {
+      const row = CAPTURED_ENDPOINTS.find((entry) => entry.endpoint === endpoint);
+      expect(row).toBeDefined();
+      expect(row.accepted).toBe(false);
+      expect(endpoint_is_addressable(endpoint)).toBe(false);
+    });
+  });
+
+  test("an empty port reads as no port, which the runtime accepts", () => {
+    expect(endpoint_is_addressable("http://h:/")).toBe(true);
+    expect(endpoint_is_addressable("http://h:65535/")).toBe(true);
+    expect(endpoint_is_addressable("http://h:65536/")).toBe(false);
+  });
+
+  test("a bracketed host is read as the runtime reads it", () => {
+    expect(endpoint_is_addressable("http://[::1]:11434/")).toBe(true);
+    expect(endpoint_is_addressable("http://[::1%eth0]/")).toBe(true);
+    expect(endpoint_is_addressable("http://[1.2.3.4]/")).toBe(false);
+    expect(endpoint_is_addressable("http://[::1]x/")).toBe(false);
+  });
+});
+
+describe("a provider name the runtime has no rule for", () => {
+  const kernel = (provider, protocol) => ({
+    schema_version: 1,
+    profile: {
+      id: "p",
+      provider,
+      model: "m",
+      protocol,
+      endpoint: "https://example.test/v1",
+      credential_ref: "c",
+      context_window: 100000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: false, files: false },
+    },
+    prompt: "",
+    max_iterations: 1,
+    output_tokens: 1,
+    history: "root",
+    overflow: "error",
+    json_schema: null,
+  });
+
+  test("the capture holds both halves, so neither direction is untested", () => {
+    expect(CAPTURED_PROVIDER_TRANSPORTS.filter((row) => row.bound).length).toBeGreaterThan(8);
+    expect(CAPTURED_PROVIDER_TRANSPORTS.filter((row) => !row.bound).length).toBeGreaterThan(4);
+  });
+
+  CAPTURED_PROVIDER_TRANSPORTS.forEach((row) => {
+    test(`${row.provider} over ${row.protocol} ${
+      row.bound ? "binds" : "contradicts itself"
+    }`, () => {
+      const problems = kernel_problems(kernel(row.provider, row.protocol));
+      const conflicts = problems.filter(
+        (problem) => problem.code === PROVIDER_PROTOCOL_CONFLICT,
+      );
+      expect(conflicts.length).toBe(row.bound ? 0 : 1);
+      /* Whatever the verdict, nothing else may be wrong with the kernel —
+         otherwise this would be measuring some other rule. */
+      expect(problems.length).toBe(conflicts.length);
+    });
+  });
+
+  /* The reported defect, by name. `__proto__` and `constructor` are the only
+     two Object.prototype members that survive `toLowerCase`, so they were the
+     only two provider names this editor invented a contradiction for. */
+  ["__proto__", "constructor"].forEach((provider) => {
+    KERNEL_PROTOCOLS.forEach((protocol) => {
+      test(`${provider} may be reached over ${protocol}`, () => {
+        expect(kernel_problems(kernel(provider, protocol))).toEqual([]);
+      });
+    });
+  });
+
+  test("the validator's own half never carries the pair rule", () => {
+    expect(
+      kernel_admission_problems(kernel("openai", "anthropic")),
+    ).toEqual([]);
   });
 });

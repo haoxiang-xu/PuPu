@@ -1,5 +1,6 @@
 import {
   SESSION_STATUS,
+  can_convert_legacy_pools,
   can_preflight,
   can_save,
   conflict_discarded,
@@ -19,6 +20,7 @@ import {
   save_refused,
   save_started,
   save_succeeded,
+  session_token,
 } from "./skeleton_resource_session";
 import {
   EDIT_CONFLICT_ERROR,
@@ -301,5 +303,111 @@ describe("the server may have checked a different version", () => {
     const started = base();
     const after = preflight_passed(started, { ok: true }, preflight_token(started));
     expect(after.preflight.ok).toBe(true);
+  });
+});
+
+
+describe("which document is on screen", () => {
+  /* The count exists because a control holding unstored text cannot tell "the
+     same value in a different document" from "the same value". Measured: a
+     refused reservation typed into an Agent, a save refused for staleness,
+     the other version taken — and the refused number was still in the box on
+     a page that said Saved, because the stored value came back unchanged.
+     What changed was which document it was, and nothing said so. */
+  const base = () => open_at("edit-1", doc("one"));
+
+  test("a load is a replacement", () => {
+    const first = base();
+    expect(first.document_revision).toBeGreaterThan(0);
+    const second = loaded(first, result({ document: doc("one"), edit_token: "edit-1" }));
+    expect(second.document_revision).not.toBe(first.document_revision);
+  });
+
+  test("reopening the same resource counts again", () => {
+    const first = base();
+    const reopened = loaded(
+      loading(first, "life"),
+      result({ document: doc("one"), edit_token: "edit-1" }),
+    );
+    expect(reopened.document_revision).toBeGreaterThan(first.document_revision);
+  });
+
+  test("an edit is not a replacement, however many land", () => {
+    /* The author's own keystroke replaces the document object; a box that
+       discarded its text then could not be typed in at all. */
+    let session = base();
+    const before = session.document_revision;
+    session = edited(session, doc("two"));
+    session = edited(session, doc("three"));
+    expect(session.document_revision).toBe(before);
+  });
+
+  test("taking the other version is a replacement", () => {
+    const started = save_started(edited(base(), doc("mine")));
+    const refused = save_refused(started, EDIT_CONFLICT_ERROR, null);
+    const taken = conflict_discarded(
+      refused,
+      result({ document: doc("theirs"), edit_token: "edit-2" }),
+    );
+    expect(taken.document_revision).toBeGreaterThan(refused.document_revision);
+    expect(taken.document.description).toBe("theirs");
+  });
+
+  test("keeping your own version replaces nothing", () => {
+    const started = save_started(edited(base(), doc("mine")));
+    const refused = save_refused(started, EDIT_CONFLICT_ERROR, null);
+    const kept = conflict_overridden(
+      refused,
+      result({ document: doc("theirs"), edit_token: "edit-2" }),
+    );
+    expect(kept.document_revision).toBe(refused.document_revision);
+    expect(kept.document.description).toBe("mine");
+  });
+
+  test("a save that echoes the stored document is a replacement", () => {
+    /* The page says Saved afterwards, and a page that says Saved may not be
+       showing text the store does not hold. */
+    const session = edited(base(), doc("mine"));
+    const issued = session_token(session);
+    const saved = save_succeeded(
+      session,
+      result({ document: doc("mine"), edit_token: "edit-2" }),
+      issued,
+    );
+    expect(saved.document_revision).toBeGreaterThan(session.document_revision);
+  });
+
+  test("a save that leaves newer work alone replaces nothing", () => {
+    const session = edited(base(), doc("mine"));
+    const issued = session_token(session);
+    const typed = edited(session, doc("newer"));
+    const saved = save_succeeded(
+      typed,
+      result({ document: doc("mine"), edit_token: "edit-2" }),
+      issued,
+    );
+    expect(saved.document_revision).toBe(typed.document_revision);
+    expect(saved.document.description).toBe("newer");
+  });
+
+  test("a refused save replaces nothing, so nothing typed is lost", () => {
+    const started = save_started(edited(base(), doc("mine")));
+    const refused = save_refused(started, EDIT_CONFLICT_ERROR, null);
+    expect(refused.document_revision).toBe(started.document_revision);
+  });
+
+  test("it never goes backwards, so no two documents share a count", () => {
+    let session = base();
+    const seen = [session.document_revision];
+    session = edited(session, doc("two"));
+    session = loaded(session, result({ document: doc("two"), edit_token: "e2" }));
+    seen.push(session.document_revision);
+    session = loaded(
+      loading(session, "life"),
+      result({ document: doc("two"), edit_token: "e3" }),
+    );
+    seen.push(session.document_revision);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
   });
 });

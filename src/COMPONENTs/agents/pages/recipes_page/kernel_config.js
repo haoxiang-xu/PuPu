@@ -35,6 +35,7 @@
  * refused at Run. The three capture cases that state it are skipped by name
  * in the test rather than quietly passing. */
 
+import { own } from "./document_values";
 import { output_schema_problems } from "./output_schema";
 
 export const KERNEL_CONFIG_KEY = "kernel";
@@ -94,9 +95,10 @@ export const KERNEL_PROTOCOLS = Object.freeze([
 export const HISTORY_SCOPES = Object.freeze(["root", "none"]);
 export const OVERFLOW_POLICIES = Object.freeze(["error", "compress"]);
 
-/* `kernel_profile.py:20-26`, `_NATIVE_PROTOCOLS`. A brand the runtime knows
+/* `kernel_profile.py:19-25`, `_NATIVE_PROTOCOLS`. A brand the runtime knows
    must carry its own protocol; a brand it does not know may carry any of the
-   four, which is how an endpoint-bound compatible provider is expressed. */
+   four, which is how an endpoint-bound compatible provider is expressed.
+   Read with `own`, never indexed — see `transport_problems`. */
 export const NATIVE_PROTOCOL_BY_PROVIDER = Object.freeze({
   openai: "openai-responses",
   anthropic: "anthropic",
@@ -164,30 +166,214 @@ function closed(value, path, required, problems) {
   return true;
 }
 
-/* `:33-40`. The endpoint is where the request actually goes, so the rules are
-   about what a transport can be pointed at: a scheme it speaks, a host to
-   resolve, and nothing smuggled in the parts a provider SDK would drop — a
-   credential in the authority, a query or a fragment. The port has to parse,
-   which is why an impossible one is refused here rather than at connect time.
+/* `:33-39`. The endpoint is where the request actually goes, so the rules are
+ * about what a transport can be pointed at: a scheme it speaks, a host to
+ * resolve, and nothing smuggled into the parts a provider SDK would drop — a
+ * credential in the authority, a query or a fragment. The port has to parse,
+ * which is why an impossible one is refused here rather than at connect time.
  *
- * `URL` is used as the parser because its verdicts on these eleven captured
- * cases are `urlsplit`'s: it throws on a missing scheme, a missing host, an
- * impossible port and a non-numeric one, exactly where Python raises or
- * reports an empty hostname. It is only ever asked questions — nothing is
- * read back out of it — so its normalisation cannot change what is stored. */
+ * This is `urlsplit`, ported. The first version asked `URL` instead, on the
+ * reasoning that its verdicts on the eleven captured cases were `urlsplit`'s —
+ * and they were, on those eleven. Measured across 142 addresses, the two
+ * parsers disagree on eighteen, and on SEVEN of them `URL` is the more
+ * permissive one, so this panel said nothing at all about an address the
+ * runtime refuses. None of the seven is exotic: `http://@host/` (Python reads
+ * an empty username there, and empty is not None), `http:\\host` and
+ * `http:/host` (the WHATWG parser takes both as an authority, `urlsplit`
+ * requires `//`). A lookalike parser cannot mirror a rule; only the rule can.
+ *
+ * So what follows is CPython 3.12's `urlsplit`, `_check_bracketed_netloc`,
+ * `_check_bracketed_host`, `_checknetloc` and `SplitResult.port`, in the order
+ * the runtime reaches them, with the validator's own five questions asked at
+ * the end. Every ValueError any of them raises is the same verdict here,
+ * because the runtime catches them all and reports one `invalid_value`.
+ *
+ * Checked against the real validator on the 142 enumerated addresses in
+ * `CAPTURED_ENDPOINTS` and on 4000 mutations of the five this build's producer
+ * actually emits: 4142 agreements, nothing in either direction. */
+
+/* `ipaddress.IPv4Address`, whose `_parse_octet` is stricter than it looks:
+   exactly four parts, ASCII decimal digits only, at most three of them, no
+   leading zero, and at most 255. Reached only by an IPv6 address written with
+   an embedded IPv4 tail, `[::ffff:1.2.3.4]`. */
+const DIGITS = /^[0-9]+$/;
+
+function ipv4_is_parseable(text) {
+  const octets = text.split(".");
+  if (octets.length !== 4) return false;
+  return octets.every((octet) => {
+    if (!DIGITS.test(octet) || octet.length > 3) return false;
+    if (octet !== "0" && octet[0] === "0") return false;
+    return Number(octet) <= 255;
+  });
+}
+
+/* `ipaddress.IPv6Address`, including the zone id it accepts — `[::1%eth0]` is
+   a real endpoint and the runtime takes it. */
+const HEXTET = /^[0-9a-fA-F]{1,4}$/;
+
+function ipv6_is_parseable(text) {
+  let address = text;
+  const percent = text.indexOf("%");
+  if (percent >= 0) {
+    const zone = text.slice(percent + 1);
+    if (zone === "" || zone.includes("%")) return false;
+    address = text.slice(0, percent);
+  }
+  if (address === "") return false;
+  const parts = address.split(":");
+  if (parts.length < 3) return false;
+  if (parts[parts.length - 1].includes(".")) {
+    if (!ipv4_is_parseable(parts.pop())) return false;
+    parts.push("0", "0");
+  }
+  if (parts.length > 9) return false;
+  let skipped = null;
+  for (let i = 1; i < parts.length - 1; i += 1) {
+    if (parts[i] !== "") continue;
+    if (skipped !== null) return false;
+    skipped = i;
+  }
+  if (skipped === null) {
+    if (parts.length !== 8) return false;
+    return parts.every((part) => HEXTET.test(part));
+  }
+  let above = skipped;
+  let below = parts.length - skipped - 1;
+  /* A single leading or trailing colon is only permitted as part of `::`. */
+  if (parts[0] === "") {
+    above -= 1;
+    if (above) return false;
+  }
+  if (parts[parts.length - 1] === "") {
+    below -= 1;
+    if (below) return false;
+  }
+  if (8 - (above + below) < 1) return false;
+  return [...parts.slice(0, above), ...parts.slice(parts.length - below)].every(
+    (part) => HEXTET.test(part),
+  );
+}
+
+/* `_check_bracketed_host`: an IPvFuture literal, or an address that parses as
+   IPv6. An IPv4 in brackets is refused by name there, and refused here by
+   failing to be an IPv6 — the same verdict for the same address. */
+const IPVFUTURE = /^v[0-9a-fA-F]+\.[\s\S]+$/;
+
+function bracketed_host_is_addressable(host) {
+  return host.startsWith("v") ? IPVFUTURE.test(host) : ipv6_is_parseable(host);
+}
+
+/* `_check_bracketed_netloc`, which exists to mirror the split `hostname`
+   performs: nothing may sit before the bracket, and the only thing that may
+   follow the closing one is the port delimiter. */
+function bracketed_netloc_is_addressable(netloc) {
+  const hostport = netloc.slice(netloc.lastIndexOf("@") + 1);
+  const open = hostport.indexOf("[");
+  if (open < 0) return true;
+  if (open > 0) return false;
+  const rest = hostport.slice(1);
+  const close = rest.indexOf("]");
+  const host = close < 0 ? rest : rest.slice(0, close);
+  const tail = close < 0 ? "" : rest.slice(close + 1);
+  if (tail && tail[0] !== ":") return false;
+  return bracketed_host_is_addressable(host);
+}
+
+/* `_checknetloc`: a character that is not `/?#@:` but normalises into one
+   under NFKC would be read as a delimiter by IDNA and not by the split above,
+   so `http://\u2100/` — `a/c` once normalised — is refused. ASCII is left
+   alone, as it is there. */
+function netloc_survives_nfkc(netloc) {
+  if (!netloc) return true;
+  /* eslint-disable-next-line no-control-regex */
+  if (!/[^\u0000-\u007f]/.test(netloc)) return true;
+  const stripped = netloc.replace(/[@:#?]/g, "");
+  const normalized = stripped.normalize("NFKC");
+  if (stripped === normalized) return true;
+  return !/[/?#@:]/.test(normalized);
+}
+
+/* `_splitnetloc`: the authority ends at the first `/`, `?` or `#`. */
+function split_authority(url, start) {
+  let end = url.length;
+  ["/", "?", "#"].forEach((mark) => {
+    const at = url.indexOf(mark, start);
+    if (at >= 0) end = Math.min(end, at);
+  });
+  return [url.slice(start, end), url.slice(end)];
+}
+
+const SCHEME_CHARS = /^[A-Za-z0-9+\-.]+$/;
+
 export function endpoint_is_addressable(value) {
   if (!is_exact_text(value)) return false;
-  let url = null;
-  try {
-    url = new URL(value);
-  } catch (error) {
-    return false;
+
+  /* `urlsplit` strips U+0000 to U+0020 from the front and removes tab, CR and
+     LF from anywhere at all, so an address is parsed after that and not
+     before — the text rule above has only refused surrounding whitespace. The
+     control characters below are that rule, not a mistake in writing it. */
+  /* eslint-disable-next-line no-control-regex */
+  const unwrapped = value.replace(/^[\u0000-\u0020]+/, "");
+  let rest = unwrapped.replace(/[\t\r\n]/g, "");
+  let scheme = "";
+  let netloc = "";
+  const colon = rest.indexOf(":");
+  if (
+    colon > 0 &&
+    /^[A-Za-z]$/.test(rest[0]) &&
+    SCHEME_CHARS.test(rest.slice(0, colon))
+  ) {
+    scheme = rest.slice(0, colon).toLowerCase();
+    rest = rest.slice(colon + 1);
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
-  if (!url.hostname) return false;
-  if (url.username || url.password) return false;
-  if (url.search || url.hash) return false;
-  return true;
+  if (rest.slice(0, 2) === "//") {
+    [netloc, rest] = split_authority(rest, 2);
+    const opens = netloc.includes("[");
+    const closes = netloc.includes("]");
+    if (opens !== closes) return false;
+    if (opens && !bracketed_netloc_is_addressable(netloc)) return false;
+  }
+  let fragment = "";
+  let query = "";
+  const hash = rest.indexOf("#");
+  if (hash >= 0) {
+    fragment = rest.slice(hash + 1);
+    rest = rest.slice(0, hash);
+  }
+  const mark = rest.indexOf("?");
+  if (mark >= 0) {
+    query = rest.slice(mark + 1);
+    rest = rest.slice(0, mark);
+  }
+  if (!netloc_survives_nfkc(netloc)) return false;
+
+  if (scheme !== "http" && scheme !== "https") return false;
+  /* `username` is not None for any authority holding an `@`, even
+     `http://@host/`, where it is the empty string. The runtime asks whether it
+     is None, so one `@` is the whole answer. */
+  if (netloc.includes("@")) return false;
+  if (query || fragment) return false;
+
+  const bracket = netloc.indexOf("[");
+  let hostname = "";
+  let port = "";
+  if (bracket >= 0) {
+    const inside = netloc.slice(bracket + 1);
+    hostname = inside.split("]")[0];
+    const tail = inside.slice(hostname.length + 1);
+    port = tail.includes(":") ? tail.slice(tail.indexOf(":") + 1) : "";
+  } else {
+    const divide = netloc.indexOf(":");
+    hostname = divide >= 0 ? netloc.slice(0, divide) : netloc;
+    port = divide >= 0 ? netloc.slice(divide + 1) : "";
+  }
+  if (!hostname) return false;
+  /* An absent port is None and asked nothing; `http://h:/` really is accepted
+     by the runtime, because an empty one reads as absent. */
+  if (port === "") return true;
+  if (!DIGITS.test(port)) return false;
+  return Number(port) <= 65535;
 }
 
 /* `:17-19` reports every one of these as the same code at the same path, so
@@ -297,7 +483,15 @@ export function transport_problems(profile, base) {
   if (!is_object(profile)) return [];
   const { provider, protocol } = profile;
   if (!is_exact_text(provider) || !is_exact_text(protocol)) return [];
-  const expected = NATIVE_PROTOCOL_BY_PROVIDER[provider.toLowerCase()];
+  /* Read, not indexed. `_NATIVE_PROTOCOLS.get(brand)` answers None for a
+     brand it does not hold, and indexing a JS object answers with the
+     prototype's — so `__proto__` was answered with an object and
+     `constructor` with a function, and this reported a contradiction for two
+     provider names the runtime has no rule for at all. Those two are exactly
+     the Object.prototype members that survive `toLowerCase`, which is why
+     `toString` and the rest never showed it. The rule, and the reason four
+     copies of it is how the defect kept returning, are in `own`. */
+  const expected = own(NATIVE_PROTOCOL_BY_PROVIDER, provider.toLowerCase());
   if (expected === undefined || expected === protocol) return [];
   return [
     problem(

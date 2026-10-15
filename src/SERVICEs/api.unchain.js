@@ -2629,10 +2629,22 @@ export const createUnchainApi = () => {
       const method = assertBridgeMethod("unchainAPI", "listSkeletonKernelProfiles");
       const response = await withTimeout(() => invokeSkeletonBridge(() => method()), 15000,
         "skeleton_kernel_profile_list_timeout", "Kernel profile list timed out");
-      return {
-        profiles: Array.isArray(response?.profiles) ? response.profiles : [],
-        unavailable: Array.isArray(response?.unavailable) ? response.unavailable : [],
-      };
+      // Both halves, or neither. Coercing a malformed answer to empty lists
+      // made "this build offers no model" and "that was not a catalog" the
+      // same value, and the panel then stated the first about the second. An
+      // answer that is not the agreed shape is a protocol error here, the way
+      // a refusal that is not the agreed record is in invokeSkeletonBridge.
+      const shaped = isObject(response) &&
+        Array.isArray(response.profiles) && Array.isArray(response.unavailable) &&
+        [...response.profiles, ...response.unavailable].every(
+          (entry) => isObject(entry) && !Array.isArray(entry));
+      if (!shaped) {
+        throw new FrontendApiError(
+          "skeleton_kernel_profile_list_malformed",
+          "Kernel profile list was not a catalog",
+        );
+      }
+      return { profiles: response.profiles, unavailable: response.unavailable };
     },
 
     listSkeletonPythonProfiles: async () => {

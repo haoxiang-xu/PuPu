@@ -1390,3 +1390,51 @@ describe("while the conversion is in flight", () => {
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
   });
 });
+
+
+describe("a pool that arrives from the store", () => {
+  /* The other three controls in this panel that hold unstored text needed the
+     document they were typed into added to their identity. This one did not,
+     and that is worth a test rather than a claim: the entry rows are keyed by
+     `useListIdentities`, which reminds its ids for any list this editor did
+     not announce it was writing — a reload, a conflict resolved the other
+     way, the other version taken — and a reminded row takes its name box with
+     it. Were that mechanism dropped, this would be the test that noticed. */
+  const two = [entry(), entry({ id: "subagent-2", name: "Checker" })];
+
+  const panel = (node, onChange) => (
+    <SubagentPoolSection
+      document={doc(node)}
+      node={node}
+      isDark={false}
+      onChange={onChange}
+    />
+  );
+
+  test("a refused name is discarded when their version holds the same entries", async () => {
+    list_resources.mockResolvedValue({ ok: true, data: { resources: LIBRARY } });
+    const onChange = jest.fn();
+    const mine = pool({ subagents: two });
+    const view = render(panel(mine, onChange));
+    await act(async () => {});
+
+    const row = within(screen.getByTestId("subagent-entry-0"));
+    fireEvent.change(row.getByDisplayValue("Summarizer"), {
+      target: { value: "Checker" },
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeInTheDocument();
+
+    /* Their version: the same two entries, as a list this editor never wrote. */
+    await act(async () => {
+      view.rerender(panel(pool({ subagents: two.map((item) => ({ ...item })) }), onChange));
+    });
+
+    expect(
+      within(screen.getByTestId("subagent-entry-0")).getByDisplayValue("Summarizer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("subagent-entry-0-name-taken"),
+    ).not.toBeInTheDocument();
+  });
+});

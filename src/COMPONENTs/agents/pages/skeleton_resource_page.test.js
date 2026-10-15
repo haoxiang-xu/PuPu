@@ -484,3 +484,104 @@ describe("the whole-value and result-root choices on the real page", () => {
     ]);
   });
 });
+
+
+describe("taking their version, with something unstored on screen", () => {
+  /* The whole chain, because every link in it can be dropped silently: the
+     session counts a replacement, the page hands the count to the panel, the
+     panel hands it to the sections, and the boxes hold their text against it.
+     A section test cannot see a missing prop; this can.
+
+     Driven the way it was reported: a reservation the model refuses, a save
+     the store answers with 409, and then "Look at theirs". */
+  const PROFILE = {
+    id: "openai:gpt-6-sol",
+    provider: "openai",
+    model: "gpt-6-sol",
+    protocol: "openai-responses",
+    endpoint: "https://api.openai.com/v1",
+    credential_ref: "openai",
+    context_window: 1050000,
+    output_limit: 128000,
+    capabilities: { json_schema: true, images: true, files: false },
+  };
+
+  const agent_doc = (prompt = "Answer.") => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "life",
+    nodes: [
+      {
+        id: "brain",
+        type: "agent",
+        config: {
+          execution: { inputs: [], outputs: [] },
+          kernel: {
+            schema_version: 1,
+            profile: PROFILE,
+            prompt,
+            max_iterations: 12,
+            output_tokens: 4096,
+            history: "root",
+            overflow: "error",
+            json_schema: null,
+          },
+        },
+      },
+    ],
+    edges: [],
+  });
+
+  const reservation = () =>
+    within(screen.getByTestId("recipe-detail-panel-body")).getAllByPlaceholderText("—")[1];
+
+  test("the refused number is gone, and the stored one is on screen", async () => {
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(result({ document: agent_doc(), edit_token: "t1" }))
+      .mockResolvedValue(result({ document: agent_doc("Theirs."), edit_token: "t9" }));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: EDIT_CONFLICT_ERROR });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [PROFILE], unavailable: [] });
+
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-brain")).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skeleton-node-brain"));
+    });
+
+    /* Something to save, so the store is asked at all. */
+    fireEvent.change(
+      screen.getByPlaceholderText("what this Agent is for"),
+      { target: { value: "Mine." } },
+    );
+    /* And something the model refuses, which is never stored. */
+    fireEvent.change(reservation(), { target: { value: "999999" } });
+    expect(
+      screen.getByTestId("kernel-reservation-refused").textContent,
+    ).toMatch(/still holds 4096/);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    expect(screen.getByTestId("skeleton-save-conflict")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("skeleton-save-conflict")).not.toBeInTheDocument(),
+    );
+
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+    expect(screen.getByPlaceholderText("what this Agent is for").value).toBe("Theirs.");
+    expect(reservation().value).toBe("4096");
+    expect(screen.queryByTestId("kernel-reservation-refused")).toBeNull();
+  });
+});

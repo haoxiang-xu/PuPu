@@ -144,6 +144,7 @@ export default function SkeletonResourcePage({ resourceId }) {
               onChange={() => {}}
               onChangeSilent={() => {}}
               document={document}
+              documentRevision={session.document_revision}
               diagnostics={session.diagnostics}
               onDocumentChange={edit}
               onConvertLegacy={convertLegacyPools}

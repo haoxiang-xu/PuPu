@@ -222,3 +222,221 @@ export const CAPTURED_KERNEL_REACHABILITY = Object.freeze(
     }),
   ),
 );
+
+/* ── The endpoint, as `urlsplit` answers for it ─────────────────────────── */
+
+/* The same validator, asked once per address with everything else in the
+ * profile left good, so the only thing a verdict can be about is the endpoint.
+ *
+ * These exist because the first mirror asked `URL` instead of porting
+ * `urlsplit`, and `URL` is the more permissive parser on seven of them —
+ * `http://@host/`, `https://@api.openai.com/v1`, three backslash authorities
+ * and two `http:/host` shapes — every one of which this panel therefore passed
+ * in silence while the runtime refuses it at Run.
+ *
+ * Enumerated by shape and not by taste: userinfo, backslash and slash
+ * authorities, every scheme nearby, ports at and outside the range and ports
+ * that are not numbers, empty and non-empty queries and fragments, bracketed
+ * hosts down to zone ids and IPvFuture, and hosts that only become delimiters
+ * under NFKC. Beyond these, 4000 mutations of the five addresses this build's
+ * producer actually emits were put through the same validator and the same
+ * mirror: 4000 agreements, which is recorded here rather than kept, because a
+ * fuzz run is evidence about the moment it ran. */
+
+const ENDPOINTS = [
+  {"endpoint": "https://api.openai.com/v1", "accepted": true},
+  {"endpoint": "https://api.anthropic.com", "accepted": true},
+  {"endpoint": "https://generativelanguage.googleapis.com", "accepted": true},
+  {"endpoint": "http://127.0.0.1:11434", "accepted": true},
+  {"endpoint": "http://localhost:11434", "accepted": true},
+  {"endpoint": "http://@host/", "accepted": false},
+  {"endpoint": "http://host@/", "accepted": false},
+  {"endpoint": "http://user@host/", "accepted": false},
+  {"endpoint": "http://:pass@host/", "accepted": false},
+  {"endpoint": "http://user:pass@host/", "accepted": false},
+  {"endpoint": "http://@/", "accepted": false},
+  {"endpoint": "https://@api.openai.com/v1", "accepted": false},
+  {"endpoint": "http://a@b@host/", "accepted": false},
+  {"endpoint": "http://host/@notauth", "accepted": true},
+  {"endpoint": "http:\\\\host/", "accepted": false},
+  {"endpoint": "http:\\\\\\\\host/", "accepted": false},
+  {"endpoint": "http://host\\path", "accepted": true},
+  {"endpoint": "https:\\\\api.openai.com\\v1", "accepted": false},
+  {"endpoint": "http:/host/", "accepted": false},
+  {"endpoint": "http:host/", "accepted": false},
+  {"endpoint": "http:///", "accepted": false},
+  {"endpoint": "http:////host/", "accepted": false},
+  {"endpoint": "//host/", "accepted": false},
+  {"endpoint": "host/", "accepted": false},
+  {"endpoint": "host", "accepted": false},
+  {"endpoint": "http://h/a/b/c", "accepted": true},
+  {"endpoint": "https://h//", "accepted": true},
+  {"endpoint": "http:", "accepted": false},
+  {"endpoint": "ftp://host/", "accepted": false},
+  {"endpoint": "ws://host/", "accepted": false},
+  {"endpoint": "wss://host/", "accepted": false},
+  {"endpoint": "HTTP://HOST/", "accepted": true},
+  {"endpoint": "hTtP://host/", "accepted": true},
+  {"endpoint": "https://", "accepted": false},
+  {"endpoint": "http://", "accepted": false},
+  {"endpoint": "javascript:alert(1)", "accepted": false},
+  {"endpoint": "file:///etc/passwd", "accepted": false},
+  {"endpoint": "data:text/plain,hi", "accepted": false},
+  {"endpoint": "HTTPS://api.openai.com/v1", "accepted": true},
+  {"endpoint": "h^x://host/", "accepted": false},
+  {"endpoint": "1http://host/", "accepted": false},
+  {"endpoint": "+http://host/", "accepted": false},
+  {"endpoint": "http+s://host/", "accepted": false},
+  {"endpoint": "http-s://host/", "accepted": false},
+  {"endpoint": "http://h:0/", "accepted": true},
+  {"endpoint": "http://h:65535/", "accepted": true},
+  {"endpoint": "http://h:65536/", "accepted": false},
+  {"endpoint": "http://h:99999/", "accepted": false},
+  {"endpoint": "http://h:-1/", "accepted": false},
+  {"endpoint": "http://h:abc/", "accepted": false},
+  {"endpoint": "http://h:/", "accepted": true},
+  {"endpoint": "http://h:+80/", "accepted": false},
+  {"endpoint": "http://h: 80/", "accepted": false},
+  {"endpoint": "http://h:80:90/", "accepted": false},
+  {"endpoint": "http://h:0x50/", "accepted": false},
+  {"endpoint": "http://h:\u0668\u0660/", "accepted": false},
+  {"endpoint": "http://h:00080/", "accepted": true},
+  {"endpoint": "http://h:8_0/", "accepted": false},
+  {"endpoint": "http://h:80/", "accepted": true},
+  {"endpoint": "http://h:80", "accepted": true},
+  {"endpoint": "http://[::1]:/", "accepted": true},
+  {"endpoint": "http://[::1]:abc/", "accepted": false},
+  {"endpoint": "http://h/?", "accepted": true},
+  {"endpoint": "http://h/#", "accepted": true},
+  {"endpoint": "http://h/?a=1", "accepted": false},
+  {"endpoint": "http://h/#f", "accepted": false},
+  {"endpoint": "http://h/?#", "accepted": true},
+  {"endpoint": "http://h#", "accepted": true},
+  {"endpoint": "http://h?", "accepted": true},
+  {"endpoint": "http://h/p?#", "accepted": true},
+  {"endpoint": "http://h/p#?", "accepted": false},
+  {"endpoint": "http://h/;p", "accepted": true},
+  {"endpoint": "http://[::1]:11434/", "accepted": true},
+  {"endpoint": "http://[::1]/", "accepted": true},
+  {"endpoint": "http://[::1/", "accepted": false},
+  {"endpoint": "http://::1]/", "accepted": false},
+  {"endpoint": "http://[]/", "accepted": false},
+  {"endpoint": "http://[::]/", "accepted": true},
+  {"endpoint": "http://[0:0:0:0:0:0:0:1]/", "accepted": true},
+  {"endpoint": "http://[0:0:0:0:0:0:0:0:1]/", "accepted": false},
+  {"endpoint": "http://[1::2::3]/", "accepted": false},
+  {"endpoint": "http://[:1]/", "accepted": false},
+  {"endpoint": "http://[1:]/", "accepted": false},
+  {"endpoint": "http://[12345::]/", "accepted": false},
+  {"endpoint": "http://[g::1]/", "accepted": false},
+  {"endpoint": "http://[::1%]/", "accepted": false},
+  {"endpoint": "http://[::1%eth0]/", "accepted": true},
+  {"endpoint": "http://[::1%25eth0]/", "accepted": true},
+  {"endpoint": "http://[::1%a%b]/", "accepted": false},
+  {"endpoint": "http://[::ffff:1.2.3.4]/", "accepted": true},
+  {"endpoint": "http://[::ffff:01.2.3.4]/", "accepted": false},
+  {"endpoint": "http://[::1.2.3.4]/", "accepted": true},
+  {"endpoint": "http://[::1.2.3]/", "accepted": false},
+  {"endpoint": "http://[1.2.3.4]/", "accepted": false},
+  {"endpoint": "http://[not-ip]/", "accepted": false},
+  {"endpoint": "http://[v1.fe80::a]/", "accepted": true},
+  {"endpoint": "http://[v1.]/", "accepted": false},
+  {"endpoint": "http://[v.1]/", "accepted": false},
+  {"endpoint": "http://[vZ.1]/", "accepted": false},
+  {"endpoint": "http://[V1.x]/", "accepted": false},
+  {"endpoint": "http://[vff.anything goes]/", "accepted": true},
+  {"endpoint": "http://[::1]x/", "accepted": false},
+  {"endpoint": "http://x[::1]/", "accepted": false},
+  {"endpoint": "http://[::1]]/", "accepted": false},
+  {"endpoint": "http://[[::1]/", "accepted": false},
+  {"endpoint": "http://exa mple.com/", "accepted": true},
+  {"endpoint": "http://ho_st/", "accepted": true},
+  {"endpoint": "http://h%00/", "accepted": true},
+  {"endpoint": "http://h%2f/", "accepted": true},
+  {"endpoint": "http://\u65e5\u672c.jp/", "accepted": true},
+  {"endpoint": "http://xn--wgv71a119e.jp/", "accepted": true},
+  {"endpoint": "http://\u2100/", "accepted": false},
+  {"endpoint": "http://\u2488.com/", "accepted": true},
+  {"endpoint": "http://h\tost/", "accepted": true},
+  {"endpoint": "http://h\nost/", "accepted": true},
+  {"endpoint": "http://h\rost/", "accepted": true},
+  {"endpoint": "http://h./", "accepted": true},
+  {"endpoint": "http://./", "accepted": true},
+  {"endpoint": "http://../", "accepted": true},
+  {"endpoint": "http://h..h/", "accepted": true},
+  {"endpoint": "http://0/", "accepted": true},
+  {"endpoint": "http://999.999.999.999/", "accepted": true},
+  {"endpoint": "http://h/ a", "accepted": true},
+  {"endpoint": "http://h/a b", "accepted": true},
+  {"endpoint": "http://h\\?x", "accepted": false},
+  {"endpoint": "http://h|x/", "accepted": true},
+  {"endpoint": "http://h<x>/", "accepted": true},
+  {"endpoint": "http://h\"x/", "accepted": true},
+  {"endpoint": "http://h{x}/", "accepted": true},
+  {"endpoint": "http://h^x/", "accepted": true},
+  {"endpoint": "http://h`x/", "accepted": true},
+  {"endpoint": "http://UPPER.EXAMPLE.COM/", "accepted": true},
+  {"endpoint": "http://\uff0fevil.com/", "accepted": false},
+  {"endpoint": "http://\u2100x/", "accepted": false},
+  {"endpoint": "http://x\u2100/", "accepted": false},
+  {"endpoint": "http://\ufe55x/", "accepted": false},
+  {"endpoint": "http://\uff03x/", "accepted": false},
+  {"endpoint": "http://\uff20x/", "accepted": false},
+  {"endpoint": "http://\uff1ax/", "accepted": false},
+  {"endpoint": "\u0000http://h/", "accepted": true},
+  {"endpoint": "http://h/\u0000", "accepted": true},
+  {"endpoint": "http://h\u0000/", "accepted": true},
+];
+
+export const CAPTURED_ENDPOINTS = Object.freeze(
+  ENDPOINTS.map((entry) => Object.freeze({ ...entry })),
+);
+
+/* ── The pair `validate_kernel_config` never looks at ───────────────────── */
+
+/* `bind_kernel_profile` on the pinned pair, once per provider/protocol pair,
+ * with a resolver that answers with the definition's own profile and a
+ * credential — so the only thing that can refuse is `_transport_for`.
+ *
+ * The last rows are the point. `__proto__` and `constructor` are legal
+ * provider names that the runtime binds on all four protocols, because
+ * `_NATIVE_PROTOCOLS.get(brand)` answers None for a brand it does not hold.
+ * The mirror INDEXED its table instead of reading it, and a JS object answers
+ * an index with its prototype's member — an object for the first, a function
+ * for the second — so both were reported as contradicting their protocol.
+ * They are also the only two such members that survive `toLowerCase`, which
+ * is why `toString` and `hasOwnProperty` never showed it. */
+
+const PROVIDER_TRANSPORTS = [
+  {"provider": "openai", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "openai", "protocol": "anthropic", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "openai", "protocol": "gemini", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "anthropic", "protocol": "anthropic", "bound": true, "transport_provider": "anthropic"},
+  {"provider": "anthropic", "protocol": "openai-responses", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "gemini", "protocol": "gemini", "bound": true, "transport_provider": "gemini"},
+  {"provider": "gemini", "protocol": "ollama", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "ollama", "protocol": "ollama", "bound": true, "transport_provider": "ollama"},
+  {"provider": "ollama", "protocol": "openai-responses", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "hyperspace", "protocol": "anthropic", "bound": true, "transport_provider": "hyperspace"},
+  {"provider": "hyperspace", "protocol": "openai-responses", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "OpenAI", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "OPENAI", "protocol": "anthropic", "bound": false, "raised": "ValueError", "message": "native provider brand contradicts its protocol"},
+  {"provider": "Anthropic", "protocol": "anthropic", "bound": true, "transport_provider": "anthropic"},
+  {"provider": "__proto__", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "__proto__", "protocol": "anthropic", "bound": true, "transport_provider": "hyperspace"},
+  {"provider": "__proto__", "protocol": "gemini", "bound": true, "transport_provider": "gemini"},
+  {"provider": "__proto__", "protocol": "ollama", "bound": true, "transport_provider": "ollama"},
+  {"provider": "constructor", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "constructor", "protocol": "anthropic", "bound": true, "transport_provider": "hyperspace"},
+  {"provider": "toString", "protocol": "anthropic", "bound": true, "transport_provider": "hyperspace"},
+  {"provider": "hasOwnProperty", "protocol": "gemini", "bound": true, "transport_provider": "gemini"},
+  {"provider": "valueOf", "protocol": "ollama", "bound": true, "transport_provider": "ollama"},
+  {"provider": "acme", "protocol": "anthropic", "bound": true, "transport_provider": "hyperspace"},
+  {"provider": "acme", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "together", "protocol": "openai-responses", "bound": true, "transport_provider": "openai"},
+  {"provider": "prototype", "protocol": "gemini", "bound": true, "transport_provider": "gemini"},
+];
+
+export const CAPTURED_PROVIDER_TRANSPORTS = Object.freeze(
+  PROVIDER_TRANSPORTS.map((entry) => Object.freeze({ ...entry })),
+);

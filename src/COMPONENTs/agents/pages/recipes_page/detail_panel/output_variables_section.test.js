@@ -454,3 +454,53 @@ describe("a result root the producer does not have", () => {
     expect(screen.getByTestId("output-row-0-unreadable")).toBeInTheDocument();
   });
 });
+
+
+describe("a document that arrives from the store", () => {
+  /* The last of the four controls that hold text the document does not: a
+     refused path position. The row identity is what the steps belong to, and
+     a replacement from the store is part of it — the comment there used to
+     say the stored value would catch this, and it does not, because their
+     version can hold the same mapping with the same position. */
+  /* An input-side path: its first step names a declared input and is picked
+     from a list, so the one typed step below it is the refusable one. */
+  const node_with = (position) =>
+    node("agent", {
+      inputs: [{ name: "question", value: {}, missing: "error" }],
+      outputs: [mapping("out", "input", ["question", position])],
+    });
+  const panel = (position, revision) => {
+    const n = node_with(position);
+    return (
+      <OutputVariablesSection
+        document={doc(n)}
+        node={n}
+        revision={revision}
+        isDark={false}
+        onChange={() => {}}
+      />
+    );
+  };
+
+  test("a refused position is discarded even when the same position comes back", () => {
+    const view = render(panel(7, 1));
+    const box = screen.getByDisplayValue("7");
+    fireEvent.change(box, { target: { value: "-1" } });
+    expect(screen.getByTestId("output-row-0-step-0-refused")).toBeInTheDocument();
+
+    view.rerender(panel(7, 2));
+
+    expect(screen.getByDisplayValue("7")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("output-row-0-step-0-refused"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("the author's own edit keeps what is being typed", () => {
+    const view = render(panel(7, 1));
+    fireEvent.change(screen.getByDisplayValue("7"), { target: { value: "-1" } });
+    view.rerender(panel(7, 1));
+    expect(screen.getByDisplayValue("-1")).toBeInTheDocument();
+    expect(screen.getByTestId("output-row-0-step-0-refused")).toBeInTheDocument();
+  });
+});

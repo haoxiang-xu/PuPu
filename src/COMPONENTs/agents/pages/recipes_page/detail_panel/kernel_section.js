@@ -14,7 +14,7 @@ import {
   with_kernel_profile,
 } from "../kernel_config";
 import { is_unavailable, kernel_profiles } from "../skeleton_resources";
-import { own, safe_text } from "../document_values";
+import { identity_of, own, safe_text } from "../document_values";
 
 /* The Kernel Loop: which model this Agent thinks with, and how.
  *
@@ -64,6 +64,15 @@ const NO_KERNEL_CAPTION =
 
 const UNREACHABLE_CAPTION =
   "The list of models comes from the runtime, which this build cannot reach, so a model cannot be picked yet. Anything already configured is shown as it is stored.";
+
+/* Not the same thing as an empty catalog, and it took a negative test to show
+   that this panel was saying the one about the other: a malformed answer was
+   coerced to two empty lists, which reads as "this build offers no model" —
+   a statement about the build, made about an answer nobody could read. Both
+   the facade and the consumer now refuse that answer instead of emptying it,
+   and this is what the refusal looks like. */
+const UNREADABLE_CAPTION =
+  "The runtime answered, but not with a list of models, so nothing can be picked here. That is a fault in this build rather than in this Agent. Anything already configured is shown as it is stored.";
 
 const EMPTY_CATALOG_CAPTION =
   "This build offers no model that can be configured as a Kernel. The reasons are listed below.";
@@ -136,7 +145,13 @@ function model_label(profile) {
  * document still holds is said out loud so the author is not guessing which
  * of their keystrokes landed. */
 function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, testId }) {
-  const pending = usePendingText(stored, about);
+  /* The ceiling is part of what the text was typed against, not just part of
+     the verdict on it. Measured: 20000 refused against a 4096 limit, then a
+     model allowing 32000 picked — the number became storable, so the refusal
+     beside it disappeared, and the box went on showing 20000 while the
+     document still held 4096. Nothing had written it; nothing was going to.
+     So a new ceiling voids the text, and the box shows what is stored. */
+  const pending = usePendingText(stored, identity_of([about, ceiling]));
   const shown =
     pending.text !== null
       ? pending.text
@@ -194,7 +209,15 @@ function CountRow({ label, stored, ceiling, caption, onStore, about, isDark, tes
   );
 }
 
-export default function KernelSection({ document, node, isDark, onChange }) {
+export default function KernelSection({
+  document,
+  node,
+  /* Which handed-over document this is — see `DetailPanel`. The two count
+     boxes below hold text this document does not. */
+  revision,
+  isDark,
+  onChange,
+}) {
   const kernel = node_kernel(node);
   const stored_profile = kernel ? own(kernel, "profile") : undefined;
 
@@ -208,10 +231,16 @@ export default function KernelSection({ document, node, isDark, onChange }) {
    * ticket beside it would be machinery whose second case cannot happen.
    *
    * The `catch` is not optional: without it a rejected promise leaves the
-   * section saying it is still reading, forever. */
+   * section saying it is still reading, forever.
+   *
+   * Three outcomes and not two. `unreachable` is "this build has no route to
+   * the runtime"; `unreadable` is "the route answered with something that is
+   * not a catalog". Collapsing them left the second wearing the caption for
+   * an empty catalog, which says this build offers no model — said about an
+   * answer that said nothing at all. */
   const [catalog, setCatalog] = useState({
     reading: true,
-    unavailable: false,
+    failure: null,
     profiles: [],
     unavailable_models: [],
   });
@@ -223,27 +252,31 @@ export default function KernelSection({ document, node, isDark, onChange }) {
         if (!result.ok) {
           setCatalog({
             reading: false,
-            unavailable: is_unavailable(result),
+            failure: is_unavailable(result) ? "unreachable" : "unreadable",
             profiles: [],
             unavailable_models: [],
             error: result.error || null,
           });
           return;
         }
+        /* The consumer has already refused anything that is not two arrays of
+           objects, so these are read rather than coerced. */
         setCatalog({
           reading: false,
-          unavailable: false,
-          profiles: Array.isArray(result.data.profiles) ? result.data.profiles : [],
-          unavailable_models: Array.isArray(result.data.unavailable)
-            ? result.data.unavailable
-            : [],
+          failure: null,
+          profiles: result.data.profiles,
+          unavailable_models: result.data.unavailable,
         });
       })
       .catch(() => {
         if (!live) return;
+        /* `kernel_profiles` answers rather than throwing, so this is a fault
+           in the code above and not a verdict about the runtime — which is
+           why it says the answer could not be read and does not claim the
+           runtime is out of reach. */
         setCatalog({
           reading: false,
-          unavailable: true,
+          failure: "unreadable",
           profiles: [],
           unavailable_models: [],
         });
@@ -304,13 +337,19 @@ export default function KernelSection({ document, node, isDark, onChange }) {
         </span>
       )}
 
-      {catalog.unavailable && (
+      {catalog.failure === "unreachable" && (
         <span data-testid="kernel-catalog-unavailable" style={CAPTION}>
           {UNREACHABLE_CAPTION}
         </span>
       )}
 
-      {!catalog.reading && !catalog.unavailable && options.length === 0 && (
+      {catalog.failure === "unreadable" && (
+        <span data-testid="kernel-catalog-unreadable" style={CAPTION}>
+          {UNREADABLE_CAPTION}
+        </span>
+      )}
+
+      {!catalog.reading && catalog.failure === null && options.length === 0 && (
         <span data-testid="kernel-catalog-empty" style={CAPTION}>
           {EMPTY_CATALOG_CAPTION}
         </span>
@@ -350,8 +389,11 @@ export default function KernelSection({ document, node, isDark, onChange }) {
             .slice(0, 6)
             .map(
               (entry) =>
+                /* Read, never indexed: a reason this build has no wording
+                   for is said as it is, and `constructor` is not a function.
+                   The rule is `own`'s. */
                 `${safe_text(own(entry, "id"))} — ${
-                  UNAVAILABLE_REASON[own(entry, "reason")] ||
+                  own(UNAVAILABLE_REASON, own(entry, "reason")) ||
                   safe_text(own(entry, "reason"))
                 }`,
             )
@@ -396,7 +438,7 @@ export default function KernelSection({ document, node, isDark, onChange }) {
             stored={own(kernel, "max_iterations")}
             caption="turns before PuPu stops it"
             onStore={(value) => store({ ...kernel, max_iterations: value })}
-            about={`${node.id}:max_iterations`}
+            about={identity_of([revision, node.id, "max_iterations"])}
             isDark={isDark}
             testId="kernel-iterations"
           />
@@ -409,7 +451,7 @@ export default function KernelSection({ document, node, isDark, onChange }) {
               stored_profile,
             )})`}
             onStore={(value) => store({ ...kernel, output_tokens: value })}
-            about={`${node.id}:output_tokens`}
+            about={identity_of([revision, node.id, "output_tokens"])}
             isDark={isDark}
             testId="kernel-reservation"
           />
