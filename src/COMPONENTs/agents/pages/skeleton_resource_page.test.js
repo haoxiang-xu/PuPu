@@ -536,6 +536,76 @@ describe("taking their version, with something unstored on screen", () => {
   const reservation = () =>
     within(screen.getByTestId("recipe-detail-panel-body")).getAllByPlaceholderText("—")[1];
 
+  /* The regression the save-echo count caused, driven the way it was found.
+     The box is cleared while the author's own Save is still in flight; the
+     echo lands; and the next digit must replace what is in the box rather
+     than be appended to a number the reply put back under the caret. */
+  test("a save's own reply does not refill a box being typed in", async () => {
+    let settle = null;
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: agent_doc(), edit_token: "t1" }));
+    api.unchain.saveSkeletonResource = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+    );
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [PROFILE], unavailable: [] });
+
+    show();
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-brain")).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skeleton-node-brain"));
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("what this Agent is for"), {
+      target: { value: "Mine." },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+
+    /* Cleared while that request is still out. Nothing was stored: an empty
+       box is not a number, and the box says so. */
+    fireEvent.change(reservation(), { target: { value: "" } });
+    expect(reservation().value).toBe("");
+    expect(
+      screen.getByTestId("kernel-reservation-refused").textContent,
+    ).toMatch(/still holds 4096/);
+
+    /* The author's own save lands, with the document it stored. */
+    await act(async () => {
+      settle(
+        result({
+          document: agent_doc("Mine."),
+          edit_token: "t2",
+        }),
+      );
+    });
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+    expect(reservation().value).toBe("");
+
+    /* The next digit, typed the way a keystroke arrives: appended to whatever
+       the box actually holds. */
+    const box = reservation();
+    fireEvent.change(box, { target: { value: `${box.value}5` } });
+    expect(reservation().value).toBe("5");
+
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document: agent_doc("Mine."), edit_token: "t3" }));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const sent = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    expect(sent.document.nodes[0].config.kernel.output_tokens).toBe(5);
+  });
+
   test("the refused number is gone, and the stored one is on screen", async () => {
     api.unchain.getSkeletonResource = jest
       .fn()

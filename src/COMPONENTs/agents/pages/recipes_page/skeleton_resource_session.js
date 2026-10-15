@@ -44,9 +44,10 @@ function next_open_id(session) {
   return ((session && session.open_id) || 0) + 1;
 }
 
-/* Changes when the document ON SCREEN was replaced by one from the store, and
- * only then. `version` cannot answer this and `edit_token` cannot either: the
- * first changes on every keystroke that lands, which is exactly when a control
+/* Changes when the author was handed another document TO LOOK AT, and only
+ * then: this resource opened or re-opened, or the other editor's version
+ * taken. `version` cannot answer it and `edit_token` cannot either — the first
+ * changes on every keystroke that lands, which is exactly when a control
  * holding unstored text must keep it, and the second changes when the author's
  * own version is re-based onto a newer token, which replaces nothing.
  *
@@ -54,9 +55,22 @@ function next_open_id(session) {
  * document" from "the same number". Measured: a refused reservation typed into
  * an Agent, a save refused for staleness, the other version taken — and the
  * refused number was still sitting in the box on a page that now said Saved,
- * because the value it was held against came back by coincidence. Unstored
- * text is discarded when the thing it was typed against is gone, and a
- * document arriving from the store is that.
+ * because the value it was held against came back by coincidence.
+ *
+ * What it must NOT count is the answer to a request the author made EARLIER.
+ * It counted a save's own echo for one round, on the reasoning that a page
+ * saying Saved should not show text the store does not hold — and that was
+ * wrong twice over. Local text that was never stored does not call `edit`, so
+ * `typed_since` cannot see it; and the echo then arrived while the author was
+ * typing in the box, refilled it under the caret, and made their next
+ * keystroke append to the refilled number instead of replacing it: 4096
+ * cleared, the echo landing, then `5` typed read as 40965. Taking the other
+ * version is a decision to throw this draft away; the reply to one's own Save
+ * is not permission to erase what was typed after clicking it. A conversion's
+ * answer is the same shape of reply and is excluded for the same reason.
+ *
+ * The box is not lying meanwhile: a refused number says beside itself that it
+ * was not stored and names the value that is.
  *
  * Monotonic like `version`, never reset: reopening a resource is another thing
  * to have been handed. */
@@ -135,8 +149,10 @@ export function loaded(session, data, issued) {
     ...empty_session(),
     version: next_version(session),
     open_id: (session && session.open_id) || 0,
-    /* Every load replaces what is on screen, and `conflict_discarded` and
-       `conversion_succeeded` are loads, so both are counted from here. */
+    /* A load is the author being handed a document to look at, and
+       `conflict_discarded` is one, so it is counted from here.
+       `conversion_succeeded` is a load too and must NOT be counted, so it
+       puts this back — see the note above. */
     document_revision: next_document_revision(session),
     status: SESSION_STATUS.READY,
     resource_id: (data && data.id) || session.resource_id,
@@ -188,13 +204,6 @@ export function save_succeeded(session, data, issued) {
   return {
     ...session,
     version: next_version(session),
-    /* The echoed document replaces the one on screen unless newer work is
-       sitting on it, and a page that says Saved may not be showing text the
-       store does not hold. Nothing is counted when the author's own newer
-       document is kept, because then nothing was replaced. */
-    document_revision: typed_since
-      ? session.document_revision
-      : next_document_revision(session),
     saving: false,
     dirty: typed_since,
     conflict: null,
@@ -430,7 +439,15 @@ function answers_conversion(session, issued) {
    work alone. */
 export function conversion_succeeded(session, data, issued) {
   if (!answers_conversion(session, issued)) return session;
-  return { ...loaded(session, data, issued), converting: false };
+  return {
+    ...loaded(session, data, issued),
+    /* A reply to a request the author made earlier, like a save's echo: it
+       replaces the stored document, and it may land while they are typing
+       something this document does not hold. Erasing that is how a cleared
+       number became 40965. */
+    document_revision: session.document_revision,
+    converting: false,
+  };
 }
 
 /* The same two decisions. A refusal that outlived its own version says

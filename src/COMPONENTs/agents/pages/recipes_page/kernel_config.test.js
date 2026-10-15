@@ -3,12 +3,15 @@ import {
   CAPTURED_KERNEL_ADMISSION,
   CAPTURED_KERNEL_REACHABILITY,
   CAPTURED_PROVIDER_TRANSPORTS,
+  CAPTURED_PYTHON_SPACE,
+  CAPTURED_TEXT_FIELDS,
 } from "./kernel_config_capture";
 import { CAPTURED_KERNEL_CATALOG } from "./kernel_profile_catalog_capture";
 import {
   DEFAULT_MAX_ITERATIONS,
   endpoint_is_addressable,
   kernel_admission_problems,
+  python_strip,
   KERNEL_PROTOCOLS,
   NATIVE_PROTOCOL_BY_PROVIDER,
   PROVIDER_PROTOCOL_CONFLICT,
@@ -398,21 +401,28 @@ describe("the endpoint, address by address", () => {
   });
 
   test("the whole kernel answers the same way, at the runtime's own path", () => {
+    /* One problem, with the runtime's own code and path. The wording is this
+       editor's, and there are two of them for this path — the runtime reports
+       `invalid_value` on `endpoint` both for text that is not exact and for
+       an address it cannot be pointed at — so the message is checked for
+       being one of the two rather than for being a particular one. */
+    const said = new Set();
     CAPTURED_ENDPOINTS.forEach((entry) => {
       const problems = kernel_admission_problems(kernel(entry.endpoint));
       if (entry.accepted) {
         expect(problems).toEqual([]);
         return;
       }
-      expect(problems).toEqual([
-        {
-          code: "invalid_value",
-          where: "kernel.profile.endpoint",
-          message:
-            "endpoint must be an http or https address with no credentials, query or fragment",
-        },
+      expect(problems.map((item) => [item.code, item.where])).toEqual([
+        ["invalid_value", "kernel.profile.endpoint"],
       ]);
+      said.add(problems[0].message);
     });
+    /* And both wordings are reached, so neither is dead. */
+    expect([...said].sort()).toEqual([
+      "endpoint must be an exact non-empty string",
+      "endpoint must be an http or https address with no credentials, query or fragment",
+    ]);
   });
 
   /* The seven the previous mirror passed in silence. Named, because a corpus
@@ -505,5 +515,96 @@ describe("a provider name the runtime has no rule for", () => {
     expect(
       kernel_admission_problems(kernel("openai", "anthropic")),
     ).toEqual([]);
+  });
+});
+
+
+describe("the whitespace the runtime strips, and the whitespace JavaScript does", () => {
+  /* The residual from the last round: the structure of `urlsplit` was ported
+     and its STRING rule was not, so the mirror still disagreed with the
+     runtime on six characters — and `trim()` looked close enough to hide it
+     for a whole round. */
+  test("the mirror strips exactly the code points the interpreter does", () => {
+    const measured = new Set(CAPTURED_PYTHON_SPACE);
+    const mine = [];
+    for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+      /* Lone surrogates cannot be a character on their own in either
+         language, and `String.fromCodePoint` would make one here. */
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      if (python_strip(String.fromCodePoint(cp)) === "") mine.push(cp);
+    }
+    expect(mine).toEqual([...measured].sort((a, b) => a - b));
+  });
+
+  test("the five JavaScript would have kept are stripped", () => {
+    [0x001c, 0x001d, 0x001e, 0x001f, 0x0085].forEach((cp) => {
+      const space = String.fromCodePoint(cp);
+      expect(CAPTURED_PYTHON_SPACE).toContain(cp);
+      expect(space.trim()).toBe(space);
+      expect(python_strip(space)).toBe("");
+      expect(endpoint_is_addressable(`${space}https://a/`)).toBe(false);
+      expect(endpoint_is_addressable(`https://a/${space}`)).toBe(false);
+    });
+  });
+
+  test("the one JavaScript would have stripped is kept", () => {
+    /* A byte order mark is not whitespace to Python, so an address wearing
+       one is exact text — and is then an ordinary address the runtime takes.
+       `trim()` removed it, and this mirror refused an address Run accepts. */
+    expect(CAPTURED_PYTHON_SPACE).not.toContain(0xfeff);
+    expect("﻿".trim()).toBe("");
+    expect(python_strip("﻿")).toBe("﻿");
+    expect(endpoint_is_addressable("https://a/﻿")).toBe(true);
+  });
+
+  test("a leading byte order mark is refused, for want of a scheme", () => {
+    /* Not by the text rule — by `urlsplit`, which does not strip it either
+       and then finds no scheme. The verdict is the same; the reason is not,
+       and the capture is what says which. */
+    expect(endpoint_is_addressable("﻿https://a/")).toBe(false);
+  });
+
+  test("a port with more digits than CPython will convert is refused", () => {
+    const zeros = (count) => `http://h:${"0".repeat(count)}80`;
+    expect(endpoint_is_addressable(zeros(4298))).toBe(true);
+    expect(endpoint_is_addressable(zeros(4400))).toBe(false);
+    expect(endpoint_is_addressable(`http://h:${"9".repeat(4301)}`)).toBe(false);
+  });
+
+  CAPTURED_TEXT_FIELDS.forEach((entry) => {
+    test(`${entry.key} with ${entry.label} is ${
+      entry.accepted ? "accepted" : "refused"
+    }`, () => {
+      const profile = {
+        id: "p",
+        provider: "openai",
+        model: "m",
+        protocol: "openai-responses",
+        endpoint: "https://a/",
+        credential_ref: "c",
+        context_window: 100000,
+        output_limit: 4096,
+        capabilities: { json_schema: true, images: true, files: false },
+        [entry.key]: entry.value,
+      };
+      const problems = kernel_admission_problems({
+        schema_version: 1,
+        profile,
+        prompt: "",
+        max_iterations: 1,
+        output_tokens: 1,
+        history: "root",
+        overflow: "error",
+        json_schema: null,
+      });
+      if (entry.accepted) {
+        expect(problems).toEqual([]);
+        return;
+      }
+      expect(problems.map((item) => [item.code, item.where])).toContainEqual([
+        entry.code,
+        `kernel.${entry.path.slice(1).join(".")}`,
+      ]);
+    });
   });
 });

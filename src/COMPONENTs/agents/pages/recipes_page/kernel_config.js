@@ -113,8 +113,30 @@ const is_object = (value) =>
 const is_count = (value) =>
   typeof value === "number" && Number.isInteger(value) && value >= 1;
 
-const is_exact_text = (value) =>
-  typeof value === "string" && value.trim() !== "" && value === value.trim();
+/* `str.strip()`, whose whitespace is not JavaScript's.
+ *
+ * Measured on the pinned pair's interpreter by asking every code point in
+ * Unicode: it removes 29, frozen as `CAPTURED_PYTHON_SPACE`. `trim()` removes
+ * 25, and the sets are not nested — Python also strips U+001C to U+001F and
+ * U+0085, JavaScript also strips U+FEFF. All six were disagreements with the
+ * runtime: five let an address through that it refuses (`\u001fhttps://a/`,
+ * `https://a/\u0085`), and the sixth refused one it accepts (a trailing byte
+ * order mark). The runtime asks this of all six text fields, so it is asked
+ * here once, for all six. */
+/* eslint-disable-next-line no-control-regex */
+const PYTHON_SPACE =
+  "[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]";
+const PYTHON_STRIP = new RegExp(`^${PYTHON_SPACE}+|${PYTHON_SPACE}+$`, "g");
+
+export function python_strip(value) {
+  return value.replace(PYTHON_STRIP, "");
+}
+
+const is_exact_text = (value) => {
+  if (typeof value !== "string") return false;
+  const stripped = python_strip(value);
+  return stripped !== "" && value === stripped;
+};
 
 function problem(code, where, message) {
   return { code, where, message };
@@ -373,6 +395,12 @@ export function endpoint_is_addressable(value) {
      by the runtime, because an empty one reads as absent. */
   if (port === "") return true;
   if (!DIGITS.test(port)) return false;
+  /* `int(port)` is where the digits become a number, and CPython refuses a
+     string of more than 4300 of them — `sys.get_int_max_str_digits()`, left
+     at its default by both the runtime and the sidecar. `Number` has no such
+     limit, so 4400 zeros and an 80 was a port this mirror read as 80 and the
+     runtime will not read at all. Measured: 4300 digits convert, 4301 raise. */
+  if (port.length > 4300) return false;
   return Number(port) <= 65535;
 }
 

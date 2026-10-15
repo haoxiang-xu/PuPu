@@ -6,6 +6,8 @@ import {
   conflict_discarded,
   conflict_message,
   conflict_overridden,
+  conversion_started,
+  conversion_succeeded,
   edited,
   empty_session,
   is_edit_conflict,
@@ -364,9 +366,14 @@ describe("which document is on screen", () => {
     expect(kept.document.description).toBe("mine");
   });
 
-  test("a save that echoes the stored document is a replacement", () => {
-    /* The page says Saved afterwards, and a page that says Saved may not be
-       showing text the store does not hold. */
+  /* This counted a save's own echo for one round, and the regression it
+     caused is the reason it does not any more. Local text that was never
+     stored does not call `edit`, so nothing here can see it — and the echo
+     then landed in a box the author was typing in, refilled it under the
+     caret, and turned their next keystroke into an append: a cleared 4096,
+     the echo, then `5`, read as 40965. The reply to one's own Save is not
+     permission to erase what was typed after clicking it. */
+  test("a save's own echo is not a replacement", () => {
     const session = edited(base(), doc("mine"));
     const issued = session_token(session);
     const saved = save_succeeded(
@@ -374,10 +381,12 @@ describe("which document is on screen", () => {
       result({ document: doc("mine"), edit_token: "edit-2" }),
       issued,
     );
-    expect(saved.document_revision).toBeGreaterThan(session.document_revision);
+    expect(saved.document_revision).toBe(session.document_revision);
+    expect(saved.dirty).toBe(false);
+    expect(saved.document.description).toBe("mine");
   });
 
-  test("a save that leaves newer work alone replaces nothing", () => {
+  test("a save that leaves newer work alone replaces nothing either", () => {
     const session = edited(base(), doc("mine"));
     const issued = session_token(session);
     const typed = edited(session, doc("newer"));
@@ -388,6 +397,22 @@ describe("which document is on screen", () => {
     );
     expect(saved.document_revision).toBe(typed.document_revision);
     expect(saved.document.description).toBe("newer");
+  });
+
+  test("a conversion's answer is not a replacement, for the same reason", () => {
+    /* It is a reply to a request made earlier too, and it can land while the
+       author is in the middle of a box. The document it carries is still
+       adopted — only the count is withheld. */
+    const session = conversion_started(base());
+    const issued = session_token(session);
+    const after = conversion_succeeded(
+      session,
+      result({ document: doc("converted"), edit_token: "edit-2" }),
+      issued,
+    );
+    expect(after.document_revision).toBe(session.document_revision);
+    expect(after.document.description).toBe("converted");
+    expect(after.converting).toBe(false);
   });
 
   test("a refused save replaces nothing, so nothing typed is lost", () => {
