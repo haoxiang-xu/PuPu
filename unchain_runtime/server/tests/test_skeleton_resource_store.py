@@ -1487,17 +1487,16 @@ class LegacyKernelIdentityTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "legacy_profile_required")
         self.assertEqual(list(caught.exception.path), ["legacy_kernel"])
 
-    def test_explicit_root_does_not_supply_legacy_inline_child_kernel(self):
+    def test_explicit_owner_supplies_its_legacy_inline_child_kernel(self):
         resource_id, before = self.migrated(
             name="Configured root legacy child", pool=[self.inline(None)])
         document = deepcopy(before["document"])
         document["nodes"][1]["config"]["kernel"] = deepcopy(LEGACY_KERNEL)
         self.store.save_draft(document, expected_edit_token=before["edit_token"])
-        with self.assertRaises(SkeletonResourceError) as caught:
-            self.store.preflight(resource_id)
-        self.assertEqual(caught.exception.code, "legacy_profile_required")
-        self.assertEqual(list(caught.exception.path),
-                         ["document", "nodes", 3, "config", "legacy_fields", "subagents", 0])
+        admitted = self.store.preflight(resource_id)
+        self.assertEqual(admitted["subagents"][0]["document"]["nodes"][1]["config"]["kernel"]["profile"],
+                         LEGACY_KERNEL["profile"])
+        self.assertEqual(self.store.get_resource(resource_id)["document"], document)
 
     def test_explicit_invalid_kernel_is_not_treated_as_missing(self):
         resource_id, before = self.migrated(name="Explicit invalid")
@@ -1510,13 +1509,8 @@ class LegacyKernelIdentityTests(unittest.TestCase):
         self.assertEqual(list(caught.exception.path),
                          ["document", "nodes", 1, "config", "kernel"])
 
-    def test_the_supplied_kernel_is_carried_except_for_the_prompt(self):
-        """Which is why the editor drops the parent's schema before handing it.
-
-        `materialize_legacy_agent` copies the supplied Kernel into every
-        Agent it builds and replaces only the prompt, so a `json_schema` left
-        in would be the parent's output contract imposed on each subagent.
-        """
+    def test_the_supplied_child_fallback_projects_prompt_and_schema_only(self):
+        """The store owns the projection even if a caller sends a full Kernel."""
         resource_id, before = self.migrated(pool=[self.inline(None)])
         supplied = self.kernel_for(
             "openai", "gpt-4.1", history="none", overflow="compress",
@@ -1530,7 +1524,7 @@ class LegacyKernelIdentityTests(unittest.TestCase):
         kernel = next(node["config"]["kernel"] for node in child["nodes"]
                       if node["type"] == "agent" and "kernel" in node["config"])
         self.assertEqual(kernel["prompt"], "Be brief.")
-        self.assertEqual(kernel["json_schema"], supplied["json_schema"])
+        self.assertIsNone(kernel["json_schema"])
         self.assertEqual(kernel["history"], "none")
         self.assertEqual(kernel["overflow"], "compress")
         self.assertEqual(kernel["output_tokens"], 999)
@@ -1561,6 +1555,292 @@ class LegacyKernelIdentityTests(unittest.TestCase):
                 resource_id,
                 legacy_kernel=self.kernel_for("anthropic", "claude-x"))
         self.assertEqual(caught.exception.code, "identity_mismatch")
+
+
+class LegacyPoolOwnerKernelTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = SkeletonResourceStore(Path(self.tmp.name) / "skeletons")
+
+    @staticmethod
+    def chosen(provider="openai"):
+        result = deepcopy(LEGACY_KERNEL)
+        if provider == "anthropic":
+            result["profile"].update(
+                id="anthropic-choice", provider="anthropic", model="claude-x",
+                protocol="anthropic", endpoint="https://api.anthropic.com/v1/messages",
+                credential_ref="anthropic")
+        return result
+
+    @staticmethod
+    def inline(model=None, prompt_format="soul"):
+        return {"kind": "inline", "name": "Child", "prompt_format": prompt_format,
+                "template": {"prompt": "Child instructions", "description": "  exact child description  ",
+                             "model": model, "allowed_modes": ["worker"],
+                             "output_mode": "full_trace", "memory_policy": "scoped_persistent",
+                             "parallel_safe": False, "allowed_tools": []},
+                "disabled_tools": ["write"]}
+
+    def graph(self, *, second=None, resource_id="by-owner"):
+        document = agent(resource_id)
+        document["nodes"][1]["config"]["kernel"] = self.chosen()
+        if second is not None:
+            node = deepcopy(document["nodes"][1])
+            node["id"] = "right"
+            node["config"]["kernel"] = deepcopy(second)
+            node["config"]["execution"]["inputs"] = [binding("message", "kernel", ["message"])]
+            document["nodes"].insert(2, node)
+            document["nodes"][-1]["config"]["execution"]["inputs"] = [binding("message", "right", ["message"])]
+            document["edges"][1]["target_node_id"] = "right"
+            document["edges"].append({"id": "right-end", "kind": "flow",
+                "source_node_id": "right", "source_port_id": "out",
+                "target_node_id": "end", "target_port_id": "in"})
+        return document
+
+    @staticmethod
+    def add_pool(document, pool_id, owners, entries, *, modern=False):
+        document["nodes"].append({"id": pool_id, "type": "subagent_pool",
+            "config": {"subagents": entries} if modern else {"legacy_fields": {"subagents": entries}}})
+        for index, owner in enumerate(owners):
+            edge = {"id": f"{pool_id}-attach-{index}", "kind": "attach",
+                    "source_node_id": owner, "source_port_id": "attach_bot",
+                    "target_node_id": pool_id, "target_port_id": "attach_top"}
+            if index % 2:
+                edge.update(source_node_id=pool_id, target_node_id=owner)
+            document["edges"].append(edge)
+
+    @staticmethod
+    def children(document):
+        return {node["id"]: node["config"]["subagents"][0]["source"]["document"]
+                for node in document["nodes"] if node["type"] == "subagent_pool"}
+
+    @staticmethod
+    def child_kernel(document):
+        return next(node["config"]["kernel"] for node in document["nodes"] if node["type"] == "agent")
+
+    def test_distinct_pool_owners_choose_distinct_providers_in_one_cas(self):
+        document = self.graph(second=self.chosen("anthropic"))
+        self.add_pool(document, "left-pool", ["kernel"], [self.inline("openai:gpt-4.1")])
+        self.add_pool(document, "right-pool", ["right"], [self.inline("anthropic:claude-x")])
+        original = deepcopy(document)
+        before = self.store.save_draft(document)
+        admitted = self.store.preflight(document["id"])
+        after = self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"])
+        self.assertEqual(self.children(admitted["document"]), self.children(after["document"]))
+        for pool_id, provider in (("left-pool", "openai"), ("right-pool", "anthropic")):
+            kernel = self.child_kernel(self.children(after["document"])[pool_id])
+            self.assertEqual(kernel["profile"], self.chosen(provider)["profile"])
+            self.assertEqual(kernel["prompt"], "Child instructions")
+            self.assertIsNone(kernel["json_schema"])
+        with self.store._connect() as connection:
+            revision = connection.execute("SELECT edit_revision FROM resources WHERE resource_id=?", (document["id"],)).fetchone()[0]
+        self.assertEqual(revision, 2)
+        self.assertEqual(document, original)
+        for node in original["nodes"]:
+            if node["type"] != "subagent_pool":
+                self.assertEqual(next(item for item in after["document"]["nodes"] if item["id"] == node["id"]), node)
+
+    def test_owner_kernel_overrides_unrelated_request_and_child_does_not_inherit_schema(self):
+        document = self.graph()
+        owner = self.chosen("anthropic")
+        owner.update(prompt="Parent authored prompt", max_iterations=11,
+                     json_schema={"type": "object", "properties": {"parent": {"type": "string"}}})
+        document["nodes"][1]["config"]["kernel"] = owner
+        self.add_pool(document, "pool", ["kernel"], [self.inline("anthropic:claude-x")])
+        before = self.store.save_draft(document)
+        admitted = self.store.preflight(document["id"], legacy_kernel=self.chosen())
+        after = self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+        child = self.children(after["document"])["pool"]
+        self.assertEqual(self.children(admitted["document"])["pool"], child)
+        self.assertEqual(self.child_kernel(child), {**owner, "prompt": "Child instructions", "json_schema": None})
+        self.assertEqual(admitted["document"]["nodes"][1]["config"]["kernel"], owner)
+
+    def test_invalid_present_owner_kernel_is_typed_and_never_uses_fallback(self):
+        bad_prompt = {**self.chosen(), "prompt": 7}
+        bad_schema = {**self.chosen(), "json_schema": {"type": "object"}}
+        bad_schema["profile"]["capabilities"]["json_schema"] = False
+        bad_schema_shape = {**self.chosen(), "json_schema": {"type": "string"}}
+        cases = ((None, "invalid_type", []), ({}, "missing_field", ["history"]),
+                 (bad_prompt, "invalid_type", ["prompt"]),
+                 (bad_schema, "unsupported_capability", ["json_schema"]),
+                 (bad_schema_shape, "invalid_schema", ["json_schema", "type"]))
+        for index, (bad, code, suffix) in enumerate(cases):
+            with self.subTest(kernel=bad):
+                document = self.graph(resource_id=f"bad-owner-{index}")
+                document["nodes"][1]["config"]["kernel"] = bad
+                self.add_pool(document, "pool", ["kernel"], [self.inline()])
+                before = self.store.save_draft(document)
+                with self.assertRaises(SkeletonResourceError) as caught:
+                    self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+                self.assertEqual(caught.exception.code, code)
+                self.assertEqual(list(caught.exception.path), ["document", "nodes", 1, "config", "kernel"] + suffix)
+                self.assertEqual(self.store.get_resource(document["id"]), before)
+
+    def test_unattached_pool_is_not_given_an_unrelated_kernel(self):
+        document = self.graph()
+        self.add_pool(document, "pool", [], [self.inline()])
+        before = self.store.save_draft(document)
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+        self.assertEqual(caught.exception.code, "legacy_owner_required")
+        self.assertEqual(list(caught.exception.path), ["document", "nodes", 3, "config"])
+        self.assertEqual(self.store.get_resource(document["id"]), before)
+
+    def test_shared_pool_compares_full_projected_kernels_before_writing(self):
+        for index, field in enumerate(("endpoint", "credential_ref", "output_tokens")):
+            with self.subTest(field=field):
+                other = self.chosen()
+                if field == "output_tokens":
+                    other[field] = 999
+                else:
+                    other["profile"][field] = "https://other.example/v1" if field == "endpoint" else "other.secret"
+                document = self.graph(second=other, resource_id=f"shared-conflict-{index}")
+                self.add_pool(document, "pool", ["kernel", "right"], [self.inline()])
+                before = self.store.save_draft(document)
+                with self.assertRaises(SkeletonResourceError) as caught:
+                    self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+                self.assertEqual(caught.exception.code, "legacy_kernel_ambiguous")
+                self.assertEqual(list(caught.exception.path), ["document", "nodes", 4, "config"])
+                self.assertEqual(self.store.get_resource(document["id"]), before)
+
+    def test_shared_pool_is_bound_to_each_owner_once_in_both_orientations(self):
+        other = self.chosen()
+        other.update(prompt="Another parent prompt", json_schema={"type": "object", "properties": {"x": {"type": "string"}}})
+        document = self.graph(second=other)
+        self.add_pool(document, "pool", ["kernel", "right", "kernel"], [self.inline()])
+        before = self.store.save_draft(document)
+        self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+        admitted = self.store.preflight(document["id"])
+        self.assertEqual([(row["kernel_node_id"], row["entry_id"]) for row in admitted["subagents"]],
+                         [("kernel", "legacy-pool-0"), ("right", "legacy-pool-0")])
+        self.assertEqual(admitted["subagents"][0]["document"], admitted["subagents"][1]["document"])
+
+    def test_request_fallback_uses_original_owner_context_before_root_materialization(self):
+        source = json.loads(legacy_recipe("Original owner", pool=[self.inline()]))
+        source["max_iterations"] = 7
+        self.store.migrate_legacy(source_identity="/legacy/original.recipe", source_scope="recipes", source_kind="recipe", source=json.dumps(source))
+        resource_id = self.store.list_resources()[0]["id"]
+        before = self.store.get_resource(resource_id)
+        fallback = self.chosen()
+        fallback["max_iterations"] = 11
+        admitted = self.store.preflight(resource_id, legacy_kernel=fallback)
+        after = self.store.convert_legacy_pools(resource_id, expected_edit_token=before["edit_token"], legacy_kernel=fallback)
+        self.assertEqual(self.children(admitted["document"]), self.children(after["document"]))
+        self.assertEqual(self.child_kernel(self.children(after["document"])["pool"])["max_iterations"], 11)
+        self.assertEqual(admitted["document"]["nodes"][1]["config"]["kernel"]["max_iterations"], 7)
+
+    def test_one_bad_pool_prevents_partial_conversion_and_stale_cas_never_writes(self):
+        document = self.graph(second=self.chosen("anthropic"))
+        self.add_pool(document, "left-pool", ["kernel"], [self.inline("openai:gpt-4.1")])
+        self.add_pool(document, "right-pool", ["right"], [self.inline("openai:gpt-4.1")])
+        before = self.store.save_draft(document)
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+        self.assertEqual(caught.exception.code, "identity_mismatch")
+        self.assertEqual(list(caught.exception.path)[:7], ["document", "nodes", 5, "config", "legacy_fields", "subagents", 0])
+        self.assertEqual(self.store.get_resource(document["id"]), before)
+        document["nodes"][-1]["config"]["legacy_fields"]["subagents"][0]["template"]["model"] = "anthropic:claude-x"
+        latest = self.store.save_draft(document, expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as stale:
+            self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"])
+        self.assertEqual(stale.exception.code, "edit_conflict")
+        self.assertEqual(self.store.get_resource(document["id"]), latest)
+
+    def test_inline_description_is_preserved_for_both_formats(self):
+        for index, prompt_format in enumerate(("skeleton", "soul")):
+            with self.subTest(prompt_format=prompt_format):
+                document = self.graph(resource_id=f"description-{index}")
+                self.add_pool(document, "pool", ["kernel"], [self.inline(prompt_format=prompt_format)])
+                before = self.store.save_draft(document)
+                after = self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=self.chosen())
+                pool = after["document"]["nodes"][-1]
+                entry = pool["config"]["subagents"][0]
+                self.assertEqual(entry["description"], "  exact child description  ")
+                self.assertEqual(entry["source"]["document"]["description"], entry["description"])
+
+    @staticmethod
+    def reference_entry(agent_id):
+        return {"id": "child", "name": "Child", "description": "referenced child",
+                "source": {"kind": "agent_ref", "agent_id": agent_id},
+                "allowed_modes": ["worker"], "output_mode": "summary",
+                "memory_policy": "ephemeral", "parallel_safe": True,
+                "allowed_tools": None, "disabled_tools": []}
+
+    def test_missing_owner_kernel_cannot_borrow_an_unrelated_configured_node(self):
+        document = self.graph(second=self.chosen("anthropic"))
+        del document["nodes"][1]["config"]["kernel"]
+        self.add_pool(document, "pool", ["kernel"], [self.inline()])
+        before = self.store.save_draft(document)
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"])
+        self.assertEqual(caught.exception.code, "legacy_profile_required")
+        self.assertEqual(list(caught.exception.path), ["document", "nodes", 4, "config", "legacy_fields", "subagents", 0])
+        malformed = self.chosen()
+        del malformed["profile"]["endpoint"]
+        with self.assertRaises(SkeletonResourceError) as invalid:
+            self.store.convert_legacy_pools(document["id"], expected_edit_token=before["edit_token"], legacy_kernel=malformed)
+        self.assertEqual(invalid.exception.code, "missing_field")
+        self.assertEqual(list(invalid.exception.path), ["legacy_kernel", "profile", "endpoint"])
+        self.assertEqual(self.store.get_resource(document["id"]), before)
+
+    def test_one_unconfigured_referenced_identity_cannot_take_two_inherited_kernels(self):
+        self.store.migrate_legacy(source_identity="/legacy/unconfigured.skeleton", source_scope="subagents",
+            source_kind="skeleton_template", source=json.dumps({"name": "Unconfigured child", "description": "Child description",
+                                                      "instructions": "Referenced child prompt", "model": None}))
+        child_id = self.store.list_resources()[0]["id"]
+        document = self.graph(second=self.chosen("anthropic"))
+        self.add_pool(document, "left-pool", ["kernel"], [self.reference_entry(child_id)], modern=True)
+        self.add_pool(document, "right-pool", ["right"], [self.reference_entry(child_id)], modern=True)
+        before = self.store.save_draft(document)
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(document["id"], legacy_kernel=self.chosen())
+        self.assertEqual(caught.exception.code, "dependency_conflict")
+        self.assertEqual(list(caught.exception.path), ["document", "nodes", 5, "config", "subagents", 0, "source"])
+        self.assertEqual(self.store.get_resource(document["id"]), before)
+
+    def test_fully_authored_referenced_child_is_not_changed_by_either_owner(self):
+        child = agent("authored-reference")
+        self.store.save_draft(child)
+        document = self.graph(second=self.chosen("anthropic"))
+        self.add_pool(document, "pool", ["kernel", "right", "kernel"], [self.reference_entry(child["id"])], modern=True)
+        self.store.save_draft(document)
+        admitted = self.store.preflight(document["id"], legacy_kernel={})
+        self.assertEqual(len(admitted["subagents"]), 2)
+        self.assertEqual([row["kernel_node_id"] for row in admitted["subagents"]], ["kernel", "right"])
+        for row in admitted["subagents"]:
+            self.assertEqual(row["document"], child)
+
+    def test_nested_legacy_child_keeps_its_selected_fallback_context(self):
+        source = json.loads(legacy_recipe("Nested child", pool=[self.inline("anthropic:claude-x")]))
+        source["model"] = None
+        source["nodes"][1]["override"]["model"] = None
+        source["nodes"].insert(2, {"id": "other", "type": "agent", "override": {
+            "prompt_format": "soul", "prompt": "Unrelated inner node", "model": None}})
+        source["edges"][1]["target_node_id"] = "other"
+        source["edges"].append({"id": "other-end", "source_node_id": "other", "source_port_id": "out",
+                                "target_node_id": "end", "target_port_id": "in"})
+        self.store.migrate_legacy(source_identity="/legacy/nested.recipe", source_scope="recipes",
+                                  source_kind="recipe", source=json.dumps(source))
+        child_id = self.store.list_resources()[0]["id"]
+        before = self.store.get_resource(child_id)
+        child = deepcopy(before["document"])
+        next(node for node in child["nodes"] if node["id"] == "other")["config"]["kernel"] = self.chosen()
+        child_saved = self.store.save_draft(child, expected_edit_token=before["edit_token"])
+        document = self.graph()
+        document["nodes"][1]["config"]["kernel"] = self.chosen("anthropic")
+        self.add_pool(document, "outer-pool", ["kernel"], [self.reference_entry(child_id)], modern=True)
+        self.store.save_draft(document)
+        for fallback in (None, self.chosen()):
+            with self.subTest(unused_request_fallback=fallback is not None):
+                admitted = self.store.preflight(document["id"], legacy_kernel=fallback)
+                resolved_child = admitted["subagents"][0]
+                self.assertEqual(self.child_kernel(resolved_child["document"])["profile"], self.chosen("anthropic")["profile"])
+                other = next(node for node in resolved_child["document"]["nodes"] if node["id"] == "other")
+                self.assertEqual(other["config"]["kernel"], self.chosen())
+                grandchild = resolved_child["subagents"][0]["document"]
+                self.assertEqual(self.child_kernel(grandchild)["profile"], self.chosen("anthropic")["profile"])
+                self.assertEqual(self.store.get_resource(child_id), child_saved)
 
 
 if __name__ == "__main__":
