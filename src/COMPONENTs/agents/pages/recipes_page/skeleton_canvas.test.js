@@ -289,50 +289,6 @@ describe("opening a subagent from the pool node", () => {
   });
 });
 
-describe("Escape goes up a level before anything else sees it", () => {
-  const draw = (onEscape) =>
-    render(
-      <ConfigContext.Provider value={cfg}>
-        <SkeletonCanvas
-          resourceId="r"
-          document={doc()}
-          onSelectNode={() => {}}
-          onEscape={onEscape}
-          isDark={false}
-        />
-      </ConfigContext.Provider>,
-    );
-
-  test("when it went up, the key does not reach the modal's own listener", () => {
-    const outer = jest.fn();
-    window.addEventListener("keydown", outer);
-    draw(() => true);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(outer).not.toHaveBeenCalled();
-    window.removeEventListener("keydown", outer);
-  });
-
-  test("with no drill open it passes through untouched", () => {
-    const outer = jest.fn();
-    window.addEventListener("keydown", outer);
-    draw(() => false);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(outer).toHaveBeenCalled();
-    window.removeEventListener("keydown", outer);
-  });
-
-  test("it is not taken while a field has the caret", () => {
-    const up = jest.fn(() => true);
-    draw(up);
-    const field = document.createElement("input");
-    document.body.appendChild(field);
-    field.focus();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(up).not.toHaveBeenCalled();
-    field.remove();
-  });
-});
-
 describe("Home centers this graph's own Start", () => {
   const sub = () => ({
     schema_version: 1, kind: "agent", id: "child", name: "Shortener",

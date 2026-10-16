@@ -30,11 +30,12 @@ import {
  * keeps its own highlight, and `on_select` is what tells the page to open the
  * detail panel.
  *
- * Two gestures belong to the subagent drill-in: double-clicking a row on a
- * Subagent Pool opens that subagent's graph, and Escape goes back up. Both are
- * reported to the page, which owns the stack; a row that cannot be opened is
- * reported too, with the reason, because an inert row reads as the app being
- * broken. */
+ * Double-clicking a row on a Subagent Pool opens that subagent's graph. It is
+ * reported to the page, which owns the drill stack; a row that cannot be
+ * opened is reported too, with the reason, because an inert row reads as the
+ * app being broken. Escape belongs to the page for the same reason, and
+ * because it has to keep working while this canvas is not on screen — a
+ * drilled-in resource whose re-read failed still has a breadcrumb. */
 
 function renderNode(node, isDark, onOpenSubagent) {
   if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
@@ -86,7 +87,6 @@ export default function SkeletonCanvas({
   document: graph,
   onSelectNode,
   onOpenSubagent,
-  onEscape,
   isDark,
 }) {
   /* Read once per document identity: re-reading on every render would undo a
@@ -157,26 +157,6 @@ export default function SkeletonCanvas({
     },
     [],
   );
-
-  /* Escape goes up one drill level before it reaches the Agents modal.
-     Registered on `document`, where a bubble listener still precedes the
-     modal's `window` one, so stopping propagation here shadows it — the same
-     mechanism the legacy canvas uses. With no drill open the page answers
-     false and the key passes through untouched. */
-  useEffect(() => {
-    if (typeof onEscape !== "function") return undefined;
-    const onKey = (event) => {
-      if (event.key !== "Escape") return;
-      const tag = window.document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (onEscape() === true) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.document.addEventListener("keydown", onKey);
-    return () => window.document.removeEventListener("keydown", onKey);
-  }, [onEscape]);
 
   /* Home centers this graph's own Start — a sub-graph opened by drilling in
      need not name its start node `start`, so it is found by type. The key is

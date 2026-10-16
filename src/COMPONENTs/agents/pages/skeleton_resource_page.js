@@ -326,12 +326,31 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     [drillStack, restore, session],
   );
 
-  /* Escape goes up one level, and says so, so the canvas can stop it before it
-     reaches the Agents modal's own listener. */
   const drill_up = useCallback(() => {
     if (drillStack.length === 0) return false;
     return drill_to(drillStack.length - 1);
   }, [drillStack, drill_to]);
+
+  /* Escape goes up one drill level before anything else sees it. Registered on
+     `document`, where a bubble listener still precedes the Agents modal's
+     `window` one, so stopping propagation here shadows it — the same mechanism
+     the legacy canvas uses. With no drill open nothing is stopped and the key
+     passes through untouched. It lives here rather than on the canvas because
+     the stack outlives the canvas: a drilled-in resource whose re-read failed
+     shows no graph and still has a breadcrumb. */
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      const tag = window.document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (drill_up() === true) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.document.addEventListener("keydown", onKey);
+    return () => window.document.removeEventListener("keydown", onKey);
+  }, [drill_up]);
 
   const crumbs = drilled ? drill_crumbs(drillStack, shown_label) : [];
 
@@ -389,7 +408,6 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
               document={document}
               onSelectNode={setSelectedNodeId}
               onOpenSubagent={open_subagent}
-              onEscape={drill_up}
               isDark={isDark}
             />
             <div

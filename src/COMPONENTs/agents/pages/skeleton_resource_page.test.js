@@ -1050,7 +1050,9 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
   });
 
-  test("Escape goes up one level", async () => {
+  test("Escape goes up one level, and does not reach the modal behind it", async () => {
+    const outer = jest.fn();
+    window.addEventListener("keydown", outer);
     await open_parent();
     fireEvent.click(screen.getByLabelText("Open Shortener"));
     await act(async () => {});
@@ -1060,6 +1062,31 @@ describe("drilling into a subagent's own graph", () => {
     });
     expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+    /* The Agents modal closes on Escape from its own window listener; while a
+       drill was open this one belonged to the drill. */
+    expect(outer).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", outer);
+  });
+
+  test("with no drill open it passes through untouched", async () => {
+    const outer = jest.fn();
+    window.addEventListener("keydown", outer);
+    await open_parent();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(outer).toHaveBeenCalled();
+    window.removeEventListener("keydown", outer);
+  });
+
+  test("and it is not taken while a field has the caret", async () => {
+    await open_parent();
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    const field = window.document.createElement("input");
+    window.document.body.appendChild(field);
+    field.focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    field.remove();
   });
 
   test("a nested embedded graph keeps every level navigable", async () => {
