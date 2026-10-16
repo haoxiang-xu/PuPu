@@ -27,6 +27,7 @@ from unchain.skeleton import (
 from unchain.skeleton.agent_preparation import execution_definition_digest
 from unchain.skeleton.errors import SkeletonValidationError
 from unchain.skeleton.execution import _validate_all
+from unchain.skeleton.kernel_config import validate_kernel_config
 from skeleton_runtime_capability import SkeletonRuntimeCompatibilityError, require_skeleton_runtime
 
 
@@ -321,15 +322,99 @@ class SkeletonResourceStore:
             _fail("resource_archived", path, "legacy subagent target is archived", status=409)
         return row["target_id"], json.loads(row["draft_json"])
 
+    @staticmethod
+    def _pool_owner_nodes(document: dict[str, Any], pool_id: str):
+        agents = {node["id"] for node in document["nodes"] if node["type"] == "agent"}
+        owners = set()
+        for edge in document["edges"]:
+            if edge["kind"] != "attach":
+                continue
+            source, target = edge["source_node_id"], edge["target_node_id"]
+            if source == pool_id and target in agents:
+                owners.add(target)
+            elif target == pool_id and source in agents:
+                owners.add(source)
+        return [(index, node) for index, node in enumerate(document["nodes"])
+                if node["id"] in owners]
+
+    def _legacy_child_kernel(self, document: dict[str, Any], pool_id: str,
+                             legacy_kernel: dict[str, Any] | None, *,
+                             path: tuple[str | int, ...],
+                             document_path: tuple[str | int, ...]):
+        owners = self._pool_owner_nodes(document, pool_id)
+        pool_index = next(index for index, node in enumerate(document["nodes"])
+                          if node["id"] == pool_id)
+        pool_path = document_path + ("nodes", pool_index, "config")
+        if not owners:
+            _fail("legacy_owner_required", pool_path,
+                  "legacy Subagent Pool must attach to an Agent")
+        chosen = None
+        for node_index, owner in owners:
+            config = owner["config"]
+            if "kernel" in config:
+                raw = config["kernel"]
+                kernel_path = document_path + ("nodes", node_index, "config", "kernel")
+            else:
+                if legacy_kernel is None:
+                    _fail("legacy_profile_required", path,
+                          "legacy subagent requires its owner's Kernel or an explicit fallback")
+                raw, kernel_path = legacy_kernel, ("legacy_kernel",)
+            try:
+                selected = validate_kernel_config(raw, kernel_path)
+            except SkeletonValidationError as exc:
+                error_path = (kernel_path + ("json_schema",) + exc.path[1:]
+                              if exc.path and exc.path[0] == "schema" else exc.path)
+                raise SkeletonResourceError(exc.code, error_path, str(exc)) from exc
+            # The parent's response contract and prompt do not describe a new
+            # child. Validate first so this projection cannot hide bad config.
+            selected.update(prompt="", json_schema=None)
+            if chosen is None:
+                chosen = selected
+            elif chosen != selected:
+                _fail("legacy_kernel_ambiguous", pool_path,
+                      "shared legacy Subagent Pool owners require different child Kernels")
+        return chosen
+
+    def _prepare_legacy_child(self, connection, document: dict[str, Any], *,
+                              owner_document: dict[str, Any], pool_id: str,
+                              legacy_kernel: dict[str, Any] | None,
+                              path: tuple[str | int, ...],
+                              owner_document_path: tuple[str | int, ...]):
+        metadata = self._legacy_agent_metadata(document)
+        fallback = None
+        if metadata is not None and any(
+            node["type"] == "agent" and "kernel" not in node.get("config", {})
+            for node in document["nodes"]
+        ):
+            fallback = self._legacy_child_kernel(
+                owner_document, pool_id, legacy_kernel,
+                path=path, document_path=owner_document_path,
+            )
+        # Resolve against stored owner configuration, before materialization
+        # can add a fallback Kernel or replace legacy prompt/iteration fields.
+        child_context = fallback if fallback is not None else legacy_kernel
+        prepared = self._expand_legacy_subagent_pools(
+            connection, document, child_context, path_prefix=path + ("document",),
+        )
+        if metadata is not None:
+            try:
+                prepared = materialize_legacy_agent(prepared, fallback)
+            except SkeletonValidationError as exc:
+                raise SkeletonResourceError(
+                    exc.code, path + ("document",) + exc.path[1:], str(exc),
+                ) from exc
+        return prepared, child_context
+
     def _expand_legacy_subagent_pools(self, connection, document: dict[str, Any],
-                                      legacy_kernel: dict[str, Any]) -> dict[str, Any]:
+                                      legacy_kernel: dict[str, Any] | None, *,
+                                      path_prefix: tuple[str | int, ...] = ("document",)) -> dict[str, Any]:
         expanded = deepcopy(document)
         for node_index, node in enumerate(expanded["nodes"]):
             if node["type"] != "subagent_pool" or "subagents" in node.get("config", {}):
                 continue
             fields = node.get("config", {}).get("legacy_fields")
             entries = fields.get("subagents") if type(fields) is dict else None
-            path = ("document", "nodes", node_index, "config")
+            path = path_prefix + ("nodes", node_index, "config")
             if type(entries) is not list or not entries:
                 _fail("missing_value", path + ("subagents",),
                       "legacy Subagent Pool has no entries")
@@ -354,16 +439,6 @@ class SkeletonResourceStore:
                 elif kind == "inline":
                     name = _text(raw.get("name"), entry_path + ("name",),
                                  "inline subagent name")
-                    # An inline subagent has no Agent to reference, so it has to
-                    # be materialised — and that needs a Kernel the caller chose.
-                    # Preflight and the closure resolver each check this before
-                    # they get here; the conversion entry point is reached
-                    # directly, and without this the missing Kernel arrived at
-                    # `validate_kernel_config` as "expected an object", which is
-                    # an untyped 500 about the wrong subject.
-                    if legacy_kernel is None:
-                        _fail("legacy_profile_required", entry_path,
-                              "legacy inline subagent requires an explicit Kernel configuration")
                     prompt_format = raw.get("prompt_format")
                     template = raw.get("template")
                     # The runtime answers with a code and the exact field —
@@ -393,8 +468,9 @@ class SkeletonResourceStore:
                             # as more header fields. Use the existing template
                             # IR, keeping Soul's own prompt authoritative.
                             legacy_source = deepcopy(template)
+                            legacy_source.setdefault("description", name)
                             legacy_source.update(
-                                name=name, description=name,
+                                name=name,
                                 instructions=template["prompt"],
                             )
                             converted_document = convert_legacy_definition(
@@ -404,7 +480,6 @@ class SkeletonResourceStore:
                         else:
                             _fail("invalid_shape", entry_path, "legacy inline subagent is invalid")
                         metadata = self._legacy_agent_metadata(converted_document)
-                        embedded = materialize_legacy_agent(converted_document, legacy_kernel)
                     except SkeletonValidationError as exc:
                         raise SkeletonResourceError(
                             exc.code,
@@ -412,6 +487,11 @@ class SkeletonResourceStore:
                             else entry_path + tuple(exc.path[1:]),
                             str(exc),
                         ) from exc
+                    embedded, _ = self._prepare_legacy_child(
+                        connection, converted_document, owner_document=document,
+                        pool_id=node["id"], legacy_kernel=legacy_kernel,
+                        path=entry_path, owner_document_path=path_prefix,
+                    )
                     source = {"kind": "embedded", "document": embedded}
                 else:
                     _fail("unknown_variant", entry_path + ("kind",),
@@ -555,7 +635,10 @@ class SkeletonResourceStore:
             if resource["archived"]:
                 _fail("resource_archived", ("resource_id",),
                       "archived resource cannot start a new execution", status=409)
-            document = self._document(resource)
+            source_document = self._document(resource)
+            document = self._expand_legacy_subagent_pools(
+                connection, source_document, legacy_kernel,
+            )
             if document["kind"] == "agent" and any(
                 node["type"] == "agent" and "legacy_recipe" in node.get("config", {})
                 or node["type"] == "agent" and "legacy_template" in node.get("config", {})
@@ -571,14 +654,13 @@ class SkeletonResourceStore:
                     document = materialize_legacy_agent(document, legacy_kernel)
                 except SkeletonValidationError as exc:
                     raise SkeletonResourceError(exc.code, exc.path, str(exc)) from exc
-                document = self._expand_legacy_subagent_pools(
-                    connection, document, legacy_kernel,
-                )
             plan = self._validate_execution(document)
             self._validate_local_profiles(document)
             subagents = self._resolve_subagent_closure(
                 connection, document, owner_id=resource_id, stack=(resource_id,), depth=0,
                 legacy_kernel=legacy_kernel,
+                source_document=source_document,
+                prepared_identities={document["id"]: execution_definition_digest(plan)},
             )
             dependencies = self._resolve_closure(
                 connection, document, resource_id, subagents=subagents,
@@ -595,29 +677,28 @@ class SkeletonResourceStore:
     def _resolve_subagent_closure(self, connection, document: dict[str, Any], *,
                                   owner_id: str, stack: tuple[str, ...],
                                   depth: int,
-                                  legacy_kernel: dict[str, Any] | None) -> list[dict[str, Any]]:
+                                  legacy_kernel: dict[str, Any] | None,
+                                  source_document: dict[str, Any] | None = None,
+                                  prepared_identities: dict[str, str] | None = None,
+                                  path_prefix: tuple[str | int, ...] = ("document",)) -> list[dict[str, Any]]:
         if depth > 6:
-            _fail("limit_depth", ("document",), "Subagent depth exceeds 6")
+            _fail("limit_depth", path_prefix, "Subagent depth exceeds 6")
         resolved: list[dict[str, Any]] = []
-        node_types = {node["id"]: node["type"] for node in document["nodes"]}
-        attached_kernel: dict[str, str] = {}
-        for edge in document["edges"]:
-            if edge["kind"] != "attach":
-                continue
-            source, target = edge["source_node_id"], edge["target_node_id"]
-            if node_types.get(source) == "subagent_pool" and node_types.get(target) == "agent":
-                attached_kernel[source] = target
-            elif node_types.get(target) == "subagent_pool" and node_types.get(source) == "agent":
-                attached_kernel[target] = source
+        source_document = document if source_document is None else source_document
+        prepared_identities = {} if prepared_identities is None else prepared_identities
         for node_index, node in enumerate(document["nodes"]):
             if node["type"] != "subagent_pool":
                 continue
             entries = node.get("config", {}).get("subagents")
             if type(entries) is not list:
-                _fail("invalid_shape", ("document", "nodes", node_index, "config"),
+                _fail("invalid_shape", path_prefix + ("nodes", node_index, "config"),
                       "Subagent Pool config is invalid")
+            owners = self._pool_owner_nodes(source_document, node["id"])
+            if not owners:
+                _fail("legacy_owner_required", path_prefix + ("nodes", node_index, "config"),
+                      "Subagent Pool must attach to an Agent")
             for entry_index, entry in enumerate(entries):
-                path = ("document", "nodes", node_index, "config", "subagents", entry_index, "source")
+                path = path_prefix + ("nodes", node_index, "config", "subagents", entry_index, "source")
                 source = entry.get("source") if type(entry) is dict else None
                 if type(source) is not dict:
                     _fail("invalid_shape", path, "Subagent source is invalid")
@@ -647,54 +728,52 @@ class SkeletonResourceStore:
                 else:
                     _fail("unknown_variant", path + ("kind",),
                           "Subagent source must be agent_ref or embedded")
-                metadata = self._legacy_agent_metadata(child_document)
-                if metadata is not None:
-                    if legacy_kernel is None and any(
-                        child["type"] == "agent" and "kernel" not in child.get("config", {})
-                        for child in child_document["nodes"]
-                    ):
-                        _fail("legacy_profile_required", path,
-                              "legacy subagent requires an explicit Kernel configuration")
-                    try:
-                        from unchain.skeleton.legacy import materialize_legacy_agent
-                        child_document = materialize_legacy_agent(
-                            child_document, legacy_kernel,
-                        )
-                        child_document = self._expand_legacy_subagent_pools(
-                            connection, child_document, legacy_kernel,
-                        )
-                    except SkeletonValidationError as exc:
-                        raise SkeletonResourceError(exc.code, path + exc.path[1:], str(exc)) from exc
+                child_source_document = child_document
+                child_document, child_context = self._prepare_legacy_child(
+                    connection, child_source_document, owner_document=source_document,
+                    pool_id=node["id"], legacy_kernel=legacy_kernel,
+                    path=path, owner_document_path=path_prefix,
+                )
                 child_plan = self._validate_execution(child_document)
                 if child_document["kind"] != "agent":
                     _fail("wrong_kind", path, "Subagent Pool target is not an Agent")
                 self._validate_local_profiles(child_document, path_prefix=path + ("document",))
+                child_digest = execution_definition_digest(child_plan)
+                prior_digest = prepared_identities.get(child_document["id"])
+                if prior_digest is not None and prior_digest != child_digest:
+                    _fail("dependency_conflict", path,
+                          "one Agent identity cannot resolve to different prepared definitions")
+                prepared_identities[child_document["id"]] = child_digest
                 children = self._resolve_subagent_closure(
                     connection, child_document,
                     owner_id=agent_id or owner_id,
                     stack=child_stack,
                     depth=depth + 1,
-                    legacy_kernel=legacy_kernel,
+                    legacy_kernel=child_context,
+                    source_document=child_source_document,
+                    prepared_identities=prepared_identities,
+                    path_prefix=path + ("document",),
                 )
-                resolved.append({
-                    "pool_node_id": node["id"],
-                    "kernel_node_id": attached_kernel[node["id"]],
-                    "entry_id": entry["id"],
-                    "name": entry["name"],
-                    "description": entry["description"],
-                    "allowed_modes": deepcopy(entry["allowed_modes"]),
-                    "output_mode": entry["output_mode"],
-                    "memory_policy": entry["memory_policy"],
-                    "parallel_safe": entry["parallel_safe"],
-                    "allowed_tools": deepcopy(entry["allowed_tools"]),
-                    "disabled_tools": deepcopy(entry["disabled_tools"]),
-                    "source_kind": source_kind,
-                    "agent_id": agent_id,
-                    "edit_token": edit_token,
-                    "definition_digest": execution_definition_digest(child_plan),
-                    "document": child_document,
-                    "subagents": children,
-                })
+                for _, owner in owners:
+                    resolved.append({
+                        "pool_node_id": node["id"],
+                        "kernel_node_id": owner["id"],
+                        "entry_id": entry["id"],
+                        "name": entry["name"],
+                        "description": entry["description"],
+                        "allowed_modes": deepcopy(entry["allowed_modes"]),
+                        "output_mode": entry["output_mode"],
+                        "memory_policy": entry["memory_policy"],
+                        "parallel_safe": entry["parallel_safe"],
+                        "allowed_tools": deepcopy(entry["allowed_tools"]),
+                        "disabled_tools": deepcopy(entry["disabled_tools"]),
+                        "source_kind": source_kind,
+                        "agent_id": agent_id,
+                        "edit_token": edit_token,
+                        "definition_digest": child_digest,
+                        "document": child_document,
+                        "subagents": children,
+                    })
         return resolved
 
     def _published_row(self, connection, workflow_id: str, revision_id: str):
