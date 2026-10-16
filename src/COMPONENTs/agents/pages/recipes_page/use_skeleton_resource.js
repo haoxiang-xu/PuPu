@@ -117,12 +117,13 @@ export default function useSkeletonResource() {
     const current = ref.current;
     if (!can_preflight(current)) return current;
     const issued = preflight_token(current);
-    /* A migrated Agent is built out of its legacy data and a Kernel the
-       caller supplies, so without one the store answers
-       `legacy_profile_required` and the check cannot succeed at all — not for
-       a reason the author can act on from here. The Kernel they configured is
-       what goes over; `legacy_preflight_kernel` answers `null` for everything
-       else, so a modern Agent's check is the request it always was. */
+    /* A migrated Agent is prepared out of its legacy data and, for whatever
+       part of it has no Kernel of its own, a Kernel the caller supplies — so
+       without one the store answers `legacy_profile_required` and the check
+       cannot succeed, for a reason the author cannot act on from here. The
+       Kernel they configured is what goes over; `legacy_preflight_kernel`
+       answers `null` for everything else, so a modern Agent's check is the
+       request it always was. */
     const result = await preflight_resource(
       current.resource_id,
       legacy_preflight_kernel(current.document),

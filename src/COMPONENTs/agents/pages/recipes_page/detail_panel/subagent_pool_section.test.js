@@ -1324,6 +1324,29 @@ describe("converting a legacy pool", () => {
     expect(onConvertLegacy).not.toHaveBeenCalled();
   });
 
+  test("an entry stored in the other legacy format declares one too", async () => {
+    /* Which legacy prompt format an entry was stored in is not something the
+       author chose or can see, and the store now converts both through the
+       same template IR — so a declared model constrains the conversion the
+       same way in either. The panel stating otherwise would be offering to
+       build this subagent on a model it does not declare. */
+    const entries = [
+      inline({
+        prompt_format: "soul",
+        template: { prompt: "Be brief.", model: "anthropic:claude-x" },
+      }),
+    ];
+    const node = legacy(entries);
+    const { onConvertLegacy } = await show_legacy(entries, {
+      document: configured(node),
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/Shortener declares anthropic:claude-x/);
+    expect(notice).toMatch(/does not move a subagent onto a different model/i);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(onConvertLegacy).not.toHaveBeenCalled();
+  });
+
   test("a model name with nothing visible in it is still readable", async () => {
     /* A byte order mark survives the runtime's own strip, so the entry really
        does declare a different model — and a message that printed it raw

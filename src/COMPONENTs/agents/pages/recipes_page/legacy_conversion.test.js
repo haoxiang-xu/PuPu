@@ -16,6 +16,7 @@ import {
   CAPTURED_EMBEDDED_KERNEL,
   CAPTURED_INLINE_DECLARED_MODEL,
   CAPTURED_INLINE_MODEL_MATCHES,
+  CAPTURED_INLINE_PRESERVED_POLICY,
 } from "./legacy_conversion_capture";
 
 /* The Kernel a legacy inline subagent is built on.
@@ -84,26 +85,35 @@ const migrated = (agent_config, pools = []) =>
   ]);
 
 describe("the model a legacy inline entry declares", () => {
-  it("is kept by one legacy format and dropped by the other", () => {
+  it("is kept by both legacy formats, as each of them was asked", () => {
     expect(CAPTURED_INLINE_DECLARED_MODEL.length).toBeGreaterThan(0);
     CAPTURED_INLINE_DECLARED_MODEL.forEach((row) => {
-      expect(
-        legacy_entry_declared_model(inline_entry(row.template, row.prompt_format)),
-      ).toEqual(row.declared);
+      const declared = legacy_entry_declared_model(
+        inline_entry(row.template, row.prompt_format),
+      );
+      /* The capture states what the store answered, not what the mirror
+         reads, so the comparison is composed here: against the profile the
+         entry declares, and against a different one. */
+      expect(profile_holds_model(declared, row.against_declared)).toBe(
+        row.accepted_against_declared,
+      );
+      expect(profile_holds_model(declared, row.against_other)).toBe(
+        row.accepted_against_other,
+      );
     });
-    /* The capture's own point: a soul-format entry declares nothing to the
-       runtime however much its template says, because the store writes the
-       frontmatter itself and leaves the model out of it. */
-    const souls = CAPTURED_INLINE_DECLARED_MODEL.filter(
-      (row) => row.prompt_format === "soul",
+    /* What the repair changed. A soul-format entry's declared model used to
+       be dropped before the runtime saw it, so every profile was accepted;
+       now the store converts both formats through the same template IR and
+       refuses the one the entry does not declare. */
+    const enforced = CAPTURED_INLINE_DECLARED_MODEL.filter(
+      (row) => row.prompt_format === "soul" && !row.accepted_against_other,
     );
-    expect(souls.length).toBeGreaterThan(0);
-    expect(souls.every((row) => row.declared === null)).toBe(true);
-    expect(
-      CAPTURED_INLINE_DECLARED_MODEL.some(
-        (row) => row.prompt_format === "skeleton" && row.declared !== null,
-      ),
-    ).toBe(true);
+    expect(enforced.length).toBeGreaterThan(0);
+    enforced.forEach((row) => {
+      expect(
+        legacy_entry_declared_model(inline_entry(row.template, "soul")),
+      ).not.toBeNull();
+    });
   });
 
   it("is nothing at all when the entry cannot state one", () => {
@@ -118,6 +128,17 @@ describe("the model a legacy inline entry declares", () => {
     expect(
       legacy_entry_declared_model(inline_entry({ model: "gpt-4.1" }, "recipe")),
     ).toBeNull();
+    /* A soul entry is only taken as one when its template carries the prompt
+       the conversion is to use; without it the store answers `invalid_shape`
+       about the entry and never reaches the model. */
+    expect(
+      legacy_entry_declared_model(inline_entry({ model: "gpt-4.1" }, "soul")),
+    ).toBeNull();
+    expect(
+      legacy_entry_declared_model(
+        inline_entry({ prompt: "Be brief.", model: "gpt-4.1" }, "soul"),
+      ),
+    ).toBe("gpt-4.1");
   });
 });
 
@@ -125,14 +146,17 @@ describe("which profile the declared model is", () => {
   it("agrees with the runtime on every captured pair", () => {
     expect(CAPTURED_INLINE_MODEL_MATCHES.length).toBeGreaterThan(0);
     CAPTURED_INLINE_MODEL_MATCHES.forEach((row) => {
-      const entry = inline_entry(row.template);
-      expect(legacy_entry_declared_model(entry)).toEqual(row.declared);
+      const declared = legacy_entry_declared_model(inline_entry(row.template));
       expect(
-        profile_holds_model(row.declared, {
+        profile_holds_model(declared, {
           provider: row.provider,
           model: row.model,
         }),
       ).toBe(row.accepted);
+      /* Accepted means the Agent the store built runs on the profile it was
+         handed, which is the other half of the answer: a conversion that was
+         admitted onto a different model would be worse than a refused one. */
+      if (row.accepted) expect(row.carried_model).toBe(row.model);
     });
   });
 
@@ -247,6 +271,41 @@ describe("what the conversion hands over", () => {
     expect(CAPTURED_EMBEDDED_KERNEL.carried.history).toBe(
       CAPTURED_EMBEDDED_KERNEL.supplied.history,
     );
+  });
+
+  it("keeps the policy the panel says it keeps, in both formats", () => {
+    /* The panel's two statements — that converting keeps the tools,
+       delegation modes, memory and parallel safety each subagent already
+       declared — are measured here rather than asserted about the panel's
+       own words. `allowed_tools: []` is in the corpus on purpose: the default
+       is `null`, which is unrestricted, so a lost restriction would be a
+       widened one. */
+    const claimed = [
+      "allowed_tools",
+      "allowed_modes",
+      "memory_policy",
+      "parallel_safe",
+      "output_mode",
+    ];
+    expect(CAPTURED_INLINE_PRESERVED_POLICY.length).toBe(2);
+    CAPTURED_INLINE_PRESERVED_POLICY.forEach((row) => {
+      claimed.forEach((key) => {
+        expect(row.stored[key]).toEqual(row.declared[key]);
+      });
+      expect(row.declared.allowed_tools).toEqual([]);
+      expect(row.disabled_tools).toEqual(["write"]);
+      /* And its own prompt, which is the other half of what the panel
+         promises an entry brings with it. */
+      expect(row.carried_prompt).toBe("Be brief.");
+      /* Not the description: the template IR the store converts through
+         carries the policy fields and the model, and the entry's description
+         comes from its name. Neither statement names descriptions. */
+      expect(row.stored.description).toBe("");
+      expect(row.declared.description).not.toBe("");
+    });
+    expect(
+      CAPTURED_INLINE_PRESERVED_POLICY.map((row) => row.prompt_format).sort(),
+    ).toEqual(["skeleton", "soul"]);
   });
 });
 
@@ -377,9 +436,11 @@ describe("the plan a legacy pool conversion is given", () => {
         pool_node("pool", [
           inline_entry({ prompt: "Be brief.", model: "openai:gpt-4.1" }),
           inline_entry({ prompt: "Bare.", model: "gpt-4.1" }),
-          /* Soul format: the store drops its model, so it constrains nothing
-             even though the template names another one. */
-          inline_entry({ prompt: "Soul.", model: "anthropic:claude-x" }, "soul"),
+          /* Soul format, declaring the same model: both formats are
+             converted through the same template IR now, so this is read and
+             compared exactly like the two above. */
+          inline_entry({ prompt: "Soul.", model: "openai:gpt-4.1" }, "soul"),
+          inline_entry({ prompt: "Declares nothing." }, "soul"),
         ]),
       ]),
     );
@@ -387,8 +448,27 @@ describe("the plan a legacy pool conversion is given", () => {
     expect(plan.entries.map((entry) => entry.declared)).toEqual([
       "openai:gpt-4.1",
       "gpt-4.1",
+      "openai:gpt-4.1",
       null,
     ]);
+  });
+
+  it("refuses a soul-format entry that declares another model too", () => {
+    /* The entry's prompt format is not the author's business and never
+       appears on screen; a conversion that moved this subagent onto another
+       model because of it would be the editor's doing, not the runtime's. */
+    const plan = legacy_conversion_plan(
+      migrated({ kernel: kernel() }, [
+        pool_node("pool", [
+          inline_entry({ prompt: "Soul.", model: "anthropic:claude-x" }, "soul"),
+        ]),
+      ]),
+    );
+    expect(plan.refusal.code).toBe(CONVERSION_MODEL_MISMATCH);
+    expect(plan.refusal.entries).toEqual([
+      { pool_id: "pool", index: 0, name: "Shortener", declared: "anthropic:claude-x" },
+    ]);
+    expect(plan.kernel).toBeNull();
   });
 
   it("asks about every pool in the Agent, not the one in hand", () => {
@@ -428,10 +508,36 @@ describe("what preflight is handed", () => {
     });
     const document = migrated({ kernel: configured });
     expect(migrated_agent_nodes(document)).toEqual(["a1"]);
-    /* Not projected: preflight materialises THIS Agent, whose own
-       `config.kernel` is discarded and replaced by what is supplied, so a
-       field dropped here is dropped from the Agent on screen. */
+    /* Not projected. The Kernel goes over as a fallback for whatever has
+       none of its own — a node here, or a node of a legacy Agent this one
+       references, which is not visible from the renderer — and a node that
+       has one keeps it. Dropping a field here would drop it from whatever
+       takes the fallback. */
     expect(legacy_preflight_kernel(document)).toEqual(configured);
+  });
+
+  it("is nothing when two Kernel Loops disagree, and that is not a refusal", () => {
+    /* Measured: a fully configured migrated graph is checked with no
+       fallback at all — each node runs on its own Kernel, prompt and
+       iteration limit, even when the two name different models. So two
+       Kernel Loops that differ no longer stop the check being made. They are
+       only a reason there is no single Kernel to hand over, and in a graph
+       like this one nothing asks for it. */
+    const other = kernel({
+      profile: {
+        id: "x",
+        provider: "anthropic",
+        model: "claude-x",
+        protocol: "anthropic",
+        endpoint: "https://api.anthropic.com/v1/messages",
+      },
+    });
+    const document = document_of([
+      agent_node("a1", { legacy_recipe: { name: "R" }, kernel: kernel() }),
+      agent_node("a2", { kernel: other }),
+    ]);
+    expect(migrated_agent_nodes(document)).toEqual(["a1"]);
+    expect(legacy_preflight_kernel(document)).toBeNull();
   });
 
   it("is nothing when the migrated Agent has no Kernel yet", () => {
@@ -439,6 +545,11 @@ describe("what preflight is handed", () => {
   });
 
   it("is the Kernel when only a pool entry needs one", () => {
+    /* An inline entry has no Kernel of its own and never will: it is built
+       from its legacy data when the check runs, so a configured Agent node
+       does not excuse the fallback. Measured — a configured root holding one
+       and checked without a Kernel is `legacy_profile_required` at the
+       entry's own path, not at `legacy_kernel`. */
     const document = document_of([
       agent_node("a1", { kernel: kernel() }),
       pool_node("pool", [inline_entry({ prompt: "Be brief." })]),

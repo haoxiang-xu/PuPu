@@ -1195,23 +1195,34 @@ describe("the Kernel the store is handed for legacy data", () => {
   });
 
   test("an entry declaring another model is not sent either", async () => {
-    const hook = await opened(
-      agent_document({ kernel: KERNEL }, [
-        { ...INLINE, template: { prompt: "Be brief.", model: "anthropic:claude-x" } },
-      ]),
-    );
-    api.unchain.convertSkeletonLegacyPools = jest.fn();
-    await act(async () => {
-      await hook.result.current.convertLegacyPools();
-    });
-    expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+    /* In either legacy format: both are converted through the same template
+       IR, so both carry the model the entry declares. */
+    for (const prompt_format of ["skeleton", "soul"]) {
+      const hook = await opened(
+        agent_document({ kernel: KERNEL }, [
+          {
+            ...INLINE,
+            prompt_format,
+            template: { prompt: "Be brief.", model: "anthropic:claude-x" },
+          },
+        ]),
+      );
+      api.unchain.convertSkeletonLegacyPools = jest.fn();
+      await act(async () => {
+        await hook.result.current.convertLegacyPools();
+      });
+      expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+    }
   });
 
   test("a migrated Agent is checked with the Kernel, not without one", async () => {
-    /* Measured: `preflight` on an Agent whose node holds `legacy_recipe`
-       answers `legacy_profile_required` at `legacy_kernel` without one, so
-       "Check it can run" could not succeed on a migrated Agent at all. It
-       goes over as configured, because preflight materialises THIS Agent. */
+    /* Measured: `preflight` on an Agent whose node holds `legacy_recipe` and
+       has no Kernel of its own answers `legacy_profile_required` at
+       `legacy_kernel`, so "Check it can run" could not succeed on a migrated
+       Agent at all. It goes over as configured and unprojected, because
+       whatever takes it as a fallback — a node here, or a node of a legacy
+       Agent this one references, which is not visible from here — is built
+       out of it. */
     const hook = await opened(
       agent_document({ legacy_recipe: { name: "life" }, kernel: KERNEL }),
     );
@@ -1235,6 +1246,32 @@ describe("the Kernel the store is handed for legacy data", () => {
       await hook.result.current.preflight();
     });
     expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
+  });
+
+  test("a migrated Agent whose nodes all have a Kernel is checked without one", async () => {
+    /* Measured: a fully configured migrated graph is prepared with no
+       fallback at all, each node on its own Kernel — so two Kernel Loops
+       naming different models are no longer a reason the check cannot be
+       made. There is just no single Kernel to hand over, and nothing in a
+       graph like this asks for one. */
+    const other = {
+      ...KERNEL,
+      profile: { ...KERNEL.profile, id: "x", provider: "anthropic", model: "claude-x", protocol: "anthropic", endpoint: "https://api.anthropic.com/v1/messages" },
+    };
+    const document = agent_document({ legacy_recipe: { name: "life" }, kernel: KERNEL });
+    const hook = await opened({
+      ...document,
+      nodes: [...document.nodes, { id: "k2", type: "agent", config: { kernel: other } }],
+    });
+    api.unchain.preflightSkeletonResource = jest.fn(async () => ({
+      ok: true,
+      definition_digest: "sha256:abc",
+    }));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
+    expect(hook.result.current.session.preflight.ok).toBe(true);
   });
 
   test("a migrated Agent with no Kernel yet is still checked, and the store says why", async () => {

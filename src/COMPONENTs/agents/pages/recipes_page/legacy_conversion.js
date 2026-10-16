@@ -10,19 +10,20 @@ import { safe_text } from "./document_values";
 /* Which Kernel the store is handed for legacy data, and when it may be.
  *
  * Two places in the store refuse to act on legacy data without a Kernel
- * configuration the caller chose, both measured on the fixed installation
- * pair:
+ * configuration the caller chose, both measured on the repaired fixed
+ * installation pair (wheel SHA-256 `5b0f16dc…`):
  *
  *   - `convert_legacy_pools` refuses `legacy_profile_required` for an inline
  *     Subagent Pool entry: it carries a prompt rather than naming an Agent,
  *     so becoming one means being materialised, and that needs a model.
- *   - `preflight` refuses the same code for ANY migrated Agent — an Agent
- *     node holding `legacy_recipe` or `legacy_template` — because it builds
- *     the executable document out of the legacy data and the supplied Kernel.
- *     Measured: `preflight` on a migrated Agent with no Kernel is
- *     `legacy_profile_required` at `legacy_kernel`, HTTP 400, and with one it
- *     answers a digest. Nothing in PuPu was supplying it, so "Check it can
- *     run" could not succeed on a migrated Agent at all.
+ *   - `preflight` refuses the same code for a migrated Agent — one holding an
+ *     agent node with `legacy_recipe` or `legacy_template` — when some agent
+ *     node still has no Kernel of its own, or when a pool holds an inline
+ *     entry, which never has one. A node that HAS one is authoritative: its
+ *     profile, prompt, iteration limit, schema and budget are prepared as the
+ *     author wrote them, and the supplied Kernel is a fallback the node does
+ *     not touch. Only a kernel-absent node takes it, and then its legacy
+ *     prompt, model and iteration limit are projected onto it.
  *
  * The Kernel is the one the author configured on this Agent's Kernel Loop.
  * Nothing here invents a model, an endpoint or a credential reference: a
@@ -31,27 +32,29 @@ import { safe_text } from "./document_values";
  * chose. If there is no configured Kernel, there is nothing to hand over and
  * the panel says so.
  *
- * One write, one Kernel. The store converts every legacy pool in the resource
- * in a single write, and `materialize_legacy_agent` applies the supplied
- * Kernel to every agent node it builds — so two Kernel Loops configured
- * differently cannot both be honoured, and this refuses rather than picking
- * one.
+ * One write, one Kernel, for the conversion. The store converts every legacy
+ * pool in the resource in a single write, and every Agent it builds there is
+ * built without a Kernel of its own — so they all take the supplied one, two
+ * Kernel Loops configured differently cannot both be honoured, and this
+ * refuses rather than picking one. Preflight is not that: a graph whose nodes
+ * all carry their own Kernel is checked with no fallback at all, so Kernels
+ * that disagree are no longer a reason the check cannot be made.
  *
  * The two uses do NOT hand over the same thing, and that is the point of
  * keeping them apart:
  *
- *   - preflight materialises THIS Agent, so the Kernel goes over as the
- *     author configured it. Its own `config.kernel` is discarded and replaced
- *     by what is supplied, so anything dropped here is dropped from the
- *     Agent the author is looking at.
+ *   - preflight hands it over as the author configured it, because whatever
+ *     takes it as a fallback is built out of it — a node here, or a node of a
+ *     legacy Agent this one references, whose document the renderer cannot
+ *     see. Anything dropped here would be dropped from that.
  *   - the conversion materialises SOMEBODY ELSE'S Agent — one per inline
  *     entry — so two fields are projected rather than copied. `prompt`,
  *     because the entry's own legacy prompt replaces it (measured for both
  *     inline formats); and `json_schema`, because the parent's
- *     structured-output contract is not the subagent's and
- *     `materialize_legacy_agent` carries it over verbatim, which would force
- *     the parent's schema on every Agent the conversion builds.
- *     `CAPTURED_EMBEDDED_KERNEL` is that measurement. */
+ *     structured-output contract is not the subagent's and the supplied
+ *     Kernel is carried over verbatim, which would force the parent's schema
+ *     on every Agent the conversion builds. `CAPTURED_EMBEDDED_KERNEL` is
+ *     that measurement. */
 
 const is_object = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -81,12 +84,22 @@ export function legacy_entry_label(raw) {
 
 /* The model a legacy inline entry declares, as the runtime ends up reading it.
  *
- * Only the skeleton format keeps one. For `prompt_format: "skeleton"` the
- * store hands the entry's whole `template` to `convert_legacy_definition`, so
- * `model` survives into `legacy_template` and constrains the conversion; for
- * `"soul"` the store writes the soul text itself and its frontmatter carries
- * no model line, so the entry's declared model is dropped before the runtime
- * sees it. Both measured — `CAPTURED_INLINE_DECLARED_MODEL`.
+ * Both legacy formats keep one, and they keep it the same way. The store
+ * hands the entry's whole `template` to `convert_legacy_definition` as a
+ * skeleton template in either case — a soul entry's own prompt goes over as
+ * the instructions instead of being serialised into frontmatter — so `model`
+ * survives into `legacy_template` and constrains the conversion. Measured in
+ * both directions: `CAPTURED_INLINE_DECLARED_MODEL` records the store
+ * refusing the profile the entry does not declare and accepting the one it
+ * does, in each format. Before the runtime was repaired the soul path built
+ * the frontmatter itself and left the model out of it, so a soul entry
+ * declared nothing and every profile was accepted.
+ *
+ * The two shapes the store will take are mirrored exactly, because the model
+ * question is only reached for an entry it takes at all: a soul entry whose
+ * template has no prompt string is `invalid_shape` about the entry, and
+ * saying something about its model would be answering a question the runtime
+ * never asked.
  *
  * The stripping is Python's, not `trim()`'s. `_template_metadata` does
  * `model.strip() or None`, and those two sets are not nested: a name padded
@@ -95,9 +108,11 @@ export function legacy_entry_label(raw) {
  * four backwards, which is the same trap the endpoint rule cost a round on. */
 export function legacy_entry_declared_model(raw) {
   if (!is_object(raw)) return null;
-  if (raw.prompt_format !== "skeleton") return null;
   const template = raw.template;
   if (!is_object(template)) return null;
+  if (raw.prompt_format === "soul") {
+    if (typeof template.prompt !== "string") return null;
+  } else if (raw.prompt_format !== "skeleton") return null;
   const model = template.model;
   if (typeof model !== "string") return null;
   const stripped = python_strip(model);
@@ -287,12 +302,18 @@ export function legacy_conversion_plan(document) {
 /* What `preflight` may be handed.
  *
  * Only when the legacy data needs it, so a modern Agent's check is the same
- * request it has always been. No pre-check of the declared model here, for a
- * reason: preflight answers rather than writes, and its refusal is already on
- * screen in the save bar — including `identity_mismatch` when this Agent's
- * own legacy data names a different model than the Kernel it has been given.
- * The conversion is pre-checked because a refused write teaches the author
- * nothing about which entry caused it. */
+ * request it has always been. Whenever it might, the Kernel goes over rather
+ * than being withheld for being unnecessary here: a legacy Agent this one
+ * references can be the node that needs the fallback, and its document is
+ * not in the renderer's hands. A node that has its own Kernel ignores what
+ * is sent.
+ *
+ * No pre-check of the declared model here, for a reason: preflight answers
+ * rather than writes, and its refusal is already on screen in the save bar —
+ * including `identity_mismatch` when a kernel-absent node's own legacy data
+ * names a different model than the Kernel it has been given. The conversion
+ * is pre-checked because a refused write teaches the author nothing about
+ * which entry caused it. */
 export function legacy_preflight_kernel(document) {
   if (
     migrated_agent_nodes(document).length === 0 &&
