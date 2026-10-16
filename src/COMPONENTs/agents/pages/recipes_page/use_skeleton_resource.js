@@ -5,10 +5,7 @@ import {
   preflight as preflight_resource,
   save_draft,
 } from "./skeleton_resources";
-import {
-  legacy_conversion_plan,
-  legacy_preflight_kernel,
-} from "./legacy_conversion";
+import { legacy_conversion_plan } from "./legacy_conversion";
 import {
   can_convert_legacy_pools,
   conflict_discarded,
@@ -117,17 +114,14 @@ export default function useSkeletonResource() {
     const current = ref.current;
     if (!can_preflight(current)) return current;
     const issued = preflight_token(current);
-    /* A migrated Agent is prepared out of its legacy data and, for whatever
-       part of it has no Kernel of its own, a Kernel the caller supplies — so
-       without one the store answers `legacy_profile_required` and the check
-       cannot succeed, for a reason the author cannot act on from here. The
-       Kernel they configured is what goes over; `legacy_preflight_kernel`
-       answers `null` for everything else, so a modern Agent's check is the
-       request it always was. */
-    const result = await preflight_resource(
-      current.resource_id,
-      legacy_preflight_kernel(current.document),
-    );
+    /* No Kernel goes over. Every Kernel the store needs is in the document —
+       a node's own, or, for a legacy subagent, the one configured on the
+       Agent node its pool is attached to — and the request fallback is for
+       whatever has none, which is the author's to configure rather than this
+       editor's to supply. Measured: with nothing sent, a migrated Agent whose
+       Kernel Loop is configured is admitted, and one that is not answers
+       `legacy_profile_required` naming what needs it. */
+    const result = await preflight_resource(current.resource_id);
     return apply((latest) =>
       result.ok
         ? preflight_passed(latest, result.data, issued)
@@ -145,11 +139,13 @@ export default function useSkeletonResource() {
   const convertLegacyPools = useCallback(async () => {
     const current = ref.current;
     if (!can_convert_legacy_pools(current)) return current;
-    /* The Kernel is read here rather than taken from the caller, for the
-       reason the two limits above live here: the panel decided what to say
-       about a document it was rendered with, and this is the document the
-       store is about to be asked to change. A plan that refuses is not sent —
-       the write would be refused, and the panel is already saying why. */
+    /* The plan is read here rather than taken from the caller, for the reason
+       the two limits above live here: the panel decided what to say about a
+       document it was rendered with, and this is the document the store is
+       about to be asked to change. A plan that refuses is not sent — the
+       write would be refused, and the panel is already saying why. Nothing
+       but the document goes over: each pool's children are built on the
+       Kernel configured where that pool is attached. */
     const plan = legacy_conversion_plan(current.document);
     if (plan.refusal) return current;
     const started = apply(conversion_started(current));
@@ -157,7 +153,7 @@ export default function useSkeletonResource() {
     const result = await convert_legacy_pools_in_store(
       current.resource_id,
       current.edit_token,
-      plan.kernel,
+      null,
     );
     return apply((latest) =>
       result.ok

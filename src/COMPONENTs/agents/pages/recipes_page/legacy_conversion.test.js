@@ -3,20 +3,23 @@ import {
   CONVERSION_KERNEL_AMBIGUOUS,
   CONVERSION_KERNEL_REFUSED,
   CONVERSION_MODEL_MISMATCH,
-  conversion_kernel,
+  CONVERSION_OWNER_REQUIRED,
   inline_pool_entries,
   legacy_conversion_plan,
   legacy_entry_declared_model,
   legacy_entry_label,
-  legacy_preflight_kernel,
-  migrated_agent_nodes,
+  plan_for_pool,
+  pool_child_kernel,
+  pool_owner_nodes,
   profile_holds_model,
 } from "./legacy_conversion";
+import { kernel_where } from "./kernel_config";
 import {
-  CAPTURED_EMBEDDED_KERNEL,
+  CAPTURED_CHILD_KERNEL,
   CAPTURED_INLINE_DECLARED_MODEL,
   CAPTURED_INLINE_MODEL_MATCHES,
   CAPTURED_INLINE_PRESERVED_POLICY,
+  CAPTURED_POOL_OWNER_ADMISSION,
 } from "./legacy_conversion_capture";
 
 /* The Kernel a legacy inline subagent is built on.
@@ -49,6 +52,15 @@ const kernel = ({ profile, ...rest } = {}) => ({
   ...rest,
 });
 
+const OTHER_PROFILE = {
+  id: "anthropic:claude-x",
+  provider: "anthropic",
+  model: "claude-x",
+  protocol: "anthropic",
+  endpoint: "https://api.anthropic.com/v1/messages",
+  credential_ref: "anthropic",
+};
+
 const inline_entry = (template, prompt_format = "skeleton") => ({
   kind: "inline",
   name: "Shortener",
@@ -64,25 +76,42 @@ const pool_node = (id, entries) => ({
   config: { legacy_fields: { subagents: entries } },
 });
 
-const document_of = (nodes) => ({
+/* A pool is attached to the Agent node whose subagents it holds, and the
+   runtime reads the edge in either direction. */
+const attach = (pool_id, owner_id, flipped = false) => ({
+  id: `${pool_id}-${owner_id}`,
+  kind: "attach",
+  source_node_id: flipped ? owner_id : pool_id,
+  source_port_id: flipped ? "attach_bot" : "attach_top",
+  target_node_id: flipped ? pool_id : owner_id,
+  target_port_id: flipped ? "attach_top" : "attach_bot",
+});
+
+const document_of = (nodes, edges = []) => ({
   schema_version: 1,
   kind: "agent",
   id: "res-1",
   name: "Reviewer",
   nodes,
-  edges: [],
+  edges,
 });
 
 /* A migrated Agent, which is what a legacy pool always sits in: its own agent
-   node carries `legacy_recipe`, which is also what makes preflight ask for a
-   Kernel. */
+   node carries `legacy_recipe`, and the pool it came with is attached to that
+   node — which is where the model its subagents are built on is configured. */
 const migrated = (agent_config, pools = []) =>
-  document_of([
-    { id: "start", type: "start", config: {} },
-    agent_node("a1", { legacy_recipe: { name: "Reviewer" }, ...agent_config }),
-    ...pools,
-    { id: "end", type: "end", config: {} },
-  ]);
+  document_of(
+    [
+      { id: "start", type: "start", config: {} },
+      agent_node("a1", { legacy_recipe: { name: "Reviewer" }, ...agent_config }),
+      ...pools,
+      { id: "end", type: "end", config: {} },
+    ],
+    pools.map((pool) => attach(pool.id, "a1")),
+  );
+
+const node_index_of = (document, node_id) =>
+  document.nodes.findIndex((node) => node.id === node_id);
 
 describe("the model a legacy inline entry declares", () => {
   it("is kept by both legacy formats, as each of them was asked", () => {
@@ -93,7 +122,7 @@ describe("the model a legacy inline entry declares", () => {
       );
       /* The capture states what the store answered, not what the mirror
          reads, so the comparison is composed here: against the profile the
-         entry declares, and against a different one. */
+         entry declares and against a different one. */
       expect(profile_holds_model(declared, row.against_declared)).toBe(
         row.accepted_against_declared,
       );
@@ -101,10 +130,8 @@ describe("the model a legacy inline entry declares", () => {
         row.accepted_against_other,
       );
     });
-    /* What the repair changed. A soul-format entry's declared model used to
-       be dropped before the runtime saw it, so every profile was accepted;
-       now the store converts both formats through the same template IR and
-       refuses the one the entry does not declare. */
+    /* A soul-format entry's model is enforced too: the store converts both
+       formats through the same template IR. */
     const enforced = CAPTURED_INLINE_DECLARED_MODEL.filter(
       (row) => row.prompt_format === "soul" && !row.accepted_against_other,
     );
@@ -153,8 +180,8 @@ describe("which profile the declared model is", () => {
           model: row.model,
         }),
       ).toBe(row.accepted);
-      /* Accepted means the Agent the store built runs on the profile it was
-         handed, which is the other half of the answer: a conversion that was
+      /* Accepted means the Agent the store built runs on its pool owner's
+         profile, which is the other half of the answer: a conversion that was
          admitted onto a different model would be worse than a refused one. */
       if (row.accepted) expect(row.carried_model).toBe(row.model);
     });
@@ -168,6 +195,7 @@ describe("which profile the declared model is", () => {
     const refused = CAPTURED_INLINE_MODEL_MATCHES.filter((row) => !row.accepted);
     expect(accepted.length).toBeGreaterThan(0);
     expect(refused.length).toBeGreaterThan(0);
+    expect(refused.every((row) => row.code === "identity_mismatch")).toBe(true);
   });
 
   it("is not trim(), and the corpus holds the cases that prove it", () => {
@@ -232,94 +260,207 @@ describe("which profile the declared model is", () => {
   });
 });
 
-describe("what the conversion hands over", () => {
-  it("drops the two fields that are not the subagent's", () => {
-    const handed = conversion_kernel(CAPTURED_EMBEDDED_KERNEL.supplied);
-    expect(handed.prompt).toBe("");
-    expect(handed.json_schema).toBeNull();
-    /* Everything else is the author's choice and goes over unchanged. */
-    expect(handed.profile).toEqual(CAPTURED_EMBEDDED_KERNEL.supplied.profile);
-    expect(handed.max_iterations).toBe(
-      CAPTURED_EMBEDDED_KERNEL.supplied.max_iterations,
+describe("which Agent nodes a pool is attached to", () => {
+  it("reads the attach edge in either direction, and counts a node once", () => {
+    const document = document_of(
+      [
+        agent_node("left", { kernel: kernel() }),
+        agent_node("right", { kernel: kernel() }),
+        pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
+        { id: "tools", type: "toolkit_pool", config: {} },
+      ],
+      [
+        attach("pool", "left"),
+        attach("pool", "right", true),
+        { ...attach("pool", "left"), id: "again" },
+        /* Not an owner: a toolkit pool is not an Agent node, and a flow edge
+           is not an attachment. */
+        { ...attach("pool", "tools"), id: "tools-attach" },
+        { ...attach("pool", "right"), id: "flowed", kind: "flow" },
+      ],
     );
-    expect(handed.output_tokens).toBe(
-      CAPTURED_EMBEDDED_KERNEL.supplied.output_tokens,
-    );
-    expect(handed.history).toBe(CAPTURED_EMBEDDED_KERNEL.supplied.history);
-    expect(handed.overflow).toBe(CAPTURED_EMBEDDED_KERNEL.supplied.overflow);
-  });
-
-  it("drops them because the runtime carries them over verbatim", () => {
-    /* The measurement that makes the projection a decision rather than a
-       preference: the supplied schema arrives in the built subagent, so one
-       left in would be this Agent's output contract imposed on every Agent
-       the conversion builds. The prompt is the one field the runtime does
-       replace. */
-    expect(CAPTURED_EMBEDDED_KERNEL.carried.json_schema).toEqual(
-      CAPTURED_EMBEDDED_KERNEL.supplied.json_schema,
-    );
-    expect(CAPTURED_EMBEDDED_KERNEL.supplied.json_schema).not.toBeNull();
-    expect(CAPTURED_EMBEDDED_KERNEL.carried.prompt).toBe(
-      CAPTURED_EMBEDDED_KERNEL.legacy_prompt,
-    );
-    expect(CAPTURED_EMBEDDED_KERNEL.carried.prompt).not.toBe(
-      CAPTURED_EMBEDDED_KERNEL.supplied.prompt,
-    );
-    expect(CAPTURED_EMBEDDED_KERNEL.carried.output_tokens).toBe(
-      CAPTURED_EMBEDDED_KERNEL.supplied.output_tokens,
-    );
-    expect(CAPTURED_EMBEDDED_KERNEL.carried.history).toBe(
-      CAPTURED_EMBEDDED_KERNEL.supplied.history,
-    );
-  });
-
-  it("keeps the policy the panel says it keeps, in both formats", () => {
-    /* The panel's two statements — that converting keeps the tools,
-       delegation modes, memory and parallel safety each subagent already
-       declared — are measured here rather than asserted about the panel's
-       own words. `allowed_tools: []` is in the corpus on purpose: the default
-       is `null`, which is unrestricted, so a lost restriction would be a
-       widened one. */
-    const claimed = [
-      "allowed_tools",
-      "allowed_modes",
-      "memory_policy",
-      "parallel_safe",
-      "output_mode",
-    ];
-    expect(CAPTURED_INLINE_PRESERVED_POLICY.length).toBe(2);
-    CAPTURED_INLINE_PRESERVED_POLICY.forEach((row) => {
-      claimed.forEach((key) => {
-        expect(row.stored[key]).toEqual(row.declared[key]);
-      });
-      expect(row.declared.allowed_tools).toEqual([]);
-      expect(row.disabled_tools).toEqual(["write"]);
-      /* And its own prompt, which is the other half of what the panel
-         promises an entry brings with it. */
-      expect(row.carried_prompt).toBe("Be brief.");
-      /* Not the description: the template IR the store converts through
-         carries the policy fields and the model, and the entry's description
-         comes from its name. Neither statement names descriptions. */
-      expect(row.stored.description).toBe("");
-      expect(row.declared.description).not.toBe("");
-    });
-    expect(
-      CAPTURED_INLINE_PRESERVED_POLICY.map((row) => row.prompt_format).sort(),
-    ).toEqual(["skeleton", "soul"]);
+    expect(pool_owner_nodes(document, "pool").map(({ node }) => node.id)).toEqual([
+      "left",
+      "right",
+    ]);
+    /* In document order with its index, because the index is part of the
+       address the runtime reports a faulty Kernel at. */
+    expect(pool_owner_nodes(document, "pool").map(({ index }) => index)).toEqual([
+      0, 1,
+    ]);
+    expect(pool_owner_nodes(document, "missing")).toEqual([]);
+    expect(pool_owner_nodes(null, "pool")).toEqual([]);
   });
 });
 
-describe("the plan a legacy pool conversion is given", () => {
-  it("needs no Kernel when nothing has to be built", () => {
-    const plan = legacy_conversion_plan(
-      migrated({}, [pool_node("pool", [{ kind: "recipe_ref", recipe_name: "S" }])]),
-    );
-    expect(plan.required).toBe(false);
-    expect(plan.kernel).toBeNull();
-    expect(plan.refusal).toBeNull();
+describe("which Kernel a pool's children are built on", () => {
+  it("answers every captured case the way the store answered it", () => {
+    expect(CAPTURED_POOL_OWNER_ADMISSION.length).toBeGreaterThan(0);
+    /* The one place this mirror is deliberately the stricter side. The store
+       will build a child on a Kernel the CALLER supplies when the pool's own
+       owner has none — this editor supplies none, by the decision in the
+       module header, so that branch is not reachable from here and the honest
+       answer is the owner that is unconfigured. Counted rather than waved
+       through: two rows in this corpus were answered out of the supplied
+       Kernel, and if a regeneration adds a third it has to be looked at. The
+       hook's own suite is what proves nothing is sent. */
+    let stood_in = 0;
+    CAPTURED_POOL_OWNER_ADMISSION.forEach((row) => {
+      const plan = legacy_conversion_plan(row.document);
+      if (
+        row.request_fallback &&
+        plan.refusal !== null &&
+        plan.refusal.code === CONVERSION_KERNEL_ABSENT &&
+        (row.accepted || kernel_where(row.path).startsWith("legacy_kernel"))
+      ) {
+        stood_in += 1;
+        return;
+      }
+      if (row.accepted) {
+        expect(plan.refusal).toBeNull();
+        /* Each pool on its own owner's model, which for the two-pool row is
+           two providers in one write. */
+        const models = row.per_pool
+          ? row.per_pool
+          : { pool: row.child_profile.model };
+        Object.entries(models).forEach(([pool_id, model]) => {
+          expect(plan_for_pool(plan, pool_id).chosen.split(":")[1]).toBe(model);
+        });
+        return;
+      }
+      expect(plan.refusal).not.toBeNull();
+      const where = kernel_where(row.path);
+      if (plan.refusal.code === CONVERSION_KERNEL_REFUSED) {
+        /* The runtime's own code and address for a Kernel it will not take,
+           including the schema fault it reports under `json_schema`. */
+        expect(plan.refusal.problem.code).toBe(row.code);
+        expect(plan.refusal.problem.where).toBe(where);
+        return;
+      }
+      expect(plan.refusal.code).toBe(row.code);
+      if (plan.refusal.where) {
+        expect(plan.refusal.where).toBe(where);
+        return;
+      }
+      /* The rest are reported at an entry inside the pool — the store blames
+         the entry it could not build, this names the pool it is in. */
+      expect(row.path.slice(0, 3)).toEqual([
+        "document",
+        "nodes",
+        node_index_of(row.document, plan.refusal.pool_id),
+      ]);
+    });
+    expect(stood_in).toBe(2);
   });
 
-  it("hands over the Kernel the author configured, projected", () => {
+  it("holds all four refusals and both sides of the write", () => {
+    /* A corpus that lost a case would still pass the loop above. */
+    const codes = new Set(
+      CAPTURED_POOL_OWNER_ADMISSION.filter((row) => !row.accepted).map(
+        (row) => row.code,
+      ),
+    );
+    expect(codes).toContain(CONVERSION_OWNER_REQUIRED);
+    expect(codes).toContain(CONVERSION_KERNEL_ABSENT);
+    expect(codes).toContain(CONVERSION_KERNEL_AMBIGUOUS);
+    expect(codes).toContain(CONVERSION_MODEL_MISMATCH);
+    expect(
+      CAPTURED_POOL_OWNER_ADMISSION.filter((row) => row.accepted).length,
+    ).toBeGreaterThan(0);
+    /* Nothing was written for any refusal, which is what makes a refusal here
+       something the panel may state before the write rather than after. */
+    expect(
+      CAPTURED_POOL_OWNER_ADMISSION.every(
+        (row) => row.accepted || row.unwritten === true,
+      ),
+    ).toBe(true);
+  });
+
+  it("compares two owners on what a child would be built from", () => {
+    /* Measured: owners differing in their own prompt or output schema are one
+       Kernel to a child, because the runtime clears both before building it.
+       Owners differing in anything else are not. */
+    const shared = (second) =>
+      pool_child_kernel(
+        document_of(
+          [
+            agent_node("left", { kernel: kernel() }),
+            agent_node("right", { kernel: second }),
+            pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
+          ],
+          [attach("pool", "left"), attach("pool", "right", true)],
+        ),
+        "pool",
+      );
+    expect(
+      shared(
+        kernel({
+          prompt: "A different parent prompt",
+          json_schema: { type: "object", properties: { x: { type: "string" } } },
+        }),
+      ).refusal,
+    ).toBeNull();
+    expect(shared(kernel({ output_tokens: 999 })).refusal.code).toBe(
+      CONVERSION_KERNEL_AMBIGUOUS,
+    );
+    expect(
+      shared(kernel({ profile: { credential_ref: "other.secret" } })).refusal
+        .nodes,
+    ).toEqual(["left", "right"]);
+  });
+
+  it("tells an unconfigured owner from one the runtime refuses", () => {
+    const pool = [pool_node("pool", [inline_entry({ prompt: "Be brief." })])];
+    const absent = pool_child_kernel(migrated({}, pool), "pool");
+    expect(absent.refusal.code).toBe(CONVERSION_KERNEL_ABSENT);
+    expect(absent.refusal.node_id).toBe("a1");
+    /* `kernel: null` is a Kernel, and it is one the runtime will not take. A
+       node with no `kernel` key at all has not been configured, which is the
+       author's to answer rather than a fault to report. */
+    const stated = pool_child_kernel(migrated({ kernel: null }, pool), "pool");
+    expect(stated.refusal.code).toBe(CONVERSION_KERNEL_REFUSED);
+    expect(stated.refusal.problem.code).toBe("invalid_type");
+    expect(stated.refusal.problem.where).toBe("document.nodes[1].config.kernel");
+  });
+});
+
+describe("what the child is built on", () => {
+  it("is the owner's Kernel with the two fields the runtime clears", () => {
+    const { owner, child } = CAPTURED_CHILD_KERNEL;
+    /* By value, not by written order: the child came back out of the store,
+       which writes its JSON with the keys sorted. */
+    const written = (value) =>
+      Array.isArray(value)
+        ? `[${value.map(written).join(",")}]`
+        : value && typeof value === "object"
+          ? `{${Object.keys(value)
+              .sort()
+              .map((key) => `${key}:${written(value[key])}`)
+              .join(",")}}`
+          : JSON.stringify(value);
+    const differs = Object.keys({ ...owner, ...child }).filter(
+      (key) => written(owner[key]) !== written(child[key]),
+    );
+    expect(differs.sort()).toEqual(["json_schema", "prompt"]);
+    /* The child's prompt is the entry's own, and its schema is nothing —
+       neither is a value this editor supplied. */
+    expect(child.prompt).toBe(CAPTURED_CHILD_KERNEL.legacy_prompt);
+    expect(child.json_schema).toBeNull();
+    expect(owner.json_schema).not.toBeNull();
+  });
+
+  it("leaves the owner's own Kernel alone, and both entry points agree", () => {
+    expect(CAPTURED_CHILD_KERNEL.owner_after).toEqual(
+      CAPTURED_CHILD_KERNEL.owner,
+    );
+    /* Which is why nothing is projected here: `preflight` and
+       `convert_legacy_pools` build the identical child from the same
+       document, so an editor that pre-projected would be the only thing
+       making them differ. */
+    expect(CAPTURED_CHILD_KERNEL.preflight_child_is_the_same).toBe(true);
+  });
+
+  it("is what the plan names, without handing anything over", () => {
     const configured = kernel({
       json_schema: {
         type: "object",
@@ -335,68 +476,96 @@ describe("the plan a legacy pool conversion is given", () => {
     );
     expect(plan.refusal).toBeNull();
     expect(plan.required).toBe(true);
-    expect(plan.pools).toEqual(["pool"]);
-    expect(plan.kernel).toEqual({ ...configured, prompt: "", json_schema: null });
-    expect(plan.chosen).toBe("openai:gpt-4.1");
+    expect(plan_for_pool(plan, "pool").chosen).toBe("openai:gpt-4.1");
+    expect(plan_for_pool(plan, "pool").owners).toEqual(["a1"]);
+    /* No Kernel on the plan at all: there is nothing for the caller to send,
+       and a field here would be the beginning of sending it. */
+    expect("kernel" in plan).toBe(false);
+  });
+});
+
+describe("what a converted entry keeps", () => {
+  it("keeps the policy the panel says it keeps, in both formats", () => {
+    /* The panel's two statements — that converting keeps the tools,
+       delegation modes, memory and parallel safety each subagent already
+       declared, and that their prompts come with them — measured rather than
+       asserted about the panel's own words. `allowed_tools: []` is in the
+       corpus on purpose: the default is `null`, which means unrestricted, so
+       a lost restriction would be a widened one. */
+    const claimed = [
+      "allowed_tools",
+      "allowed_modes",
+      "memory_policy",
+      "parallel_safe",
+      "output_mode",
+    ];
+    expect(CAPTURED_INLINE_PRESERVED_POLICY.length).toBe(2);
+    CAPTURED_INLINE_PRESERVED_POLICY.forEach((row) => {
+      claimed.forEach((key) => {
+        expect(row.stored[key]).toEqual(row.declared[key]);
+      });
+      expect(row.declared.allowed_tools).toEqual([]);
+      expect(row.disabled_tools).toEqual(["write"]);
+      expect(row.carried_prompt).toBe("Child instructions");
+      /* And the description, verbatim — the padding it was stored with is
+         still there, and the Agent the conversion builds carries the same
+         text. Neither statement mentions descriptions; this is recorded
+         because it used to be dropped. */
+      expect(row.stored.description).toBe(row.declared.description);
+      expect(row.child_description).toBe(row.declared.description);
+      expect(row.declared.description).not.toBe(row.declared.description.trim());
+    });
+    expect(
+      CAPTURED_INLINE_PRESERVED_POLICY.map((row) => row.prompt_format).sort(),
+    ).toEqual(["skeleton", "soul"]);
+  });
+});
+
+describe("the plan a legacy pool conversion is given", () => {
+  it("needs no model when nothing has to be built", () => {
+    const plan = legacy_conversion_plan(
+      migrated({}, [pool_node("pool", [{ kind: "recipe_ref", recipe_name: "S" }])]),
+    );
+    expect(plan.required).toBe(false);
+    expect(plan.refusal).toBeNull();
+    expect(plan_for_pool(plan, "pool")).toBeNull();
   });
 
-  it("will not guess a model when none is configured", () => {
+  it("will not guess a model when the pool's owner has none", () => {
     const plan = legacy_conversion_plan(
       migrated({}, [pool_node("pool", [inline_entry({ prompt: "Be brief." })])]),
     );
     expect(plan.required).toBe(true);
-    expect(plan.kernel).toBeNull();
     expect(plan.refusal.code).toBe(CONVERSION_KERNEL_ABSENT);
+    expect(plan.refusal.pool_id).toBe("pool");
   });
 
-  it("will not pick between two Kernel Loops that disagree", () => {
-    const document = document_of([
-      agent_node("a1", {
-        legacy_recipe: { name: "R" },
-        kernel: kernel(),
-      }),
-      agent_node("a2", {
-        kernel: kernel({ profile: { id: "x", provider: "anthropic", model: "claude-x", protocol: "anthropic", endpoint: "https://api.anthropic.com" } }),
-      }),
-      pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
-    ]);
-    const plan = legacy_conversion_plan(document);
-    expect(plan.refusal.code).toBe(CONVERSION_KERNEL_AMBIGUOUS);
-    expect(plan.refusal.nodes).toEqual(["a1", "a2"]);
-    expect(plan.kernel).toBeNull();
+  it("will not take a configured node the pool is not attached to", () => {
+    /* The store refuses exactly this, so the panel does not offer it: an
+       Agent node configured elsewhere in the graph is not this pool's. */
+    const plan = legacy_conversion_plan(
+      document_of(
+        [
+          agent_node("a1", { legacy_recipe: { name: "R" } }),
+          agent_node("a2", { kernel: kernel() }),
+          pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
+        ],
+        [attach("pool", "a1")],
+      ),
+    );
+    expect(plan.refusal.code).toBe(CONVERSION_KERNEL_ABSENT);
+    expect(plan.refusal.node_id).toBe("a1");
   });
 
-  it("is not confused by two identical Kernels written differently", () => {
-    const first = kernel();
-    const second = {
-      json_schema: null,
-      overflow: "error",
-      history: "root",
-      output_tokens: 2048,
-      max_iterations: 6,
-      prompt: "You are the parent.",
-      profile: {
-        capabilities: { files: true, images: true, json_schema: true },
-        output_limit: 4096,
-        context_window: 128000,
-        credential_ref: "openai",
-        endpoint: "https://api.openai.com/v1",
-        protocol: "openai-responses",
-        model: "gpt-4.1",
-        provider: "openai",
-        id: "openai:gpt-4.1",
-      },
-      schema_version: 1,
-    };
+  it("says so when the pool is attached to nothing", () => {
     const plan = legacy_conversion_plan(
       document_of([
-        agent_node("a1", { legacy_recipe: { name: "R" }, kernel: first }),
-        agent_node("a2", { kernel: second }),
+        agent_node("a1", { legacy_recipe: { name: "R" }, kernel: kernel() }),
         pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
       ]),
     );
-    expect(plan.refusal).toBeNull();
-    expect(plan.kernel.profile.model).toBe("gpt-4.1");
+    expect(plan.refusal.code).toBe(CONVERSION_OWNER_REQUIRED);
+    expect(plan.refusal.where).toBe("document.nodes[1].config");
   });
 
   it("says so when the configured Kernel is not one the runtime would take", () => {
@@ -407,10 +576,11 @@ describe("the plan a legacy pool conversion is given", () => {
     );
     expect(plan.refusal.code).toBe(CONVERSION_KERNEL_REFUSED);
     expect(plan.refusal.problem.code).toBe("unknown_field");
-    /* The store reports a faulty supplied Kernel under `legacy_kernel`, and
-       so does this, so the address the author is given is the runtime's. */
-    expect(plan.refusal.problem.where).toBe("legacy_kernel.temperature");
-    expect(plan.kernel).toBeNull();
+    /* The address is the node's own Kernel, which is where the author fixes
+       it and where the store reports it. */
+    expect(plan.refusal.problem.where).toBe(
+      "document.nodes[1].config.kernel.temperature",
+    );
   });
 
   it("refuses to move a subagent onto a different model", () => {
@@ -427,30 +597,6 @@ describe("the plan a legacy pool conversion is given", () => {
     expect(plan.refusal.entries).toEqual([
       { pool_id: "pool", index: 0, name: "Shortener", declared: "anthropic:claude-x" },
     ]);
-    expect(plan.kernel).toBeNull();
-  });
-
-  it("offers it when the entry declares the model it is being given", () => {
-    const plan = legacy_conversion_plan(
-      migrated({ kernel: kernel() }, [
-        pool_node("pool", [
-          inline_entry({ prompt: "Be brief.", model: "openai:gpt-4.1" }),
-          inline_entry({ prompt: "Bare.", model: "gpt-4.1" }),
-          /* Soul format, declaring the same model: both formats are
-             converted through the same template IR now, so this is read and
-             compared exactly like the two above. */
-          inline_entry({ prompt: "Soul.", model: "openai:gpt-4.1" }, "soul"),
-          inline_entry({ prompt: "Declares nothing." }, "soul"),
-        ]),
-      ]),
-    );
-    expect(plan.refusal).toBeNull();
-    expect(plan.entries.map((entry) => entry.declared)).toEqual([
-      "openai:gpt-4.1",
-      "gpt-4.1",
-      "openai:gpt-4.1",
-      null,
-    ]);
   });
 
   it("refuses a soul-format entry that declares another model too", () => {
@@ -465,10 +611,56 @@ describe("the plan a legacy pool conversion is given", () => {
       ]),
     );
     expect(plan.refusal.code).toBe(CONVERSION_MODEL_MISMATCH);
-    expect(plan.refusal.entries).toEqual([
-      { pool_id: "pool", index: 0, name: "Shortener", declared: "anthropic:claude-x" },
-    ]);
-    expect(plan.kernel).toBeNull();
+    expect(plan.refusal.entries[0].declared).toBe("anthropic:claude-x");
+  });
+
+  it("offers it when each entry declares the model its own pool is built on", () => {
+    const plan = legacy_conversion_plan(
+      document_of(
+        [
+          agent_node("left", { legacy_recipe: { name: "R" }, kernel: kernel() }),
+          agent_node("right", { kernel: kernel({ profile: OTHER_PROFILE }) }),
+          pool_node("here", [
+            inline_entry({ prompt: "Be brief.", model: "openai:gpt-4.1" }),
+            inline_entry({ prompt: "Bare.", model: "gpt-4.1" }),
+            inline_entry({ prompt: "Soul.", model: "openai:gpt-4.1" }, "soul"),
+          ]),
+          pool_node("there", [
+            inline_entry({ prompt: "Other.", model: "anthropic:claude-x" }),
+          ]),
+        ],
+        [attach("here", "left"), attach("there", "right", true)],
+      ),
+    );
+    expect(plan.refusal).toBeNull();
+    expect(plan.pools).toEqual(["here", "there"]);
+    /* Two pools, two models, one write — which is why the model is named per
+       pool and not once for the Agent. */
+    expect(plan_for_pool(plan, "here").chosen).toBe("openai:gpt-4.1");
+    expect(plan_for_pool(plan, "there").chosen).toBe("anthropic:claude-x");
+  });
+
+  it("refuses the whole write for a pool that is not the one in hand", () => {
+    /* `convert_legacy_pools` expands every legacy pool in the resource, so a
+       pool whose owner is unconfigured withholds the button from a pool whose
+       owner is fine — and the panel has to be able to name which. */
+    const plan = legacy_conversion_plan(
+      document_of(
+        [
+          agent_node("left", { legacy_recipe: { name: "R" }, kernel: kernel() }),
+          agent_node("right", {}),
+          pool_node("here", [inline_entry({ prompt: "Be brief." })]),
+          pool_node("there", [inline_entry({ prompt: "Other." })]),
+        ],
+        [attach("here", "left"), attach("there", "right")],
+      ),
+    );
+    expect(plan.refusal.code).toBe(CONVERSION_KERNEL_ABSENT);
+    expect(plan.refusal.pool_id).toBe("there");
+    /* The pool in hand still answers for itself, which is what lets the panel
+       say "this one is ready, that one is not". */
+    expect(plan_for_pool(plan, "here").refusal).toBeNull();
+    expect(plan_for_pool(plan, "here").chosen).toBe("openai:gpt-4.1");
   });
 
   it("asks about every pool in the Agent, not the one in hand", () => {
@@ -483,89 +675,17 @@ describe("the plan a legacy pool conversion is given", () => {
     expect(plan.entries.map((entry) => entry.pool_id)).toEqual(["elsewhere"]);
     expect(inline_pool_entries(null)).toEqual([]);
   });
-});
 
-describe("what preflight is handed", () => {
-  it("is nothing for an Agent with no legacy data", () => {
-    const modern = document_of([
-      agent_node("a1", { kernel: kernel() }),
-      pool_node("pool", [{ kind: "recipe_ref", recipe_name: "S" }]),
-    ]);
-    /* The pool is legacy but holds no inline entry, and no agent node is
-       migrated, so the store asks for nothing and neither does this. */
-    expect(migrated_agent_nodes(modern)).toEqual([]);
-    expect(legacy_preflight_kernel(modern)).toBeNull();
-  });
-
-  it("is the Kernel as configured for a migrated Agent", () => {
-    const configured = kernel({
-      json_schema: {
-        type: "object",
-        properties: { a: { type: "string" } },
-        required: ["a"],
-        additionalProperties: false,
-      },
-    });
-    const document = migrated({ kernel: configured });
-    expect(migrated_agent_nodes(document)).toEqual(["a1"]);
-    /* Not projected. The Kernel goes over as a fallback for whatever has
-       none of its own — a node here, or a node of a legacy Agent this one
-       references, which is not visible from the renderer — and a node that
-       has one keeps it. Dropping a field here would drop it from whatever
-       takes the fallback. */
-    expect(legacy_preflight_kernel(document)).toEqual(configured);
-  });
-
-  it("is nothing when two Kernel Loops disagree, and that is not a refusal", () => {
-    /* Measured: a fully configured migrated graph is checked with no
-       fallback at all — each node runs on its own Kernel, prompt and
-       iteration limit, even when the two name different models. So two
-       Kernel Loops that differ no longer stop the check being made. They are
-       only a reason there is no single Kernel to hand over, and in a graph
-       like this one nothing asks for it. */
-    const other = kernel({
-      profile: {
-        id: "x",
-        provider: "anthropic",
-        model: "claude-x",
-        protocol: "anthropic",
-        endpoint: "https://api.anthropic.com/v1/messages",
-      },
-    });
-    const document = document_of([
-      agent_node("a1", { legacy_recipe: { name: "R" }, kernel: kernel() }),
-      agent_node("a2", { kernel: other }),
-    ]);
-    expect(migrated_agent_nodes(document)).toEqual(["a1"]);
-    expect(legacy_preflight_kernel(document)).toBeNull();
-  });
-
-  it("is nothing when the migrated Agent has no Kernel yet", () => {
-    expect(legacy_preflight_kernel(migrated({}))).toBeNull();
-  });
-
-  it("is the Kernel when only a pool entry needs one", () => {
-    /* An inline entry has no Kernel of its own and never will: it is built
-       from its legacy data when the check runs, so a configured Agent node
-       does not excuse the fallback. Measured — a configured root holding one
-       and checked without a Kernel is `legacy_profile_required` at the
-       entry's own path, not at `legacy_kernel`. */
-    const document = document_of([
-      agent_node("a1", { kernel: kernel() }),
-      pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
-    ]);
-    expect(migrated_agent_nodes(document)).toEqual([]);
-    expect(legacy_preflight_kernel(document).profile.model).toBe("gpt-4.1");
-  });
-
-  it("counts a migrated Agent by what its node holds", () => {
-    expect(
-      migrated_agent_nodes(
-        document_of([agent_node("a1", { legacy_template: { model: null } })]),
-      ),
-    ).toEqual(["a1"]);
-    expect(migrated_agent_nodes(document_of([agent_node("a1", {})]))).toEqual([]);
-    expect(migrated_agent_nodes(null)).toEqual([]);
+  it("answers for a pool nobody asked about with nothing at all", () => {
+    const plan = legacy_conversion_plan(
+      migrated({ kernel: kernel() }, [
+        pool_node("pool", [inline_entry({ prompt: "Be brief." })]),
+      ]),
+    );
+    expect(plan_for_pool(plan, "__proto__")).toBeNull();
+    expect(plan_for_pool(plan, "absent")).toBeNull();
+    expect(plan_for_pool(null, "pool")).toBeNull();
+    expect(plan_for_pool({ by_pool: { pool: "forged" } }, "pool")).toBeNull();
   });
 });
 

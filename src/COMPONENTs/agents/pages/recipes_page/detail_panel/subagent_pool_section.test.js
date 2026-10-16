@@ -89,6 +89,10 @@ const pool = (config) => ({
   config,
 });
 
+/* The pool is attached to the Agent node it serves, which is not decoration:
+   the Kernel configured on the node a pool is attached to is the model its
+   legacy entries are converted onto, so a pool attached to nothing is a pool
+   whose subagents cannot be built. */
 const doc = (node) => ({
   schema_version: 1,
   kind: "agent",
@@ -98,7 +102,16 @@ const doc = (node) => ({
     { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
     node,
   ],
-  edges: [],
+  edges: [
+    {
+      id: "k-attach",
+      kind: "attach",
+      source_node_id: "k",
+      source_port_id: "attach_bot",
+      target_node_id: node.id,
+      target_port_id: "attach_top",
+    },
+  ],
 });
 
 const LIBRARY = [
@@ -1267,8 +1280,16 @@ describe("converting a legacy pool", () => {
     ...over,
   });
 
-  /* The same document the panel is given, with a Kernel on its Agent node. */
-  const configured = (node, kernel = KERNEL, extra_nodes = []) => {
+  /* The same document the panel is given, with a Kernel on the Agent node the
+     pool is attached to. `extra_nodes` sit beside it, and `extra_owners`
+     attach the pool to them as well — which is the only way two Kernels can
+     both be this pool's. */
+  const configured = (
+    node,
+    kernel = KERNEL,
+    extra_nodes = [],
+    extra_owners = [],
+  ) => {
     const base = doc(node);
     return {
       ...base,
@@ -1277,16 +1298,44 @@ describe("converting a legacy pool", () => {
         ...extra_nodes,
         ...base.nodes.slice(1),
       ],
+      edges: [
+        ...base.edges,
+        ...extra_owners.map((owner, index) => ({
+          id: `${owner}-attach-${index}`,
+          kind: "attach",
+          source_node_id: node.id,
+          source_port_id: "attach_top",
+          target_node_id: owner,
+          target_port_id: "attach_bot",
+        })),
+      ],
     };
   };
 
-  test("an inline entry is not offered while no model is chosen", async () => {
+  test("an inline entry is not offered while the owner has no model", async () => {
+    /* The Agent node this pool is attached to is the one that decides, so it
+       is the one the author is sent to — not "this Agent" in general, which
+       in a graph with several Kernel Loops is not an address. */
     const { onConvertLegacy } = await show_legacy([...named, inline()]);
     const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
-    expect(notice).toMatch(/needs a model/i);
-    expect(notice).toMatch(/choose one on this Agent's Agent node and save/i);
+    expect(notice).toMatch(/attached to k, which has no model configured yet/i);
+    expect(notice).toMatch(/choose one there and save/i);
+    expect(notice).toMatch(/another node's is not used in its place/i);
     expect(notice).not.toMatch(/no control for/i);
     expect(notice).not.toMatch(/wired up/i);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(onConvertLegacy).not.toHaveBeenCalled();
+  });
+
+  test("an inline entry is not offered while the pool is attached to nothing", async () => {
+    const node = legacy([inline()]);
+    const unattached = { ...configured(node), edges: [] };
+    const { onConvertLegacy } = await show_legacy([inline()], {
+      document: unattached,
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/not attached to an Agent node/i);
+    expect(notice).toMatch(/attach it to this Agent's Agent node and save/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
     expect(onConvertLegacy).not.toHaveBeenCalled();
   });
@@ -1318,7 +1367,7 @@ describe("converting a legacy pool", () => {
     });
     const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
     expect(notice).toMatch(/Shortener declares anthropic:claude-x/);
-    expect(notice).toMatch(/configured for openai:gpt-4\.1/);
+    expect(notice).toMatch(/this pool is built on openai:gpt-4\.1/);
     expect(notice).toMatch(/does not move a subagent onto a different model/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
     expect(onConvertLegacy).not.toHaveBeenCalled();
@@ -1359,24 +1408,45 @@ describe("converting a legacy pool", () => {
     ).toMatch(/declares \\ufeffgpt-4\.1/);
   });
 
-  test("two Agent nodes that disagree are named rather than chosen between", async () => {
+  const other_kernel = {
+    ...KERNEL,
+    profile: {
+      ...KERNEL.profile,
+      id: "x",
+      provider: "anthropic",
+      model: "claude-x",
+      protocol: "anthropic",
+      endpoint: "https://api.anthropic.com",
+    },
+  };
+
+  test("two owners of one pool that disagree are named rather than chosen between", async () => {
+    /* Two Kernel Loops are only this pool's problem when the pool is attached
+       to both of them: the subagents it builds are built once. */
     const entries = [inline()];
     const node = legacy(entries);
-    const other = {
-      id: "k2",
-      type: "agent",
-      config: {
-        kernel: {
-          ...KERNEL,
-          profile: { ...KERNEL.profile, id: "x", provider: "anthropic", model: "claude-x", protocol: "anthropic", endpoint: "https://api.anthropic.com" },
-        },
-      },
-    };
-    await show_legacy(entries, { document: configured(node, KERNEL, [other]) });
+    const other = { id: "k2", type: "agent", config: { kernel: other_kernel } };
+    await show_legacy(entries, {
+      document: configured(node, KERNEL, [other], ["k2"]),
+    });
     const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
-    expect(notice).toMatch(/more than one Agent node configured/i);
+    expect(notice).toMatch(/attached to more than one Agent node/i);
     expect(notice).toMatch(/\(k, k2\)/);
+    expect(notice).toMatch(/not inherited and need not match/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+  });
+
+  test("a second Kernel Loop the pool is not attached to is not its business", async () => {
+    const entries = [inline()];
+    const node = legacy(entries);
+    const other = { id: "k2", type: "agent", config: { kernel: other_kernel } };
+    const { onConvertLegacy } = await show_legacy(entries, {
+      document: configured(node, KERNEL, [other]),
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-kernel-chosen").textContent;
+    expect(notice).toMatch(/on openai:gpt-4\.1, the model configured on the Agent node this pool is attached to \(k\)/);
+    fireEvent.click(screen.getByText("Convert to Agent entries"));
+    expect(onConvertLegacy).toHaveBeenCalled();
   });
 
   test("a Kernel the runtime would refuse is named by its own field", async () => {
@@ -1386,7 +1456,12 @@ describe("converting a legacy pool", () => {
       document: configured(node, { ...KERNEL, history: "all" }),
     });
     const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
-    expect(notice).toMatch(/unknown_variant at legacy_kernel\.history/);
+    /* The runtime's own address for it, which is the node's Kernel rather
+       than a request field the author never filled in. */
+    expect(notice).toMatch(
+      /unknown_variant at document\.nodes\[0\]\.config\.kernel\.history/,
+    );
+    expect(notice).toMatch(/The model configured on k is not one/);
     expect(notice).toMatch(/nothing would be written/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
   });
@@ -1445,13 +1520,43 @@ describe("the conversion covers the whole Agent, so the button has to as well", 
   /* `convert_legacy_pools` expands every legacy pool in the document. A
      button that asked only about the pool it is drawn on offered a conversion
      that the store would refuse because of a pool somewhere else. */
+  /* Both pools attached to the one configured Agent node, which is the shape
+     a migrated Agent with two pools actually has — and the only shape in
+     which the other pool's problem is about its entries rather than about
+     its attachment. */
   const two_pools = (other_entries) => ({
     schema_version: 1,
     kind: "agent",
     id: "parent",
     name: "Reviewer",
     nodes: [
-      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      {
+        id: "k",
+        type: "agent",
+        config: {
+          execution: { inputs: [], outputs: [] },
+          kernel: {
+            schema_version: 1,
+            profile: {
+              id: "openai:gpt-4.1",
+              provider: "openai",
+              model: "gpt-4.1",
+              protocol: "openai-responses",
+              endpoint: "https://api.openai.com/v1",
+              credential_ref: "openai",
+              context_window: 128000,
+              output_limit: 4096,
+              capabilities: { json_schema: true, images: true, files: true },
+            },
+            prompt: "You are the parent.",
+            max_iterations: 6,
+            output_tokens: 2048,
+            history: "root",
+            overflow: "error",
+            json_schema: null,
+          },
+        },
+      },
       {
         id: "pool-a",
         type: "subagent_pool",
@@ -1463,7 +1568,14 @@ describe("the conversion covers the whole Agent, so the button has to as well", 
         config: { legacy_fields: { subagents: other_entries } },
       },
     ],
-    edges: [],
+    edges: ["pool-a", "pool-b"].map((pool_id) => ({
+      id: `${pool_id}-attach`,
+      kind: "attach",
+      source_node_id: "k",
+      source_port_id: "attach_bot",
+      target_node_id: pool_id,
+      target_port_id: "attach_top",
+    })),
   });
 
   const open_first = async (other_entries) => {
@@ -1484,15 +1596,20 @@ describe("the conversion covers the whole Agent, so the button has to as well", 
     return { onConvertLegacy };
   };
 
-  test("an inline entry in another pool withholds the button here too", async () => {
+  test("an entry in another pool the store would refuse withholds the button here too", async () => {
     const { onConvertLegacy } = await open_first([
-      { kind: "inline", name: "Shortener", prompt_format: "soul", template: { prompt: "Be brief" } },
+      {
+        kind: "inline",
+        name: "Shortener",
+        prompt_format: "soul",
+        template: { prompt: "Be brief", model: "anthropic:claude-x" },
+      },
     ]);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
     expect(onConvertLegacy).not.toHaveBeenCalled();
-    expect(screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent).toMatch(
-      /pool-b/,
-    );
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/the pool pool-b is built on openai:gpt-4\.1/);
+    expect(notice).toMatch(/one write covering every pool in this Agent/i);
   });
 
   test("and the notice says the conversion is for every pool in this Agent", async () => {

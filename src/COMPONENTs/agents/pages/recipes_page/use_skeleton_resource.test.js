@@ -1109,11 +1109,13 @@ describe("a conflict resolved while a conversion is in flight", () => {
 });
 
 describe("the Kernel the store is handed for legacy data", () => {
-  /* Both calls that touch legacy data refuse to act without a Kernel
-     configuration the caller chose, and nothing was supplying one. What goes
-     over is the Kernel the author configured on this Agent's Agent node; the
-     rules are measured in `legacy_conversion` and its capture, and what is
-     asserted here is only that each call is given it. */
+  /* Nothing is. Every Kernel the store needs is in the document — a node's
+     own, or, for a legacy subagent, the one configured on the Agent node its
+     pool is attached to — and the request fallback is for whatever has none,
+     which is the author's to configure rather than this editor's to supply.
+     The rules are measured in `legacy_conversion` and its capture; what is
+     asserted here is that neither call sends one, and that a write the store
+     would refuse is not made. */
   const KERNEL = {
     schema_version: 1,
     profile: {
@@ -1142,6 +1144,8 @@ describe("the Kernel the store is handed for legacy data", () => {
     template: { prompt: "Be brief." },
   };
 
+  /* The pool is attached to the Agent node whose Kernel its subagents are
+     built on, because that is what makes it convertible at all. */
   const agent_document = (agent_config, pool_entries) => ({
     schema_version: 1,
     kind: "agent",
@@ -1153,7 +1157,18 @@ describe("the Kernel the store is handed for legacy data", () => {
         ? [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: pool_entries } } }]
         : []),
     ],
-    edges: [],
+    edges: pool_entries
+      ? [
+          {
+            id: "k-pool",
+            kind: "attach",
+            source_node_id: "k",
+            source_port_id: "attach_bot",
+            target_node_id: "pool",
+            target_port_id: "attach_top",
+          },
+        ]
+      : [],
   });
 
   const opened = async (document) => {
@@ -1163,7 +1178,7 @@ describe("the Kernel the store is handed for legacy data", () => {
     return open();
   };
 
-  test("the conversion gets it with the prompt and the schema dropped", async () => {
+  test("the conversion is made with nothing but the document", async () => {
     const hook = await opened(agent_document({ kernel: KERNEL }, [INLINE]));
     api.unchain.convertSkeletonLegacyPools = jest.fn(async () =>
       result({ document: agent_document({ kernel: KERNEL }), edit_token: "edit-2" }),
@@ -1171,19 +1186,20 @@ describe("the Kernel the store is handed for legacy data", () => {
     await act(async () => {
       await hook.result.current.convertLegacyPools();
     });
-    /* The entry's own legacy prompt replaces the first, and the second is
-       this Agent's output contract rather than the subagent's. */
+    /* The store resolves each pool's Kernel from the node that pool is
+       attached to, and clears the prompt and output schema a child does not
+       inherit itself. An editor that sent its own would be deciding both. */
     expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledWith(
       "life",
       "edit-1",
-      { ...KERNEL, prompt: "", json_schema: null },
+      null,
     );
   });
 
   test("a conversion the store would refuse is not sent", async () => {
-    /* No Kernel is configured, so there is nothing to hand over. Asking
-       anyway would be a round trip that writes nothing and comes back with a
-       refusal about a panel the author is not looking at. */
+    /* The pool's owner has no model configured, so the write would be
+       refused. Asking anyway would be a round trip that writes nothing and
+       comes back with a refusal about a field the author cannot find. */
     const hook = await opened(agent_document({}, [INLINE]));
     api.unchain.convertSkeletonLegacyPools = jest.fn();
     await act(async () => {
@@ -1215,16 +1231,14 @@ describe("the Kernel the store is handed for legacy data", () => {
     }
   });
 
-  test("a migrated Agent is checked with the Kernel, not without one", async () => {
-    /* Measured: `preflight` on an Agent whose node holds `legacy_recipe` and
-       has no Kernel of its own answers `legacy_profile_required` at
-       `legacy_kernel`, so "Check it can run" could not succeed on a migrated
-       Agent at all. It goes over as configured and unprojected, because
-       whatever takes it as a fallback — a node here, or a node of a legacy
-       Agent this one references, which is not visible from here — is built
-       out of it. */
+  test("a migrated Agent is checked out of its own document", async () => {
+    /* Measured: a migrated Agent whose Kernel Loop the author configured is
+       admitted with nothing supplied — the node's own Kernel is what it is
+       prepared on, and a legacy pool attached to that node is built on the
+       same one. Sending a Kernel from here would only matter for a node that
+       has none, and that is the author's to fill in. */
     const hook = await opened(
-      agent_document({ legacy_recipe: { name: "life" }, kernel: KERNEL }),
+      agent_document({ legacy_recipe: { name: "life" }, kernel: KERNEL }, [INLINE]),
     );
     api.unchain.preflightSkeletonResource = jest.fn(async () => ({
       ok: true,
@@ -1233,7 +1247,8 @@ describe("the Kernel the store is handed for legacy data", () => {
     await act(async () => {
       await hook.result.current.preflight();
     });
-    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", KERNEL);
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
+    expect(hook.result.current.session.preflight.ok).toBe(true);
   });
 
   test("a modern Agent's check is the request it always was", async () => {
@@ -1248,12 +1263,12 @@ describe("the Kernel the store is handed for legacy data", () => {
     expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
   });
 
-  test("a migrated Agent whose nodes all have a Kernel is checked without one", async () => {
+  test("two Kernel Loops naming different models are checked as they are", async () => {
     /* Measured: a fully configured migrated graph is prepared with no
        fallback at all, each node on its own Kernel — so two Kernel Loops
-       naming different models are no longer a reason the check cannot be
-       made. There is just no single Kernel to hand over, and nothing in a
-       graph like this asks for one. */
+       naming different models are not a reason the check cannot be made, and
+       there was never a single Kernel for this editor to pick between them
+       anyway. */
     const other = {
       ...KERNEL,
       profile: { ...KERNEL.profile, id: "x", provider: "anthropic", model: "claude-x", protocol: "anthropic", endpoint: "https://api.anthropic.com/v1/messages" },

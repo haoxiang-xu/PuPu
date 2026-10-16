@@ -658,12 +658,12 @@ describe("taking their version, with something unstored on screen", () => {
 
 describe("a legacy inline subagent, converted on the real page", () => {
   /* Acceptance 7 for the entries that have no Agent to reference. An inline
-     entry carries a prompt, so converting it means building an Agent — and
-     the store refuses to build one without a Kernel the caller chose
-     (`legacy_profile_required`). The Kernel is the one configured on this
-     Agent's Agent node, and these two tests are about the whole page handing
-     it over: the panel's statements and the runtime's own verdicts are
-     covered in `subagent_pool_section` and `legacy_conversion`. */
+     entry carries a prompt, so converting it means building an Agent — on the
+     model configured on the Agent node its pool is attached to, which the
+     store reads out of the document itself. These tests are about the whole
+     page asking for that write and making no model decision of its own: the
+     panel's statements and the runtime's own verdicts are covered in
+     `subagent_pool_section` and `legacy_conversion`. */
   const KERNEL = {
     schema_version: 1,
     profile: {
@@ -719,7 +719,16 @@ describe("a legacy inline subagent, converted on the real page", () => {
       },
       { id: "end", type: "end", config: {} },
     ],
-    edges: [],
+    edges: [
+      {
+        id: "pool-a1",
+        kind: "attach",
+        source_node_id: "pool",
+        source_port_id: "attach_top",
+        target_node_id: "a1",
+        target_port_id: "attach_bot",
+      },
+    ],
   });
 
   const open_pool = async (document) => {
@@ -733,11 +742,11 @@ describe("a legacy inline subagent, converted on the real page", () => {
     await act(async () => {});
   };
 
-  test("the write carries the model chosen on the Agent node", async () => {
+  test("the write names the model its pool is attached to, and sends none", async () => {
     await open_pool(legacy_agent());
     expect(
       screen.getByTestId("subagent-pool-legacy-kernel-chosen").textContent,
-    ).toMatch(/on openai:gpt-4\.1/);
+    ).toMatch(/on openai:gpt-4\.1, the model configured on the Agent node this pool is attached to \(a1\)/);
 
     api.unchain.convertSkeletonLegacyPools = jest.fn().mockResolvedValue(
       result({ document: legacy_agent(), edit_token: "edit-2" }),
@@ -745,16 +754,16 @@ describe("a legacy inline subagent, converted on the real page", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Convert to Agent entries"));
     });
+    /* The store resolves it from the attachment and clears the prompt and
+       output schema the child does not inherit; the page decides neither. */
     expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledWith(
       "life",
       "edit-1",
-      /* The entry's own prompt replaces the first field and the second is
-         this Agent's contract, not the subagent's. */
-      { ...KERNEL, prompt: "", json_schema: null },
+      null,
     );
   });
 
-  test("and the check that it can run carries it as configured", async () => {
+  test("and the check that it can run sends none either", async () => {
     await open_pool(legacy_agent());
     api.unchain.preflightSkeletonResource = jest
       .fn()
@@ -762,9 +771,9 @@ describe("a legacy inline subagent, converted on the real page", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Check it can run"));
     });
-    /* Not projected here: preflight materialises this Agent out of its own
-       legacy data, so its Kernel goes over as the author configured it. */
-    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", KERNEL);
+    /* This Agent's node carries its own Kernel and its pool is attached to
+       that node, so the check is answerable out of the document alone. */
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
     expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(
       /Ready to run/,
     );

@@ -27,8 +27,10 @@ import {
   CONVERSION_KERNEL_AMBIGUOUS,
   CONVERSION_KERNEL_REFUSED,
   CONVERSION_MODEL_MISMATCH,
+  CONVERSION_OWNER_REQUIRED,
   legacy_conversion_plan,
   legacy_entry_label,
+  plan_for_pool,
 } from "../legacy_conversion";
 import {
   entry_agent_id,
@@ -127,45 +129,81 @@ function visible(text) {
   );
 }
 
+/* Which Agent nodes a pool is attached to, named because that is where the
+   author changes the answer. */
+function owners_label(owners) {
+  const named = owners.map(visible).join(", ");
+  return owners.length === 1
+    ? `the Agent node this pool is attached to (${named})`
+    : `the Agent nodes this pool is attached to (${named})`;
+}
+
 /* What converting would do, said before it is pressed.
  *
  * The model is named because the author is about to create Agents with it,
  * and because the runtime will not let them be created with any other one:
- * an entry that declares a model is compared against this, and a difference
- * writes nothing. The schema is named because it is the one thing the
- * conversion deliberately does not carry over — `materialize_legacy_agent`
- * copies the supplied Kernel verbatim, so leaving it in would force this
- * Agent's output contract on every subagent built. */
+ * an entry that declares a model is compared against it and a difference
+ * writes nothing. It is named per pool, because that is how the runtime
+ * resolves it — the Kernel configured on the node a pool is attached to — and
+ * two pools attached to differently configured nodes are converted onto two
+ * models in the same write. The schema is named because it is the one thing
+ * the conversion deliberately does not carry over: the owner's Kernel is
+ * copied with its prompt and output schema cleared, so a subagent is not
+ * given this Agent's output contract. */
 function conversion_caption(plan, node_id) {
   const subject = inline_subject(plan.pools, node_id);
-  const declared = plan.entries.filter((entry) => entry.declared !== null);
+  const here = plan_for_pool(plan, node_id);
+  const named =
+    here && here.chosen
+      ? ` — on ${visible(here.chosen)}, the model configured on ${owners_label(here.owners)}`
+      : "";
+  const others = plan.pools.filter((id) => id !== node_id);
+  const elsewhere =
+    others.length === 0
+      ? ""
+      : ` Entries in ${others.length === 1 ? `the other pool (${visible(others[0])})` : `the other pools (${others.map(visible).join(", ")})`} are built on the model configured where ${others.length === 1 ? "it is" : "they are"} attached.`;
+  const declared = plan.entries.filter(
+    (entry) => entry.pool_id === node_id && entry.declared !== null,
+  );
   const kept =
     declared.length === 0
       ? ""
-      : ` ${declared.length === 1 ? "One of them declares" : `${declared.length} of them declare`} that model already, which is why it is the only one this conversion can use.`;
-  return `${subject} carry a prompt rather than naming an Agent, so converting builds an Agent for each — on ${plan.chosen}, the model configured on this Agent. Their prompts, tools, delegation modes and memory come with them; this Agent's JSON output schema does not, because it is this Agent's contract and not theirs.${kept}`;
+      : ` ${declared.length === 1 ? "One of them declares" : `${declared.length} of them declare`} that model already.`;
+  return `${subject} carry a prompt rather than naming an Agent, so converting builds an Agent for each${named}. Their prompts, tools, delegation modes and memory come with them; this Agent's JSON output schema does not, because it is this Agent's contract and not theirs.${kept}${elsewhere}`;
 }
 
 /* Why the conversion is not offered, and what to do about it. Each case is a
    refusal the store would answer with, asked here so the author is not told
-   by a write that changed nothing. */
+   by a write that changed nothing.
+ *
+ * Every one of them is about a pool, because that is where the runtime
+ * resolves the model — and the write covers all of them, so the pool the
+ * author is looking at can be fine and the button still withheld. Which pool
+ * is named either way. */
 function refusal_caption(plan, node_id) {
-  const subject = inline_subject(plan.pools, node_id);
   const refusal = plan.refusal;
-  if (refusal.code === CONVERSION_KERNEL_ABSENT) {
-    return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model. Choose one on this Agent's Agent node and save, then convert. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one.`;
+  const here = refusal.pool_id === node_id;
+  const pool = here ? "This pool" : `The pool ${visible(refusal.pool_id)}`;
+  const one_write = here
+    ? ""
+    : " Converting is one write covering every pool in this Agent, so it is not offered while any of them cannot be built.";
+  if (refusal.code === CONVERSION_OWNER_REQUIRED) {
+    return `${pool} is not attached to an Agent node, and the Agents it builds run on the model configured where it is attached. Attach it to this Agent's Agent node and save, then convert.${one_write}`;
   }
-  if (refusal.code === CONVERSION_KERNEL_AMBIGUOUS) {
-    return `Converting gives every Agent it builds the same model, and this Agent has more than one Agent node configured with a different one (${refusal.nodes.join(", ")}). There is no way to honour both in one write, so make them agree — or leave one unconfigured — and the conversion can be offered.`;
+  if (refusal.code === CONVERSION_KERNEL_ABSENT) {
+    return `${pool} is attached to ${visible(refusal.node_id)}, which has no model configured yet. Converting builds an Agent for each of its entries on that node's model, and another node's is not used in its place — choose one there and save, then convert.${one_write}`;
   }
   if (refusal.code === CONVERSION_KERNEL_REFUSED) {
-    return `The model configured on this Agent is not one the runtime would accept yet — ${refusal.problem.code} at ${refusal.problem.where}. Converting would be refused for that reason and nothing would be written, so finish it on the Agent node first.`;
+    return `The model configured on ${visible(refusal.node_id)} is not one the runtime would accept yet — ${refusal.problem.code} at ${refusal.problem.where}. Converting would be refused for that reason and nothing would be written, so finish it on that node first.${one_write}`;
+  }
+  if (refusal.code === CONVERSION_KERNEL_AMBIGUOUS) {
+    return `${pool} is attached to more than one Agent node and they are configured differently (${refusal.nodes.map(visible).join(", ")}). The subagents it builds are built once, so make those Kernels agree — their own prompts and JSON output schemas are not inherited and need not match — or attach the pool to one of them.${one_write}`;
   }
   if (refusal.code === CONVERSION_MODEL_MISMATCH) {
     const named = refusal.entries
       .map((entry) => `${visible(entry.name)} declares ${visible(entry.declared)}`)
       .join("; ");
-    return `Converting does not move a subagent onto a different model: the runtime compares what the entry declares against the model supplied and writes nothing if they differ. ${named} — and this Agent is configured for ${visible(refusal.chosen)}. Set this Agent to that model before converting.`;
+    return `Converting does not move a subagent onto a different model: the runtime compares what the entry declares against the model its own pool is built on and writes nothing if they differ. ${named} — and ${here ? "this pool" : `the pool ${visible(refusal.pool_id)}`} is built on ${visible(refusal.chosen)}. Set that model where the pool is attached, or the entry to that model, before converting.${one_write}`;
   }
   /* Unreached: every refusal this module produces is named above. Said rather
      than defaulted, because a silent fall-through would read as the

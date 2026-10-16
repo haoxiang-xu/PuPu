@@ -115,10 +115,12 @@ export async function diagnose(document) {
  * legacy in the document. This writes that same result once, under the
  * compare-and-set token the resource was read with.
  *
- * `legacy_kernel` is required only by an inline legacy subagent: it has no
- * Agent to reference, so it has to be materialised, and that needs a Kernel
- * the author chose. Without one the store refuses with
- * `legacy_profile_required` rather than guessing a model. */
+ * `legacy_kernel` is a fallback for an Agent node that has no Kernel of its
+ * own, and this editor sends none: an inline legacy subagent is built on the
+ * Kernel configured on the node its Pool is attached to, which the store
+ * reads out of the document. Without one anywhere the store refuses with
+ * `legacy_profile_required` rather than guessing a model, and the panel says
+ * which node to configure — see `legacy_conversion`. */
 export async function convert_legacy_pools(resource_id, expected_edit_token, legacy_kernel) {
   return call("convertSkeletonLegacyPools", (method) =>
     method(resource_id, expected_edit_token, legacy_kernel === undefined ? null : legacy_kernel),
