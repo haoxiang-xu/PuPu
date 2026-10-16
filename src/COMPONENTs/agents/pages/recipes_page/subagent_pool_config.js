@@ -1,8 +1,4 @@
-import {
-  document_problems,
-  node_legacy_pool_entries,
-  node_pool_is_legacy,
-} from "./skeleton_document";
+import { document_problems } from "./skeleton_document";
 
 /* What a Subagent Pool node holds, and what the runtime refuses.
  *
@@ -293,31 +289,14 @@ export function free_entry_name(taken, base) {
  * this editor — a profile carries an endpoint and a credential reference, and
  * inventing either is how a definition starts pointing somewhere nobody
  * chose. */
-export function legacy_entries_needing_kernel(entries) {
-  return (Array.isArray(entries) ? entries : []).filter(
-    (entry) => is_object(entry) && entry.kind === "inline",
-  );
-}
-
-/* Which pools in this Agent hold a legacy entry that cannot be converted
- * without a Kernel.
- *
- * The question is about the document, not about one node: the store converts
- * EVERY legacy pool in the resource in one write, so a pool with an inline
- * entry anywhere makes the whole conversion refuse. A button that asked only
- * about the pool it was drawn on offered a conversion the store would refuse
- * for a reason that was somewhere else on the canvas. */
-export function legacy_pools_needing_kernel(document) {
-  const nodes = is_object(document) && Array.isArray(document.nodes) ? document.nodes : [];
-  return nodes
-    .filter(
-      (node) =>
-        is_object(node) &&
-        node.type === "subagent_pool" &&
-        node_pool_is_legacy(node) &&
-        legacy_entries_needing_kernel(node_legacy_pool_entries(node)).length > 0,
-    )
-    .map((node) => node.id);
+/* The question is about the document and not about one node, which is why the
+ * walk lives in `legacy_conversion` beside the Kernel it resolves: the store
+ * converts EVERY legacy pool in the resource in one write, so an inline entry
+ * anywhere decides what the button on any pool may do. A button that asked
+ * only about the pool it was drawn on offered a conversion the store would
+ * refuse for a reason that was somewhere else on the canvas. */
+export function entry_needs_kernel(entry) {
+  return is_object(entry) && entry.kind === "inline";
 }
 
 /* How many entries claim each name, or each id.

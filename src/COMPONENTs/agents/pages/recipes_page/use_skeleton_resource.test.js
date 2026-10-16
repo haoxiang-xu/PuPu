@@ -1107,3 +1107,148 @@ describe("a conflict resolved while a conversion is in flight", () => {
     expect(hook.result.current.session.conflict).toBeFalsy();
   });
 });
+
+describe("the Kernel the store is handed for legacy data", () => {
+  /* Both calls that touch legacy data refuse to act without a Kernel
+     configuration the caller chose, and nothing was supplying one. What goes
+     over is the Kernel the author configured on this Agent's Agent node; the
+     rules are measured in `legacy_conversion` and its capture, and what is
+     asserted here is only that each call is given it. */
+  const KERNEL = {
+    schema_version: 1,
+    profile: {
+      id: "openai:gpt-4.1",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: true, files: true },
+    },
+    prompt: "You are the parent.",
+    max_iterations: 6,
+    output_tokens: 2048,
+    history: "root",
+    overflow: "error",
+    json_schema: { type: "object", properties: { a: { type: "string" } }, required: ["a"], additionalProperties: false },
+  };
+
+  const INLINE = {
+    kind: "inline",
+    name: "Shortener",
+    prompt_format: "skeleton",
+    template: { prompt: "Be brief." },
+  };
+
+  const agent_document = (agent_config, pool_entries) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "life",
+    nodes: [
+      { id: "k", type: "agent", config: agent_config },
+      ...(pool_entries
+        ? [{ id: "pool", type: "subagent_pool", config: { legacy_fields: { subagents: pool_entries } } }]
+        : []),
+    ],
+    edges: [],
+  });
+
+  const opened = async (document) => {
+    api.unchain.getSkeletonResource = jest.fn(async () =>
+      result({ document, edit_token: "edit-1" }),
+    );
+    return open();
+  };
+
+  test("the conversion gets it with the prompt and the schema dropped", async () => {
+    const hook = await opened(agent_document({ kernel: KERNEL }, [INLINE]));
+    api.unchain.convertSkeletonLegacyPools = jest.fn(async () =>
+      result({ document: agent_document({ kernel: KERNEL }), edit_token: "edit-2" }),
+    );
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    /* The entry's own legacy prompt replaces the first, and the second is
+       this Agent's output contract rather than the subagent's. */
+    expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledWith(
+      "life",
+      "edit-1",
+      { ...KERNEL, prompt: "", json_schema: null },
+    );
+  });
+
+  test("a conversion the store would refuse is not sent", async () => {
+    /* No Kernel is configured, so there is nothing to hand over. Asking
+       anyway would be a round trip that writes nothing and comes back with a
+       refusal about a panel the author is not looking at. */
+    const hook = await opened(agent_document({}, [INLINE]));
+    api.unchain.convertSkeletonLegacyPools = jest.fn();
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+    expect(hook.result.current.session.converting).toBe(false);
+    expect(hook.result.current.session.error).toBeNull();
+  });
+
+  test("an entry declaring another model is not sent either", async () => {
+    const hook = await opened(
+      agent_document({ kernel: KERNEL }, [
+        { ...INLINE, template: { prompt: "Be brief.", model: "anthropic:claude-x" } },
+      ]),
+    );
+    api.unchain.convertSkeletonLegacyPools = jest.fn();
+    await act(async () => {
+      await hook.result.current.convertLegacyPools();
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+  });
+
+  test("a migrated Agent is checked with the Kernel, not without one", async () => {
+    /* Measured: `preflight` on an Agent whose node holds `legacy_recipe`
+       answers `legacy_profile_required` at `legacy_kernel` without one, so
+       "Check it can run" could not succeed on a migrated Agent at all. It
+       goes over as configured, because preflight materialises THIS Agent. */
+    const hook = await opened(
+      agent_document({ legacy_recipe: { name: "life" }, kernel: KERNEL }),
+    );
+    api.unchain.preflightSkeletonResource = jest.fn(async () => ({
+      ok: true,
+      definition_digest: "sha256:abc",
+    }));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", KERNEL);
+  });
+
+  test("a modern Agent's check is the request it always was", async () => {
+    const hook = await opened(agent_document({ kernel: KERNEL }));
+    api.unchain.preflightSkeletonResource = jest.fn(async () => ({
+      ok: true,
+      definition_digest: "sha256:abc",
+    }));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
+  });
+
+  test("a migrated Agent with no Kernel yet is still checked, and the store says why", async () => {
+    /* Not withheld: the store's own refusal names what is missing, and a
+       check that silently did nothing would be worse than one that answers
+       `legacy_profile_required`. */
+    const hook = await opened(agent_document({ legacy_recipe: { name: "life" } }));
+    api.unchain.preflightSkeletonResource = jest.fn(async () => ({
+      error: { code: "legacy_profile_required", message: "migrated Agent requires an explicit Kernel configuration", path: ["legacy_kernel"] },
+    }));
+    await act(async () => {
+      await hook.result.current.preflight();
+    });
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", null);
+    expect(hook.result.current.session.preflight.ok).toBe(false);
+  });
+});

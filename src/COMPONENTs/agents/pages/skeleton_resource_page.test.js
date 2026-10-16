@@ -655,3 +655,128 @@ describe("taking their version, with something unstored on screen", () => {
     expect(screen.queryByTestId("kernel-reservation-refused")).toBeNull();
   });
 });
+
+describe("a legacy inline subagent, converted on the real page", () => {
+  /* Acceptance 7 for the entries that have no Agent to reference. An inline
+     entry carries a prompt, so converting it means building an Agent — and
+     the store refuses to build one without a Kernel the caller chose
+     (`legacy_profile_required`). The Kernel is the one configured on this
+     Agent's Agent node, and these two tests are about the whole page handing
+     it over: the panel's statements and the runtime's own verdicts are
+     covered in `subagent_pool_section` and `legacy_conversion`. */
+  const KERNEL = {
+    schema_version: 1,
+    profile: {
+      id: "openai:gpt-4.1",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: true, files: true },
+    },
+    prompt: "Review it.",
+    max_iterations: 6,
+    output_tokens: 2048,
+    history: "root",
+    overflow: "error",
+    json_schema: { type: "object", properties: { a: { type: "string" } }, required: ["a"], additionalProperties: false },
+  };
+
+  const legacy_agent = (over = {}) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "Reviewer",
+    nodes: [
+      { id: "start", type: "start", config: { legacy_source: { format: "recipe" } } },
+      {
+        id: "a1",
+        type: "agent",
+        config: {
+          legacy_recipe: { name: "Reviewer", model: "openai:gpt-4.1" },
+          prompt: { kind: "text", text: "Review it." },
+          ...(over.kernel === null ? {} : { kernel: over.kernel || KERNEL }),
+        },
+      },
+      {
+        id: "pool",
+        type: "subagent_pool",
+        config: {
+          legacy_fields: {
+            subagents: [
+              {
+                kind: "inline",
+                name: "Shortener",
+                prompt_format: "skeleton",
+                template: { prompt: "Be brief.", model: over.declared === undefined ? "openai:gpt-4.1" : over.declared },
+              },
+            ],
+          },
+        },
+      },
+      { id: "end", type: "end", config: {} },
+    ],
+    edges: [],
+  });
+
+  const open_pool = async (document) => {
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ document, edit_token: "edit-1" }));
+    show();
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {});
+  };
+
+  test("the write carries the model chosen on the Agent node", async () => {
+    await open_pool(legacy_agent());
+    expect(
+      screen.getByTestId("subagent-pool-legacy-kernel-chosen").textContent,
+    ).toMatch(/on openai:gpt-4\.1/);
+
+    api.unchain.convertSkeletonLegacyPools = jest.fn().mockResolvedValue(
+      result({ document: legacy_agent(), edit_token: "edit-2" }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("Convert to Agent entries"));
+    });
+    expect(api.unchain.convertSkeletonLegacyPools).toHaveBeenCalledWith(
+      "life",
+      "edit-1",
+      /* The entry's own prompt replaces the first field and the second is
+         this Agent's contract, not the subagent's. */
+      { ...KERNEL, prompt: "", json_schema: null },
+    );
+  });
+
+  test("and the check that it can run carries it as configured", async () => {
+    await open_pool(legacy_agent());
+    api.unchain.preflightSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ ok: true, definition_digest: "sha256:abc" });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Check it can run"));
+    });
+    /* Not projected here: preflight materialises this Agent out of its own
+       legacy data, so its Kernel goes over as the author configured it. */
+    expect(api.unchain.preflightSkeletonResource).toHaveBeenCalledWith("life", KERNEL);
+    expect(screen.getByTestId("skeleton-preflight-state").textContent).toMatch(
+      /Ready to run/,
+    );
+  });
+
+  test("an entry declaring another model is refused before anything is written", async () => {
+    await open_pool(legacy_agent({ declared: "anthropic:claude-x" }));
+    api.unchain.convertSkeletonLegacyPools = jest.fn();
+    expect(
+      screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent,
+    ).toMatch(/Shortener declares anthropic:claude-x/);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
+  });
+});

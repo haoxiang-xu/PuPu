@@ -1222,5 +1222,188 @@ class LegacySubagentPoolConversionTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "duplicate_name")
 
 
+class LegacyKernelIdentityTests(unittest.TestCase):
+    """Which model the supplied Kernel may be, and where it is required.
+
+    Tripwires for the editor's mirror. PuPu's Subagent Pool panel now decides
+    whether to offer the conversion by answering these rules itself, so if the
+    runtime's answers move, these go red and the mirror in
+    `legacy_conversion.js` — and its frozen capture — has to move with them.
+    Nothing here is a new requirement on the runtime; each case was measured
+    before the mirror was written.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = SkeletonResourceStore(Path(self.tmp.name) / "skeletons")
+
+    def migrated(self, name="Reviewer", *, pool=None):
+        self.store.migrate_legacy(
+            source_identity=f"/legacy/{name}.recipe", source_scope="recipes",
+            source_kind="recipe", source=legacy_recipe(name, pool=pool))
+        resource_id = next(row["id"] for row in self.store.list_resources()
+                           if row["name"] == name)
+        return resource_id, self.store.get_resource(resource_id)
+
+    def pool_of(self, resource_id):
+        document = self.store.get_resource(resource_id)["document"]
+        return next(node["config"] for node in document["nodes"]
+                    if node["type"] == "subagent_pool")
+
+    @staticmethod
+    def inline(model, prompt_format="skeleton"):
+        template = {"prompt": "Be brief."}
+        if model is not None:
+            template["model"] = model
+        return {"kind": "inline", "name": "Shortener",
+                "prompt_format": prompt_format, "template": template}
+
+    @staticmethod
+    def kernel_for(provider, model, **over):
+        kernel = deepcopy(LEGACY_KERNEL)
+        kernel["profile"]["provider"] = provider
+        kernel["profile"]["model"] = model
+        kernel.update(over)
+        return kernel
+
+    def test_an_inline_entry_keeps_the_model_it_declares(self):
+        """A conversion onto a different model is refused, not performed."""
+        resource_id, before = self.migrated(
+            pool=[self.inline("openai:gpt-4.1")])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=before["edit_token"],
+                legacy_kernel=self.kernel_for("anthropic", "claude-x"))
+        self.assertEqual(caught.exception.code, "identity_mismatch")
+        self.assertEqual(caught.exception.status, 400)
+        # Nothing is written, so the entries are still legacy afterwards.
+        self.assertIn("legacy_fields", self.pool_of(resource_id))
+
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"],
+            legacy_kernel=deepcopy(LEGACY_KERNEL))
+        entry = self.pool_of(resource_id)["subagents"][0]
+        self.assertEqual(entry["source"]["kind"], "embedded")
+
+    def test_the_declared_model_is_compared_on_pythons_own_stripping(self):
+        """`str.strip()`, which is not `trim()`: five characters differ.
+
+        The editor mirrors this with a measured Python whitespace set rather
+        than `trim()`, because the two disagree in both directions — a C1
+        control is stripped by Python and kept by JavaScript, a byte order
+        mark the other way round.
+        """
+        cases = [("\u001fopenai:gpt-4.1", True),
+                 ("openai:gpt-4.1\u0085", True),
+                 ("\u00a0openai:gpt-4.1", True),
+                 ("\ufeffopenai:gpt-4.1", False),
+                 ("openai:gpt-4.1\ufeff", False)]
+        for index, (model, accepted) in enumerate(cases):
+            with self.subTest(model=model.encode("unicode_escape").decode()):
+                resource_id, before = self.migrated(
+                    name=f"Padded {index}", pool=[self.inline(model)])
+                if accepted:
+                    self.store.convert_legacy_pools(
+                        resource_id, expected_edit_token=before["edit_token"],
+                        legacy_kernel=deepcopy(LEGACY_KERNEL))
+                    self.assertEqual(
+                        set(self.pool_of(resource_id)), {"subagents"})
+                else:
+                    with self.assertRaises(SkeletonResourceError) as caught:
+                        self.store.convert_legacy_pools(
+                            resource_id,
+                            expected_edit_token=before["edit_token"],
+                            legacy_kernel=deepcopy(LEGACY_KERNEL))
+                    self.assertEqual(caught.exception.code, "identity_mismatch")
+
+    def test_the_declared_model_splits_on_the_first_colon_only(self):
+        """So a tagged Ollama name is a model, and bare it is a provider."""
+        resource_id, before = self.migrated(pool=[self.inline("ollama:llama3:8b")])
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"],
+            legacy_kernel=self.kernel_for("ollama", "llama3:8b"))
+        self.assertEqual(set(self.pool_of(resource_id)), {"subagents"})
+
+        other_id, other = self.migrated(name="Bare", pool=[self.inline("llama3:8b")])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                other_id, expected_edit_token=other["edit_token"],
+                legacy_kernel=self.kernel_for("ollama", "llama3:8b"))
+        self.assertEqual(caught.exception.code, "identity_mismatch")
+
+    def test_a_soul_format_inline_entry_loses_the_model_it_declared(self):
+        """Recorded as it is, not worked around.
+
+        The store builds the soul text itself and its frontmatter carries no
+        model line, so an entry's `template["model"]` never reaches the
+        runtime and every profile is accepted. That is a gap on this side of
+        acceptance 7 — the model is lost rather than preserved — and the
+        editor states nothing about a soul entry's model because of it.
+        Repairing it here should turn this test red.
+        """
+        resource_id, before = self.migrated(
+            pool=[self.inline("openai:gpt-4.1", prompt_format="soul")])
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"],
+            legacy_kernel=self.kernel_for("anthropic", "claude-x"))
+        child = self.pool_of(resource_id)["subagents"][0]["source"]["document"]
+        kernel = next(node["config"]["kernel"] for node in child["nodes"]
+                      if node["type"] == "agent" and "kernel" in node["config"])
+        self.assertEqual(kernel["profile"]["model"], "claude-x")
+
+    def test_the_supplied_kernel_is_carried_except_for_the_prompt(self):
+        """Which is why the editor drops the parent's schema before handing it.
+
+        `materialize_legacy_agent` copies the supplied Kernel into every
+        Agent it builds and replaces only the prompt, so a `json_schema` left
+        in would be the parent's output contract imposed on each subagent.
+        """
+        resource_id, before = self.migrated(pool=[self.inline(None)])
+        supplied = self.kernel_for(
+            "openai", "gpt-4.1", history="none", overflow="compress",
+            output_tokens=999,
+            json_schema={"type": "object", "properties": {"a": {"type": "string"}},
+                         "required": ["a"], "additionalProperties": False})
+        self.store.convert_legacy_pools(
+            resource_id, expected_edit_token=before["edit_token"],
+            legacy_kernel=deepcopy(supplied))
+        child = self.pool_of(resource_id)["subagents"][0]["source"]["document"]
+        kernel = next(node["config"]["kernel"] for node in child["nodes"]
+                      if node["type"] == "agent" and "kernel" in node["config"])
+        self.assertEqual(kernel["prompt"], "Be brief.")
+        self.assertEqual(kernel["json_schema"], supplied["json_schema"])
+        self.assertEqual(kernel["history"], "none")
+        self.assertEqual(kernel["overflow"], "compress")
+        self.assertEqual(kernel["output_tokens"], 999)
+
+    def test_checking_a_migrated_agent_needs_the_same_kernel(self):
+        """"Check it can run" could not succeed on a migrated Agent at all.
+
+        `preflight` asks for a Kernel for ANY migrated Agent, pool or no
+        pool, because it builds the executable document out of the legacy
+        data and the one supplied. Nothing in PuPu was passing one.
+        """
+        resource_id, _ = self.migrated(name="Plain")
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(resource_id)
+        self.assertEqual(caught.exception.code, "legacy_profile_required")
+        self.assertEqual(list(caught.exception.path), ["legacy_kernel"])
+        self.assertEqual(caught.exception.status, 400)
+
+        admitted = self.store.preflight(
+            resource_id, legacy_kernel=deepcopy(LEGACY_KERNEL))
+        self.assertTrue(admitted["ok"])
+        self.assertTrue(admitted["definition_digest"])
+
+    def test_checking_it_also_holds_the_agent_to_its_own_declared_model(self):
+        resource_id, _ = self.migrated(name="Plain")
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(
+                resource_id,
+                legacy_kernel=self.kernel_for("anthropic", "claude-x"))
+        self.assertEqual(caught.exception.code, "identity_mismatch")
+
+
 if __name__ == "__main__":
     unittest.main()

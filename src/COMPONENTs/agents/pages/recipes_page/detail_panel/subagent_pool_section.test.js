@@ -1233,22 +1233,139 @@ describe("converting a legacy pool", () => {
     );
   });
 
-  test("an inline entry is not offered, because it needs a model", async () => {
-    /* It carries a prompt rather than naming an Agent, so converting it means
-       building an Agent — and that needs a model. The Model section on an
-       Agent node can now choose one, so the notice no longer says the build
-       has no control for it; what is still missing is handing that choice to
-       this conversion, which is the next slice and is what the notice says. */
-    const { onConvertLegacy } = await show_legacy([
-      ...named,
-      { kind: "inline", name: "Shortener", prompt_format: "soul", template: { prompt: "Be brief" } },
-    ]);
+  /* An inline entry carries a prompt rather than naming an Agent, so
+     converting it means building an Agent — and that needs a model. The
+     Kernel configured on this Agent's Agent node is what goes over; the
+     rules, and every verdict asserted about them, are measured in
+     `legacy_conversion` and its capture. */
+  const KERNEL = {
+    schema_version: 1,
+    profile: {
+      id: "openai:gpt-4.1",
+      provider: "openai",
+      model: "gpt-4.1",
+      protocol: "openai-responses",
+      endpoint: "https://api.openai.com/v1",
+      credential_ref: "openai",
+      context_window: 128000,
+      output_limit: 4096,
+      capabilities: { json_schema: true, images: true, files: true },
+    },
+    prompt: "You are the parent.",
+    max_iterations: 6,
+    output_tokens: 2048,
+    history: "root",
+    overflow: "error",
+    json_schema: null,
+  };
+
+  const inline = (over) => ({
+    kind: "inline",
+    name: "Shortener",
+    prompt_format: "skeleton",
+    template: { prompt: "Be brief." },
+    ...over,
+  });
+
+  /* The same document the panel is given, with a Kernel on its Agent node. */
+  const configured = (node, kernel = KERNEL, extra_nodes = []) => {
+    const base = doc(node);
+    return {
+      ...base,
+      nodes: [
+        { ...base.nodes[0], config: { ...base.nodes[0].config, kernel } },
+        ...extra_nodes,
+        ...base.nodes.slice(1),
+      ],
+    };
+  };
+
+  test("an inline entry is not offered while no model is chosen", async () => {
+    const { onConvertLegacy } = await show_legacy([...named, inline()]);
     const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
     expect(notice).toMatch(/needs a model/i);
-    expect(notice).toMatch(/not wired up yet/i);
+    expect(notice).toMatch(/choose one on this Agent's Agent node and save/i);
     expect(notice).not.toMatch(/no control for/i);
+    expect(notice).not.toMatch(/wired up/i);
     expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
     expect(onConvertLegacy).not.toHaveBeenCalled();
+  });
+
+  test("with a model chosen it is offered, and says what it will build", async () => {
+    const node = legacy([...named, inline()]);
+    const { onConvertLegacy } = await show_legacy([...named, inline()], {
+      document: configured(node),
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-kernel-chosen").textContent;
+    expect(notice).toMatch(/converting builds an Agent for each — on openai:gpt-4\.1/i);
+    /* The one thing it deliberately does not carry, said rather than left to
+       be discovered: the runtime copies the supplied Kernel verbatim. */
+    expect(notice).toMatch(/JSON output schema does not/i);
+    fireEvent.click(screen.getByText("Convert to Agent entries"));
+    expect(onConvertLegacy).toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("subagent-pool-legacy-needs-kernel"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("an entry that declares another model is named, not silently moved", async () => {
+    /* The runtime compares the two and writes nothing if they differ, so the
+       panel answers the comparison instead of letting a refused write do it. */
+    const entries = [inline({ template: { prompt: "Be brief.", model: "anthropic:claude-x" } })];
+    const node = legacy(entries);
+    const { onConvertLegacy } = await show_legacy(entries, {
+      document: configured(node),
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/Shortener declares anthropic:claude-x/);
+    expect(notice).toMatch(/configured for openai:gpt-4\.1/);
+    expect(notice).toMatch(/does not move a subagent onto a different model/i);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+    expect(onConvertLegacy).not.toHaveBeenCalled();
+  });
+
+  test("a model name with nothing visible in it is still readable", async () => {
+    /* A byte order mark survives the runtime's own strip, so the entry really
+       does declare a different model — and a message that printed it raw
+       would read as `gpt-4.1 is not openai:gpt-4.1`. */
+    const entries = [inline({ template: { prompt: "Be brief.", model: "\ufeffgpt-4.1" } })];
+    const node = legacy(entries);
+    await show_legacy(entries, { document: configured(node) });
+    expect(
+      screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent,
+    ).toMatch(/declares \\ufeffgpt-4\.1/);
+  });
+
+  test("two Agent nodes that disagree are named rather than chosen between", async () => {
+    const entries = [inline()];
+    const node = legacy(entries);
+    const other = {
+      id: "k2",
+      type: "agent",
+      config: {
+        kernel: {
+          ...KERNEL,
+          profile: { ...KERNEL.profile, id: "x", provider: "anthropic", model: "claude-x", protocol: "anthropic", endpoint: "https://api.anthropic.com" },
+        },
+      },
+    };
+    await show_legacy(entries, { document: configured(node, KERNEL, [other]) });
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/more than one Agent node configured/i);
+    expect(notice).toMatch(/\(k, k2\)/);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
+  });
+
+  test("a Kernel the runtime would refuse is named by its own field", async () => {
+    const entries = [inline()];
+    const node = legacy(entries);
+    await show_legacy(entries, {
+      document: configured(node, { ...KERNEL, history: "all" }),
+    });
+    const notice = screen.getByTestId("subagent-pool-legacy-needs-kernel").textContent;
+    expect(notice).toMatch(/unknown_variant at legacy_kernel\.history/);
+    expect(notice).toMatch(/nothing would be written/i);
+    expect(screen.queryByText("Convert to Agent entries")).not.toBeInTheDocument();
   });
 
   test("a draft with unsaved work is told to save first", async () => {

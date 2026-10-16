@@ -19,10 +19,17 @@ import {
   free_entry_id,
   free_entry_name,
   introduces_collision,
-  legacy_pools_needing_kernel,
   new_subagent_entry,
   subagent_pool_problems,
 } from "../subagent_pool_config";
+import {
+  CONVERSION_KERNEL_ABSENT,
+  CONVERSION_KERNEL_AMBIGUOUS,
+  CONVERSION_KERNEL_REFUSED,
+  CONVERSION_MODEL_MISMATCH,
+  legacy_conversion_plan,
+  legacy_entry_label,
+} from "../legacy_conversion";
 import {
   entry_agent_id,
   entry_source_label,
@@ -79,23 +86,91 @@ const EMPTY_CAPTION =
 const LEGACY_CAPTION =
   "This pool came from a legacy definition. Its entries are shown as they are stored, and nothing here is editable until they are converted — an edit would stop the conversion from happening and the subagents would be lost. Converting is one write covering every Subagent Pool in this Agent, and it keeps the tools, delegation modes, memory and parallel safety each subagent already declared.";
 
-/* Why the conversion is not offered, and where the reason is.
+/* Which entries this statement is about, and where they are.
  *
- * Naming the other pool matters: the entries on screen can all be
- * convertible and the button still withheld, because the store converts every
- * pool in the Agent in one write. Without the name that reads as the panel
- * refusing for no reason. */
-function needs_kernel_caption(pool_ids, node_id) {
+ * Naming the other pool matters: the entries on screen can all be fine and
+ * the button still withheld, because the store converts every pool in the
+ * Agent in one write. Without the name that reads as the panel refusing for
+ * no reason. */
+function inline_subject(pool_ids, node_id) {
   const elsewhere = pool_ids.filter((id) => id !== node_id);
   const here = pool_ids.includes(node_id);
   const others =
     elsewhere.length === 1
       ? `another pool (${elsewhere[0]})`
       : `other pools (${elsewhere.join(", ")})`;
-  let subject = "Some of these entries";
-  if (here && elsewhere.length > 0) subject = `Some of these entries, and entries in ${others},`;
-  else if (!here) subject = `Entries in ${others}`;
-  return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model. A model can now be chosen on an Agent node, but handing one to this conversion is not wired up yet, so the button is still withheld. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one. The pools keep working as they do: the conversion happens for every run and is thrown away afterwards.`;
+  if (here && elsewhere.length > 0) {
+    return `Some of these entries, and entries in ${others},`;
+  }
+  if (!here) return `Entries in ${others}`;
+  return "Some of these entries";
+}
+
+/* A stored value with nothing invisible left in it.
+ *
+ * A declared model is compared by the runtime after `str.strip()`, so one
+ * padded with U+FEFF keeps it and matches nothing — and a message saying
+ * `gpt-4.1 is not gpt-4.1` is worse than no message. Everything that cannot
+ * be seen is written as its escape instead. Belongs beside `safe_text` if a
+ * second caller ever wants it. */
+const INVISIBLE = new RegExp(
+  "[\\u0000-\\u001f\\u007f-\\u00a0\\u1680\\u2000-\\u200f" +
+    "\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]",
+  "g",
+);
+
+function visible(text) {
+  return safe_text(text).replace(
+    INVISIBLE,
+    (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+/* What converting would do, said before it is pressed.
+ *
+ * The model is named because the author is about to create Agents with it,
+ * and because the runtime will not let them be created with any other one:
+ * an entry that declares a model is compared against this, and a difference
+ * writes nothing. The schema is named because it is the one thing the
+ * conversion deliberately does not carry over — `materialize_legacy_agent`
+ * copies the supplied Kernel verbatim, so leaving it in would force this
+ * Agent's output contract on every subagent built. */
+function conversion_caption(plan, node_id) {
+  const subject = inline_subject(plan.pools, node_id);
+  const declared = plan.entries.filter((entry) => entry.declared !== null);
+  const kept =
+    declared.length === 0
+      ? ""
+      : ` ${declared.length === 1 ? "One of them declares" : `${declared.length} of them declare`} that model already, which is why it is the only one this conversion can use.`;
+  return `${subject} carry a prompt rather than naming an Agent, so converting builds an Agent for each — on ${plan.chosen}, the model configured on this Agent. Their prompts, tools, delegation modes and memory come with them; this Agent's JSON output schema does not, because it is this Agent's contract and not theirs.${kept}`;
+}
+
+/* Why the conversion is not offered, and what to do about it. Each case is a
+   refusal the store would answer with, asked here so the author is not told
+   by a write that changed nothing. */
+function refusal_caption(plan, node_id) {
+  const subject = inline_subject(plan.pools, node_id);
+  const refusal = plan.refusal;
+  if (refusal.code === CONVERSION_KERNEL_ABSENT) {
+    return `${subject} carry a prompt rather than naming an Agent, so converting them means building an Agent for each — and that needs a model. Choose one on this Agent's Agent node and save, then convert. Converting is one write covering every pool in this Agent, so it is not offered while any of them needs one.`;
+  }
+  if (refusal.code === CONVERSION_KERNEL_AMBIGUOUS) {
+    return `Converting gives every Agent it builds the same model, and this Agent has more than one Agent node configured with a different one (${refusal.nodes.join(", ")}). There is no way to honour both in one write, so make them agree — or leave one unconfigured — and the conversion can be offered.`;
+  }
+  if (refusal.code === CONVERSION_KERNEL_REFUSED) {
+    return `The model configured on this Agent is not one the runtime would accept yet — ${refusal.problem.code} at ${refusal.problem.where}. Converting would be refused for that reason and nothing would be written, so finish it on the Agent node first.`;
+  }
+  if (refusal.code === CONVERSION_MODEL_MISMATCH) {
+    const named = refusal.entries
+      .map((entry) => `${visible(entry.name)} declares ${visible(entry.declared)}`)
+      .join("; ");
+    return `Converting does not move a subagent onto a different model: the runtime compares what the entry declares against the model supplied and writes nothing if they differ. ${named} — and this Agent is configured for ${visible(refusal.chosen)}. Set this Agent to that model before converting.`;
+  }
+  /* Unreached: every refusal this module produces is named above. Said rather
+     than defaulted, because a silent fall-through would read as the
+     conversion being available. */
+  return "Converting is not available for this Agent, and the reason is not one this panel can state.";
 }
 
 const LEGACY_CONVERTING =
@@ -149,16 +224,10 @@ function resource_label(resource) {
     : resource.id;
 }
 
-/* What to call a legacy entry. The three keys are the three legacy kinds —
-   `recipe_ref` names a recipe, `ref` a template, `inline` itself — and the
-   store reads exactly these (`skeleton_resource_store.py:345-357`). */
-function legacy_entry_name(raw) {
-  if (!is_object(raw)) return "an entry that is not an object";
-  const stated = ["recipe_name", "template_name", "name"].find(
-    (key) => typeof raw[key] === "string" && raw[key],
-  );
-  return stated ? raw[stated] : "an entry with no name";
-}
+/* What to call a legacy entry is `legacy_conversion`'s `legacy_entry_label`,
+   imported rather than restated: the conversion's own refusal names the entry
+   it is about, and two spellings of one entry's name is how a message stops
+   matching the row it points at. */
 
 /* Which problems belong to this row, by the path the mirror reports — the
    same addressing the runtime uses, so a row never shows another row's. */
@@ -550,9 +619,12 @@ export default function SubagentPoolSection({
 
   const legacy = node_pool_is_legacy(node);
   const legacy_entries = legacy ? node_legacy_pool_entries(node) : [];
-  /* Every pool in this Agent, because the conversion is one write over all of
-     them: an inline entry in another pool refuses this button too. */
-  const blocked_pools = legacy ? legacy_pools_needing_kernel(document) : [];
+  /* Asked about the whole Agent, because the conversion is one write over all
+     of it: an inline entry in another pool decides what this button may do,
+     and so does the Kernel configured on a node that is not this one. The
+     same plan is computed again by the hook that performs the write — this
+     one is what the panel says, that one is what is sent. */
+  const plan = legacy ? legacy_conversion_plan(document) : null;
   const held = node_subagents(node);
   const entries = Array.isArray(held) ? held : [];
   /* The owner is the resource being edited, which is the document's own id:
@@ -687,14 +759,20 @@ export default function SubagentPoolSection({
         </span>
       )}
 
-      {legacy && blocked_pools.length > 0 && (
+      {legacy && plan.refusal && (
         <span data-testid="subagent-pool-legacy-needs-kernel" style={CAPTION}>
-          {needs_kernel_caption(blocked_pools, node.id)}
+          {refusal_caption(plan, node.id)}
+        </span>
+      )}
+
+      {legacy && !plan.refusal && plan.required && (
+        <span data-testid="subagent-pool-legacy-kernel-chosen" style={CAPTION}>
+          {conversion_caption(plan, node.id)}
         </span>
       )}
 
       {legacy &&
-        blocked_pools.length === 0 &&
+        !plan.refusal &&
         (typeof onConvertLegacy !== "function" ? (
           <span data-testid="subagent-pool-legacy-unreachable" style={CAPTION}>
             {LEGACY_UNREACHABLE}
@@ -734,7 +812,7 @@ export default function SubagentPoolSection({
                 a name here can be any JSON at all — including an object,
                 which React refuses as a child and which `${}` refuses to make
                 text. */}
-            {legacy_entry_name(raw)}
+            {legacy_entry_label(raw)}
           </span>
         ))}
 

@@ -6,6 +6,10 @@ import {
   save_draft,
 } from "./skeleton_resources";
 import {
+  legacy_conversion_plan,
+  legacy_preflight_kernel,
+} from "./legacy_conversion";
+import {
   can_convert_legacy_pools,
   conflict_discarded,
   conversion_failed,
@@ -113,7 +117,16 @@ export default function useSkeletonResource() {
     const current = ref.current;
     if (!can_preflight(current)) return current;
     const issued = preflight_token(current);
-    const result = await preflight_resource(current.resource_id);
+    /* A migrated Agent is built out of its legacy data and a Kernel the
+       caller supplies, so without one the store answers
+       `legacy_profile_required` and the check cannot succeed at all — not for
+       a reason the author can act on from here. The Kernel they configured is
+       what goes over; `legacy_preflight_kernel` answers `null` for everything
+       else, so a modern Agent's check is the request it always was. */
+    const result = await preflight_resource(
+      current.resource_id,
+      legacy_preflight_kernel(current.document),
+    );
     return apply((latest) =>
       result.ok
         ? preflight_passed(latest, result.data, issued)
@@ -131,11 +144,19 @@ export default function useSkeletonResource() {
   const convertLegacyPools = useCallback(async () => {
     const current = ref.current;
     if (!can_convert_legacy_pools(current)) return current;
+    /* The Kernel is read here rather than taken from the caller, for the
+       reason the two limits above live here: the panel decided what to say
+       about a document it was rendered with, and this is the document the
+       store is about to be asked to change. A plan that refuses is not sent —
+       the write would be refused, and the panel is already saying why. */
+    const plan = legacy_conversion_plan(current.document);
+    if (plan.refusal) return current;
     const started = apply(conversion_started(current));
     const issued = session_token(started);
     const result = await convert_legacy_pools_in_store(
       current.resource_id,
       current.edit_token,
+      plan.kernel,
     );
     return apply((latest) =>
       result.ok
