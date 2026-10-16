@@ -291,12 +291,12 @@ class SkeletonResourceStore:
         return {
             "id": entry_id,
             "name": name,
-            "description": str(profile.get("description") or ""),
+            "description": deepcopy(profile.get("description", "")),
             "source": source,
-            "allowed_modes": list(profile.get("allowed_modes") or ["delegate", "worker"]),
-            "output_mode": str(profile.get("output_mode") or "summary"),
-            "memory_policy": str(profile.get("memory_policy") or "ephemeral"),
-            "parallel_safe": profile.get("parallel_safe", True) is True,
+            "allowed_modes": deepcopy(profile.get("allowed_modes", ["delegate", "worker"])),
+            "output_mode": deepcopy(profile.get("output_mode", "summary")),
+            "memory_policy": deepcopy(profile.get("memory_policy", "ephemeral")),
+            "parallel_safe": deepcopy(profile.get("parallel_safe", True)),
             "allowed_tools": deepcopy(profile.get("allowed_tools")),
             "disabled_tools": list(disabled_tools),
         }
@@ -387,9 +387,18 @@ class SkeletonResourceStore:
                                 resource_id=f"embedded-{node['id']}-{entry_index}",
                             )
                         elif prompt_format == "soul" and type(template) is dict and type(template.get("prompt")) is str:
-                            soul = f"---\nname: {name}\ndescription: {name}\n---\n{template['prompt']}"
+                            # Inline entries already carry structured policy.
+                            # Serializing it through Soul frontmatter loses
+                            # declared policy and can interpret a literal name
+                            # as more header fields. Use the existing template
+                            # IR, keeping Soul's own prompt authoritative.
+                            legacy_source = deepcopy(template)
+                            legacy_source.update(
+                                name=name, description=name,
+                                instructions=template["prompt"],
+                            )
                             converted_document = convert_legacy_definition(
-                                "soul", soul,
+                                "skeleton_template", legacy_source,
                                 resource_id=f"embedded-{node['id']}-{entry_index}",
                             )
                         else:
@@ -552,7 +561,10 @@ class SkeletonResourceStore:
                 or node["type"] == "agent" and "legacy_template" in node.get("config", {})
                 for node in document["nodes"]
             ):
-                if legacy_kernel is None:
+                if legacy_kernel is None and any(
+                    node["type"] == "agent" and "kernel" not in node.get("config", {})
+                    for node in document["nodes"]
+                ):
                     _fail("legacy_profile_required", ("legacy_kernel",),
                           "migrated Agent requires an explicit Kernel configuration")
                 try:
@@ -637,7 +649,10 @@ class SkeletonResourceStore:
                           "Subagent source must be agent_ref or embedded")
                 metadata = self._legacy_agent_metadata(child_document)
                 if metadata is not None:
-                    if legacy_kernel is None:
+                    if legacy_kernel is None and any(
+                        child["type"] == "agent" and "kernel" not in child.get("config", {})
+                        for child in child_document["nodes"]
+                    ):
                         _fail("legacy_profile_required", path,
                               "legacy subagent requires an explicit Kernel configuration")
                     try:

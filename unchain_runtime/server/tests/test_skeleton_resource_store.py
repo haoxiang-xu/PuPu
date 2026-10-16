@@ -1229,8 +1229,9 @@ class LegacyKernelIdentityTests(unittest.TestCase):
     whether to offer the conversion by answering these rules itself, so if the
     runtime's answers move, these go red and the mirror in
     `legacy_conversion.js` — and its frozen capture — has to move with them.
-    Nothing here is a new requirement on the runtime; each case was measured
-    before the mirror was written.
+    The model comparison cases record measured admission rules. The fidelity
+    cases also require that migration preserve authored policy and a node's
+    explicit Kernel instead of silently substituting the caller's defaults.
     """
 
     def setUp(self):
@@ -1332,25 +1333,182 @@ class LegacyKernelIdentityTests(unittest.TestCase):
                 legacy_kernel=self.kernel_for("ollama", "llama3:8b"))
         self.assertEqual(caught.exception.code, "identity_mismatch")
 
-    def test_a_soul_format_inline_entry_loses_the_model_it_declared(self):
-        """Recorded as it is, not worked around.
-
-        The store builds the soul text itself and its frontmatter carries no
-        model line, so an entry's `template["model"]` never reaches the
-        runtime and every profile is accepted. That is a gap on this side of
-        acceptance 7 — the model is lost rather than preserved — and the
-        editor states nothing about a soul entry's model because of it.
-        Repairing it here should turn this test red.
-        """
+    def test_a_soul_format_inline_entry_holds_its_declared_model(self):
+        """Changing prompt format must not discard the declared model."""
         resource_id, before = self.migrated(
             pool=[self.inline("openai:gpt-4.1", prompt_format="soul")])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.convert_legacy_pools(
+                resource_id, expected_edit_token=before["edit_token"],
+                legacy_kernel=self.kernel_for("anthropic", "claude-x"))
+        self.assertEqual(caught.exception.code, "identity_mismatch")
+        self.assertEqual(caught.exception.status, 400)
+        self.assertEqual(self.store.get_resource(resource_id), before)
+
         self.store.convert_legacy_pools(
             resource_id, expected_edit_token=before["edit_token"],
-            legacy_kernel=self.kernel_for("anthropic", "claude-x"))
+            legacy_kernel=deepcopy(LEGACY_KERNEL))
         child = self.pool_of(resource_id)["subagents"][0]["source"]["document"]
         kernel = next(node["config"]["kernel"] for node in child["nodes"]
                       if node["type"] == "agent" and "kernel" in node["config"])
-        self.assertEqual(kernel["profile"]["model"], "claude-x")
+        self.assertEqual(kernel["profile"], LEGACY_KERNEL["profile"])
+
+    def test_soul_inline_keeps_six_metadata_fields_and_literal_name(self):
+        settings = {
+            "allowed_modes": ["handoff"], "output_mode": "full_trace",
+            "memory_policy": "scoped_persistent", "parallel_safe": False,
+            "allowed_tools": [], "model": "openai:gpt-4.1",
+        }
+        for index, name in enumerate(("Soul policy", "内嵌\nmodel: anthropic:other")):
+            with self.subTest(name=name):
+                inline = self.inline("openai:gpt-4.1", prompt_format="soul")
+                inline["name"] = name
+                inline["disabled_tools"] = ["write"]
+                inline["template"].update(settings)
+                inline["template"]["instructions"] = "Incidental, not the Soul prompt."
+                resource_id, before = self.migrated(
+                    name=f"Soul settings {index}", pool=[inline])
+                self.store.convert_legacy_pools(
+                    resource_id, expected_edit_token=before["edit_token"],
+                    legacy_kernel=deepcopy(LEGACY_KERNEL))
+                entry = self.pool_of(resource_id)["subagents"][0]
+                for key in settings.keys() - {"model"}:
+                    self.assertEqual(entry[key], settings[key])
+                self.assertEqual(entry["name"], name)
+                self.assertEqual(entry["disabled_tools"], ["write"])
+                child = entry["source"]["document"]
+                self.assertEqual(child["name"], name)
+                kernel = next(node["config"]["kernel"] for node in child["nodes"]
+                              if node["type"] == "agent")
+                self.assertEqual(kernel["profile"], LEGACY_KERNEL["profile"])
+                self.assertEqual(kernel["prompt"], inline["template"]["prompt"])
+                prepare_agent_graph(child)
+
+    def test_soul_inline_invalid_metadata_is_typed_and_never_written(self):
+        invalid = {
+            "model": 7, "allowed_tools": "read", "allowed_modes": "worker",
+            "output_mode": 7, "memory_policy": 7, "parallel_safe": "false",
+        }
+        for index, (key, value) in enumerate(invalid.items()):
+            with self.subTest(field=key):
+                inline = self.inline("openai:gpt-4.1", prompt_format="soul")
+                inline["template"][key] = value
+                resource_id, before = self.migrated(
+                    name=f"Invalid Soul {index}", pool=[inline])
+                with self.assertRaises(SkeletonResourceError) as caught:
+                    self.store.convert_legacy_pools(
+                        resource_id, expected_edit_token=before["edit_token"],
+                        legacy_kernel=deepcopy(LEGACY_KERNEL))
+                self.assertEqual(caught.exception.code, "invalid_type")
+                self.assertEqual(caught.exception.status, 400)
+                self.assertEqual(list(caught.exception.path)[:7],
+                                 ["document", "nodes", 3, "config", "legacy_fields",
+                                  "subagents", 0])
+                self.assertEqual(self.store.get_resource(resource_id), before)
+
+    def test_soul_inline_explicit_empty_policy_is_not_replaced_by_defaults(self):
+        cases = (("allowed_modes", [], "invalid_type"),
+                 ("output_mode", "", "unknown_variant"),
+                 ("memory_policy", "", "unknown_variant"))
+        for index, (key, value, code) in enumerate(cases):
+            with self.subTest(field=key):
+                inline = self.inline("openai:gpt-4.1", prompt_format="soul")
+                inline["template"][key] = value
+                resource_id, before = self.migrated(
+                    name=f"Explicit empty Soul {index}", pool=[inline])
+                self.store.convert_legacy_pools(
+                    resource_id, expected_edit_token=before["edit_token"],
+                    legacy_kernel=deepcopy(LEGACY_KERNEL))
+                self.assertEqual(self.pool_of(resource_id)["subagents"][0][key], value)
+                saved = self.store.get_resource(resource_id)
+                with self.assertRaises(SkeletonResourceError) as caught:
+                    self.store.preflight(resource_id, legacy_kernel=deepcopy(LEGACY_KERNEL))
+                self.assertEqual(caught.exception.code, code)
+                self.assertEqual(list(caught.exception.path)[-3:], ["subagents", 0, key])
+                self.assertEqual(self.store.get_resource(resource_id), saved)
+
+    def test_soul_inline_expansion_does_not_mutate_source_document(self):
+        resource_id, before = self.migrated(
+            pool=[self.inline("openai:gpt-4.1", prompt_format="soul")])
+        document = before["document"]
+        original = deepcopy(document)
+        with self.store._connect() as connection:
+            expanded = self.store._expand_legacy_subagent_pools(
+                connection, document, deepcopy(LEGACY_KERNEL))
+        self.assertEqual(document, original)
+        self.assertIn("subagents", next(node["config"] for node in expanded["nodes"]
+                                       if node["type"] == "subagent_pool"))
+        self.assertEqual(self.store.get_resource(resource_id), before)
+
+    def test_preflight_uses_explicit_root_kernel_without_legacy_fallback(self):
+        resource_id, before = self.migrated(name="Configured root")
+        document = deepcopy(before["document"])
+        configured = deepcopy(LEGACY_KERNEL)
+        configured.update(prompt="Author configured root prompt", max_iterations=9)
+        document["nodes"][1]["config"]["kernel"] = configured
+        self.store.save_draft(document, expected_edit_token=before["edit_token"])
+        admitted = self.store.preflight(resource_id)
+        self.assertEqual(admitted["document"]["nodes"][1]["config"]["kernel"], configured)
+
+    def test_referenced_migrated_child_uses_own_explicit_kernel(self):
+        child_id, before = self.migrated(name="Configured child")
+        child = deepcopy(before["document"])
+        configured = deepcopy(LEGACY_KERNEL)
+        configured.update(prompt="Author configured child prompt", max_iterations=9)
+        child["nodes"][1]["config"]["kernel"] = configured
+        saved = self.store.save_draft(child, expected_edit_token=before["edit_token"])
+        parent = agent("configured-child-parent", child_source={
+            "kind": "agent_ref", "agent_id": child_id})
+        self.store.save_draft(parent)
+        admitted = self.store.preflight(parent["id"])
+        resolved = admitted["subagents"][0]
+        self.assertEqual(resolved["agent_id"], child_id)
+        self.assertEqual(resolved["edit_token"], saved["edit_token"])
+        self.assertEqual(resolved["document"]["nodes"][1]["config"]["kernel"], configured)
+
+    def test_mixed_missing_kernel_still_requires_explicit_fallback(self):
+        source = json.loads(legacy_recipe("Partly configured"))
+        source["nodes"].insert(2, {"id": "a2", "type": "agent", "override": {
+            "prompt_format": "soul", "prompt": "Second legacy prompt"}})
+        source["edges"][1]["target_node_id"] = "a2"
+        source["edges"].append({"id": "e3", "source_node_id": "a2",
+                                "source_port_id": "out", "target_node_id": "end",
+                                "target_port_id": "in"})
+        self.store.migrate_legacy(source_identity="/legacy/partly.recipe",
+                                  source_scope="recipes", source_kind="recipe",
+                                  source=json.dumps(source))
+        resource_id = next(row["id"] for row in self.store.list_resources())
+        before = self.store.get_resource(resource_id)
+        document = deepcopy(before["document"])
+        document["nodes"][1]["config"]["kernel"] = deepcopy(LEGACY_KERNEL)
+        self.store.save_draft(document, expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(resource_id)
+        self.assertEqual(caught.exception.code, "legacy_profile_required")
+        self.assertEqual(list(caught.exception.path), ["legacy_kernel"])
+
+    def test_explicit_root_does_not_supply_legacy_inline_child_kernel(self):
+        resource_id, before = self.migrated(
+            name="Configured root legacy child", pool=[self.inline(None)])
+        document = deepcopy(before["document"])
+        document["nodes"][1]["config"]["kernel"] = deepcopy(LEGACY_KERNEL)
+        self.store.save_draft(document, expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(resource_id)
+        self.assertEqual(caught.exception.code, "legacy_profile_required")
+        self.assertEqual(list(caught.exception.path),
+                         ["document", "nodes", 3, "config", "legacy_fields", "subagents", 0])
+
+    def test_explicit_invalid_kernel_is_not_treated_as_missing(self):
+        resource_id, before = self.migrated(name="Explicit invalid")
+        document = deepcopy(before["document"])
+        document["nodes"][1]["config"]["kernel"] = None
+        self.store.save_draft(document, expected_edit_token=before["edit_token"])
+        with self.assertRaises(SkeletonResourceError) as caught:
+            self.store.preflight(resource_id)
+        self.assertEqual(caught.exception.code, "invalid_type")
+        self.assertEqual(list(caught.exception.path),
+                         ["document", "nodes", 1, "config", "kernel"])
 
     def test_the_supplied_kernel_is_carried_except_for_the_prompt(self):
         """Which is why the editor drops the parent's schema before handing it.
