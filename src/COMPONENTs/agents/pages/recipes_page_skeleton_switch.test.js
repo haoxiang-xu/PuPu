@@ -96,3 +96,65 @@ describe("switching from a legacy Recipe to a Skeleton Agent", () => {
     expect(screen.queryByTestId("skeleton-resource-page")).not.toBeInTheDocument();
   });
 });
+
+describe("drilling into a subagent of a Skeleton Agent", () => {
+  /* The resource list is not the graph being edited, and switching from it
+     while drilled would drop the stack's unsaved parent. The Skeleton page
+     owns the stack and says when one is open. */
+  const embedded = {
+    schema_version: 1, kind: "agent", id: "inner", name: "Shortener",
+    nodes: [{ id: "inner-start", type: "start", config: { execution: { outputs: [] } } }],
+    edges: [],
+  };
+
+  const parent = {
+    schema_version: 1, kind: "agent", id: "rev", name: "Reviewer",
+    nodes: [
+      { id: "start", type: "start", config: { execution: { outputs: [] } } },
+      { id: "k", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      {
+        id: "pool",
+        type: "subagent_pool",
+        config: {
+          subagents: [{
+            id: "emb", name: "Shortener", description: "",
+            source: { kind: "embedded", document: embedded },
+            allowed_modes: ["delegate"], output_mode: "summary",
+            memory_policy: "ephemeral", parallel_safe: true,
+            allowed_tools: null, disabled_tools: [],
+          }],
+        },
+      },
+    ],
+    edges: [{
+      id: "attach", kind: "attach", source_node_id: "pool",
+      source_port_id: "attach_top", target_node_id: "k",
+      target_port_id: "attach_bot",
+    }],
+  };
+
+  test("the resource list collapses while it is open, and comes back when it closes", async () => {
+    api.unchain.getSkeletonResource.mockResolvedValue({
+      id: "rev", kind: "agent", name: "Reviewer", document: parent,
+      edit_token: "t1", diagnostics: [], archived: false, description: null,
+      draft_digest: null, source_identity: null,
+    });
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("skeleton-resource-rev")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-resource-rev"));
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
+    const shell = screen.getByTestId("recipe-list-panel-shell");
+    expect(shell.style.opacity).toBe("1");
+
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await waitFor(() => expect(screen.getByLabelText("Open Shortener")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await waitFor(() => expect(screen.getByTestId("skeleton-drill-crumbs")).toBeInTheDocument());
+    expect(shell.style.opacity).toBe("0");
+    expect(shell.style.pointerEvents).toBe("none");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("skeleton-drill-crumbs")).toBeNull());
+    expect(shell.style.opacity).toBe("1");
+  });
+});

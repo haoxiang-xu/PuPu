@@ -1304,3 +1304,133 @@ describe("the Kernel the store is handed for legacy data", () => {
     expect(hook.result.current.session.preflight.ok).toBe(false);
   });
 });
+
+describe("opening another resource, for a drill-in", () => {
+  /* A referenced subagent is another resource, opened by identity. The read
+     comes first: a failure has to leave the author on the graph they are
+     looking at, and the sitting they leave is what the drill stack holds. */
+  const child = result({
+    id: "sum",
+    kind: "agent",
+    name: "Summarizer",
+    document: { ...doc("child"), id: "sum" },
+    edit_token: "sum-1",
+  });
+
+  test("it reads by id and the session becomes that resource, clean", async () => {
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      Promise.resolve(id === "sum" ? child : result({ document: doc("a"), edit_token: "t1" })),
+    );
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("edited")));
+    let answer = null;
+    await act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    expect(answer.ok).toBe(true);
+    expect(hook.result.current.session.resource_id).toBe("sum");
+    expect(hook.result.current.session.edit_token).toBe("sum-1");
+    expect(hook.result.current.session.dirty).toBe(false);
+  });
+
+  test("the sitting it hands back is the one on screen at the moment of the swap", async () => {
+    let land = null;
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      id === "sum"
+        ? new Promise((resolve) => { land = resolve; })
+        : Promise.resolve(result({ document: doc("a"), edit_token: "t1" })),
+    );
+    const hook = await open();
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    /* Typed while the read was in flight: a copy taken when the request
+       started would lose exactly these keystrokes. */
+    act(() => hook.result.current.edit(doc("typed during the read")));
+    await act(async () => {
+      land(child);
+    });
+    await opening;
+    expect(answer.left.document.description).toBe("typed during the read");
+    expect(answer.left.dirty).toBe(true);
+  });
+
+  test("a read that failed changes nothing at all", async () => {
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      id === "sum"
+        ? Promise.resolve({ error: { code: "resource_missing", message: "gone" } })
+        : Promise.resolve(result({ document: doc("a"), edit_token: "t1" })),
+    );
+    const hook = await open();
+    const before = hook.result.current.session;
+    let answer = null;
+    await act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    expect(answer.ok).toBe(false);
+    expect(answer.result.error.code).toBe("resource_missing");
+    expect(hook.result.current.session).toBe(before);
+  });
+
+  test("a gate of the caller's own can refuse what came back, and nothing navigates", async () => {
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      Promise.resolve(id === "sum" ? child : result({ document: doc("a"), edit_token: "t1" })),
+    );
+    const hook = await open();
+    const before = hook.result.current.session;
+    let answer = null;
+    await act(async () => {
+      answer = await hook.result.current.openAnother("sum", () => "This is a Workflow.");
+    });
+    expect(answer).toEqual({ ok: false, refused: "This is a Workflow." });
+    expect(hook.result.current.session).toBe(before);
+  });
+
+  test("restoring puts the stashed document back, unsaved work and all", async () => {
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      Promise.resolve(id === "sum" ? child : result({ document: doc("a"), edit_token: "t1" })),
+    );
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("unsaved")));
+    let answer = null;
+    await act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    act(() => hook.result.current.restore(answer.left));
+    expect(hook.result.current.session.resource_id).toBe("life");
+    expect(hook.result.current.session.document.description).toBe("unsaved");
+    expect(hook.result.current.session.dirty).toBe(true);
+    expect(hook.result.current.session.edit_token).toBe("t1");
+  });
+
+  test("and it is a new sitting, so an answer from the first visit is not accepted", async () => {
+    /* `A → B → A` puts the same resource id back. A save still in flight from
+       the first visit would otherwise pass the guard and roll the token onto a
+       document it is not an answer about. */
+    let land = null;
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      Promise.resolve(id === "sum" ? child : result({ document: doc("a"), edit_token: "t1" })),
+    );
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { land = resolve; }),
+    );
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("unsaved")));
+    let saving = null;
+    act(() => {
+      saving = hook.result.current.save();
+    });
+    let answer = null;
+    await act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    act(() => hook.result.current.restore(answer.left));
+    await act(async () => {
+      land(result({ document: doc("stored"), edit_token: "t2" }));
+      await saving;
+    });
+    expect(hook.result.current.session.edit_token).toBe("t1");
+    expect(hook.result.current.session.document.description).toBe("unsaved");
+  });
+});

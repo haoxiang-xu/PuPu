@@ -78,6 +78,11 @@ export default function RecipesPage({
      other rather than overwriting a single "current thing", which is what
      would let a name be used as an id. */
   const [skeletonResourceId, setSkeletonResourceId] = useState(null);
+  /* A Skeleton Agent drilled into one of its subagents: the resource list is
+     not the graph being edited, and offering a switch from there would drop
+     the drill stack's unsaved parent. The Skeleton page owns that stack and
+     says when it is open. */
+  const [skeletonDrilled, setSkeletonDrilled] = useState(false);
 
   /* ── Drilling into a subagent ──────────────────────────────────────────
      A referenced subagent is the shared Agent resource, not a copy living in
@@ -395,7 +400,7 @@ export default function RecipesPage({
 
   /* Drilled in, the workflow list is not the graph you are editing — it would
      offer a switch that silently drops the parent frame's unsaved edits. */
-  const listHidden = listCollapsed || drilled;
+  const listHidden = listCollapsed || drilled || skeletonDrilled;
 
   /* Both at once rather than one masking the other: a drill-in can fail while
      an unsaved graph is still refusing to save. */
@@ -440,7 +445,10 @@ export default function RecipesPage({
         }}
       >
         {skeletonResourceId ? (
-          <SkeletonResourcePage resourceId={skeletonResourceId} />
+          <SkeletonResourcePage
+            resourceId={skeletonResourceId}
+            onDrilledChange={setSkeletonDrilled}
+          />
         ) : (
         <RecipeCanvas
           recipe={activeRecipe}
@@ -519,7 +527,7 @@ export default function RecipesPage({
       />
 
       {/* ── Expand button (only when list is collapsed) ── */}
-      {listCollapsed && !drilled && (
+      {listCollapsed && !drilled && !skeletonDrilled && (
         <Button
           prefix_icon="side_menu_left"
           onClick={() => setListCollapsed(false)}

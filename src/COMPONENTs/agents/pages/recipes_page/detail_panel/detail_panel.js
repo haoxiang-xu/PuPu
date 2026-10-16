@@ -38,6 +38,11 @@ export default function DetailPanel({
   convertingLegacy,
   recipes,
   onDrillIn,
+  /* The Skeleton drill-in: a pool row asks the page to open that subagent's
+     own graph. Kept apart from the legacy `onDrillIn`, which takes a recipe
+     entry — one name for two shapes is how a call silently stops arriving. */
+  onOpenSubagent,
+  embedded,
   document,
   /* Which handed-over document this is. Several controls below show text the
      document deliberately does not hold — a refused position, a refused
@@ -241,6 +246,8 @@ export default function DetailPanel({
                 onConvertLegacy={onConvertLegacy}
                 canConvertLegacy={canConvertLegacy}
                 convertingLegacy={convertingLegacy}
+                onOpenSubagent={onOpenSubagent}
+                embedded={embedded}
               />
             )}
             <InputVariablesSection

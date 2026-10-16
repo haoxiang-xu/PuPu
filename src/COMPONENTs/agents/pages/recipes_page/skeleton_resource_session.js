@@ -162,6 +162,35 @@ export function loaded(session, data, issued) {
   };
 }
 
+/* Putting back a sitting that was stashed while another graph was open.
+ *
+ * Drilling into a referenced Agent opens another resource in this same editor,
+ * and coming back restores the one that was left instead of re-reading it:
+ * going back is navigation, not a save, so unsaved edits have to survive it.
+ *
+ * What must NOT survive is the sitting's identity. The counters are monotonic
+ * for exactly this case — `A → B → A` puts the same resource id back, and a
+ * load or a save still in flight from the first visit would then pass
+ * `same_open` and be applied to a document it is not an answer about, rolling
+ * the token back or raising a conflict nobody caused. So a restored frame is a
+ * new sitting, numbered with values that have never been used.
+ *
+ * `document_revision` moves with them: the author is being handed a document
+ * to look at, and a control holding text this document does not hold has to
+ * let go of it.
+ *
+ * `saving` and `converting` are carried as they were, which is always false: a
+ * frame is only taken while nothing is in flight, because an answer to a
+ * request made about one graph must not land on another. */
+export function restored(session, saved) {
+  return {
+    ...saved,
+    version: next_version(session),
+    open_id: next_open_id(session),
+    document_revision: next_document_revision(session),
+  };
+}
+
 export function load_failed(session, result, issued) {
   if (issued && !(same_open(session, issued) && session.version === issued.version)) {
     return session;

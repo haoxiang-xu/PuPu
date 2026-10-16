@@ -186,3 +186,191 @@ describe("a zoom survives closing the canvas", () => {
     expect(lastProps.restore_viewport).toMatchObject({ x: 40, y: -12 });
   });
 });
+
+describe("opening a subagent from the pool node", () => {
+  /* The pool node is drawn for two models of graph. A Skeleton node carries
+     its entries in `config`, which is what this canvas passes; the legacy
+     recipe canvas passes a node whose entries sit on `node.subagents`. Reading
+     the wrong one is not a blank row — it is a pool that says it has no
+     subagents while holding two. */
+  const entry = (over) => ({
+    id: "e1",
+    name: "Summarizer",
+    description: "",
+    source: { kind: "agent_ref", agent_id: "sum" },
+    allowed_modes: ["delegate"],
+    output_mode: "summary",
+    memory_policy: "ephemeral",
+    parallel_safe: true,
+    allowed_tools: null,
+    disabled_tools: [],
+    ...over,
+  });
+
+  const with_pool = (config) => {
+    const d = doc();
+    d.nodes.push({ id: "pool", type: "subagent_pool", config });
+    d.edges.push({
+      id: "attach", kind: "attach", source_node_id: "pool",
+      source_port_id: "attach_top", target_node_id: "a1",
+      target_port_id: "attach_bot",
+    });
+    return d;
+  };
+
+  const open = jest.fn();
+  const draw = (document) =>
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonCanvas
+          resourceId="r"
+          document={document}
+          onSelectNode={() => {}}
+          onOpenSubagent={open}
+          isDark={false}
+        />
+      </ConfigContext.Provider>,
+    );
+
+  beforeEach(() => open.mockReset());
+
+  test("a Skeleton pool draws the entries it actually holds", () => {
+    draw(
+      with_pool({
+        subagents: [
+          entry(),
+          entry({
+            id: "e2",
+            name: "Shortener",
+            source: { kind: "embedded", document: { kind: "agent", id: "embedded-pool-1" } },
+          }),
+        ],
+      }),
+    );
+    const pool = screen.getByTestId("node-pool");
+    expect(within(pool).getByText("2 subagents")).toBeInTheDocument();
+    expect(within(pool).getByTestId("pool-node-row-0").textContent).toMatch(
+      /Summarizer.*Referenced/,
+    );
+    expect(within(pool).getByTestId("pool-node-row-1").textContent).toMatch(
+      /Shortener.*Embedded/,
+    );
+  });
+
+  test("double-clicking a row asks the page to open it, naming the pool and the entry", () => {
+    draw(with_pool({ subagents: [entry()] }));
+    fireEvent.doubleClick(screen.getByTestId("pool-node-row-0"));
+    expect(open).toHaveBeenCalledWith({
+      pool_node_id: "pool",
+      entry_id: "e1",
+      reason: null,
+    });
+  });
+
+  test("a row that cannot be opened answers too, with the reason", () => {
+    draw(with_pool({ subagents: [entry({ source: { kind: "graph" } })] }));
+    fireEvent.doubleClick(screen.getByTestId("pool-node-row-0"));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].reason).toMatch(/agent_ref and embedded/);
+  });
+
+  test("a legacy pool draws its subagents and says they are converted first", () => {
+    draw(
+      with_pool({
+        legacy_fields: { subagents: [{ kind: "recipe_ref", recipe_name: "Summarizer" }] },
+      }),
+    );
+    const pool = screen.getByTestId("node-pool");
+    expect(within(pool).getByTestId("pool-node-row-0").textContent).toMatch(
+      /Summarizer.*Legacy/,
+    );
+    fireEvent.doubleClick(within(pool).getByTestId("pool-node-row-0"));
+    expect(open.mock.calls[0][0].reason).toMatch(/Convert it first/);
+  });
+});
+
+describe("Escape goes up a level before anything else sees it", () => {
+  const draw = (onEscape) =>
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonCanvas
+          resourceId="r"
+          document={doc()}
+          onSelectNode={() => {}}
+          onEscape={onEscape}
+          isDark={false}
+        />
+      </ConfigContext.Provider>,
+    );
+
+  test("when it went up, the key does not reach the modal's own listener", () => {
+    const outer = jest.fn();
+    window.addEventListener("keydown", outer);
+    draw(() => true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(outer).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", outer);
+  });
+
+  test("with no drill open it passes through untouched", () => {
+    const outer = jest.fn();
+    window.addEventListener("keydown", outer);
+    draw(() => false);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(outer).toHaveBeenCalled();
+    window.removeEventListener("keydown", outer);
+  });
+
+  test("it is not taken while a field has the caret", () => {
+    const up = jest.fn(() => true);
+    draw(up);
+    const field = document.createElement("input");
+    document.body.appendChild(field);
+    field.focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(up).not.toHaveBeenCalled();
+    field.remove();
+  });
+});
+
+describe("Home centers this graph's own Start", () => {
+  const sub = () => ({
+    schema_version: 1, kind: "agent", id: "child", name: "Shortener",
+    nodes: [
+      /* A sub-graph need not name its start node `start`. */
+      { id: "entry", type: "start", config: {} },
+      { id: "k", type: "agent", config: {} },
+    ],
+    edges: [flow("e1", "entry", "k")],
+  });
+
+  test("the node it centers is found by type, not by name", () => {
+    show(sub());
+    expect(lastProps.reset_focus_node_id).toBe("entry");
+  });
+
+  test("the control asks for it", () => {
+    show(sub());
+    const before = lastProps.reset_token;
+    fireEvent.click(screen.getByLabelText("Center this graph"));
+    expect(lastProps.reset_token).toBe(before + 1);
+  });
+
+  test("so does the key the acceptance names", () => {
+    show(sub());
+    const before = lastProps.reset_token;
+    fireEvent.keyDown(document, { key: "Home" });
+    expect(lastProps.reset_token).toBe(before + 1);
+  });
+
+  test("but not while a field has the caret", () => {
+    show(sub());
+    const before = lastProps.reset_token;
+    const field = document.createElement("textarea");
+    document.body.appendChild(field);
+    field.focus();
+    fireEvent.keyDown(document, { key: "Home" });
+    expect(lastProps.reset_token).toBe(before);
+    field.remove();
+  });
+});

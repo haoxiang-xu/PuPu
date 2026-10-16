@@ -1695,3 +1695,104 @@ describe("a pool that arrives from the store", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("opening a subagent's own graph from the panel", () => {
+  /* The panel manages entries and never edits a subagent's contents: a
+     subagent is a complete Agent graph, and a graph is edited on the canvas.
+     So the row offers to open it, and nothing more. */
+  const open = jest.fn();
+
+  async function show_with(node, options = {}) {
+    list_resources.mockResolvedValue(
+      options.library === undefined
+        ? { ok: true, data: { resources: LIBRARY } }
+        : options.library,
+    );
+    const view = render(
+      <SubagentPoolSection
+        document={doc(node)}
+        node={node}
+        isDark={false}
+        onChange={jest.fn()}
+        onOpenSubagent={open}
+        embedded={options.embedded}
+        onConvertLegacy={options.onConvertLegacy}
+        canConvertLegacy={options.canConvertLegacy}
+      />,
+    );
+    await act(async () => {});
+    return view;
+  }
+
+  beforeEach(() => open.mockReset());
+
+  test("a referenced row opens it, naming the pool and the entry", async () => {
+    await show_with(pool({ subagents: [entry()] }));
+    fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    expect(open).toHaveBeenCalledWith({
+      pool_node_id: "pool",
+      entry_id: "subagent-1",
+      reason: null,
+    });
+  });
+
+  test("an embedded row opens too — it is a graph, wherever it is stored", async () => {
+    await show_with(
+      pool({
+        subagents: [
+          entry({
+            id: "emb",
+            name: "Shortener",
+            source: { kind: "embedded", document: { schema_version: 1, kind: "agent", id: "inner", name: "Shortener", nodes: [], edges: [] } },
+          }),
+        ],
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    expect(open.mock.calls[0][0].entry_id).toBe("emb");
+  });
+
+  test("a source the store would refuse offers nothing to open", async () => {
+    await show_with(pool({ subagents: [entry({ source: { kind: "graph" } })] }));
+    expect(screen.queryByLabelText("Open Summarizer")).toBeNull();
+  });
+
+  test("neither does a row whose Agent is a Workflow, or is this Agent itself", async () => {
+    await show_with(
+      pool({
+        subagents: [
+          entry({ source: { kind: "agent_ref", agent_id: "res-flow" } }),
+          entry({ id: "self", name: "Itself", source: { kind: "agent_ref", agent_id: "parent" } }),
+        ],
+      }),
+    );
+    expect(screen.queryByLabelText("Open Summarizer")).toBeNull();
+    expect(screen.queryByLabelText("Open Itself")).toBeNull();
+  });
+
+  test("nor one whose Agent is no longer in the library", async () => {
+    await show_with(pool({ subagents: [entry({ source: { kind: "agent_ref", agent_id: "gone" } })] }));
+    expect(screen.getByTestId("subagent-entry-0-missing")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Open Summarizer")).toBeNull();
+  });
+
+  test("without a page to ask, no row offers it", async () => {
+    await show(pool({ subagents: [entry()] }));
+    expect(screen.queryByLabelText("Open Summarizer")).toBeNull();
+  });
+
+  test("a legacy pool inside an embedded graph says where converting is done", async () => {
+    await show_with(
+      pool({
+        legacy_fields: {
+          subagents: [{ kind: "recipe_ref", recipe_name: "Summarizer" }],
+        },
+      }),
+      { embedded: true, onConvertLegacy: jest.fn(), canConvertLegacy: true },
+    );
+    expect(screen.getByTestId("subagent-pool-legacy-embedded").textContent).toMatch(
+      /done from the Agent that owns this graph/,
+    );
+    expect(screen.queryByText("Convert to Agent entries")).toBeNull();
+  });
+});

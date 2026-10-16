@@ -18,6 +18,7 @@ import {
   load_failed,
   loaded,
   loading,
+  restored,
   can_preflight,
   preflight_passed,
   preflight_refused,
@@ -64,6 +65,38 @@ export default function useSkeletonResource() {
           : load_failed(current, result, issued),
       );
     },
+    [apply],
+  );
+
+  /* Opening another resource in this editor, for a drill-in into a referenced
+     Agent. The read comes first and what is on screen is replaced only if it
+     succeeded — and only if the caller's own gate admits what came back. A
+     failed read has to leave the author where they are: navigating first and
+     failing afterwards is how someone ends up looking at an empty page for a
+     graph they never asked for.
+     The session that was left is handed back for the drill stack to hold, and
+     it is taken at the moment of the swap rather than when the read started —
+     the author keeps typing while a read is in flight, and a copy taken
+     earlier would lose exactly those keystrokes. */
+  const open_another = useCallback(
+    async (resource_id, admit) => {
+      const result = await load_resource(resource_id);
+      if (!result.ok) return { ok: false, result };
+      const refused = typeof admit === "function" ? admit(result.data) : null;
+      if (refused) return { ok: false, refused };
+      let left = null;
+      apply((current) => {
+        left = current;
+        return loaded(loading(current, resource_id), result.data);
+      });
+      return { ok: true, left };
+    },
+    [apply],
+  );
+
+  /* Coming back up: the stashed sitting, renumbered. */
+  const restore = useCallback(
+    (saved) => apply((current) => restored(current, saved)),
     [apply],
   );
 
@@ -165,6 +198,8 @@ export default function useSkeletonResource() {
   return {
     session,
     load,
+    openAnother: open_another,
+    restore,
     edit,
     save,
     keepMine: () => resolve_conflict("mine"),

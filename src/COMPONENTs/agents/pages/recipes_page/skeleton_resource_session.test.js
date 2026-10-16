@@ -19,6 +19,7 @@ import {
   preflight_passed,
   preflight_refused,
   preflight_token,
+  restored,
   save_refused,
   save_started,
   save_succeeded,
@@ -434,5 +435,49 @@ describe("which document is on screen", () => {
     seen.push(session.document_revision);
     expect(new Set(seen).size).toBe(seen.length);
     expect([...seen].sort((a, b) => a - b)).toEqual(seen);
+  });
+});
+
+describe("a sitting put back after a drill-in", () => {
+  /* Going back up restores the graph that was left rather than re-reading it:
+     navigation is not a save, and re-reading would discard edits nobody asked
+     to discard. The numbers must not come back with it. */
+  const stashed = {
+    ...empty_session(),
+    version: 4,
+    open_id: 2,
+    document_revision: 3,
+    status: SESSION_STATUS.READY,
+    resource_id: "life",
+    document: { id: "life", description: "unsaved" },
+    edit_token: "t1",
+    dirty: true,
+  };
+
+  test("the document, the token and the unsaved flag come back", () => {
+    const now = { ...empty_session(), version: 9, open_id: 5, document_revision: 7 };
+    const back = restored(now, stashed);
+    expect(back.resource_id).toBe("life");
+    expect(back.document).toBe(stashed.document);
+    expect(back.edit_token).toBe("t1");
+    expect(back.dirty).toBe(true);
+    expect(back.status).toBe(SESSION_STATUS.READY);
+  });
+
+  test("the numbers do not: it is a new sitting", () => {
+    const now = { ...empty_session(), version: 9, open_id: 5, document_revision: 7 };
+    const back = restored(now, stashed);
+    expect(back.version).toBe(10);
+    expect(back.open_id).toBe(6);
+    expect(back.document_revision).toBe(8);
+    /* So the sitting it was taken from is not the sitting it came back as. */
+    expect(session_token(back)).not.toEqual(session_token(stashed));
+  });
+
+  test("a save still in flight from the first visit is dropped rather than applied", () => {
+    const issued = session_token(stashed);
+    const back = restored({ ...empty_session(), version: 9, open_id: 5 }, stashed);
+    const after = save_succeeded(back, { document: { id: "life" }, edit_token: "t2" }, issued);
+    expect(after).toBe(back);
   });
 });

@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
+import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import AgentNode from "./nodes/agent_node";
 import EndNode from "./nodes/end_node";
 import StartNode from "./nodes/start_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
+import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
@@ -26,12 +28,40 @@ import {
  *
  * Which node is open is the page's business, not the canvas's: FlowEditor
  * keeps its own highlight, and `on_select` is what tells the page to open the
- * detail panel. */
+ * detail panel.
+ *
+ * Two gestures belong to the subagent drill-in: double-clicking a row on a
+ * Subagent Pool opens that subagent's graph, and Escape goes back up. Both are
+ * reported to the page, which owns the stack; a row that cannot be opened is
+ * reported too, with the reason, because an inert row reads as the app being
+ * broken. */
 
-function renderNode(node, isDark) {
+function renderNode(node, isDark, onOpenSubagent) {
   if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
   if (node.type === "toolkit_pool") return <ToolPoolNode node={node} isDark={isDark} />;
-  if (node.type === "subagent_pool") return <SubagentPoolNode node={node} isDark={isDark} />;
+  if (node.type === "subagent_pool") {
+    return (
+      <SubagentPoolNode
+        node={node}
+        isDark={isDark}
+        /* A Skeleton pool carries its entries in `config`, and a legacy one in
+           `config.legacy_fields`; the legacy recipe canvas passes a node whose
+           entries sit on `node.subagents`. The rows are resolved here rather
+           than inside the node so the two shapes stay one drawing. */
+        rows={pool_entry_rows(node)}
+        onOpenRow={
+          typeof onOpenSubagent === "function"
+            ? (row) =>
+                onOpenSubagent({
+                  pool_node_id: node.id,
+                  entry_id: row.entry_id,
+                  reason: row.reason,
+                })
+            : undefined
+        }
+      />
+    );
+  }
   if (node.type === "start") return <StartNode isDark={isDark} />;
   if (node.type === "end") return <EndNode isDark={isDark} />;
   /* A type this build has no drawing for still has to appear: a graph that
@@ -53,17 +83,19 @@ function renderNode(node, isDark) {
 
 export default function SkeletonCanvas({
   resourceId,
-  document,
+  document: graph,
   onSelectNode,
+  onOpenSubagent,
+  onEscape,
   isDark,
 }) {
   /* Read once per document identity: re-reading on every render would undo a
      drag the moment anything else re-rendered. */
   const [layoutKey] = useState(() => ({}));
   const stored = useMemo(
-    () => readSkeletonLayout(resourceId, document),
+    () => readSkeletonLayout(resourceId, graph),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resourceId, document, layoutKey],
+    [resourceId, graph, layoutKey],
   );
   const positions = useRef(stored.nodes);
   positions.current = { ...stored.nodes, ...positions.current };
@@ -71,10 +103,12 @@ export default function SkeletonCanvas({
      returning the positions it was memoized with, and the next re-render for
      any other reason would snap the node back to where it was dragged from. */
   const [moveTick, setMoveTick] = useState(0);
+  /* Bumped by the Home control, which centers this graph's own Start. */
+  const [resetToken, setResetToken] = useState(0);
 
   const nodes = useMemo(
     () =>
-      ((document && document.nodes) || []).map((node) => {
+      ((graph && graph.nodes) || []).map((node) => {
         const at = positions.current[node.id] || { x: 0, y: 0 };
         return {
           ...node,
@@ -87,10 +121,10 @@ export default function SkeletonCanvas({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [document, moveTick],
+    [graph, moveTick],
   );
 
-  const edges = useMemo(() => (document && document.edges) || [], [document]);
+  const edges = useMemo(() => (graph && graph.edges) || [], [graph]);
 
   /* The only write this component makes, and it goes to the layout service. */
   const handleNodesChange = useCallback(
@@ -124,6 +158,47 @@ export default function SkeletonCanvas({
     [],
   );
 
+  /* Escape goes up one drill level before it reaches the Agents modal.
+     Registered on `document`, where a bubble listener still precedes the
+     modal's `window` one, so stopping propagation here shadows it — the same
+     mechanism the legacy canvas uses. With no drill open the page answers
+     false and the key passes through untouched. */
+  useEffect(() => {
+    if (typeof onEscape !== "function") return undefined;
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      const tag = window.document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (onEscape() === true) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.document.addEventListener("keydown", onKey);
+    return () => window.document.removeEventListener("keydown", onKey);
+  }, [onEscape]);
+
+  /* Home centers this graph's own Start — a sub-graph opened by drilling in
+     need not name its start node `start`, so it is found by type. The key is
+     bound here as well as the control: the acceptance names Home, and the
+     legacy canvas's Home has only ever been a button. */
+  const startNodeId = useMemo(
+    () => ((graph && graph.nodes) || []).find((node) => node.type === "start")?.id,
+    [graph],
+  );
+  const center = useCallback(() => setResetToken((token) => token + 1), []);
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "Home") return;
+      const tag = window.document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      event.preventDefault();
+      center();
+    };
+    window.document.addEventListener("keydown", onKey);
+    return () => window.document.removeEventListener("keydown", onKey);
+  }, [center]);
+
   return (
     <div
       data-testid="skeleton-canvas"
@@ -150,15 +225,32 @@ export default function SkeletonCanvas({
         edges={edges}
         on_select={onSelectNode}
         on_nodes_change={handleNodesChange}
-        render_node={(node) => renderNode(node, isDark)}
+        render_node={(node) => renderNode(node, isDark, onOpenSubagent)}
         viewport_out_ref={viewportRef}
         restore_viewport={
           stored.viewport ? { ...stored.viewport, token: resourceId } : undefined
         }
-        reset_focus_node_id={
-          ((document && document.nodes) || []).find((n) => n.type === "start")?.id
-        }
+        reset_token={resetToken}
+        reset_focus_node_id={startNodeId}
       />
+      <span
+        title="Center"
+        style={{ position: "absolute", top: 8, right: 8, display: "inline-flex" }}
+      >
+        <Button
+          prefix_icon="home"
+          ariaLabel="Center this graph"
+          onClick={center}
+          style={{
+            fontSize: 12,
+            paddingVertical: 5,
+            paddingHorizontal: 8,
+            borderRadius: 7,
+            opacity: 0.7,
+            content: { icon: { width: 13, height: 13 } },
+          }}
+        />
+      </span>
     </div>
   );
 }

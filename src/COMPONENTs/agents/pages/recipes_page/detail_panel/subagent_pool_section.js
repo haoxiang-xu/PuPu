@@ -32,6 +32,7 @@ import {
   legacy_entry_label,
   plan_for_pool,
 } from "../legacy_conversion";
+import { can_drill } from "../skeleton_drill";
 import {
   entry_agent_id,
   entry_source_label,
@@ -217,6 +218,9 @@ const LEGACY_CONVERTING =
 const LEGACY_SAVE_FIRST =
   "Converting rewrites what the store holds, so save this draft first — otherwise the conversion would move the resource on and leave your unsaved work unable to save.";
 
+const LEGACY_EMBEDDED =
+  "This graph is embedded in another Agent. Converting rewrites the whole resource, so it is done from the Agent that owns this graph.";
+
 const LEGACY_UNREACHABLE =
   "The conversion writes to the Agent library, which this build cannot reach, so the entries stay as they are.";
 
@@ -337,6 +341,7 @@ function EntryRow({
   problems,
   onChange,
   onRemove,
+  onOpen,
 }) {
   /* An entry id is unique inside its pool and nowhere else, so the identity
      text is held against carries the pool and the document too. The panel
@@ -443,6 +448,29 @@ function EntryRow({
                 : ""
           }`}
         </span>
+        {/* A subagent is a complete Agent graph, so its contents are not
+            edited here: this opens it on the canvas, with a breadcrumb back.
+            A row whose source the store would refuse at Run offers no such
+            control — there is no graph to open, and the problem rows below
+            already say which refusal it is. */}
+        {typeof onOpen === "function" &&
+          can_drill(entry) &&
+          refused === null &&
+          !missing && (
+          <Button
+            label="Open"
+            ariaLabel={`Open ${typeof entry.name === "string" && entry.name ? entry.name : `entry ${index + 1}`}`}
+            onClick={onOpen}
+            style={{
+              flexShrink: 0,
+              fontSize: 10.5,
+              paddingVertical: 3,
+              paddingHorizontal: 7,
+              borderRadius: 4,
+              color: "#4a5bd8",
+            }}
+          />
+        )}
         <Button
           prefix_icon="close"
           ariaLabel={remove_label(entry, index)}
@@ -592,6 +620,14 @@ export default function SubagentPoolSection({
   onConvertLegacy,
   canConvertLegacy,
   convertingLegacy,
+  /* Opening a subagent's own graph is the page's business — it owns the drill
+     stack and the resource session. This only asks, naming the pool and the
+     entry. */
+  onOpenSubagent,
+  /* Whether the graph on screen is itself an embedded subagent. Converting is
+     a write to the whole resource, so it is offered from the Agent that owns
+     this graph rather than from inside it. */
+  embedded,
 }) {
   /* The library is read once per panel, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
@@ -819,6 +855,10 @@ export default function SubagentPoolSection({
           <span data-testid="subagent-pool-legacy-converting" style={CAPTION}>
             {LEGACY_CONVERTING}
           </span>
+        ) : embedded ? (
+          <span data-testid="subagent-pool-legacy-embedded" style={CAPTION}>
+            {LEGACY_EMBEDDED}
+          </span>
         ) : canConvertLegacy === false ? (
           <span data-testid="subagent-pool-legacy-save-first" style={CAPTION}>
             {LEGACY_SAVE_FIRST}
@@ -875,6 +915,16 @@ export default function SubagentPoolSection({
               library={library}
               isDark={isDark}
               problems={problems_at(problems, `config.subagents[${index}]`)}
+              onOpen={
+                typeof onOpenSubagent === "function"
+                  ? () =>
+                      onOpenSubagent({
+                        pool_node_id: node.id,
+                        entry_id: entry.id,
+                        reason: null,
+                      })
+                  : undefined
+              }
               onChange={(next) =>
                 set_entries(entries.map((old, position) => (position === index ? next : old)))
               }

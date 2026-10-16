@@ -789,3 +789,377 @@ describe("a legacy inline subagent, converted on the real page", () => {
     expect(api.unchain.convertSkeletonLegacyPools).not.toHaveBeenCalled();
   });
 });
+
+describe("drilling into a subagent's own graph", () => {
+  /* Acceptance 8. A subagent is a complete Agent graph, so its contents are
+     edited on the canvas with a breadcrumb back — and the two kinds of entry
+     differ in exactly one way that matters here: what Save writes.
+     Measured on the real store (`skeleton_drill_capture`): editing an embedded
+     child and saving the PARENT stores the child's change verbatim and creates
+     no resource, while saving a referenced child leaves the parent's document
+     and token untouched. */
+
+  const entry = (over) => ({
+    id: "ref",
+    name: "Summarizer",
+    description: "",
+    source: { kind: "agent_ref", agent_id: "sum" },
+    allowed_modes: ["delegate"],
+    output_mode: "summary",
+    memory_policy: "ephemeral",
+    parallel_safe: true,
+    allowed_tools: null,
+    disabled_tools: [],
+    ...over,
+  });
+
+  const child_doc = (id, name) => ({
+    schema_version: 1,
+    kind: "agent",
+    id,
+    name,
+    nodes: [
+      { id: `${id}-start`, type: "start", config: { execution: { outputs: [] } } },
+      { id: `${id}-end`, type: "end", config: { execution: { inputs: [], outputs: [] } } },
+    ],
+    edges: [flow(`${id}-e1`, `${id}-start`, `${id}-end`)],
+  });
+
+  const embedded_entry = (over) =>
+    entry({
+      id: "emb",
+      name: "Shortener",
+      source: { kind: "embedded", document: child_doc("inner", "Shortener") },
+      ...over,
+    });
+
+  /* A modern pool: its entries name Agents, so no Kernel is involved here —
+     that is acceptance 7's subject, and this one is navigation. */
+  const parent_doc = (subagents = [entry(), embedded_entry()]) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "life",
+    name: "Reviewer",
+    nodes: [
+      { id: "start", type: "start", config: { execution: { outputs: [] } } },
+      { id: "a1", type: "agent", config: { execution: { inputs: [], outputs: [] } } },
+      { id: "pool", type: "subagent_pool", config: { subagents } },
+      { id: "end", type: "end", config: { execution: { inputs: [], outputs: [] } } },
+    ],
+    edges: [
+      flow("e1", "start", "a1"),
+      flow("e2", "a1", "end"),
+      {
+        id: "attach", kind: "attach", source_node_id: "pool",
+        source_port_id: "attach_top", target_node_id: "a1",
+        target_port_id: "attach_bot",
+      },
+    ],
+  });
+
+  const library = [{ id: "sum", name: "Summarizer", kind: "agent", archived: false }];
+
+  const open_parent = async ({
+    document = parent_doc(),
+    child = result({ id: "sum", kind: "agent", name: "Summarizer", document: child_doc("sum", "Summarizer"), edit_token: "sum-1" }),
+    diagnostics = [],
+    resources = library,
+    onDrilledChange,
+  } = {}) => {
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources });
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      id === "sum"
+        ? Promise.resolve(child)
+        : Promise.resolve(result({ kind: "agent", name: "Reviewer", document, edit_token: "edit-1", diagnostics })),
+    );
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId="life" onDrilledChange={onDrilledChange} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {});
+  };
+
+  const crumbs = () =>
+    screen
+      .getByTestId("skeleton-drill-crumbs")
+      .textContent.split("›")
+      .map((part) => part.trim())
+      .join(" › ");
+
+  test("a pool row opens the referenced Agent's own graph, read by identity first", async () => {
+    await open_parent();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    /* Read through the ordinary interface, by the id the entry names. */
+    expect(api.unchain.getSkeletonResource).toHaveBeenCalledWith("sum");
+    /* The child's nodes are there and the parent's are gone. */
+    expect(screen.getByTestId("skeleton-node-sum-end")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-node-pool")).toBeNull();
+  });
+
+  test("the breadcrumb names the graph it came from, the step, and the graph on screen", async () => {
+    await open_parent();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    expect(crumbs()).toBe("Reviewer › Subagent Pool › Summarizer");
+    /* A referenced Agent is its own resource: Save writes it, so there is no
+       caption saying otherwise. */
+    expect(screen.queryByTestId("skeleton-drill-save-target")).toBeNull();
+    expect(screen.queryByTestId("skeleton-drill-unchecked")).toBeNull();
+    /* Only the graph left behind is navigable. */
+    expect(screen.getByLabelText("Back to Reviewer")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Back to Summarizer")).toBeNull();
+  });
+
+  test("coming back restores the parent's unsaved work and saves nothing", async () => {
+    await open_parent();
+    api.unchain.saveSkeletonResource = jest.fn();
+    /* An edit to the parent, left unsaved. */
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    const reads = api.unchain.getSkeletonResource.mock.calls.length;
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Back to Reviewer"));
+    });
+
+    /* Restored from memory, not re-read — re-reading would discard edits the
+       author never asked to discard. */
+    expect(api.unchain.getSkeletonResource.mock.calls.length).toBe(reads);
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+    /* The selection comes back with it. */
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    expect(screen.getByTestId("binding-row-0")).toBeInTheDocument();
+    expect(screen.queryByTestId("binding-row-1")).toBeNull();
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+  });
+
+  test("a read that fails names the Agent and leaves the author on the parent", async () => {
+    await open_parent({ child: { error: { code: "resource_missing", message: "referenced Agent was not found" } } });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /The Agent sum could not be opened — referenced Agent was not found/,
+    );
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+  });
+
+  test("a reference that turns out to be a Workflow is refused by the same gate the picker uses", async () => {
+    await open_parent({
+      child: result({ id: "sum", kind: "workflow", name: "Summarizer", document: child_doc("sum", "Summarizer"), edit_token: "sum-1" }),
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /This is a Workflow\. A Subagent Pool holds Agents\./,
+    );
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+  });
+
+  test("saving while drilled into a reference writes that Agent, at its own token", async () => {
+    await open_parent();
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ id: "sum", kind: "agent", document: child_doc("sum", "Summarizer"), edit_token: "sum-2" }));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    fireEvent.click(screen.getByTestId("skeleton-node-sum-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const payload = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    expect(payload.expected_edit_token).toBe("sum-1");
+    expect(payload.document.id).toBe("sum");
+    expect(payload.document.nodes.find((n) => n.id === "sum-end").config.execution.inputs).toHaveLength(1);
+  });
+
+  test("an embedded graph opens in place, and saving writes the parent that owns it", async () => {
+    await open_parent();
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ kind: "agent", document: parent_doc(), edit_token: "edit-2" }));
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    /* No read at all: the graph was already in the parent's document. */
+    expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(1);
+    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(screen.getByTestId("skeleton-drill-save-target").textContent).toBe(
+      "Save writes Reviewer, which owns this embedded graph.",
+    );
+    /* And it says why nothing is reported here, so an empty diagnostics area
+       is not read as "nothing is wrong". */
+    expect(screen.getByTestId("skeleton-drill-unchecked").textContent).toMatch(
+      /does not look inside an embedded graph/,
+    );
+
+    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const payload = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    expect(payload.expected_edit_token).toBe("edit-1");
+    expect(payload.document.id).toBe("life");
+    /* The child's edit went back where the store keeps it. */
+    const stored_child = payload.document.nodes
+      .find((node) => node.id === "pool")
+      .config.subagents[1].source.document;
+    expect(stored_child.nodes.find((n) => n.id === "inner-end").config.execution.inputs).toHaveLength(1);
+    /* And nothing else in the parent moved. */
+    expect(payload.document.nodes.find((n) => n.id === "pool").config.subagents[0]).toEqual(entry());
+  });
+
+  test("the parent's own problems are not shown on an embedded graph's nodes", async () => {
+    /* Measured: the draft check says nothing about an embedded child, and the
+       parent's own faults are reported at `document.nodes[1]…` — which in this
+       view is the child's own node. */
+    await open_parent({
+      diagnostics: [
+        {
+          code: "unknown_field",
+          message: "default is only allowed for default policy",
+          path: ["document", "nodes", 1, "config", "execution", "inputs", 0, "default"],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("skeleton-node-a1"));
+    expect(screen.getByTestId("skeleton-diagnostics-notice")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
+  });
+
+  test("Escape goes up one level", async () => {
+    await open_parent();
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+  });
+
+  test("a nested embedded graph keeps every level navigable", async () => {
+    const inner = child_doc("deep", "Deepest");
+    const middle = child_doc("inner", "Shortener");
+    middle.nodes.push({
+      id: "inner-pool",
+      type: "subagent_pool",
+      config: { subagents: [entry({ id: "deep", name: "Deepest", source: { kind: "embedded", document: inner } })] },
+    });
+    middle.edges.push({
+      id: "inner-attach", kind: "attach", source_node_id: "inner-pool",
+      source_port_id: "attach_top", target_node_id: "inner-end",
+      target_port_id: "attach_bot",
+    });
+    await open_parent({
+      document: parent_doc([embedded_entry({ source: { kind: "embedded", document: middle } })]),
+    });
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-inner-pool"));
+    fireEvent.click(screen.getByLabelText("Open Deepest"));
+    await act(async () => {});
+    expect(crumbs()).toBe(
+      "Reviewer › Subagent Pool › Shortener › Subagent Pool › Deepest",
+    );
+    /* Back to the middle one, not all the way out. */
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Back to Shortener"));
+    });
+    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(screen.getByTestId("skeleton-node-inner-pool")).toBeInTheDocument();
+  });
+
+  test("an entry whose source the store refuses offers nothing to open", async () => {
+    await open_parent({ document: parent_doc([entry({ source: { kind: "graph" } })]) });
+    expect(screen.queryByLabelText("Open Summarizer")).toBeNull();
+  });
+
+  test("a save still in flight is not a moment to open a subagent", async () => {
+    await open_parent();
+    let land = null;
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { land = resolve; }),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByText("Save").closest("button"));
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /has not landed yet/,
+    );
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    await act(async () => {
+      land(result({ kind: "agent", document: parent_doc(), edit_token: "edit-2" }));
+    });
+  });
+
+  test("the page says when a drill is open, so the resource list can collapse", async () => {
+    const onDrilledChange = jest.fn();
+    await open_parent({ onDrilledChange });
+    expect(onDrilledChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    expect(onDrilledChange).toHaveBeenLastCalledWith(true);
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    expect(onDrilledChange).toHaveBeenLastCalledWith(false);
+  });
+
+  test("taking the other editor's version closes a graph it no longer holds", async () => {
+    await open_parent();
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-node-inner-end")).toBeInTheDocument();
+
+    /* A conflict, resolved by taking theirs — and theirs does not have that
+       entry at all. */
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: { code: "edit_conflict", message: "stale token" } });
+    fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValue(result({ kind: "agent", document: parent_doc([entry()]), edit_token: "edit-9" }));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs").closest("button"));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /no longer in this pool, so it was closed/,
+    );
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+  });
+});
