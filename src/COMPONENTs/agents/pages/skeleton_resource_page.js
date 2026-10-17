@@ -143,7 +143,14 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      Agent can sit at two depths — a graph referencing an Agent that references
      it back — so saving deeper can write the very resource a frame below holds
      an older copy of. */
-  const savedVersionsRef = useRef({});
+  /* Without a prototype: its keys are resource ids, and a resource id is
+     data. Measured on the pair — `constructor`, `toString`, `valueOf` and
+     `hasOwnProperty` are ids the store accepts (`__proto__` is refused at
+     `document.id`, which is a node id's problem, not this one). On a plain
+     object the read answered with an inherited member, `(fn || 0) + 1` became
+     a string, and assigning it stored nothing at all: the count stayed empty
+     and the frame below was never told its copy had been overtaken. */
+  const savedVersionsRef = useRef(Object.create(null));
   /* Which navigation the page is on. Opening a referenced Agent is a read,
      and by the time it answers the author may have opened something else,
      gone back up, or had the resource changed under them. The answer is only
@@ -151,6 +158,16 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      the graph they left into the breadcrumb over the graph they are in, and a
      notice about it names a graph that is not on screen. Counted rather than
      compared, because "the same place again" is still a later question. */
+  /* Read by own key, so an id that names something on `Object.prototype` is
+     answered with what this sitting counted and nothing else. */
+  const saved_version_of = useCallback((resource_id) => {
+    const counted = savedVersionsRef.current;
+    return typeof resource_id === "string" &&
+      Object.prototype.hasOwnProperty.call(counted, resource_id)
+      ? counted[resource_id]
+      : 0;
+  }, []);
+
   const navigationRef = useRef(0);
   const navigate = useCallback(() => {
     navigationRef.current += 1;
@@ -253,10 +270,10 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
        what tells a frame below that its copy is now the older one. */
     if (latest && latest.edit_token && latest.edit_token !== before) {
       const id = latest.resource_id;
-      savedVersionsRef.current[id] = (savedVersionsRef.current[id] || 0) + 1;
+      savedVersionsRef.current[id] = (saved_version_of(id) || 0) + 1;
     }
     return latest;
-  }, [save, session.edit_token]);
+  }, [save, saved_version_of, session.edit_token]);
 
   /* Opening a subagent. The row says whether it can be opened and why not, so
      a row that cannot be is not inert — it answers. */
@@ -377,8 +394,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
             steps,
             selected_node_id: selectedNodeId,
             session: answer.left,
-            saved_version:
-              savedVersionsRef.current[answer.left.resource_id] || 0,
+            saved_version: saved_version_of(answer.left.resource_id),
           }),
         ),
       );
@@ -391,6 +407,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
       openAnother,
       resource_label,
       revision,
+      saved_version_of,
       selectedNodeId,
       session,
       shown_label,

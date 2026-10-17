@@ -120,9 +120,22 @@ export function drill_crumbs(stack, current_label) {
  * version or digest, so there is nothing to compare against. That half needs
  * the version handshake from #356 and is not claimed here. */
 
+/* The table is keyed by a resource id, which is data: measured on the pair,
+   `constructor`, `toString`, `valueOf` and `hasOwnProperty` are all ids the
+   store accepts, while `__proto__` is refused at `document.id`. Read as a
+   plain key, `saved_versions["constructor"]` answered with a function — and
+   `function - 0` is `NaN`, which is never greater than zero, so the notice
+   that this copy is older than the stored one was never shown. The page's own
+   table has no prototype; this reads by own key so a caller's plain object
+   cannot bring the fault back. */
 export function saves_since(frame, saved_versions) {
   if (!frame) return 0;
-  const now = (saved_versions && saved_versions[frame.name]) || 0;
+  const now =
+    (saved_versions &&
+      typeof frame.name === "string" &&
+      Object.prototype.hasOwnProperty.call(saved_versions, frame.name) &&
+      saved_versions[frame.name]) ||
+    0;
   return now - (frame.saved_version || 0);
 }
 

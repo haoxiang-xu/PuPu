@@ -13,6 +13,7 @@ import {
   LOOKUP_ROWS,
   REPLACEMENT_CASES,
 } from "./recipes_page/skeleton_drill_replacement_capture";
+import { SAVE_COUNT_PAIRS } from "./recipes_page/skeleton_entry_id_capture";
 import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
@@ -739,5 +740,132 @@ describe("a reference read issued from a graph that is then closed", () => {
     expect(
       (await screen.findByPlaceholderText("what this Agent is for")).value,
     ).toBe("Typed while the read was in flight");
+  });
+});
+
+describe("one resource at two depths, saved deeper", () => {
+  /* The same Agent can sit at two levels — a graph referencing an Agent that
+     references it back — so saving the deeper copy writes what the frame
+     below holds. The page counts saves per resource for exactly that, and the
+     count was kept in a table keyed by resource id: for `constructor` the
+     read answered with a function, `(fn || 0) + 1` became a string, and
+     assigning it stored nothing, so the frame below was never told.
+     Both sequences here were performed by the real store — the deeper save
+     moves the token, and the older copy's save is then refused with
+     `edit_conflict` while the stored document stays as it was. */
+
+  const pair = (name) => SAVE_COUNT_PAIRS[name];
+  const resource_of = (name, which) => JSON.parse(pair(name)[which]);
+
+  async function save_deeper(name) {
+    const old = resource_of(name, "old");
+    const peer = resource_of(name, "peer");
+    const next = resource_of(name, "new");
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({
+      resources: [
+        { id: old.id, name: old.name, kind: "agent", archived: false },
+        { id: peer.id, name: peer.name, kind: "agent", archived: false },
+      ],
+    });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.getSkeletonResource = jest.fn(async (id) =>
+      copy(id === peer.id ? peer : old),
+    );
+    api.unchain.saveSkeletonResource = jest.fn(async () => copy(next));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={old.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    /* Down into the peer, and from the peer back into this resource. */
+    open_row(0);
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).toContain(
+        peer.name,
+      ),
+    );
+    open_row(0);
+    await waitFor(() =>
+      expect(api.unchain.getSkeletonResource).toHaveBeenCalledTimes(3),
+    );
+    /* Edited and saved at this depth: the token moves, so the copy the first
+       frame holds is now the older one. */
+    fireEvent.click(screen.getByTestId("skeleton-node-a1"));
+    fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), {
+      target: { value: "Saved in the deeper copy " + name },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/),
+    );
+    expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1);
+    expect(pair(name).stale_save_error.code).toBe("edit_conflict");
+    expect(pair(name).new_document_unchanged).toBe(true);
+    return { old, peer, next };
+  }
+
+  test("an ordinary resource id says so when the first copy is reopened", async () => {
+    const { old } = await save_deeper("normal");
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(`Back to ${old.name}`));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /was saved again further in/i,
+    );
+  });
+
+  test("and so does one named after something every object has", async () => {
+    const { old } = await save_deeper("inherited");
+    expect(old.id).toBe("constructor");
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(`Back to ${old.name}`));
+    });
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /was saved again further in/i,
+    );
+    /* And the sentence names that resource rather than the one below it. */
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toContain(old.name);
+  });
+
+  test("a resource saved nowhere deeper says nothing when it is reopened", async () => {
+    /* The control: the notice is about a write that happened, and going back
+       without one must stay quiet. */
+    const old = resource_of("inherited", "old");
+    const peer = resource_of("inherited", "peer");
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({
+      resources: [{ id: peer.id, name: peer.name, kind: "agent", archived: false }],
+    });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.getSkeletonResource = jest.fn(async (id) =>
+      copy(id === peer.id ? peer : old),
+    );
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={old.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    open_row(0);
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).toContain(
+        peer.name,
+      ),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(`Back to ${old.name}`));
+    });
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
   });
 });

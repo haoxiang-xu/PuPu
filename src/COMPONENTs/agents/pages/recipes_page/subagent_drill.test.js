@@ -188,6 +188,25 @@ describe("a frame's history is only good for the content it was taken on", () =>
     expect(saves_since(null, {})).toBe(0);
   });
 
+  test("a resource named after something every object has is counted too", () => {
+    /* The table is keyed by a resource id, and the store accepts
+       `constructor`, `toString`, `valueOf` and `hasOwnProperty` as ids —
+       measured in `skeleton_entry_id_capture`. Read as a plain key,
+       `saved_versions["constructor"]` answered with a function, `function - 0`
+       is NaN, and NaN is never greater than zero: the frame below was never
+       told its copy had been overtaken. */
+    ["constructor", "toString", "valueOf", "hasOwnProperty"].forEach((name) => {
+      const held = { name, saved_version: 2 };
+      const counted = Object.create(null);
+      counted[name] = 3;
+      expect([name, saves_since(held, counted)]).toEqual([name, 1]);
+      expect([name, frame_is_stale(held, counted)]).toEqual([name, true]);
+      /* And a table that happens to be a plain object cannot bring it back. */
+      expect([name, saves_since(held, {})]).toEqual([name, -2]);
+      expect([name, frame_is_stale({ name }, {})]).toEqual([name, false]);
+    });
+  });
+
   test("the messages say what happened and what it costs", () => {
     expect(stale_frame_message("Reviewer")).toMatch(/saved elsewhere/i);
     expect(stale_frame_message("Reviewer")).toMatch(/history was dropped/i);
