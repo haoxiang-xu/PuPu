@@ -238,6 +238,26 @@ export function writeSkeletonViewport(resource_id, viewport) {
   write_all(resources);
 }
 
+/* The same drawing, under a new key.
+ *
+ * A graph's key can change without the graph changing: an embedded child is
+ * keyed by the steps that reach it, and those carry the entry's position only
+ * while two entries share an id. Giving one of them an id of its own is a
+ * repair, and it must not cost the author the drawing they had — the child
+ * would reopen auto-laid-out, every node moved.
+ *
+ * Copied rather than moved, and only onto a key with no record of its own: the
+ * old key may still name a sibling's drawing, and a repair is not permission
+ * to overwrite one. */
+export function copySkeletonLayout(from_id, to_id) {
+  if (!from_id || !to_id || from_id === to_id) return;
+  const resources = read_all();
+  const record = own(resources, from_id);
+  if (!is_object(record) || own(resources, to_id) !== undefined) return;
+  resources[to_id] = { ...record };
+  write_all(resources);
+}
+
 export function forgetSkeletonLayout(resource_id) {
   const resources = read_all();
   /* Its own record or nothing: `in` answers for the whole prototype chain, so

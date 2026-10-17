@@ -13,7 +13,10 @@ import {
   LOOKUP_ROWS,
   REPLACEMENT_CASES,
 } from "./recipes_page/skeleton_drill_replacement_capture";
-import { SAVE_COUNT_PAIRS } from "./recipes_page/skeleton_entry_id_capture";
+import {
+  ENTRY_ID_ROWS,
+  SAVE_COUNT_PAIRS,
+} from "./recipes_page/skeleton_entry_id_capture";
 import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
@@ -867,5 +870,131 @@ describe("one resource at two depths, saved deeper", () => {
       fireEvent.click(screen.getByLabelText(`Back to ${old.name}`));
     });
     expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+  });
+});
+
+describe("giving a duplicated entry an id of its own, on the page", () => {
+  /* The repair, from the panel that owns the pool's edits. The store saves a
+     draft whose two entry ids collide and refuses it at Run — and removing
+     one of them was the only repair this editor had, which for an embedded
+     entry is an Agent's graph gone. */
+
+  const parent = () => copy(JSON.parse(captured("duplicate-entry-ids").document));
+  const entries_of = (document) =>
+    document.nodes.find((node) => node.id === "pool-a").config.subagents;
+  const graph_ids = (document) =>
+    entries_of(document).map((entry) => entry.source.document.id);
+
+  async function open_pool(document) {
+    await open_page(document);
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+  }
+
+  test("the row says the pool cannot tell them apart, and repairs itself", async () => {
+    const document = parent();
+    await open_pool(document);
+    expect(screen.getByTestId("subagent-entry-1-shared-id").textContent).toMatch(
+      /neither of them runs/i,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    /* Both rows are their own now, so neither says it any more. */
+    expect(screen.queryByTestId("subagent-entry-0-shared-id")).toBeNull();
+    expect(screen.queryByTestId("subagent-entry-1-shared-id")).toBeNull();
+    /* The draft is dirty and nothing saved itself. */
+    expect(screen.getByTestId("skeleton-save-state").textContent).not.toMatch(/^Saved$/);
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+  });
+
+  test("and the two rows then open their own graphs", async () => {
+    const document = parent();
+    await open_pool(document);
+    expect(graph_ids(document)).toEqual(["child-first", "child-second"]);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    /* The row that was repaired, and the one that was not. */
+    open_row(1);
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Child Second");
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+    open_row(0);
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Child First");
+  });
+
+  test("what the save carries is the repair and the author's own edits", async () => {
+    const document = parent();
+    await open_pool(document);
+    /* Something typed before the repair, in a different pool row's field. */
+    fireEvent.change(screen.getAllByPlaceholderText("what it is for (optional)")[1], {
+      target: { value: "Typed before the repair" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const payload = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    const written = entries_of(payload.document);
+    expect(written.map((entry) => entry.id)).toEqual([
+      "duplicated-entry",
+      "subagent-1",
+    ]);
+    /* The whole embedded graph came through, and so did the typing. */
+    expect(written[1].source.document).toEqual(
+      entries_of(document)[1].source.document,
+    );
+    expect(written[1].description).toBe("Typed before the repair");
+    /* At the token it was loaded at: an ordinary save. */
+    expect(payload.expected_edit_token).toBe("edit-1");
+  });
+
+  test("it does not say the Agent runs now", async () => {
+    /* One refusal fewer. Measured on the pair: two entries whose embedded
+       graphs carry ONE document id are still `dependency_conflict` after
+       their entry ids differ — and that refusal is the store's at Run, which
+       this editor does not pre-empt. So nothing here may read as a verdict. */
+    const by = (name) => ENTRY_ID_ROWS.find((item) => item.case === name);
+    expect(by("repaired_ids").run.ok).toBe(true);
+    expect(by("repaired_ids_one_graph").run.code).toBe("dependency_conflict");
+
+    const document = parent();
+    /* Both children under one document id, which is the case Run still
+       refuses. */
+    entries_of(document).forEach((entry) => {
+      entry.source.document.id = "child-one";
+    });
+    await open_pool(document);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    const panel = screen.getByTestId("recipe-detail-panel-body").textContent;
+    expect(panel).not.toMatch(/ready to run/i);
+    expect(panel).not.toMatch(/will run/i);
+    expect(panel).not.toMatch(/can run now/i);
+    /* The save bar is the only thing that reports a verdict, and it reports
+       what the store said, which is nothing yet. */
+    expect(screen.queryByTestId("skeleton-preflight-state")).toBeNull();
+  });
+
+  test("the definitions of both children are untouched by the repair", async () => {
+    const document = parent();
+    const before = JSON.stringify(
+      entries_of(document).map((entry) => entry.source.document),
+    );
+    await open_pool(document);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give First child an id of its own"));
+    });
+    expect(
+      JSON.stringify(entries_of(document).map((entry) => entry.source.document)),
+    ).toBe(before);
   });
 });

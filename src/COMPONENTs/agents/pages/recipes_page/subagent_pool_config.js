@@ -315,6 +315,27 @@ export function entry_claims(list, key) {
   return counts;
 }
 
+/* Which entries the pool cannot tell apart by id.
+ *
+ * An entry id is unique in a pool the store will run — `duplicate_name` at the
+ * second entry's `id`, measured — but a DRAFT holding two is saved and read
+ * back verbatim, and until this it could only be repaired by removing one of
+ * them, which for an embedded entry destroys the graph. So the rows that share
+ * an id are named here, and each one can be given an id of its own.
+ *
+ * By position, not by value: the repair is offered on a row, and two rows is
+ * what the author sees. An entry that states no id takes no part — it has
+ * nothing to collide with and nothing to repair. */
+export function shared_entry_id_rows(list) {
+  const claims = entry_claims(list, "id");
+  const shared = [];
+  (Array.isArray(list) ? list : []).forEach((entry, index) => {
+    if (!is_object(entry) || typeof entry.id !== "string") return;
+    if ((claims.get(entry.id) || 0) > 1) shared.push(index);
+  });
+  return shared;
+}
+
 /* Whether a write would make the pool's two unique fields worse than it found
  * them.
  *

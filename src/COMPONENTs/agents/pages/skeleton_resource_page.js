@@ -15,6 +15,7 @@ import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
 import { why_not_a_subagent } from "./recipes_page/skeleton_subagent_eligibility";
+import { copySkeletonLayout } from "../../../SERVICEs/skeleton_layout";
 import {
   DRILL,
   EMBEDDED_UNCHECKED_CAPTION,
@@ -28,6 +29,8 @@ import {
   drill_obsolete_reason,
   drill_step,
   drill_target,
+  repaired_frames,
+  steps_after_entry_id_repair,
   embedded_document,
   embedded_path,
   frame_for_embedded_step,
@@ -415,6 +418,56 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     ],
   );
 
+  /* An entry given an id of its own, by the pool panel.
+   *
+   * The panel writes the document — it is the one that owns the pool's edits,
+   * and this one goes through the same dirty → Save as any other, with no
+   * save of its own. What it cannot do is keep the author's navigation
+   * pointing at that entry, because an id that was duplicated is not
+   * something a step can be found by: both entries carry it. So the panel
+   * says which row it repaired and this resolves the steps the way they were
+   * opened.
+   *
+   * The frames are rewritten with them: a frame restored with a step naming
+   * an id nobody holds any more would close itself on the way back.
+   *
+   * And the drawing follows. An embedded child's layout key carries the
+   * entry's position only while two entries share an id, so a repair changes
+   * the key — the same graph, under a new name — and the record is copied
+   * across rather than left behind, which would reopen the child
+   * auto-laid-out with every node moved. */
+  const entry_id_repaired = useCallback(
+    ({ pool_node_id, entry_index, next_id }) => {
+      const repair = { node_id: pool_node_id, entry_index, next_id };
+      const anchored = steps_after_entry_id_repair(
+        resource_document,
+        steps,
+        repair,
+        revision,
+      );
+      if (anchored !== steps) {
+        const before = drill_layout_key(
+          session.resource_id,
+          resource_document,
+          steps,
+          revision,
+        );
+        const after = drill_layout_key(
+          session.resource_id,
+          resource_document,
+          anchored,
+          revision,
+        );
+        copySkeletonLayout(before, after);
+        setSteps(anchored);
+      }
+      setDrillStack((frames) =>
+        repaired_frames(resource_document, frames, repair, revision),
+      );
+    },
+    [resource_document, revision, session.resource_id, steps],
+  );
+
   /* Going back. Not a save: a dirty graph that is being closed is left as the
      store holds it, and that is said out loud — one keypress is a light
      gesture for losing work without a word. An embedded step leaves nothing
@@ -579,6 +632,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
               diagnostics={diagnostics}
               onDocumentChange={edit_shown}
               onOpenSubagent={open_subagent}
+              onEntryIdRepaired={entry_id_repaired}
               embedded={steps.length > 0}
               onConvertLegacy={convertLegacyPools}
               canConvertLegacy={can_convert_legacy_pools(session) && steps.length === 0}

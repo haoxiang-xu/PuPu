@@ -135,6 +135,7 @@ async function show(node, options = {}) {
       node={node}
       isDark={false}
       onChange={onChange}
+      onEntryIdRepaired={options.onEntryIdRepaired}
     />,
   );
   /* The library is read in an effect, so let it land before anything is
@@ -1814,5 +1815,167 @@ describe("opening a subagent's own graph from the panel", () => {
       /done from the Agent that owns this graph/,
     );
     expect(screen.queryByText("Convert to Agent entries")).toBeNull();
+  });
+});
+
+describe("two entries the pool cannot tell apart by id", () => {
+  /* The store runs a pool whose entry ids are unique and saves a draft whose
+     ids collide — `skeleton_entry_id_capture`: `duplicate_name` at the second
+     entry's `id`, and the draft itself round-trips. Until now the only repair
+     this panel offered was removing one of them, which for an embedded entry
+     is an Agent's graph gone. */
+
+  const embedded_child = (id, name) => ({
+    schema_version: 1,
+    kind: "agent",
+    id,
+    name,
+    nodes: [
+      { id: "start", type: "start", config: {} },
+      { id: "agent", type: "agent", config: { kernel: { prompt: "p" } } },
+      { id: "end", type: "end", config: {} },
+    ],
+    edges: [],
+  });
+
+  const duplicated = () =>
+    pool({
+      subagents: [
+        entry({
+          id: "dup",
+          name: "First",
+          description: "the first one",
+          source: { kind: "embedded", document: embedded_child("child-first", "First") },
+        }),
+        entry({
+          id: "dup",
+          name: "Second",
+          /* Something the store would refuse, kept: the repair is one field. */
+          memory_policy: "nonsense",
+          source: {
+            kind: "embedded",
+            document: embedded_child("child-second", "Second"),
+          },
+        }),
+      ],
+    });
+
+  test("both rows say so, and offer an id of their own", async () => {
+    await show(duplicated());
+    [0, 1].forEach((index) => {
+      const row = screen.getByTestId(`subagent-entry-${index}-shared-id`);
+      expect(row.textContent).toMatch(/uses the id dup/);
+      expect(row.textContent).toMatch(/neither of them runs/i);
+    });
+    expect(screen.getByLabelText("Give First an id of its own")).toBeTruthy();
+    expect(screen.getByLabelText("Give Second an id of its own")).toBeTruthy();
+    /* And the refusal the store would give is still reported where it is. */
+    expect(
+      screen.getByTestId("subagent-entry-1-problem-0").textContent,
+    ).toMatch(/subagent id is duplicated/i);
+  });
+
+  test("a pool whose ids are its own offers nothing of the kind", async () => {
+    await show(pool({ subagents: [entry(), entry({ id: "subagent-2", name: "Checker", source: { kind: "agent_ref", agent_id: "res-2" } })] }));
+    expect(screen.queryByTestId("subagent-entry-0-shared-id")).toBeNull();
+    expect(screen.queryByTestId("subagent-entry-1-shared-id")).toBeNull();
+  });
+
+  test("a shared NAME is not this repair", async () => {
+    /* Names have a box and a diagnostic of their own; this is about ids. */
+    await show(
+      pool({
+        subagents: [
+          entry({ id: "a", name: "Same" }),
+          entry({ id: "b", name: "Same", source: { kind: "agent_ref", agent_id: "res-2" } }),
+        ],
+      }),
+    );
+    expect(screen.queryByTestId("subagent-entry-0-shared-id")).toBeNull();
+  });
+
+  test("repairing one row writes one field and keeps the rest of the entry", async () => {
+    const onEntryIdRepaired = jest.fn();
+    const node = duplicated();
+    const { onChange } = await show(node, { onEntryIdRepaired });
+    const before = node_subagents(node);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second an id of its own"));
+    });
+    const next = written(onChange);
+    /* The repaired row: a free id, and otherwise the same entry. */
+    expect(next[1].id).toBe("subagent-1");
+    expect({ ...next[1], id: before[1].id }).toEqual(before[1]);
+    /* Including the whole embedded graph, by identity — nothing was rebuilt
+       around it — and the value the store refuses, which is not this
+       repair's business. */
+    expect(next[1].source.document).toBe(before[1].source.document);
+    expect(next[1].memory_policy).toBe("nonsense");
+    expect(next[1].description).toBe(before[1].description);
+    /* The other row is the object it was. */
+    expect(next[0]).toBe(before[0]);
+    /* It is an ordinary edit: one document reported, and no save of its own. */
+    expect(onChange).toHaveBeenCalledTimes(1);
+    /* And the page is told which row changed, so navigation can follow. */
+    expect(onEntryIdRepaired).toHaveBeenCalledWith({
+      pool_node_id: "pool",
+      entry_index: 1,
+      previous_id: "dup",
+      next_id: "subagent-1",
+    });
+  });
+
+  test("repairing the first row is the same offer, and leaves the second alone", async () => {
+    const node = duplicated();
+    const { onChange } = await show(node);
+    const before = node_subagents(node);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give First an id of its own"));
+    });
+    const next = written(onChange);
+    expect([next[0].id, next[1].id]).toEqual(["subagent-1", "dup"]);
+    expect(next[1]).toBe(before[1]);
+  });
+
+  test("the id it writes is free even where the obvious one is taken", async () => {
+    const { onChange } = await show(
+      pool({
+        subagents: [
+          entry({ id: "dup", name: "First" }),
+          entry({ id: "dup", name: "Second", source: { kind: "agent_ref", agent_id: "res-2" } }),
+          entry({ id: "subagent-1", name: "Third", source: { kind: "agent_ref", agent_id: "res-2" } }),
+        ],
+      }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second an id of its own"));
+    });
+    expect(written(onChange)[1].id).toBe("subagent-2");
+  });
+
+  test("three rows under one id are repaired one at a time", async () => {
+    /* The guard that used to block this is about claims, not about whether
+       duplicates remain: repairing one of three leaves two, and that write
+       is allowed. */
+    const { onChange } = await show(
+      pool({
+        subagents: [
+          entry({ id: "dup", name: "A" }),
+          entry({ id: "dup", name: "B", source: { kind: "agent_ref", agent_id: "res-2" } }),
+          entry({ id: "dup", name: "C", source: { kind: "agent_ref", agent_id: "res-2" } }),
+        ],
+      }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give C an id of its own"));
+    });
+    const next = written(onChange);
+    expect(next.map((item) => item.id)).toEqual(["dup", "dup", "subagent-1"]);
+  });
+
+  test("an entry that is not an object offers removal and nothing else", async () => {
+    await show(pool({ subagents: [null, entry({ id: "dup" })] }));
+    expect(screen.getByTestId("subagent-entry-0-unreadable")).toBeTruthy();
+    expect(screen.queryByTestId("subagent-entry-0-shared-id")).toBeNull();
   });
 });

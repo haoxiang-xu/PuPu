@@ -43,6 +43,9 @@ export default function DetailPanel({
      own graph. Kept apart from the legacy `onDrillIn`, which takes a recipe
      entry — one name for two shapes is how a call silently stops arriving. */
   onOpenSubagent,
+  /* Passed through: the pool panel writes the repaired entry, and the page
+     fixes whatever navigation named the old id. */
+  onEntryIdRepaired,
   embedded,
   document,
   /* Which handed-over document this is. Several controls below show text the
@@ -254,6 +257,7 @@ export default function DetailPanel({
                 canConvertLegacy={canConvertLegacy}
                 convertingLegacy={convertingLegacy}
                 onOpenSubagent={onOpenSubagent}
+                onEntryIdRepaired={onEntryIdRepaired}
                 embedded={embedded}
               />
             )}

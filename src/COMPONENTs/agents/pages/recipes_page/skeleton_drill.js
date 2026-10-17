@@ -452,6 +452,67 @@ export function embedded_document(document, steps, revision) {
   return current;
 }
 
+/* A step after the entry it points at was given an id of its own.
+ *
+ * The id was duplicated — that is the whole reason it was repaired — so the
+ * step cannot be found by matching the old id: both entries carry it, and
+ * rewriting every step that does would point the author's open graph at the
+ * other child. The one that is rewritten is the step that RESOLVES to this
+ * pool and this entry, by the rule that opened it.
+ *
+ * Its new identity is the id alone. The pool now names this entry, which is
+ * what the repair was for, so the position and the graph id it carried stop
+ * being consulted — `ambiguous: false` is the rule's own answer to "the id
+ * named one entry". They are kept rather than cleared, because they describe
+ * the click that happened.
+ *
+ * Frames hold steps too — the graphs left behind — and a frame restored with
+ * a step naming an id nobody has any more would close itself on the way back.
+ * So the same rewrite is applied to anything holding steps, which is what
+ * `repaired_frames` is for. */
+export function steps_after_entry_id_repair(document, steps, repair, revision) {
+  const list = Array.isArray(steps) ? steps : [];
+  if (!is_object(repair) || typeof repair.next_id !== "string") return list;
+  let current = document;
+  let changed = false;
+  const next = list.map((step) => {
+    const found =
+      current === null ? null : embedded_step_indices(current, step, revision);
+    current =
+      found === null
+        ? null
+        : current.nodes[found.node_index].config.subagents[found.entry_index]
+            .source.document;
+    const here =
+      found !== null &&
+      is_object(step) &&
+      step.node_id === repair.node_id &&
+      found.entry_index === repair.entry_index;
+    if (!here) return step;
+    changed = true;
+    return { ...step, entry_id: repair.next_id, ambiguous: false };
+  });
+  return changed ? next : list;
+}
+
+export function repaired_frames(document, stack, repair, revision) {
+  const list = Array.isArray(stack) ? stack : [];
+  let changed = false;
+  const next = list.map((frame) => {
+    if (!is_object(frame) || !Array.isArray(frame.steps)) return frame;
+    const steps = steps_after_entry_id_repair(
+      document,
+      frame.steps,
+      repair,
+      revision,
+    );
+    if (steps === frame.steps) return frame;
+    changed = true;
+    return { ...frame, steps };
+  });
+  return changed ? next : list;
+}
+
 /* Writing a child back into its parent, immutably, touching nothing else. The
    result is the document the store is then asked to store — and that is what
    the capture checks it against. */

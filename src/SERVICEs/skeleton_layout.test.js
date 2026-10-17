@@ -8,6 +8,7 @@ import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
   writeSkeletonViewport,
+  copySkeletonLayout,
 } from "./skeleton_layout";
 import { NODE_ID_ROWS } from "../COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture";
 
@@ -318,5 +319,51 @@ describe("an id the document chose, used as a key", () => {
     const other = { ...document, nodes: document.nodes.filter((n) => n.id === "end") };
     const layout = readSkeletonLayout(document.id, other);
     expect(Object.prototype.hasOwnProperty.call(layout.nodes, "__proto__")).toBe(false);
+  });
+});
+
+describe("the same drawing under a new key", () => {
+  /* An embedded child is keyed by the steps that reach it, and those carry
+     the entry's position only while two entries share an id. Giving one of
+     them an id of its own changes the key — the same graph, under a new name
+     — and the author must not lose the drawing for having repaired it. */
+
+  const document = () => chain();
+
+  test("a record is copied onto a key that has none", () => {
+    writeSkeletonNodePositions("old-key", { a1: { x: 11, y: 12 } });
+    writeSkeletonViewport("old-key", { x: 1, y: 2, zoom: 3 });
+    copySkeletonLayout("old-key", "new-key");
+    expect(readSkeletonLayout("new-key", document()).nodes.a1).toEqual({ x: 11, y: 12 });
+    expect(readSkeletonLayout("new-key", document()).viewport).toEqual({
+      x: 1,
+      y: 2,
+      zoom: 3,
+    });
+    /* Copied, not moved: the old key may still name a sibling's drawing. */
+    expect(readSkeletonLayout("old-key", document()).nodes.a1).toEqual({ x: 11, y: 12 });
+  });
+
+  test("a key that already has one is left alone", () => {
+    writeSkeletonNodePositions("old-key", { a1: { x: 11, y: 12 } });
+    writeSkeletonNodePositions("new-key", { a1: { x: 90, y: 91 } });
+    copySkeletonLayout("old-key", "new-key");
+    expect(readSkeletonLayout("new-key", document()).nodes.a1).toEqual({ x: 90, y: 91 });
+  });
+
+  test("nothing to copy, nothing happens", () => {
+    copySkeletonLayout("missing", "new-key");
+    expect(window.localStorage.getItem("skeleton_layout")).toBeNull();
+    writeSkeletonNodePositions("old-key", { a1: { x: 1, y: 2 } });
+    copySkeletonLayout("old-key", "old-key");
+    copySkeletonLayout("", "new-key");
+    copySkeletonLayout("old-key", null);
+    expect(readSkeletonLayout("new-key", document()).nodes.a1).not.toEqual({ x: 1, y: 2 });
+  });
+
+  test("a key that names something every object has is its own", () => {
+    writeSkeletonNodePositions("constructor", { a1: { x: 5, y: 6 } });
+    copySkeletonLayout("constructor", "toString");
+    expect(readSkeletonLayout("toString", document()).nodes.a1).toEqual({ x: 5, y: 6 });
   });
 });

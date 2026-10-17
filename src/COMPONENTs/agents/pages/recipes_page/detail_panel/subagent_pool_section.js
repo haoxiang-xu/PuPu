@@ -20,6 +20,7 @@ import {
   free_entry_name,
   introduces_collision,
   new_subagent_entry,
+  shared_entry_id_rows,
   subagent_pool_problems,
 } from "../subagent_pool_config";
 import {
@@ -339,8 +340,13 @@ function EntryRow({
   library,
   isDark,
   problems,
+  /* Whether another entry in this pool claims this one's id. The store runs
+     neither of them until one is changed, and removing one is how an embedded
+     Agent's graph used to be lost. */
+  shared_id,
   onChange,
   onRemove,
+  onRepairId,
   onOpen,
 }) {
   /* An entry id is unique inside its pool and nowhere else, so the identity
@@ -485,6 +491,41 @@ function EntryRow({
         />
       </div>
 
+      {/* Two entries under one id: the store runs neither of them, and the
+          only repair this panel used to offer was removing one — which for an
+          embedded entry is the Agent's graph gone. This gives the row an id of
+          its own and changes nothing else.
+          It says what it does and no more: one refusal fewer is not "it runs
+          now", and anything else about these two entries is still reported
+          where the store reports it. */}
+      {shared_id === true && typeof onRepairId === "function" && (
+        <div
+          data-testid={`subagent-entry-${index}-shared-id`}
+          style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+        >
+          <span style={{ ...REFUSED, flex: 1, minWidth: 0 }}>
+            {`Another subagent in this pool uses the id ${entry.id}. The pool cannot tell them apart, so neither of them runs.`}
+          </span>
+          <Button
+            label="Use a free id"
+            ariaLabel={`Give ${
+              typeof entry.name === "string" && entry.name
+                ? entry.name
+                : `entry ${index + 1}`
+            } an id of its own`}
+            onClick={onRepairId}
+            style={{
+              flexShrink: 0,
+              fontSize: 10.5,
+              paddingVertical: 3,
+              paddingHorizontal: 7,
+              borderRadius: 4,
+              color: "#4a5bd8",
+            }}
+          />
+        </div>
+      )}
+
       {refused !== null && (
         <span data-testid={`subagent-entry-${index}-refused`} style={REFUSED}>
           {refused}
@@ -628,6 +669,10 @@ export default function SubagentPoolSection({
      a write to the whole resource, so it is offered from the Agent that owns
      this graph rather than from inside it. */
   embedded,
+  /* An entry that has just been given an id of its own. The document write is
+     this panel's, like every other pool edit; what the page does with it is
+     navigation — a step, a frame or a layout key that named the old id. */
+  onEntryIdRepaired,
 }) {
   /* The library is read once per panel, for two jobs: offering Agents to
      reference, and saying that an entry's reference is no longer there. A
@@ -746,6 +791,9 @@ export default function SubagentPoolSection({
     .filter((entry) => is_object(entry) && typeof entry.id === "string")
     .map((entry) => entry.id);
 
+  /* The rows the pool cannot tell apart by id, which is who gets the repair. */
+  const shared_ids = legacy ? [] : shared_entry_id_rows(entries);
+
   const offered = subagent_candidates(library.items, { owner_id });
   const withheld = library.items.length - offered.length;
 
@@ -771,6 +819,48 @@ export default function SubagentPoolSection({
   function remove_entry(index) {
     rows.removed(index);
     set_entries(entries.filter((_, position) => position !== index));
+  }
+
+  /* Give this one row an id of its own.
+   *
+   * The store runs a pool whose entry ids are unique — `duplicate_name` at
+   * the second entry's `id` — and a draft holding two is saved and read back
+   * verbatim. Until now the only repair was removing one of them, which for
+   * an embedded entry destroys an Agent graph; the comment on
+   * `introduces_collision` says exactly that. This writes one field.
+   *
+   * Only `id`, and only on this row: the embedded graph, the name, the
+   * description, every policy, whatever bad values the entry holds and
+   * anything typed and not yet saved are the same objects afterwards. It is
+   * an ordinary edit — the draft goes dirty and the author saves it at the
+   * token they loaded, like any other.
+   *
+   * The id itself is `free_entry_id`, which is what an added entry already
+   * uses: unique in this pool, which is the only place an entry id means
+   * anything — measured, the same id in two different pools of one document
+   * runs.
+   *
+   * What it does NOT claim is that the Agent will now run. Repairing the id
+   * is one refusal fewer; two entries whose embedded graphs carry one
+   * document id are still `dependency_conflict` at Run, and the row says so
+   * when the store says it. */
+  function repair_entry_id(index) {
+    const entry = entries[index];
+    if (!is_object(entry)) return;
+    const next_id = free_entry_id(ids);
+    set_entries(
+      entries.map((old, position) =>
+        position === index ? { ...old, id: next_id } : old,
+      ),
+    );
+    if (typeof onEntryIdRepaired === "function") {
+      onEntryIdRepaired({
+        pool_node_id: node.id,
+        entry_index: index,
+        previous_id: entry.id,
+        next_id,
+      });
+    }
   }
 
   function add(resource) {
@@ -915,6 +1005,8 @@ export default function SubagentPoolSection({
               library={library}
               isDark={isDark}
               problems={problems_at(problems, `config.subagents[${index}]`)}
+              shared_id={shared_ids.includes(index)}
+              onRepairId={() => repair_entry_id(index)}
               onOpen={
                 typeof onOpenSubagent === "function"
                   ? () =>
