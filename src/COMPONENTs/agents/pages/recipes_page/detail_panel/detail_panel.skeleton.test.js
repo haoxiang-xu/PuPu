@@ -1023,3 +1023,84 @@ describe("a Subagent Pool node in the panel", () => {
     );
   });
 });
+
+describe("the panel header draws a node, not everything stored beside it", () => {
+  /* The same residual as the canvas, one line under the icon: the header
+     reads a node's own `label` and `override.model`, which a Skeleton node
+     does not have — measured on the real store, where even `label: "a name"`
+     is refused `unknown_field`. A stored `{"toString": null}` there threw
+     "Objects are not valid as a React child" and took the panel with it. */
+
+  const node_with = (over) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "a",
+    name: "A",
+    nodes: [
+      {
+        id: "agent",
+        type: "agent",
+        config: { execution: { inputs: [], outputs: [] } },
+        ...over,
+      },
+    ],
+    edges: [],
+  });
+
+  test("a stored label that cannot become text does not take the panel down", () => {
+    const document = node_with({ label: { toString: null } });
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "agent" });
+    /* The header is there, and it names the node by its id. */
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    /* And the document still holds what the store holds. */
+    expect(document.nodes[0].label).toEqual({ toString: null });
+  });
+
+  test("a stored label that IS text is still not the node's name", () => {
+    show({
+      document: node_with({ label: "Pretend name" }),
+      onDocumentChange: () => {},
+      selectedNodeId: "agent",
+    });
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.queryByText("Pretend name")).not.toBeInTheDocument();
+  });
+
+  test("the model beside it is the same read", () => {
+    show({
+      document: node_with({ override: { model: { toString: null } } }),
+      onDocumentChange: () => {},
+      selectedNodeId: "agent",
+    });
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.getByText(/Inherits the chat's model/)).toBeInTheDocument();
+  });
+
+  test("a legacy recipe node keeps its own label and model, through a text guard", () => {
+    /* The same table draws the legacy canvas's nodes, where both fields are
+       the node's own. A value that refuses to become text is drawn as what it
+       is rather than thrown. */
+    show({
+      recipe: {
+        name: "R",
+        nodes: [{ id: "a1", type: "agent", label: "Summarizer", override: { model: "gpt" } }],
+        edges: [],
+      },
+      selectedNodeId: "a1",
+    });
+    expect(screen.getByText("Summarizer")).toBeInTheDocument();
+    expect(screen.getByText("gpt")).toBeInTheDocument();
+  });
+
+  test("and a legacy label that cannot become text says so instead of throwing", () => {
+    show({
+      recipe: {
+        name: "R",
+        nodes: [{ id: "a1", type: "agent", label: { toString: null } }],
+        edges: [],
+      },
+      selectedNodeId: "a1",
+    });
+    expect(screen.getByText("an unreadable value")).toBeInTheDocument();
+  });
+});

@@ -1,7 +1,9 @@
 import {
   EXECUTION_CONFIG_KEY,
   LEGACY_FIELDS_CONFIG_KEY,
+  NODE_KEYS,
   NODE_TYPES,
+  drawn_node,
   node_pool_is_legacy,
   node_subagents,
   with_node_subagents,
@@ -22,6 +24,7 @@ import {
   with_node_output_schema,
 } from "./skeleton_document";
 import { SKELETON_DOCUMENT_CASES } from "./skeleton_document_cases";
+import { ENVELOPE_ROWS } from "./skeleton_drill_replacement_capture";
 
 const flow = (id, a, b) => ({
   id,
@@ -446,4 +449,61 @@ describe("a pool converted from a legacy definition", () => {
       disabled_tools: [],
     };
   }
+});
+
+describe("the node a drawing is given", () => {
+  /* A node is closed to `{id, type, config}`, and the rows below are the real
+     store refusing everything else: on a parent `save_draft` itself refuses
+     the key, and inside an embedded child — where the draft check never looks
+     — the draft saves with `diagnostics: []`, comes back verbatim, and Run
+     refuses the key with `unknown_field` AT it.
+     So a value beside those three is not part of the graph. The drawings read
+     a node's own `label` and `model`; what they must be handed is the node. */
+
+  const row = (name) => ENVELOPE_ROWS.find((item) => item.case === name);
+
+  test("the store's answer is the same for a plausible value as for junk", () => {
+    const junk = row("child_node_label_unreadable");
+    const text = row("child_node_label_text");
+    [junk, text].forEach((item) => {
+      expect([item.case, item.saved, item.round_trip, item.draft_diagnostics]).toEqual([
+        item.case, true, true, [],
+      ]);
+      expect([item.case, item.run.code, item.run.path.slice(-1)]).toEqual([
+        item.case, "unknown_field", ["label"],
+      ]);
+    });
+    /* And on a parent it never gets stored at all. */
+    expect(row("parent_node_label_unreadable").save_refused.code).toBe("unknown_field");
+    expect(row("parent_node_label_text").save_refused.code).toBe("unknown_field");
+  });
+
+  test("it keeps exactly the keys a node has, and nothing beside them", () => {
+    const stored = {
+      id: "agent",
+      type: "agent",
+      config: { kernel: { prompt: "hello" } },
+      label: { toString: null },
+      model: { toString: null },
+      override: { model: {} },
+      x: 10,
+    };
+    const drawn = drawn_node(stored);
+    expect(Object.keys(drawn).sort()).toEqual([...NODE_KEYS].sort());
+    expect(drawn.config).toBe(stored.config);
+    /* The stored node is untouched: this is what the DRAWING is given. */
+    expect(Object.keys(stored)).toHaveLength(7);
+  });
+
+  test("a key a node simply does not have stays absent rather than becoming undefined", () => {
+    /* `label in node` is how a drawing asks, and a key present with
+       `undefined` answers yes. */
+    expect("config" in drawn_node({ id: "a", type: "start" })).toBe(false);
+    expect(drawn_node({ id: "a", type: "start" })).toEqual({ id: "a", type: "start" });
+  });
+
+  test("something that is not a node is handed back as it is", () => {
+    expect(drawn_node(null)).toBeNull();
+    expect(drawn_node("agent")).toBe("agent");
+  });
 });

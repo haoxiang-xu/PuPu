@@ -1,3 +1,4 @@
+import { safe_text } from "../document_values";
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "../recipe_graph";
 
 /* Who a node is, in one table.
@@ -23,9 +24,15 @@ const IDENTITY = {
   agent: {
     icon: "bot",
     gradient: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-    /* An agent node is the one kind the author names, so its own label wins. */
-    title: (node) => node?.label || node?.id || "Agent",
-    subtitle: (node) => node?.override?.model || "Inherits the chat's model",
+    /* An agent node is the one kind the author names, so its own label wins.
+       Through `safe_text`, because a legacy recipe's label is whatever was
+       stored: a value that refuses to become text threw here, one line under
+       the icon, before the panel appeared. A Skeleton node reaches this with
+       `label` and `override` already absent — they are not part of a node —
+       so it is drawn by its id, which is its name. */
+    title: (node) => safe_text(node?.label || node?.id || "Agent"),
+    subtitle: (node) =>
+      safe_text(node?.override?.model || "Inherits the chat's model"),
   },
   [TOOLKIT_POOL_TYPE]: {
     icon: "tool",

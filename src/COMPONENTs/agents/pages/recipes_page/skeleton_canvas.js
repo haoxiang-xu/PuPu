@@ -7,6 +7,7 @@ import StartNode from "./nodes/start_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
+import { drawn_node } from "./skeleton_document";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
@@ -140,7 +141,12 @@ function GraphDrawing({
       ((graph && graph.nodes) || []).map((node) => {
         const at = positions.current[node.id] || { x: 0, y: 0 };
         return {
-          ...node,
+          /* The node the store defines, not everything the JSON happens to
+             hold beside it: the drawings below read a node's own `label` and
+             `model`, which a Skeleton node does not have — see `drawn_node`.
+             The three fields added here are this canvas's, and the document
+             has no route to them. */
+          ...drawn_node(node),
           x: at.x,
           y: at.y,
           ports: ports_for_type(node.type),

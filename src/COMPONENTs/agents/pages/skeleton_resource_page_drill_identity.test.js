@@ -9,6 +9,10 @@ import {
   CAPTURED_EMBEDDED_SHAPES,
 } from "./recipes_page/skeleton_drill_identity_capture";
 import {
+  ENVELOPE_ROWS,
+  REPLACEMENT_CASES,
+} from "./recipes_page/skeleton_drill_replacement_capture";
+import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
 } from "../../../SERVICEs/skeleton_layout";
@@ -328,5 +332,183 @@ describe("a parent and a child that share node ids", () => {
     });
     expect(JSON.stringify(document)).toBe(before);
     expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+  });
+});
+
+describe("the parent replaced from outside while a duplicate is open", () => {
+  /* The review's remaining P1, on the page, driven by the sequence the store
+     performed: the author opens the SECOND of two entries sharing an id,
+     another editor stores a version of the parent at the author's own token,
+     the author's save gets the real `edit_conflict`, and they choose to look
+     at theirs. The position they clicked describes a document that is gone.
+
+     Measured before the fix, with the page's own emitted payload replayed
+     into a real store: the editor silently moved to Child First, accepted
+     more typing, and stored it there while Child Second kept what it had. */
+
+  const resource_of = (name, which) => JSON.parse(REPLACEMENT_CASES[name][which]);
+
+  const prompt_of = (entry) =>
+    entry.source.document.nodes.find((node) => node.id === "agent").config.kernel
+      .prompt;
+  const entries_of = (document) =>
+    document.nodes.find((node) => node.id === "pool-a").config.subagents;
+
+  /* The page, up to the moment the other version is on screen. Both reads are
+     the store's own answers: the author's at `edit-1`, the other editor's at
+     `edit-2`. */
+  async function take_theirs(name) {
+    const before = resource_of(name, "old");
+    const after = resource_of(name, "new");
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(copy(before))
+      .mockResolvedValue(copy(after));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce({ error: REPLACEMENT_CASES[name].conflict })
+      .mockImplementation(() => new Promise(() => {}));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={before.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    open_row(1);
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Child Second");
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    const prompt = await screen.findByPlaceholderText("what this Agent is for");
+    fireEvent.change(prompt, { target: { value: "Edited in the SECOND child" } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    await screen.findByTestId("skeleton-save-conflict");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
+    );
+    return { before, after };
+  }
+
+  test("the chosen entry removed: back to the parent, saying why", async () => {
+    const { after } = await take_theirs("removed_chosen");
+    /* One entry is left, it still holds the shared id, and it is the child the
+       author never opened. */
+    expect(entries_of(after.document).map((entry) => entry.source.document.name)).toEqual([
+      "Child First",
+    ]);
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /share one id/i,
+    );
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /open the one you want/i,
+    );
+    /* And there is no Kernel editor for another child to type into. */
+    expect(screen.queryByPlaceholderText("what this Agent is for")).toBeNull();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+  });
+
+  test("the two reordered: still the child the author opened", async () => {
+    const { after } = await take_theirs("reordered");
+    expect(entries_of(after.document).map((entry) => entry.source.document.name)).toEqual([
+      "Child Second",
+      "Child First",
+    ]);
+    expect(crumbs()[2]).toBe("Child Second");
+    /* Theirs is what is on screen — the author's own edit was discarded by
+       the choice they made — and typing again saves into THAT child. */
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    const prompt = await screen.findByPlaceholderText("what this Agent is for");
+    expect(prompt.value).toBe("Child own prompt.");
+    fireEvent.change(prompt, { target: { value: "Continued in the SECOND child" } });
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const payload = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    const written = entries_of(payload.document);
+    expect(payload.expected_edit_token).toBe(after.edit_token);
+    expect(
+      written.map((entry) => [entry.source.document.name, prompt_of(entry)]),
+    ).toEqual([
+      ["Child Second", "Continued in the SECOND child"],
+      ["Child First", "Child own prompt."],
+    ]);
+  });
+
+  test("the other duplicate removed: the step follows the chosen graph", async () => {
+    /* The control: the entry the author had open is the one that survives, so
+       the editor must stay in it rather than closing. */
+    const { after } = await take_theirs("removed_other");
+    expect(entries_of(after.document).map((entry) => entry.source.document.name)).toEqual([
+      "Child Second",
+    ]);
+    expect(crumbs()[2]).toBe("Child Second");
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+    expect(
+      (await screen.findByPlaceholderText("what this Agent is for")).value,
+    ).toBe("Child own prompt.");
+  });
+});
+
+describe("a stored node carrying a field a node does not have", () => {
+  /* The review's remaining P2. `label: {"toString": null}` on an embedded
+     child's Agent node: saved by the real store, read back verbatim, refused
+     at Run with `unknown_field` at that key — and the drawing read it, so
+     opening the child threw "Objects are not valid as a React child". */
+
+  const stray = (name) => {
+    const row = ENVELOPE_ROWS.find((item) => item.case === name);
+    const document = copy(JSON.parse(captured("duplicate-entry-ids").document));
+    document.nodes.find((node) => node.id === "pool-a").config.subagents = [
+      JSON.parse(row.entries)[0],
+    ];
+    return document;
+  };
+
+  test("it opens, draws, and the graph still holds what the store holds", async () => {
+    const document = stray("child_node_label_unreadable");
+    const before = JSON.stringify(document);
+    await open_page(document);
+    open_row(0);
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+    /* The child's own nodes are on screen, drawn by their ids. */
+    expect(screen.getByTestId("skeleton-node-agent")).toBeInTheDocument();
+    expect(screen.getByTestId("flow-node-agent").textContent).not.toMatch(
+      /unreadable/,
+    );
+    /* Selecting it opens the panel rather than taking the page down. */
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(await screen.findByPlaceholderText("what this Agent is for")).toBeInTheDocument();
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  test("and the pool row that offered it says what the store refuses about it", async () => {
+    /* Not a sentence this editor invented: the mirror of the pool validator
+       reports it at the path the store names. Which is also why the drawing
+       does not need to refuse the graph — the author is told, and can still
+       work on everything else in it. */
+    await open_page(stray("child_node_label_unreadable"));
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    const problems = screen
+      .getByTestId("subagent-entry-0")
+      .textContent;
+    expect(problems).toMatch(/unknown field/i);
+    expect(problems).toMatch(/label/);
   });
 });

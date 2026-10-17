@@ -6,8 +6,10 @@ import {
   diagnostics_for_embedded,
   drill_blocked_reason,
   drill_crumbs,
+  drill_lost_reason,
   drill_obsolete_reason,
   drill_layout_key,
+  drill_step,
   drill_target,
   embedded_document,
   embedded_path,
@@ -17,6 +19,8 @@ import {
   frame_is_stale,
   left_behind_message,
   notices_still_true,
+  pool_entry_for,
+  pool_entry_index,
   pool_entry_rows,
   push_drill_frame,
   unwind_drill_stack,
@@ -26,6 +30,9 @@ import {
   CAPTURED_DUPLICATE_ENTRIES,
   CAPTURED_EMBEDDED_SHAPES,
 } from "./skeleton_drill_identity_capture";
+import {
+  REPLACEMENT_CASES,
+} from "./skeleton_drill_replacement_capture";
 import {
   CAPTURED_EMBEDDED_DIAGNOSTICS,
   CAPTURED_EMBEDDED_LOCATION,
@@ -498,6 +505,26 @@ function pool_of(document) {
   return document.nodes.find((node) => node.type === "subagent_pool");
 }
 
+/* The step the page builds when a row is double-clicked: the row's own
+   position in the document on screen, resolved through the one rule, then
+   asked what it took to answer. Written here rather than by hand so these
+   tests are about the steps the page really holds. */
+function step_for(document, node_id, entry_index, revision) {
+  const node = document.nodes.find((candidate) => candidate.id === node_id);
+  const entry = node.config.subagents[entry_index];
+  const entry_id = typeof entry.id === "string" ? entry.id : null;
+  const clicked = { node_id, entry_id, entry_index, taken_in: revision };
+  const found = pool_entry_for(document, clicked, revision);
+  return drill_step({ node_id, entry_id, found, revision });
+}
+
+/* One replacement sequence as the store performed it: the resource the author
+   opened, and the one another editor stored at the author's own token. */
+const replacement = (name) => ({
+  before: JSON.parse(REPLACEMENT_CASES[name].old),
+  after: JSON.parse(REPLACEMENT_CASES[name].new),
+});
+
 describe("an embedded graph the canvas could not draw", () => {
   test("the capture is every shape, and the store saved all of them unchecked", () => {
     expect(CAPTURED_EMBEDDED_SHAPES).toHaveLength(17);
@@ -590,7 +617,7 @@ describe("two entries one document cannot tell apart", () => {
     ]);
   });
 
-  test("the position the author clicked decides, and it must still hold that id", () => {
+  test("the position the author clicked decides, inside the document they clicked in", () => {
     const parent = parent_of(duplicate_row("duplicate-entry-ids"));
     const pool = pool_of(parent);
     const entries = pool.config.subagents;
@@ -598,24 +625,30 @@ describe("two entries one document cannot tell apart", () => {
       "duplicated-entry",
       "duplicated-entry",
     ]);
-    const step = (entry_index) => ({
-      node_id: pool.id,
-      entry_id: "duplicated-entry",
-      entry_index,
-    });
-    expect(embedded_step_indices(parent, step(0)).entry_index).toBe(0);
-    expect(embedded_step_indices(parent, step(1)).entry_index).toBe(1);
+    const step = (entry_index) => step_for(parent, pool.id, entry_index, 7);
+    expect(embedded_step_indices(parent, step(0), 7).entry_index).toBe(0);
+    expect(embedded_step_indices(parent, step(1), 7).entry_index).toBe(1);
     /* Each one reaches its own graph, which is the whole defect: clicking the
        second opened and saved the first. */
-    expect(embedded_document(parent, [step(0)]).id).toBe(
+    expect(embedded_document(parent, [step(0)], 7).id).toBe(
       entries[0].source.document.id,
     );
-    expect(embedded_document(parent, [step(1)]).id).toBe(
+    expect(embedded_document(parent, [step(1)], 7).id).toBe(
       entries[1].source.document.id,
     );
-    expect(embedded_document(parent, [step(0)]).id).not.toBe(
-      embedded_document(parent, [step(1)]).id,
+    expect(embedded_document(parent, [step(0)], 7).id).not.toBe(
+      embedded_document(parent, [step(1)], 7).id,
     );
+    /* And the step says what answered it: the id named both, so the graph it
+       was and the document the position came from are both on the step. */
+    expect(step(1)).toEqual({
+      node_id: pool.id,
+      entry_id: "duplicated-entry",
+      entry_index: 1,
+      ambiguous: true,
+      graph_id: entries[1].source.document.id,
+      taken_in: 7,
+    });
   });
 
   test("the id alone resolves to nothing while it names two entries", () => {
@@ -632,25 +665,43 @@ describe("two entries one document cannot tell apart", () => {
     ).toBeNull();
   });
 
-  test("an id that has become unambiguous resolves to the entry that holds it", () => {
-    /* The position only ever breaks a tie, so once the tie is gone the id is
-       the identity again. That is what lets a step survive its entry moving —
-       a sibling before it removed, which is the one way this list moves from
-       the editor.
-       The case it cannot tell apart from that one: a document replaced from
-       elsewhere that rewrote the OTHER entry's id, leaving this id on the
-       entry the author was not in. The step then follows the id. Reachable
-       only by taking another editor's version, and refusing instead would
-       mean refusing every step whose entry simply moved. */
+  test("an id left on the other entry is the other entry, and opens nothing", () => {
+    /* The hole the previous slice left open and the review found: with the
+       tie gone, the id was taken as the identity again — even when the entry
+       it now named was the one the author was NOT in. Rewriting the author's
+       own entry id elsewhere leaves `duplicated-entry` on the first child,
+       and the step was answered with it.
+       The graph the author opened is what the step is about, and it is not in
+       the set any more, so there is nothing here to open. */
     const parent = parent_of(duplicate_row("duplicate-entry-ids"));
     const pool = pool_of(parent);
+    const step = step_for(parent, pool.id, 1, 7);
     pool.config.subagents[1].id = "its-own-id";
-    const found = embedded_step_indices(parent, {
-      node_id: pool.id,
-      entry_id: "duplicated-entry",
-      entry_index: 1,
+    expect(pool_entry_index(pool.config.subagents, step, 7)).toEqual({
+      index: null,
+      unidentified: true,
     });
-    expect([found.entry_index, found.ambiguous]).toEqual([0, false]);
+    expect(embedded_step_indices(parent, step, 7)).toBeNull();
+    expect(drill_lost_reason(parent, [step], 7)).toMatch(/share one id/i);
+  });
+
+  test("but a step whose id identified it follows that entry wherever it goes", () => {
+    /* The control the review asked to keep. An id that named one entry needs
+       nothing else, so removing an earlier sibling moves the entry and the
+       step goes with it — including across a document replaced from
+       elsewhere, which is the one place a position would have guessed. */
+    const parent = parent_of(duplicate_row("duplicate-entry-names"));
+    const pool = pool_of(parent);
+    const entries = pool.config.subagents;
+    const wanted = entries[1].source.document.id;
+    const step = step_for(parent, pool.id, 1, 7);
+    expect(step.ambiguous).toBe(false);
+    pool.config.subagents = [entries[1]];
+    expect(embedded_document(parent, [step], 7).id).toBe(wanted);
+    /* A different document revision changes nothing about it: the id was the
+       answer, not the position. */
+    expect(embedded_document(parent, [step], 9).id).toBe(wanted);
+    expect(embedded_step_indices(parent, step, 9).entry_index).toBe(0);
   });
 
   test("where an id names one entry it is the identity, whatever position it is at", () => {
@@ -672,9 +723,9 @@ describe("two entries one document cannot tell apart", () => {
   test("a write goes to the entry the step named and leaves the other alone", () => {
     const parent = parent_of(duplicate_row("duplicate-entry-ids"));
     const pool_id = pool_of(parent).id;
-    const step = { node_id: pool_id, entry_id: "duplicated-entry", entry_index: 1 };
-    const edited = { ...embedded_document(parent, [step]), name: "Edited second" };
-    const written = with_embedded_document(parent, [step], edited);
+    const step = step_for(parent, pool_id, 1, 7);
+    const edited = { ...embedded_document(parent, [step], 7), name: "Edited second" };
+    const written = with_embedded_document(parent, [step], edited, 7);
     const after = pool_of(written).config.subagents;
     const before = pool_of(parent).config.subagents;
     expect(after[1].source.document.name).toBe("Edited second");
@@ -696,13 +747,9 @@ describe("two entries one document cannot tell apart", () => {
   test("and its own drawing, because they are two different graphs", () => {
     const parent = parent_of(duplicate_row("duplicate-entry-ids"));
     const pool_id = pool_of(parent).id;
-    const step = (entry_index) => ({
-      node_id: pool_id,
-      entry_id: "duplicated-entry",
-      entry_index,
-    });
-    const first = drill_layout_key("parent", parent, [step(0)]);
-    const second = drill_layout_key("parent", parent, [step(1)]);
+    const step = (entry_index) => step_for(parent, pool_id, entry_index, 7);
+    const first = drill_layout_key("parent", parent, [step(0)], 7);
+    const second = drill_layout_key("parent", parent, [step(1)], 7);
     expect(first).not.toBe(second);
   });
 
@@ -717,6 +764,119 @@ describe("two entries one document cannot tell apart", () => {
     const before = drill_layout_key("parent", parent, [step]);
     pool.config.subagents = [entries[1]];
     expect(drill_layout_key("parent", parent, [step])).toBe(before);
+  });
+});
+
+describe("the parent replaced by a version this editor did not compose", () => {
+  /* The three sequences the store performed, in `skeleton_drill_replacement_capture`:
+     the author opens the SECOND of two entries sharing an id, another editor
+     stores a version of the parent, and the author's save gets the real
+     `edit_conflict`. Taking the other version replaces the whole document,
+     and the position the author clicked describes a document that is gone. */
+
+  const CHOSEN = "child-second";
+  const OTHER = "child-first";
+
+  function opened(name) {
+    const { before, after } = replacement(name);
+    const pool = pool_of(before.document);
+    /* The author double-clicked the second row, in the document they had. */
+    const step = step_for(before.document, pool.id, 1, 1);
+    expect(step.graph_id).toBe(CHOSEN);
+    expect(embedded_document(before.document, [step], 1).id).toBe(CHOSEN);
+    return { step, before, after };
+  }
+
+  test("the sequence is the store's own, including the conflict", () => {
+    Object.keys(REPLACEMENT_CASES).forEach((name) => {
+      const { before, after } = replacement(name);
+      expect(before.edit_token.startsWith("edit-1-")).toBe(true);
+      expect(after.edit_token.startsWith("edit-2-")).toBe(true);
+      expect(REPLACEMENT_CASES[name].conflict.code).toBe("edit_conflict");
+      expect(REPLACEMENT_CASES[name].first_diagnostics).toEqual([]);
+    });
+  });
+
+  test("the chosen entry removed: nothing is opened, and it is not the other child", () => {
+    const { step, after } = opened("removed_chosen");
+    const entries = pool_of(after.document).config.subagents;
+    /* One entry is left, it still holds the shared id, and it is the graph
+       the author never opened — which the editor used to carry on in. */
+    expect(entries.map((entry) => entry.source.document.id)).toEqual([OTHER]);
+    expect(embedded_document(after.document, [step], 2)).toBeNull();
+    expect(drill_lost_reason(after.document, [step], 2)).toMatch(/share one id/i);
+    /* And a write cannot land in the other child either: with no step
+       resolved, the document is handed back untouched. */
+    expect(
+      with_embedded_document(after.document, [step], { id: "anything" }, 2),
+    ).toBe(after.document);
+  });
+
+  test("the two reordered: the step follows its own graph to where it now sits", () => {
+    const { step, after } = opened("reordered");
+    const entries = pool_of(after.document).config.subagents;
+    expect(entries.map((entry) => entry.source.document.id)).toEqual([CHOSEN, OTHER]);
+    /* The position says 1, and 1 is now the other child. The graph's own id
+       says which one it was. */
+    expect(embedded_step_indices(after.document, step, 2).entry_index).toBe(0);
+    expect(embedded_document(after.document, [step], 2).id).toBe(CHOSEN);
+    expect(drill_lost_reason(after.document, [step], 2)).toBeNull();
+    const written = with_embedded_document(
+      after.document,
+      [step],
+      { ...embedded_document(after.document, [step], 2), name: "Edited second" },
+      2,
+    );
+    const got = pool_of(written).config.subagents;
+    expect(got[0].source.document.name).toBe("Edited second");
+    expect(got[1]).toBe(entries[1]);
+  });
+
+  test("the other duplicate removed: the step still follows the chosen graph", () => {
+    const { step, after } = opened("removed_other");
+    const entries = pool_of(after.document).config.subagents;
+    expect(entries.map((entry) => entry.source.document.id)).toEqual([CHOSEN]);
+    expect(embedded_document(after.document, [step], 2).id).toBe(CHOSEN);
+    expect(drill_lost_reason(after.document, [step], 2)).toBeNull();
+  });
+
+  test("two copies of one graph can be opened, and cannot be followed across", () => {
+    /* The one draft the graph's id cannot answer for: two entries sharing an
+       id AND naming one graph. Inside the document the author clicked in the
+       position is the answer, so the row still opens. In a document written
+       elsewhere there is nothing left to go by, and the editor says so rather
+       than guessing — nothing is lost by it, because the two are the same
+       document: measured on the pair, that pair is accepted at Run once the
+       entry id is repaired, while two DIFFERENT definitions under one graph
+       id are refused `dependency_conflict`. */
+    const { before } = replacement("reordered");
+    const pool = pool_of(before.document);
+    const copy = JSON.parse(JSON.stringify(pool.config.subagents[0]));
+    copy.name = "Second child";
+    pool.config.subagents = [pool.config.subagents[0], copy];
+    const step = step_for(before.document, pool.id, 1, 1);
+    expect(step.graph_id).toBe(OTHER);
+    expect(embedded_step_indices(before.document, step, 1).entry_index).toBe(1);
+    expect(pool_entry_index(pool.config.subagents, step, 2)).toEqual({
+      index: null,
+      unidentified: true,
+    });
+  });
+
+  test("a step the editor could not identify is closed with its own sentence", () => {
+    /* Two reasons, two sentences: the entry is gone, or the id names several
+       and nothing says which. The second is the one the review's two
+       sequences produce, and it tells the author what to do about it. */
+    const { step, after } = opened("removed_chosen");
+    const gone = JSON.parse(JSON.stringify(after.document));
+    pool_of(gone).config.subagents = [];
+    expect(drill_lost_reason(gone, [step], 2)).toMatch(/no longer in this pool/i);
+    expect(drill_lost_reason(after.document, [step], 2)).toMatch(
+      /written somewhere else/i,
+    );
+    expect(drill_lost_reason(after.document, [step], 2)).toMatch(
+      /open the one you want/i,
+    );
   });
 });
 

@@ -163,6 +163,38 @@ export function is_skeleton_node(node) {
   return is_object(node) && is_object(node.config);
 }
 
+/* The node a DRAWING is given.
+ *
+ * A stored node is closed to `NODE_KEYS`, and measured on the fixed pair that
+ * is not a formality: a parent document carrying anything else is refused by
+ * `save_draft` itself — `unknown_field` at that key — and inside an embedded
+ * child, where the draft check never looks, the same key is refused at Run
+ * with `unknown_field` at that key whatever its value is. `label: "a name"`
+ * is refused exactly like `label: {"toString": null}`.
+ *
+ * So a value sitting beside `id`, `type` and `config` is not part of the
+ * graph, and a drawing reading one is drawing the JSON rather than the Agent.
+ * Both drawings here were: the canvas spread the stored node into the node it
+ * hands the Agent drawing, which renders `label` and `model`, and the panel
+ * header reads the same two. A child stored with `label: {"toString": null}`
+ * — saved and read back verbatim by the real store — threw "Objects are not
+ * valid as a React child" before anything appeared, and one stored with
+ * `label: "Pretend name"` was quieter and worse: the editor drew a name the
+ * store does not recognise and refuses.
+ *
+ * Nothing is rewritten. The stored node is untouched and every edit is still
+ * made against the document; this is only what the drawing may read. What is
+ * wrong with the node is reported where the mirror reports it — on the pool
+ * entry that holds the child, at the path the store names. */
+export function drawn_node(node) {
+  if (!is_object(node)) return node;
+  const drawn = {};
+  NODE_KEYS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(node, key)) drawn[key] = node[key];
+  });
+  return drawn;
+}
+
 export function node_execution(node) {
   const execution = is_skeleton_node(node) && node.config[EXECUTION_CONFIG_KEY];
   return is_object(execution) ? execution : null;

@@ -14,6 +14,7 @@ import OutputSchemaSection from "./output_schema_section";
 import SubagentPoolSection from "./subagent_pool_section";
 import OutputVariablesSection from "./output_variables_section";
 import {
+  drawn_node,
   find_node,
   is_skeleton_node,
   node_bindings,
@@ -77,7 +78,13 @@ export default function DetailPanel({
      that page on the empty state with a document sitting right there. */
   const legacy_node = recipe?.nodes?.find((n) => n.id === selectedNodeId);
   const node = legacy_node || skeleton_node;
-  const identity = node_identity(node);
+  /* The header DRAWS a node: it reads the node's own name and model, which a
+     Skeleton node does not have, so it is given the node the store defines
+     and nothing the JSON holds beside it — `drawn_node` says what that cost
+     us. Everything below keeps the stored node, because everything below
+     edits it. A legacy recipe node is drawn as it always was; its `label` and
+     `override.model` are its own. */
+  const identity = node_identity(legacy_node || drawn_node(skeleton_node));
 
   const shell_style = {
     flex: 1,

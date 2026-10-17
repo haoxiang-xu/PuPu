@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import SkeletonCanvas from "./skeleton_canvas";
+import { ENVELOPE_ROWS } from "./skeleton_drill_replacement_capture";
 import { readSkeletonLayout } from "../../../../SERVICEs/skeleton_layout";
 
 let lastProps = null;
@@ -295,6 +296,129 @@ describe("opening a subagent from the pool node", () => {
     );
     fireEvent.doubleClick(within(pool).getByTestId("pool-node-row-0"));
     expect(open.mock.calls[0][0].reason).toMatch(/Convert it first/);
+  });
+});
+
+describe("the drawing is given the node, not everything beside it", () => {
+  /* The review's second residual. A stored node is closed to `{id, type,
+     config}` — `ENVELOPE_ROWS` below is the store refusing every other key —
+     and this canvas used to spread the stored node into the node it hands the
+     drawings, which read a node's own `label` and `model`. An embedded child
+     saved with `label: {"toString": null}`, which the real store stores and
+     reads back verbatim, then threw "Objects are not valid as a React child"
+     before anything was drawn. */
+
+  const stored_child = (name) => {
+    const row = ENVELOPE_ROWS.find((item) => item.case === name);
+    return JSON.parse(row.entries)[0].source.document;
+  };
+
+  test("the store refuses every one of these keys, so none of them is the graph", () => {
+    const refused = (name) => ENVELOPE_ROWS.find((row) => row.case === name);
+    /* On a parent, the save itself is refused; inside an embedded child the
+       draft saves unchecked and Run refuses the key. */
+    expect(refused("parent_node_label_text").save_refused.code).toBe("unknown_field");
+    ["child_node_label_unreadable", "child_node_label_text",
+     "child_node_model_unreadable", "child_node_override_unreadable",
+     "child_node_position"].forEach((name) => {
+      const row = refused(name);
+      expect([name, row.saved, row.round_trip, row.draft_diagnostics]).toEqual([
+        name, true, true, [],
+      ]);
+      expect([name, row.run.code, row.run.path[row.run.path.length - 1]]).toEqual([
+        name, "unknown_field", name.split("_")[2] === "position" ? "x" : name.split("_")[2],
+      ]);
+    });
+  });
+
+  test("a child whose label cannot become text is drawn, by its id", () => {
+    const child = stored_child("child_node_label_unreadable");
+    const agent = child.nodes.find((node) => node.type === "agent");
+    expect(agent.label).toEqual({ toString: null });
+    show(child);
+    /* It draws at all — this threw — and it draws the node's own name, which
+       for a Skeleton node is its id. (The editor's mock prints the id once
+       itself, above whatever the drawing prints, so the drawing's own copy is
+       the second.) */
+    const drawn = within(screen.getByTestId("node-agent"));
+    expect(drawn.getAllByText("agent")).toHaveLength(2);
+    expect(screen.getByTestId("node-agent").textContent).not.toMatch(/unreadable/);
+    /* And the drawing was never handed the key. */
+    expect("label" in lastProps.nodes.find((node) => node.id === "agent")).toBe(false);
+    /* The stored document still holds it, untouched. */
+    expect(child.nodes.find((node) => node.type === "agent").label).toEqual({
+      toString: null,
+    });
+  });
+
+  test("a label that IS text is not drawn either, because it is not the node's", () => {
+    const child = stored_child("child_node_label_text");
+    expect(child.nodes.find((node) => node.type === "agent").label).toBe("Child label");
+    show(child);
+    const drawn = within(screen.getByTestId("node-agent"));
+    expect(drawn.getAllByText("agent")).toHaveLength(2);
+    expect(drawn.queryByText("Child label")).toBeNull();
+  });
+
+  test("the model beside it is the same read and is covered with it", () => {
+    ["child_node_model_unreadable", "child_node_override_unreadable"].forEach((name) => {
+      const child = stored_child(name);
+      const { unmount } = show(child);
+      const node = screen.getByTestId("node-agent");
+      expect(within(node).getAllByText("agent")).toHaveLength(2);
+      expect([name, node.textContent.includes("unreadable")]).toEqual([name, false]);
+      unmount();
+    });
+  });
+
+  test("what the node really holds still reaches the drawing", () => {
+    /* The projection is not a filter on content: `config` is what a pool's
+       rows are drawn from, and a graph drawn without it would be a pool
+       saying it has no subagents while holding two. */
+    const document = doc();
+    document.nodes.push({
+      id: "pool",
+      type: "subagent_pool",
+      label: { toString: null },
+      config: {
+        subagents: [
+          {
+            id: "e1",
+            name: "Shortener",
+            source: { kind: "agent_ref", agent_id: "sum" },
+          },
+        ],
+      },
+    });
+    show(document);
+    const pool = screen.getByTestId("node-pool");
+    expect(within(pool).getByText("1 subagent")).toBeInTheDocument();
+    expect(within(pool).getByTestId("pool-node-row-0").textContent).toMatch(
+      /Shortener.*Referenced/,
+    );
+  });
+
+  test("a toolkit count is a count, whatever was stored where it was read", () => {
+    const document = doc();
+    document.nodes.push({
+      id: "tools",
+      type: "toolkit_pool",
+      toolkits: { length: { toString: null } },
+      config: {},
+    });
+    show(document);
+    expect(within(screen.getByTestId("node-tools")).getByText(/0 toolkits/)).toBeInTheDocument();
+  });
+
+  test("a value INSIDE the envelope is not withheld — that is the author's to fix", () => {
+    /* The line stays where the store draws it: `config.kernel.profile.model`
+       holding junk is a value problem, `invalid_value` at Run, and the graph
+       opens and draws so the author can fix it. */
+    const row = ENVELOPE_ROWS.find((item) => item.case === "child_kernel_model_unreadable");
+    expect([row.saved, row.run.code]).toEqual([true, "invalid_value"]);
+    const child = stored_child("child_kernel_model_unreadable");
+    show(child);
+    expect(screen.getByTestId("node-agent")).toBeInTheDocument();
   });
 });
 

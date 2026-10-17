@@ -1,4 +1,11 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
@@ -17,7 +24,9 @@ import {
   drill_blocked_reason,
   drill_crumbs,
   drill_layout_key,
+  drill_lost_reason,
   drill_obsolete_reason,
+  drill_step,
   drill_target,
   embedded_document,
   embedded_path,
@@ -123,11 +132,12 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   } = useSkeletonResource();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   /* The graphs left behind, outermost first. */
-  const [drillStack, setDrillStack] = useState([]);
+  const [drillFrames, setDrillStack] = useState([]);
   /* Where inside THIS resource's document the open graph sits: one step per
-     embedded entry, by pool node id and entry id. Empty means the resource's
-     own graph. */
-  const [steps, setSteps] = useState([]);
+     embedded entry, by pool node id, entry id and what it took to tell that
+     entry from another under the same id. Empty means the resource's own
+     graph. */
+  const [drillSteps, setSteps] = useState([]);
   const [notices, setNotices] = useState([]);
   /* How many times each resource has been written in this sitting. The same
      Agent can sit at two depths — a graph referencing an Agent that references
@@ -158,7 +168,35 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   }, [resourceId, load, navigate]);
 
   const resource_document = session.document;
-  const drilled = drillStack.length > 0;
+  /* Which document the author was handed. A position inside a pool is only
+     about this one — see `pool_entry_index` — and the reducer counts exactly
+     this: a load, a reload, or the other editor's version taken, and nothing
+     the author typed. */
+  const revision = session.document_revision;
+
+  /* Whether the open graph is still reachable, and if not, why.
+   *
+   * Taking the other editor's version replaces the whole document, and it may
+   * not hold the graph the steps reach — or may hold two entries under one id
+   * with nothing left to say which of them was open. Either way there is no
+   * graph to show and the honest place to land is this resource's own root.
+   *
+   * Decided here rather than in the effect below, because an effect lands one
+   * commit later and that commit is a breadcrumb into a graph that is gone
+   * over a canvas with nothing in it. The effect still runs: it writes the
+   * same decision into state, which is what makes the next render ordinary. */
+  const lost =
+    drillSteps.length > 0 && session.status === SESSION_STATUS.READY
+      ? drill_lost_reason(session.document, drillSteps, revision)
+      : null;
+  /* Memoized because they are what the callbacks below are rebuilt from: a
+     fresh array on every render would rebuild every one of them. */
+  const steps = useMemo(() => (lost === null ? drillSteps : []), [lost, drillSteps]);
+  const stack = useMemo(
+    () => (lost === null ? drillFrames : closed_embedded_frames(drillFrames)),
+    [lost, drillFrames],
+  );
+  const drilled = stack.length > 0;
   /* The list beside the canvas is the graph you are editing, so a drill-in
      collapses the resource list the same way it hides the workflow list. */
   useEffect(() => {
@@ -169,22 +207,18 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      steps reach. */
   const document = steps.length === 0
     ? resource_document
-    : embedded_document(resource_document, steps);
+    : embedded_document(resource_document, steps, revision);
   const prefix = steps.length === 0
     ? ["document"]
-    : embedded_path(resource_document, steps);
+    : embedded_path(resource_document, steps, revision);
 
-  /* Taking the other editor's version replaces the whole document, and it may
-     not hold the entry the open graph came from. There is then no graph to
-     show, and the honest place to land is this resource's own root. */
   useEffect(() => {
-    if (steps.length === 0 || session.status !== SESSION_STATUS.READY) return;
-    if (embedded_document(session.document, steps) !== null) return;
+    if (lost === null) return;
     setSteps([]);
-    setDrillStack((stack) => closed_embedded_frames(stack));
+    setDrillStack((frames) => closed_embedded_frames(frames));
     setSelectedNodeId(null);
-    setNotices([gone_message("That subagent's graph")]);
-  }, [session.status, session.document, steps]);
+    setNotices([lost]);
+  }, [lost]);
 
   const nodes = (document && document.nodes) || [];
   const resource_label = graph_label(resource_document, session.resource_id);
@@ -196,9 +230,11 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   const edit_shown = useCallback(
     (next) => {
       if (steps.length === 0) return edit(next);
-      return edit(with_embedded_document(session.document, steps, next));
+      return edit(
+        with_embedded_document(session.document, steps, next, revision),
+      );
     },
-    [edit, session.document, steps],
+    [edit, revision, session.document, steps],
   );
 
   /* The draft check does not look inside an embedded graph — measured: a child
@@ -237,24 +273,39 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
         setNotices([blocked]);
         return;
       }
-      const step = { node_id: pool_node_id, entry_id, entry_index };
-      /* The row names the entry and says which row it was; a pool the store
-         would run needs only the first, and a draft it accepts can hold two
-         entries with one id. `pool_entry_for` is the one rule for both. */
-      const found = pool_entry_for(document, step);
+      /* The row names the entry and says which row it was, in the document
+         on screen; a pool the store would run needs only the first, and a
+         draft it accepts can hold two entries with one id. `pool_entry_for`
+         is the one rule for both, and `drill_step` keeps whatever it took to
+         answer so the step can be answered again later. */
+      const clicked = {
+        node_id: pool_node_id,
+        entry_id,
+        entry_index,
+        taken_in: revision,
+      };
+      const found = pool_entry_for(document, clicked, revision);
       if (!found) {
+        /* The row was drawn from this same document, so this is the row
+           having gone between the drawing and the click. */
         setNotices([gone_message("That subagent")]);
         return;
       }
+      const step = drill_step({
+        node_id: pool_node_id,
+        entry_id,
+        found,
+        revision,
+      });
       const target = drill_target(found.entry);
       if (target.kind === DRILL.UNREADABLE) {
         setNotices([target.reason]);
         return;
       }
       if (target.kind === DRILL.EMBEDDED) {
-        setDrillStack((stack) =>
+        setDrillStack((frames) =>
           push_drill_frame(
-            stack,
+            frames,
             frame_for_embedded_step({
               label: shown_label,
               steps,
@@ -298,9 +349,9 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
         ]);
         return;
       }
-      setDrillStack((stack) =>
+      setDrillStack((frames) =>
         push_drill_frame(
-          stack,
+          frames,
           frame_for_resource_step({
             label: resource_label,
             steps,
@@ -319,6 +370,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
       navigate,
       openAnother,
       resource_label,
+      revision,
       selectedNodeId,
       session,
       shown_label,
@@ -332,7 +384,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      behind, because its edits are this resource's edits. */
   const drill_to = useCallback(
     (depth) => {
-      const { frame, stack } = unwind_drill_stack(drillStack, depth);
+      const { frame, stack: left } = unwind_drill_stack(stack, depth);
       if (!frame) return false;
       /* Going back is a navigation as well, so a read still in flight for a
          graph further in is no longer about where the author is. */
@@ -351,17 +403,17 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
       }
       setSteps(frame.steps || []);
       setSelectedNodeId(frame.selected_node_id || null);
-      setDrillStack(stack);
+      setDrillStack(left);
       setNotices(messages);
       return true;
     },
-    [drillStack, navigate, restore, session],
+    [navigate, restore, session, stack],
   );
 
   const drill_up = useCallback(() => {
-    if (drillStack.length === 0) return false;
-    return drill_to(drillStack.length - 1);
-  }, [drillStack, drill_to]);
+    if (stack.length === 0) return false;
+    return drill_to(stack.length - 1);
+  }, [stack, drill_to]);
 
   /* Escape goes up one drill level before anything else sees it. Registered on
      `document`, where a bubble listener still precedes the Agents modal's
@@ -384,8 +436,10 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     return () => window.document.removeEventListener("keydown", onKey);
   }, [drill_up]);
 
-  const crumbs = drilled ? drill_crumbs(drillStack, shown_label) : [];
-  const shown_notices = notices_still_true(notices, session);
+  const crumbs = drilled ? drill_crumbs(stack, shown_label) : [];
+  /* The sentence for a graph that has just gone is said in the same render
+     that stops showing it, rather than one commit later. */
+  const shown_notices = notices_still_true(lost === null ? notices : [lost], session);
 
   return (
     <div style={PANEL(isDark)} data-testid="skeleton-resource-page">
@@ -441,6 +495,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
                 session.resource_id,
                 resource_document,
                 steps,
+                revision,
               )}
               document={document}
               onSelectNode={setSelectedNodeId}

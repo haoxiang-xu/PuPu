@@ -235,6 +235,20 @@ function legacy_pool_rows(node) {
 
 /* ── Where an embedded graph lives ───────────────────────────────────────── */
 
+/* The graph's own id, which is what tells two entries under one id apart.
+ *
+ * The store requires it of every graph it would run — measured on the pair:
+ * no `id` is `missing_field` at `source.document.id`, one that is not text is
+ * `invalid_type`, an empty one is `invalid_value` — and this editor never
+ * writes it: every document change here rewrites `nodes`. So it is the one
+ * thing about an entry that is both always there and never moved. */
+function embedded_graph_id(entry) {
+  const source = entry_source(entry);
+  const document = source && source.kind === "embedded" ? source.document : null;
+  const id = is_object(document) ? document.id : null;
+  return typeof id === "string" && id ? id : null;
+}
+
 /* Which entry a step names, inside its own pool. The one rule, because the
    canvas, the panel, the path resolver and the write-back have to name the
    same one — and they did not: each took the first entry whose id matched.
@@ -243,41 +257,102 @@ function legacy_pool_rows(node) {
    the store will run: `validate_subagent_pool_config` refuses a second entry
    with the same id, `duplicate_name` at its own `id`. But a DRAFT holding two
    is saved and read back verbatim — measured, three of them too — and then
-   the document names nothing. Clicking the second row opened the first child,
-   and saving wrote the author's edit into it while the second kept what it
-   had.
+   the id names a set rather than an entry, and two more things have to answer
+   which member is open. They answer different questions:
 
-   So the position the author clicked decides between entries the id cannot
-   tell apart, and only between those: where an id names one entry, that
-   entry is the answer at whatever position it now sits, because a step
-   following the position alone would land on a different subagent the moment
-   an earlier one was removed. Where it names several, the position must be
-   one of them — out of range, or no longer holding that id, resolves to
-   nothing rather than to the first or the last. */
-export function pool_entry_index(entries, step) {
+     the position the author clicked says which row they double-clicked, and
+     it says it only about the document they clicked in;
+
+     the graph's own id says WHICH GRAPH it was, in any document that still
+     holds it.
+
+   So inside one document the position decides, as it did. When the author is
+   handed a document this editor did not compose — the other editor's version
+   taken — the position means nothing: measured on the real store, deleting
+   the chosen entry left the editor writing the author's text into the OTHER
+   child, and reordering the two made the position name the other one. Then
+   only the graph's id carries, and where it cannot single one out, the step
+   resolves to nothing rather than to whatever now sits there.
+
+   Nothing can tell two identical copies apart, and nothing has to: the one
+   draft that defeats this and could still be made to run — two entries whose
+   graph ids are equal — is refused as `dependency_conflict` unless the two
+   definitions are the same document, measured on the pair. */
+export function pool_entry_index(entries, step, revision) {
   if (!Array.isArray(entries) || !is_object(step)) return null;
   const matches = [];
   entries.forEach((entry, index) => {
     if (is_object(entry) && entry.id === step.entry_id) matches.push(index);
   });
   if (matches.length === 0) return null;
-  if (matches.length === 1) return { index: matches[0], ambiguous: false };
-  return matches.includes(step.entry_index)
-    ? { index: step.entry_index, ambiguous: true }
+  const ambiguous = matches.length > 1;
+  /* An id that names one entry, and has only ever named one, is the whole
+     answer — at whatever position the entry now sits, because a step
+     following a position would land on a different subagent the moment an
+     earlier one was removed. */
+  if (!ambiguous && step.ambiguous !== true) {
+    return { index: matches[0], ambiguous: false };
+  }
+  const graph_id = typeof step.graph_id === "string" && step.graph_id
+    ? step.graph_id
     : null;
+  const named = graph_id
+    ? matches.filter((index) => embedded_graph_id(entries[index]) === graph_id)
+    : [];
+  if (named.length === 1) return { index: named[0], ambiguous };
+  /* The graph is not under this id any more: the entry that held it went, and
+     another entry holding the same id is a different graph. True whatever
+     document this is — a rewritten sibling id is the same situation as a
+     replaced parent. */
+  if (named.length === 0 && graph_id !== null) {
+    return { index: null, unidentified: true };
+  }
+  /* Several entries naming one graph — copies of one document, which nothing
+     can tell apart and nothing needs to — or an entry with no graph id to go
+     by. Only the position is left. In the document it was taken in it is what
+     the author did; anywhere else it is a guess, and this says so instead. */
+  if (step.taken_in !== revision) return { index: null, unidentified: true };
+  if (!ambiguous) return { index: matches[0], ambiguous: false };
+  return matches.includes(step.entry_index)
+    ? { index: step.entry_index, ambiguous }
+    : { index: null, unidentified: true };
 }
 
 /* The entry a pool row names, for the page that opens it: any kind of entry,
    so a reference resolves through here too. */
-export function pool_entry_for(document, step) {
+export function pool_entry_for(document, step, revision) {
   const node = is_object(step) ? pool_node_for(document, step.node_id) : null;
   const entries = node ? node_subagents(node) : null;
-  const found = pool_entry_index(entries, step);
-  return found === null ? null : { entry: entries[found.index], index: found.index };
+  const found = pool_entry_index(entries, step, revision);
+  if (found === null || found.index === null) return null;
+  return {
+    entry: entries[found.index],
+    index: found.index,
+    ambiguous: found.ambiguous === true,
+  };
+}
+
+/* What it takes to find this entry again, kept on the step the page holds.
+ *
+ * `entry_index` is where the author clicked and `taken_in` is the document it
+ * was clicked in, which is the only document that position describes.
+ * `ambiguous` is whether the id named more than this entry at that moment: an
+ * id that identified it needs nothing else, ever, and recording that is what
+ * keeps a step through an unrelated entry being removed. `graph_id` is the
+ * graph itself, for the documents the position cannot speak about. */
+export function drill_step({ node_id, entry_id, found, revision }) {
+  return {
+    node_id,
+    entry_id,
+    entry_index: found.index,
+    ambiguous: found.ambiguous === true,
+    graph_id: embedded_graph_id(found.entry),
+    taken_in: revision,
+  };
 }
 
 /* A step is the pool node and the entry inside it. */
-export function embedded_step_indices(document, step) {
+export function embedded_step_indices(document, step, revision) {
   if (!is_object(document) || !Array.isArray(document.nodes) || !is_object(step)) {
     return null;
   }
@@ -288,8 +363,8 @@ export function embedded_step_indices(document, step) {
   const node = document.nodes[node_index];
   if (node.type !== "subagent_pool" || node_pool_is_legacy(node)) return null;
   const entries = node_subagents(node);
-  const found = pool_entry_index(entries, step);
-  if (found === null) return null;
+  const found = pool_entry_index(entries, step, revision);
+  if (found === null || found.index === null) return null;
   if (drill_target(entries[found.index]).kind !== DRILL.EMBEDDED) return null;
   return { node_index, entry_index: found.index, ambiguous: found.ambiguous };
 }
@@ -297,12 +372,12 @@ export function embedded_step_indices(document, step) {
 /* The path the store addresses this graph by, which is also the prefix every
    problem inside it is reported at:
    `document.nodes[i].config.subagents[j].source.document`. */
-export function embedded_path(document, steps) {
+export function embedded_path(document, steps, revision) {
   const list = Array.isArray(steps) ? steps : [];
   let current = document;
   const path = ["document"];
   for (const step of list) {
-    const found = embedded_step_indices(current, step);
+    const found = embedded_step_indices(current, step, revision);
     if (found === null) return null;
     path.push(
       "nodes",
@@ -322,11 +397,11 @@ export function embedded_path(document, steps) {
 /* The graph at the end of the steps, or null if any step no longer resolves —
    the entry was removed, or the pool was. The caller treats that as "this
    graph is gone" rather than showing an empty canvas. */
-export function embedded_document(document, steps) {
+export function embedded_document(document, steps, revision) {
   const list = Array.isArray(steps) ? steps : [];
   let current = document;
   for (const step of list) {
-    const found = embedded_step_indices(current, step);
+    const found = embedded_step_indices(current, step, revision);
     if (found === null) return null;
     current = current.nodes[found.node_index].config.subagents[found.entry_index]
       .source.document;
@@ -337,11 +412,11 @@ export function embedded_document(document, steps) {
 /* Writing a child back into its parent, immutably, touching nothing else. The
    result is the document the store is then asked to store — and that is what
    the capture checks it against. */
-export function with_embedded_document(document, steps, child) {
+export function with_embedded_document(document, steps, child, revision) {
   const list = Array.isArray(steps) ? steps : [];
   if (list.length === 0) return child;
   const [step, ...rest] = list;
-  const found = embedded_step_indices(document, step);
+  const found = embedded_step_indices(document, step, revision);
   if (found === null) return document;
   const node = document.nodes[found.node_index];
   const entries = node.config.subagents;
@@ -349,7 +424,7 @@ export function with_embedded_document(document, steps, child) {
   const inner =
     rest.length === 0
       ? child
-      : with_embedded_document(entry.source.document, rest, child);
+      : with_embedded_document(entry.source.document, rest, child, revision);
   const next_entries = entries.map((candidate, index) =>
     index === found.entry_index
       ? { ...candidate, source: { ...candidate.source, document: inner } }
@@ -397,13 +472,13 @@ export function diagnostics_for_embedded(diagnostics, prefix) {
    both. Putting the position in every key instead would make a child's
    drawing depend on how many siblings sit before it, so removing an unrelated
    entry would move it. */
-export function drill_layout_key(resource_id, document, steps) {
+export function drill_layout_key(resource_id, document, steps, revision) {
   const list = Array.isArray(steps) ? steps : [];
   if (list.length === 0) return resource_id;
   const parts = [resource_id];
   let current = document;
   list.forEach((step) => {
-    const found = embedded_step_indices(current, step);
+    const found = embedded_step_indices(current, step, revision);
     parts.push(step && step.node_id, step && step.entry_id);
     if (found === null) {
       /* The step no longer resolves, so there is no graph here to key and the
@@ -440,6 +515,48 @@ export function open_failed_message(agent_id, error) {
 
 export function gone_message(label) {
   return `${label} is no longer in this pool, so it was closed.`;
+}
+
+/* Why the open graph cannot be shown any more, in the words for the reason it
+ * cannot — and there are two of those.
+ *
+ * Its entry is gone: the other editor's version was taken and does not hold
+ * it, or the pool itself went.
+ *
+ * Or its id names more than one entry and the document now open was written
+ * somewhere else, so neither the position the author clicked nor the graph's
+ * own id answers which of them was open. Closing is the honest end: the
+ * alternative is the one measured on the real store, where the editor carried
+ * on in the OTHER child and stored the author's text into a graph they had
+ * never opened, while the one they were editing kept what it had.
+ *
+ * `null` means the steps still reach a graph. */
+const UNIDENTIFIED_STEP =
+  "Two entries in that pool share one id, and the version now open was written somewhere else — nothing in it says which of the two you had open, so it was closed. Open the one you want from the pool.";
+
+export function drill_lost_reason(document, steps, revision) {
+  const list = Array.isArray(steps) ? steps : [];
+  let current = document;
+  for (const step of list) {
+    const found = embedded_step_indices(current, step, revision);
+    if (found !== null) {
+      current = current.nodes[found.node_index].config.subagents[found.entry_index]
+        .source.document;
+      continue;
+    }
+    /* Asked of the same rule that answered nothing, so the sentence cannot
+       disagree with the resolution it is about. */
+    const node = pool_node_for(current, is_object(step) ? step.node_id : null);
+    const answer = pool_entry_index(
+      node ? node_subagents(node) : null,
+      step,
+      revision,
+    );
+    return answer && answer.unidentified
+      ? UNIDENTIFIED_STEP
+      : gone_message("That subagent's graph");
+  }
+  return null;
 }
 
 export function left_behind_message(label) {
