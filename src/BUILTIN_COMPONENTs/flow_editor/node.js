@@ -194,7 +194,12 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
   }, [node.id, register_dimensions]);
 
   /* ── Group ports by side ─────────────────────────────────── */
-  const ports_by_side = {};
+  /* Grouped in a table with no prototype, the sibling of the id-keyed tables
+     in `flow_editor.js`: a side is not graph data today — the catalogs supply
+     it — but this is the same `if (!table[key]) table[key] = []` that threw
+     `.add is not a function` one component up, and it costs nothing to make
+     it unable to happen here. */
+  const ports_by_side = Object.create(null);
   ports.forEach((p) => {
     if (!ports_by_side[p.side]) ports_by_side[p.side] = [];
     ports_by_side[p.side].push(p);

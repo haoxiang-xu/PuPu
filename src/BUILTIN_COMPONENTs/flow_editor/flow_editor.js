@@ -39,6 +39,28 @@ import {
 /*    • User-defined node content via `render_node`                        */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* A table keyed by an id the graph chose, made without a prototype.
+ *
+ * A node id and an edge id are data. Nothing in this editor decides them, and
+ * the graph that supplies them may legally use any non-empty string — measured
+ * on the Skeleton store and its runtime
+ * (`COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture`): a whole
+ * Workflow whose Start is named `__proto__` is saved byte for byte, passes the
+ * store's own check and executes, completing both of its nodes.
+ *
+ * Drawn here, it threw. `map[edge.source_node_id]` answered with
+ * `Object.prototype` — an object, so the `if (!map[id])` guard passed — and
+ * `map[id].add(...)` is not a function. The registries beside it had the other
+ * half of the fault: `node_elements_ref.current[id] = el` set the object's
+ * prototype to a DOM element rather than storing it, and `delete` then could
+ * not remove it.
+ *
+ * Without a prototype there is nothing to inherit and no setter to invoke, so
+ * every id the graph is allowed to use is an own key of its own. Reads
+ * elsewhere in this file stay as they are: on these tables `table[id]` can
+ * only answer with what was put there. */
+const id_table = () => Object.create(null);
+
 const SNAP_THRESHOLD = 5;
 /* How far the pointer travels before a press on a node becomes a drag.
    Measured in screen pixels, so what counts as a drag does not change with
@@ -123,9 +145,11 @@ function FlowEditor({
   const canvas_ref = useRef(null);
   const viewport_div_ref = useRef(null);
   const temp_edge_ref = useRef(null);
-  const node_elements_ref = useRef({});
-  const node_dimensions_ref = useRef({});
-  const edge_elements_ref = useRef({});
+  /* The three registries below are keyed by the ids the GRAPH chose, so they
+     are made without a prototype — see `id_table`. */
+  const node_elements_ref = useRef(id_table());
+  const node_dimensions_ref = useRef(id_table());
+  const edge_elements_ref = useRef(id_table());
 
   const nodes_ref = useRef(nodes);
   const edges_ref = useRef(edges);
@@ -1002,7 +1026,7 @@ function FlowEditor({
   }, [edges, nodes, dims_version]);
 
   const connected_ports_map = useMemo(() => {
-    const map = {};
+    const map = id_table();
     edges.forEach((edge) => {
       if (!map[edge.source_node_id]) map[edge.source_node_id] = new Set();
       if (!map[edge.target_node_id]) map[edge.target_node_id] = new Set();

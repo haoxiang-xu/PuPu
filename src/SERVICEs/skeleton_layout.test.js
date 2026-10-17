@@ -9,6 +9,7 @@ import {
   writeSkeletonNodePositions,
   writeSkeletonViewport,
 } from "./skeleton_layout";
+import { NODE_ID_ROWS } from "../COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture";
 
 const flow = (id, a, b) => ({
   id, kind: "flow", source_node_id: a, source_port_id: "out",
@@ -169,5 +170,153 @@ describe("layout can never reach the document", () => {
     writeSkeletonNodePositions("r", { a1: { x: 3, y: 4 } });
     readSkeletonLayout("r", doc);
     expect(JSON.stringify(doc)).toBe(before);
+  });
+});
+
+describe("an id the document chose, used as a key", () => {
+  /* A node id and a resource id are data. `NODE_ID_ROWS` is the real store
+     and the installed runtime on the fixed pair: a whole Workflow whose Start
+     is named `__proto__` is saved byte for byte, passes the store's own
+     check, and executes — completing both nodes and returning the same output
+     as the ordinary one. So the editor may not treat such a graph as damaged.
+     On a plain object the table answered with an inherited member and the
+     write set a prototype: the node was drawn at `x: undefined`, a drag
+     changed nothing, and the stored layout held every other node. */
+
+  const row = (name) => NODE_ID_ROWS.find((item) => item.case === name);
+  const document_of = (name) => JSON.parse(row(name).document);
+  const SPECIAL = ["proto", "constructor", "to_string"];
+
+  test("the capture is the store's and the runtime's own answer", () => {
+    expect(NODE_ID_ROWS).toHaveLength(4);
+    NODE_ID_ROWS.forEach((item) => {
+      expect([item.case, item.saved, item.round_trip, item.draft_diagnostics]).toEqual([
+        item.case,
+        true,
+        true,
+        [],
+      ]);
+      expect([item.case, item.preflight.ok]).toEqual([item.case, true]);
+      /* Same input, same output, both nodes completed — including the one
+         whose id names a member of every object. */
+      expect([item.case, item.execution.outputs]).toEqual([
+        item.case,
+        { message: "Same valid input" },
+      ]);
+      expect([item.case, item.execution.completed_nodes]).toEqual([
+        item.case,
+        [item.start_id, "end"],
+      ]);
+    });
+  });
+
+  test("every one of them is laid out with finite coordinates", () => {
+    NODE_ID_ROWS.forEach((item) => {
+      const placed = auto_layout(JSON.parse(item.document));
+      expect([
+        item.case,
+        Object.prototype.hasOwnProperty.call(placed, item.start_id),
+      ]).toEqual([item.case, true]);
+      const at = placed[item.start_id];
+      expect([item.case, Number.isFinite(at.x), Number.isFinite(at.y)]).toEqual([
+        item.case,
+        true,
+        true,
+      ]);
+      expect([item.case, at]).toEqual([item.case, { x: ORIGIN.x, y: ORIGIN.y }]);
+    });
+  });
+
+  test("a drag is stored under that id and read back, per id", () => {
+    SPECIAL.forEach((name) => {
+      const document = document_of(name);
+      const id = row(name).start_id;
+      writeSkeletonNodePositions(document.id, { [id]: { x: 501, y: 502 } });
+      const layout = readSkeletonLayout(document.id, document);
+      expect([name, Object.prototype.hasOwnProperty.call(layout.nodes, id)]).toEqual([
+        name,
+        true,
+      ]);
+      expect([name, layout.nodes[id]]).toEqual([name, { x: 501, y: 502 }]);
+      /* And it really is in storage, not only in the answer. */
+      const raw = JSON.parse(window.localStorage.getItem("skeleton_layout"));
+      expect([
+        name,
+        Object.prototype.hasOwnProperty.call(raw.resources[document.id].nodes, id),
+      ]).toEqual([name, true]);
+      expect([name, raw.resources[document.id].nodes[id]]).toEqual([
+        name,
+        { x: 501, y: 502 },
+      ]);
+      /* The ordinary node beside it is untouched. */
+      expect(Number.isFinite(layout.nodes.end.x)).toBe(true);
+    });
+  });
+
+  test("a second drag merges rather than replacing the record", () => {
+    const document = document_of("proto");
+    /* A computed key, which is what `moved[node.id] = …` does at runtime.
+       Written as the literal `{ __proto__: … }` it would not be a key at all:
+       that spelling is the prototype setter, and the fixture would be testing
+       nothing — which is how this test first went green on a broken read. */
+    writeSkeletonNodePositions(document.id, { ["__proto__"]: { x: 1, y: 2 } });
+    writeSkeletonNodePositions(document.id, { end: { x: 3, y: 4 } });
+    const layout = readSkeletonLayout(document.id, document);
+    expect(layout.nodes["__proto__"]).toEqual({ x: 1, y: 2 });
+    expect(layout.nodes.end).toEqual({ x: 3, y: 4 });
+  });
+
+  test("a resource id that names a prototype member is its own record too", () => {
+    /* A resource id is a document id, and the store asks only that it be a
+       non-empty string. Two of them must not share one record. */
+    const document = { ...document_of("normal"), id: "__proto__" };
+    writeSkeletonNodePositions("__proto__", { start: { x: 11, y: 12 } });
+    writeSkeletonNodePositions("other", { start: { x: 21, y: 22 } });
+    expect(readSkeletonLayout("__proto__", document).nodes.start).toEqual({
+      x: 11,
+      y: 12,
+    });
+    expect(readSkeletonLayout("other", document).nodes.start).toEqual({
+      x: 21,
+      y: 22,
+    });
+    writeSkeletonViewport("__proto__", { x: 5, y: 6, zoom: 2 });
+    expect(readSkeletonLayout("__proto__", document).viewport).toEqual({
+      x: 5,
+      y: 6,
+      zoom: 2,
+    });
+    /* And forgetting it forgets only it. */
+    forgetSkeletonLayout("__proto__");
+    expect(readSkeletonLayout("__proto__", document).nodes.start).toEqual({
+      x: ORIGIN.x,
+      y: ORIGIN.y,
+    });
+    expect(readSkeletonLayout("other", document).nodes.start).toEqual({
+      x: 21,
+      y: 22,
+    });
+  });
+
+  test("a resource with no record of its own is not handed another's", () => {
+    /* `read_all()[resource_id]` answered with `Object.prototype` for an
+       unvisited `constructor`, which is an object, so it was read as a
+       record. */
+    const document = document_of("normal");
+    expect(readSkeletonLayout("constructor", document).nodes.start).toEqual({
+      x: ORIGIN.x,
+      y: ORIGIN.y,
+    });
+    expect(readSkeletonLayout("toString", document).viewport).toBeNull();
+    forgetSkeletonLayout("hasOwnProperty");
+    expect(window.localStorage.getItem("skeleton_layout")).toBeNull();
+  });
+
+  test("a stored record whose node the graph no longer has is still ignored", () => {
+    const document = document_of("proto");
+    writeSkeletonNodePositions(document.id, { __proto__: { x: 7, y: 8 } });
+    const other = { ...document, nodes: document.nodes.filter((n) => n.id === "end") };
+    const layout = readSkeletonLayout(document.id, other);
+    expect(Object.prototype.hasOwnProperty.call(layout.nodes, "__proto__")).toBe(false);
   });
 });

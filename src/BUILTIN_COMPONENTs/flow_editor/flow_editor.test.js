@@ -710,3 +710,88 @@ describe("a wheel zoom is published the moment it happens", () => {
     expect(out.current.x).toBe(zoomed + 30);
   });
 });
+
+describe("an id the graph chose, used as a table key", () => {
+  /* A node id and an edge id are data: the Skeleton store saves a whole
+     Workflow whose Start is named `__proto__`, its own check passes it, and
+     the installed runtime executes it, completing both nodes — frozen in
+     `COMPONENTs/agents/pages/recipes_page/skeleton_node_id_capture`.
+     Drawn here, the port table answered with `Object.prototype` and
+     `map[id].add(...)` threw before anything appeared. */
+
+  const PROTOTYPE_NAMES = ["__proto__", "constructor", "toString", "valueOf"];
+
+  const two_nodes = (id) => [
+    { id, x: 10, y: 20, ports: [{ id: "out", side: "right", kind: "out" }] },
+    { id: "end", x: 200, y: 20, ports: [{ id: "in", side: "left", kind: "in" }] },
+  ];
+  const one_edge = (id) => [
+    {
+      id: "flow",
+      source_node_id: id,
+      source_port_id: "out",
+      target_node_id: "end",
+      target_port_id: "in",
+    },
+  ];
+
+  test("every one of them draws, with its ports and its edge", () => {
+    PROTOTYPE_NAMES.forEach((id) => {
+      const { container, unmount } = render(
+        wrap(<FlowEditor nodes={two_nodes(id)} edges={one_edge(id)} />),
+      );
+      /* The node is in the DOM under its own id ... */
+      expect([id, !!container.querySelector(`[data-flow-node-id="${id}"]`)]).toEqual([
+        id,
+        true,
+      ]);
+      /* ... beside the ordinary one, and the edge between them is drawn. */
+      expect(container.querySelector('[data-flow-node-id="end"]')).toBeTruthy();
+      expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
+      unmount();
+    });
+  });
+
+  test("its node element is registered and released like any other", () => {
+    /* `node_elements_ref.current[id] = el` on a plain object set the table's
+       prototype to a DOM element instead of storing it, and `delete` could
+       not take it back out. Observable through selection, which looks the
+       element up by id to measure it. */
+    const { container, unmount } = render(
+      wrap(<FlowEditor nodes={two_nodes("__proto__")} edges={one_edge("__proto__")} />),
+    );
+    const node = container.querySelector('[data-flow-node-id="__proto__"]');
+    fireEvent.mouseDown(node, { clientX: 0, clientY: 0, button: 0 });
+    fireEvent.mouseUp(window, { clientX: 0, clientY: 0 });
+    expect(container.querySelector('[data-flow-node-id="__proto__"]')).toBeTruthy();
+    unmount();
+  });
+
+  test("an edge id that names a prototype member draws too", () => {
+    const { container } = render(
+      wrap(
+        <FlowEditor
+          nodes={two_nodes("start")}
+          edges={[
+            {
+              id: "__proto__",
+              source_node_id: "start",
+              source_port_id: "out",
+              target_node_id: "end",
+              target_port_id: "in",
+            },
+          ]}
+        />,
+      ),
+    );
+    expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
+  });
+
+  test("ordinary ids are unchanged", () => {
+    const { container } = render(
+      wrap(<FlowEditor nodes={two_nodes("start")} edges={one_edge("start")} />),
+    );
+    expect(container.querySelector('[data-flow-node-id="start"]')).toBeTruthy();
+    expect(container.querySelector('[data-flow-node-id="end"]')).toBeTruthy();
+  });
+});

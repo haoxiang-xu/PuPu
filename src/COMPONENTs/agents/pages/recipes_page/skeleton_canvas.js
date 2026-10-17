@@ -7,6 +7,7 @@ import StartNode from "./nodes/start_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
+import { own } from "./document_values";
 import { NODE_TYPES, drawn_node } from "./skeleton_document";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
@@ -37,6 +38,11 @@ import {
  * app being broken. Escape belongs to the page for the same reason, and
  * because it has to keep working while this canvas is not on screen — a
  * drilled-in resource whose re-read failed still has a breadcrumb. */
+
+/* A table whose keys are node ids. Without a prototype, for the reason in
+   `SERVICEs/skeleton_layout`: every id the envelope allows is then an own key
+   of its own, and nothing can be read out of `Object.prototype` instead. */
+const node_table = (from) => Object.assign(Object.create(null), from || undefined);
 
 function renderNode(node, isDark, onOpenSubagent) {
   if (node.type === "agent") return <AgentNode node={node} isDark={isDark} />;
@@ -127,8 +133,13 @@ function GraphDrawing({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [resourceId, graph, layoutKey],
   );
-  const positions = useRef(stored.nodes);
-  positions.current = { ...stored.nodes, ...positions.current };
+  /* Kept in a table with no prototype, because its keys are node ids and a
+     node id is data: `__proto__` is a legal id the real store runs, and on a
+     plain object the read answered with an inherited member and the write set
+     a prototype instead of storing the drag. The layout service's own note
+     has the measurements. */
+  const positions = useRef(node_table(stored.nodes));
+  positions.current = node_table({ ...stored.nodes, ...positions.current });
   /* Bumped when a node is dropped. Without it the projection below would keep
      returning the positions it was memoized with, and the next re-render for
      any other reason would snap the node back to where it was dragged from. */
@@ -139,7 +150,7 @@ function GraphDrawing({
   const nodes = useMemo(
     () =>
       ((graph && graph.nodes) || []).map((node) => {
-        const at = positions.current[node.id] || { x: 0, y: 0 };
+        const at = own(positions.current, node.id) || { x: 0, y: 0 };
         return {
           /* The node the store defines, not everything the JSON happens to
              hold beside it: the drawings below read a node's own `label` and
@@ -158,8 +169,7 @@ function GraphDrawing({
              then throws. A type this build has no drawing for has no ports
              here either way, and it is still drawn by its own type.
              The catalog's own read is shared with the legacy canvas and is
-             not this slice's to change; the same is true of the node ids that
-             reach a table as keys, which are reported rather than touched. */
+             not this slice's to change. */
           ports: NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : [],
           /* Nothing on this canvas edits the graph, so the Delete key has no
              node to act on. */
@@ -175,12 +185,12 @@ function GraphDrawing({
   /* The only write this component makes, and it goes to the layout service. */
   const handleNodesChange = useCallback(
     (next) => {
-      const moved = {};
+      const moved = node_table();
       (next || []).forEach((node) => {
         if (!node || !node.id) return;
         moved[node.id] = { x: node.x, y: node.y };
       });
-      positions.current = { ...positions.current, ...moved };
+      positions.current = node_table({ ...positions.current, ...moved });
       writeSkeletonNodePositions(resourceId, moved);
       setMoveTick((tick) => tick + 1);
     },
