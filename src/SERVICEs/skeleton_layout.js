@@ -238,6 +238,17 @@ export function writeSkeletonViewport(resource_id, viewport) {
   write_all(resources);
 }
 
+/* Which graphs this service holds a drawing for.
+ *
+ * Read-only, and the keys are returned as they are stored: what a key MEANS
+ * is the canvas's business — a resource id, or a resource and the steps that
+ * reach an embedded graph — and this module has never known the difference.
+ * The one caller that needs the list is the repair that moves a key, which
+ * has to find the descendants of the one it is moving. */
+export function skeletonLayoutKeys() {
+  return Object.keys(read_all());
+}
+
 /* The same drawing, under a new key.
  *
  * A graph's key can change without the graph changing: an embedded child is

@@ -17,6 +17,8 @@ import {
   ENTRY_ID_ROWS,
   SAVE_COUNT_PAIRS,
 } from "./recipes_page/skeleton_entry_id_capture";
+import { SCOPE_CASES } from "./recipes_page/skeleton_entry_id_scope_capture";
+import { writeSkeletonViewport } from "../../../SERVICEs/skeleton_layout";
 import {
   readSkeletonLayout,
   writeSkeletonNodePositions,
@@ -76,7 +78,7 @@ const parent_with_entry = (entry_row) => {
   return document;
 };
 
-const open_page = async (document, { resources = [] } = {}) => {
+const open_page = async (document, { resources = [], pool = "pool-a" } = {}) => {
   api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources });
   api.unchain.listSkeletonKernelProfiles = jest
     .fn()
@@ -100,7 +102,7 @@ const open_page = async (document, { resources = [] } = {}) => {
     </ConfigContext.Provider>,
   );
   await waitFor(() =>
-    expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    expect(screen.getByTestId(`skeleton-node-${pool}`)).toBeInTheDocument(),
   );
   return view;
 };
@@ -996,5 +998,313 @@ describe("giving a duplicated entry an id of its own, on the page", () => {
     expect(
       JSON.stringify(entries_of(document).map((entry) => entry.source.document)),
     ).toBe(before);
+  });
+});
+
+describe("the repair stays in the graph the button is in", () => {
+  /* The review's P1, which the store accepted: a parent pool called `pool`
+     whose first entry embeds a child whose OWN pool is also called `pool`.
+     Repairing an inner row matched the ancestor by the same local node id and
+     row index, the breadcrumb switched to the sibling outer child, and the
+     author's next sentence was saved into it. Both documents are in
+     `SCOPE_CASES`, and the store runs the repaired one — which is why nothing
+     may be rewritten on the way. */
+
+  const scope = (name) => SCOPE_CASES[name];
+  const document_of = (name) => copy(JSON.parse(scope(name).document));
+  const pool_rows = (id) => screen.getByTestId(`flow-node-${id}`);
+
+  test("the store holds both of these, and names only the inner duplicate", () => {
+    expect([scope("nested").saved, scope("nested").round_trip]).toEqual([true, true]);
+    expect(scope("nested").draft_diagnostics).toEqual([]);
+    expect(scope("nested").preflight.code).toBe("duplicate_name");
+    /* Three levels down: the inner pool's second entry. */
+    expect(scope("nested").preflight.path.slice(-3)).toEqual(["subagents", 1, "id"]);
+    /* And what the panel writes runs. */
+    expect(scope("nested_repaired").preflight).toEqual({ ok: true });
+  });
+
+  test("repairing an inner row leaves the open graph and its ancestor alone", async () => {
+    const document = document_of("nested");
+    await open_page(document, { pool: "pool" });
+    /* Into the first outer child, whose own pool is also called `pool`. */
+    fireEvent.doubleClick(
+      within(pool_rows("pool")).getByTestId("pool-node-row-0"),
+    );
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Selected outer child");
+    /* Its inner pool, and the repair. */
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Inner first an id of its own"));
+    });
+    /* Still the graph the author was in. */
+    expect(crumbs()[2]).toBe("Selected outer child");
+    expect(screen.getByTestId("skeleton-drill-breadcrumb").textContent).not.toContain(
+      "Other outer child",
+    );
+    /* And the save carries the repair, in the inner pool, with both outer
+       entries as they were. */
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const payload = api.unchain.saveSkeletonResource.mock.calls[0][0];
+    const outer = payload.document.nodes.find((node) => node.id === "pool").config
+      .subagents;
+    expect(outer.map((entry) => entry.id)).toEqual(["outer-entry", "subagent-1"]);
+    expect(outer.map((entry) => entry.source.document.name)).toEqual([
+      "Selected outer child",
+      "Other outer child",
+    ]);
+    const inner = outer[0].source.document.nodes.find((node) => node.id === "pool")
+      .config.subagents;
+    expect(inner.map((entry) => entry.id)).toEqual(["subagent-1", "dup"]);
+    /* Which is the document the store runs. */
+    expect(JSON.parse(scope("nested_repaired").document)).toEqual(payload.document);
+  });
+
+  test("and the sibling outer child keeps its own prompt", async () => {
+    /* What the wrong write did: the author's continuation landed in the
+       child they had never opened. */
+    const document = document_of("nested");
+    await open_page(document, { pool: "pool" });
+    fireEvent.doubleClick(
+      within(pool_rows("pool")).getByTestId("pool-node-row-0"),
+    );
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Inner first an id of its own"));
+    });
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), {
+      target: { value: "Continuation intended for Selected outer child" },
+    });
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const outer = api.unchain.saveSkeletonResource.mock.calls[0][0].document.nodes
+      .find((node) => node.id === "pool")
+      .config.subagents;
+    const prompt_of = (entry) =>
+      entry.source.document.nodes.find((node) => node.id === "agent").config.kernel
+        .prompt;
+    expect(prompt_of(outer[0])).toBe("Continuation intended for Selected outer child");
+    expect(prompt_of(outer[1])).toBe("Other child own prompt.");
+  });
+});
+
+describe("text a name box is holding, across the page's own edits", () => {
+  /* Held text belongs to the row, and in this pool the document cannot name a
+     row — two entries share one id. On the page the document really comes
+     back, so a removal and a repair can both be made and the text followed
+     through them. */
+  const document_of = () => copy(JSON.parse(SCOPE_CASES.layout.document));
+
+  async function hold_a_taken_name() {
+    const document = document_of();
+    await open_page(document);
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    fireEvent.change(screen.getAllByPlaceholderText("name")[1], {
+      target: { value: "First child" },
+    });
+    expect(screen.getByTestId("subagent-entry-1-name-taken").textContent).toMatch(
+      /already called First child/,
+    );
+    return document;
+  }
+
+  test("it survives this row's own id repair", async () => {
+    await hold_a_taken_name();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    expect(screen.getAllByPlaceholderText("name")[1].value).toBe("First child");
+    expect(screen.getByTestId("subagent-entry-1-name-taken")).toBeTruthy();
+  });
+
+  test("and it stays with its own row when an earlier row is removed", async () => {
+    await hold_a_taken_name();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Remove First child"));
+    });
+    /* One row left: the one that was holding text, still holding it. */
+    expect(screen.getAllByPlaceholderText("name")).toHaveLength(1);
+    expect(screen.getAllByPlaceholderText("name")[0].value).toBe("First child");
+    expect(screen.getByTestId("subagent-entry-0-name-taken")).toBeTruthy();
+  });
+
+  test("and it dies when the other editor's version arrives", async () => {
+    /* The protection that must not be lost. Taking the other version replaces
+       the list with one this editor did not write, so the identities are
+       re-minted and text typed against the old row goes with them. */
+    const document = await hold_a_taken_name();
+    /* A refused name stores nothing, so the draft is not dirty and there is
+       nothing to save yet. One real edit on the same row — which must not
+       drop the held name either. */
+    fireEvent.change(screen.getAllByPlaceholderText("what it is for (optional)")[1], {
+      target: { value: "A real edit" },
+    });
+    expect(screen.getAllByPlaceholderText("name")[1].value).toBe("First child");
+    const replacement = {
+      id: document.id,
+      kind: "agent",
+      name: document.name,
+      document: copy(document),
+      edit_token: "edit-2",
+      diagnostics: [],
+      archived: false,
+      description: null,
+      draft_digest: null,
+      source_identity: null,
+    };
+    api.unchain.getSkeletonResource = jest.fn().mockResolvedValue(replacement);
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: { code: "edit_conflict", path: ["expected_edit_token"], message: "resource changed in another editor" } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    await screen.findByTestId("skeleton-save-conflict");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    expect(screen.getAllByPlaceholderText("name")[1].value).toBe("Second child");
+    expect(screen.queryByTestId("subagent-entry-1-name-taken")).toBeNull();
+  });
+});
+
+describe("the drawings the repair moves", () => {
+  /* The review's second P2. A graph is keyed by the steps that reach it, and
+     a step carries the entry's position only while two entries share an id.
+     So repairing one moves BOTH children's keys — the repaired entry's, and
+     its sibling's, which stops being ambiguous. Measured before this: both
+     children opened at (80, 80) with their viewports gone. */
+
+  const document_of = () => copy(JSON.parse(SCOPE_CASES.layout.document));
+
+  const child_key = (document, entry_index) =>
+    drill_layout_key(
+      document.id,
+      document,
+      [
+        {
+          node_id: "pool-a",
+          entry_id: "duplicated-entry",
+          entry_index,
+          ambiguous: true,
+          graph_id: document.nodes.find((node) => node.id === "pool-a").config
+            .subagents[entry_index].source.document.id,
+          graph_unique: true,
+          taken_in: 1,
+        },
+      ],
+      1,
+    );
+
+  function seed(document) {
+    const keys = [0, 1].map((index) => child_key(document, index));
+    writeSkeletonNodePositions(keys[0], { start: { x: 111, y: 112 } });
+    writeSkeletonViewport(keys[0], { x: 11, y: 12, zoom: 1.5 });
+    writeSkeletonNodePositions(keys[1], { start: { x: 711, y: 712 } });
+    writeSkeletonViewport(keys[1], { x: 71, y: 72, zoom: 2 });
+    /* And a drawing one level deeper, under the second child's key. */
+    writeSkeletonNodePositions(
+      JSON.stringify([...JSON.parse(keys[1]), "inner-pool", "inner-entry"]),
+      { start: { x: 911, y: 912 } },
+    );
+    return keys;
+  }
+
+  const drawn = () => ({
+    x: editor.nodes.find((node) => node.id === "start").x,
+    y: editor.nodes.find((node) => node.id === "start").y,
+    viewport: editor.restore_viewport
+      ? {
+          x: editor.restore_viewport.x,
+          y: editor.restore_viewport.y,
+          zoom: editor.restore_viewport.zoom,
+        }
+      : null,
+  });
+
+  test("the control: both children open where they were left", async () => {
+    const document = document_of();
+    seed(document);
+    await open_page(document);
+    open_row(1);
+    await act(async () => {});
+    expect(drawn()).toEqual({ x: 711, y: 712, viewport: { x: 71, y: 72, zoom: 2 } });
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+    open_row(0);
+    await act(async () => {});
+    expect(drawn()).toEqual({ x: 111, y: 112, viewport: { x: 11, y: 12, zoom: 1.5 } });
+  });
+
+  test("after the repair they still do, and so does a graph below them", async () => {
+    const document = document_of();
+    const keys = seed(document);
+    await open_page(document);
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second child an id of its own"));
+    });
+    /* The repaired row, which now has an id of its own. */
+    open_row(1);
+    await act(async () => {});
+    expect(drawn()).toEqual({ x: 711, y: 712, viewport: { x: 71, y: 72, zoom: 2 } });
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+    /* And the sibling nobody repaired, whose key lost its position segment. */
+    open_row(0);
+    await act(async () => {});
+    expect(drawn()).toEqual({ x: 111, y: 112, viewport: { x: 11, y: 12, zoom: 1.5 } });
+    /* The descendant moved with its parent: same parts, more on the end. */
+    const repaired_second = drill_layout_key(
+      document.id,
+      /* The document the panel just wrote, which the store also holds. */
+      JSON.parse(SCOPE_CASES.layout_repaired.document),
+      [
+        {
+          node_id: "pool-a",
+          entry_id: "subagent-1",
+          entry_index: 1,
+          ambiguous: false,
+          graph_id: "child-second",
+          graph_unique: true,
+          taken_in: 1,
+        },
+      ],
+      1,
+    );
+    const deeper = JSON.stringify([
+      ...JSON.parse(repaired_second),
+      "inner-pool",
+      "inner-entry",
+    ]);
+    expect(
+      readSkeletonLayout(deeper, { nodes: [{ id: "start", type: "start" }], edges: [] })
+        .nodes.start,
+    ).toEqual({ x: 911, y: 912 });
+    /* Nothing was saved, and the old records were left where they were. */
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+    const stored = JSON.parse(window.localStorage.getItem("skeleton_layout"));
+    keys.forEach((key) => {
+      expect(Object.prototype.hasOwnProperty.call(stored.resources, key)).toBe(true);
+    });
   });
 });

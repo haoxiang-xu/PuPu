@@ -452,67 +452,6 @@ export function embedded_document(document, steps, revision) {
   return current;
 }
 
-/* A step after the entry it points at was given an id of its own.
- *
- * The id was duplicated — that is the whole reason it was repaired — so the
- * step cannot be found by matching the old id: both entries carry it, and
- * rewriting every step that does would point the author's open graph at the
- * other child. The one that is rewritten is the step that RESOLVES to this
- * pool and this entry, by the rule that opened it.
- *
- * Its new identity is the id alone. The pool now names this entry, which is
- * what the repair was for, so the position and the graph id it carried stop
- * being consulted — `ambiguous: false` is the rule's own answer to "the id
- * named one entry". They are kept rather than cleared, because they describe
- * the click that happened.
- *
- * Frames hold steps too — the graphs left behind — and a frame restored with
- * a step naming an id nobody has any more would close itself on the way back.
- * So the same rewrite is applied to anything holding steps, which is what
- * `repaired_frames` is for. */
-export function steps_after_entry_id_repair(document, steps, repair, revision) {
-  const list = Array.isArray(steps) ? steps : [];
-  if (!is_object(repair) || typeof repair.next_id !== "string") return list;
-  let current = document;
-  let changed = false;
-  const next = list.map((step) => {
-    const found =
-      current === null ? null : embedded_step_indices(current, step, revision);
-    current =
-      found === null
-        ? null
-        : current.nodes[found.node_index].config.subagents[found.entry_index]
-            .source.document;
-    const here =
-      found !== null &&
-      is_object(step) &&
-      step.node_id === repair.node_id &&
-      found.entry_index === repair.entry_index;
-    if (!here) return step;
-    changed = true;
-    return { ...step, entry_id: repair.next_id, ambiguous: false };
-  });
-  return changed ? next : list;
-}
-
-export function repaired_frames(document, stack, repair, revision) {
-  const list = Array.isArray(stack) ? stack : [];
-  let changed = false;
-  const next = list.map((frame) => {
-    if (!is_object(frame) || !Array.isArray(frame.steps)) return frame;
-    const steps = steps_after_entry_id_repair(
-      document,
-      frame.steps,
-      repair,
-      revision,
-    );
-    if (steps === frame.steps) return frame;
-    changed = true;
-    return { ...frame, steps };
-  });
-  return changed ? next : list;
-}
-
 /* Writing a child back into its parent, immutably, touching nothing else. The
    result is the document the store is then asked to store — and that is what
    the capture checks it against. */
@@ -564,6 +503,108 @@ export function diagnostics_for_embedded(diagnostics, prefix) {
 }
 
 /* ── What is being edited, and what a save writes ────────────────────────── */
+
+/* Which layout keys a repaired entry id moves, and what they move to.
+ *
+ * A graph is keyed by the steps that reach it, and a step carries the entry's
+ * POSITION only while two entries in its pool share an id — see
+ * `drill_layout_key`. So giving one entry an id of its own moves two keys at
+ * once: its own, which now names the new id, and its sibling's, which stops
+ * being ambiguous and loses the position segment. With each of them goes
+ * every descendant key, which is the same parts with more on the end.
+ *
+ * Measured on the real page before this: both children of a repaired pool
+ * opened auto-laid-out at (80, 80) with their viewports gone, their records
+ * still sitting under keys nothing would ever ask for again.
+ *
+ * It is computed from the pool rather than from the open graph: the author
+ * clicks this in the pool's own graph, where no step points into the entry at
+ * all, so a rule that waited for the open graph's key to change would never
+ * fire. `keys` is what the layout service holds; nothing here writes. */
+export function layout_keys_after_entry_id_repair({
+  resource_id,
+  before,
+  after,
+  steps,
+  revision,
+  node_id,
+  keys,
+}) {
+  const shown_before = embedded_document(before, steps, revision);
+  const shown_after = embedded_document(after, steps, revision);
+  const pool_before = pool_node_for(shown_before, node_id);
+  const pool_after = pool_node_for(shown_after, node_id);
+  const entries_before = pool_before ? node_subagents(pool_before) : null;
+  const entries_after = pool_after ? node_subagents(pool_after) : null;
+  if (!Array.isArray(entries_before) || !Array.isArray(entries_after)) return [];
+
+  const moves = [];
+  entries_before.forEach((entry, index) => {
+    const from = entry_layout_key(
+      resource_id, before, shown_before, steps, revision, node_id, index,
+    );
+    const to = entry_layout_key(
+      resource_id, after, shown_after, steps, revision, node_id, index,
+    );
+    if (from === null || to === null || from === to) return;
+    moves.push({ from: key_parts(from), to: key_parts(to) });
+  });
+  if (moves.length === 0) return [];
+
+  /* Every key the service holds that sits under one of those prefixes: the
+     graph itself, and every graph reached through it. */
+  const pairs = [];
+  (Array.isArray(keys) ? keys : []).forEach((key) => {
+    const parts = key_parts(key);
+    if (parts === null) return;
+    moves.forEach(({ from, to }) => {
+      if (from === null || to === null) return;
+      if (parts.length < from.length) return;
+      if (!from.every((part, index) => parts[index] === part)) return;
+      pairs.push({ from: key, to: identity_of([...to, ...parts.slice(from.length)]) });
+    });
+  });
+  return pairs;
+}
+
+/* The key of one entry's graph, by the step the author's click would make. */
+function entry_layout_key(
+  resource_id, document, shown, steps, revision, node_id, index,
+) {
+  const pool = pool_node_for(shown, node_id);
+  const entries = pool ? node_subagents(pool) : null;
+  const entry = Array.isArray(entries) ? entries[index] : null;
+  if (!is_object(entry)) return null;
+  const clicked = {
+    node_id,
+    entry_id: typeof entry.id === "string" ? entry.id : null,
+    entry_index: index,
+    taken_in: revision,
+  };
+  const found = pool_entry_for(shown, clicked, revision);
+  if (found === null) return null;
+  const step = drill_step({
+    node_id,
+    entry_id: clicked.entry_id,
+    found,
+    revision,
+  });
+  return drill_layout_key(resource_id, document, [...steps, step], revision);
+}
+
+/* The parts a key was made of, or null for one that is not a made key — a
+   resource's own id is its key, and that is a plain string. */
+function key_parts(key) {
+  if (typeof key !== "string" || key[0] !== "[") return null;
+  try {
+    const parts = JSON.parse(key);
+    return Array.isArray(parts) && parts.every((part) => typeof part === "string")
+      ? parts
+      : null;
+  } catch (error) {
+    return null;
+  }
+}
 
 /* The layout is drawn per graph, and an embedded graph has no resource id of
    its own, so it is keyed by the resource plus the steps that reach it. A

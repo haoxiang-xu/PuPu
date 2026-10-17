@@ -1916,13 +1916,22 @@ describe("two entries the pool cannot tell apart by id", () => {
     expect(next[0]).toBe(before[0]);
     /* It is an ordinary edit: one document reported, and no save of its own. */
     expect(onChange).toHaveBeenCalledTimes(1);
-    /* And the page is told which row changed, so navigation can follow. */
-    expect(onEntryIdRepaired).toHaveBeenCalledWith({
+    /* And the page is told which row changed, with the document this write
+       produced, so the drawings can follow. */
+    expect(onEntryIdRepaired).toHaveBeenCalledTimes(1);
+    const report = onEntryIdRepaired.mock.calls[0][0];
+    expect({
+      pool_node_id: report.pool_node_id,
+      entry_index: report.entry_index,
+      previous_id: report.previous_id,
+      next_id: report.next_id,
+    }).toEqual({
       pool_node_id: "pool",
       entry_index: 1,
       previous_id: "dup",
       next_id: "subagent-1",
     });
+    expect(node_subagents(report.document.nodes[1])).toEqual(next);
   });
 
   test("repairing the first row is the same offer, and leaves the second alone", async () => {
@@ -1971,6 +1980,62 @@ describe("two entries the pool cannot tell apart by id", () => {
     });
     const next = written(onChange);
     expect(next.map((item) => item.id)).toEqual(["dup", "dup", "subagent-1"]);
+  });
+
+  test("text the name box is holding survives this row's own id repair", async () => {
+    /* The author types a name the pool already has: the guard refuses to
+       store it, keeps it on screen and says so. Repairing the SAME row's id
+       then threw that text away and took the message with it, because held
+       text was held against the entry's id — which in this pool does not name
+       a row at all, since two entries share one. */
+    const node = duplicated();
+    const { onChange } = await show(node);
+    const boxes = screen.getAllByPlaceholderText("name");
+    fireEvent.change(boxes[1], { target: { value: "First" } });
+    expect(boxes[1].value).toBe("First");
+    expect(screen.getByTestId("subagent-entry-1-name-taken").textContent).toMatch(
+      /already called First/,
+    );
+    /* Nothing was stored for it: the name is still Second in the document. */
+    expect(onChange).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Give Second an id of its own"));
+    });
+    /* The typing and the refusal are both still there, on the same row. */
+    expect(screen.getAllByPlaceholderText("name")[1].value).toBe("First");
+    expect(screen.getByTestId("subagent-entry-1-name-taken").textContent).toMatch(
+      /already called First/,
+    );
+    /* And the write was the id, not the name. */
+    const next = written(onChange);
+    expect([next[1].id, next[1].name]).toEqual(["subagent-1", "Second"]);
+  });
+
+  test("but a list arriving from somewhere else still drops it", async () => {
+    /* The protection that must not be lost: an external replacement is not
+       the editor's own edit, so the identities are re-minted and text typed
+       against the old row dies. */
+    const node = duplicated();
+    const { view } = await show(node);
+    fireEvent.change(screen.getAllByPlaceholderText("name")[1], {
+      target: { value: "First" },
+    });
+    expect(screen.getByTestId("subagent-entry-1-name-taken")).toBeTruthy();
+    const replaced = pool({
+      subagents: node_subagents(node).map((item) => ({ ...item })),
+    });
+    await act(async () => {
+      view.rerender(
+        <SubagentPoolSection
+          document={doc(replaced)}
+          node={replaced}
+          isDark={false}
+          onChange={() => {}}
+        />,
+      );
+    });
+    expect(screen.getAllByPlaceholderText("name")[1].value).toBe("Second");
+    expect(screen.queryByTestId("subagent-entry-1-name-taken")).toBeNull();
   });
 
   test("an entry that is not an object offers removal and nothing else", async () => {

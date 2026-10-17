@@ -334,7 +334,9 @@ function ModeToggle({ mode, on, onToggle }) {
 function EntryRow({
   entry,
   index,
-  owner,
+  /* This row's own identity, minted by the list and spent as its React key.
+     It is what held text is held against — see below. */
+  identity,
   owner_id,
   taken,
   library,
@@ -349,18 +351,23 @@ function EntryRow({
   onRepairId,
   onOpen,
 }) {
-  /* An entry id is unique inside its pool and nowhere else, so the identity
-     text is held against carries the pool and the document too. The panel
-     stays mounted across a selection change — it is the same component in the
-     same place — and text held against `sa1` alone followed the author from
-     one pool to another and was drawn over that pool's own entry. */
-  /* An entry id is unique inside its pool and nowhere else, so the identity
-     text is held against is the whole tuple — the resource, the pool and the
-     entry — encoded rather than concatenated. `pool:a` is a legal node id and
-     `a:b` a legal entry id, both of which the real store saves and reloads,
-     and joining them with a colon made those two different things one
-     identity. */
-  const name = useTakenName(entry.name, taken, identity_of([...owner, entry.id]));
+  /* Held text belongs to this ROW, which is what the list's own identity
+     names.
+     It used to be held against the resource, the pool and the entry's id,
+     because the document names an entry by its id — and that was wrong in
+     exactly the case this pool is built around: two entries can share one id,
+     so the id does not name a row, which is why `useListIdentities` exists
+     here at all. Worse, the author's own repair changes that id: typing a
+     name the pool already has, having it refused and held, then giving the
+     row a free id silently threw the typing away and took the refusal
+     message with it.
+     The minted identity answers both halves. It lives exactly as long as the
+     row does and survives the edits this editor makes — including that
+     repair, which the list announces — and it is re-minted when the list
+     arrives from somewhere else, a reload or another editor's version taken,
+     which is when held text must die. The pool and the resource are in it
+     already: the list mints per owner. */
+  const name = useTakenName(entry.name, taken, identity);
   const agent_id = entry_agent_id(entry);
   const referenced =
     library.status === "ready" && agent_id !== null
@@ -854,11 +861,21 @@ export default function SubagentPoolSection({
       ),
     );
     if (typeof onEntryIdRepaired === "function") {
+      /* The document this write produced goes with the report: what the page
+         does about it is the drawings, and both keys it has to move are
+         computed from the pool before and after. */
       onEntryIdRepaired({
         pool_node_id: node.id,
         entry_index: index,
         previous_id: entry.id,
         next_id,
+        document: with_node_subagents(
+          document,
+          node.id,
+          entries.map((old, position) =>
+            position === index ? { ...old, id: next_id } : old,
+          ),
+        ),
       });
     }
   }
@@ -997,7 +1014,7 @@ export default function SubagentPoolSection({
               key={rows.ids[index]}
               entry={entry}
               index={index}
-              owner={[owner_id, node.id]}
+              identity={rows.ids[index]}
               owner_id={owner_id}
               taken={names.filter(
                 (name, position) => position !== index && name !== null,

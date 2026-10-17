@@ -15,7 +15,10 @@ import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
 import { why_not_a_subagent } from "./recipes_page/skeleton_subagent_eligibility";
-import { copySkeletonLayout } from "../../../SERVICEs/skeleton_layout";
+import {
+  copySkeletonLayout,
+  skeletonLayoutKeys,
+} from "../../../SERVICEs/skeleton_layout";
 import {
   DRILL,
   EMBEDDED_UNCHECKED_CAPTION,
@@ -29,8 +32,7 @@ import {
   drill_obsolete_reason,
   drill_step,
   drill_target,
-  repaired_frames,
-  steps_after_entry_id_repair,
+  layout_keys_after_entry_id_repair,
   embedded_document,
   embedded_path,
   frame_for_embedded_step,
@@ -420,50 +422,37 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
 
   /* An entry given an id of its own, by the pool panel.
    *
-   * The panel writes the document — it is the one that owns the pool's edits,
-   * and this one goes through the same dirty → Save as any other, with no
-   * save of its own. What it cannot do is keep the author's navigation
-   * pointing at that entry, because an id that was duplicated is not
-   * something a step can be found by: both entries carry it. So the panel
-   * says which row it repaired and this resolves the steps the way they were
-   * opened.
+   * The panel writes the document — it owns the pool's edits, and this one
+   * goes through the same dirty → Save as any other, with no save of its own.
+   * What it cannot do is keep the DRAWINGS, because a graph is keyed by the
+   * steps that reach it and a step carries the entry's position only while
+   * two entries share an id. Repairing one moves two keys: the repaired
+   * entry's, which now names the new id, and its sibling's, which stops being
+   * ambiguous — and with them every key of a graph reached through either.
+   * Measured on the real page: both children then opened auto-laid-out at
+   * (80, 80) with their viewports gone.
    *
-   * The frames are rewritten with them: a frame restored with a step naming
-   * an id nobody holds any more would close itself on the way back.
-   *
-   * And the drawing follows. An embedded child's layout key carries the
-   * entry's position only while two entries share an id, so a repair changes
-   * the key — the same graph, under a new name — and the record is copied
-   * across rather than left behind, which would reopen the child
-   * auto-laid-out with every node moved. */
+   * It does NOT touch the steps or the frames. The button is only ever in the
+   * pool's own graph, so nothing the author is looking at points into the
+   * entry being repaired; a rewrite keyed by a local pool id and a row index
+   * matched a same-named ancestor instead and sent the author's next
+   * sentence into a sibling child, which the store accepted. The navigation
+   * stays where it is. */
   const entry_id_repaired = useCallback(
-    ({ pool_node_id, entry_index, next_id }) => {
-      const repair = { node_id: pool_node_id, entry_index, next_id };
-      const anchored = steps_after_entry_id_repair(
-        resource_document,
+    ({ pool_node_id, document: repaired }) => {
+      const after =
+        steps.length === 0
+          ? repaired
+          : with_embedded_document(resource_document, steps, repaired, revision);
+      layout_keys_after_entry_id_repair({
+        resource_id: session.resource_id,
+        before: resource_document,
+        after,
         steps,
-        repair,
         revision,
-      );
-      if (anchored !== steps) {
-        const before = drill_layout_key(
-          session.resource_id,
-          resource_document,
-          steps,
-          revision,
-        );
-        const after = drill_layout_key(
-          session.resource_id,
-          resource_document,
-          anchored,
-          revision,
-        );
-        copySkeletonLayout(before, after);
-        setSteps(anchored);
-      }
-      setDrillStack((frames) =>
-        repaired_frames(resource_document, frames, repair, revision),
-      );
+        node_id: pool_node_id,
+        keys: skeletonLayoutKeys(),
+      }).forEach(({ from, to }) => copySkeletonLayout(from, to));
     },
     [resource_document, revision, session.resource_id, steps],
   );
