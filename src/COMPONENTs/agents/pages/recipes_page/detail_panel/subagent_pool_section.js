@@ -921,6 +921,10 @@ export default function SubagentPoolSection({
                       onOpenSubagent({
                         pool_node_id: node.id,
                         entry_id: entry.id,
+                        /* Which row it is, as well as what it names: a draft
+                           the store accepts can hold two entries with one id,
+                           and this row is one particular graph. */
+                        entry_index: index,
                         reason: null,
                       })
                   : undefined

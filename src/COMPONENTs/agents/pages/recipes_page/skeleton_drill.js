@@ -77,6 +77,61 @@ const NOT_A_DOCUMENT =
 const LEGACY_FIRST =
   "This pool still holds legacy entries. Convert it first — then each subagent is an Agent graph that opens here.";
 
+/* Whether there is a graph here to draw at all.
+ *
+ * An embedded document is checked by nothing before it arrives: the draft
+ * check does not descend into a pool, so `nodes: {"toString": null}` is
+ * saved, read back verbatim and handed to this editor — measured, with the
+ * store's own verdict, in `skeleton_drill_identity_capture`. The canvas then
+ * walks `nodes` and `edges` and reads a name out of each one, and a value
+ * that is not a list does not walk, while a name that is not text cannot even
+ * be used as a key: `positions[node.id]` coerces the key before the lookup,
+ * which is the class of fault `document_values` exists for. The page threw
+ * `nodes.map is not a function` before anything was drawn.
+ *
+ * So this asks one question — can the drawing read this graph's container —
+ * and nothing more. What the envelope ALSO requires of a value inside a
+ * readable container is a problem IN a graph: an empty id, an unknown type, a
+ * duplicated node id, an edge pointing at nothing, no End at all. Every one
+ * of those opens, because opening it is how the author fixes it, and the
+ * panel already reports each one at the path the store names.
+ *
+ * Measured over every shape in the capture: each one refused here is refused
+ * by the store at Run with `invalid_type`, so nothing the store would run is
+ * withheld. The converse is not claimed — a node's `config` is `invalid_type`
+ * too, and the drawing never reads it, so that one opens. */
+const DRAWN_NAMES = Object.freeze({
+  nodes: ["id", "type"],
+  edges: [
+    "id",
+    "source_node_id",
+    "source_port_id",
+    "target_node_id",
+    "target_port_id",
+  ],
+});
+
+const NOT_A_LIST = (key) =>
+  `This entry's embedded graph does not hold a list of ${key}, so there is no graph to draw. The store refuses it at Run.`;
+const NOT_READABLE = (key) =>
+  `This entry's embedded graph holds something in its ${key} that cannot be drawn: the drawing needs an object whose names are text. The store refuses it at Run.`;
+
+function undrawable_reason(document) {
+  const found = Object.keys(DRAWN_NAMES).find((key) => {
+    const list = document[key];
+    return (
+      !Array.isArray(list) ||
+      list.some(
+        (item) =>
+          !is_object(item) ||
+          DRAWN_NAMES[key].some((name) => typeof item[name] !== "string"),
+      )
+    );
+  });
+  if (found === undefined) return null;
+  return Array.isArray(document[found]) ? NOT_READABLE(found) : NOT_A_LIST(found);
+}
+
 /* An embedded graph that is not an Agent has no Agent graph to open, and the
    store says so at `source.document.kind` — `wrong_kind`, "Agent preparation
    requires agent kind". Nothing in this editor can change a document's kind,
@@ -109,7 +164,9 @@ export function drill_target(entry) {
     if (!is_object(source.document)) {
       return { kind: DRILL.UNREADABLE, reason: NOT_A_DOCUMENT };
     }
-    const refused = embedded_not_an_agent_reason(source.document);
+    const refused =
+      embedded_not_an_agent_reason(source.document) ||
+      undrawable_reason(source.document);
     return refused === null
       ? { kind: DRILL.EMBEDDED }
       : { kind: DRILL.UNREADABLE, reason: refused };
@@ -140,7 +197,13 @@ export function pool_entry_rows(node) {
   return entries.map((entry, index) => {
     const target = drill_target(entry);
     return {
-      key: identity_of([(is_object(entry) && entry.id) || index]),
+      /* Drawn under its place as well as its id: a draft the store accepts
+         can hold two entries with one id, and two rows under one key is a
+         list React is free to draw once. */
+      key: identity_of([index, (is_object(entry) && entry.id) || index]),
+      /* Which row this is, for the step that opens it — `pool_entry_index`
+         says what that is for. */
+      index,
       entry_id: is_object(entry) && typeof entry.id === "string" ? entry.id : null,
       name: is_object(entry) && typeof entry.name === "string" && entry.name
         ? entry.name
@@ -162,6 +225,7 @@ function legacy_pool_rows(node) {
   return node_legacy_pool_entries(node).map((entry, index) => ({
     key: identity_of(["legacy", index]),
     entry_id: null,
+    index,
     name: legacy_entry_label(entry),
     note: "Legacy",
     openable: false,
@@ -171,9 +235,48 @@ function legacy_pool_rows(node) {
 
 /* ── Where an embedded graph lives ───────────────────────────────────────── */
 
-/* A step is the pool node and the entry inside it, by id — never by position.
-   An index is not an identity: removing an earlier entry would move every
-   step below it onto a different subagent. */
+/* Which entry a step names, inside its own pool. The one rule, because the
+   canvas, the panel, the path resolver and the write-back have to name the
+   same one — and they did not: each took the first entry whose id matched.
+
+   An id IS the identity wherever the pool lets it be one, which is every pool
+   the store will run: `validate_subagent_pool_config` refuses a second entry
+   with the same id, `duplicate_name` at its own `id`. But a DRAFT holding two
+   is saved and read back verbatim — measured, three of them too — and then
+   the document names nothing. Clicking the second row opened the first child,
+   and saving wrote the author's edit into it while the second kept what it
+   had.
+
+   So the position the author clicked decides between entries the id cannot
+   tell apart, and only between those: where an id names one entry, that
+   entry is the answer at whatever position it now sits, because a step
+   following the position alone would land on a different subagent the moment
+   an earlier one was removed. Where it names several, the position must be
+   one of them — out of range, or no longer holding that id, resolves to
+   nothing rather than to the first or the last. */
+export function pool_entry_index(entries, step) {
+  if (!Array.isArray(entries) || !is_object(step)) return null;
+  const matches = [];
+  entries.forEach((entry, index) => {
+    if (is_object(entry) && entry.id === step.entry_id) matches.push(index);
+  });
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return { index: matches[0], ambiguous: false };
+  return matches.includes(step.entry_index)
+    ? { index: step.entry_index, ambiguous: true }
+    : null;
+}
+
+/* The entry a pool row names, for the page that opens it: any kind of entry,
+   so a reference resolves through here too. */
+export function pool_entry_for(document, step) {
+  const node = is_object(step) ? pool_node_for(document, step.node_id) : null;
+  const entries = node ? node_subagents(node) : null;
+  const found = pool_entry_index(entries, step);
+  return found === null ? null : { entry: entries[found.index], index: found.index };
+}
+
+/* A step is the pool node and the entry inside it. */
 export function embedded_step_indices(document, step) {
   if (!is_object(document) || !Array.isArray(document.nodes) || !is_object(step)) {
     return null;
@@ -185,13 +288,10 @@ export function embedded_step_indices(document, step) {
   const node = document.nodes[node_index];
   if (node.type !== "subagent_pool" || node_pool_is_legacy(node)) return null;
   const entries = node_subagents(node);
-  if (!Array.isArray(entries)) return null;
-  const entry_index = entries.findIndex(
-    (entry) => is_object(entry) && entry.id === step.entry_id,
-  );
-  if (entry_index < 0) return null;
-  if (drill_target(entries[entry_index]).kind !== DRILL.EMBEDDED) return null;
-  return { node_index, entry_index };
+  const found = pool_entry_index(entries, step);
+  if (found === null) return null;
+  if (drill_target(entries[found.index]).kind !== DRILL.EMBEDDED) return null;
+  return { node_index, entry_index: found.index, ambiguous: found.ambiguous };
 }
 
 /* The path the store addresses this graph by, which is also the prefix every
@@ -288,15 +388,37 @@ export function diagnostics_for_embedded(diagnostics, prefix) {
 
 /* The layout is drawn per graph, and an embedded graph has no resource id of
    its own, so it is keyed by the resource plus the steps that reach it. A
-   delimiter would not do: a node id may contain anything the store accepts. */
-export function drill_layout_key(resource_id, steps) {
+   delimiter would not do: a node id may contain anything the store accepts.
+
+   The key names the GRAPH, which is why it is resolved against the document
+   rather than read off the steps: an entry id names the graph inside its pool
+   wherever the pool lets it, and the position is added only where two entries
+   share an id — those are two different graphs, and one drawing cannot be
+   both. Putting the position in every key instead would make a child's
+   drawing depend on how many siblings sit before it, so removing an unrelated
+   entry would move it. */
+export function drill_layout_key(resource_id, document, steps) {
   const list = Array.isArray(steps) ? steps : [];
   if (list.length === 0) return resource_id;
-  return identity_of([
-    resource_id,
-    ...list.flatMap((step) => [step.node_id, step.entry_id]),
-  ]);
+  const parts = [resource_id];
+  let current = document;
+  list.forEach((step) => {
+    const found = embedded_step_indices(current, step);
+    parts.push(step && step.node_id, step && step.entry_id);
+    if (found === null) {
+      /* The step no longer resolves, so there is no graph here to key and the
+         caller is about to close this view. The parts still name the step, so
+         the key cannot be another graph's. */
+      current = null;
+      return;
+    }
+    if (found.ambiguous) parts.push(`#${found.entry_index}`);
+    current = current.nodes[found.node_index].config.subagents[found.entry_index]
+      .source.document;
+  });
+  return identity_of(parts);
 }
+
 
 /* A graph's own name, for the breadcrumb. */
 export function graph_label(document, fallback) {
@@ -329,17 +451,50 @@ export function stale_frame_message(label) {
 }
 
 /* Opening a subagent while a write is in flight would answer about the graph
-   that is open now and land on a different one. */
+   that is open now and land on a different one.
+
+   Asked twice: before the read is issued, and again at the moment the swap
+   would happen — a save can be started while the read is in flight, and that
+   one is not refusable from a button. The sentences are named here once, or
+   the second check would be a different app saying something else about the
+   same situation. */
+const WRITE_IN_FLIGHT = Object.freeze({
+  saving:
+    "This save has not landed yet. Its answer belongs to the graph that is open now, so wait before opening a subagent.",
+  converting:
+    "The conversion is still being written. Wait for it before opening a subagent.",
+});
+
 export function drill_blocked_reason(session) {
   if (!session) return null;
-  if (session.saving) {
-    return "This save has not landed yet. Its answer belongs to the graph that is open now, so wait before opening a subagent.";
-  }
-  if (session.converting) {
-    return "The conversion is still being written. Wait for it before opening a subagent.";
-  }
+  if (session.saving) return WRITE_IN_FLIGHT.saving;
+  if (session.converting) return WRITE_IN_FLIGHT.converting;
   return null;
 }
+
+/* A sentence about a write in flight stops being true the moment the write
+   lands — and the save bar one line above then says "Saved" while this line
+   says the save has not landed. Every other notice here is a statement about
+   something that happened and stays until the author's next gesture, so this
+   one is filtered by the condition it describes rather than cleared by
+   something remembering to. */
+const WRITE_MESSAGES = new Set(Object.values(WRITE_IN_FLIGHT));
+
+export function notices_still_true(notices, session) {
+  const writing = drill_blocked_reason(session) !== null;
+  return (Array.isArray(notices) ? notices : []).filter(
+    (message) => writing || !WRITE_MESSAGES.has(message),
+  );
+}
+
+/* What the hook refused a swap for, said in those same words. Having
+   navigated elsewhere has no sentence: the author is looking at another
+   graph, and a notice about the one they left would read as a problem with
+   this one. */
+export function drill_obsolete_reason(blocked) {
+  return (typeof blocked === "string" && WRITE_IN_FLIGHT[blocked]) || null;
+}
+
 
 /* A frame is the graph left behind. `kind` says how it was left, which is what
    decides whether coming back has to put a resource session back:

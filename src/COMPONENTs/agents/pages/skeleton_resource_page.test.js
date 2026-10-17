@@ -1189,4 +1189,144 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
     expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
   });
+
+  /* ── A read that answered too late ────────────────────────────────────────
+   *
+   * Opening a referenced Agent is a read, and the author keeps working while
+   * it is in flight. Reproduced on the real page in the acceptance-8 review:
+   * the answer replaced whatever was on screen when it arrived, and a frame
+   * taken while a save was pending came back with a save nothing could
+   * answer — a disabled "Saving…" that never cleared, with the write long
+   * since stored. */
+
+  const held = (child_promise) => {
+    let land = null;
+    const pending = new Promise((resolve) => { land = resolve; });
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      id === "sum"
+        ? pending
+        : Promise.resolve(
+            result({ kind: "agent", name: "Reviewer", document: parent_doc(), edit_token: "edit-1" }),
+          ),
+    );
+    return () => land(child_promise);
+  };
+
+  test("a read for the graph the author left does not replace the one they moved to", async () => {
+    const elsewhere = parent_doc([entry()]);
+    elsewhere.id = "other";
+    elsewhere.name = "Other";
+    elsewhere.nodes.push({
+      id: "elsewhere",
+      type: "agent",
+      config: { execution: { inputs: [], outputs: [] } },
+    });
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: library });
+    let land = null;
+    api.unchain.getSkeletonResource = jest.fn((id) => {
+      if (id === "sum") return new Promise((resolve) => { land = resolve; });
+      if (id === "other") {
+        return Promise.resolve(
+          result({ id: "other", kind: "agent", name: "Other", document: elsewhere, edit_token: "other-1" }),
+        );
+      }
+      return Promise.resolve(
+        result({ kind: "agent", name: "Reviewer", document: parent_doc(), edit_token: "edit-1" }),
+      );
+    });
+    const page = (resourceId) => (
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={resourceId} />
+      </ConfigContext.Provider>
+    );
+    const view = render(page("life"));
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    await act(async () => {});
+    fireEvent.click(screen.getByLabelText("Open Summarizer"));
+
+    /* The author opens another Agent while that read is in flight, and edits
+       it. */
+    view.rerender(page("other"));
+    await waitFor(() => expect(screen.getByTestId("skeleton-node-elsewhere")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+
+    await act(async () => {
+      land(result({ id: "sum", kind: "agent", name: "Summarizer", document: child_doc("sum", "Summarizer"), edit_token: "sum-1" }));
+    });
+
+    /* Still the Agent they moved to, still unsaved, and no breadcrumb saying
+       they are somewhere they never went. */
+    expect(screen.getByTestId("skeleton-node-elsewhere")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-node-sum-end")).toBeNull();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/unsaved/i);
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+  });
+
+  test("a save started while a read is in flight keeps the author where the save is", async () => {
+    await open_parent();
+    const land_read = held(
+      result({ id: "sum", kind: "agent", name: "Summarizer", document: child_doc("sum", "Summarizer"), edit_token: "sum-1" }),
+    );
+    let land_save = null;
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { land_save = resolve; }),
+    );
+    fireEvent.click(screen.getByTestId("skeleton-node-end"));
+    fireEvent.click(screen.getByText("+ Add input"));
+    fireEvent.click(screen.getByTestId("skeleton-node-pool"));
+    /* Open, then Save before the read lands: the limit on the button cannot
+       see this one, because nothing was being written when it was clicked. */
+    fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    fireEvent.click(screen.getByText("Save").closest("button"));
+    await act(async () => {
+      land_read();
+    });
+
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /has not landed yet/,
+    );
+    expect(screen.getByTestId("skeleton-node-pool")).toBeInTheDocument();
+
+    /* The save it was refused for settles on the graph it was made about, and
+       the page is not left waiting for it for ever. */
+    await act(async () => {
+      land_save(result({ kind: "agent", document: parent_doc(), edit_token: "edit-2" }));
+    });
+    expect(screen.queryByRole("button", { name: "Saving…" })).toBeNull();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+    /* And the line saying the save had not landed goes with it: it would
+       otherwise sit under a bar saying Saved. */
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+
+    /* And opening it now works, because nothing is in flight. */
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    });
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+  });
+
+  test("a second opening wins, and the first read's answer is not drawn over it", async () => {
+    await open_parent();
+    const land_read = held(
+      result({ id: "sum", kind: "agent", name: "Summarizer", document: child_doc("sum", "Summarizer"), edit_token: "sum-1" }),
+    );
+    fireEvent.click(screen.getByLabelText("Open Summarizer"));
+    /* The author changes their mind and opens the embedded one instead, which
+       needs no read at all. */
+    fireEvent.click(screen.getByLabelText("Open Shortener"));
+    await act(async () => {
+      land_read();
+    });
+    expect(crumbs()).toBe("Reviewer › Subagent Pool › Shortener");
+    expect(screen.getByTestId("skeleton-node-inner-end")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-node-sum-end")).toBeNull();
+    /* Nothing is said about the graph they decided against — the notice would
+       be read as a problem with the graph they are now in. */
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+  });
 });

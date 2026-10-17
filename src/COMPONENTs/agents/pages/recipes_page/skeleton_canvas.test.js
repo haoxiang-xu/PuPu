@@ -242,7 +242,12 @@ describe("opening a subagent from the pool node", () => {
           entry({
             id: "e2",
             name: "Shortener",
-            source: { kind: "embedded", document: { kind: "agent", id: "embedded-pool-1" } },
+            source: {
+              kind: "embedded",
+              /* A whole document: a stub with no `nodes` is not a graph the
+                 store would take, and not one this canvas could draw. */
+              document: { schema_version: 1, kind: "agent", id: "embedded-pool-1", name: "Shortener", nodes: [], edges: [] },
+            },
           }),
         ],
       }),
@@ -263,6 +268,10 @@ describe("opening a subagent from the pool node", () => {
     expect(open).toHaveBeenCalledWith({
       pool_node_id: "pool",
       entry_id: "e1",
+      /* The position too: an entry id is unique in a pool the store will run,
+         and a draft it accepts can hold two entries with one id. The row the
+         author clicked is the one that opens. */
+      entry_index: 0,
       reason: null,
     });
   });
@@ -328,5 +337,91 @@ describe("Home centers this graph's own Start", () => {
     fireEvent.keyDown(document, { key: "Home" });
     expect(lastProps.reset_token).toBe(before);
     field.remove();
+  });
+});
+
+describe("one drawing per graph", () => {
+  /* The canvas holds drawing state — the positions it has handed out, the
+     viewport it was left at — and all of it belongs to ONE graph. The page
+     keeps this component in place and changes which graph it draws, so the
+     state has to be bound to the graph's identity rather than to the
+     component's lifetime. Reproduced in the acceptance-8 review: a parent and
+     an embedded child with a node id in common drew each other's positions,
+     and dragging in the parent afterwards wrote the child's coordinate into
+     the parent's layout.
+
+     Being a separate component keyed by that identity is what makes it true
+     of the editor FlowEditor keeps inside it as well, which no prop can
+     reset. */
+  const other = () => ({
+    schema_version: 1, kind: "agent", id: "child", name: "Child",
+    /* The same node ids as `doc()`: that is the whole hazard. */
+    nodes: [
+      { id: "start", type: "start", config: {} },
+      { id: "a1", type: "agent", config: {} },
+      { id: "end", type: "end", config: {} },
+    ],
+    edges: [flow("e1", "start", "a1"), flow("e2", "a1", "end")],
+  });
+
+  const draw = (resourceId, document) => (
+    <ConfigContext.Provider value={cfg}>
+      <SkeletonCanvas
+        resourceId={resourceId}
+        document={document}
+        onSelectNode={() => {}}
+        isDark={false}
+      />
+    </ConfigContext.Provider>
+  );
+
+  test("a graph is drawn where IT was left, not where the last one was", () => {
+    const parent = doc();
+    const { rerender, getByTestId } = render(draw("r", parent));
+    fireEvent.click(screen.getByText("drag-a1"));
+    expect(getByTestId("node-a1").getAttribute("data-x")).toBe("777");
+    rerender(draw("child-key", other()));
+    const moved = getByTestId("node-a1").getAttribute("data-x");
+    expect(moved).not.toBe("777");
+    /* And the one that was dragged is still where it was dragged to. */
+    rerender(draw("r", parent));
+    expect(getByTestId("node-a1").getAttribute("data-x")).toBe("777");
+  });
+
+  test("a drag writes to the graph being drawn and to nothing else", () => {
+    const parent = doc();
+    const { rerender } = render(draw("r", parent));
+    rerender(draw("child-key", other()));
+    fireEvent.click(screen.getByText("drag-a1"));
+    expect(readSkeletonLayout("child-key", other()).nodes.a1).toEqual({ x: 777, y: 42 });
+    const stored = JSON.parse(window.localStorage.getItem("skeleton_layout"));
+    /* Not one position under the parent's key. (It does have a record: the
+       instance that was drawing it wrote the viewport it was left at on the
+       way out, which is the point of the next test.) */
+    expect((stored.resources.r || {}).nodes).toBeUndefined();
+  });
+
+  test("the viewport it was left at is kept under the graph it belonged to", () => {
+    const parent = doc();
+    const { rerender } = render(draw("r", parent));
+    lastProps.viewport_out_ref.current = { x: 11, y: 12, zoom: 1.5 };
+    rerender(draw("child-key", other()));
+    /* Written on the way out, under the id the panning happened in — not
+       under the graph that is open now. */
+    expect(readSkeletonLayout("r", parent).viewport).toMatchObject({
+      x: 11, y: 12, zoom: 1.5,
+    });
+    expect(readSkeletonLayout("child-key", other()).viewport).toBeNull();
+    /* And the new graph does not start out restoring the old one's. */
+    expect(lastProps.restore_viewport).toBeUndefined();
+  });
+
+  test("coming back restores the viewport that graph was left at", () => {
+    const parent = doc();
+    const { rerender } = render(draw("r", parent));
+    lastProps.viewport_out_ref.current = { x: 11, y: 12, zoom: 1.5 };
+    rerender(draw("child-key", other()));
+    rerender(draw("r", parent));
+    expect(lastProps.restore_viewport).toMatchObject({ x: 11, y: 12, zoom: 1.5 });
   });
 });

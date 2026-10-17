@@ -19,6 +19,7 @@ import {
   loaded,
   loading,
   restored,
+  same_open,
   can_preflight,
   preflight_passed,
   preflight_refused,
@@ -77,18 +78,59 @@ export default function useSkeletonResource() {
      The session that was left is handed back for the drill stack to hold, and
      it is taken at the moment of the swap rather than when the read started —
      the author keeps typing while a read is in flight, and a copy taken
-     earlier would lose exactly those keystrokes. */
+     earlier would lose exactly those keystrokes.
+
+     Everything else here is about the same gap: a read is adopted by
+     REPLACING the session, which is the one thing no clause in the reducer
+     guards. So the swap asks three questions of the moment it happens in,
+     not of the moment it was asked for:
+
+       is this still the sitting the read was issued from? The author may have
+       opened another Agent meanwhile, and the answer about this one would
+       then replace it — measured on the real page: the abandoned graph's
+       breadcrumb over the new graph's content.
+
+       is anything being written? A save started after the read was issued is
+       an answer that belongs to the graph on screen now. Navigating would
+       stash a sitting with a pending write in it, and the reply can be
+       applied to neither graph — the frame came back permanently "Saving…"
+       while the store had in fact stored it.
+
+       does the caller still want it? The hook knows which sitting asked; it
+       does not know which graph inside it the author is looking at, or which
+       row they clicked last. That is the page's answer, and it is asked here
+       so that it is asked at the same instant as the other two.
+
+     An edit is NOT one of the questions: typing while the read is in flight
+     is exactly what the frame has to carry. */
   const open_another = useCallback(
-    async (resource_id, admit) => {
+    async (resource_id, admit, still_wanted) => {
+      const issued = session_token(ref.current);
       const result = await load_resource(resource_id);
       if (!result.ok) return { ok: false, result };
       const refused = typeof admit === "function" ? admit(result.data) : null;
       if (refused) return { ok: false, refused };
       let left = null;
+      let blocked = null;
+      let obsolete = false;
       apply((current) => {
+        if (!same_open(current, issued)) {
+          obsolete = true;
+          return current;
+        }
+        if (current.saving || current.converting) {
+          blocked = current.saving ? "saving" : "converting";
+          return current;
+        }
+        if (typeof still_wanted === "function" && still_wanted() !== true) {
+          obsolete = true;
+          return current;
+        }
         left = current;
         return loaded(loading(current, resource_id), result.data);
       });
+      if (blocked) return { ok: false, blocked };
+      if (obsolete) return { ok: false, obsolete: true };
       return { ok: true, left };
     },
     [apply],

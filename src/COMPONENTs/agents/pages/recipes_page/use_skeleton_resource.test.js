@@ -1405,32 +1405,199 @@ describe("opening another resource, for a drill-in", () => {
   });
 
   test("and it is a new sitting, so an answer from the first visit is not accepted", async () => {
-    /* `A → B → A` puts the same resource id back. A save still in flight from
-       the first visit would otherwise pass the guard and roll the token onto a
-       document it is not an answer about. */
+    /* `A → B → A` puts the same resource id back. A request still in flight
+       when the author came back would otherwise pass the guard and roll the
+       token onto a document it is not an answer about. Here it is the child's
+       own save, started after the swap and still unanswered when Escape came:
+       the write lands in the store, and the sitting that comes back is not
+       the one it was about. */
     let land = null;
     api.unchain.getSkeletonResource = jest.fn((id) =>
       Promise.resolve(id === "sum" ? child : result({ document: doc("a"), edit_token: "t1" })),
     );
-    api.unchain.saveSkeletonResource = jest.fn(
-      () => new Promise((resolve) => { land = resolve; }),
-    );
     const hook = await open();
     act(() => hook.result.current.edit(doc("unsaved")));
-    let saving = null;
-    act(() => {
-      saving = hook.result.current.save();
-    });
     let answer = null;
     await act(async () => {
       answer = await hook.result.current.openAnother("sum");
     });
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { land = resolve; }),
+    );
+    act(() => hook.result.current.edit({ ...doc("child edit"), id: "sum" }));
+    let saving = null;
+    act(() => {
+      saving = hook.result.current.save();
+    });
     act(() => hook.result.current.restore(answer.left));
     await act(async () => {
-      land(result({ document: doc("stored"), edit_token: "t2" }));
+      land(result({ id: "sum", document: doc("stored"), edit_token: "sum-2" }));
       await saving;
     });
+    expect(hook.result.current.session.resource_id).toBe("life");
     expect(hook.result.current.session.edit_token).toBe("t1");
     expect(hook.result.current.session.document.description).toBe("unsaved");
+    expect(hook.result.current.session.saving).toBe(false);
+  });
+
+  /* ── A read that outlived what it was made for ────────────────────────────
+   *
+   * The read is adopted by REPLACING the session, so nothing in the reducer
+   * can guard it: by the time it lands the author may be looking at another
+   * resource, or may have started a write whose answer belongs to the graph
+   * that is open now. Both were reproduced on the real page in the
+   * acceptance-8 review; the second one left the editor on a disabled
+   * "Saving…" for ever, because the frame it stashed held a pending save
+   * nothing could answer any more. */
+
+  const elsewhere = result({
+    id: "other",
+    kind: "agent",
+    name: "Other",
+    document: { ...doc("elsewhere"), id: "other" },
+    edit_token: "other-1",
+  });
+
+  const held_read = () => {
+    let land = null;
+    api.unchain.getSkeletonResource = jest.fn((id) => {
+      if (id === "sum") return new Promise((resolve) => { land = resolve; });
+      if (id === "other") return Promise.resolve(elsewhere);
+      return Promise.resolve(result({ document: doc("a"), edit_token: "t1" }));
+    });
+    return () => land;
+  };
+
+  test("a read for a sitting the author has left is dropped, not adopted", async () => {
+    const lander = held_read();
+    const hook = await open();
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    /* The author opened something else while it was in flight — the page's own
+       resource changed under it. */
+    await act(async () => {
+      await hook.result.current.load("other");
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer).toEqual({ ok: false, obsolete: true });
+    /* Still the Agent they moved to, down to the token a save would be made
+       at. */
+    expect(hook.result.current.session.resource_id).toBe("other");
+    expect(hook.result.current.session.edit_token).toBe("other-1");
+    expect(hook.result.current.session.document.description).toBe("elsewhere");
+  });
+
+  test("the same resource reopened is a different sitting, and the read is still dropped", async () => {
+    const lander = held_read();
+    const hook = await open();
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    await act(async () => {
+      await hook.result.current.load("life");
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer.ok).toBe(false);
+    expect(hook.result.current.session.resource_id).toBe("life");
+  });
+
+  test("a save started while it was in flight keeps the author where the save is", async () => {
+    /* The save's answer is about the graph on screen now. Navigating away
+       before it lands means stashing a sitting with a pending write in it,
+       and the reply cannot be applied to either graph. */
+    const lander = held_read();
+    let land_save = null;
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { land_save = resolve; }),
+    );
+    const hook = await open();
+    act(() => hook.result.current.edit(doc("unsaved")));
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    let saving = null;
+    act(() => {
+      saving = hook.result.current.save();
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer).toEqual({ ok: false, blocked: "saving" });
+    expect(hook.result.current.session.resource_id).toBe("life");
+    /* And the save it was blocked by still settles, on the graph it was made
+       about. */
+    await act(async () => {
+      land_save(result({ document: doc("unsaved"), edit_token: "t2" }));
+      await saving;
+    });
+    expect(hook.result.current.session.saving).toBe(false);
+    expect(hook.result.current.session.edit_token).toBe("t2");
+  });
+
+  test("a conversion in flight blocks it the same way, and says which write it was", async () => {
+    const lander = held_read();
+    let land_conversion = null;
+    api.unchain.convertSkeletonLegacyPools = jest.fn(
+      () => new Promise((resolve) => { land_conversion = resolve; }),
+    );
+    const hook = await open();
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum");
+    });
+    act(() => {
+      hook.result.current.convertLegacyPools();
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer).toEqual({ ok: false, blocked: "converting" });
+    expect(land_conversion).not.toBeNull();
+  });
+
+  test("the caller's own view can refuse the swap, and nothing is replaced", async () => {
+    /* The hook knows which sitting asked; it does not know which graph inside
+       it the author is looking at, or which row they clicked last. That is the
+       page's to answer, at the moment of the swap. */
+    const lander = held_read();
+    const hook = await open();
+    const before = hook.result.current.session;
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum", null, () => false);
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer).toEqual({ ok: false, obsolete: true });
+    expect(hook.result.current.session).toBe(before);
+  });
+
+  test("a view that is still the one that asked lets it through", async () => {
+    const lander = held_read();
+    const hook = await open();
+    let answer = null;
+    const opening = act(async () => {
+      answer = await hook.result.current.openAnother("sum", null, () => true);
+    });
+    await act(async () => {
+      lander()(child);
+    });
+    await opening;
+    expect(answer.ok).toBe(true);
+    expect(hook.result.current.session.resource_id).toBe("sum");
   });
 });

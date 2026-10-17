@@ -56,6 +56,11 @@ function renderNode(node, isDark, onOpenSubagent) {
                 onOpenSubagent({
                   pool_node_id: node.id,
                   entry_id: row.entry_id,
+                  /* Which row it was, as well as which entry it names: a
+                     draft the store accepts can hold two entries with one
+                     id, and the row the author clicked is the graph that
+                     opens. */
+                  entry_index: row.index,
                   reason: row.reason,
                 })
             : undefined
@@ -82,7 +87,30 @@ function renderNode(node, isDark, onOpenSubagent) {
   );
 }
 
-export default function SkeletonCanvas({
+/* One drawing per graph.
+ *
+ * Everything below holds state for the graph it is drawing: the positions it
+ * has handed out, the viewport it was left at, the editor's own panning and
+ * selection inside FlowEditor. The page keeps this component in place and
+ * changes which graph it draws — drilling in and out — so that state has to
+ * belong to the graph's identity rather than to the component's lifetime.
+ *
+ * It did not, and a parent and an embedded child with a node id in common
+ * drew each other's positions: the child opened at the parent's coordinates,
+ * dragging it moved the parent's node too, and the next drag in the parent
+ * wrote the child's coordinate into the parent's layout. Nothing about either
+ * Agent changed — a position never reaches the document — but two graphs lost
+ * their own drawings.
+ *
+ * Being a separate component keyed by that identity is what makes this true
+ * of FlowEditor's own state as well, which no prop of ours can reset; and the
+ * viewport is written back on the way out by the instance that was panned, so
+ * it lands under the graph it belonged to rather than the one now open. */
+export default function SkeletonCanvas(props) {
+  return <GraphDrawing key={props.resourceId} {...props} />;
+}
+
+function GraphDrawing({
   resourceId,
   document: graph,
   onSelectNode,
@@ -90,7 +118,8 @@ export default function SkeletonCanvas({
   isDark,
 }) {
   /* Read once per document identity: re-reading on every render would undo a
-     drag the moment anything else re-rendered. */
+     drag the moment anything else re-rendered. The graph's identity is this
+     component's, so what is read here is only ever this graph's. */
   const [layoutKey] = useState(() => ({}));
   const stored = useMemo(
     () => readSkeletonLayout(resourceId, graph),

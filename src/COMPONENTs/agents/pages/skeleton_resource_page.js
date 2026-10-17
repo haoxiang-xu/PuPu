@@ -7,7 +7,6 @@ import { can_convert_legacy_pools } from "./recipes_page/skeleton_resource_sessi
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
-import { node_subagents } from "./recipes_page/skeleton_document";
 import { why_not_a_subagent } from "./recipes_page/skeleton_subagent_eligibility";
 import {
   DRILL,
@@ -18,6 +17,7 @@ import {
   drill_blocked_reason,
   drill_crumbs,
   drill_layout_key,
+  drill_obsolete_reason,
   drill_target,
   embedded_document,
   embedded_path,
@@ -27,8 +27,9 @@ import {
   gone_message,
   graph_label,
   left_behind_message,
+  notices_still_true,
   open_failed_message,
-  pool_node_for,
+  pool_entry_for,
   push_drill_frame,
   save_target_caption,
   stale_frame_message,
@@ -133,15 +134,28 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      it back — so saving deeper can write the very resource a frame below holds
      an older copy of. */
   const savedVersionsRef = useRef({});
+  /* Which navigation the page is on. Opening a referenced Agent is a read,
+     and by the time it answers the author may have opened something else,
+     gone back up, or had the resource changed under them. The answer is only
+     about the navigation that asked for it: pushing a frame for it then puts
+     the graph they left into the breadcrumb over the graph they are in, and a
+     notice about it names a graph that is not on screen. Counted rather than
+     compared, because "the same place again" is still a later question. */
+  const navigationRef = useRef(0);
+  const navigate = useCallback(() => {
+    navigationRef.current += 1;
+    return navigationRef.current;
+  }, []);
 
   useEffect(() => {
     if (!resourceId) return;
+    navigate();
     load(resourceId);
     setSelectedNodeId(null);
     setDrillStack([]);
     setSteps([]);
     setNotices([]);
-  }, [resourceId, load]);
+  }, [resourceId, load, navigate]);
 
   const resource_document = session.document;
   const drilled = drillStack.length > 0;
@@ -211,7 +225,8 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   /* Opening a subagent. The row says whether it can be opened and why not, so
      a row that cannot be is not inert — it answers. */
   const open_subagent = useCallback(
-    async ({ pool_node_id, entry_id, reason }) => {
+    async ({ pool_node_id, entry_id, entry_index, reason }) => {
+      const request = navigate();
       setNotices([]);
       if (reason) {
         setNotices([reason]);
@@ -222,16 +237,16 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
         setNotices([blocked]);
         return;
       }
-      const pool = pool_node_for(document, pool_node_id);
-      const entries = pool ? node_subagents(pool) : null;
-      const entry = Array.isArray(entries)
-        ? entries.find((candidate) => candidate && candidate.id === entry_id)
-        : null;
-      if (!entry) {
+      const step = { node_id: pool_node_id, entry_id, entry_index };
+      /* The row names the entry and says which row it was; a pool the store
+         would run needs only the first, and a draft it accepts can hold two
+         entries with one id. `pool_entry_for` is the one rule for both. */
+      const found = pool_entry_for(document, step);
+      if (!found) {
         setNotices([gone_message("That subagent")]);
         return;
       }
-      const target = drill_target(entry);
+      const target = drill_target(found.entry);
       if (target.kind === DRILL.UNREADABLE) {
         setNotices([target.reason]);
         return;
@@ -247,22 +262,35 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
             }),
           ),
         );
-        setSteps([...steps, { node_id: pool_node_id, entry_id }]);
+        setSteps([...steps, step]);
         setSelectedNodeId(null);
         return;
       }
       /* A reference is read before anything navigates, and what came back has
          to be an Agent — the same gate the picker uses, asked again here
          because a document can be written by hand or by another build. */
-      const answer = await openAnother(target.agent_id, (data) =>
-        why_not_a_subagent(
-          { id: data && data.id, kind: data && data.kind, archived: data && data.archived },
-          { owner_id: session.resource_id },
-        ),
+      const answer = await openAnother(
+        target.agent_id,
+        (data) =>
+          why_not_a_subagent(
+            { id: data && data.id, kind: data && data.kind, archived: data && data.archived },
+            { owner_id: session.resource_id },
+          ),
+        /* Asked at the moment of the swap, not before the read: the hook
+           knows which sitting asked, and this is the other half — whether
+           this page is still on the navigation that asked. */
+        () => navigationRef.current === request,
       );
+      /* Everything below describes the graph this request was about. The
+         author may be somewhere else now, and then none of it is true here:
+         no frame, no steps, and nothing said. */
+      if (navigationRef.current !== request) return;
       if (!answer.ok) {
+        const blocked_now = drill_obsolete_reason(answer.blocked);
+        if (answer.obsolete && !blocked_now) return;
         setNotices([
-          answer.refused ||
+          blocked_now ||
+            answer.refused ||
             open_failed_message(
               target.agent_id,
               answer.result && answer.result.error,
@@ -288,6 +316,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     },
     [
       document,
+      navigate,
       openAnother,
       resource_label,
       selectedNodeId,
@@ -305,6 +334,9 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     (depth) => {
       const { frame, stack } = unwind_drill_stack(drillStack, depth);
       if (!frame) return false;
+      /* Going back is a navigation as well, so a read still in flight for a
+         graph further in is no longer about where the author is. */
+      navigate();
       const messages = [];
       if (frame.kind === FRAME.RESOURCE) {
         if (session.dirty) {
@@ -323,7 +355,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
       setNotices(messages);
       return true;
     },
-    [drillStack, restore, session],
+    [drillStack, navigate, restore, session],
   );
 
   const drill_up = useCallback(() => {
@@ -353,6 +385,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
   }, [drill_up]);
 
   const crumbs = drilled ? drill_crumbs(drillStack, shown_label) : [];
+  const shown_notices = notices_still_true(notices, session);
 
   return (
     <div style={PANEL(isDark)} data-testid="skeleton-resource-page">
@@ -377,9 +410,9 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
         />
       )}
 
-      {notices.length > 0 && (
+      {shown_notices.length > 0 && (
         <div data-testid="skeleton-drill-notice" style={NOTICE}>
-          {notices.map((message, index) => (
+          {shown_notices.map((message, index) => (
             <div key={index}>{message}</div>
           ))}
         </div>
@@ -404,7 +437,11 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
               use. */}
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             <SkeletonCanvas
-              resourceId={drill_layout_key(session.resource_id, steps)}
+              resourceId={drill_layout_key(
+                session.resource_id,
+                resource_document,
+                steps,
+              )}
               document={document}
               onSelectNode={setSelectedNodeId}
               onOpenSubagent={open_subagent}

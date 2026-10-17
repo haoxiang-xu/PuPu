@@ -118,8 +118,13 @@ export function session_token(session) {
   };
 }
 
-/* The same resource opened a second time is a different sitting. */
-function same_open(session, issued) {
+/* The same resource opened a second time is a different sitting.
+ *
+ * Exported because the reducer is not the only place that has to ask. A read
+ * issued for a drill-in is adopted by REPLACING the session — there is no
+ * clause here it passes through — so the hook asks this question itself,
+ * about the sitting the read was issued from, at the moment of the swap. */
+export function same_open(session, issued) {
   if (!issued) return false;
   const now = session_token(session);
   return now.open_id === issued.open_id && now.resource_id === issued.resource_id;
@@ -179,15 +184,23 @@ export function loaded(session, data, issued) {
  * to look at, and a control holding text this document does not hold has to
  * let go of it.
  *
- * `saving` and `converting` are carried as they were, which is always false: a
- * frame is only taken while nothing is in flight, because an answer to a
- * request made about one graph must not land on another. */
+ * `saving` and `converting` do NOT come back, and that is the same rule from
+ * the other side. A frame is only ever taken while nothing is in flight — the
+ * hook refuses the swap otherwise — and the reason is this: the renumbering
+ * above makes the restored sitting one that no earlier answer can reach, so a
+ * write marked pending in a frame is one nothing is left to settle. Carried
+ * through, it was a disabled "Saving…" for the rest of the session, with the
+ * write itself long since stored. Measured on the real store: the save had
+ * landed and moved the token, and the editor could neither save nor drill
+ * again. */
 export function restored(session, saved) {
   return {
     ...saved,
     version: next_version(session),
     open_id: next_open_id(session),
     document_revision: next_document_revision(session),
+    saving: false,
+    converting: false,
   };
 }
 

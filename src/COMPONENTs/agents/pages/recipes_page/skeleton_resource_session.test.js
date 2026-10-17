@@ -20,6 +20,7 @@ import {
   preflight_refused,
   preflight_token,
   restored,
+  same_open,
   save_refused,
   save_started,
   save_succeeded,
@@ -479,5 +480,73 @@ describe("a sitting put back after a drill-in", () => {
     const back = restored({ ...empty_session(), version: 9, open_id: 5 }, stashed);
     const after = save_succeeded(back, { document: { id: "life" }, edit_token: "t2" }, issued);
     expect(after).toBe(back);
+  });
+});
+
+describe("what a restored sitting may not bring back", () => {
+  /* A frame is only ever taken while nothing is being written — the hook
+     refuses the swap otherwise — and this is the second half of that rule,
+     stated where it can be relied on: a renumbered sitting can never receive
+     the answer to a request made by the one it came from, so a `saving` flag
+     carried into it is one nothing can ever settle. The editor sat on a
+     disabled "Saving…" for the rest of the session, with the save long since
+     stored. */
+  const writing = {
+    ...empty_session(),
+    version: 4,
+    open_id: 2,
+    status: SESSION_STATUS.READY,
+    resource_id: "life",
+    document: { id: "life" },
+    edit_token: "t1",
+    dirty: true,
+    saving: true,
+    converting: true,
+  };
+
+  test("a write that was in flight when it was stashed is not pending any more", () => {
+    const back = restored({ ...empty_session(), version: 9, open_id: 5 }, writing);
+    expect([back.saving, back.converting]).toEqual([false, false]);
+    /* Everything the author would lose still comes back. */
+    expect([back.document, back.edit_token, back.dirty]).toEqual([
+      writing.document,
+      "t1",
+      true,
+    ]);
+  });
+
+  test("and the answer to that write still cannot land on it", () => {
+    const issued = session_token(writing);
+    const back = restored({ ...empty_session(), version: 9, open_id: 5 }, writing);
+    expect(save_succeeded(back, { document: { id: "life" }, edit_token: "t2" }, issued)).toBe(
+      back,
+    );
+  });
+});
+
+describe("whether an answer is about the sitting that asked", () => {
+  /* Asked by the hook as well as by the reducer: a read issued for a drill-in
+     is adopted by replacing the session, which is not something a reducer
+     clause can guard. A → B → A puts the same resource id back, so the
+     question is never "is this the same resource". */
+  test("the same resource opened a second time is a different sitting", () => {
+    const first = loading(empty_session(), "life");
+    const issued = session_token(first);
+    const elsewhere = loading(loaded(first, result({ id: "life" })), "other");
+    const back = loading(elsewhere, "life");
+    expect(same_open(first, issued)).toBe(true);
+    expect(same_open(elsewhere, issued)).toBe(false);
+    expect(back.resource_id).toBe(issued.resource_id);
+    expect(same_open(back, issued)).toBe(false);
+  });
+
+  test("an edit is not: the sitting is the same one, with newer work in it", () => {
+    const open = loaded(loading(empty_session(), "life"), result({ id: "life" }));
+    const issued = session_token(open);
+    expect(same_open(edited(open, { id: "life", name: "typed" }), issued)).toBe(true);
+  });
+
+  test("nothing is about no question at all", () => {
+    expect(same_open(empty_session(), null)).toBe(false);
   });
 });

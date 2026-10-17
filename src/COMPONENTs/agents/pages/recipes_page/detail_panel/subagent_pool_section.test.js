@@ -1726,13 +1726,33 @@ describe("opening a subagent's own graph from the panel", () => {
 
   beforeEach(() => open.mockReset());
 
-  test("a referenced row opens it, naming the pool and the entry", async () => {
+  test("a referenced row opens it, naming the pool, the entry and its place", async () => {
     await show_with(pool({ subagents: [entry()] }));
     fireEvent.click(screen.getByLabelText("Open Summarizer"));
     expect(open).toHaveBeenCalledWith({
       pool_node_id: "pool",
       entry_id: "subagent-1",
+      /* An entry id is unique in a pool the store will run, and a draft it
+         accepts can hold two entries with one id — so the row says which row
+         it is as well as what it is called. */
+      entry_index: 0,
       reason: null,
+    });
+  });
+
+  test("the second of two rows one id apart asks for its own place", async () => {
+    await show_with(
+      pool({
+        subagents: [
+          entry({ name: "First" }),
+          entry({ name: "Second" }),
+        ],
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Open Second"));
+    expect(open.mock.calls[0][0]).toMatchObject({
+      entry_id: "subagent-1",
+      entry_index: 1,
     });
   });
 
