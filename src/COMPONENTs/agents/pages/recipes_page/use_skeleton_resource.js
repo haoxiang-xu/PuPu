@@ -99,7 +99,12 @@ export default function useSkeletonResource() {
        does the caller still want it? The hook knows which sitting asked; it
        does not know which graph inside it the author is looking at, or which
        row they clicked last. That is the page's answer, and it is asked here
-       so that it is asked at the same instant as the other two.
+       so that it is asked at the same instant as the other two. It is handed
+       the sitting as it is AT that instant, because the page's own copy is
+       one render behind: the sitting can be replaced — the other editor's
+       version taken — and the reply adopted before the page has re-rendered,
+       which is a navigation into a graph whose source view has already been
+       closed.
 
      An edit is NOT one of the questions: typing while the read is in flight
      is exactly what the frame has to carry. */
@@ -122,7 +127,7 @@ export default function useSkeletonResource() {
           blocked = current.saving ? "saving" : "converting";
           return current;
         }
-        if (typeof still_wanted === "function" && still_wanted() !== true) {
+        if (typeof still_wanted === "function" && still_wanted(current) !== true) {
           obsolete = true;
           return current;
         }

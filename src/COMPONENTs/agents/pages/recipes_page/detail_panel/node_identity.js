@@ -1,4 +1,4 @@
-import { safe_text } from "../document_values";
+import { own, safe_text } from "../document_values";
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "../recipe_graph";
 
 /* Who a node is, in one table.
@@ -54,9 +54,24 @@ function count_label(list, noun) {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
+/* Read with `own`, not with `[]`.
+ *
+ * A node type is whatever the draft holds, and the store stores it: measured
+ * on the pair, an embedded child node with `type: "__proto__"` saves, reads
+ * back verbatim and is refused at Run with `unknown_variant` at that type.
+ * Read as a plain key, the table then answered with `Object.prototype` — an
+ * object, so every guard testing for one passed — and the next line called
+ * `entry.title(node)`, which took the whole page down the moment the node was
+ * selected. Only a key this table owns names a drawing; anything else has
+ * none, which is already the safe path for every other unknown type. The
+ * stored type is untouched and its own diagnostic still reports it. */
+function identity_for(node_type) {
+  return own(IDENTITY, normalize_node_type(node_type)) || null;
+}
+
 export function node_identity(node) {
   if (!node) return null;
-  const entry = IDENTITY[normalize_node_type(node.type)];
+  const entry = identity_for(node.type);
   if (!entry) return null;
   return {
     icon: entry.icon,
@@ -67,7 +82,7 @@ export function node_identity(node) {
 }
 
 export function has_node_identity(node_type) {
-  return Boolean(IDENTITY[normalize_node_type(node_type)]);
+  return identity_for(node_type) !== null;
 }
 
 export const IDENTIFIED_NODE_TYPES = Object.keys(IDENTITY);

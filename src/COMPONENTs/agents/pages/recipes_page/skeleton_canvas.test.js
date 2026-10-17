@@ -2,7 +2,10 @@ import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import SkeletonCanvas from "./skeleton_canvas";
-import { ENVELOPE_ROWS } from "./skeleton_drill_replacement_capture";
+import {
+  ENVELOPE_ROWS,
+  LOOKUP_ROWS,
+} from "./skeleton_drill_replacement_capture";
 import { readSkeletonLayout } from "../../../../SERVICEs/skeleton_layout";
 
 let lastProps = null;
@@ -408,6 +411,35 @@ describe("the drawing is given the node, not everything beside it", () => {
     });
     show(document);
     expect(within(screen.getByTestId("node-tools")).getByText(/0 toolkits/)).toBeInTheDocument();
+  });
+
+  test("a type the schema does not name is given no ports rather than a prototype", () => {
+    /* The same class as the panel's identity table, one table further along:
+       `ports_for_type` reads `FIXED_PORTS[type]` as a plain key, and a draft
+       can hold `type: "__proto__"` — stored verbatim by the real store,
+       refused at Run with `unknown_variant`. That read answers
+       `Object.prototype`, which is an object, so it was handed to the editor
+       as the port list and the editor's `ports.forEach` threw. The catalog's
+       own read is shared with the legacy canvas and is left alone; this canvas
+       asks it only about a type the schema names. */
+    expect(LOOKUP_ROWS.find((row) => row.case === "node_type_proto").run.code).toBe(
+      "unknown_variant",
+    );
+    const document = doc();
+    document.nodes.push({ id: "odd", type: "__proto__", config: {} });
+    document.nodes.push({ id: "odder", type: "constructor", config: {} });
+    show(document);
+    ["odd", "odder"].forEach((id) => {
+      const node = lastProps.nodes.find((item) => item.id === id);
+      expect([id, Array.isArray(node.ports)]).toEqual([id, true]);
+      expect([id, node.ports]).toEqual([id, []]);
+      /* Which is what the editor does with them. */
+      expect(() => node.ports.forEach(() => {})).not.toThrow();
+    });
+    /* A type it does name still gets its ports. */
+    expect(lastProps.nodes.find((node) => node.id === "a1").ports.length).toBe(4);
+    /* And the node is still drawn, by its own type. */
+    expect(screen.getByTestId("node-odd").textContent).toMatch(/__proto__/);
   });
 
   test("a value INSIDE the envelope is not withheld — that is the author's to fix", () => {

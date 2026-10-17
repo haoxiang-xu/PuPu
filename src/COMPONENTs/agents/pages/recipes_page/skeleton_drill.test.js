@@ -31,6 +31,7 @@ import {
   CAPTURED_EMBEDDED_SHAPES,
 } from "./skeleton_drill_identity_capture";
 import {
+  IDENTITY_ROWS,
   REPLACEMENT_CASES,
 } from "./skeleton_drill_replacement_capture";
 import {
@@ -640,13 +641,15 @@ describe("two entries one document cannot tell apart", () => {
       embedded_document(parent, [step(1)], 7).id,
     );
     /* And the step says what answered it: the id named both, so the graph it
-       was and the document the position came from are both on the step. */
+       was, whether that graph's id named this entry here, and the document
+       the position came from are all on the step. */
     expect(step(1)).toEqual({
       node_id: pool.id,
       entry_id: "duplicated-entry",
       entry_index: 1,
       ambiguous: true,
       graph_id: entries[1].source.document.id,
+      graph_unique: true,
       taken_in: 7,
     });
   });
@@ -860,6 +863,81 @@ describe("the parent replaced by a version this editor did not compose", () => {
     expect(pool_entry_index(pool.config.subagents, step, 2)).toEqual({
       index: null,
       unidentified: true,
+    });
+  });
+
+  test("a graph id two entries shared is not an identity, and a deletion does not make it one", () => {
+    /* The review's remaining P1. Both entries carry the same `entry.id` AND
+       the same `source.document.id` while naming different graphs — the store
+       keeps that draft verbatim, `IDENTITY_ROWS` below — so the graph id
+       names nothing here. Deleting the entry the author opened leaves one
+       graph-id match, and that single match used to be taken as proof. It is
+       not evidence of anything: the author clicked the other one. */
+    const { before, after } = replacement("equal_graph_id_removed_chosen");
+    const pool = pool_of(before.document);
+    const entries = pool.config.subagents;
+    expect(entries.map((entry) => entry.source.document.id)).toEqual([
+      "child-first",
+      "child-first",
+    ]);
+    const step = step_for(before.document, pool.id, 1, 1);
+    /* The step says so itself, which is what the rule reads. */
+    expect([step.graph_id, step.graph_unique]).toEqual(["child-first", false]);
+    /* In the document it was taken in, the position still answers: the row
+       the author clicked opens, and goes on working while they edit. */
+    expect(embedded_step_indices(before.document, step, 1).entry_index).toBe(1);
+    expect(embedded_document(before.document, [step], 1).name).toBe("Child Second");
+    /* In the replacement, nothing is opened. */
+    const survivors = pool_of(after.document).config.subagents;
+    expect(survivors.map((entry) => entry.source.document.name)).toEqual([
+      "Child First",
+    ]);
+    expect(pool_entry_index(survivors, step, 2)).toEqual({
+      index: null,
+      unidentified: true,
+    });
+    expect(embedded_document(after.document, [step], 2)).toBeNull();
+    expect(drill_lost_reason(after.document, [step], 2)).toMatch(/share one id/i);
+    /* And a write cannot land in the surviving child either. */
+    expect(
+      with_embedded_document(after.document, [step], { id: "anything" }, 2),
+    ).toBe(after.document);
+  });
+
+  test("the store keeps that pair, and refuses it twice over", () => {
+    const row = (name) => IDENTITY_ROWS.find((item) => item.case === name);
+    const equal = row("equal_entry_and_graph_ids");
+    expect([equal.saved, equal.round_trip, equal.draft_diagnostics]).toEqual([
+      true,
+      true,
+      [],
+    ]);
+    expect([equal.run.code, equal.run.path.slice(-2)]).toEqual([
+      "duplicate_name",
+      [1, "id"],
+    ]);
+    /* Repairing the entry ids does not make it runnable either, which is why
+       no amount of Run strictness tells the editor which child was open. */
+    const repaired = row("equal_graph_ids_distinct_entry_ids");
+    expect([repaired.saved, repaired.round_trip]).toEqual([true, true]);
+    expect([repaired.run.code, repaired.run.path.slice(-2)]).toEqual([
+      "dependency_conflict",
+      [1, "source"],
+    ]);
+  });
+
+  test("a graph id that did name its entry still carries the step", () => {
+    /* The control: the three sequences whose two children have their own
+       graph ids keep working exactly as they did. */
+    ["reordered", "removed_other"].forEach((name) => {
+      const { before, after } = replacement(name);
+      const pool = pool_of(before.document);
+      const step = step_for(before.document, pool.id, 1, 1);
+      expect([name, step.graph_unique]).toEqual([name, true]);
+      expect([name, embedded_document(after.document, [step], 2).name]).toEqual([
+        name,
+        "Child Second",
+      ]);
     });
   });
 

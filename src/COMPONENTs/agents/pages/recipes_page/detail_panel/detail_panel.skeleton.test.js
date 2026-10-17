@@ -2,6 +2,8 @@ import React from "react";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
 import DetailPanel from "./detail_panel";
+import { has_node_identity, node_identity } from "./node_identity";
+import { LOOKUP_ROWS } from "../skeleton_drill_replacement_capture";
 import { kernel_profiles, list_resources } from "../skeleton_resources";
 
 /* An Agent node's Model section reads the Kernel profile catalog on mount, so
@@ -1102,5 +1104,66 @@ describe("the panel header draws a node, not everything stored beside it", () =>
       selectedNodeId: "a1",
     });
     expect(screen.getByText("an unreadable value")).toBeInTheDocument();
+  });
+});
+
+describe("a node type the identity table does not own", () => {
+  /* The review's remaining P2. A node's type is whatever the draft holds, and
+     the real store holds it: `type: "__proto__"` saves, reads back verbatim
+     and is refused at Run with `unknown_variant` at that type. Read as a
+     plain key, the table answered with `Object.prototype` — an object, so the
+     truthiness guard passed — and `entry.title(node)` then threw
+     "entry.title is not a function" the moment the node was selected. */
+
+  const row = (name) => LOOKUP_ROWS.find((item) => item.case === name);
+
+  const document_with_type = (type) => ({
+    schema_version: 1,
+    kind: "agent",
+    id: "a",
+    name: "A",
+    nodes: [{ id: "odd", type, config: { execution: { inputs: [], outputs: [] } } }],
+    edges: [],
+  });
+
+  test("the store stores these types and refuses them at Run", () => {
+    ["node_type_proto", "node_type_constructor", "node_type_toString",
+     "node_type_hasOwnProperty"].forEach((name) => {
+      const item = row(name);
+      expect([name, item.saved, item.round_trip, item.draft_diagnostics]).toEqual([
+        name, true, true, [],
+      ]);
+      expect([name, item.run.code, item.run.path.slice(-1)]).toEqual([
+        name, "unknown_variant", ["type"],
+      ]);
+    });
+    /* And an id naming one of them is not even refused — it RUNS. */
+    expect(row("node_id_proto").run).toEqual({ ok: true, code: null, path: null });
+  });
+
+  test("only a key the table owns answers, so an unknown type has no identity", () => {
+    ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"].forEach(
+      (type) => {
+        expect([type, node_identity({ id: "odd", type })]).toEqual([type, null]);
+        expect([type, has_node_identity(type)]).toEqual([type, false]);
+      },
+    );
+    /* The types it does own still answer. */
+    expect(node_identity({ id: "a", type: "agent" }).title).toBe("a");
+    expect(has_node_identity("subagent_pool")).toBe(true);
+    /* And a type that is not text at all is no different. */
+    expect(node_identity({ id: "odd", type: { toString: null } })).toBeNull();
+    expect(has_node_identity(null)).toBe(false);
+  });
+
+  test("selecting such a node opens the panel instead of taking the page down", () => {
+    const document = document_with_type("__proto__");
+    const before = JSON.stringify(document);
+    show({ document, onDocumentChange: () => {}, selectedNodeId: "odd" });
+    /* No header — the type names no drawing — and the panel is still there,
+       which is the existing safe path for every unknown type. */
+    expect(screen.getByTestId("recipe-detail-panel-body")).toBeInTheDocument();
+    /* The stored type is untouched. */
+    expect(JSON.stringify(document)).toBe(before);
   });
 });

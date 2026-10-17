@@ -297,6 +297,8 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
         found,
         revision,
       });
+      /* Which graph this click happened in, for the read below. */
+      const opened_from = steps;
       const target = drill_target(found.entry);
       if (target.kind === DRILL.UNREADABLE) {
         setNotices([target.reason]);
@@ -329,8 +331,26 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
           ),
         /* Asked at the moment of the swap, not before the read: the hook
            knows which sitting asked, and this is the other half — whether
-           this page is still on the navigation that asked. */
-        () => navigationRef.current === request,
+           this page is still on the navigation that asked, and whether the
+           graph it was asked FROM is still there.
+           The second half is not the same question. A graph can stop
+           existing without the author navigating anywhere: taking the other
+           editor's version replaces the document, and if the entry this
+           child came from is not in it, the view closes itself. The read was
+           issued from that view; adopting its answer afterwards is a
+           breadcrumb into a referenced Agent beside a notice saying the graph
+           it was opened from is gone. Measured on the real store, and it is
+           read off the sitting the hook hands over rather than this page's
+           copy of it, which is one render behind at exactly that moment.
+           It is only this: an edit does not cancel a navigation, and neither
+           does a save that landed first — both controls still pass. */
+        (current) =>
+          navigationRef.current === request &&
+          drill_lost_reason(
+            current.document,
+            opened_from,
+            current.document_revision,
+          ) === null,
       );
       /* Everything below describes the graph this request was about. The
          author may be somewhere else now, and then none of it is true here:

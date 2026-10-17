@@ -274,10 +274,17 @@ function embedded_graph_id(entry) {
    only the graph's id carries, and where it cannot single one out, the step
    resolves to nothing rather than to whatever now sits there.
 
-   Nothing can tell two identical copies apart, and nothing has to: the one
-   draft that defeats this and could still be made to run — two entries whose
-   graph ids are equal — is refused as `dependency_conflict` unless the two
-   definitions are the same document, measured on the pair. */
+   And the graph's id carries only where it was a NAME for this entry at the
+   moment the author clicked. Two entries can share both ids — the store
+   accepts that draft and reads it back verbatim — and then deleting one of
+   them leaves a single graph-id match that is not evidence of anything: the
+   author clicked the other one. Measured, with the author's next sentence
+   stored into the child they had never opened. So the step records whether
+   the graph id named it, and an id that did not is not promoted to an
+   identity by a deletion. What is left is the position, which answers only
+   in the document it was taken in; anywhere else the step resolves to
+   nothing. Run refuses that draft too, but a draft the editor cannot
+   identify is not a draft it may guess at. */
 export function pool_entry_index(entries, step, revision) {
   if (!Array.isArray(entries) || !is_object(step)) return null;
   const matches = [];
@@ -291,15 +298,23 @@ export function pool_entry_index(entries, step, revision) {
      following a position would land on a different subagent the moment an
      earlier one was removed. */
   if (!ambiguous && step.ambiguous !== true) {
-    return { index: matches[0], ambiguous: false };
+    return {
+      index: matches[0],
+      ambiguous: false,
+      graph_unique: names_one_graph(entries, matches, matches[0]),
+    };
   }
-  const graph_id = typeof step.graph_id === "string" && step.graph_id
-    ? step.graph_id
-    : null;
+  /* Only a graph id that named this one entry when the step was taken. */
+  const graph_id =
+    step.graph_unique === true && typeof step.graph_id === "string" && step.graph_id
+      ? step.graph_id
+      : null;
   const named = graph_id
     ? matches.filter((index) => embedded_graph_id(entries[index]) === graph_id)
     : [];
-  if (named.length === 1) return { index: named[0], ambiguous };
+  if (named.length === 1) {
+    return { index: named[0], ambiguous, graph_unique: true };
+  }
   /* The graph is not under this id any more: the entry that held it went, and
      another entry holding the same id is a different graph. True whatever
      document this is — a rewritten sibling id is the same situation as a
@@ -307,15 +322,38 @@ export function pool_entry_index(entries, step, revision) {
   if (named.length === 0 && graph_id !== null) {
     return { index: null, unidentified: true };
   }
-  /* Several entries naming one graph — copies of one document, which nothing
-     can tell apart and nothing needs to — or an entry with no graph id to go
-     by. Only the position is left. In the document it was taken in it is what
-     the author did; anywhere else it is a guess, and this says so instead. */
+  /* Nothing is left but the position: the graph id did not name this entry
+     when it was clicked, or there is none, or several entries name one graph
+     — copies of a document, which nothing can tell apart and nothing needs
+     to. In the document the step was taken in the position is what the author
+     did; anywhere else it is a guess, and this says so instead. */
   if (step.taken_in !== revision) return { index: null, unidentified: true };
-  if (!ambiguous) return { index: matches[0], ambiguous: false };
-  return matches.includes(step.entry_index)
-    ? { index: step.entry_index, ambiguous }
-    : { index: null, unidentified: true };
+  const answer = !ambiguous
+    ? matches[0]
+    : matches.includes(step.entry_index)
+      ? step.entry_index
+      : null;
+  if (answer === null) return { index: null, unidentified: true };
+  return {
+    index: answer,
+    ambiguous,
+    /* Whether the graph at the answer is named by its own id here, which is
+       what a step taken now may rely on later. */
+    graph_unique: names_one_graph(entries, matches, answer),
+  };
+}
+
+/* Whether the graph at this entry is the only one of its name among the
+   entries sharing this id — the question `drill_step` has to answer at the
+   moment of the click, because the answer changes when an entry is removed
+   and the step must not change with it. */
+function names_one_graph(entries, matches, index) {
+  const graph_id = embedded_graph_id(entries[index]);
+  if (graph_id === null) return false;
+  return (
+    matches.filter((other) => embedded_graph_id(entries[other]) === graph_id)
+      .length === 1
+  );
 }
 
 /* The entry a pool row names, for the page that opens it: any kind of entry,
@@ -329,6 +367,7 @@ export function pool_entry_for(document, step, revision) {
     entry: entries[found.index],
     index: found.index,
     ambiguous: found.ambiguous === true,
+    graph_unique: found.graph_unique === true,
   };
 }
 
@@ -339,7 +378,10 @@ export function pool_entry_for(document, step, revision) {
  * `ambiguous` is whether the id named more than this entry at that moment: an
  * id that identified it needs nothing else, ever, and recording that is what
  * keeps a step through an unrelated entry being removed. `graph_id` is the
- * graph itself, for the documents the position cannot speak about. */
+ * graph itself, for the documents the position cannot speak about — and
+ * `graph_unique` is whether that id named this one entry HERE, because an id
+ * two entries shared when the author clicked does not become an identity
+ * later just because one of them was deleted. */
 export function drill_step({ node_id, entry_id, found, revision }) {
   return {
     node_id,
@@ -347,6 +389,7 @@ export function drill_step({ node_id, entry_id, found, revision }) {
     entry_index: found.index,
     ambiguous: found.ambiguous === true,
     graph_id: embedded_graph_id(found.entry),
+    graph_unique: found.graph_unique === true,
     taken_in: revision,
   };
 }

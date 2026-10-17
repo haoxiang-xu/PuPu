@@ -10,6 +10,7 @@ import {
 } from "./recipes_page/skeleton_drill_identity_capture";
 import {
   ENVELOPE_ROWS,
+  LOOKUP_ROWS,
   REPLACEMENT_CASES,
 } from "./recipes_page/skeleton_drill_replacement_capture";
 import {
@@ -510,5 +511,233 @@ describe("a stored node carrying a field a node does not have", () => {
       .textContent;
     expect(problems).toMatch(/unknown field/i);
     expect(problems).toMatch(/label/);
+  });
+});
+
+describe("two entries sharing a graph id as well as an id", () => {
+  /* The review's remaining P1, on the page. Both entries name `child-first`,
+     so the graph id names nothing: the store keeps that draft verbatim and
+     refuses it at Run — `duplicate_name`, and `dependency_conflict` once the
+     entry ids are repaired. Deleting the entry the author opened leaves one
+     graph-id match, which the editor treated as proof and wrote into. */
+
+  const resource_of = (which) =>
+    JSON.parse(REPLACEMENT_CASES.equal_graph_id_removed_chosen[which]);
+  const conflict_of = () =>
+    REPLACEMENT_CASES.equal_graph_id_removed_chosen.conflict;
+
+  test("the chosen one deleted: back to the parent, nothing opened, nothing sent", async () => {
+    const before = resource_of("old");
+    const after = resource_of("new");
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.getSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce(copy(before))
+      .mockResolvedValue(copy(after));
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValueOnce({ error: conflict_of() })
+      .mockImplementation(() => new Promise(() => {}));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={before.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    /* Both rows name the same graph, and the author opens the second. */
+    open_row(1);
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Child Second");
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    const prompt = await screen.findByPlaceholderText("what this Agent is for");
+    fireEvent.change(prompt, { target: { value: "Edited in the SECOND child" } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    await screen.findByTestId("skeleton-save-conflict");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
+    );
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /share one id/i,
+    );
+    expect(screen.queryByPlaceholderText("what this Agent is for")).toBeNull();
+    /* One request in the whole sequence: the save that was refused. */
+    expect(api.unchain.saveSkeletonResource).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("skeleton-save-state").textContent).toMatch(/^Saved$/);
+  });
+});
+
+describe("a node type that names a member of every object", () => {
+  /* The review's remaining P2, on the page: the draft opens on the canvas,
+     and selecting the node used to throw out of the identity table. */
+  const stray = () => {
+    const row = LOOKUP_ROWS.find((item) => item.case === "node_type_proto");
+    const document = copy(JSON.parse(captured("duplicate-entry-ids").document));
+    document.nodes.find((node) => node.id === "pool-a").config.subagents = [
+      JSON.parse(row.entries)[0],
+    ];
+    return document;
+  };
+
+  test("it opens, and selecting the node does not take the page with it", async () => {
+    const document = stray();
+    const before = JSON.stringify(document);
+    await open_page(document);
+    open_row(0);
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    /* The node is drawn, by its own type, with no ports invented for it. */
+    expect(screen.getByTestId("flow-node-agent").textContent).toMatch(/__proto__/);
+    expect(editor.nodes.find((node) => node.id === "agent").ports).toEqual([]);
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    /* The panel is open and has no header for a type it cannot name. */
+    expect(screen.getByTestId("recipe-detail-panel-body")).toBeInTheDocument();
+    expect(JSON.stringify(document)).toBe(before);
+  });
+});
+
+describe("a reference read issued from a graph that is then closed", () => {
+  /* The review's remaining P2 on the late read. The author opens the second
+     of two entries sharing an id, starts reading the Agent that child's own
+     pool references, and the other editor deletes the entry. The page
+     correctly returns to the parent and says the graph was closed — and then
+     the read landed and navigated into the referenced Agent anyway, with the
+     breadcrumb and the closed notice on screen together.
+     Everything here is the store's: the parent, the replacement, the real
+     conflict, and the referenced Agent as its own resource. */
+
+  const held = () => REPLACEMENT_CASES.pending_reference;
+  const resource_of = (which) => JSON.parse(held()[which]);
+  const reference_of = () => JSON.parse(held().reference);
+
+  async function to_the_pending_read() {
+    const before = resource_of("old");
+    const after = resource_of("new");
+    const reference = reference_of();
+    let deliver;
+    const reading = new Promise((resolve) => {
+      deliver = resolve;
+    });
+    let parent_reads = 0;
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({
+      resources: [
+        { id: reference.id, name: reference.name, kind: "agent", archived: false },
+      ],
+    });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.getSkeletonResource = jest.fn((id) =>
+      id === reference.id
+        ? reading
+        : Promise.resolve(copy((parent_reads += 1) === 1 ? before : after)),
+    );
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: held().conflict });
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={before.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    open_row(1);
+    await act(async () => {});
+    expect(crumbs()[2]).toBe("Child Second");
+    /* Dirty, so the save is refusable, and then the read from this child's
+       own pool is started and held. */
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), {
+      target: { value: "Dirty in the SECOND child" },
+    });
+    fireEvent.doubleClick(
+      within(screen.getByTestId("flow-node-inner-ref-pool")).getByTestId(
+        "pool-node-row-0",
+      ),
+    );
+    await waitFor(() =>
+      expect(api.unchain.getSkeletonResource).toHaveBeenCalledWith(reference.id),
+    );
+    return { deliver, reference };
+  }
+
+  test("the closed source view's read is not adopted", async () => {
+    const { deliver, reference } = await to_the_pending_read();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    await screen.findByTestId("skeleton-save-conflict");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Look at theirs"));
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("skeleton-save-conflict")).toBeNull(),
+    );
+    /* The page is back at the parent and says why. */
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /share one id/i,
+    );
+    /* Now the read lands. */
+    await act(async () => {
+      deliver(copy(reference));
+    });
+    expect(screen.queryByTestId("skeleton-drill-breadcrumb")).toBeNull();
+    expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument();
+    /* Still this resource, still its own graph. */
+    expect(screen.getByTestId("skeleton-node-list").textContent).not.toMatch(
+      /inner-ref-pool/,
+    );
+    /* And nothing new was said about the graph the author decided against. */
+    expect(screen.getByTestId("skeleton-drill-notice").textContent).toMatch(
+      /share one id/i,
+    );
+  });
+
+  test("but a read whose source graph is still there is still adopted", async () => {
+    /* The control that makes the fix something other than "never navigate":
+       nothing closes the child, so the reference opens as it always did. */
+    const { deliver, reference } = await to_the_pending_read();
+    await act(async () => {
+      deliver(copy(reference));
+    });
+    expect(crumbs()[crumbs().length - 1]).toBe(reference.document.name);
+    expect(screen.queryByTestId("skeleton-drill-notice")).toBeNull();
+  });
+
+  test("and typing while it is in flight does not cancel it", async () => {
+    /* The other control the review asked to keep: an edit is not a
+       navigation, and the draft it was typed into is what the frame carries. */
+    const { deliver, reference } = await to_the_pending_read();
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    fireEvent.change(await screen.findByPlaceholderText("what this Agent is for"), {
+      target: { value: "Typed while the read was in flight" },
+    });
+    await act(async () => {
+      deliver(copy(reference));
+    });
+    expect(crumbs()[crumbs().length - 1]).toBe(reference.document.name);
+    /* Back, and the typing is still there. */
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    expect(
+      (await screen.findByPlaceholderText("what this Agent is for")).value,
+    ).toBe("Typed while the read was in flight");
   });
 });

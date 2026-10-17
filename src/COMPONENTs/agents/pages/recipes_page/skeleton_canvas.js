@@ -7,7 +7,7 @@ import StartNode from "./nodes/start_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import { ports_for_type } from "./recipe_node_catalog";
-import { drawn_node } from "./skeleton_document";
+import { NODE_TYPES, drawn_node } from "./skeleton_document";
 import { pool_entry_rows } from "./skeleton_drill";
 import {
   readSkeletonLayout,
@@ -149,7 +149,18 @@ function GraphDrawing({
           ...drawn_node(node),
           x: at.x,
           y: at.y,
-          ports: ports_for_type(node.type),
+          /* Asked only about a type the schema names.
+             `ports_for_type` reads a plain table with it, and a draft can
+             hold `type: "__proto__"` — the real store saves that and reads it
+             back verbatim, and refuses it at Run with `unknown_variant` — for
+             which the table answers `Object.prototype`: an object, so it is
+             handed over as the port list, and the editor's `ports.forEach`
+             then throws. A type this build has no drawing for has no ports
+             here either way, and it is still drawn by its own type.
+             The catalog's own read is shared with the legacy canvas and is
+             not this slice's to change; the same is true of the node ids that
+             reach a table as keys, which are reported rather than touched. */
+          ports: NODE_TYPES.includes(node.type) ? ports_for_type(node.type) : [],
           /* Nothing on this canvas edits the graph, so the Delete key has no
              node to act on. */
           deletable: false,
