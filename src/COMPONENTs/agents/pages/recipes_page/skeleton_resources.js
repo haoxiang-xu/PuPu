@@ -21,6 +21,7 @@
  *   {ok: false, reason: "refused", error} — the store answered and said no */
 
 import { api } from "../../../../SERVICEs/api";
+import { emitSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { kernel_admission_problems } from "./kernel_config";
 import { normalize_diagnostics } from "./skeleton_diagnostics";
 
@@ -94,7 +95,22 @@ export async function save_draft(document, expected_edit_token) {
   if (expected_edit_token !== undefined && expected_edit_token !== null) {
     payload.expected_edit_token = expected_edit_token;
   }
-  return call("saveSkeletonResource", (method) => method(payload));
+  const result = await call("saveSkeletonResource", (method) => method(payload));
+  /* A save is the one thing that puts a new Agent in the library, so it says
+     so: anything showing that listing — the chat's Agent row, in another part
+     of the same window — re-reads instead of going on offering the library
+     from before this save. Only a store answer counts; a refusal and an
+     unreachable store changed nothing. The announcement carries no document:
+     the subscriber asks the store, so nobody renders a resource that only
+     this call ever saw. */
+  if (result.ok) {
+    emitSkeletonLibraryRefresh({
+      reason: "resource_saved",
+      resource_id:
+        result.data && typeof result.data.id === "string" ? result.data.id : "",
+    });
+  }
+  return result;
 }
 
 export async function diagnose(document) {

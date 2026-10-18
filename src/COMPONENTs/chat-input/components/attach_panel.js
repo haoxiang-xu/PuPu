@@ -39,6 +39,7 @@ import {
   writeAttachPanelLayout,
 } from "../../../SERVICEs/attach_panel_layout";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import { emitSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import { hasContextCompositionEvidence } from "../../../SERVICEs/context_composition_v1";
 import {
   readFeatureFlags,
@@ -888,6 +889,17 @@ const AttachPanel = forwardRef(({
   const handleAgentSelectorOpenChange = useCallback(
     (next) => {
       setOpenSelector(next ? "agent" : null);
+      /* Opening the list is the moment it has to be current: an Agent saved
+         since this chat was mounted — in the Builder, in this window or
+         another one — is otherwise not on offer at all. Announced rather than
+         read here, the same way the model pill does it: this component holds
+         no listing, and the page that does decides what to re-read. The
+         announcement is not throttled because the page coalesces by request
+         and ignores a late answer; a selection the chat already holds is
+         never dropped by a refresh. */
+      if (next) {
+        emitSkeletonLibraryRefresh({ reason: "agent_selector_opened" });
+      }
       if (!next && kbOpenedSelectorRef.current === "agent") {
         kbOpenedSelectorRef.current = null;
         onRequestInputFocus();

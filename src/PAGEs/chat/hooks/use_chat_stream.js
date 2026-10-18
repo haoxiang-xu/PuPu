@@ -1114,6 +1114,8 @@ export const useChatStream = ({
   draftAttachmentsRef.current = draftAttachments;
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
+  const selectedSkeletonAgentIdRef = useRef(selectedSkeletonAgentId);
+  selectedSkeletonAgentIdRef.current = selectedSkeletonAgentId;
   const selectedReasoningEffortRef = useRef(selectedReasoningEffort);
   selectedReasoningEffortRef.current = selectedReasoningEffort;
   const selectedContextWindowRef = useRef(selectedContextWindow);
@@ -12111,8 +12113,17 @@ export const useChatStream = ({
           { code: "chat_config_unavailable" },
         );
       }
+      /* Same rule as the composer's own door: a chat that runs a stored
+         Skeleton Agent has a runnable configuration without a composer model,
+         because the resource's Kernel is what runs. Read from the stored run
+         context, which is this chat's own row, not the visible selector. */
+      const exactSkeletonSelection =
+        exactRunContext.kind === "character"
+          ? null
+          : skeleton_selection_payload(exactRunContext.selectedSkeletonAgentId);
       if (
         exactRunContext.kind !== "character" &&
+        !exactSkeletonSelection &&
         (!exactRunContext.modelId ||
           exactRunContext.modelId === "unchain-unset")
       ) {
@@ -12329,6 +12340,26 @@ export const useChatStream = ({
         isCharacterChat ||
         (normalizedSelectedModelId &&
           normalizedSelectedModelId !== "unchain-unset");
+      /* Whether this send needs a composer model at all.
+         A request that carries a Skeleton selection runs the resource's own
+         stored Kernel — provider, model and context window come out of the
+         saved document on the server — so the pill is not what runs and
+         cannot be required. Resolved with the same precedence the run itself
+         uses (the run context this chat holds, else what the composer shows),
+         so this door and the request it guards cannot disagree: the
+         requirement is lifted exactly when a selection goes out. A legacy
+         Recipe is NOT this case — it runs on the composer's model. */
+      const gateRunContext =
+        runContextByChatIdRef.current.get(currentChatId) || null;
+      const gateSkeletonSelection = isCharacterChat
+        ? null
+        : skeleton_selection_payload(
+            typeof gateRunContext?.selectedSkeletonAgentId === "string"
+              ? gateRunContext.selectedSkeletonAgentId
+              : selectedSkeletonAgentIdRef.current,
+          );
+      const modelRequirementSatisfied =
+        Boolean(hasSelectedModel) || Boolean(gateSkeletonSelection);
       const thisChatsRunActive = isChatRunPending(currentChatId);
       const thisChatHasStreamHandle =
         streamHandlesRef.current.has(currentChatId);
@@ -12515,7 +12546,7 @@ export const useChatStream = ({
         return;
       }
 
-      if (!hasSelectedModel) {
+      if (!modelRequirementSatisfied) {
         setStreamError("Select a model before sending a message.");
         return;
       }

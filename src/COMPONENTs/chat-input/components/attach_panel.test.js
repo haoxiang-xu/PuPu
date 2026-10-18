@@ -19,6 +19,7 @@ import {
   selectContextUsage,
 } from "../../../SERVICEs/context_usage_v1";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
+import { subscribeSkeletonLibraryRefresh } from "../../../SERVICEs/skeleton_library_refresh";
 import {
   MOVABLE_ATTACH_WIDGETS,
   readAttachPanelLayout,
@@ -693,6 +694,55 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(
       screen.getByTestId("option-skeleton:gone.agent"),
     ).toBeInTheDocument();
+  });
+
+  test("opening the Agent row says the saved library has to be re-read", async () => {
+    /* This component holds no listing: it is given one. So the moment the
+       list is about to be shown is announced, and whoever owns the listing
+       re-reads it — the same shape the model pill already uses. Without this,
+       an Agent saved after this chat was mounted is not on offer at all. */
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const announced = [];
+    const unsubscribe = subscribeSkeletonLibraryRefresh((payload) =>
+      announced.push(payload),
+    );
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        skeletonAgentOptions={[{ id: "research.agent:v2", name: "Research Agent" }]}
+        selectedSkeletonAgentId=""
+        onSelectSkeletonAgent={() => {}}
+        onSelectRecipe={() => {}}
+      />,
+    );
+    expect(announced).toEqual([]);
+    const trigger = within(screen.getByTestId("attach-agent-row")).getByTestId(
+      "select-Agent: Default",
+    );
+    expect(trigger).toHaveAttribute("data-open", "false");
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "true"));
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    /* Closing it is not a reason to read anything. */
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "false"));
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    unsubscribe();
   });
 
   test("with the Agents feature off the row is gone and the selection is cleared", () => {

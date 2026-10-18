@@ -27,6 +27,12 @@ import {
   SELECTION_CAPTURE_IDENTITY,
   SELECTION_ROWS,
 } from "./skeleton_chat_selection_capture";
+import {
+  ADMISSION_ROWS,
+  CAPTURED_NO_MODEL_PAYLOAD,
+  DISPATCH_ROWS,
+  NO_MODEL_CAPTURE_IDENTITY,
+} from "./skeleton_chat_no_model_capture";
 
 const row = (name) => SELECTION_ROWS.find((item) => item.case === name);
 
@@ -288,5 +294,104 @@ describe("what the chat says when a selection is refused", () => {
        nothing, rather than a function. */
     expect(skeleton_selection_reason("toString")).toBe("");
     expect(skeleton_selection_reason("constructor")).toBe("");
+  });
+});
+
+/* ── The premise of lifting the composer's model requirement ───────────────
+   The renderer now lets a chat that runs a stored Agent send with no model
+   chosen in the composer. That is only correct if the request it then sends
+   is one the host accepts, and if the host decides the model from the
+   resource rather than from the pill. Both were measured on the pinned pair
+   with the page's own payload; this is that answer, frozen. */
+describe("a request sent with no model chosen in the composer", () => {
+  const admission = (name) =>
+    ADMISSION_ROWS.find((item) => item.case === name);
+
+  test("the capture is the pinned pair answering about the page's own payload", () => {
+    expect(NO_MODEL_CAPTURE_IDENTITY.wheel_sha256).toBe(
+      NO_MODEL_CAPTURE_IDENTITY.wheel_sha256_expected,
+    );
+    expect(NO_MODEL_CAPTURE_IDENTITY.sidecar_sha256).toBe(
+      NO_MODEL_CAPTURE_IDENTITY.sidecar_sha256_expected,
+    );
+    expect(NO_MODEL_CAPTURE_IDENTITY.manifest_digest).toBe(
+      NO_MODEL_CAPTURE_IDENTITY.manifest_digest_expected,
+    );
+    expect(NO_MODEL_CAPTURE_IDENTITY.captured_payload).toMatch(
+      /renderer-payload-no-model\.json$/,
+    );
+  });
+
+  test("the captured payload really is the one with no model chosen", () => {
+    /* Otherwise the rows below would be about some other request: this is
+       what the composer sends when its catalog is empty — the placeholder in
+       `modelId`, no `model` key, and no Recipe name. */
+    const options = CAPTURED_NO_MODEL_PAYLOAD.payload.options;
+    expect(options.modelId).toBe("unchain-unset");
+    expect("model" in options).toBe(false);
+    expect("recipe_name" in options).toBe(false);
+    expect(options.skeleton_selection).toEqual({
+      schema: SKELETON_CHAT_SELECTION_SCHEMA,
+      kind: "resource",
+      resource_id: options.skeleton_selection.resource_id,
+    });
+    expect(skeleton_agent_id(options.skeleton_selection.resource_id)).toBe(
+      options.skeleton_selection.resource_id,
+    );
+  });
+
+  test("the host admitted that whole body, and the pill changed nothing in it", () => {
+    const sent = admission("captured_no_model_payload");
+    const withPill = admission("same_payload_with_a_pill_model");
+    expect(sent.admitted).toBe(true);
+    expect(withPill.admitted).toBe(true);
+    /* The same frozen material either way: what runs is the resource's saved
+       definition, and the composer's model is not part of it. */
+    expect(withPill.frozen).toEqual(sent.frozen);
+  });
+
+  test("nothing else about that body was waved through", () => {
+    expect(admission("no_model_beside_a_recipe_name").refused.code).toBe(
+      "invalid_shape",
+    );
+    /* And a chat with no selection is not routed into this path at all,
+       model or no model. */
+    expect(admission("no_model_and_no_selection").admitted).toBe(false);
+    expect(admission("no_model_and_no_selection").refused).toBeNull();
+  });
+
+  test("the run stops on Skeleton preconditions, never on a missing model", () => {
+    /* The branch order is the thing: `stream_chat_events` routes a selection
+       into the Skeleton path before it resolves any chat model or recipe. Two
+       environments were recorded, neither with an active Context V2 host, so
+       both stop — and what they stop on is what matters. */
+    expect(DISPATCH_ROWS.length).toBe(2);
+    const stops = DISPATCH_ROWS.flatMap((row) => row.stops);
+    expect(stops.length).toBe(4);
+    stops.forEach((stop) => {
+      expect(stop.raised).not.toBeNull();
+      expect(stop.events).toEqual([]);
+      expect(stop.raised.code).not.toMatch(/model/i);
+      expect(stop.raised.message).not.toMatch(/model/i);
+    });
+    /* The exact codes, so a future change of answer is a red test and not a
+       quietly weaker claim. The seeded resource gets as far as the host's own
+       environment preconditions; an id the store does not have is refused by
+       resolution, which is the control that these runs really reached the
+       Skeleton path. */
+    expect(
+      DISPATCH_ROWS.map((row) => [
+        row.options_model_fields.modelId,
+        row.options_model_fields.model_present,
+        row.stops.map((stop) => stop.raised.code),
+      ]),
+    ).toEqual([
+      [
+        "unchain-unset",
+        false,
+        ["session_execution_guard_unavailable", "resource_missing"],
+      ],
+      ["unchain-unset", false, ["workspace_unavailable", "resource_missing"]],
+    ]);
   });
 });

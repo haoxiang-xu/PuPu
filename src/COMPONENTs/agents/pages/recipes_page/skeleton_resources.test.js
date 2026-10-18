@@ -9,6 +9,7 @@ import {
   save_draft,
 } from "./skeleton_resources";
 import { api } from "../../../../SERVICEs/api";
+import { subscribeSkeletonLibraryRefresh } from "../../../../SERVICEs/skeleton_library_refresh";
 import { CAPTURED_KERNEL_CATALOG } from "./kernel_profile_catalog_capture";
 
 jest.mock("../../../../SERVICEs/api", () => ({ api: { unchain: {} } }));
@@ -40,6 +41,71 @@ describe("a build that cannot reach the store says so", () => {
   test("every call answers, so no caller has to guess", async () => {
     expect(is_unavailable(await diagnose({ id: "w" }))).toBe(true);
     expect(is_unavailable(await preflight("w"))).toBe(true);
+  });
+});
+
+describe("a save says that the library changed", () => {
+  /* Anything showing the saved listing — the chat's Agent row, elsewhere in
+   * the same window — has no other way to learn that a resource now exists.
+   * Only a store answer counts: a refusal and an unreachable store changed
+   * nothing, and announcing them would make every failed save re-read the
+   * store for no reason. */
+  let announced;
+  let unsubscribe;
+
+  beforeEach(() => {
+    announced = [];
+    unsubscribe = subscribeSkeletonLibraryRefresh((payload) =>
+      announced.push(payload),
+    );
+  });
+
+  afterEach(() => {
+    unsubscribe();
+  });
+
+  test("a stored save announces, with the id the store assigned", async () => {
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ id: "saved-agent", edit_token: "tok-2" });
+    await save_draft({ id: "saved-agent" });
+    expect(announced).toEqual([
+      { reason: "resource_saved", resource_id: "saved-agent" },
+    ]);
+  });
+
+  test("a refused save announces nothing", async () => {
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ error: { code: "edit_conflict" } });
+    expect((await save_draft({ id: "w" }, "stale")).ok).toBe(false);
+    expect(announced).toEqual([]);
+  });
+
+  test("a store this build cannot reach announces nothing", async () => {
+    expect(is_unavailable(await save_draft({ id: "w" }))).toBe(true);
+    expect(announced).toEqual([]);
+  });
+
+  test("an answer with no id still announces: the listing is what gets read", async () => {
+    /* The announcement is not the record. A subscriber asks the store, so an
+     * answer this call cannot name must not leave the row stale either. */
+    api.unchain.saveSkeletonResource = jest.fn().mockResolvedValue({ ok: true });
+    await save_draft({ id: "w" });
+    expect(announced).toEqual([{ reason: "resource_saved", resource_id: "" }]);
+  });
+
+  test("a subscriber that throws does not fail the save", async () => {
+    const off = subscribeSkeletonLibraryRefresh(() => {
+      throw new Error("the page blew up while reacting");
+    });
+    api.unchain.saveSkeletonResource = jest
+      .fn()
+      .mockResolvedValue({ id: "saved-agent" });
+    await expect(save_draft({ id: "saved-agent" })).resolves.toMatchObject({
+      ok: true,
+    });
+    off();
   });
 });
 

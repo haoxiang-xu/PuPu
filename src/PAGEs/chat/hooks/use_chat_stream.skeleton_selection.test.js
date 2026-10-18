@@ -478,4 +478,173 @@ describe("sending with a stored Skeleton Agent", () => {
     expect(lastChatInputProps.selectedSkeletonAgentId).toBe("research.agent:v2");
   });
 
+  /* ── The composer's model requirement, and who it is for ──────────────────
+     A Skeleton run takes its provider, model and context window from the
+     Kernel profile saved inside the resource; the composer's pill is not
+     consulted and cannot override it. So the pill requirement — written for
+     the model THIS composer would run — must not stand between a correctly
+     configured Agent and its own model. Everything else stays: an ordinary
+     chat, a character chat and a legacy Recipe all still need one, and the
+     attachment rules are about what the pill's model can read, so they do
+     not move either.
+
+     The requirement is lifted in three places, and all three are asked here,
+     because unblocking only the button would stop the user at the next door
+     with "Select a model before sending a message." instead. */
+  const EMPTY_CATALOG = {
+    activeModel: "",
+    providers: { openai: [], ollama: [], anthropic: [] },
+    model_capabilities: {},
+  };
+
+  const waitForNoModelReady = async () => {
+    await waitFor(() => {
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.skeletonAgentOptions?.length).toBe(2);
+    });
+  };
+
+  test("an Agent with its own stored Kernel sends with no model chosen in the composer", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    /* Before: nothing selected, so this composer genuinely has nothing to
+       run with. */
+    expect(lastChatInputProps.sendDisabled).toBe(true);
+    await choose("research.agent:v2");
+    expect(lastChatInputProps.sendDisabled).toBe(false);
+    expect(lastChatInputProps.disclaimer).toBe(
+      "This Agent runs with the model saved inside it.",
+    );
+    await send("run using the model already stored in the Agent");
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1),
+    );
+    /* The hook's own door opened too: a send stopped there reports that
+       sentence and never reaches the bridge. */
+    expect(lastChatInputProps.disclaimer).not.toMatch(/Select a model/i);
+    expect(sentOptions().skeleton_selection).toEqual({
+      schema: SKELETON_CHAT_SELECTION_SCHEMA,
+      kind: "resource",
+      resource_id: "research.agent:v2",
+    });
+    expect("recipe_name" in sentOptions()).toBe(false);
+    if (process.env.PUPU_CAPTURE_DIR) {
+      /* The whole payload, not just the selection: with the pill unset the
+         request still has to be one the server's admission accepts, and that
+         is checked against the real consumer rather than asserted here. */
+      // eslint-disable-next-line global-require
+      const fs = require("fs");
+      /* The WHOLE argument, not a reduction of it: with no pill chosen the
+         question is whether everything this chat sends is still admitted, so
+         the probe gets the entire object to hand to the real consumer. */
+      fs.writeFileSync(
+        `${process.env.PUPU_CAPTURE_DIR}/renderer-payload-no-model.json`,
+        JSON.stringify(
+          {
+            captured_from:
+              "startStreamV2 bridge argument with an empty model catalog (renderer side of the IPC hop)",
+            payload: window.unchainAPI.startStreamV2.mock.calls[0][0],
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+    }
+  });
+
+  test("an ordinary chat with no Agent still has to choose a model", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    expect(lastChatInputProps.sendDisabled).toBe(true);
+    expect(lastChatInputProps.disclaimer).toBe(
+      "Select a model to send a message.",
+    );
+    await send("no model, no Agent");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("a legacy Recipe is not a Kernel and still needs a model", async () => {
+    /* The one case a lookalike gets wrong: a Recipe is also "an Agent" in the
+       row, but it runs on the composer's model. Its requirement stands. */
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    await act(async () => {
+      lastChatInputProps.onSelectRecipe("Research Agent");
+    });
+    expect(lastChatInputProps.sendDisabled).toBe(true);
+    await send("a Recipe has no Kernel of its own");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("going back to no Agent restores the model requirement", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    await choose("research.agent:v2");
+    expect(lastChatInputProps.sendDisabled).toBe(false);
+    await choose("");
+    expect(lastChatInputProps.sendDisabled).toBe(true);
+    await send("back to nothing");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("an Agent does not make attachments work without a model", async () => {
+    /* What an attachment needs is a model that can read it, and that is the
+       pill's model — the Agent's Kernel is not consulted by this composer. So
+       this gate does NOT move, and says the true thing. */
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    await choose("research.agent:v2");
+    expect(lastChatInputProps.attachmentsEnabled).toBe(false);
+    expect(lastChatInputProps.attachmentsDisabledReason).toBe(
+      "Select a model to enable attachments.",
+    );
+  });
+
+  test("the test bridge's own send door follows the same rule", async () => {
+    /* `sendForTest` (window.__pupuTestBridge "startChatRun"/"sendMessage") is
+       a third door with its own model check, reading the chat's stored row
+       rather than the composer. It was not named in the review; it refuses
+       the same legitimate configuration, so it moves with the others. */
+    const handlers = new Map();
+    window.__pupuTestBridge = {
+      register: (name, handler) => {
+        handlers.set(name, handler);
+        return () => handlers.delete(name);
+      },
+    };
+    window.unchainAPI.getModelCatalog.mockResolvedValue(EMPTY_CATALOG);
+    renderChat();
+    await waitForNoModelReady();
+    await waitFor(() => expect(handlers.has("startChatRun")).toBe(true));
+    const chatId = getChatsStore().activeChatId;
+
+    /* Without an Agent this chat has nothing runnable, and that is still the
+       answer — the door did not simply open. */
+    await expect(
+      handlers.get("startChatRun")({ id: chatId, text: "no model, no Agent" }),
+    ).rejects.toMatchObject({ code: "chat_config_unavailable" });
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+
+    await choose("research.agent:v2");
+    await waitFor(() =>
+      expect(
+        getChatsStore().chatsById[chatId].selectedSkeletonAgentId,
+      ).toBe("research.agent:v2"),
+    );
+    const outcome = await handlers
+      .get("startChatRun")({ id: chatId, text: "run the stored Agent" })
+      .catch((error) => error);
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    expect(sentOptions().skeleton_selection.resource_id).toBe(
+      "research.agent:v2",
+    );
+    expect(outcome?.code).not.toBe("chat_config_unavailable");
+    delete window.__pupuTestBridge;
+  });
+
 });
