@@ -26,6 +26,7 @@ import {
   createChatInSelectedContext,
   getChatsStore,
   selectTreeNode,
+  setChatModel,
 } from "../../../SERVICEs/chat_storage";
 import { buildTreeNodeLookupByChatId } from "../../../SERVICEs/chat_storage/chat_storage_tree";
 import { SKELETON_CHAT_SELECTION_SCHEMA } from "../../../SERVICEs/skeleton_chat_selection";
@@ -645,6 +646,121 @@ describe("sending with a stored Skeleton Agent", () => {
     );
     expect(outcome?.code).not.toBe("chat_config_unavailable");
     delete window.__pupuTestBridge;
+  });
+
+  /* ── A stale composer model, and the facade that completes it ─────────────
+     `api.unchain` resolves the composer model's custom provider before the
+     bridge and refuses to send when that provider is gone. A model choice
+     outliving its provider is ordinary persisted state, and a chat running a
+     stored Agent never runs that model — so it must not be stopped there
+     either. Driven through the real facade: these sends reach (or do not
+     reach) the bridge mock, which is on the far side of it. */
+  const REMOVED_PROVIDER_MODEL = "custom.removed-composer-provider:old-model";
+
+  const sessionBundleSnapshot = (chatId) =>
+    getChatsStore().chatsById[chatId] || {};
+
+  const storeStaleModel = async () => {
+    const chatId = getChatsStore().activeChatId;
+    /* The composer's selections reach the store on a 150ms debounce, and any
+       other write to this chat in that window is reconciled back over them —
+       the same for the Recipe name and the toolkits, measured, and not
+       something this slice changed. So the choice is allowed to land first,
+       which is also the order a person produces. */
+    await waitFor(() =>
+      expect(
+        sessionBundleSnapshot(chatId).selectedSkeletonAgentId,
+      ).toBe(lastChatInputProps.selectedSkeletonAgentId),
+    );
+    await act(async () => {
+      setChatModel(chatId, { id: REMOVED_PROVIDER_MODEL }, { source: "test" });
+    });
+    await waitFor(() =>
+      expect(lastChatInputProps.selectedModelId).toBe(REMOVED_PROVIDER_MODEL),
+    );
+    return chatId;
+  };
+
+  test("a deleted custom provider in the pill does not stop a stored Agent", async () => {
+    writeFeatureFlags({
+      enable_user_access_to_agents: true,
+      enable_custom_model_providers: true,
+    });
+    renderChat();
+    await waitForReady();
+    await choose("research.agent:v2");
+    await storeStaleModel();
+    await send("use the saved Agent, ignore the obsolete pill");
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1),
+    );
+    expect(sentOptions().skeleton_selection.resource_id).toBe(
+      "research.agent:v2",
+    );
+    /* Not merely "it got through": nothing was invented for the dead provider,
+       and the stale choice still travels as the composer's own field. */
+    expect("custom_provider" in sentOptions()).toBe(false);
+    expect(sentOptions().modelId).toBe(REMOVED_PROVIDER_MODEL);
+    expect(lastChatInputProps.disclaimer || "").not.toMatch(
+      /Custom provider not found/i,
+    );
+    if (process.env.PUPU_CAPTURE_DIR) {
+      /* Captured for the same reason as the no-model payload: whether the host
+         admits what this chat sends while the pill names a provider that no
+         longer exists. */
+      // eslint-disable-next-line global-require
+      const fs = require("fs");
+      fs.writeFileSync(
+        `${process.env.PUPU_CAPTURE_DIR}/renderer-payload-stale-pill.json`,
+        JSON.stringify(
+          {
+            captured_from:
+              "startStreamV2 bridge argument with a deleted custom provider in the composer (renderer side of the IPC hop)",
+            payload: window.unchainAPI.startStreamV2.mock.calls[0][0],
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+    }
+  });
+
+  test("the same stale pill still stops a chat that runs no Agent", async () => {
+    writeFeatureFlags({
+      enable_user_access_to_agents: true,
+      enable_custom_model_providers: true,
+    });
+    renderChat();
+    await waitForReady();
+    await storeStaleModel();
+    await send("nothing else runs this message");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(lastChatInputProps.disclaimer || "").toMatch(
+        /Custom provider not found/i,
+      ),
+    );
+  });
+
+  test("a legacy Recipe with the same stale pill is stopped too", async () => {
+    /* A Recipe runs on the composer's model, so its provider is its business. */
+    writeFeatureFlags({
+      enable_user_access_to_agents: true,
+      enable_custom_model_providers: true,
+    });
+    renderChat();
+    await waitForReady();
+    await act(async () => {
+      lastChatInputProps.onSelectRecipe("Research Agent");
+    });
+    await storeStaleModel();
+    await send("the Recipe needs a provider that exists");
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(lastChatInputProps.disclaimer || "").toMatch(
+        /Custom provider not found/i,
+      ),
+    );
   });
 
 });

@@ -333,4 +333,67 @@ describe("the saved Agent library of a chat that is already open", () => {
     });
     await waitFor(() => expect(optionIds()).toEqual([]));
   });
+
+  /* ── An empty library is the case that has to stay reachable ──────────────
+     The row used to appear only when it had something besides Default to
+     offer, which deleted the entrance exactly when it was needed: nothing
+     saved yet, no legacy Recipe, so no picker — and the picker is what
+     re-reads the library. Another window saving the first Agent could then
+     never become visible here, because a module-local announcement does not
+     cross a renderer. */
+  const emptyLibrary = async () => {
+    listing = [];
+    renderChat();
+    await waitFor(() => {
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
+      expect(window.unchainAPI.listSkeletonResources).toHaveBeenCalled();
+    });
+    await act(async () => {});
+  };
+
+  test("with nothing saved yet the row is still there, and opening it re-reads", async () => {
+    await emptyLibrary();
+    expect(optionIds()).toEqual([]);
+    /* The entrance exists even with nothing to offer but Default. */
+    const row = await screen.findByTestId("attach-agent-row");
+    expect(row).toBeInTheDocument();
+    expect(listCalls()).toBe(1);
+
+    /* Another writer — another window, or a write path with no UI here —
+       has saved the first Agent into the same store. Nothing in this
+       renderer was told. */
+    listing = [NEWLY_SAVED];
+    await openAgentSelector();
+    await screen.findByText("Newly saved Agent", { exact: true });
+    expect(listCalls()).toBe(2);
+    expect(optionIds()).toEqual(["newly-saved-agent"]);
+
+    /* And it is choosable, which is the whole point of keeping the row. */
+    fireEvent.click(screen.getByText("Newly saved Agent", { exact: true }));
+    await waitFor(() =>
+      expect(lastChatInputProps.selectedSkeletonAgentId).toBe(
+        "newly-saved-agent",
+      ),
+    );
+  });
+
+  test("a library that is empty because the read failed keeps the row too", async () => {
+    /* The row is the way out of this state, so a failed first read must not
+       remove it either. */
+    window.unchainAPI.listSkeletonResources = jest.fn(async () => {
+      throw Object.assign(new Error("bridge is gone"), {
+        code: "bridge_unavailable",
+      });
+    });
+    renderChat();
+    await waitFor(() => expect(lastChatInputProps?.sendDisabled).toBe(false));
+    await screen.findByTestId("attach-agent-row");
+    expect(optionIds()).toEqual([]);
+
+    window.unchainAPI.listSkeletonResources = jest.fn(async () => ({
+      resources: [NEWLY_SAVED],
+    }));
+    await openAgentSelector();
+    await screen.findByText("Newly saved Agent", { exact: true });
+  });
 });

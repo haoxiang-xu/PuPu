@@ -745,6 +745,58 @@ describe("AttachPanel toolkit selector refresh", () => {
     unsubscribe();
   });
 
+  test("the row is there with nothing saved yet, and gone in a character chat", async () => {
+    /* The row is the entrance that re-reads the saved library, so it cannot
+       depend on the library already having something in it — that is exactly
+       the state a first Agent has to become visible from. A character chat is
+       the one place it does not belong: it runs its character, the store
+       forces its Agent id to "", and the model pill beside it is hidden. */
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const announced = [];
+    const unsubscribe = subscribeSkeletonLibraryRefresh((payload) =>
+      announced.push(payload),
+    );
+    const base = {
+      color: "#222",
+      active: false,
+      focused: false,
+      onAttachFile: () => {},
+      isDark: false,
+      attachments: [],
+      modelOptions: [{ value: "gpt-5.5", label: "GPT-5.5" }],
+      selectedToolkits: [],
+      onToolkitsChange: () => {},
+      selectedWorkspaceIds: [],
+      onWorkspaceIdsChange: () => {},
+      /* Nothing saved, and only the default Recipe: what a new install has. */
+      skeletonAgentOptions: [],
+      recipeOptions: [{ label: "Default", value: "Default" }],
+      selectedSkeletonAgentId: "",
+      onSelectSkeletonAgent: () => {},
+      onSelectRecipe: () => {},
+    };
+
+    const empty = render(<AttachPanel {...base} />);
+    const trigger = within(screen.getByTestId("attach-agent-row")).getByTestId(
+      "select-Agent: Default",
+    );
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("data-open", "true"));
+    /* An empty picker, but a real entrance: opening it asks for the current
+       library. */
+    expect(announced).toEqual([{ reason: "agent_selector_opened" }]);
+    empty.unmount();
+
+    render(<AttachPanel {...base} showModelSelector={false} />);
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    unsubscribe();
+  });
+
   test("with the Agents feature off the row is gone and the selection is cleared", () => {
     writeFeatureFlags({ enable_user_access_to_agents: false });
     useChatInputToolkits.mockReturnValue({

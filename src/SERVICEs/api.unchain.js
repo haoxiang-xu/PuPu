@@ -25,6 +25,7 @@ import {
   parseCustomProviderKey,
 } from "./custom_provider_store";
 import { isFeatureFlagEnabled } from "./feature_flags";
+import { skeleton_selection_resource_id } from "./skeleton_chat_selection";
 import { isShippedSlug } from "./shipped_provider_registry";
 import { readNamespace } from "./settings_repository";
 import { getLastSkillInventoryRevision } from "./skill_inventory_store";
@@ -914,6 +915,52 @@ const mergeCustomProvidersIntoCatalog = (catalog) => {
   };
 };
 
+/* The three send-time blocks `injectCustomProviderIntoPayload` raises. All
+   three are statements about the model the COMPOSER would run: its provider
+   definition is gone, switched off, or has no key. */
+const CUSTOM_PROVIDER_SEND_BLOCKS = new Set([
+  "custom_provider_not_found",
+  "custom_provider_disabled",
+  "custom_provider_missing_api_key",
+]);
+
+/* Custom-provider completion, for a request that may not be running that
+   model at all.
+ *
+ * A chat that carries a stored Skeleton Agent runs the resource's saved Kernel
+ * profile — the server reads provider, model and context window out of the
+ * saved document — while `options.modelId` still carries whatever the composer
+ * holds. A model choice outlives its provider (a custom provider the user
+ * deleted, say), and that is an ordinary persisted state, so it must not stop
+ * an Agent that was never going to use it.
+ *
+ * The enrichment is still attempted: when the pill's provider does resolve,
+ * what it adds to the payload is unchanged, and an Agent whose Kernel names
+ * that same provider keeps whatever it supplies. Only the three send-time
+ * blocks are dropped, and only for a selection the server itself would accept
+ * (`skeleton_selection_resource_id` recognizes nothing else). An ordinary chat
+ * and a Legacy Recipe are untouched — they DO run that model — and any other
+ * error still travels. Nothing here substitutes a provider, a model or a
+ * different resource: a Skeleton run whose own credential is missing is
+ * refused by the host, which is the side that knows its Kernel. */
+const injectCustomProviderForRun = (payload) => {
+  const options = isObject(payload) && isObject(payload.options) ? payload.options : null;
+  if (!skeleton_selection_resource_id(options)) {
+    return injectCustomProviderIntoPayload(payload);
+  }
+  try {
+    return injectCustomProviderIntoPayload(payload);
+  } catch (error) {
+    if (
+      error instanceof FrontendApiError &&
+      CUSTOM_PROVIDER_SEND_BLOCKS.has(error.code)
+    ) {
+      return payload;
+    }
+    throw error;
+  }
+};
+
 const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
   const payloadWithSkillsOptions = injectSkillsOptionsIntoPayload(
@@ -925,7 +972,7 @@ const normalizeUnchainV2Payload = (payload) => {
   const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
   const payloadWithProviderKey =
     injectProviderApiKeyIntoPayload(payloadWithMemory);
-  return injectCustomProviderIntoPayload(payloadWithProviderKey);
+  return injectCustomProviderForRun(payloadWithProviderKey);
 };
 
 const DURABLE_INTERACTION_STATUSES = new Set([

@@ -45,6 +45,35 @@ export const skeleton_selection_payload = (resourceId) => {
   };
 };
 
+/* The selection a request already carries, as an id, or "".
+ *
+ * For the places downstream of the composer that have to know whether THIS
+ * request runs a stored Agent — the payload enrichment in `api.unchain.js`,
+ * whose provider completion is about the composer's model and not about this.
+ *
+ * Deliberately strict: it answers only for an object this module itself would
+ * have produced (three keys, that schema, that kind, a canonical id), so a
+ * malformed or hand-made `skeleton_selection` buys no exemption anywhere. The
+ * server refuses those too, so nothing is lost by refusing to recognize them. */
+export const skeleton_selection_resource_id = (options) => {
+  if (!options || typeof options !== "object" || Array.isArray(options)) return "";
+  const selection = options.skeleton_selection;
+  if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
+    return "";
+  }
+  const canonical = skeleton_selection_payload(selection.resource_id);
+  if (!canonical) return "";
+  const keys = Object.keys(canonical);
+  if (Object.keys(selection).length !== keys.length) return "";
+  if (keys.some((key) => selection[key] !== canonical[key])) return "";
+  /* A non-empty Recipe name beside it is `invalid_shape` on the server, so a
+     request carrying both is not one it would run either. */
+  if (typeof options.recipe_name === "string" && options.recipe_name.trim()) {
+    return "";
+  }
+  return canonical.resource_id;
+};
+
 /* Which stored resources may be offered as a chat Agent.
  *
  * Declared `kind: "agent"` and not archived. A Workflow is a different kind of

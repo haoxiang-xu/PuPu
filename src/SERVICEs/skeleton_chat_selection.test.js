@@ -20,6 +20,7 @@ import {
   skeleton_agent_options,
   skeleton_selection_payload,
   skeleton_selection_reason,
+  skeleton_selection_resource_id,
 } from "./skeleton_chat_selection";
 import {
   CAPTURED_RENDERER_PAYLOAD,
@@ -30,6 +31,7 @@ import {
 import {
   ADMISSION_ROWS,
   CAPTURED_NO_MODEL_PAYLOAD,
+  CAPTURED_STALE_PILL_PAYLOAD,
   DISPATCH_ROWS,
   NO_MODEL_CAPTURE_IDENTITY,
 } from "./skeleton_chat_no_model_capture";
@@ -350,6 +352,30 @@ describe("a request sent with no model chosen in the composer", () => {
     expect(withPill.frozen).toEqual(sent.frozen);
   });
 
+  test("a pill naming a deleted custom provider is admitted the same way", () => {
+    /* The residual: the renderer used to refuse to send this at all, because
+       the facade completes the composer model's custom provider and that
+       provider is gone. The host's answer about the body that now goes out is
+       measured, not assumed — and it is the same admitted selection, with the
+       stale choice still travelling as the composer's own field. */
+    const options = CAPTURED_STALE_PILL_PAYLOAD.payload.options;
+    expect(options.modelId).toBe("custom.removed-composer-provider:old-model");
+    expect("custom_provider" in options).toBe(false);
+    expect("recipe_name" in options).toBe(false);
+    const sent = admission("captured_stale_custom_pill_payload");
+    expect(sent.admitted).toBe(true);
+    expect(sent.frozen.resource_id).toBe(
+      options.skeleton_selection.resource_id,
+    );
+    /* And with no selection that same body is simply not this path's
+       business — the composer's model is then all there is, which is why the
+       block still belongs to every other chat. */
+    expect(
+      admission("stale_custom_pill_without_selection").admitted,
+    ).toBe(false);
+    expect(admission("stale_custom_pill_without_selection").refused).toBeNull();
+  });
+
   test("nothing else about that body was waved through", () => {
     expect(admission("no_model_beside_a_recipe_name").refused.code).toBe(
       "invalid_shape",
@@ -393,5 +419,89 @@ describe("a request sent with no model chosen in the composer", () => {
       ],
       ["unchain-unset", false, ["workspace_unavailable", "resource_missing"]],
     ]);
+  });
+});
+
+/* ── Reading the selection back out of a request ───────────────────────────
+   `api.unchain` has to know whether THIS request runs a stored Agent, because
+   its custom-provider completion is about the composer's model and refuses to
+   send when that provider is gone. The reader it uses is deliberately strict:
+   it recognizes only what the server itself would admit on shape grounds, so a
+   malformed `skeleton_selection` cannot switch a composer-side block off.
+   Checked against the capture, which is the server's own verdict per row. */
+describe("the selection a request carries", () => {
+  /* The refusals that are about the selection's SHAPE — the ones the reader
+     has to agree with. The others (`wrong_kind`, `resource_archived`,
+     `resource_missing`, `end_count`) are about the resource behind a
+     well-formed selection: the request does run a stored Agent, and the server
+     is the one that says no. */
+  const SHAPE_REFUSALS = new Set([
+    "unknown_field",
+    "invalid_shape",
+    "unsupported_version",
+    "invalid_value",
+  ]);
+
+  test("every captured row agrees with the server on shape", () => {
+    expect(SELECTION_ROWS.length).toBeGreaterThan(10);
+    const disagreements = SELECTION_ROWS.filter((item) => {
+      const refusedForShape = Boolean(
+        item.refused && SHAPE_REFUSALS.has(item.refused.code),
+      );
+      const hasSelection = Object.prototype.hasOwnProperty.call(
+        item.options,
+        "skeleton_selection",
+      );
+      const recognized = Boolean(skeleton_selection_resource_id(item.options));
+      return recognized !== (hasSelection && !refusedForShape);
+    });
+    expect(disagreements.map((item) => item.case)).toEqual([]);
+  });
+
+  test("the page's own payload is recognized, and nothing near it is", () => {
+    expect(
+      skeleton_selection_resource_id(CAPTURED_RENDERER_PAYLOAD.options),
+    ).toBe(CAPTURED_RENDERER_PAYLOAD.options.skeleton_selection.resource_id);
+    expect(skeleton_selection_resource_id(row("extra_field").options)).toBe("");
+    expect(skeleton_selection_resource_id(row("missing_field").options)).toBe("");
+    expect(skeleton_selection_resource_id(row("other_schema").options)).toBe("");
+    expect(skeleton_selection_resource_id(row("untrimmed_id").options)).toBe("");
+    expect(
+      skeleton_selection_resource_id(row("projected_preflight").options),
+    ).toBe("");
+    /* A non-empty Recipe name beside it is `invalid_shape` on the server, so
+       this is not a request it would run either. An empty one is nothing. */
+    expect(
+      skeleton_selection_resource_id(row("legacy_name_beside_it").options),
+    ).toBe("");
+    expect(
+      skeleton_selection_resource_id(
+        row("empty_legacy_name_beside_it").options,
+      ),
+    ).toBe(
+      row("empty_legacy_name_beside_it").options.skeleton_selection.resource_id,
+    );
+  });
+
+  test("a well-formed selection for a resource the store refuses is still a selection", () => {
+    /* The point of the distinction: these requests DO run a stored Agent, so
+       the composer's provider is still not their business — the server refuses
+       them for their own reason. */
+    ["workflow_kind", "archived_resource", "missing_resource", "preflight_refuses"].forEach(
+      (name) => {
+        expect(skeleton_selection_resource_id(row(name).options)).toBe(
+          row(name).options.skeleton_selection.resource_id,
+        );
+      },
+    );
+  });
+
+  test("nothing at all is not a selection", () => {
+    expect(skeleton_selection_resource_id(row("no_selection_key").options)).toBe("");
+    expect(skeleton_selection_resource_id(row("default_only").options)).toBe("");
+    [null, undefined, "", 0, [], { skeleton_selection: null }, { skeleton_selection: [] },
+      { skeleton_selection: "research.agent:v2" }].forEach((value) => {
+      expect(skeleton_selection_resource_id(value)).toBe("");
+    });
   });
 });

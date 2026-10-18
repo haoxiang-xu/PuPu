@@ -783,6 +783,15 @@ const AttachPanel = forwardRef(({
         { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
       ]
     : agentOptions;
+  /* Whether the row is there at all.
+     It used to need something besides Default to show, which read as tidy and
+     was a trap: with no Agents saved yet and no legacy Recipes, the row was
+     absent — and the row IS the entrance that re-reads the saved library, so a
+     first Agent saved anywhere else could never be reached. An empty picker
+     that can be opened is the smaller price. A character chat is excluded: it
+     runs its character, the store forces its Agent id to "", and the model
+     pill beside this row is hidden there too. */
+  const showAgentSelector = isAgentsFeatureEnabled && showModelSelector;
 
   const handleAgentSelect = useCallback(
     (next) => {
@@ -1421,8 +1430,7 @@ const AttachPanel = forwardRef(({
   } else {
     if (showModelSelector && modelSelectOptions.length > 0)
       kbControls.push("model");
-    if (isAgentsFeatureEnabled && agentSelectOptions.length > 1)
-      kbControls.push("agent");
+    if (showAgentSelector) kbControls.push("agent");
     visibleWidgets.forEach((id) => kbControls.push(id));
     if (hasMore) kbControls.push("more");
     if (queueItems.length > 0) kbControls.push("queue");
@@ -2685,8 +2693,7 @@ const AttachPanel = forwardRef(({
             runs is the SAVED definition, including the model saved inside it,
             which is why this sits beside the model pill rather than inside
             it. */}
-        {isAgentsFeatureEnabled &&
-          agentSelectOptions.length > 1 &&
+        {showAgentSelector &&
           selectWrap(
             /* The row says which definition runs, and says it plainly when
                the chat names one that is not on offer any more — an Agent the
