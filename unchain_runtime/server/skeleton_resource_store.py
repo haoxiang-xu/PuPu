@@ -734,7 +734,18 @@ class SkeletonResourceStore:
                     pool_id=node["id"], legacy_kernel=legacy_kernel,
                     path=path, owner_document_path=path_prefix,
                 )
-                child_plan = self._validate_execution(child_document)
+                try:
+                    child_plan = self._validate_execution(child_document)
+                except SkeletonResourceError as exc:
+                    # Execution IO is validated after Agent preparation. Its
+                    # document-rooted paths belong to this child occurrence,
+                    # while compatibility failures still describe the runtime.
+                    if exc.path[:1] != ("document",):
+                        raise
+                    raise SkeletonResourceError(
+                        exc.code, path + ("document",) + exc.path[1:],
+                        str(exc), status=exc.status,
+                    ) from exc
                 if child_document["kind"] != "agent":
                     _fail("wrong_kind", path, "Subagent Pool target is not an Agent")
                 self._validate_local_profiles(child_document, path_prefix=path + ("document",))
