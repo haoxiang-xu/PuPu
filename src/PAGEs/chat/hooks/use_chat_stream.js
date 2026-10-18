@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import {
+  skeleton_agent_id,
+  skeleton_selection_payload,
+  skeleton_selection_reason,
+} from "../../../SERVICEs/skeleton_chat_selection";
 import { secureRandomId } from "../../../SERVICEs/secure_random_id";
 import { resyncSkillInventory } from "../../../SERVICEs/plugin_skill_sync";
 import { toast } from "../../../SERVICEs/toast";
@@ -758,6 +763,11 @@ const snapshotStoredRunContext = (store, targetChatId) => {
       chat.selectedRecipeName.trim()
         ? chat.selectedRecipeName.trim()
         : "Default",
+    /* The stored Skeleton Agent this run uses, by resource id. It rides in the
+       run context for the same reason the Recipe name does: a retry or a
+       durable resume has to go out with what the run was started with, not
+       with whatever the selector shows by the time the answer comes back. */
+    selectedSkeletonAgentId: skeleton_agent_id(chat.selectedSkeletonAgentId),
     agentOrchestration: normalizeAgentOrchestration(chat.agentOrchestration),
     systemPromptOverrides:
       chat.systemPromptOverrides &&
@@ -1030,6 +1040,7 @@ export const useChatStream = ({
   selectedToolkits,
   selectedWorkspaceIds,
   selectedRecipeName,
+  selectedSkeletonAgentId,
   chatKind = "default",
   characterId = "",
   threadIdRef,
@@ -1341,6 +1352,7 @@ export const useChatStream = ({
         typeof selectedRecipeName === "string" && selectedRecipeName.trim()
           ? selectedRecipeName.trim()
           : "Default",
+      selectedSkeletonAgentId: skeleton_agent_id(selectedSkeletonAgentId),
       agentOrchestration: normalizeAgentOrchestration(agentOrchestration),
       systemPromptOverrides:
         systemPromptOverrides &&
@@ -5112,6 +5124,17 @@ export const useChatStream = ({
             : typeof selectedRecipeName === "string"
               ? selectedRecipeName
               : "Default";
+      /* Same precedence as the Recipe name above: what this run was asked
+         with, else what the chat held when it started, else what is on screen.
+         An id the reader refuses is "", which sends no selection rather than
+         an unsendable one. */
+      const runSelectedSkeletonAgentId = skeleton_agent_id(
+        typeof requestedRunContext?.selectedSkeletonAgentId === "string"
+          ? requestedRunContext.selectedSkeletonAgentId
+          : typeof storedRunContext?.selectedSkeletonAgentId === "string"
+            ? storedRunContext.selectedSkeletonAgentId
+            : selectedSkeletonAgentId,
+      );
       const runAgentOrchestration = normalizeAgentOrchestration(
         requestedRunContext?.agentOrchestration ||
           storedRunContext?.agentOrchestration ||
@@ -5151,12 +5174,18 @@ export const useChatStream = ({
               : "";
       const runIsCharacterChat =
         runKind === "character" && Boolean(runCharacterId);
+      /* The wire object, or null. A character chat runs its character and
+         holds no Agent id at all, so it never carries one. */
+      const runSkeletonSelection = runIsCharacterChat
+        ? null
+        : skeleton_selection_payload(runSelectedSkeletonAgentId);
       const effectiveRunContext = {
         modelId: runModelId,
         threadId: runThreadId,
         selectedToolkits: runSelectedToolkits,
         selectedWorkspaceIds: runSelectedWorkspaceIds,
         selectedRecipeName: runSelectedRecipeName,
+        selectedSkeletonAgentId: runSelectedSkeletonAgentId,
         agentOrchestration: runAgentOrchestration,
         systemPromptOverrides: runSystemPromptOverrides,
         kind: runKind,
@@ -7153,8 +7182,13 @@ export const useChatStream = ({
             "function" &&
           api.unchain.isDurableInteractionBridgeAvailable() &&
           (runIsCharacterChat ||
-            (!runSelectedRecipeName ||
-              runSelectedRecipeName === "Default")) &&
+            ((!runSelectedRecipeName ||
+              runSelectedRecipeName === "Default") &&
+              /* An explicitly selected Skeleton Agent is an explicit Agent
+                 selection, like a Recipe: the Skeleton path owns its own
+                 durable launch, so this chat's default durable interaction is
+                 not what runs it. */
+              !runSkeletonSelection)) &&
           effectiveAgentOrchestration.mode === "default";
 
         /* Memory V2 P0 payload identity + lazy bootstrap.
@@ -7246,11 +7280,23 @@ export const useChatStream = ({
                 ...(effectiveWorkspaceIds.length > 0 && {
                   selectedWorkspaceIds: effectiveWorkspaceIds,
                 }),
+                /* A Skeleton Agent and a legacy Recipe are two selections and
+                   the server accepts one: `skeleton_selection` beside a
+                   non-empty `recipe_name` is `invalid_shape` by its own
+                   contract. So the Recipe name goes out only when no Skeleton
+                   Agent is selected, and the selection object comes from
+                   `skeleton_selection_payload` — three keys, no more and no
+                   fewer, carrying an id and nothing else: the server resolves
+                   it, preflights it and freezes the material itself. */
                 ...(!runIsCharacterChat &&
+                  !runSkeletonSelection &&
                   runSelectedRecipeName &&
                   runSelectedRecipeName !== "Default" && {
                     recipe_name: runSelectedRecipeName,
                   }),
+                ...(runSkeletonSelection
+                  ? { skeleton_selection: runSkeletonSelection }
+                  : {}),
                 ...(!runIsCharacterChat && {
                   agent_orchestration: effectiveAgentOrchestration,
                 }),
@@ -8503,7 +8549,18 @@ export const useChatStream = ({
                 releaseTokenFlushController();
                 return;
               }
-              const errorMessage = error?.message || "Unknown stream error";
+              /* A refused Agent selection gets this chat's own sentence for
+                 the codes the selection owns — "Skeleton chat resource
+                 admission failed." is the server being precise about its
+                 boundary, not about what the person should do. Every other
+                 code keeps the server's message, which is more specific than
+                 a category of ours would be, and nothing falls back to
+                 running the default Agent. */
+              const errorMessage =
+                (runSkeletonSelection &&
+                  skeleton_selection_reason(error?.code)) ||
+                error?.message ||
+                "Unknown stream error";
               const errorCode = error?.code || "stream_error";
               handleSkillInventoryStaleError(error, tRef.current);
               const hasAdmittedRunAccounting =

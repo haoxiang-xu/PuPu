@@ -604,7 +604,10 @@
       "link": "Link",
       "context_usage": "Uso del contesto",
       "done": "Fatto",
-      "drop_here": "Rilascia qui per riporre"
+      "drop_here": "Rilascia qui per riporre",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "Le competenze sono cambiate",

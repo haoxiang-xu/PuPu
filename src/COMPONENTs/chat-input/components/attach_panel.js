@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -25,6 +26,10 @@ import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import { COMPUTER_TOOLKIT_ID } from "../constants";
+import {
+  SKELETON_AGENT_MISSING_REASON,
+  SKELETON_AGENT_RUNS_SAVED_DEFINITION,
+} from "../../../SERVICEs/skeleton_chat_selection";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import useAttachPanelLayout from "../hooks/use_attach_panel_layout";
 import {
@@ -40,6 +45,10 @@ import {
   subscribeFeatureFlags,
 } from "../../../SERVICEs/feature_flags";
 import ContextCompositionProgress from "./context_composition_progress";
+
+/* The Agent row's own value for "no Agent". A resource id can never be empty
+   and a legacy Recipe name can never be this, so it collides with neither. */
+const AGENT_DEFAULT = "__pupu_agent_default__";
 
 const MOVABLE_ATTACH_WIDGET_SET = new Set(MOVABLE_ATTACH_WIDGETS);
 
@@ -582,6 +591,17 @@ const AttachPanel = forwardRef(({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
+  /* The legacy Recipe names. They were handed to this panel and never read by
+     it — there was no Agent row to read them in — and they are a second value
+     space in the row below, kept apart from the resource ids. */
+  recipeOptions = [],
+  /* The stored Skeleton Agents on offer ([{id, name}]), which of them this
+     chat runs, and how to change it. The id is the identity: a Skeleton
+     resource and a legacy Recipe can carry one spelling, and two resources can
+     too, so the name is only ever a label here. */
+  skeletonAgentOptions = [],
+  selectedSkeletonAgentId = "",
+  onSelectSkeletonAgent,
   queueItems = [],
   onQueueUndo,
   contextCompositionBundle = null,
@@ -688,6 +708,103 @@ const AttachPanel = forwardRef(({
     }
   }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
 
+  /* The same rule for a Skeleton Agent: with the feature off there is no row
+     to change it from, and a selection nobody can see would keep deciding
+     what every message runs. Cleared rather than ignored, so the chat's own
+     record says what it runs. */
+  useEffect(() => {
+    if (
+      !isAgentsFeatureEnabled &&
+      selectedSkeletonAgentId &&
+      onSelectSkeletonAgent
+    ) {
+      onSelectSkeletonAgent("");
+    }
+  }, [isAgentsFeatureEnabled, onSelectSkeletonAgent, selectedSkeletonAgentId]);
+
+  /* One Agent choice per chat, addressed by id.
+     `AGENT_DEFAULT` is this control's own value for "no Agent", never an id:
+     a resource id cannot be empty, so it can never collide with one. A legacy
+     Recipe keeps its own value space (`legacy:<name>`) and a Skeleton resource
+     its own (`skeleton:<id>`) — and the option that was picked is looked up in
+     a Map built from the same list, so a name that happens to look like an
+     encoded id decides nothing. */
+  const agentOptions = useMemo(() => [
+    { value: AGENT_DEFAULT, label: t("chat.attach.agent_default") },
+    ...skeletonAgentOptions.map((option) => ({
+      value: `skeleton:${option.id}`,
+      label: option.name,
+    })),
+    ...(recipeOptions || [])
+      .filter((option) => option && option.value && option.value !== "Default")
+      .map((option) => ({
+        value: `legacy:${option.value}`,
+        label: option.label || option.value,
+      })),
+  ], [recipeOptions, skeletonAgentOptions, t]);
+  /* A Map, not an object: both key spaces are document-chosen text — a
+     resource id may be `constructor` and a Recipe may be named `__proto__` —
+     and a plain object would answer for keys nobody put in it. */
+  const agentChoiceByValue = useMemo(
+    () =>
+      new Map([
+        [AGENT_DEFAULT, { kind: "default" }],
+        ...skeletonAgentOptions.map((option) => [
+          `skeleton:${option.id}`,
+          { kind: "skeleton", id: option.id },
+        ]),
+        ...(recipeOptions || [])
+          .filter(
+            (option) => option && option.value && option.value !== "Default",
+          )
+          .map((option) => [
+            `legacy:${option.value}`,
+            { kind: "legacy", name: option.value },
+          ]),
+      ]),
+    [recipeOptions, skeletonAgentOptions],
+  );
+  const agentSelectValue = selectedSkeletonAgentId
+    ? `skeleton:${selectedSkeletonAgentId}`
+    : selectedRecipeName && selectedRecipeName !== "Default"
+      ? `legacy:${selectedRecipeName}`
+      : AGENT_DEFAULT;
+  /* A chat can hold an Agent that is no longer on offer — archived, deleted,
+     or turned into a Workflow while this chat sat there. The row then still
+     shows what the chat names, and says it is unavailable, rather than
+     appearing to run the default Agent. */
+  const agentSelectionUnavailable =
+    Boolean(selectedSkeletonAgentId) &&
+    !agentChoiceByValue.has(agentSelectValue);
+  const agentSelectOptions = agentSelectionUnavailable
+    ? [
+        ...agentOptions,
+        { value: agentSelectValue, label: t("chat.attach.agent_unavailable") },
+      ]
+    : agentOptions;
+
+  const handleAgentSelect = useCallback(
+    (next) => {
+      const choice = agentChoiceByValue.get(next);
+      if (!choice) return;
+      /* Exactly one identity at a time: choosing either clears the other, so
+         no request can ever carry both — which the server refuses outright. */
+      if (choice.kind === "skeleton") {
+        if (onSelectRecipe) onSelectRecipe("Default");
+        if (onSelectSkeletonAgent) onSelectSkeletonAgent(choice.id);
+        return;
+      }
+      if (choice.kind === "legacy") {
+        if (onSelectSkeletonAgent) onSelectSkeletonAgent("");
+        if (onSelectRecipe) onSelectRecipe(choice.name);
+        return;
+      }
+      if (onSelectSkeletonAgent) onSelectSkeletonAgent("");
+      if (onSelectRecipe) onSelectRecipe("Default");
+    },
+    [agentChoiceByValue, onSelectRecipe, onSelectSkeletonAgent],
+  );
+
   const modelSelectOptions = modelOptions || [];
   /* Footer rows belong to the current selection, not to the list: the effort
      ladder when the model declares levels, the context-window slider when it
@@ -767,6 +884,18 @@ const AttachPanel = forwardRef(({
       setKbIndex(kbReturnIndexRef.current); // back where the user was
     }
   }, [onRequestInputFocus]);
+
+  const handleAgentSelectorOpenChange = useCallback(
+    (next) => {
+      setOpenSelector(next ? "agent" : null);
+      if (!next && kbOpenedSelectorRef.current === "agent") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
+      }
+    },
+    [onRequestInputFocus],
+  );
 
   const handleToolsOpenChange = useCallback(
     (next) => {
@@ -1280,6 +1409,8 @@ const AttachPanel = forwardRef(({
   } else {
     if (showModelSelector && modelSelectOptions.length > 0)
       kbControls.push("model");
+    if (isAgentsFeatureEnabled && agentSelectOptions.length > 1)
+      kbControls.push("agent");
     visibleWidgets.forEach((id) => kbControls.push(id));
     if (hasMore) kbControls.push("more");
     if (queueItems.length > 0) kbControls.push("queue");
@@ -2534,6 +2665,49 @@ const AttachPanel = forwardRef(({
               palette_footer={paletteFooter}
             />,
             "model",
+            arranging,
+          )}
+
+        {/* ── Agent selector (not movable, like the model pill beside it) ──
+            The entry the Builder's saved Agents are actually run from. What
+            runs is the SAVED definition, including the model saved inside it,
+            which is why this sits beside the model pill rather than inside
+            it. */}
+        {isAgentsFeatureEnabled &&
+          agentSelectOptions.length > 1 &&
+          selectWrap(
+            /* The row says which definition runs, and says it plainly when
+               the chat names one that is not on offer any more — an Agent the
+               user cannot see is still what every message would run. */
+            <span
+              data-testid="attach-agent-row"
+              title={
+                agentSelectionUnavailable
+                  ? SKELETON_AGENT_MISSING_REASON
+                  : selectedSkeletonAgentId
+                    ? SKELETON_AGENT_RUNS_SAVED_DEFINITION
+                    : undefined
+              }
+              style={{ display: "flex", alignItems: "center" }}
+            >
+            <Select
+              options={agentSelectOptions}
+              value={agentSelectValue}
+              set_value={handleAgentSelect}
+              placeholder={t("chat.attach.agent_default")}
+              disabled={modelSelectDisabled}
+              show_trigger_icon={true}
+              open={openSelector === "agent"}
+              on_open_change={handleAgentSelectorOpenChange}
+              dropdown_position="top"
+              style={{ ...pillStyle, maxWidth: 180 }}
+              variant="palette"
+              palette_chip="agent"
+              palette_rail
+              data-testid="attach-agent-select"
+            />
+            </span>,
+            "agent",
             arranging,
           )}
 

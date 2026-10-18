@@ -604,7 +604,10 @@
       "link": "連結",
       "context_usage": "上下文用量",
       "done": "完成",
-      "drop_here": "拖到這裡收起"
+      "drop_here": "拖到這裡收起",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "技能已變更",

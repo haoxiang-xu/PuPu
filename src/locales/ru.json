@@ -604,7 +604,10 @@
       "link": "Ссылка",
       "context_usage": "Использование контекста",
       "done": "Готово",
-      "drop_here": "Перетащите сюда, чтобы убрать"
+      "drop_here": "Перетащите сюда, чтобы убрать",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "Навыки изменились",

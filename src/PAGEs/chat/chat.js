@@ -32,6 +32,7 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
+import { skeleton_agent_options } from "../../SERVICEs/skeleton_chat_selection";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
 import {
   start as progressStart,
@@ -262,6 +263,10 @@ const ChatInterface = () => {
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
   const [recipeOptions, setRecipeOptions] = useState([]);
+  /* The stored Skeleton Agents this chat may run, as [{id, name}]. Read from
+     the store, so what the list offers is what is SAVED — a draft open in the
+     Builder is not an Agent anyone can run until it is saved. */
+  const [skeletonAgentOptions, setSkeletonAgentOptions] = useState([]);
   const [configuredProviders, setConfiguredProviders] = useState(
     readConfiguredBuiltInProviders,
   );
@@ -466,6 +471,7 @@ const ChatInterface = () => {
     selectedToolkits: effectiveSelectedToolkits,
     selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
     selectedRecipeName: session.selectedRecipeName,
+    selectedSkeletonAgentId: session.selectedSkeletonAgentId,
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
     threadIdRef: session.threadIdRef,
@@ -717,6 +723,20 @@ const ChatInterface = () => {
       }
     };
     refreshRecipeOptions();
+
+    const refreshSkeletonAgentOptions = async () => {
+      try {
+        /* Archived records are not asked for at all; `skeleton_agent_options`
+           then keeps only what declares itself an Agent, so a Workflow is
+           never offered as one. */
+        const { resources } = await api.unchain.listSkeletonResources(false);
+        if (cancelled) return;
+        setSkeletonAgentOptions(skeleton_agent_options(resources));
+      } catch (_exc) {
+        // the Agent list is optional; the row simply offers less
+      }
+    };
+    refreshSkeletonAgentOptions();
 
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
@@ -1055,6 +1075,9 @@ const ChatInterface = () => {
       selectedRecipeName: session.selectedRecipeName,
       onSelectRecipe: session.setSelectedRecipeName,
       recipeOptions,
+      skeletonAgentOptions,
+      selectedSkeletonAgentId: session.selectedSkeletonAgentId,
+      onSelectSkeletonAgent: session.setSelectedSkeletonAgentId,
       interjectState: stream.interjectState,
       onQueueUndo: stream.onQueueUndo,
       contextCompositionBundle,
@@ -1068,6 +1091,8 @@ const ChatInterface = () => {
       session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
+      skeletonAgentOptions, session.selectedSkeletonAgentId,
+      session.setSelectedSkeletonAgentId,
       stream.sendNewTurn, stream.stopStream, stream.canStop,
       stream.interjectState, stream.onQueueUndo,
       contextCompositionBundle, contextUsageView,

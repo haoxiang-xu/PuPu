@@ -604,7 +604,10 @@
       "link": "Lien",
       "context_usage": "Utilisation du contexte",
       "done": "Terminé",
-      "drop_here": "Déposer ici pour ranger"
+      "drop_here": "Déposer ici pour ranger",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "Les compétences ont changé",

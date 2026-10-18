@@ -631,6 +631,102 @@ describe("AttachPanel toolkit selector refresh", () => {
     });
   });
 
+  test("the Agent row says which definition runs, and when it cannot", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: true });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const onSelectSkeletonAgent = jest.fn();
+    const onSelectRecipe = jest.fn();
+    const base = {
+      color: "#222",
+      active: false,
+      focused: false,
+      onAttachFile: () => {},
+      isDark: false,
+      attachments: [],
+      modelOptions: [{ value: "gpt-5.5", label: "GPT-5.5" }],
+      selectedToolkits: [],
+      onToolkitsChange: () => {},
+      selectedWorkspaceIds: [],
+      onWorkspaceIdsChange: () => {},
+      skeletonAgentOptions: [
+        { id: "research.agent:v2", name: "Research Agent" },
+      ],
+      onSelectSkeletonAgent,
+      onSelectRecipe,
+    };
+
+    /* Nothing selected: no claim about a definition. */
+    const { unmount } = render(
+      <AttachPanel {...base} selectedSkeletonAgentId="" />,
+    );
+    expect(
+      screen.getByTestId("attach-agent-row").getAttribute("title"),
+    ).toBeNull();
+    unmount();
+
+    /* Selected: it says it runs the SAVED definition, with the model saved
+       inside it — the composer's model pill is not what a Skeleton run
+       uses. */
+    const selected = render(
+      <AttachPanel {...base} selectedSkeletonAgentId="research.agent:v2" />,
+    );
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(
+      /saved definition/i,
+    );
+    /* And picking it writes the id, clearing the legacy name so one request
+       can never carry both identities. */
+    fireEvent.click(screen.getByTestId("option-skeleton:research.agent:v2"));
+    expect(onSelectSkeletonAgent).toHaveBeenCalledWith("research.agent:v2");
+    expect(onSelectRecipe).toHaveBeenCalledWith("Default");
+    selected.unmount();
+
+    /* Naming one that is not on offer any more: still this chat's Agent, said
+       out loud, rather than a row that looks like the default. */
+    render(<AttachPanel {...base} selectedSkeletonAgentId="gone.agent" />);
+    expect(screen.getByTestId("attach-agent-row").getAttribute("title")).toMatch(
+      /not available/i,
+    );
+    expect(
+      screen.getByTestId("option-skeleton:gone.agent"),
+    ).toBeInTheDocument();
+  });
+
+  test("with the Agents feature off the row is gone and the selection is cleared", () => {
+    writeFeatureFlags({ enable_user_access_to_agents: false });
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    const onSelectSkeletonAgent = jest.fn();
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+        skeletonAgentOptions={[{ id: "a1", name: "One" }]}
+        selectedSkeletonAgentId="a1"
+        onSelectSkeletonAgent={onSelectSkeletonAgent}
+      />,
+    );
+    expect(screen.queryByTestId("attach-agent-row")).toBeNull();
+    /* Cleared rather than ignored: a selection nobody can see would keep
+       deciding what every message runs. */
+    expect(onSelectSkeletonAgent).toHaveBeenCalledWith("");
+  });
+
   test("never shows agent recipe options in the model selector", () => {
     writeFeatureFlags({ enable_user_access_to_agents: true });
     useChatInputToolkits.mockReturnValue({
@@ -659,9 +755,24 @@ describe("AttachPanel toolkit selector refresh", () => {
       />,
     );
 
-    expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
-    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
-    expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+    /* Scoped to the model selector, which is what this guards. Since #356
+       there IS an Agent row beside it, and a Recipe name appearing THERE is
+       the point of that row; what must never happen is an Agent arriving in
+       the list of models. */
+    const modelSelector = screen.getByTestId("select-Search models…");
+    expect(within(modelSelector).getByText("GPT-5.5")).toBeInTheDocument();
+    expect(within(modelSelector).queryByText("Agents")).not.toBeInTheDocument();
+    expect(
+      within(modelSelector).queryByText("Research Agent"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(modelSelector).queryByTestId("option-legacy:Research Agent"),
+    ).not.toBeInTheDocument();
+    /* And the Agent row is where it does appear. */
+    const agentSelector = screen.getByTestId("select-Agent: Default");
+    expect(
+      within(agentSelector).getByTestId("option-legacy:Research Agent"),
+    ).toBeInTheDocument();
   });
 
   test("renders the catalog-native Computer entry alongside other toolkits", () => {

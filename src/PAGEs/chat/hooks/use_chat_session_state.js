@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { skeleton_agent_id } from "../../../SERVICEs/skeleton_chat_selection";
 import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
@@ -206,6 +207,11 @@ const snapshotSessionBundle = (chat) => ({
     chat.selectedRecipeName.trim()
       ? chat.selectedRecipeName.trim()
       : "Default",
+  /* The stored Skeleton Agent this chat runs, by resource id. It belongs to
+     the same bundle as the Recipe name — one chat, one Agent choice — so the
+     fingerprint has to see it, or a change to it alone would read as no change
+     at all and never be written. */
+  selectedSkeletonAgentId: skeleton_agent_id(chat?.selectedSkeletonAgentId),
 });
 
 const sessionBundleFingerprint = (bundle) =>
@@ -260,6 +266,9 @@ export const useChatSessionState = ({
   );
   const [selectedRecipeName, setSelectedRecipeName] = useState(
     () => initialChat.selectedRecipeName || "Default",
+  );
+  const [selectedSkeletonAgentId, setSelectedSkeletonAgentId] = useState(() =>
+    skeleton_agent_id(initialChat.selectedSkeletonAgentId),
   );
   const [activeChatKind, setActiveChatKind] = useState(
     initialChat.kind === "character" ? "character" : "default",
@@ -434,6 +443,9 @@ export const useChatSessionState = ({
         setSelectedToolkits(nextActiveChat.selectedToolkits || []);
         setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
         setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
+        setSelectedSkeletonAgentId(
+          skeleton_agent_id(nextActiveChat.selectedSkeletonAgentId),
+        );
         setActiveChatKind(
           nextActiveChat.kind === "character" ? "character" : "default",
         );
@@ -515,6 +527,9 @@ export const useChatSessionState = ({
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
       setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
+      setSelectedSkeletonAgentId(
+        skeleton_agent_id(nextActiveChat.selectedSkeletonAgentId),
+      );
       setActiveChatKind(
         nextActiveChat.kind === "character" ? "character" : "default",
       );
@@ -789,6 +804,7 @@ export const useChatSessionState = ({
         agentOrchestration,
         selectedWorkspaceIds,
         selectedRecipeName,
+        selectedSkeletonAgentId,
       },
     };
     const timer = setTimeout(flushPendingSessionBundle, 150);
@@ -799,6 +815,7 @@ export const useChatSessionState = ({
     agentOrchestration,
     selectedWorkspaceIds,
     selectedRecipeName,
+    selectedSkeletonAgentId,
     flushPendingSessionBundle,
   ]);
 
@@ -939,6 +956,8 @@ export const useChatSessionState = ({
     setSelectedToolkits,
     selectedRecipeName,
     setSelectedRecipeName,
+    selectedSkeletonAgentId,
+    setSelectedSkeletonAgentId,
     selectedWorkspaceIds,
     setSelectedWorkspaceIds,
     systemPromptOverridesRef,

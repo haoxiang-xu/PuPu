@@ -604,7 +604,10 @@
       "link": "Link",
       "context_usage": "Kontextauslastung",
       "done": "Fertig",
-      "drop_here": "Hier ablegen zum Verstauen"
+      "drop_here": "Hier ablegen zum Verstauen",
+      "agent_default": "Agent: Default",
+      "agent_unavailable": "Unavailable",
+      "agent_runs_saved": "Runs the saved definition"
     },
     "skill_inventory_stale": {
       "title": "Skills geändert",
