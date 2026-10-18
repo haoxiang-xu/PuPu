@@ -1007,7 +1007,7 @@ describe("drilling into a subagent's own graph", () => {
        graph now, and running the parent checks more — so an empty diagnostics
        area is not read as "ready to run" either. */
     const note = screen.getByTestId("skeleton-drill-unchecked").textContent;
-    expect(note).toMatch(/checked as you edit/i);
+    expect(note).toMatch(/checked when you save/i);
     expect(note).toMatch(/reported here/i);
     expect(note).toMatch(/pools reference are only read then/i);
     expect(note).not.toMatch(/does not look inside/i);

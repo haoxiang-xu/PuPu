@@ -1455,7 +1455,7 @@ describe("a child graph's own problems, in the child's own view", () => {
     open_row(0);
     await act(async () => {});
     const note = screen.getByTestId("skeleton-drill-unchecked").textContent;
-    expect(note).toMatch(/checked as you edit/i);
+    expect(note).toMatch(/checked when you save/i);
     expect(note).toMatch(/pools reference are only read then/i);
     expect(note).not.toMatch(/does not look inside/i);
     /* A healthy child shows nothing, which is now a statement about this
@@ -1463,5 +1463,192 @@ describe("a child graph's own problems, in the child's own view", () => {
     fireEvent.click(screen.getByTestId("skeleton-node-agent"));
     await act(async () => {});
     expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
+  });
+});
+
+describe("an answer about a draft that has changed", () => {
+  /* Measured on the real store, and the reason this guard exists: the
+     `sibling_isolation` document has a faulty first pool entry and a healthy
+     second one. Delete the first without saving and every path in the stored
+     answer still names `…subagents.0…` — which is now the survivor. The
+     store's own verdict on the document Save would send is `diagnostics: []`
+     with a passing preflight, so what the panel showed was not a stale
+     problem but somebody else's. */
+
+  const row = (name) => EMBEDDED_DIAGNOSTIC_ROWS.find((item) => item.case === name);
+
+  const open_sibling_isolation = async () => {
+    const document = copy(JSON.parse(row("sibling_isolation").document));
+    const diagnostics = copy(row("sibling_isolation").draft_diagnostics);
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    api.unchain.getSkeletonResource = jest.fn(async () => ({
+      id: document.id,
+      kind: "agent",
+      name: document.name,
+      document: copy(document),
+      edit_token: "edit-1",
+      diagnostics,
+      archived: false,
+      description: null,
+      draft_digest: null,
+      source_identity: null,
+    }));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={document.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("skeleton-node-pool-a")).toBeInTheDocument(),
+    );
+    /* One diagnostic, and it is about the first entry. */
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].path).toContain("subagents");
+    return { document, diagnostics };
+  };
+
+  const remove_first_entry = async () => {
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Remove First child"));
+    });
+  };
+
+  test("the entry that survives a deletion does not wear the deleted one's error", async () => {
+    await open_sibling_isolation();
+    /* Before: the faulty first entry shows its own problem. */
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.getByTestId("binding-row-0-problem-0").textContent).toMatch(
+      /must name an upstream flow node/i,
+    );
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+
+    await remove_first_entry();
+    /* After: row 0 is the survivor, which the store calls healthy. */
+    open_row(0);
+    await act(async () => {});
+    expect(crumbs()[crumbs().length - 1]).toBe("Child Second");
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.queryAllByTestId(/^binding-row-\d+-problem-\d+$/)).toHaveLength(0);
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
+    /* Nothing was saved to achieve that. */
+    expect(api.unchain.saveSkeletonResource).not.toHaveBeenCalled();
+  });
+
+  test("and the silence is right: the store answers nothing about what Save would send", async () => {
+    /* Showing nothing is only correct if nothing IS wrong with the document on
+       screen. So the document the page would send is compared to the one the
+       probe built by the same deletion, and that row is the store's own
+       answer about it: no diagnostics, and a passing preflight. */
+    const sent = [];
+    await open_sibling_isolation();
+    api.unchain.saveSkeletonResource = jest.fn(async (payload) => {
+      sent.push(copy(payload));
+      return { ok: true, data: { ...payload, edit_token: "edit-2", diagnostics: [] } };
+    });
+    await remove_first_entry();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    const measured = row("sibling_isolation_first_removed");
+    expect(sent).toHaveLength(1);
+    /* Each probe row owns a resource, so the two differ in `id` and `name` and
+       in nothing else — which is the comparison worth making: the graph the
+       editor assembled is the graph the store was asked about. */
+    const named = (document) => ({ ...document, id: "same", name: "same" });
+    expect(named(sent[0].document)).toEqual(named(JSON.parse(measured.document)));
+    expect(JSON.parse(row("sibling_isolation").document).id).not.toBe(
+      JSON.parse(measured.document).id,
+    );
+    expect([measured.draft_diagnostics, measured.run.ok]).toEqual([[], true]);
+    expect(measured.same_three).toBe(true);
+    /* And after the echo about that very document, the panel is checked
+       again — an empty problem area that now means what it says. */
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    expect(screen.queryByTestId("skeleton-diagnostics-stale")).toBeNull();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toBe("Saved");
+  });
+
+  test("and it says the draft has not been checked, rather than showing nothing", async () => {
+    await open_sibling_isolation();
+    await remove_first_entry();
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    const stale = screen.getByTestId("skeleton-diagnostics-stale").textContent;
+    expect(stale).toMatch(/not checked/i);
+    expect(stale).toMatch(/saved version/i);
+    expect(stale).toMatch(/saving checks this draft/i);
+    /* The breadcrumb agrees about when a check happens. */
+    expect(screen.getByTestId("skeleton-drill-unchecked").textContent).toMatch(
+      /checked when you save/i,
+    );
+  });
+
+  test("the parent graph is held to the same rule", async () => {
+    /* The parent's own problems are positions too: `document.nodes.N` means a
+       different node once a node is removed. */
+    const { diagnostics } = await open_sibling_isolation();
+    fireEvent.click(screen.getByTestId("skeleton-node-pool-a"));
+    await act(async () => {});
+    expect(diagnostics[0].path[0]).toBe("document");
+    await remove_first_entry();
+    expect(screen.getByTestId("skeleton-diagnostics-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
+  });
+
+  test("an answer that arrives while the author keeps typing is not about what they typed", async () => {
+    /* The save echo carries the store's verdict on the document that was
+       sent. Editing while it is in flight means the author is looking at a
+       newer one — the echoed document is already refused for that reason, and
+       its answer goes with it. */
+    const { document } = await open_sibling_isolation();
+    let settle;
+    api.unchain.saveSkeletonResource = jest.fn(
+      () => new Promise((resolve) => { settle = resolve; }),
+    );
+    await remove_first_entry();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save").closest("button"));
+    });
+    /* More typing, then the echo for the earlier document lands. */
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Remove Second child"));
+    });
+    await act(async () => {
+      settle({
+        ok: true,
+        data: {
+          id: document.id,
+          kind: "agent",
+          name: document.name,
+          document: copy(document),
+          edit_token: "edit-2",
+          diagnostics: copy(row("sibling_isolation").draft_diagnostics),
+        },
+      });
+    });
+    /* No entry rows are left, so a path naming `subagents.0` has nowhere
+       honest to go — and it is not shown. */
+    expect(screen.queryAllByTestId(/^subagent-entry-\d+$/)).toHaveLength(0);
+    expect(screen.getByTestId("skeleton-diagnostics-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
+    expect(screen.getByTestId("skeleton-save-state").textContent).toBe(
+      "Unsaved changes",
+    );
   });
 });

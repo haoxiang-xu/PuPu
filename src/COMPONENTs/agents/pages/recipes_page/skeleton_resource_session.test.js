@@ -8,6 +8,7 @@ import {
   conflict_overridden,
   conversion_started,
   conversion_succeeded,
+  diagnostics_are_current,
   edited,
   empty_session,
   is_edit_conflict,
@@ -548,5 +549,112 @@ describe("whether an answer is about the sitting that asked", () => {
 
   test("nothing is about no question at all", () => {
     expect(same_open(empty_session(), null)).toBe(false);
+  });
+});
+
+describe("which document the diagnostics are about", () => {
+  /* Every path in a diagnostic is a position in the document that was
+     checked. The editor places them by walking the document on screen, so a
+     list that outlived its own document lands on whatever now occupies those
+     positions — which is how a deleted pool entry's error ended up on the
+     entry that survived it. The answer carries the version it describes. */
+
+  const ONE = { code: "missing_value", path: ["document", "nodes", 1], message: "x" };
+  const stored = (document, diagnostics) => ({
+    id: "r1",
+    kind: "agent",
+    name: "R",
+    document,
+    edit_token: "edit-1",
+    diagnostics,
+  });
+  const DOC = { id: "r1", name: "R", nodes: [], edges: [] };
+  const OTHER = { id: "r1", name: "R", nodes: [{ id: "a1" }], edges: [] };
+
+  const open = (diagnostics = [ONE]) =>
+    loaded(loading(empty_session(), "r1"), stored(DOC, diagnostics));
+
+  test("a load is the one place they are current by construction", () => {
+    const session = open();
+    expect(session.diagnostics).toEqual([ONE]);
+    expect(diagnostics_are_current(session)).toBe(true);
+    /* Including an empty list: "checked, nothing wrong" is a different
+       statement from "not checked", and only one of them is an all-clear. */
+    expect(diagnostics_are_current(open([]))).toBe(true);
+  });
+
+  test("an edit makes them not about this draft, and keeps them", () => {
+    const session = edited(open(), OTHER);
+    expect(diagnostics_are_current(session)).toBe(false);
+    /* Kept, not dropped: they are still a true answer about the version that
+       was checked. What changes is that nothing may be placed by their
+       positions. */
+    expect(session.diagnostics).toEqual([ONE]);
+  });
+
+  test("a save's own echo is current only if nothing was typed meanwhile", () => {
+    const session = open([]);
+    const issued = session_token(session);
+    const saved = save_succeeded(
+      save_started(session),
+      stored(DOC, [ONE]),
+      issued,
+    );
+    expect([saved.dirty, diagnostics_are_current(saved)]).toEqual([false, true]);
+
+    /* Typing while the write is in flight: the echo answers about the
+       document that was sent, and the author is looking at a newer one. The
+       echoed document is already refused for that reason; its diagnostics are
+       refused with it. */
+    const typing = edited(save_started(session), OTHER);
+    const late = save_succeeded(typing, stored(DOC, [ONE]), issued);
+    expect([late.dirty, diagnostics_are_current(late)]).toEqual([true, false]);
+    expect(late.document).toBe(OTHER);
+  });
+
+  test("taking the other editor's token leaves this draft unchecked", () => {
+    /* Keeping one's own document re-bases it onto their token. The list that
+       comes back with that token describes THEIR document; the one before it
+       described an earlier draft of this one. */
+    const conflicted = save_refused(
+      save_started(edited(open(), OTHER)),
+      { error: EDIT_CONFLICT_ERROR },
+      null,
+    );
+    const kept = conflict_overridden(conflicted, stored(DOC, [ONE]), null);
+    expect(diagnostics_are_current(kept)).toBe(false);
+
+    /* Taking theirs instead is a load, so it is checked again. */
+    const taken = conflict_discarded(conflicted, stored(DOC, []), null);
+    expect(diagnostics_are_current(taken)).toBe(true);
+  });
+
+  test("a restored frame keeps the answer it was put away with", () => {
+    /* Renumbering decides which replies may still reach this sitting; it is
+       not a check, and it must not turn one into the other. */
+    const checked = open([ONE]);
+    /* Put away, then another resource opened and edited, so the numbers the
+       frame comes back at are ones it never held. */
+    const elsewhere = edited(loaded(loading(checked, "other"), stored(OTHER, [])), DOC);
+    const back = restored(elsewhere, checked);
+    expect(diagnostics_are_current(back)).toBe(true);
+    expect(back.version).not.toBe(checked.version);
+
+    const unchecked = edited(checked, OTHER);
+    const back_dirty = restored(elsewhere, unchecked);
+    expect(diagnostics_are_current(back_dirty)).toBe(false);
+  });
+
+  test("an empty session has nothing to be about", () => {
+    expect(diagnostics_are_current(null)).toBe(false);
+    expect(diagnostics_are_current(loading(empty_session(), "r1"))).toBe(false);
+  });
+
+  test("a conversion rewrites the stored document, so its answer is current", () => {
+    const session = conversion_started(open([]));
+    const issued = session_token(session);
+    const converted = conversion_succeeded(session, stored(OTHER, [ONE]), issued);
+    expect(converted.document).toBe(OTHER);
+    expect(diagnostics_are_current(converted)).toBe(true);
   });
 });

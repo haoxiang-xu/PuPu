@@ -97,6 +97,25 @@ export function empty_session() {
     converting: false,
     saving: false,
     diagnostics: [],
+    /* Which version of this draft the diagnostics above are about.
+     *
+     * They are the store's answer about a document it was given, and every
+     * path in them addresses that document BY POSITION — `document.nodes.5`,
+     * or an embedded child at `…subagents.0.source.document.nodes.1`. The
+     * editor then places each one by walking the document on screen, so a
+     * list that outlived its own document does not merely go out of date: it
+     * lands on whatever now occupies those positions. Measured on the real
+     * store: a pool whose first entry had a bad reference, the author deletes
+     * that entry without saving, and the survivor — a child the store calls
+     * healthy, with `diagnostics: []` and a passing preflight for the exact
+     * document the editor would send — showed the deleted sibling's error on
+     * its own binding row.
+     *
+     * So they carry the version they were checked against, and the editor
+     * only places them while it still equals the one on screen. Nothing is
+     * remapped by id: a draft may hold two nodes with one id, and guessing
+     * which of them a path meant is the same mistake with more steps. */
+    diagnostics_version: 0,
     /* Set when a save was refused for staleness. It holds the user's own
        document so nothing is lost while they decide. */
     conflict: null,
@@ -110,6 +129,16 @@ export function empty_session() {
    to another resource entirely. Applying it then would give the new resource's
    identity with the old one's document and token, and the next save would
    write that over it. */
+/* Whether the diagnostics on hand describe the document on screen.
+ *
+ * `false` is not "nothing is wrong" and not "something is": it is "this draft
+ * has not been checked", which is a third state the editor has to say out
+ * loud, because an empty problem area otherwise reads as an all-clear. */
+export function diagnostics_are_current(session) {
+  if (!session) return false;
+  return ((session.diagnostics_version) || 0) === ((session.version) || 0);
+}
+
 export function session_token(session) {
   return {
     open_id: (session && session.open_id) || 0,
@@ -150,9 +179,10 @@ export function loaded(session, data, issued) {
   if (issued && !(same_open(session, issued) && session.version === issued.version)) {
     return session;
   }
+  const version = next_version(session);
   return {
     ...empty_session(),
-    version: next_version(session),
+    version,
     open_id: (session && session.open_id) || 0,
     /* A load is the author being handed a document to look at, and
        `conflict_discarded` is one, so it is counted from here.
@@ -164,6 +194,9 @@ export function loaded(session, data, issued) {
     document: (data && data.document) || null,
     edit_token: (data && data.edit_token) || null,
     diagnostics: (data && data.diagnostics) || [],
+    /* A load hands over a document and the store's answer about that same
+       document, so this is the one place they are current by construction. */
+    diagnostics_version: version,
   };
 }
 
@@ -194,13 +227,22 @@ export function loaded(session, data, issued) {
  * landed and moved the token, and the editor could neither save nor drill
  * again. */
 export function restored(session, saved) {
+  const version = next_version(session);
   return {
     ...saved,
-    version: next_version(session),
+    version,
     open_id: next_open_id(session),
     document_revision: next_document_revision(session),
     saving: false,
     converting: false,
+    /* The frame's diagnostics are about the frame's document, and both come
+       back together — so a frame that was checked is still checked, at its new
+       number, and one that had been edited stays unchecked. Renumbering is
+       about which answers in flight may reach this sitting; it is not a
+       check. */
+    diagnostics_version: diagnostics_are_current(saved)
+      ? version
+      : (saved && saved.diagnostics_version) || 0,
   };
 }
 
@@ -219,7 +261,11 @@ export function load_failed(session, result, issued) {
 }
 
 /* An edit clears the last preflight: it described a document that no longer
-   exists, and leaving it on screen would read as a verdict on this one. */
+   exists, and leaving it on screen would read as a verdict on this one.
+   The diagnostics are kept and NOT renumbered, which is the whole of the
+   rule: they still describe the version they were checked against, the
+   version number moves, and `diagnostics_are_current` is false from here
+   until the store answers about this draft. */
 export function edited(session, document) {
   return {
     ...session,
@@ -243,9 +289,10 @@ export function save_started(session) {
 export function save_succeeded(session, data, issued) {
   if (issued && !same_open(session, issued)) return session;
   const typed_since = Boolean(issued) && session.version !== issued.version;
+  const version = next_version(session);
   return {
     ...session,
-    version: next_version(session),
+    version,
     saving: false,
     dirty: typed_since,
     conflict: null,
@@ -255,8 +302,16 @@ export function save_succeeded(session, data, issued) {
       : (data && data.document) || session.document,
     edit_token: (data && data.edit_token) || session.edit_token,
     /* They describe what the store now holds, which is what they always
-       describe — the same state as saving and then editing. */
+       describe. */
     diagnostics: (data && data.diagnostics) || [],
+    /* Which is the document on screen only when nothing was typed while the
+       write was in flight. When something was, the echo is an answer about
+       the version that was sent and the author is looking at a newer one, so
+       it is no more current than the list before it — the same reason the
+       echoed document itself is not applied. */
+    diagnostics_version: typed_since
+      ? (session && session.diagnostics_version) || 0
+      : version,
   };
 }
 
@@ -338,6 +393,12 @@ export function conflict_overridden(session, data, issued) {
     error: null,
     edit_token: (data && data.edit_token) || session.edit_token,
     diagnostics: (data && data.diagnostics) || session.diagnostics,
+    /* Deliberately NOT renumbered. Keeping one's own version re-bases this
+       document onto the other editor's token; the list that comes back with
+       that token is the store's answer about THEIR document, and the one
+       before it was about an earlier draft of this one. Neither describes
+       what is on screen, so neither may be placed on it. */
+    diagnostics_version: (session && session.diagnostics_version) || 0,
   };
 }
 

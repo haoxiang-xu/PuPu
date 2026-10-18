@@ -10,7 +10,10 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import SkeletonSaveBar from "./recipes_page/skeleton_save_bar";
 import useSkeletonResource from "./recipes_page/use_skeleton_resource";
-import { can_convert_legacy_pools } from "./recipes_page/skeleton_resource_session";
+import {
+  can_convert_legacy_pools,
+  diagnostics_are_current,
+} from "./recipes_page/skeleton_resource_session";
 import SkeletonCanvas from "./recipes_page/skeleton_canvas";
 import SkeletonDrillBreadcrumb from "./recipes_page/skeleton_drill_breadcrumb";
 import { SESSION_STATUS } from "./recipes_page/skeleton_resource_session";
@@ -95,6 +98,10 @@ const PANEL = (isDark) => ({
   color: "var(--pupu-text)",
   backgroundColor: isDark ? "var(--pupu-background)" : "var(--pupu-background)",
 });
+
+/* One frozen list, so an unchecked draft hands the panel the same value every
+   render rather than a new empty array. */
+const NOTHING_CHECKED = Object.freeze([]);
 
 const NOTE = { fontSize: 11, color: "#86868b", lineHeight: 1.45 };
 
@@ -265,10 +272,24 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
      the ones reported at its own path, re-rooted; the parent's own problems
      are at paths that would land on this graph's nodes by position, and a
      sibling child's at paths that look just like this one's, which is what the
-     filter is for. */
-  const diagnostics = steps.length === 0
-    ? session.diagnostics
-    : diagnostics_for_embedded(session.diagnostics, prefix);
+     filter is for.
+
+     And only while they are about the document on screen. Every path is a
+     position, so placing an older list onto a changed draft does not show a
+     stale problem — it shows the problem of whatever now sits at that
+     position. Measured on the real store: delete a pool's faulty first entry
+     without saving, and the surviving entry — one the store answers `[]` for,
+     with a passing preflight for the exact document Save would send — wore the
+     deleted sibling's error on its own binding row. The unchecked draft says
+     so in the panel instead; nothing is remapped by id, because a draft may
+     hold two entries with one id and a guess there is the same error wearing a
+     reason. */
+  const unchecked = !diagnostics_are_current(session);
+  const diagnostics = unchecked
+    ? NOTHING_CHECKED
+    : steps.length === 0
+      ? session.diagnostics
+      : diagnostics_for_embedded(session.diagnostics, prefix);
 
   const handleSave = useCallback(async () => {
     const before = session.edit_token;
@@ -621,6 +642,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
               document={document}
               documentRevision={session.document_revision}
               diagnostics={diagnostics}
+              diagnosticsUnchecked={unchecked}
               onDocumentChange={edit_shown}
               onOpenSubagent={open_subagent}
               onEntryIdRepaired={entry_id_repaired}

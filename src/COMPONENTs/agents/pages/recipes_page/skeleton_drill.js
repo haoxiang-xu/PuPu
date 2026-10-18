@@ -79,9 +79,15 @@ const VIA_LABEL = "Subagent Pool";
  * referenced Agent or resolve the pool's closure — measured on the pair, a
  * pool entry naming a resource that does not exist draws no draft diagnostic
  * and is `resource_missing` at Run — so an empty list here is not permission
- * to run. */
+ * to run.
+ *
+ * It says "when you save" and not "as you edit", which is the honest width of
+ * what the store was asked: the check comes back with a save, a load and a
+ * diagnose, and nothing asks it between keystrokes. A draft that has changed
+ * since says so in the panel — see `diagnostics_are_current` — because the two
+ * sentences together are what makes an empty problem area readable. */
 export const EMBEDDED_CHECKED_CAPTION =
-  "This graph is checked as you edit, and what is wrong with it is reported here. Running the parent Agent checks more: the Agents its pools reference are only read then.";
+  "This graph is checked when you save it, and what is wrong with it is reported here. Running the parent Agent checks more: the Agents its pools reference are only read then.";
 
 const NO_SOURCE =
   "This entry does not say where its Agent comes from, so there is no graph to open.";

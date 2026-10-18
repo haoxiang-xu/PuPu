@@ -412,7 +412,10 @@ describe("whose problems a child view may show", () => {
     expect(row.draft_diagnostics).toEqual([]);
     expect(row.run.code).toBe("resource_missing");
     /* And the sentence the child view shows says so. */
-    expect(EMBEDDED_CHECKED_CAPTION).toMatch(/checked as you edit/i);
+    /* And it says WHEN, which is the save — nothing asks the store between
+       keystrokes, so "as you edit" was a promise the editor could not keep. */
+    expect(EMBEDDED_CHECKED_CAPTION).toMatch(/checked when you save/i);
+    expect(EMBEDDED_CHECKED_CAPTION).not.toMatch(/as you edit/i);
     expect(EMBEDDED_CHECKED_CAPTION).toMatch(/only read then/i);
   });
 });

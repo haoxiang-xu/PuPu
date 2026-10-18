@@ -61,6 +61,9 @@ export default function DetailPanel({
      they saw before this existed. */
   documentRevision,
   diagnostics,
+  /* Whether the diagnostics above describe the document on screen. The page
+     owns this question, because it owns the session that was checked. */
+  diagnosticsUnchecked,
   onDocumentChange,
 }) {
   const cfg = useContext(ConfigContext);
@@ -241,6 +244,7 @@ export default function DetailPanel({
               diagnostics={diagnostics}
               nodeId={skeleton_node.id}
               rowCounts={routed.row_counts}
+              unchecked={diagnosticsUnchecked}
               isDark={isDark}
             />
             {/* A pool attaches to a Kernel rather than running in the flow,
