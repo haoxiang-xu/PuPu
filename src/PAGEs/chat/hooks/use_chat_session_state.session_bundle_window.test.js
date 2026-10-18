@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import {
   getChatsStore,
   createChatInSelectedContext,
+  markChatStarted,
   selectTreeNode,
   setChatMessages,
   setChatModel,
@@ -309,36 +310,99 @@ describe("the composer's selections inside the debounce window", () => {
     expect(storedBundle(chatId)).toEqual(CHOSEN);
   });
 
-  test("a fast A to B and back keeps each chat's own choice", () => {
-    const { result } = setup();
-    const first = result.current.activeChatIdRef.current;
+  /* Two chats that both exist, and this hook mounted while A was active.
+     Built this way on purpose: creating the second chat after mounting enters
+     it, which flushes A on the way out — so a switch away from A afterwards is
+     no longer the first one, and an A→B→A started from an UNSTORED choice in A
+     never happens. That is the window this seeds. */
+  const seedTwoChats = () => {
+    const first = createChatInSelectedContext(
+      { title: "A" },
+      { source: "fixture" },
+    ).chatId;
+    markChatStarted(first, { source: "fixture" });
+    const second = createChatInSelectedContext(
+      { title: "B" },
+      { source: "fixture" },
+    ).chatId;
+    markChatStarted(second, { source: "fixture" });
+    setChatSessionBundle(
+      second,
+      {
+        selectedToolkits: ["web_search"],
+        agentOrchestration: { mode: "default" },
+        selectedWorkspaceIds: ["ws-b"],
+        selectedRecipeName: "Legacy B",
+        selectedSkeletonAgentId: "",
+      },
+      { source: "fixture" },
+    );
+    const lookup = buildTreeNodeLookupByChatId(getChatsStore().tree);
+    selectTreeNode({ nodeId: lookup[first] }, { source: "fixture" });
+    const view = setup();
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+    return { ...view, first, second };
+  };
+
+  const selectChat = (chatId) => {
+    const lookup = buildTreeNodeLookupByChatId(getChatsStore().tree);
+    selectTreeNode({ nodeId: lookup[chatId] }, { source: "side-menu" });
+  };
+
+  const B_BUNDLE = {
+    selectedToolkits: ["web_search"],
+    selectedRecipeName: "Legacy B",
+    selectedSkeletonAgentId: "",
+    selectedWorkspaceIds: ["ws-b"],
+  };
+
+  test("a real same-commit A to B to A keeps A's unstored choice", () => {
+    const { result, first, second } = seedTwoChats();
+    expect(result.current.activeChatIdRef.current).toBe(first);
     choose(result);
-    let second = "";
+    /* Still nothing in the store: leaving and re-entering must not be what
+       decides whether this choice survives. */
+    expect(storedBundle(first).selectedSkeletonAgentId).toBe("");
+
     act(() => {
-      second = createChatInSelectedContext(
-        { title: "Second" },
-        { source: "side-menu" },
-      ).chatId;
+      selectChat(second);
+      selectChat(first);
     });
-    /* Both switches inside one commit, which is the A to B to A the draft
-       path already has to survive. */
-    act(() => {
-      const lookup = buildTreeNodeLookupByChatId(getChatsStore().tree);
-      selectTreeNode({ nodeId: lookup[second] }, { source: "side-menu" });
-      result.current.setSelectedRecipeName("Legacy Other");
-      selectTreeNode({ nodeId: lookup[first] }, { source: "side-menu" });
-    });
+
+    expect(result.current.activeChatIdRef.current).toBe(first);
+    expect(shownBundle(result)).toEqual(CHOSEN);
     act(() => {
       jest.advanceTimersByTime(150);
     });
     expect(storedBundle(first)).toEqual(CHOSEN);
+    /* The sibling chat keeps its own, untouched by the detour. */
+    expect(storedBundle(second)).toEqual(B_BUNDLE);
+  });
+
+  test("a step-by-step A to B to A keeps both chats' choices", () => {
+    /* The same thing with React committing in between, which is the ordinary
+       way a person switches. */
+    const { result, first, second } = seedTwoChats();
+    choose(result);
+    act(() => {
+      selectChat(second);
+    });
+    expect(storedBundle(first)).toEqual(CHOSEN);
+    expect(shownBundle(result)).toEqual(B_BUNDLE);
+    act(() => {
+      result.current.setSelectedRecipeName("Legacy B edited");
+    });
+    act(() => {
+      selectChat(first);
+    });
     expect(shownBundle(result)).toEqual(CHOSEN);
-    /* Whatever the fast detour recorded for B, it is not A's choice and A's is
-       not B's. */
-    expect(storedBundle(second).selectedSkeletonAgentId).toBe("");
-    expect(storedBundle(second).selectedToolkits).not.toEqual(
-      CHOSEN.selectedToolkits,
-    );
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+    expect(storedBundle(first)).toEqual(CHOSEN);
+    expect(storedBundle(second).selectedRecipeName).toBe("Legacy B edited");
   });
 
   test("a new window reads the choice back after the page closed", () => {
@@ -390,5 +454,104 @@ describe("the composer's selections inside the debounce window", () => {
       selectedSkeletonAgentId: "someone.elses.agent",
       selectedWorkspaceIds: ["ws-9"],
     });
+  });
+
+  /* ── After an external bundle has been adopted ─────────────────────────────
+     An external write supersedes a choice that was still waiting: that is
+     settled, and the writer wins. What must not follow from it is that the
+     NEXT choice — made after seeing B on screen — is treated as the abandoned
+     one and refused. The two are different intents, and only the first was
+     superseded. */
+  const EXTERNAL_B = {
+    selectedToolkits: ["core"],
+    selectedRecipeName: "Default",
+    selectedSkeletonAgentId: "external.agent",
+    selectedWorkspaceIds: ["ws-external"],
+  };
+
+  const LATER_C = {
+    selectedToolkits: ["core", "web_search"],
+    selectedRecipeName: "Default",
+    selectedSkeletonAgentId: "later.local.agent",
+    selectedWorkspaceIds: ["ws-latest"],
+  };
+
+  const chooseLater = (result) => {
+    result.current.setSelectedToolkits(LATER_C.selectedToolkits);
+    result.current.setSelectedWorkspaceIds(LATER_C.selectedWorkspaceIds);
+    result.current.setSelectedSkeletonAgentId(
+      LATER_C.selectedSkeletonAgentId,
+    );
+  };
+
+  const writeExternalB = (chatId) => {
+    setChatSessionBundle(
+      chatId,
+      { ...EXTERNAL_B, agentOrchestration: { mode: "default" } },
+      { source: "test-api" },
+    );
+  };
+
+  test("a choice made after an external one is stored, not refused as the old one", () => {
+    const { result } = setup();
+    const chatId = result.current.activeChatIdRef.current;
+    choose(result);
+    /* One commit: the external bundle arrives and the author then picks
+       something else, having seen it. */
+    act(() => {
+      writeExternalB(chatId);
+      chooseLater(result);
+    });
+    expect(shownBundle(result)).toEqual(LATER_C);
+    act(() => {
+      jest.advanceTimersByTime(150);
+    });
+    expect(storedBundle(chatId)).toEqual(LATER_C);
+    expect(shownBundle(result)).toEqual(LATER_C);
+    /* And it stays: a later unrelated write has nothing to correct. */
+    act(() => {
+      setChatTitle(chatId, "Later unrelated write", { source: "side-menu" });
+    });
+    act(() => {
+      jest.advanceTimersByTime(150);
+    });
+    expect(storedBundle(chatId)).toEqual(LATER_C);
+    expect(shownBundle(result)).toEqual(LATER_C);
+  });
+
+  test("the same in separate commits is stored too", () => {
+    const { result } = setup();
+    const chatId = result.current.activeChatIdRef.current;
+    choose(result);
+    act(() => {
+      writeExternalB(chatId);
+    });
+    expect(shownBundle(result)).toEqual(EXTERNAL_B);
+    act(() => {
+      chooseLater(result);
+    });
+    act(() => {
+      jest.advanceTimersByTime(150);
+    });
+    expect(storedBundle(chatId)).toEqual(LATER_C);
+  });
+
+  test("an external bundle that arrives last is still the one that stands", () => {
+    /* The order that must NOT change: the local choice came first, the
+       external write after it. Nothing here lets a superseded local choice
+       overwrite a genuinely later external one. */
+    const { result } = setup();
+    const chatId = result.current.activeChatIdRef.current;
+    choose(result);
+    act(() => {
+      chooseLater(result);
+      writeExternalB(chatId);
+    });
+    expect(shownBundle(result)).toEqual(EXTERNAL_B);
+    act(() => {
+      jest.advanceTimersByTime(150);
+    });
+    expect(storedBundle(chatId)).toEqual(EXTERNAL_B);
+    expect(shownBundle(result)).toEqual(EXTERNAL_B);
   });
 });

@@ -279,6 +279,51 @@ export const useChatSessionState = ({
     chatId: initialChat.id,
     fingerprint: sessionBundleFingerprint(initialChat),
   });
+
+  /* Session-bundle persist is DEFERRED off the interaction's paint path:
+     a synchronous whole-store persist here blocks the main thread for
+     40-80ms right after e.g. a toolkit checkbox click, making the toggle
+     feel sluggish. Debounced writes coalesce rapid toggles; a pending
+     write is flushed when the chat switches under it and on unmount, so
+     nothing is lost. */
+  const pendingSessionBundleRef = useRef(null);
+  const flushPendingSessionBundle = useCallback(() => {
+    const pending = pendingSessionBundleRef.current;
+    pendingSessionBundleRef.current = null;
+    if (!pending) {
+      return;
+    }
+    const canonicalChat = getChatsStore()?.chatsById?.[pending.chatId];
+    if (!canonicalChat) {
+      return;
+    }
+    const canonicalFingerprint = sessionBundleFingerprint(canonicalChat);
+    const pendingFingerprint = sessionBundleFingerprint(pending.bundle);
+    if (
+      canonicalFingerprint !== pending.baseFingerprint &&
+      canonicalFingerprint !== pendingFingerprint
+    ) {
+      /* Someone else changed these fields while this write waited: theirs
+         stands, and that is now what the store is known to hold. */
+      lastKnownSessionBundleRef.current = {
+        chatId: pending.chatId,
+        fingerprint: canonicalFingerprint,
+      };
+      return;
+    }
+    setChatSessionBundle(pending.chatId, pending.bundle, {
+      source: "chat-page",
+    });
+    /* Read back rather than assumed: the store sanitizes what it stores (an
+       unknown toolkit id is dropped, a locked character chat is forced), so
+       what it now holds is the only honest answer to "what did I write". */
+    lastKnownSessionBundleRef.current = {
+      chatId: pending.chatId,
+      fingerprint: sessionBundleFingerprint(
+        getChatsStore()?.chatsById?.[pending.chatId],
+      ),
+    };
+  }, []);
   const [activeChatKind, setActiveChatKind] = useState(
     initialChat.kind === "character" ? "character" : "default",
   );
@@ -478,6 +523,20 @@ export const useChatSessionState = ({
             chatId: nextActiveId,
             fingerprint: sessionBundleFingerprint(nextActiveChat),
           };
+          /* The choice that was waiting is now superseded: local state has
+             just been replaced by this writer's, so there is nothing left to
+             write. Retiring the record matters beyond tidiness — the next
+             choice the author makes is taken on top of what is on screen NOW,
+             and a kept record would hand it the abandoned baseline and have
+             the flush refuse it as if it were the superseded one. The
+             protection is not weakened: the superseded write is gone, not
+             allowed through. */
+          if (
+            pendingBundle &&
+            pendingBundle.chatId === nextActiveId
+          ) {
+            pendingSessionBundleRef.current = null;
+          }
           setAgentOrchestration(
             nextActiveChat.agentOrchestration || { mode: "default" },
           );
@@ -520,6 +579,17 @@ export const useChatSessionState = ({
       const currentActiveStillExists = Boolean(currentActiveChat);
       if (currentActiveStillExists) {
         flushDraftToStore(currentActiveId);
+        /* And the composer's selections, for the same reason the draft is
+           flushed here rather than later: store callbacks are synchronous
+           while React state is batched, so an A→B→A inside ONE batch gets no
+           effect run in between. Entering B and then A again would restore A's
+           stored row over a choice that had not been written yet, and the
+           debounced write — whose job this normally is — would find the
+           restored values and have nothing to say. Flushing on the way out
+           keeps the leaving chat's own choice; `flushPendingSessionBundle`
+           writes to the chat the pending record names, and still refuses to
+           overwrite a genuinely newer external change. */
+        flushPendingSessionBundle();
       }
       activeChatIdRef.current = nextActiveId;
 
@@ -637,6 +707,7 @@ export const useChatSessionState = ({
   }, [
     activeStreamsRef,
     flushDraftToStore,
+    flushPendingSessionBundle,
     setDraftAttachments,
     setStreamError,
   ]);
@@ -769,51 +840,6 @@ export const useChatSessionState = ({
         { source: "chat-page" },
       );
     }
-  }, []);
-
-  /* Session-bundle persist is DEFERRED off the interaction's paint path:
-     a synchronous whole-store persist here blocks the main thread for
-     40-80ms right after e.g. a toolkit checkbox click, making the toggle
-     feel sluggish. Debounced writes coalesce rapid toggles; a pending
-     write is flushed when the chat switches under it and on unmount, so
-     nothing is lost. */
-  const pendingSessionBundleRef = useRef(null);
-  const flushPendingSessionBundle = useCallback(() => {
-    const pending = pendingSessionBundleRef.current;
-    pendingSessionBundleRef.current = null;
-    if (!pending) {
-      return;
-    }
-    const canonicalChat = getChatsStore()?.chatsById?.[pending.chatId];
-    if (!canonicalChat) {
-      return;
-    }
-    const canonicalFingerprint = sessionBundleFingerprint(canonicalChat);
-    const pendingFingerprint = sessionBundleFingerprint(pending.bundle);
-    if (
-      canonicalFingerprint !== pending.baseFingerprint &&
-      canonicalFingerprint !== pendingFingerprint
-    ) {
-      /* Someone else changed these fields while this write waited: theirs
-         stands, and that is now what the store is known to hold. */
-      lastKnownSessionBundleRef.current = {
-        chatId: pending.chatId,
-        fingerprint: canonicalFingerprint,
-      };
-      return;
-    }
-    setChatSessionBundle(pending.chatId, pending.bundle, {
-      source: "chat-page",
-    });
-    /* Read back rather than assumed: the store sanitizes what it stores (an
-       unknown toolkit id is dropped, a locked character chat is forced), so
-       what it now holds is the only honest answer to "what did I write". */
-    lastKnownSessionBundleRef.current = {
-      chatId: pending.chatId,
-      fingerprint: sessionBundleFingerprint(
-        getChatsStore()?.chatsById?.[pending.chatId],
-      ),
-    };
   }, []);
 
   useEffect(() => {
