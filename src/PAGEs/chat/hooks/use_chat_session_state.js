@@ -270,6 +270,15 @@ export const useChatSessionState = ({
   const [selectedSkeletonAgentId, setSelectedSkeletonAgentId] = useState(() =>
     skeleton_agent_id(initialChat.selectedSkeletonAgentId),
   );
+  /* The bundle this hook last knew the store to hold for the active chat —
+     either because it read it, or because it wrote it. A snapshot arriving
+     with that exact bundle carries no news about these five fields, which is
+     how an unrelated write is told apart from one that really changed them.
+     Seeded from the chat this hook mounted on, where local state came from. */
+  const lastKnownSessionBundleRef = useRef({
+    chatId: initialChat.id,
+    fingerprint: sessionBundleFingerprint(initialChat),
+  });
   const [activeChatKind, setActiveChatKind] = useState(
     initialChat.kind === "character" ? "character" : "default",
   );
@@ -437,15 +446,48 @@ export const useChatSessionState = ({
           nextActiveChat.threadId.trim()
             ? nextActiveChat.threadId
             : nextActiveId;
-        setAgentOrchestration(
-          nextActiveChat.agentOrchestration || { mode: "default" },
-        );
-        setSelectedToolkits(nextActiveChat.selectedToolkits || []);
-        setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
-        setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
-        setSelectedSkeletonAgentId(
-          skeleton_agent_id(nextActiveChat.selectedSkeletonAgentId),
-        );
+        /* The composer's five selections — toolkits, orchestration,
+           workspaces, the Recipe name and the Skeleton Agent id — are written
+           on one 150ms debounce, so the newest choice lives only in this hook
+           until it lands. An unrelated write to this same chat (a rename from
+           the side menu, say) must not put the stored row back over it: that
+           row is not newer, it is the one that has not caught up, and
+           re-applying it silently returns the choice to what it was.
+           The pending write's own base fingerprint answers which case this is.
+           Equal means no other writer touched these five fields, so this
+           snapshot has nothing to say about them and the choice stands.
+           Different means another writer DID change them — that writer wins,
+           exactly as before, and `flushPendingSessionBundle` already refuses
+           to write the superseded choice over it. */
+        const pendingBundle = pendingSessionBundleRef.current;
+        const lastKnownBundle = lastKnownSessionBundleRef.current;
+        const knownBundleFingerprint =
+          pendingBundle && pendingBundle.chatId === nextActiveId
+            ? pendingBundle.baseFingerprint
+            : lastKnownBundle && lastKnownBundle.chatId === nextActiveId
+              ? lastKnownBundle.fingerprint
+              : "";
+        const bundleUntouchedByThisWrite =
+          Boolean(knownBundleFingerprint) &&
+          sessionBundleFingerprint(nextActiveChat) === knownBundleFingerprint;
+        if (!bundleUntouchedByThisWrite) {
+          /* This write did change them, so it is the authority and local
+             state follows it — which is also what it now knows the store to
+             hold. */
+          lastKnownSessionBundleRef.current = {
+            chatId: nextActiveId,
+            fingerprint: sessionBundleFingerprint(nextActiveChat),
+          };
+          setAgentOrchestration(
+            nextActiveChat.agentOrchestration || { mode: "default" },
+          );
+          setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+          setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
+          setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
+          setSelectedSkeletonAgentId(
+            skeleton_agent_id(nextActiveChat.selectedSkeletonAgentId),
+          );
+        }
         setActiveChatKind(
           nextActiveChat.kind === "character" ? "character" : "default",
         );
@@ -530,6 +572,12 @@ export const useChatSessionState = ({
       setSelectedSkeletonAgentId(
         skeleton_agent_id(nextActiveChat.selectedSkeletonAgentId),
       );
+      /* Entering a chat: its own bundle is what this hook now holds and what
+         it knows the store to hold. */
+      lastKnownSessionBundleRef.current = {
+        chatId: nextActiveId,
+        fingerprint: sessionBundleFingerprint(nextActiveChat),
+      };
       setActiveChatKind(
         nextActiveChat.kind === "character" ? "character" : "default",
       );
@@ -746,11 +794,26 @@ export const useChatSessionState = ({
       canonicalFingerprint !== pending.baseFingerprint &&
       canonicalFingerprint !== pendingFingerprint
     ) {
+      /* Someone else changed these fields while this write waited: theirs
+         stands, and that is now what the store is known to hold. */
+      lastKnownSessionBundleRef.current = {
+        chatId: pending.chatId,
+        fingerprint: canonicalFingerprint,
+      };
       return;
     }
     setChatSessionBundle(pending.chatId, pending.bundle, {
       source: "chat-page",
     });
+    /* Read back rather than assumed: the store sanitizes what it stores (an
+       unknown toolkit id is dropped, a locked character chat is forced), so
+       what it now holds is the only honest answer to "what did I write". */
+    lastKnownSessionBundleRef.current = {
+      chatId: pending.chatId,
+      fingerprint: sessionBundleFingerprint(
+        getChatsStore()?.chatsById?.[pending.chatId],
+      ),
+    };
   }, []);
 
   useEffect(() => {
@@ -806,6 +869,10 @@ export const useChatSessionState = ({
         selectedRecipeName,
         selectedSkeletonAgentId,
       },
+    };
+    lastKnownSessionBundleRef.current = {
+      chatId: currentChatId,
+      fingerprint: canonicalFingerprint,
     };
     const timer = setTimeout(flushPendingSessionBundle, 150);
     return () => clearTimeout(timer);

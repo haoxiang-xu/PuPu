@@ -27,6 +27,7 @@ import {
   getChatsStore,
   selectTreeNode,
   setChatModel,
+  setChatTitle,
 } from "../../../SERVICEs/chat_storage";
 import { buildTreeNodeLookupByChatId } from "../../../SERVICEs/chat_storage/chat_storage_tree";
 import { SKELETON_CHAT_SELECTION_SCHEMA } from "../../../SERVICEs/skeleton_chat_selection";
@@ -760,6 +761,36 @@ describe("sending with a stored Skeleton Agent", () => {
       expect(lastChatInputProps.disclaimer || "").toMatch(
         /Custom provider not found/i,
       ),
+    );
+  });
+
+  test("renaming the chat right after choosing still sends that Agent", async () => {
+    /* The user-facing shape of the debounce-window defect: the five composer
+       selections persist on a 150ms debounce, and any other write to this chat
+       used to re-apply the stored row over them. Renaming the chat in the side
+       menu one moment after picking an Agent was enough to send the message
+       with no Agent at all — and nothing on screen said so. The lifecycle rule
+       lives in `use_chat_session_state`; this is the send that depends on it. */
+    renderChat();
+    await waitForReady();
+    await choose("research.agent:v2");
+    const chatId = getChatsStore().activeChatId;
+    await act(async () => {
+      setChatTitle(chatId, "Renamed while choosing", { source: "side-menu" });
+    });
+    expect(lastChatInputProps.selectedSkeletonAgentId).toBe(
+      "research.agent:v2",
+    );
+    await send("the rename did not change what runs this");
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1),
+    );
+    expect(sentOptions().skeleton_selection.resource_id).toBe(
+      "research.agent:v2",
+    );
+    expect("recipe_name" in sentOptions()).toBe(false);
+    expect(getChatsStore().chatsById[chatId].title).toBe(
+      "Renamed while choosing",
     );
   });
 
