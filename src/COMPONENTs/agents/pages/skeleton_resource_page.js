@@ -21,7 +21,7 @@ import {
 } from "../../../SERVICEs/skeleton_layout";
 import {
   DRILL,
-  EMBEDDED_UNCHECKED_CAPTION,
+  EMBEDDED_CHECKED_CAPTION,
   FRAME,
   closed_embedded_frames,
   diagnostics_for_embedded,
@@ -259,11 +259,13 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
     [edit, revision, session.document, steps],
   );
 
-  /* The draft check does not look inside an embedded graph — measured: a child
-     with no End answers the same `[]` as a healthy one — and the parent's own
-     problems are reported at paths that would land on this graph's nodes by
-     position. So a child view shows the ones reported at its own path, which
-     is none of the parent's. */
+  /* The draft check reads an embedded graph now, and reports its problems at
+     their own full path — a child with no End answers `end_count` at
+     `…source.document.nodes`, measured on the new pair. So a child view shows
+     the ones reported at its own path, re-rooted; the parent's own problems
+     are at paths that would land on this graph's nodes by position, and a
+     sibling child's at paths that look just like this one's, which is what the
+     filter is for. */
   const diagnostics = steps.length === 0
     ? session.diagnostics
     : diagnostics_for_embedded(session.diagnostics, prefix);
@@ -539,7 +541,7 @@ export default function SkeletonResourcePage({ resourceId, onDrilledChange }) {
           caption={
             steps.length > 0 ? save_target_caption(resource_label) : null
           }
-          note={steps.length > 0 ? EMBEDDED_UNCHECKED_CAPTION : null}
+          note={steps.length > 0 ? EMBEDDED_CHECKED_CAPTION : null}
         />
       )}
 

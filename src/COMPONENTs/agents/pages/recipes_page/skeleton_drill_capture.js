@@ -19,11 +19,15 @@
  *   3. The parent document before an embedded child was edited, the child
  *      after, and what the store then held — so writing a child back is
  *      checked against the document the store really stored.
- *   4. What the draft check says about a problem inside an embedded child:
- *      nothing. It is the same `[]` for a child with no End as for a healthy
- *      one, while the identical fault in the PARENT is reported — at a path
- *      that would land on the child's node in a child view. That is why a
- *      child view shows none of the parent's diagnostics.
+ *   4. What the draft check says about a problem inside an embedded child.
+ *      It used to say nothing — the same `[]` for a child with no End as for a
+ *      healthy one — and since the #356 embedded-diagnostics repair it reports
+ *      the child's own problems at their full path, one `source.document`
+ *      segment per level: a structural fault lands on the child graph
+ *      (`…source.document.nodes`), a node fault on the child's node, and a
+ *      binding fault on that node's own input row. Re-measured on the new
+ *      fixed pair; the rows below are that producer's answers, which is what
+ *      lets a child view show its own problems.
  *
  * Two measured facts that belong in a report rather than a table: editing a
  * referenced Agent leaves the parent's document and token untouched while the
@@ -318,7 +322,39 @@ export const CAPTURED_EMBEDDED_WRITE_BACK = {
 export const CAPTURED_EMBEDDED_DIAGNOSTICS = [
     {
       "case": "the embedded child has no End",
-      "draft_diagnostics": [],
+      "draft_diagnostics": [
+        {
+          "code": "end_count",
+          "message": "graph requires exactly one end node",
+          "path": [
+            "document",
+            "nodes",
+            3,
+            "config",
+            "subagents",
+            0,
+            "source",
+            "document",
+            "nodes"
+          ]
+        },
+        {
+          "code": "flow_output_required",
+          "message": "execution node requires flow output",
+          "path": [
+            "document",
+            "nodes",
+            3,
+            "config",
+            "subagents",
+            0,
+            "source",
+            "document",
+            "nodes",
+            1
+          ]
+        }
+      ],
       "preflight": {
         "code": "end_count",
         "ok": false,
@@ -337,11 +373,40 @@ export const CAPTURED_EMBEDDED_DIAGNOSTICS = [
     },
     {
       "case": "a binding in the embedded child carries an unknown field",
-      "draft_diagnostics": [],
+      "draft_diagnostics": [
+        {
+          "code": "unknown_field",
+          "message": "default is only allowed for default policy",
+          "path": [
+            "document",
+            "nodes",
+            3,
+            "config",
+            "subagents",
+            0,
+            "source",
+            "document",
+            "nodes",
+            1,
+            "config",
+            "execution",
+            "inputs",
+            0,
+            "default"
+          ]
+        }
+      ],
       "preflight": {
         "code": "unknown_field",
         "ok": false,
         "path": [
+          "document",
+          "nodes",
+          3,
+          "config",
+          "subagents",
+          0,
+          "source",
           "document",
           "nodes",
           1,

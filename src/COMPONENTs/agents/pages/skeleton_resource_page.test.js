@@ -1003,11 +1003,14 @@ describe("drilling into a subagent's own graph", () => {
     expect(screen.getByTestId("skeleton-drill-save-target").textContent).toBe(
       "Save writes Reviewer, which owns this embedded graph.",
     );
-    /* And it says why nothing is reported here, so an empty diagnostics area
-       is not read as "nothing is wrong". */
-    expect(screen.getByTestId("skeleton-drill-unchecked").textContent).toMatch(
-      /does not look inside an embedded graph/,
-    );
+    /* And it says what being checked here means: the draft check reads this
+       graph now, and running the parent checks more — so an empty diagnostics
+       area is not read as "ready to run" either. */
+    const note = screen.getByTestId("skeleton-drill-unchecked").textContent;
+    expect(note).toMatch(/checked as you edit/i);
+    expect(note).toMatch(/reported here/i);
+    expect(note).toMatch(/pools reference are only read then/i);
+    expect(note).not.toMatch(/does not look inside/i);
 
     fireEvent.click(screen.getByTestId("skeleton-node-inner-end"));
     fireEvent.click(screen.getByText("+ Add input"));

@@ -27,11 +27,15 @@
  * `source` — and each refusal has a row there.
  *
  * One thing worth stating because it decides what a child view may show: the
- * draft check does not look inside an embedded graph. A child with no End
- * answers the same `[]` as a healthy one, while the identical fault in the
- * PARENT is reported — at `document.nodes[1]…`, which in a child view is the
- * child's own Kernel. So a child view shows none of the parent's diagnostics,
- * and says that this graph is checked when the parent runs. */
+ * draft check reads an embedded graph. It did not — a child with no End
+ * answered the same `[]` as a healthy one — and since the #356
+ * embedded-diagnostics repair it reports the child's own problems at their
+ * full path, one `source.document` segment per level, measured on the new
+ * fixed pair in `skeleton_drill_capture`. So a child view shows its own
+ * problems and only its own: the filter below is what keeps the parent's off
+ * this graph's nodes, where they would otherwise land by position. What the
+ * draft check still does not do is read a referenced Agent, so an empty list
+ * is not Run admission. */
 
 import { identity_of, safe_text } from "./document_values";
 import {
@@ -67,8 +71,17 @@ export const DRILL = Object.freeze({
    never navigable — the same word the design uses. */
 const VIA_LABEL = "Subagent Pool";
 
-export const EMBEDDED_UNCHECKED_CAPTION =
-  "The draft check does not look inside an embedded graph, so nothing here is reported until the parent Agent runs.";
+/* What a child view can say about being checked.
+ *
+ * It used to say that nothing here was reported until the parent ran, which
+ * was true and is not any more: the draft check reads this graph and reports
+ * its own problems at their own paths. What it still does not do is read a
+ * referenced Agent or resolve the pool's closure — measured on the pair, a
+ * pool entry naming a resource that does not exist draws no draft diagnostic
+ * and is `resource_missing` at Run — so an empty list here is not permission
+ * to run. */
+export const EMBEDDED_CHECKED_CAPTION =
+  "This graph is checked as you edit, and what is wrong with it is reported here. Running the parent Agent checks more: the Agents its pools reference are only read then.";
 
 const NO_SOURCE =
   "This entry does not say where its Agent comes from, so there is no graph to open.";
@@ -79,10 +92,12 @@ const LEGACY_FIRST =
 
 /* Whether there is a graph here to draw at all.
  *
- * An embedded document is checked by nothing before it arrives: the draft
- * check does not descend into a pool, so `nodes: {"toString": null}` is
- * saved, read back verbatim and handed to this editor — measured, with the
- * store's own verdict, in `skeleton_drill_identity_capture`. The canvas then
+ * An embedded document can arrive in any shape the envelope check takes:
+ * `nodes: {"toString": null}` is saved, read back verbatim and handed to this
+ * editor — measured, with the store's own verdict, in
+ * `skeleton_drill_identity_capture`. The draft check now reports it (at
+ * `…source.document.nodes`), which tells the author what is wrong but does not
+ * make it drawable. The canvas then
  * walks `nodes` and `edges` and reads a name out of each one, and a value
  * that is not a list does not walk, while a name that is not text cannot even
  * be used as a key: `positions[node.id]` coerces the key before the lookup,
@@ -485,15 +500,23 @@ export function with_embedded_document(document, steps, child, revision) {
 
 /* Which of the parent's diagnostics are about this embedded graph: the ones
    reported at its own path, re-rooted so the panel can place them the way it
-   places any other. Measured today: none — the draft check does not descend
-   into a pool. The filter is what keeps the parent's own problems off this
-   graph's nodes, where they would otherwise land by position. */
+   places any other. The filter is what keeps the parent's own problems — and
+   a sibling child's — off this graph's nodes, where they would otherwise land
+   by position.
+
+   A problem can be about the whole graph rather than anything in it, and then
+   its path IS this prefix: measured on the pair, the seventh embedded level is
+   `subagent_depth` at `…source.document` exactly. Dropping it was the shape of
+   bug this module exists to avoid — a panel with nothing on it reads as a
+   draft with nothing wrong — so it is re-rooted to `["document"]`, which is
+   where the panel's own routing puts a graph-level problem. It must not be
+   given to a node: there is no node in that path to give it to. */
 export function diagnostics_for_embedded(diagnostics, prefix) {
   if (!Array.isArray(diagnostics) || !Array.isArray(prefix)) return [];
   return diagnostics
     .filter((item) => {
       const path = item && Array.isArray(item.path) ? item.path : null;
-      if (path === null || path.length <= prefix.length) return false;
+      if (path === null || path.length < prefix.length) return false;
       return prefix.every((part, index) => path[index] === part);
     })
     .map((item) => ({

@@ -1,5 +1,6 @@
 import {
   DRILL,
+  EMBEDDED_CHECKED_CAPTION,
   FRAME,
   can_drill,
   closed_embedded_frames,
@@ -34,6 +35,7 @@ import {
   IDENTITY_ROWS,
   REPLACEMENT_CASES,
 } from "./skeleton_drill_replacement_capture";
+import { EMBEDDED_DIAGNOSTIC_ROWS } from "./skeleton_embedded_diagnostics_capture";
 import {
   CAPTURED_EMBEDDED_DIAGNOSTICS,
   CAPTURED_EMBEDDED_LOCATION,
@@ -268,14 +270,62 @@ describe("whose problems a child view may show", () => {
   );
   const prefix = embedded.path;
 
-  test("the draft check says nothing about a problem inside an embedded graph", () => {
-    /* Frozen: a child with no End and a child with an unknown binding field
-       both answer the same `[]` as a healthy one. */
+  test("the draft check reports a problem inside an embedded graph, at its own path", () => {
+    /* It used to answer the same `[]` for a child with no End as for a
+       healthy one. Frozen from the new pair: the child's own problems, each
+       addressed through the entry that holds it. */
     const inside = CAPTURED_EMBEDDED_DIAGNOSTICS.filter((row) =>
       row.case.includes("embedded child"),
     );
     expect(inside).toHaveLength(3);
-    inside.forEach((row) => expect(row.draft_diagnostics).toEqual([]));
+    const by = (text) => inside.find((row) => row.case.includes(text));
+
+    const no_end = by("no End").draft_diagnostics;
+    expect(no_end.map((item) => item.code)).toEqual([
+      "end_count",
+      "flow_output_required",
+    ]);
+    /* One about the graph, one about a node in it, both under the entry. */
+    expect(no_end[0].path.slice(-3)).toEqual(["source", "document", "nodes"]);
+    expect(no_end[1].path.slice(-4)).toEqual(["source", "document", "nodes", 1]);
+
+    const binding = by("unknown field").draft_diagnostics;
+    expect(binding).toHaveLength(1);
+    expect(binding[0].code).toBe("unknown_field");
+    expect(binding[0].path.slice(-7)).toEqual([
+      "nodes", 1, "config", "execution", "inputs", 0, "default",
+    ]);
+
+    /* And a child with nothing wrong with it still answers nothing. */
+    expect(by("is complete").draft_diagnostics).toEqual([]);
+  });
+
+  test("each of them re-roots onto this graph, where the panel can place it", () => {
+    /* The prefix is the store's own address for the child — everything up to
+       and including its `source.document` — so the tail is what the panel
+       routes: a graph-level path with no node in it, a node, or a binding
+       row. */
+    const child_prefix = (path) => {
+      const at = path.findIndex(
+        (part, index) => part === "source" && path[index + 1] === "document",
+      );
+      return path.slice(0, at + 2);
+    };
+    const no_end = CAPTURED_EMBEDDED_DIAGNOSTICS.find((row) =>
+      row.case.includes("no End"),
+    ).draft_diagnostics;
+    const rooted = diagnostics_for_embedded(no_end, child_prefix(no_end[0].path));
+    expect(rooted.map((item) => item.path)).toEqual([
+      ["document", "nodes"],
+      ["document", "nodes", 1],
+    ]);
+
+    const binding = CAPTURED_EMBEDDED_DIAGNOSTICS.find(
+      (row) => row.case.includes("embedded child") && row.case.includes("unknown field"),
+    ).draft_diagnostics[0];
+    expect(
+      diagnostics_for_embedded([binding], child_prefix(binding.path))[0].path,
+    ).toEqual(["document", "nodes", 1, "config", "execution", "inputs", 0, "default"]);
   });
 
   test("while the identical fault in the parent IS reported — at a path that would land on this graph's node", () => {
@@ -302,10 +352,68 @@ describe("whose problems a child view may show", () => {
     ]);
   });
 
-  test("the prefix itself is not a problem about anything inside it", () => {
-    expect(diagnostics_for_embedded([{ code: "x", path: prefix }], prefix)).toEqual([]);
+  test("a problem about the whole graph is shown, not dropped", () => {
+    /* Its path IS the prefix — measured: the seventh embedded level is
+       `subagent_depth` at `…source.document` exactly. A filter keyed on
+       "longer than the prefix" dropped it, and a panel with nothing on it
+       reads as a draft with nothing wrong. It re-roots to `["document"]`,
+       which is where the panel puts a graph-level problem; it must not be
+       handed to a node, because there is no node in that path. */
+    const deep = EMBEDDED_DIAGNOSTIC_ROWS.find(
+      (row) => row.case === "nested_depth_seven",
+    ).draft_diagnostics[0];
+    expect(deep.code).toBe("subagent_depth");
+    expect(deep.path.slice(-2)).toEqual(["source", "document"]);
+    expect(diagnostics_for_embedded([deep], deep.path)).toEqual([
+      { ...deep, path: ["document"] },
+    ]);
+    /* A path shorter than the prefix, or no path at all, is still nothing. */
+    expect(diagnostics_for_embedded([{ code: "x", path: prefix.slice(0, -1) }], prefix)).toEqual([]);
     expect(diagnostics_for_embedded(null, prefix)).toEqual([]);
     expect(diagnostics_for_embedded([{ code: "x" }], prefix)).toEqual([]);
+  });
+
+  test("a sibling child's problem is not this graph's, and neither is the parent's", () => {
+    /* Two children, one with a bad input: its path looks exactly like this
+       one's until the entry index, which is the whole reason the filter is a
+       prefix match rather than a shape match. */
+    const sibling = EMBEDDED_DIAGNOSTIC_ROWS.find(
+      (row) => row.case === "sibling_isolation",
+    ).draft_diagnostics[0];
+    const first = sibling.path.slice(0, sibling.path.lastIndexOf("document") + 1);
+    const second = first.map((part, index) => (index === 5 ? 1 : part));
+    expect(first[5]).toBe(0);
+    expect(diagnostics_for_embedded([sibling], first)).toHaveLength(1);
+    expect(diagnostics_for_embedded([sibling], second)).toEqual([]);
+
+    /* And the parent's own fault, in the same document as the child's. */
+    const both = EMBEDDED_DIAGNOSTIC_ROWS.find(
+      (row) => row.case === "parent_and_child",
+    ).draft_diagnostics;
+    expect(both).toHaveLength(2);
+    const parent_side = both.find((item) => !item.path.includes("subagents"));
+    const child_side = both.find((item) => item.path.includes("subagents"));
+    expect(parent_side.path.slice(0, 3)).toEqual(["document", "nodes", 1]);
+    const child_at = child_side.path.slice(
+      0,
+      child_side.path.lastIndexOf("document") + 1,
+    );
+    expect(diagnostics_for_embedded(both, child_at)).toHaveLength(1);
+    expect(diagnostics_for_embedded(both, child_at)[0].path[0]).toBe("document");
+  });
+
+  test("an empty list is not permission to run", () => {
+    /* The draft check does not read a referenced Agent: measured, an entry
+       naming a resource that does not exist draws nothing in the draft and is
+       `resource_missing` at Run. */
+    const row = EMBEDDED_DIAGNOSTIC_ROWS.find(
+      (item) => item.case === "reference_entry",
+    );
+    expect(row.draft_diagnostics).toEqual([]);
+    expect(row.run.code).toBe("resource_missing");
+    /* And the sentence the child view shows says so. */
+    expect(EMBEDDED_CHECKED_CAPTION).toMatch(/checked as you edit/i);
+    expect(EMBEDDED_CHECKED_CAPTION).toMatch(/only read then/i);
   });
 });
 
@@ -527,15 +635,30 @@ const replacement = (name) => ({
 });
 
 describe("an embedded graph the canvas could not draw", () => {
-  test("the capture is every shape, and the store saved all of them unchecked", () => {
+  test("the capture is every shape, and the store saved and kept all of them", () => {
+    /* Saved and read back verbatim is what makes these the editor's problem
+       at all. What changed with the #356 repair is the third column: the draft
+       check now reports the child's own problem, so a row's
+       `draft_diagnostics` is the store's answer about this child rather than
+       the `[]` this capture used to hold. */
     expect(CAPTURED_EMBEDDED_SHAPES).toHaveLength(17);
     CAPTURED_EMBEDDED_SHAPES.forEach((row) => {
-      expect([row.case, row.saved, row.round_trip, row.draft_diagnostics]).toEqual([
-        row.case,
-        true,
-        true,
-        [],
-      ]);
+      expect([row.case, row.saved, row.round_trip]).toEqual([row.case, true, true]);
+      expect(Array.isArray(row.draft_diagnostics)).toBe(true);
+    });
+    /* And it is reported: every shape Run refuses is now named in the draft
+       too, at a path inside this child. */
+    const refused = CAPTURED_EMBEDDED_SHAPES.filter((row) => row.run.ok === false);
+    expect(refused.length).toBeGreaterThan(10);
+    refused.forEach((row) => {
+      expect([row.case, row.draft_diagnostics.length > 0]).toEqual([row.case, true]);
+      row.draft_diagnostics.forEach((found) => {
+        expect([row.case, found.path.slice(0, 2)]).toEqual([
+          row.case,
+          ["document", "nodes"],
+        ]);
+        expect([row.case, found.path.includes("subagents")]).toEqual([row.case, true]);
+      });
     });
   });
 

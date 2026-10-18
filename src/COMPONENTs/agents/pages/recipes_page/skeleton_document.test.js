@@ -466,11 +466,18 @@ describe("the node a drawing is given", () => {
     const junk = row("child_node_label_unreadable");
     const text = row("child_node_label_text");
     [junk, text].forEach((item) => {
-      expect([item.case, item.saved, item.round_trip, item.draft_diagnostics]).toEqual([
-        item.case, true, true, [],
-      ]);
+      expect([item.case, item.saved, item.round_trip]).toEqual([item.case, true, true]);
       expect([item.case, item.run.code, item.run.path.slice(-1)]).toEqual([
         item.case, "unknown_field", ["label"],
+      ]);
+      /* Since the #356 repair the draft check says the same thing, at the
+         same path, rather than nothing — which is why the drawing may not
+         read the key but the author is told about it. */
+      expect([item.case, item.draft_diagnostics.map((found) => found.code)]).toEqual([
+        item.case, ["unknown_field"],
+      ]);
+      expect([item.case, item.draft_diagnostics[0].path.slice(-1)]).toEqual([
+        item.case, ["label"],
       ]);
     });
     /* And on a parent it never gets stored at all. */

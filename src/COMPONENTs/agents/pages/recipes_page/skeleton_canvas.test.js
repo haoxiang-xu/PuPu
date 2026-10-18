@@ -325,8 +325,11 @@ describe("the drawing is given the node, not everything beside it", () => {
      "child_node_model_unreadable", "child_node_override_unreadable",
      "child_node_position"].forEach((name) => {
       const row = refused(name);
-      expect([name, row.saved, row.round_trip, row.draft_diagnostics]).toEqual([
-        name, true, true, [],
+      expect([name, row.saved, row.round_trip]).toEqual([name, true, true]);
+      /* And the draft check names it too now, at the key — the drawing still
+         may not read it, and the author is told which key it is. */
+      expect([name, row.draft_diagnostics.map((found) => found.code)]).toEqual([
+        name, ["unknown_field"],
       ]);
       expect([name, row.run.code, row.run.path[row.run.path.length - 1]]).toEqual([
         name, "unknown_field", name.split("_")[2] === "position" ? "x" : name.split("_")[2],

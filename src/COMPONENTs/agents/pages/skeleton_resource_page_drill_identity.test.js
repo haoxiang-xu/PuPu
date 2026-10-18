@@ -18,6 +18,7 @@ import {
   SAVE_COUNT_PAIRS,
 } from "./recipes_page/skeleton_entry_id_capture";
 import { SCOPE_CASES } from "./recipes_page/skeleton_entry_id_scope_capture";
+import { EMBEDDED_DIAGNOSTIC_ROWS } from "./recipes_page/skeleton_embedded_diagnostics_capture";
 import { writeSkeletonViewport } from "../../../SERVICEs/skeleton_layout";
 import {
   readSkeletonLayout,
@@ -1306,5 +1307,161 @@ describe("the drawings the repair moves", () => {
     keys.forEach((key) => {
       expect(Object.prototype.hasOwnProperty.call(stored.resources, key)).toBe(true);
     });
+  });
+});
+
+describe("a child graph's own problems, in the child's own view", () => {
+  /* The draft check reads an embedded graph since the #356 repair, and every
+     row here is that producer's answer on the new fixed pair — the parent
+     document as it was stored, and the diagnostics `save_draft`, `get` and
+     `diagnose` all returned for it (`same_three`). What this suite is about is
+     where each of them lands on screen. */
+
+  const row = (name) => EMBEDDED_DIAGNOSTIC_ROWS.find((item) => item.case === name);
+  const document_of = (name) => copy(JSON.parse(row(name).document));
+
+  const open_with_diagnostics = async (name, { pool = "pool-a" } = {}) => {
+    const document = document_of(name);
+    const diagnostics = copy(row(name).draft_diagnostics);
+    api.unchain.listSkeletonResources = jest.fn().mockResolvedValue({ resources: [] });
+    api.unchain.listSkeletonKernelProfiles = jest
+      .fn()
+      .mockResolvedValue({ profiles: [], unavailable: [] });
+    api.unchain.saveSkeletonResource = jest.fn(() => new Promise(() => {}));
+    api.unchain.getSkeletonResource = jest.fn(async () => ({
+      id: document.id,
+      kind: "agent",
+      name: document.name,
+      document: copy(document),
+      edit_token: "edit-1",
+      /* The store's own list, as the store returned it. */
+      diagnostics,
+      archived: false,
+      description: null,
+      draft_digest: null,
+      source_identity: null,
+    }));
+    render(
+      <ConfigContext.Provider value={cfg}>
+        <SkeletonResourcePage resourceId={document.id} />
+      </ConfigContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId(`skeleton-node-${pool}`)).toBeInTheDocument(),
+    );
+    return { document, diagnostics };
+  };
+
+  const notices = () =>
+    [
+      ...screen.queryAllByTestId(/^skeleton-diagnostic-\d+$/),
+      ...screen.queryAllByTestId(/^skeleton-elsewhere-\d+$/),
+    ].map((node) => node.textContent);
+
+  test("a problem about the child graph is visible in it, and names the graph", async () => {
+    /* `end_count` at `…source.document.nodes`: one segment past the child's
+       own address, so there is no node to put it on. */
+    const { diagnostics } = await open_with_diagnostics("child_no_end");
+    expect(diagnostics.map((item) => item.code)).toEqual([
+      "end_count",
+      "flow_output_required",
+    ]);
+    open_row(0);
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-drill-breadcrumb")).toBeInTheDocument();
+    /* Select the child's own Agent node, which is where its own problem is. */
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    const shown = notices().join(" | ");
+    expect(shown).toMatch(/exactly one end node/i);
+    expect(shown).toMatch(/This graph —/);
+    /* Its node-level sibling is on the node, not in the graph bucket. */
+    expect(screen.getByTestId("skeleton-diagnostics-notice").textContent).toMatch(
+      /requires flow output/i,
+    );
+  });
+
+  test("a problem about one of the child's own nodes lands on that node", async () => {
+    const { document } = await open_with_diagnostics("child_unknown_type");
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.getByTestId("skeleton-diagnostics-notice").textContent).toMatch(
+      /unknown node type/i,
+    );
+    /* The document is untouched by being looked at. */
+    expect(document.nodes.length).toBeGreaterThan(0);
+  });
+
+  test("a problem about one of the child's binding rows lands on that row", async () => {
+    await open_with_diagnostics("child_input_names_no_node");
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    /* The store's own sentence, shown on the row the path names. */
+    expect(screen.getByTestId("binding-row-0-problem-0").textContent).toMatch(
+      /must name an upstream flow node/i,
+    );
+  });
+
+  test("the parent's own problem stays in the parent, and the child's in the child", async () => {
+    const { diagnostics } = await open_with_diagnostics("parent_and_child");
+    expect(diagnostics).toHaveLength(2);
+    /* In the parent: its own node's problem is on `a1`. */
+    fireEvent.click(screen.getByTestId("skeleton-node-a1"));
+    await act(async () => {});
+    const in_parent = [
+      ...notices(),
+      ...screen.queryAllByTestId(/^binding-row-\d+-problem-\d+$/).map(
+        (node) => node.textContent,
+      ),
+    ].join(" | ");
+    expect(in_parent).toMatch(/must name an upstream flow node/i);
+    /* Down in the child: one problem, and it is the child's. */
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.getByTestId("binding-row-0-problem-0")).toBeInTheDocument();
+    /* Exactly one, so the parent's did not come down with it. */
+    expect(screen.queryAllByTestId(/^binding-row-0-problem-\d+$/)).toHaveLength(1);
+  });
+
+  test("a sibling child's problem does not appear in this child", async () => {
+    await open_with_diagnostics("sibling_isolation");
+    /* The healthy second entry's graph shows nothing. */
+    open_row(1);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
+    expect(screen.queryByTestId("skeleton-elsewhere-notice")).toBeNull();
+    expect(screen.queryAllByTestId(/^binding-row-0-problem-\d+$/)).toHaveLength(0);
+    /* While the first entry's graph shows its own. */
+    await act(async () => {
+      fireEvent.keyDown(window.document, { key: "Escape" });
+    });
+    open_row(0);
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.getByTestId("binding-row-0-problem-0")).toBeInTheDocument();
+  });
+
+  test("the breadcrumb says the graph is checked, and no longer promises otherwise", async () => {
+    await open_with_diagnostics("healthy_child");
+    open_row(0);
+    await act(async () => {});
+    const note = screen.getByTestId("skeleton-drill-unchecked").textContent;
+    expect(note).toMatch(/checked as you edit/i);
+    expect(note).toMatch(/pools reference are only read then/i);
+    expect(note).not.toMatch(/does not look inside/i);
+    /* A healthy child shows nothing, which is now a statement about this
+       graph rather than about the check not running. */
+    fireEvent.click(screen.getByTestId("skeleton-node-agent"));
+    await act(async () => {});
+    expect(screen.queryByTestId("skeleton-diagnostics-notice")).toBeNull();
   });
 });

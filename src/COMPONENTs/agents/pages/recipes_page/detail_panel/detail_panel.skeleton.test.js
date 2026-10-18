@@ -1130,8 +1130,11 @@ describe("a node type the identity table does not own", () => {
     ["node_type_proto", "node_type_constructor", "node_type_toString",
      "node_type_hasOwnProperty"].forEach((name) => {
       const item = row(name);
-      expect([name, item.saved, item.round_trip, item.draft_diagnostics]).toEqual([
-        name, true, true, [],
+      expect([name, item.saved, item.round_trip]).toEqual([name, true, true]);
+      /* The draft check names the type too now; the panel still has no
+         drawing for it. */
+      expect([name, item.draft_diagnostics.map((found) => found.code)]).toEqual([
+        name, ["unknown_variant"],
       ]);
       expect([name, item.run.code, item.run.path.slice(-1)]).toEqual([
         name, "unknown_variant", ["type"],
