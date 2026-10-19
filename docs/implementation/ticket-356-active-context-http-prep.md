@@ -1,0 +1,50 @@
+# #356 Active Context V2 HTTP verification — preparation checkpoint
+
+Base: frozen integration `684151260b116e905a5fce9b81a45f40131ca2a2`. Independent branch `codex/ticket-356-active-context-http-prep` in `/Users/red/Desktop/GITRepo/pupu-356`. Claude's recovery-terminal investigation in pupu-341 and all three frozen branches stay separate. This user request authorizes preparation and offline/self-checks, not paid providers, application rollout, or a claim that full HTTP/CP17 acceptance has run.
+
+## Scope and formal plan
+
+Prepare test-only tooling and an executable runbook for real preload/Main source → localhost HTTP → real Flask routes/adapter → active Context V2 journal/compiler → frozen Skeleton → strict offline SDK → durable End. Replace only external model factories and test filesystem roots; retain real selection, preflight/freeze, credential authorization/fence, runtime protocol gate, active bridge, compilation, graph execution, journal and End commit. Do not patch their answers or synthesize run success. Product Python/JS and runtime schemas remain unchanged. New scripts live outside shipped server/frontend trees.
+
+Default command is preflight-only and may not bind a server, issue an HTTP request or call a provider factory. Full localhost execution requires a separate explicit command after the recovery slice's candidate is reviewed. Prepared tooling may use a disposable fixture and strict fake SDK for unit checks, never a user's configured keys, vault, account or model environment. A failure during prep is a prep result, not permission to fix product runtime or Claude's branch.
+
+This is strong-model test design and preparation. No weaker-model handoff is appropriate: the unresolved seam is which real host/Journaling evidence establishes completion, not repetitive implementation. No UI design or product behavior decision is introduced.
+
+## BC-034 — real source host over HTTP with an offline SDK boundary
+
+Producer/consumer chain: existing native selection producer and exact HTTP body → real preload stream client/Main credential discovery → authenticated `/skeleton_credentials/requirements` and `/chat/stream/v4` → real active-host runtime → independently observed persisted launch/journal plus returned SSE. Existing public query/scope/selection/profile wires remain CLOSED and versioned as already declared by BC-030–033; unknown fields, wrong scope/session/owner/source/version and target mismatch stay fail-closed. No new product endpoint or capability is added. Test observation files are a separate CLOSED, versioned tool interface and must not be presented as product SSE fields.
+
+Use the same fixed wheel SHA256 `4e3efdc0acd9563e484ad91fa392cff0eeeb22c5793313e936c643614945427b`. Each eventual child process must record its actual imported `unchain.*` origins and independently validated runtime manifest `sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101`, wheel/interpreter and tested source fingerprints. Source HTTP is not frozen-sidecar qualification; the existing sidecar `98de077440906366ff12cbefbc539aa6c94820c7771277008a6b960155a19111` is identity context only until actually executed. No fresh wheel build or mutable sibling checkout substitutes for that artifact.
+
+Filesystem/network test boundary: explicitly supplied disposable root, UNCHAIN_DATA_DIR and process-local test Path.home/default-store-root isolation; never replace the HOME environment variable. Install read/write guards before app imports; block actual user library, .env/key/vault data, writes outside disposable outputs, unexpected subprocesses, DNS/public addresses and all provider networking. Only explicit numeric loopback HTTP is allowed in run mode. Strip inherited credential/proxy/provider environment; only fixed fake vault sentinels are supplied. This is an accidental-access guard, not an OS security sandbox. Every refused escape is counted; unexpected escape attempts fail the run.
+
+Strict fake SDK checks actual native request keys, target/model and sequence before supplying finite completion records. Record actual factory invocation count and redacted request digest, never hardcode provider_request_count=0. Real network provider calls must remain zero. A final reply produced by the fake SDK alone is insufficient: real launch `state.status == completed` and `root_committed == true` plus matching session/attempt and root output are required.
+
+## SEQ-034 — first/second messages and later recovery
+
+Identity is one explicit owner chat + HTTP thread, distinct attempts per ordinary message, immutable resource/frozen digests per dispatch. Fixture is created by real save_draft/producer APIs under the disposable root. Each message performs authenticated health/discovery, Main target authorization/fake-key resolution, scoped V4 dispatch, real active compilation and End. The second request must prove prior user + prior End reply + new user in the actual SDK input, preserve selected Agent and have a new attempt with a separately completed root commit.
+
+Prepare but do not run recovery cells until Claude's terminal candidate is available: first/second approval, same scope repeated, stale/wrong identity, semantic cancellation, rejected/missing Agent with visible settled state, and process-cold resume without redoing completed SDK/tool effects. Rebind the eventual candidate explicitly, not by reading a moving branch. Native graph creation/node/edge editing, real providers and app UI remain outside this preparation.
+
+## AC-034-A–F and phased evidence
+
+- A / prep: invalid/missing paths, mismatched wheel/manifest, unknown CLI fields or unsafe data-root placement fail before app/network/provider activity. The default preflight produces source/runtime identity and NOT_RUN for HTTP, not PASS for the chain.
+- B / prep: independent guard tests prove public-IP/DNS/provider network, credential/.env/vault reads, external writes/SQLite and subprocess escape refuse; disposable storage and explicit loopback controls work. No real user-library read is used as the test witness; test an equivalent temp forbidden root.
+- C / later H1: health+requirements+V4 accept actual admitted selection and fresh Main scope; missing credentials/scope mismatch refuse before SDK, no fallback/default or secret in renderer/preload/launch/observation.
+- D / later H1: first and second ordinary message reach actual persisted completed/root_committed and exactly one root End reply each; correct Kernel target, no composer model/custom pill authority, second compiled input contains verified first-turn history. A source-main HTTP200, error/done, active_context_required or missing observer evidence is INCOMPLETE/FAIL, never success.
+- E / later H2: approval/resume/refusal/cancellation and process-cold cells above retain original frozen identity and once-only completed effects. Dependent on reviewed recovery-terminal slice; NOT_RUN now.
+- F / later H3: frozen packaged Main+sidecar exact pair, desktop app, real provider and full Builder/CP17. NOT_RUN now. Preparation artifacts do not activate this cell or change ticket/release state.
+
+This checkpoint qualifies only the offline guard/bootstrap and serialization/acceptance-validator controls. The host bootstrap deliberately rejects --serve: the strict native SDK adapter, live server lifecycle and actual persisted observer are reserved for H1 after the recovery candidate is frozen. The Node runtime path is a prepared prototype, not an already qualified HTTP runner. It must not produce a whole-chain PASS from preflight or synthetic validator inputs.
+
+Stop after preparing and qualifying tooling offline. Report what actually ran, commands for the later run, data/artifact boundaries and unresolved host prerequisites. No push, PR, dev merge, closure, real keys/provider, app launch or original-workspace edits.
+
+## Prepared checkpoint evidence — 2026-10-19
+
+Tooling and commands: [QA runbook](../../scripts/release-qa/skeleton-active-context-http/README.md).
+External evidence: `/Users/red/.codex/artifacts/pupu-356/active-context-http-prep-20261019/root/final/`.
+
+- Fixed CPython 3.12.10 offline host preflight PASS: actual app/routes, catalog-selected official profile, real save/get/preflight/frozen selection and credential requirements. All 371 wheel Python members equal installed source bytes; 319 loaded core and 100 host module origins captured. Real imported manifest equals the fixed digest. No guard refusal, approved network port, HTTP request or model execution. A fresh per-run bytecode lookup prefix prevents stale-pyc reuse.
+- Guard controls 16/16; narrow stdlib ctypes initialization/HOME policy controls 9/9; bootstrap CLI refusal controls 12/12; independent real-runtime identity baseline plus wrong-wheel/wrong-manifest controls 3/3. Node syntax and two actual preload/Main-query payload controls PASS; 17 synthetic validator controls PASS. The latter certify only a prepared validator, never actual execution.
+- Preserve initial failures: the first external socket negative test may have attempted DNS before the late CPython audit event; final negative controls use inert lower-level functions. The initial actual-host preflight was blocked by the test guard at stdlib ctypes initialization; a narrowly tested initialization exception fixed the guard, not product policy. One extra identity test initially confused importing an SDK module with executing it; the corrected test retains no-app/no-routes assertions and records the module import explicitly. Original logs remain unchanged.
+- No existing product file changed; no frontend/Electron whole-suite or build result is borrowed as new evidence. No production sidecar rebuild/restart is owed by these QA-only Python files. HTTP, native SDK execution, actual persisted observation, Journal receipt identity/cursor acceptance, recovery and full Builder/CP17 remain NOT_RUN/INCOMPLETE. Host --serve refuses in this preparation; the prototype validator's highest verdict is VALIDATOR_ACCEPTED with integration INCOMPLETE.

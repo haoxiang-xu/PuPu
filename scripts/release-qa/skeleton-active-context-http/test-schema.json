@@ -1,0 +1,242 @@
+{
+  "schema": "qa.active-context-http-test-schema.v1",
+  "constants": {
+    "sentinel_credential": "sentinel-active-context-http-no-real-secret",
+    "wheel_sha256": "4e3efdc0acd9563e484ad91fa392cff0eeeb22c5793313e936c643614945427b",
+    "runtime_manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101"
+  },
+  "schemas": {
+    "ready": "pupu.external.active_context_guard.v1",
+    "observation": "qa.active-context-http-observation.v1",
+    "transport": "pupu.external.active_context_chain.v1"
+  },
+  "closed_fields": {
+    "ready": [
+      "schema",
+      "phase",
+      "run_id",
+      "origin",
+      "offline_sdk_installed",
+      "external_network_blocked",
+      "memory_agent_config",
+      "identity"
+    ],
+    "observation": [
+      "schema",
+      "phase",
+      "identity",
+      "turns"
+    ],
+    "identity": [
+      "host_head",
+      "host_source_hashes",
+      "wheel_sha256",
+      "runtime_manifest",
+      "loaded_unchain_origins",
+      "loaded_host_origins",
+      "HOME_environment_changed",
+      "data_root",
+      "resource_root",
+      "app_factory",
+      "SDK_behavior_substitutions"
+    ],
+    "turn": [
+      "session_id",
+      "owner_chat_id",
+      "attempt_id",
+      "issued_scope_digest",
+      "launch",
+      "sdk_calls",
+      "memory_factory_selections",
+      "memory_sdk_call_count",
+      "provider_network_call_count",
+      "paid_api_call_count",
+      "filesystem_guard_violations",
+      "network_guard_violations"
+    ],
+    "launch": [
+      "root_run_id",
+      "graph_id",
+      "descriptor_sha256",
+      "selection_digest",
+      "workflows_digest",
+      "status",
+      "root_committed",
+      "completed_node_ids",
+      "end_node_id",
+      "end_output_sha256",
+      "end_message",
+      "root_final_receipts",
+      "root_terminal_receipts"
+    ],
+    "sdk_call": [
+      "role",
+      "provider",
+      "model",
+      "endpoint",
+      "credential_label",
+      "max_retries",
+      "request_sha256",
+      "wire"
+    ],
+    "memory_agent_config": [
+      "displayName",
+      "additionalInstructions",
+      "provider",
+      "modelId"
+    ],
+    "credential_profile": [
+      "id",
+      "credential_ref",
+      "provider",
+      "model",
+      "protocol",
+      "endpoint"
+    ]
+  },
+  "source_files": [
+    "electron/preload/stream/unchain_stream_client.js",
+    "electron/main/services/unchain/service.js",
+    "electron/main/services/unchain/skeleton_credentials.js",
+    "electron/main/services/unchain/memory_v2_rollout.js",
+    "electron/shared/channels.js",
+    "unchain_runtime/server/route_chat.py",
+    "unchain_runtime/server/skeleton_production_chat.py",
+    "unchain_runtime/server/skeleton_production_state.py"
+  ],
+  "required_unchain_origins": [
+    "unchain",
+    "unchain.skeleton",
+    "unchain.context"
+  ],
+  "required_host_origins": [
+    "app",
+    "routes",
+    "unchain_adapter",
+    "route_chat",
+    "skeleton_production_chat",
+    "skeleton_production_state"
+  ],
+  "opaque_json_values": [
+    "turn.launch.root_final_receipts[]",
+    "turn.launch.root_terminal_receipts[]",
+    "turn.sdk_calls[].wire",
+    "turn.memory_factory_selections[]"
+  ],
+  "expected_runtime_manifest": {
+    "manifest_digest": "sha256:f6daf3894dd947723ee7dc60392277896b88c4890d35373b26442a1833a28101",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_content_paging_v1",
+          "context_content_read_recovery_v1",
+          "context_contribution_manifest_v1",
+          "generation_rebase_live_interaction_cycles",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "ollama_reasoning_preview_v1",
+          "provider_response_outcomes_v1",
+          "provider_uncertainty_diagnostics_v1",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "code_python_v1",
+          "draft_diagnostics_v1",
+          "durable_exclusive_dag_v2",
+          "end_only_root_completion_v1",
+          "explicit_bindings_v1",
+          "hook_phase_receipts_v1",
+          "kernel_profiles_v1",
+          "legacy_conversion_v1",
+          "non_llm_workflow_v1",
+          "pinned_workflow_calls_v1",
+          "production_host_bindings_v1",
+          "skill_read_v1",
+          "structured_output_v1",
+          "subagent_graphs_v1",
+          "tool_call_v1"
+        ],
+        "id": "skeleton_execution",
+        "major": 1,
+        "minor": 1
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "notes": [
+    "Only external test-tool envelopes are CLOSED; opaque values are unchanged actual producer JSON, not an invented restrictive native SDK or Journal schema.",
+    "Actual SDK/network/Memory counts are mandatory measurements; absent counters are not zero.",
+    "Explicit --installed-site and frozen source hash dictionary are mandatory for ready/observer validation.",
+    "issued_scope_digest/request_sha256 are SHA256 of actual JSON data canonicalized by recursive sorted object keys, array order preserved, compact separators, UTF8/ensure_ascii=false; not a new product digest domain.",
+    "sdk_calls role is explicit kernel|memory from actual host call context; StageA has exactly one Kernel call/profile per turn; memory count equals memory-role records, never guessed from identical model/provider."
+  ],
+  "implementation_status": "PREPARED_NOT_EXECUTED; host serve/SDKfake/observer and raw Journal receipt identity/cursor/schema validation are not yet implemented; CLI verifier cannot return integration PASS"
+}
