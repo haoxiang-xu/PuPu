@@ -118,3 +118,15 @@ installer with `Get-AuthenticodeSignature`; it does not rely on an operator
 opening an Administrator Command Prompt. If a self-hosted runner is introduced,
 its certificate-store and installer privileges must be validated separately
 before it is allowed in the `release-signing` Environment.
+
+The Windows release path must materialize the production GitHub updater config in
+the isolated `win-unpacked/resources/app-update.yml` payload before signing. The
+signing action validates that closed config before both prepackaged NSIS builds,
+and installed-package plus restart-update qualification validate it again from
+the exact installed candidate. The signed N-1 fixture keeps its loopback-only
+qualification config and must never be accepted as a production payload.
+
+Windows releases installed before this contract was added may not contain
+`app-update.yml`, so they cannot discover the first fixed release from inside the
+app. Those users need one manual installation of the first fixed Windows release.
+Once that version is installed, later releases can use the normal in-app updater.

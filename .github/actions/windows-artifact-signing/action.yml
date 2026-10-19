@@ -23,6 +23,9 @@ inputs:
   evidence-schema:
     description: One of the two closed evidence schemas supported by this action.
     required: true
+  app-update-contract:
+    description: "Updater config contract carried by this payload: production or qualification-fixture."
+    required: true
   package-version:
     description: Required only for pupu.windows-release-candidate-signing.v1.
     required: false
@@ -68,6 +71,7 @@ runs:
         INSTALLER_PATH: ${{ inputs.installer-path }}
         EVIDENCE_OUTPUT: ${{ inputs.evidence-output }}
         EVIDENCE_SCHEMA: ${{ inputs.evidence-schema }}
+        APP_UPDATE_CONTRACT: ${{ inputs.app-update-contract }}
         PACKAGE_VERSION: ${{ inputs.package-version }}
         TARGET_ID: ${{ inputs.target-id }}
         CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -85,6 +89,9 @@ runs:
         )
         if ($env:EVIDENCE_SCHEMA -notin $allowedSchemas) {
           throw "unsupported Windows signing evidence schema: $env:EVIDENCE_SCHEMA"
+        }
+        if ($env:APP_UPDATE_CONTRACT -notin @("production", "qualification-fixture")) {
+          throw "unsupported Windows updater config contract: $env:APP_UPDATE_CONTRACT"
         }
         if (-not (Test-Path -LiteralPath $signingRoot -PathType Container)) {
           throw "missing isolated signing root: $signingRoot"
@@ -105,11 +112,21 @@ runs:
           throw "evidence output must be a file in the working directory: $evidenceOutput"
         }
         if ($env:EVIDENCE_SCHEMA -eq "pupu.windows-release-candidate-signing.v1") {
+          if ($env:APP_UPDATE_CONTRACT -ne "production") {
+            throw "release-candidate signing requires the production updater config contract"
+          }
           if ([string]::IsNullOrWhiteSpace($env:PACKAGE_VERSION) -or $env:TARGET_ID -ne "windows-x64" -or $env:EVIDENCE_OUTPUT -ne "windows-signing-evidence.v1.json") {
             throw "release-candidate signing requires windows-x64, a package version, and windows-signing-evidence.v1.json"
           }
         } elseif ($env:PACKAGE_VERSION -ne "" -or $env:TARGET_ID -ne "" -or $env:EVIDENCE_OUTPUT -ne "windows-signing-qualification.v1.json") {
           throw "qualification signing requires its closed evidence schema and filename"
+        }
+        if ($env:APP_UPDATE_CONTRACT -eq "production") {
+          $appUpdate = Join-Path $payload "resources\app-update.yml"
+          node scripts/release-qa/production-app-update.mjs validate `
+            --package-json package.json `
+            --app-update "$appUpdate"
+          if ($LASTEXITCODE -ne 0) { throw "Windows production updater config validation failed before bootstrap packaging" }
         }
         npx electron-builder --win nsis --x64 --prepackaged "$payload" --publish never --config.directories.output="$bootstrapOutput" --config.nsis.artifactName="$installerName" --config.win.verifyUpdateCodeSignature=false
         $elevateHelper = Join-Path $payload "resources/elevate.exe"
@@ -251,6 +268,7 @@ runs:
       env:
         PAYLOAD_PATH: ${{ inputs.payload-path }}
         INSTALLER_PATH: ${{ inputs.installer-path }}
+        APP_UPDATE_CONTRACT: ${{ inputs.app-update-contract }}
         CSC_IDENTITY_AUTO_DISCOVERY: "false"
       run: |
         $payload = [System.IO.Path]::GetFullPath($env:PAYLOAD_PATH)
@@ -258,6 +276,13 @@ runs:
         $installerName = [System.IO.Path]::GetFileName($installerPath)
         node scripts/release-qa/seal-windows-sidecar-identity.mjs verify "$payload"
         if ($LASTEXITCODE -ne 0) { throw "Windows signed payload identity verification failed" }
+        if ($env:APP_UPDATE_CONTRACT -eq "production") {
+          $appUpdate = Join-Path $payload "resources\app-update.yml"
+          node scripts/release-qa/production-app-update.mjs validate `
+            --package-json package.json `
+            --app-update "$appUpdate"
+          if ($LASTEXITCODE -ne 0) { throw "Windows production updater config validation failed before final installer packaging" }
+        }
         npx electron-builder --win nsis --x64 --prepackaged "$payload" --publish never --config.nsis.artifactName="$installerName" --config.win.verifyUpdateCodeSignature=false --config.nsis.packElevateHelper=false
         if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
           throw "missing exact Windows installer after repackage: $installerPath"

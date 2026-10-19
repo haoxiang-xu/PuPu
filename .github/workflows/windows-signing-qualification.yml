@@ -106,6 +106,14 @@ jobs:
       - name: Install build dependencies
         run: npm ci
 
+      - name: Verify Windows production updater contract
+        shell: pwsh
+        run: |
+          node --test scripts/release-qa/production-app-update.test.mjs `
+            scripts/release-qa/production-app-update-integration.test.mjs `
+            scripts/release-qa/production-app-update-admission.test.mjs `
+            scripts/release-qa/windows-production-app-update-workflow.test.mjs
+
       - name: Create controlled Memory V2 build snapshot
         shell: pwsh
         run: |
@@ -142,6 +150,16 @@ jobs:
           New-Item -ItemType Directory -Path $env:QUALIFICATION_ROOT -Force | Out-Null
           Copy-Item -LiteralPath $source -Destination $env:QUALIFICATION_PAYLOAD -Recurse
 
+      - name: Prepare production updater binding in the isolated payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $appUpdate = Join-Path $env:QUALIFICATION_PAYLOAD "resources\app-update.yml"
+          node scripts/release-qa/production-app-update.mjs prepare `
+            --package-json package.json `
+            --app-update "$appUpdate"
+
       - name: Sign and verify isolated Windows qualification payload
         id: windows_artifact_signing
         uses: ./.github/actions/windows-artifact-signing
@@ -153,6 +171,7 @@ jobs:
           installer-path: ${{ github.workspace }}\dist\PuPu-${{ env.PUPU_BUILD_VERSION }}-windows-x64-setup.exe
           evidence-output: windows-signing-qualification.v1.json
           evidence-schema: pupu.windows-signing-qualification.v1
+          app-update-contract: production
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
