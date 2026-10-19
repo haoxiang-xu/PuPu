@@ -811,13 +811,22 @@ describe("sending with a stored Skeleton Agent", () => {
     );
   });
 
-  /* A page-level drive of the retry action is NOT in this suite: in this
-     harness `resendTurn` returns before it claims the mutation, because the
-     chat still counts as pending (`isChatRunPending` has three sources) after
-     the stream is done. The identity this slice pins is asserted instead in
-     `turn_mutation_outbox.test.js` (what the durable record keeps) and in
-     `electron/tests/main/skeleton_production_entry_integration.test.cjs` (what
-     a resume carries). The gap is named in the slice report, not papered over. */
+  /* A page-level drive of the retry action is not in THIS suite, and the
+     reason is the harness, not the product: `resendTurn` returns before it
+     claims the mutation because the chat still counts as pending
+     (`isChatRunPending` has three sources) after the stream is done.
+     What the retry has to keep is asserted where it can be driven:
+     `use_chat_stream.recovery_refusal.test.js` runs a real recovered turn
+     through the hook, `turn_mutation_outbox.test.js` holds what the durable
+     record keeps, and
+     `electron/tests/main/skeleton_production_entry_integration.test.cjs` holds
+     what a resume carries.
+
+     Correction to an earlier note here: the defect those cover is not the
+     150ms debounce. The Agent was resolved from the chat's row AFTER the
+     mutation's own awaits, so anything that changed the row in that window
+     retargeted the run; the debounce not having landed yet is only one way the
+     row can disagree. */
 
   test("renaming the chat right after choosing still sends that Agent", async () => {
     /* The user-facing shape of the debounce-window defect: the five composer

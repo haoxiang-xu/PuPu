@@ -8797,6 +8797,51 @@ export const useChatStream = ({
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
 
+              /* A recovered or retried turn whose run STARTED and then failed
+                 has to report that to its durable intent. Without this the
+                 recovery effect reads a pristine entry — no attempt, no
+                 failure code, no retryAt — and dispatches it again the moment
+                 anything bumps the turn-mutation version: no backoff, no
+                 bound, and each new run replaces the refusal banner with the
+                 streaming disclaimer, so the reason never stays visible.
+                 The decision is the existing policy's, not a new one: reserve
+                 the attempt, then ask `resolveContextV2TurnMutationFailure`.
+                 A refusal the selection itself owns is terminal by definition
+                 — re-running the identical frozen selection cannot change the
+                 answer — so it quarantines instead of retrying. Quarantine
+                 keeps the user's intent for explicit review; nothing is
+                 deleted here, and nothing re-executes on its own. */
+              if (
+                turnMutationOperationId &&
+                !wasCancelled &&
+                !hasAdmittedRunAccounting
+              ) {
+                const reservedAfterFailure = reserveTurnMutationRetryAttempt(
+                  turnMutationOperationId,
+                );
+                if (reservedAfterFailure) {
+                  const failureDecision = skeleton_selection_reason(errorCode)
+                    ? {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        delayMs: 0,
+                      }
+                    : resolveContextV2TurnMutationFailure({
+                        errorCode,
+                        replayAttempts: reservedAfterFailure.replayAttempts,
+                      });
+                  recordTurnMutationRetryOutcome(turnMutationOperationId, {
+                    action: failureDecision.action,
+                    code: errorCode,
+                    retryAt:
+                      failureDecision.action ===
+                      TURN_MUTATION_RETRY_ACTIONS.RETRY
+                        ? Date.now() + failureDecision.delayMs
+                        : 0,
+                  });
+                  notifyTurnMutationChange(targetChatId);
+                }
+              }
+
               const materializedStreamMessages = materializeStreamingMessages(
                 targetChatId,
                 streamMessages,
@@ -14384,8 +14429,10 @@ export const useChatStream = ({
       setTurnMutationVersion((version) => version + 1);
       return undefined;
     }
+    /* A recorded backoff is honoured whatever the entry's memory mode is: a
+       legacy intent's run can fail after it started just as a V2 one can, and
+       the writer above is the only thing that sets WAITING for either. */
     if (
-      entry.memoryMode === TURN_MUTATION_MEMORY_MODES.V2 &&
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.WAITING &&
       entry.retryAt > Date.now()
     ) {
