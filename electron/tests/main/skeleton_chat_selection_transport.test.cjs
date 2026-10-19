@@ -117,14 +117,60 @@ const createCompatibleHealthResponse = () => ({
   }),
 });
 
-const createDoneStreamImpl = () =>
-  jest.fn().mockResolvedValue({
-    ok: true,
-    body: {
-      getReader: () => ({
-        read: jest.fn().mockResolvedValue({ done: true, value: undefined }),
-      }),
+const DONE_STREAM = () => ({
+  ok: true,
+  body: {
+    getReader: () => ({
+      read: jest.fn().mockResolvedValue({ done: true, value: undefined }),
+    }),
+  },
+});
+
+/* A chat that runs a stored Agent now makes this process ask the host which
+   credentials that frozen graph needs before it dispatches, so the transport
+   this file is about is the SECOND call. The answer below is keyless on
+   purpose — one Ollama Kernel and an Ollama Memory Agent — because this file
+   has no settings service and the selection hop is what it asserts. */
+const KEYLESS_REQUIREMENTS = {
+  schema: "pupu.skeleton_credential_requirements.v1",
+  kind: "skeleton",
+  scope: {
+    schema: "pupu.skeleton_credential_scope.v1",
+    mode: "start",
+    session_id: "chat-1792345210660-099f0f5079e419655a121096d8e6265b",
+    owner_chat_id: "chat-1792345210660-099f0f5079e419655a121096d8e6265b",
+    interaction_id: "",
+    source_attempt_id: "",
+    selection_digest: "a".repeat(64),
+    workflows_digest: "b".repeat(64),
+    launch_digest: "",
+    memory_provider: "ollama",
+  },
+  profiles: [
+    {
+      id: "ollama:qwen3:8b",
+      credential_ref: "ollama",
+      provider: "ollama",
+      model: "qwen3:8b",
+      protocol: "ollama",
+      endpoint: "http://localhost:11434",
     },
+  ],
+};
+
+const REQUIREMENTS_PATH = "/skeleton_credentials/requirements";
+
+const createDoneStreamImpl = (requirements = KEYLESS_REQUIREMENTS) =>
+  jest.fn(async (url) => {
+    if (String(url).includes(REQUIREMENTS_PATH)) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => requirements,
+        text: async () => JSON.stringify(requirements),
+      };
+    }
+    return DONE_STREAM();
   });
 
 const flush = async () => {
@@ -179,8 +225,28 @@ describe("a Skeleton chat selection across the main process", () => {
     return { service, target };
   };
 
-  const bodyOf = (streamRequestImpl, call = 0) =>
-    JSON.parse(streamRequestImpl.mock.calls[call][1].body);
+  /* The chat POST, whichever call index it lands on once discovery runs. */
+  const bodyOf = (streamRequestImpl) => {
+    const call = streamRequestImpl.mock.calls.find(
+      ([url]) => !String(url).includes(REQUIREMENTS_PATH),
+    );
+    if (!call) throw new Error("no chat stream POST was made");
+    return JSON.parse(call[1].body);
+  };
+
+  const discoveryOf = (streamRequestImpl) =>
+    streamRequestImpl.mock.calls
+      .filter(([url]) => String(url).includes(REQUIREMENTS_PATH))
+      .map(([, options]) => JSON.parse(options.body));
+
+  /* The identity the real chat page sends on every turn: the UI chat id as the
+     HTTP thread, and the same id as the Memory V2 owner. Main matches the
+     route's own `threadId or thread_id` rule, so a payload without it is
+     refused before discovery instead of letting the server invent a thread. */
+  const IDENTITY = {
+    threadId: "chat-1792345210660-099f0f5079e419655a121096d8e6265b",
+    owner_chat_id: "chat-1792345210660-099f0f5079e419655a121096d8e6265b",
+  };
 
   test("the selection reaches Flask with the exact key set the page built", async () => {
     const streamRequestImpl = createDoneStreamImpl();
@@ -191,7 +257,7 @@ describe("a Skeleton chat selection across the main process", () => {
         requestId: "req-selection-1",
         payload: {
           message: "run this with the Agent",
-          owner_chat_id: "chat-1",
+          ...IDENTITY,
           memory_v2_requested: true,
           options: { skeleton_selection: { ...CAPTURED_SELECTION } },
         },
@@ -199,8 +265,28 @@ describe("a Skeleton chat selection across the main process", () => {
     );
     await flush();
 
-    expect(streamRequestImpl).toHaveBeenCalledTimes(1);
+    expect(streamRequestImpl).toHaveBeenCalledTimes(2);
+    /* Discovery asks with the same identity and the same selection object. */
+    expect(discoveryOf(streamRequestImpl)).toEqual([
+      {
+        schema: "pupu.skeleton_credential_query.v1",
+        mode: "start",
+        session_id: IDENTITY.threadId,
+        owner_chat_id: IDENTITY.owner_chat_id,
+        interaction_id: "",
+        source_attempt_id: "",
+        selection: CAPTURED_SELECTION,
+        recipe_name: "",
+        memory_agent_config: null,
+      },
+    ]);
     const body = bodyOf(streamRequestImpl);
+    /* A keyless graph needs no credential, and the issued fence travels with
+       the dispatch so the host can refuse a superseded one. */
+    expect(body.options.skeleton_credentials).toEqual({});
+    expect(body.options.skeleton_credential_scope).toEqual(
+      KEYLESS_REQUIREMENTS.scope,
+    );
     /* Deep-equal, and nothing added to the object itself: a fourth key is
        `unknown_field` on the far side. */
     expect(body.options.skeleton_selection).toEqual(CAPTURED_SELECTION);
@@ -226,6 +312,7 @@ describe("a Skeleton chat selection across the main process", () => {
         requestId: "req-selection-2",
         payload: {
           message: "with a workspace",
+          ...IDENTITY,
           options: {
             workspaceRoot: "/some/where",
             skeleton_selection: { ...CAPTURED_SELECTION },

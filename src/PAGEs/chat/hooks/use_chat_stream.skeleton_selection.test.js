@@ -32,8 +32,10 @@ import {
 import { buildTreeNodeLookupByChatId } from "../../../SERVICEs/chat_storage/chat_storage_tree";
 import { SKELETON_CHAT_SELECTION_SCHEMA } from "../../../SERVICEs/skeleton_chat_selection";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
+import { readTurnMutationOutbox } from "../../../SERVICEs/turn_mutation_outbox";
 
 let lastChatInputProps = null;
+let lastChatMessagesProps = null;
 var mockScopedLogger;
 
 jest.mock("../../../SERVICEs/console_logger", () => ({
@@ -52,7 +54,10 @@ jest.mock("../../../SERVICEs/console_logger", () => ({
 
 jest.mock("../../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
-  default: () => <div data-testid="chat-messages" />,
+  default: (props) => {
+    lastChatMessagesProps = props;
+    return <div data-testid="chat-messages" />;
+  },
 }));
 
 jest.mock("../../../COMPONENTs/chat-input/chat_input", () => ({
@@ -131,6 +136,7 @@ describe("sending with a stored Skeleton Agent", () => {
     streamHandlers = null;
     window.localStorage.clear();
     lastChatInputProps = null;
+    lastChatMessagesProps = null;
     jest.spyOn(console, "error").mockImplementation(() => {});
     writeFeatureFlags({ enable_user_access_to_agents: true });
     window.unchainAPI = {
@@ -156,6 +162,9 @@ describe("sending with a stored Skeleton Agent", () => {
         return { cancel: jest.fn() };
       }),
       cancelStream: jest.fn(),
+      /* A retry rewrites this chat's memory before it re-runs the turn; the
+         legacy path asks the bridge for that. */
+      replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
 
@@ -763,6 +772,52 @@ describe("sending with a stored Skeleton Agent", () => {
       ),
     );
   });
+
+  /* ---- production entry integration (#356) ---------------------------- */
+
+  test("leaving the chat and coming back still sends that Agent", async () => {
+    renderChat();
+    await waitForReady();
+    const first = getChatsStore().activeChatId;
+    await choose("research.agent:v2");
+    await send("first turn");
+    await settle();
+    expect(sentOptions(0).skeleton_selection.resource_id).toBe(
+      "research.agent:v2",
+    );
+
+    /* A second chat, then back to this one through the real tree selection. */
+    await act(async () => {
+      createChatInSelectedContext();
+    });
+    const second = getChatsStore().activeChatId;
+    expect(second).not.toBe(first);
+    const firstNode = buildTreeNodeLookupByChatId(getChatsStore().tree)[first];
+    await act(async () => {
+      selectTreeNode({ nodeId: firstNode }, { source: "test" });
+    });
+    await waitFor(() =>
+      expect(lastChatInputProps.selectedSkeletonAgentId).toBe(
+        "research.agent:v2",
+      ),
+    );
+
+    await send("second turn after coming back");
+    await waitFor(() =>
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2),
+    );
+    expect(sentOptions(1).skeleton_selection).toEqual(
+      sentOptions(0).skeleton_selection,
+    );
+  });
+
+  /* A page-level drive of the retry action is NOT in this suite: in this
+     harness `resendTurn` returns before it claims the mutation, because the
+     chat still counts as pending (`isChatRunPending` has three sources) after
+     the stream is done. The identity this slice pins is asserted instead in
+     `turn_mutation_outbox.test.js` (what the durable record keeps) and in
+     `electron/tests/main/skeleton_production_entry_integration.test.cjs` (what
+     a resume carries). The gap is named in the slice report, not papered over. */
 
   test("renaming the chat right after choosing still sends that Agent", async () => {
     /* The user-facing shape of the debounce-window defect: the five composer

@@ -13561,6 +13561,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -13656,6 +13665,7 @@ export const useChatStream = ({
           text: resendText,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -13719,7 +13729,11 @@ export const useChatStream = ({
           reuseUserMessage: targetMessage,
           missingAttachmentPayloadMode: "degrade",
           characterAgentConfig: characterConfig,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -13839,6 +13853,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const targetSelectedToolkits = Array.isArray(selectedToolkitsRef.current)
           ? [...selectedToolkitsRef.current]
           : [];
@@ -13968,6 +13991,7 @@ export const useChatStream = ({
           composer: built.composer,
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedSessionRevision,
@@ -14013,7 +14037,11 @@ export const useChatStream = ({
           extraToolkits: built.extraToolkits,
           characterAgentConfig: characterConfig,
           composer: built.composer,
-          runContext: { modelId: targetModelId, threadId: targetThreadId },
+          runContext: {
+            modelId: targetModelId,
+            threadId: targetThreadId,
+            selectedSkeletonAgentId: capturedSkeletonAgentId,
+          },
           turnMutationOperationId: operationId,
         });
       } finally {
@@ -14113,6 +14141,15 @@ export const useChatStream = ({
           typeof threadIdRef?.current === "string" ? threadIdRef.current : "";
         const capturedModelId =
           typeof modelIdRef?.current === "string" ? modelIdRef.current : "";
+        /* Pin the Agent exactly as the model above is pinned. This mutation
+           still has awaits to go (character config, memory plan, rebase), and
+           the chat's own row can change under it — a retry runs the resource
+           that was selected when it was launched, and an empty capture stays
+           empty rather than inheriting a later choice. */
+        const capturedSkeletonAgentId =
+          typeof selectedSkeletonAgentIdRef?.current === "string"
+            ? selectedSkeletonAgentIdRef.current
+            : "";
         const characterConfig = isCharacterChat
           ? await buildCharacterRunConfig(targetThreadId).catch((error) => {
               setStreamErrorForChat(
@@ -14215,6 +14252,7 @@ export const useChatStream = ({
           text: "",
           modelId: targetModelId,
           threadId: targetThreadId,
+          selectedSkeletonAgentId: capturedSkeletonAgentId,
           memoryNamespace: characterConfig?.run_memory_namespace || "",
           forceMemoryEnabled: isCharacterChat,
           expectedCancelAttemptId,
@@ -14632,7 +14670,15 @@ export const useChatStream = ({
         extraToolkits: entry.extraToolkits,
         composer: entry.composer,
         characterAgentConfig: characterConfig,
-        runContext: { modelId: entry.modelId, threadId: entry.threadId },
+        runContext: {
+          modelId: entry.modelId,
+          threadId: entry.threadId,
+          /* Omitted for an entry written before this field existed, so it
+             replays against the chat's own row as it did then. */
+          ...(typeof entry.selectedSkeletonAgentId === "string"
+            ? { selectedSkeletonAgentId: entry.selectedSkeletonAgentId }
+            : {}),
+        },
         turnMutationOperationId: entry.operationId,
       });
       const storedMessages = storageApi.getChatMessages?.(targetChatId) || [];
