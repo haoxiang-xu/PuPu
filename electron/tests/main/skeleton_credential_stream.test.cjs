@@ -112,7 +112,9 @@ describe("Skeleton credential discovery before Main stream dispatch", () => {
     body: { getReader: () => ({ read: jest.fn().mockResolvedValue({ done: true }) }) },
   });
   const nativePayload = (overrides = {}) => ({
-    message: "Run the selected Agent", session_id: "session-1", owner_chat_id: "chat-1", attempt_id: "attempt-1",
+    // The production HTTP route consumes threadId, not the old fixture's
+    // session_id alias. Keep the actual sender's identity in this fixture.
+    message: "Run the selected Agent", threadId: "session-1", owner_chat_id: "chat-1", attempt_id: "attempt-1",
     options: { skeleton_selection: SELECTION }, ...overrides,
   });
   afterEach(() => {
@@ -121,11 +123,12 @@ describe("Skeleton credential discovery before Main stream dispatch", () => {
     else process.env.UNCHAIN_PYTHON_BIN = originalPython;
     jest.restoreAllMocks();
   });
-  const ready = async ({ result = requirements(), status = 200, pending, definitions = [], secrets = SECRET } = {}) => {
+  const ready = async ({ result = requirements(), status = 200, pending, definitions = [], secrets = SECRET, registryState } = {}) => {
     const outbound = [];
     const secretStore = {
       getSecretStorageStatus: jest.fn(() => "available"),
       getBootstrapSnapshot: jest.fn(() => ({ available: true, namespaces: { model_providers: { custom_providers: definitions } } })),
+      readModelProviderRegistry: jest.fn(() => registryState || { status: "ready", providers: definitions }),
       readDecryptedProviderSecret: jest.fn((kind, id) => kind === "provider" ? secrets[id] || null : secrets[id] || null),
     };
     const transport = jest.fn(async (url, options = {}) => {
@@ -242,9 +245,44 @@ describe("Skeleton credential discovery before Main stream dispatch", () => {
     expect(discovery(host)).toHaveLength(1);
     expect(streams(host)).toHaveLength(1);
     expect(streams(host)[0].body.options.skeleton_credentials).toEqual({ "custom.research": { provider: "custom.research", endpoint: custom.endpoint, api_key: SECRET["custom.research"] } });
+    expect(host.secretStore.readModelProviderRegistry).toHaveBeenCalledTimes(1);
+    expect(host.secretStore.getBootstrapSnapshot).not.toHaveBeenCalled();
     expect(host.secretStore.readDecryptedProviderSecret.mock.calls).toContainEqual(["custom_provider", "custom.research"]);
     expect(streams(host)[0].body.options).not.toHaveProperty("custom_provider_api_key");
     assertNoSecrets(host.sender.send.mock.calls);
+  });
+
+  test.each([
+    ["invalid", { status: "invalid" }, "skeleton_credential_registry_invalid"],
+    ["unavailable", { status: "unavailable" }, "skeleton_credential_registry_unavailable"],
+  ])("a %s private registry refuses a custom target before all credential reads", async (_label, registryState, code) => {
+    const custom = { ...PROFILE.openai, id: "custom.research:answer", credential_ref: "custom.research", provider: "custom.research", model: "answer", endpoint: "https://research.example/v1" };
+    const host = await ready({ registryState, result: requirements([custom]) });
+    await host.send();
+    expect(discovery(host)).toHaveLength(1);
+    expect(streams(host)).toHaveLength(0);
+    expect(errors(host)).toEqual([expect.objectContaining({ code })]);
+    expect(host.secretStore.readDecryptedProviderSecret).not.toHaveBeenCalled();
+    expect(host.secretStore.getBootstrapSnapshot).not.toHaveBeenCalled();
+    assertNoSecrets(host.sender.send.mock.calls);
+  });
+
+  test("custom-registry failure does not gate official, keyless or non-Skeleton paths", async () => {
+    for (const [result, payload] of [
+      [requirements(), nativePayload()],
+      [requirements([PROFILE.ollama], { scope: scope({ memory_provider: "ollama" }) }), nativePayload()],
+      [{ schema: "pupu.skeleton_credential_requirements.v1", kind: "not_skeleton" }, nativePayload({ mode: "resume_interaction", interaction_id: "interaction-1" })],
+      [requirements(), { message: "ordinary legacy", options: { recipe_name: "Default" } }],
+    ]) {
+      const host = await ready({ registryState: { status: "unavailable" }, result });
+      await host.send(payload);
+      expect(streams(host)).toHaveLength(1);
+      // This transport fixture ends without a terminal event. Any refusal
+      // must be that existing EOF check, never credential/registry admission.
+      expect(errors(host).every((error) => error.code === "unexpected_stream_eof")).toBe(true);
+      expect(host.secretStore.readModelProviderRegistry).not.toHaveBeenCalled();
+      expect(host.secretStore.getBootstrapSnapshot).not.toHaveBeenCalled();
+    }
   });
 
   test("keyless Ollama never asks the vault for an unrelated key", async () => {

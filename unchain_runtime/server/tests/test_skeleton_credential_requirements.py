@@ -140,6 +140,14 @@ def test_start_real_store_enumerates_recursive_mixed_profiles_without_writes(tmp
     document = _agent("root", provider="anthropic", child=_agent("child", child=_agent("local", provider="ollama")))
     original = deepcopy(document)
     store, selection, workflows = _frozen(tmp_path, document)
+    # The fixture's committed data can still be in WAL. Flush that setup before
+    # comparing the main file: closing an old connection during discovery may
+    # otherwise checkpoint pre-existing frames without changing logical data.
+    connection = store._connect()
+    try:
+        assert connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
+    finally:
+        connection.close()
     database = store.database_path.read_bytes()
     result = _api().requirements_for_start(_query(), memory_provider="", store=store)
     assert set(result) == {"schema", "kind", "scope", "profiles"}

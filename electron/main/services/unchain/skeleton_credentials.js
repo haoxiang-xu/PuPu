@@ -26,6 +26,8 @@ const fail = (code = "skeleton_credential_protocol_error") => {
     skeleton_credential_query_invalid: "Invalid Skeleton credential query",
     skeleton_credential_protocol_error: "Invalid Skeleton credential requirements",
     skeleton_credential_target_mismatch: "Skeleton credential target is not authorized",
+    skeleton_credential_registry_invalid: "Stored provider registrations are invalid",
+    skeleton_credential_registry_unavailable: "Stored provider registrations are unavailable",
     skeleton_memory_provider_unsupported: "This Memory Agent provider has no scoped credential contract",
     provider_missing_api_key: "Required Skeleton credential is unavailable",
   };
@@ -61,22 +63,18 @@ const jsonCopy = (value, ancestors = new Set(), depth = 0) => {
   return result;
 };
 
-const firstAlias = (payload, fields) => {
-  for (const field of fields) {
-    if (has(payload, field) && payload[field] !== null && payload[field] !== undefined) return payload[field];
-  }
-  return undefined;
-};
-
 const buildSkeletonCredentialQuery = (payload) => {
   if (!isRecord(payload)) return null;
   const options = isRecord(payload.options) ? payload.options : {};
   const resume = typeof payload.mode === "string" && payload.mode.trim().toLowerCase() === "resume_interaction";
   if (!resume && !has(options, "skeleton_selection")) return null;
-  const sessionId = firstAlias(payload, ["execution_id", "executionId", "session_id", "sessionId", "threadId", "thread_id"]);
-  const ownerChatId = firstAlias(payload, ["owner_chat_id", "ownerChatId"]);
-  const interactionId = resume ? firstAlias(payload, ["interaction_id", "interactionId"]) : "";
-  const sourceAttemptId = resume ? firstAlias(payload, ["source_attempt_id", "sourceAttemptId"]) ?? "" : "";
+  // Match the actual HTTP route, not Main's legacy execution aliases. Native
+  // requests need an explicit canonical thread; a separate timestamp fallback
+  // could never be the identity later checked by the stream route.
+  const sessionId = payload.threadId || payload.thread_id;
+  const ownerChatId = payload.owner_chat_id;
+  const interactionId = resume ? payload.interaction_id : "";
+  const sourceAttemptId = resume ? payload.source_attempt_id ?? "" : "";
   if (!identifier(sessionId) || !identifier(ownerChatId) ||
       (resume && !identifier(interactionId)) ||
       (sourceAttemptId !== "" && !identifier(sourceAttemptId))) fail("skeleton_credential_query_invalid");
@@ -214,8 +212,25 @@ const resolveSkeletonCredentials = (requirements, query, { customProviders = [],
 };
 
 const trustedCustomProviders = (snapshot) => {
+  // Bootstrap omits unreadable namespace rows. Only this private reader's
+  // explicit missing/ready result can authorize a bundled fallback.
+  let authored;
+  if (closed(snapshot, ["status"]) && snapshot.status === "missing") {
+    authored = [];
+  } else if (closed(snapshot, ["status"]) && snapshot.status === "unavailable") {
+    fail("skeleton_credential_registry_unavailable");
+  } else if (closed(snapshot, ["status", "providers"]) && snapshot.status === "ready" && Array.isArray(snapshot.providers)) {
+    try { authored = jsonCopy(snapshot.providers); }
+    catch { fail("skeleton_credential_registry_invalid"); }
+    if (authored.some((entry) => !isRecord(entry) || !has(entry, "id") || !exactText(entry.id))) {
+      fail("skeleton_credential_registry_invalid");
+    }
+  } else {
+    fail("skeleton_credential_registry_invalid");
+  }
   // package.json includes this exact source JSON for Main; the renderer reads
-  // the same file. Only registry-shipped slugs are enabled automatically.
+  // the same file. An authored entry owns all of its target/policy fields;
+  // never merge it with a preset or discard a disabled/broken registration.
   const presets = require("../../../../src/SERVICEs/custom_provider_presets.json");
   if (!Array.isArray(presets)) fail("skeleton_credential_target_mismatch");
   const shipped = SHIPPED_SLUGS.map((slug) => {
@@ -223,10 +238,7 @@ const trustedCustomProviders = (snapshot) => {
     if (matches.length !== 1) fail("skeleton_credential_target_mismatch");
     return { ...jsonCopy(matches[0].provider), enabled: true };
   });
-  const namespaces = isRecord(snapshot) && snapshot.available === true && isRecord(snapshot.namespaces) ? snapshot.namespaces : null;
-  const branch = namespaces && has(namespaces, "model_providers") && isRecord(namespaces.model_providers) ? namespaces.model_providers : null;
-  const authored = branch && Array.isArray(branch.custom_providers) ? branch.custom_providers : [];
-  return [...shipped, ...authored.filter((entry) => !isRecord(entry) || !SHIPPED_SLUGS.includes(entry.id)).map((entry) => jsonCopy(entry))];
+  return [...shipped.filter((entry) => !authored.some((stored) => stored.id === entry.id)), ...authored];
 };
 
 module.exports = { buildSkeletonCredentialQuery, resolveSkeletonCredentials, trustedCustomProviders };

@@ -6221,8 +6221,29 @@ const createUnchainService = ({
       return;
     }
 
+    let credentialQuery;
+    try {
+      credentialQuery = buildSkeletonCredentialQuery(requestPayload);
+      // V4 consumes these canonical top-level fields before dispatch. The
+      // discovery API's optional source is not an HTTP resume permission,
+      // and Main-only camelCase aliases cannot satisfy the actual route.
+      if (credentialQuery && endpoint === UNCHAIN_STREAM_V4_ENDPOINT &&
+          (typeof requestPayload.attempt_id !== "string" || !requestPayload.attempt_id.trim() ||
+           (credentialQuery.mode === "resume" && !credentialQuery.source_attempt_id))) {
+        throw Object.assign(new Error("Invalid Skeleton credential query"), {
+          code: "skeleton_credential_query_invalid",
+        });
+      }
+    } catch (error) {
+      emitMisoStreamDirectEvent(sender, requestId, "error", {
+        code: error?.code || "skeleton_credential_query_invalid",
+        message: error?.message || "Invalid Skeleton credential query",
+      });
+      return;
+    }
     const controller = new AbortController();
     const executionIdCandidate =
+      credentialQuery?.session_id ??
       requestPayload.execution_id ??
       requestPayload.executionId ??
       requestPayload.session_id ??
@@ -6232,11 +6253,11 @@ const createUnchainService = ({
     const attemptIdCandidate =
       requestPayload.attempt_id ?? requestPayload.attemptId;
     const sourceAttemptIdCandidate =
-      requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
+      credentialQuery?.source_attempt_id ?? requestPayload.source_attempt_id ?? requestPayload.sourceAttemptId;
     const ownerChatIdCandidate =
-      requestPayload.owner_chat_id ?? requestPayload.ownerChatId;
+      credentialQuery?.owner_chat_id ?? requestPayload.owner_chat_id ?? requestPayload.ownerChatId;
     const interactionIdCandidate =
-      requestPayload.interaction_id ?? requestPayload.interactionId;
+      credentialQuery?.interaction_id ?? requestPayload.interaction_id ?? requestPayload.interactionId;
     const executionId =
       typeof executionIdCandidate === "string"
         ? executionIdCandidate.trim()
@@ -6289,7 +6310,6 @@ const createUnchainService = ({
     }
 
     try {
-      const credentialQuery = buildSkeletonCredentialQuery(requestPayload);
       if (credentialQuery) {
         const requirementsResponse = await streamRequestImpl(
           `http://${UNCHAIN_HOST}:${unchainPort}/skeleton_credentials/requirements`,
@@ -6298,10 +6318,19 @@ const createUnchainService = ({
         );
         const requirements = await readSkeletonResourceResponse(requirementsResponse);
         if (controller.signal.aborted) return;
+        let customProviders = [];
+        if (requirements.kind === "skeleton" && Array.isArray(requirements.profiles) &&
+            requirements.profiles.some((profile) => typeof profile?.provider === "string" && profile.provider.startsWith("custom."))) {
+          let registry;
+          try {
+            registry = settingsStorageService?.readModelProviderRegistry?.() || { status: "unavailable" };
+          } catch {
+            registry = { status: "unavailable" };
+          }
+          customProviders = trustedCustomProviders(registry);
+        }
         const resolved = resolveSkeletonCredentials(requirements, credentialQuery, {
-          customProviders: trustedCustomProviders(
-            settingsStorageService?.getBootstrapSnapshot?.() || {},
-          ),
+          customProviders,
           readSecret: readProviderSecretForInjection,
         });
         if (resolved) {

@@ -91,9 +91,12 @@ describe("Skeleton credential discovery query", () => {
     expect(JSON.stringify(payload)).toBe(before);
   });
 
-  test("service execution/session aliases keep precedence and exact spelling", () => {
-    expect(buildSkeletonCredentialQuery(start({ executionId: "execution-one", session_id: "ignored", owner_chat_id: undefined, ownerChatId: "chat-alias" }))).toMatchObject({ session_id: "execution-one", owner_chat_id: "chat-alias" });
-    expect(() => buildSkeletonCredentialQuery(start({ execution_id: " padded ", threadId: "valid" }))).toThrow();
+  test("native discovery follows HTTP identities rather than Main-only aliases", () => {
+    // BC-033 replaces the old alias-precedence assertion: the stream route
+    // never reads execution/session aliases or camelCase ownerChatId.
+    expect(buildSkeletonCredentialQuery(start({ executionId: "execution-one", session_id: "ignored" }))).toMatchObject({ session_id: "session-one", owner_chat_id: "chat-one" });
+    expect(buildSkeletonCredentialQuery(start({ execution_id: " padded ", threadId: "valid" })).session_id).toBe("valid");
+    expect(() => buildSkeletonCredentialQuery(start({ owner_chat_id: undefined, ownerChatId: "chat-alias" }))).toThrow();
     expect(() => buildSkeletonCredentialQuery(start({ owner_chat_id: 7 }))).toThrow();
     expect(() => buildSkeletonCredentialQuery(start({ owner_chat_id: "" }))).toThrow();
   });
@@ -105,7 +108,8 @@ describe("Skeleton credential discovery query", () => {
   });
 
   test("all resumes query even empty options, ignoring fresh selector and recipe", () => {
-    const issued = buildSkeletonCredentialQuery(start({ mode: "resume_interaction", interactionId: "interaction-one", sourceAttemptId: "root-one", options: { skeleton_selection: selection, recipe_name: "Fresh Legacy" } }));
+    // Use the snake_case identities consumed by the actual resume route.
+    const issued = buildSkeletonCredentialQuery(start({ mode: "resume_interaction", interaction_id: "interaction-one", source_attempt_id: "root-one", options: { skeleton_selection: selection, recipe_name: "Fresh Legacy" } }));
     expect(issued).toMatchObject({ mode: "resume", interaction_id: "interaction-one", source_attempt_id: "root-one", selection: null, recipe_name: "" });
     expect(buildSkeletonCredentialQuery(start({ mode: "resume_interaction", interaction_id: "interaction-one", options: {} }))).toMatchObject({ mode: "resume", source_attempt_id: "" });
     expect(() => buildSkeletonCredentialQuery(start({ mode: "resume_interaction", options: {} }))).toThrow();
@@ -274,12 +278,15 @@ describe("closed requirements and scope", () => {
 });
 
 describe("Main-owned custom registration inventory", () => {
-  test("shipped definitions use their single bundled source and cannot be shadowed", () => {
-    const snapshot = { available: true, namespaces: { model_providers: { custom_providers: [registration(), registration({ id: "deepseek", base_url: "https://attacker.example" })] } } };
+  test("authored registration stays whole while unregistered shipped slugs use their bundled source", () => {
+    // BC-032 intentionally replaces the old bundle-wins policy for Skeleton
+    // authorization; the dedicated registry suite covers disabled/invalid rows.
+    const authored = registration({ id: "deepseek", base_url: "https://registered.example/v1" });
+    const snapshot = { status: "ready", providers: [registration(), authored] };
     const providers = trustedCustomProviders(snapshot);
     expect(providers.map((p) => p.id).sort()).toEqual(["deepseek", "kimi", "kimi-cn", "private-one"]);
     const deepseek = providers.find((p) => p.id === "deepseek");
-    expect(deepseek).toMatchObject({ enabled: true, protocol: "anthropic", base_url: "https://api.deepseek.com/anthropic" });
+    expect(deepseek).toEqual(authored);
     expect(providers.find((p) => p.id === "sap-hyperspace")).toBeUndefined();
     const row = deepseek.models[0];
     const body = requirements([profile({ id: "custom.deepseek:model", provider: "custom.deepseek", credential_ref: "custom.deepseek", model: row.id, protocol: deepseek.protocol, endpoint: deepseek.base_url })]);
@@ -287,9 +294,10 @@ describe("Main-owned custom registration inventory", () => {
     expect(resolve(body, { customProviders: providers }).credentials["custom.deepseek"].endpoint).toBe(deepseek.base_url);
   });
 
-  test("absent settings still allow shipped definitions, not phantom configured entries", () => {
-    expect(trustedCustomProviders(null).map((p) => p.id).sort()).toEqual(["deepseek", "kimi", "kimi-cn"]);
-    expect(trustedCustomProviders({ namespaces: Object.create({ model_providers: { custom_providers: [registration()] } }) }).some((p) => p.id === "private-one")).toBe(false);
+  test("only a proven missing registry permits the shipped fallback", () => {
+    expect(trustedCustomProviders({ status: "missing" }).map((p) => p.id).sort()).toEqual(["deepseek", "kimi", "kimi-cn"]);
+    expect(() => trustedCustomProviders(null)).toThrow();
+    expect(() => trustedCustomProviders({ namespaces: Object.create({ model_providers: { custom_providers: [registration()] } }) })).toThrow();
   });
 
   test("the single shared preset source is included in the packaged Main files", () => {
