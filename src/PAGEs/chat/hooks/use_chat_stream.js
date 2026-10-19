@@ -8856,11 +8856,20 @@ export const useChatStream = ({
                      level down (measured: every answered refusal bought
                      another run). Tell the two causes apart first. A row that
                      is gone, already held, or waiting on a recorded backoff
-                     belongs to those fences, and an unreadable store is
-                     already the recovery effect's own first check. Anything
+                     belongs to those fences, so leave it to them. Anything
                      else means this failure could not be recorded, so hold the
                      operation with the policy's terminal action and keep the
-                     run's own reason on it. */
+                     run's own reason on it.
+                     A snapshot that cannot be read answers "I don't know",
+                     which no fence can be inferred from: the row may well be
+                     the pristine one this run just failed to reserve, and
+                     reads recover sooner than the person does, so deferring
+                     here hands that row straight back to the recovery effect
+                     (measured: one extra run once reads worked again). Treat
+                     an unreadable store as untriaged and settle through the
+                     same path — the write attempt below fails too while the
+                     store stays unreachable, which is exactly what the
+                     in-session hold is for. */
                   const settledSnapshot = readTurnMutationOutboxState();
                   const currentRow = settledSnapshot.available
                     ? settledSnapshot.entries.find(
@@ -8869,13 +8878,13 @@ export const useChatStream = ({
                       )
                     : null;
                   const ownedByAnotherFence =
-                    !settledSnapshot.available ||
-                    !currentRow ||
-                    currentRow.retryStatus ===
-                      TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
-                    (currentRow.retryStatus ===
-                      TURN_MUTATION_RETRY_STATUSES.WAITING &&
-                      currentRow.retryAt > Date.now());
+                    settledSnapshot.available &&
+                    (!currentRow ||
+                      currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
+                      (currentRow.retryStatus ===
+                        TURN_MUTATION_RETRY_STATUSES.WAITING &&
+                        currentRow.retryAt > Date.now()));
                   if (!ownedByAnotherFence) {
                     const heldAfterFailure = recordTurnMutationRetryOutcome(
                       turnMutationOperationId,

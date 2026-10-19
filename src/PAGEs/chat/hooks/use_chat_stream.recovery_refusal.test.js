@@ -267,6 +267,58 @@ describe("a refused recovery settles instead of looping", () => {
     return { refusedWrites, allowWritesAgain: () => spy.mockRestore() };
   };
 
+  /* The narrower fault the fence triage missed: the reservation's write is
+     refused, and then the read that follows it — the read that decides which
+     fence owns the operation — is refused too. A store that cannot be read
+     answers "I don't know", which is not the same as "another fence already
+     holds this". */
+  const refuseReadsAfterARefusedWrite = () => {
+    const realSetItem = window.Storage.prototype.setItem;
+    const realGetItem = window.Storage.prototype.getItem;
+    const refusedWrites = [];
+    const refusedReads = [];
+    let readsRefused = false;
+    const writeSpy = jest
+      .spyOn(window.Storage.prototype, "setItem")
+      .mockImplementation(function patchedSetItem(key, value) {
+        if (key === TURN_MUTATION_OUTBOX_STORAGE_KEY) {
+          refusedWrites.push(key);
+          /* From the moment the write is refused the store is unreachable in
+             both directions, which is how a revoked storage permission or a
+             disk-backed profile going read-only actually behaves. */
+          readsRefused = true;
+          const quotaError = new Error(
+            "Failed to set the 'pupu.turn_mutation_outbox.v1' value: quota exceeded.",
+          );
+          quotaError.name = "QuotaExceededError";
+          throw quotaError;
+        }
+        return realSetItem.call(this, key, value);
+      });
+    const readSpy = jest
+      .spyOn(window.Storage.prototype, "getItem")
+      .mockImplementation(function patchedGetItem(key) {
+        if (readsRefused && key === TURN_MUTATION_OUTBOX_STORAGE_KEY) {
+          refusedReads.push(key);
+          const accessError = new Error(
+            "Failed to read the 'pupu.turn_mutation_outbox.v1' value: access is denied.",
+          );
+          accessError.name = "SecurityError";
+          throw accessError;
+        }
+        return realGetItem.call(this, key);
+      });
+    return {
+      refusedWrites,
+      refusedReads,
+      recoverStore: () => {
+        readsRefused = false;
+        writeSpy.mockRestore();
+        readSpy.mockRestore();
+      },
+    };
+  };
+
   test("a refusal the selection owns runs once, says why, and quarantines the intent", async () => {
     const record = seedRecovery();
     renderChat();
@@ -507,5 +559,56 @@ describe("a refused recovery settles instead of looping", () => {
     expect(entry.selectedSkeletonAgentId).toBe("research.agent:v2");
     expect(entry.text).toBe("replayed question");
     expect(dispatches()).toBe(1);
+  });
+  test("a read that fails right after a refused reservation still holds the turn", async () => {
+    const record = seedRecovery();
+    renderChat();
+    await waitFor(() => expect(dispatches()).toBe(1));
+    const { refusedWrites, refusedReads, recoverStore } =
+      refuseReadsAfterARefusedWrite();
+
+    const answered = await refuseEveryDispatch({
+      code: "resource_missing",
+      message: "That Agent was not found on the host",
+    });
+
+    /* Both halves of the fault have to have fired, or this test proves
+       nothing: the reservation write was refused AND the read that follows it
+       was refused. */
+    expect(refusedWrites.length).toBeGreaterThan(0);
+    expect(refusedReads.length).toBeGreaterThan(0);
+
+    /* While the store answers nothing, the page says so rather than showing a
+       spinner, and no further run is launched. */
+    expect(answered).toBe(1);
+    expect(dispatches()).toBe(1);
+    expect(lastChatInputProps.disclaimer).toMatch(/persist/i);
+    expect(lastChatInputProps.disclaimer).not.toMatch(/is streaming/i);
+
+    /* The store comes back and the person returns to the chat. */
+    recoverStore();
+    await act(async () => {
+      createChatInSelectedContext();
+    });
+    await flush();
+    const firstNode = buildTreeNodeLookupByChatId(getChatsStore().tree)[
+      record.chatId
+    ];
+    expect(firstNode).toBeTruthy();
+    await act(async () => {
+      selectTreeNode({ nodeId: firstNode }, { source: "test" });
+    });
+    await flush();
+
+    /* An unreadable snapshot was never a fence holding this turn, so the same
+       terminal refusal must not buy a second run once reads work again — and
+       the hold it could not write down earlier is written down now. */
+    expect(dispatches()).toBe(1);
+    const entry = entryNow(record.operationId);
+    expect(entry).not.toBeNull();
+    expect(entry.retryStatus).toBe("quarantined");
+    expect(entry.lastFailureCode).toBe("resource_missing");
+    expect(entry.selectedSkeletonAgentId).toBe("research.agent:v2");
+    expect(entry.text).toBe("replayed question");
   });
 });
