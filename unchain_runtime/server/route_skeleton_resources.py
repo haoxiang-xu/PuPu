@@ -8,10 +8,61 @@ from flask import jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from route_blueprint import api_blueprint
+from route_chat import _sanitize_memory_agent_config
 from skeleton_resource_store import SkeletonResourceError, SkeletonResourceStore
 
 
 _logger = logging.getLogger(__name__)
+
+
+@api_blueprint.post("/skeleton_credentials/requirements")
+def skeleton_credential_requirements():
+    """Main-only discovery: target metadata, never credential values.
+
+    Authentication is the same as the actual stream. The request contains only
+    public selectors; the host resolves its own fixed graph or verified launch.
+    """
+    denied = _authorized()
+    if denied is not None:
+        return denied
+
+    def operation():
+        import re
+        from durable_interaction_host import DurableInteractionHostError
+        from skeleton_credential_requirements import requirements_for_start, requirements_for_resume
+        fields = ("schema", "mode", "session_id", "owner_chat_id", "interaction_id",
+                  "source_attempt_id", "selection", "recipe_name", "memory_agent_config")
+        body = _payload(*fields)
+        if set(body) != set(fields):
+            raise SkeletonResourceError("invalid_shape", ("body",), "Credential query fields are required.")
+        if body["schema"] != "pupu.skeleton_credential_query.v1":
+            raise SkeletonResourceError("unsupported_version", ("body", "schema"), "Unsupported credential query version.")
+        if body["mode"] not in ("start", "resume"):
+            raise SkeletonResourceError("unknown_variant", ("body", "mode"), "Unknown credential query mode.")
+        for field in ("session_id", "owner_chat_id", "interaction_id", "source_attempt_id"):
+            value = body[field]
+            optional = field in ("interaction_id", "source_attempt_id")
+            if type(value) is not str or (not value and not optional) or (value and
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,255}", value) is None):
+                raise SkeletonResourceError("invalid_value", ("body", field), "Credential query identity is invalid.")
+        if ((body["mode"] == "start" and (body["interaction_id"] or body["source_attempt_id"]))
+                or (body["mode"] == "resume" and not body["interaction_id"])):
+            raise SkeletonResourceError("invalid_value", ("body", "interaction_id"), "Credential query interaction is invalid.")
+        if type(body["recipe_name"]) is not str:
+            raise SkeletonResourceError("invalid_type", ("body", "recipe_name"), "Recipe name must be a string.")
+        try:
+            config = _sanitize_memory_agent_config(body["memory_agent_config"])
+        except ValueError as error:
+            raise SkeletonResourceError("invalid_value", ("body", "memory_agent_config"),
+                "Memory Agent configuration is invalid.") from error
+        try:
+            if body["mode"] == "start":
+                return requirements_for_start(body, memory_provider=config["provider"], store=SkeletonResourceStore())
+            return requirements_for_resume(body, memory_provider=config["provider"])
+        except DurableInteractionHostError as error:
+            raise SkeletonResourceError(error.code, tuple(getattr(error, "path", ())),
+                str(error), status=error.status_code) from error
+    return _run(operation)
 
 
 def _root():

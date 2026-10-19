@@ -3,6 +3,11 @@ const { request: nodeHttpsRequest } = require("https");
 const { Readable } = require("stream");
 const { CHANNELS } = require("../../../shared/channels");
 const { readSkeletonResourceResponse } = require("./skeleton_resource_response");
+const {
+  buildSkeletonCredentialQuery,
+  resolveSkeletonCredentials,
+  trustedCustomProviders,
+} = require("./skeleton_credentials");
 const { createPortFinder } = require("../../../shared/port_utils");
 const {
   MEMORY_V2_ENV_KEYS,
@@ -6200,18 +6205,10 @@ const createUnchainService = ({
       requestPayload.options = requestOptions;
     }
 
-    // Phase 4 (S4): decrypt + inject provider secrets from the descriptor list,
-    // then strip the descriptor. Runs after the workspaceRoot injection and
-    // before the POST — this is V1/V2/V4's single choke point. Fail-closed: on
-    // any decryption failure emit a structured error and never keyless-POST.
-    const secretInjection = applyProviderSecretInjection(requestPayload.options);
-    if (!secretInjection.ok) {
-      emitMisoStreamDirectEvent(sender, requestId, "error", {
-        code: secretInjection.code,
-        message: secretInjection.message,
-      });
-      return;
-    }
+    // Only Main may create these transient bindings. Caller-supplied maps and
+    // fences are never authority, including during a durable resume.
+    delete requestPayload.options.skeleton_credentials;
+    delete requestPayload.options.skeleton_credential_scope;
 
     if (
       unchainActiveStreams.has(requestId) ||
@@ -6273,7 +6270,11 @@ const createUnchainService = ({
       sourceAttemptId,
       ownerChatId,
       interactionId,
-      requestOptions: { ...requestPayload.options },
+      // Capture before decryption. Retained replay state must not own secrets.
+      requestOptions: Object.fromEntries(Object.entries(requestPayload.options)
+        .filter(([key]) => !["openaiApiKey", "openai_api_key", "anthropicApiKey", "anthropic_api_key",
+          "geminiApiKey", "gemini_api_key", "custom_provider_api_key", "customProviderApiKey",
+          "apiKey", "api_key"].includes(key))),
       replayBuffer: [],
       replayHead: 0,
       replayBytes: 0,
@@ -6288,6 +6289,53 @@ const createUnchainService = ({
     }
 
     try {
+      const credentialQuery = buildSkeletonCredentialQuery(requestPayload);
+      if (credentialQuery) {
+        const requirementsResponse = await streamRequestImpl(
+          `http://${UNCHAIN_HOST}:${unchainPort}/skeleton_credentials/requirements`,
+          { method: "POST", headers: { "Content-Type": "application/json", "x-unchain-auth": unchainAuthToken },
+            body: JSON.stringify(credentialQuery), signal: controller.signal },
+        );
+        const requirements = await readSkeletonResourceResponse(requirementsResponse);
+        if (controller.signal.aborted) return;
+        const resolved = resolveSkeletonCredentials(requirements, credentialQuery, {
+          customProviders: trustedCustomProviders(
+            settingsStorageService?.getBootstrapSnapshot?.() || {},
+          ),
+          readSecret: readProviderSecretForInjection,
+        });
+        if (resolved) {
+          // The graph, not the composer, owns its targets. Preserve only the
+          // independently declared embedding channel from that old path,
+          // including its still-supported inline-key migration mode.
+          const descriptors = requestPayload.options[PROVIDER_SECRET_INJECTION_KEY];
+          const embeddingProvider = typeof requestPayload.options.memory_embedding_provider === "string"
+            ? requestPayload.options.memory_embedding_provider.trim().toLowerCase() : "auto";
+          const inlineEmbedding = requestPayload.options.memory_enabled === true &&
+            ["auto", "openai"].includes(embeddingProvider)
+            ? Object.fromEntries(["openaiApiKey", "openai_api_key"].filter((key) =>
+              typeof requestPayload.options[key] === "string" && requestPayload.options[key].trim())
+              .map((key) => [key, requestPayload.options[key]])) : {};
+          for (const key of ["openaiApiKey", "openai_api_key", "anthropicApiKey", "anthropic_api_key",
+            "geminiApiKey", "gemini_api_key", "custom_provider_api_key", "customProviderApiKey", "apiKey", "api_key"]) {
+            delete requestPayload.options[key];
+          }
+          requestPayload.options[PROVIDER_SECRET_INJECTION_KEY] = Array.isArray(descriptors)
+            ? descriptors.filter((entry) => entry?.channel === "embedding") : [];
+          Object.assign(requestPayload.options, inlineEmbedding, resolved.providerOptions, {
+            skeleton_credentials: resolved.credentials,
+            skeleton_credential_scope: resolved.scope,
+          });
+        }
+      }
+      const secretInjection = applyProviderSecretInjection(requestPayload.options);
+      if (!secretInjection.ok) {
+        emitMisoStreamEvent(sender.id, requestId, "error", {
+          code: secretInjection.code, message: secretInjection.message,
+        });
+        return;
+      }
+      if (controller.signal.aborted) return;
       // Keep localhost SSE outside Chromium's network lifecycle. Display sleep
       // can suspend Electron net.fetch, while Undici terminates quiet bodies
       // after five minutes. The Node request adapter has no inactivity timeout.
@@ -6347,8 +6395,11 @@ const createUnchainService = ({
 
       logMisoStreamBridgeFailure(requestId, streamError);
       emitMisoStreamEvent(sender.id, requestId, "error", {
-        code: "stream_bridge_failed",
+        code: typeof streamError?.code === "string" && /^[a-z][a-z0-9_]*$/.test(streamError.code)
+          ? streamError.code : "stream_bridge_failed",
         message: streamError?.message || "Failed to bridge SSE stream",
+        ...(Array.isArray(streamError?.path) ? { path: streamError.path } : {}),
+        ...(Number.isInteger(streamError?.status) ? { status: streamError.status } : {}),
       });
     } finally {
       unchainActiveStreams.delete(requestId);

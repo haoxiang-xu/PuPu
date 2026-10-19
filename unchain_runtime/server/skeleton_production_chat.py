@@ -20,6 +20,7 @@ from skeleton_production_interactions import (resolve_pending_skeleton_interacti
     get_pending_skeleton_interaction, cancel_skeleton_execution)
 from skeleton_resource_store import SkeletonResourceError
 from skeleton_workflow_snapshot import freeze_skeleton_workflow_dependencies
+from skeleton_credential_requirements import assert_credential_scope
 
 
 def _fail(code, message, status=409):
@@ -248,6 +249,8 @@ def stream_skeleton_chat_events(*, message, history, attachments, options, sessi
     try:
         selection = prepare_skeleton_chat_selection(options)
         workflows = freeze_skeleton_workflow_dependencies(selection)
+        assert_credential_scope(options, selection, workflows, mode="start", session_id=session_id,
+            owner_chat_id=options.get("_memory_v2_owner_chat_id"))
         plan = __import__("unchain.skeleton", fromlist=["prepare_agent_graph"]).prepare_agent_graph(selection.to_dict()["document"])
         roots = [] if options.get("disable_workspace_root") is True else host._extract_workspace_roots_from_options(options)
         roots = list(dict.fromkeys(str(Path(root).expanduser().resolve()) for root in roots))
@@ -314,6 +317,14 @@ def resume_skeleton_chat_events(*, session_id, interaction_id, options=None, att
     root_run_id = launch.descriptor["root_run_id"]
     if source_attempt_id and source_attempt_id != root_run_id:
         _fail("execution_attempt_binding_conflict", "Resume source does not match the Skeleton root.")
+    try:
+        assert_credential_scope(options, launch.selection, launch.workflows, mode="resume", session_id=session_id,
+            owner_chat_id=options.get("_memory_v2_owner_chat_id"), interaction_id=interaction_id,
+            source_attempt_id=root_run_id, launch=launch)
+    except SkeletonResourceError as error:
+        wrapped = DurableInteractionHostError(error.code, str(error), status_code=error.status, retryable=False)
+        wrapped.path = error.path
+        raise wrapped from error
     bind_execution_attempt(session_id=session_id, attempt_id=attempt_id, source_attempt_id=root_run_id)
     registration = host._execution_control_call("register", session_id, attempt_id)
     token = host._execution_cancellation_token(session_id, attempt_id)
