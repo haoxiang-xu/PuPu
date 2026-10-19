@@ -33,6 +33,7 @@ import {
   enqueueTurnMutation,
   fingerprintTurnMutationMessages,
   readTurnMutationOutbox,
+  TURN_MUTATION_OUTBOX_STORAGE_KEY,
 } from "../../../SERVICEs/turn_mutation_outbox";
 import { writeFeatureFlags } from "../../../SERVICEs/feature_flags";
 
@@ -233,6 +234,39 @@ describe("a refused recovery settles instead of looping", () => {
     return answered;
   };
 
+  /* A real browser storage refusal, scoped the way a quota failure actually
+     lands: only the turn-mutation outbox key is rejected, so chat messages and
+     every other key still save. `attemptingOnly` reproduces the narrower
+     fault — the single write that would mark the row ATTEMPTING fails, while a
+     terminal hold could still be written. A reservation that cannot be
+     persisted must never read back as "this turn was never tried". */
+  const refuseOutboxWrites = ({ attemptingOnly = true } = {}) => {
+    /* Patched on the prototype: jsdom's localStorage is a proxy whose own
+       properties are stored items, so an instance spy would write a key
+       called "setItem" instead of replacing the method. */
+    const realSetItem = window.Storage.prototype.setItem;
+    const refusedWrites = [];
+    const spy = jest
+      .spyOn(window.Storage.prototype, "setItem")
+      .mockImplementation(function patchedSetItem(key, value) {
+        const text = typeof value === "string" ? value : String(value);
+        const marksAttempting = text.includes('"retryStatus":"attempting"');
+        if (
+          key === TURN_MUTATION_OUTBOX_STORAGE_KEY &&
+          (!attemptingOnly || marksAttempting)
+        ) {
+          refusedWrites.push(key);
+          const quotaError = new Error(
+            "Failed to set the 'pupu.turn_mutation_outbox.v1' value: quota exceeded.",
+          );
+          quotaError.name = "QuotaExceededError";
+          throw quotaError;
+        }
+        return realSetItem.call(this, key, value);
+      });
+    return { refusedWrites, allowWritesAgain: () => spy.mockRestore() };
+  };
+
   test("a refusal the selection owns runs once, says why, and quarantines the intent", async () => {
     const record = seedRecovery();
     renderChat();
@@ -368,6 +402,110 @@ describe("a refused recovery settles instead of looping", () => {
       });
       await flush();
     }
+    expect(dispatches()).toBe(1);
+  });
+
+  test("a reservation write the store refuses still holds the turn", async () => {
+    const record = seedRecovery();
+    renderChat();
+    await waitFor(() => expect(dispatches()).toBe(1));
+    const { refusedWrites } = refuseOutboxWrites();
+
+    const answered = await refuseEveryDispatch({
+      code: "resource_missing",
+      message: "That Agent was not found on the host",
+    });
+
+    /* The fault has to have actually fired, or this test proves nothing. */
+    expect(refusedWrites.length).toBeGreaterThan(0);
+
+    /* One run for one refusal even though the attempt could not be reserved:
+       a refused write is not permission to treat the intent as untried. */
+    expect(answered).toBe(1);
+    expect(dispatches()).toBe(1);
+    expect(lastChatInputProps.disclaimer).not.toMatch(/is streaming/i);
+    expect(lastAssistant().status).toBe("error");
+
+    /* Held for review with its reason, its text and its Agent — not deleted,
+       not replayed, not Default. */
+    const entry = entryNow(record.operationId);
+    expect(entry).not.toBeNull();
+    expect(entry.retryStatus).toBe("quarantined");
+    expect(entry.lastFailureCode).toBe("resource_missing");
+    expect(entry.selectedSkeletonAgentId).toBe("research.agent:v2");
+    expect(entry.text).toBe("replayed question");
+  });
+
+  test("when the store refuses every write the page says so and still stops", async () => {
+    const record = seedRecovery();
+    renderChat();
+    await waitFor(() => expect(dispatches()).toBe(1));
+    const { refusedWrites } = refuseOutboxWrites({ attemptingOnly: false });
+
+    const answered = await refuseEveryDispatch({
+      code: "resource_missing",
+      message: "That Agent was not found on the host",
+    });
+
+    expect(refusedWrites.length).toBeGreaterThan(0);
+
+    /* Nothing about this turn can be written down, so the only remaining
+       bound is this session's: one run, and the page says the hold could not
+       be saved instead of showing a spinner forever. */
+    expect(answered).toBe(1);
+    expect(dispatches()).toBe(1);
+    expect(lastChatInputProps.disclaimer).toMatch(/persist/i);
+    expect(lastChatInputProps.disclaimer).not.toMatch(/is streaming/i);
+
+    /* The user's frozen intent survives: nothing is deleted to make the
+       failure go away. */
+    const entry = entryNow(record.operationId);
+    expect(entry).not.toBeNull();
+    expect(entry.text).toBe("replayed question");
+    expect(entry.selectedSkeletonAgentId).toBe("research.agent:v2");
+  });
+
+  test("a hold that could not be saved is written down once the store accepts writes", async () => {
+    const record = seedRecovery();
+    renderChat();
+    await waitFor(() => expect(dispatches()).toBe(1));
+    const { refusedWrites, allowWritesAgain } = refuseOutboxWrites({
+      attemptingOnly: false,
+    });
+
+    const answered = await refuseEveryDispatch({
+      code: "resource_missing",
+      message: "That Agent was not found on the host",
+    });
+    expect(refusedWrites.length).toBeGreaterThan(0);
+    expect(answered).toBe(1);
+    /* Nothing landed, so the row is still the pristine one on disk. */
+    expect(entryNow(record.operationId).retryStatus).toBe("");
+
+    /* The store frees up and the person comes back to the chat. */
+    allowWritesAgain();
+    await act(async () => {
+      createChatInSelectedContext();
+    });
+    await flush();
+    const firstNode = buildTreeNodeLookupByChatId(getChatsStore().tree)[
+      record.chatId
+    ];
+    expect(firstNode).toBeTruthy();
+    await act(async () => {
+      selectTreeNode({ nodeId: firstNode }, { source: "test" });
+    });
+    await flush();
+
+    /* Now it can be recorded, so the hold becomes the durable one — with the
+       run's own reason, so a reload still knows why — and the turn is still
+       not replayed. */
+    const entry = entryNow(record.operationId);
+    expect(entry).not.toBeNull();
+    expect(entry.retryStatus).toBe("quarantined");
+    expect(entry.lastFailureCode).toBe("resource_missing");
+    expect(entry.selectedSkeletonAgentId).toBe("research.agent:v2");
+    expect(entry.text).toBe("replayed question");
     expect(dispatches()).toBe(1);
   });
 });

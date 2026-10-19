@@ -1219,6 +1219,13 @@ export const useChatStream = ({
      make one fresh check after the server-side live guard has cleared. */
   const turnMutationInProgressSeenRef = useRef(new Set());
   const turnMutationStalledAttemptSeenRef = useRef(new Set());
+  /* Operations whose run started, failed, and could not have that failure
+     written down anywhere, mapped to the failure code that would have been
+     recorded. The durable row still reads "untried", so this map is the only
+     thing standing between it and an unbounded replay; it is deliberately
+     session-scoped, because claiming durability for a state the store just
+     refused to accept would be a lie. Retry/Discard clear it. */
+  const turnMutationUnrecordedFailureRef = useRef(new Map());
   /* Legacy V1 rows predate the durable Context V2 retry contract. Keep their
      existing bounded recovery cadence so this V2 rollout does not change
      replaceSessionMemory conflict behavior. */
@@ -1796,6 +1803,7 @@ export const useChatStream = ({
       if (!target || !clearTurnMutationRetryState(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       setStreamErrorForChat(target.chatId, "");
       setTurnMutationVersion((version) => version + 1);
       return true;
@@ -1830,6 +1838,7 @@ export const useChatStream = ({
       if (!removeTurnMutation(operationId)) return false;
       turnMutationInProgressSeenRef.current.delete(operationId);
       turnMutationStalledAttemptSeenRef.current.delete(operationId);
+      turnMutationUnrecordedFailureRef.current.delete(operationId);
       const owner = turnMutationByChatIdRef.current.get(target.chatId);
       if (owner?.operationId === operationId) releaseTurnMutation(owner);
       setStreamErrorForChat(target.chatId, "");
@@ -8839,6 +8848,60 @@ export const useChatStream = ({
                         : 0,
                   });
                   notifyTurnMutationChange(targetChatId);
+                } else {
+                  /* The reservation is itself a WRITE, and a refused write
+                     must not read as "nothing happened": the row stays
+                     pristine, so the recovery effect sees runnable work and
+                     dispatches this same intent again — the original loop one
+                     level down (measured: every answered refusal bought
+                     another run). Tell the two causes apart first. A row that
+                     is gone, already held, or waiting on a recorded backoff
+                     belongs to those fences, and an unreadable store is
+                     already the recovery effect's own first check. Anything
+                     else means this failure could not be recorded, so hold the
+                     operation with the policy's terminal action and keep the
+                     run's own reason on it. */
+                  const settledSnapshot = readTurnMutationOutboxState();
+                  const currentRow = settledSnapshot.available
+                    ? settledSnapshot.entries.find(
+                        (candidate) =>
+                          candidate.operationId === turnMutationOperationId,
+                      )
+                    : null;
+                  const ownedByAnotherFence =
+                    !settledSnapshot.available ||
+                    !currentRow ||
+                    currentRow.retryStatus ===
+                      TURN_MUTATION_RETRY_STATUSES.QUARANTINED ||
+                    (currentRow.retryStatus ===
+                      TURN_MUTATION_RETRY_STATUSES.WAITING &&
+                      currentRow.retryAt > Date.now());
+                  if (!ownedByAnotherFence) {
+                    const heldAfterFailure = recordTurnMutationRetryOutcome(
+                      turnMutationOperationId,
+                      {
+                        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+                        code: errorCode || "context_v2_persist_failed",
+                      },
+                    );
+                    if (!heldAfterFailure) {
+                      /* Nothing about this turn can be written at all, so the
+                         only bound left is this session's: hold the operation
+                         in memory so recovery stops dispatching it, and say
+                         that the hold itself could not be saved. Nothing is
+                         deleted, the frozen text and Agent stay, and a reload
+                         honestly finds an intent the store never recorded. */
+                      turnMutationUnrecordedFailureRef.current.set(
+                        turnMutationOperationId,
+                        errorCode || "context_v2_persist_failed",
+                      );
+                      setStreamErrorForChat(
+                        targetChatId,
+                        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+                      );
+                    }
+                    notifyTurnMutationChange(targetChatId);
+                  }
                 }
               }
 
@@ -14383,6 +14446,36 @@ export const useChatStream = ({
     if (
       entry.retryStatus === TURN_MUTATION_RETRY_STATUSES.QUARANTINED
     ) {
+      return undefined;
+    }
+    if (
+      turnMutationUnrecordedFailureRef.current.has(entry.operationId) &&
+      !hasActiveRetryAttempt
+    ) {
+      /* This operation's run already started and failed in this session, and
+         the store refused every attempt to record that — so the row still
+         reads as untried. Dispatching it again would only repeat the refusal
+         and replace its reason with the streaming disclaimer, so it is held
+         here and the page says the hold could not be saved.
+         The store may since have become writable, so one conversion into the
+         durable hold is attempted per effect run: a QUARANTINED row is what
+         carries the reason across a reload and what gives the person Retry
+         and Discard. Only a successful write bumps the version, so a still
+         failing store cannot turn this into a render loop. */
+      const heldDurably = recordTurnMutationRetryOutcome(entry.operationId, {
+        action: TURN_MUTATION_RETRY_ACTIONS.QUARANTINE,
+        code:
+          turnMutationUnrecordedFailureRef.current.get(entry.operationId) ||
+          "context_v2_persist_failed",
+      });
+      setStreamErrorForChat(
+        targetChatId,
+        CONTEXT_V2_TURN_MUTATION_MESSAGES.PERSIST,
+      );
+      if (heldDurably) {
+        turnMutationUnrecordedFailureRef.current.delete(entry.operationId);
+        setTurnMutationVersion((version) => version + 1);
+      }
       return undefined;
     }
     if (
