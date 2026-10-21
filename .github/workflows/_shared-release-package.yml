@@ -241,8 +241,22 @@ jobs:
         run: |
           if [ "$QA_MODE" = "release-candidate" ]; then
             case "$TARGET_ID" in
-              macos-arm64) command="npm run build:electron:mac:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
-              macos-x64) command="npm run build:electron:mac:intel:release with numeric native version $QA_BASE_VERSION"; npm run build:electron:mac:intel:release -- --config.mac.bundleShortVersion="$QA_BASE_VERSION" --config.mac.bundleVersion="$QA_BASE_VERSION" ;;
+              macos-arm64)
+                command="npm run build:electron:mac:release with numeric native version $QA_BASE_VERSION"
+                node scripts/release-qa/macos-release-build-retry.mjs \
+                  --max-attempts 2 --delay-ms 30000 -- \
+                  npm run build:electron:mac:release -- \
+                  --config.mac.bundleShortVersion="$QA_BASE_VERSION" \
+                  --config.mac.bundleVersion="$QA_BASE_VERSION"
+                ;;
+              macos-x64)
+                command="npm run build:electron:mac:intel:release with numeric native version $QA_BASE_VERSION"
+                node scripts/release-qa/macos-release-build-retry.mjs \
+                  --max-attempts 2 --delay-ms 30000 -- \
+                  npm run build:electron:mac:intel:release -- \
+                  --config.mac.bundleShortVersion="$QA_BASE_VERSION" \
+                  --config.mac.bundleVersion="$QA_BASE_VERSION"
+                ;;
               windows-x64) command="npm run build:electron:win:unpacked"; npm run build:electron:win:unpacked ;;
               linux-x64) command="npm run build:electron:linux"; npm run build:electron:linux ;;
               *) echo "::error title=Unsupported package target::$TARGET_ID"; exit 1 ;;
