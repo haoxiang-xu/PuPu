@@ -39,7 +39,6 @@ from custom_provider import (
     make_custom_model_io_factory,
     parse_custom_model_id,
     parse_custom_provider,
-    redact_secrets,
 )
 from durable_job_runtime import get_durable_jobs_runtime
 from secret_scrub_registry import register_secret_values
@@ -1179,7 +1178,6 @@ try:
     from unchain.optimizers import (
         ContextUsageOptimizer as _ContextUsageOptimizer,
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
-        LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
         SlidingWindowOptimizer as _SlidingWindowOptimizer,
         SlidingWindowOptimizerConfig as _SlidingWindowOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
@@ -1198,7 +1196,6 @@ except ImportError:
     _SubagentTemplate = None  # type: ignore
     _SubagentPolicy = None  # type: ignore
     _LlmSummaryOptimizer = None  # type: ignore
-    _LlmSummaryOptimizerConfig = None  # type: ignore
     _ContextUsageOptimizer = None  # type: ignore
     _SlidingWindowOptimizer = None  # type: ignore
     _SlidingWindowOptimizerConfig = None  # type: ignore
@@ -6076,15 +6073,12 @@ _BUILTIN_TOOLKIT_PREFIX = "builtin."
 # leaf module (Gate B) so a runtime override is observed here and by
 # ``memory_factory``'s screenshot sanitization at once; this file only delegates.
 
-# The Anthropic model-prefix allow-list for computer_20251124 now lives in the
-# shared ``computer_use_flag`` gate module (beside is_enabled()) so the status
-# route can read the SAME source without importing this heavy adapter. Re-bound to
-# the local name so ``_model_supports_computer_use`` and its tests are unchanged.
+# The Anthropic model-prefix allow-list for computer_20251124 lives in the shared
+# ``computer_use_flag`` gate module (beside is_enabled()) so the status route can
+# read the SAME source without importing this heavy adapter;
+# ``_model_supports_computer_use`` below delegates there instead of re-binding it.
 # The list is pupu-llm-expert authored (model-visible authority) — see that module
 # for the full rationale.
-from computer_use_flag import (
-    COMPUTER_USE_MODEL_PREFIXES as _COMPUTER_USE_MODEL_PREFIXES,
-)
 
 
 def _computer_use_enabled() -> bool:

@@ -13574,9 +13574,9 @@ export const useChatStream = ({
       const originalMessages = Array.isArray(messagesRef.current)
         ? [...messagesRef.current]
         : [];
-      const messageIndex = originalMessages
-        ? originalMessages.findIndex((item) => item?.id === message?.id)
-        : -1;
+      const messageIndex = originalMessages.findIndex(
+        (item) => item?.id === message?.id,
+      );
       const targetMessage =
         messageIndex >= 0 && messageIndex < originalMessages.length
           ? originalMessages[messageIndex]

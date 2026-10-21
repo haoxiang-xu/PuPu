@@ -35,7 +35,6 @@ from typing import Any, Dict, List, Optional
 from unchain.tools.tool import Tool
 from unchain.tools.toolkit import Toolkit
 
-from .actions import ACTIONS
 from .click3_adapter import LOCAL_PLANNER_PROMPT, local_computer_tool_schema
 from .controller import ComputerController
 from .coordinates import compute_target_size

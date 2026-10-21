@@ -944,11 +944,6 @@ const Input = ({
 
   const isControlled = value !== undefined;
   const currentValue = isControlled ? value : defaultValue;
-  // eslint-disable-next-line no-unused-vars
-  const hasValue =
-    currentValue !== undefined &&
-    currentValue !== null &&
-    String(currentValue).length > 0;
 
   /* ── design tokens ── */
   const fontSize = style?.fontSize || tf.fontSize || 16;

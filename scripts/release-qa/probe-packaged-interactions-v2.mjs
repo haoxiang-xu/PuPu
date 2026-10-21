@@ -68,10 +68,13 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify(envelope.response));
     }
   } catch (e) {
+    // Keep the exception text out of the HTTP body: the probe log is the place
+    // for it, the fake provider only needs to signal that the turn failed.
+    console.error('[probe-packaged-interactions-v2] fake provider request failed:', e);
     res.writeHead(500);
     res.end(JSON.stringify({
       error: {
-        message: String(e)
+        message: 'fake provider request failed; see the probe log'
       }
     }));
   }

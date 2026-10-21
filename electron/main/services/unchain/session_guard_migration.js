@@ -108,51 +108,74 @@ const createSessionGuardMigrationController = ({
   );
 
   const hasReadableIntentStore = () =>
-    typeof fs?.existsSync === "function" &&
+    typeof fs?.openSync === "function" &&
+    typeof fs?.fstatSync === "function" &&
+    typeof fs?.closeSync === "function" &&
     typeof fs?.readFileSync === "function" &&
     typeof fs?.lstatSync === "function";
 
   const readPendingIntent = () => {
-    // Several unit-test dependency stubs intentionally provide only
-    // existsSync. Production Electron injects node:fs; an incomplete injected
+    // Several unit-test dependency stubs intentionally provide only a few fs
+    // methods. Production Electron injects node:fs; an incomplete injected
     // store can never create or consume an intent and therefore can never
     // authorize the stop-the-world flag.
     if (!hasReadableIntentStore()) {
       return false;
     }
-    let present;
+    // Open first and inspect the descriptor instead of checking the path and
+    // then reading it again: the file cannot be swapped between the two.
+    // O_NOFOLLOW makes a symlinked intent fail at open (ELOOP) on POSIX.
+    let fd = null;
     try {
-      present = fs.existsSync(intentPath);
-    } catch (_error) {
-      throw new SessionGuardMigrationError(
-        "miso_session_guard_migration_intent_unavailable",
-        "Miso session guard migration intent is unavailable",
-      );
-    }
-    if (!present) {
-      return false;
-    }
-    try {
-      const directoryStat = fs.lstatSync(intentDirectory);
-      const intentStat = fs.lstatSync(intentPath);
-      if (
-        directoryStat.isSymbolicLink() ||
-        !directoryStat.isDirectory() ||
-        intentStat.isSymbolicLink() ||
-        !intentStat.isFile()
-      ) {
-        throw new Error("migration intent is not a file");
+      try {
+        fd = fs.openSync(
+          intentPath,
+          (fs.constants?.O_RDONLY ?? 0) | (fs.constants?.O_NOFOLLOW ?? 0),
+        );
+      } catch (error) {
+        if (error && error.code === "ENOENT") {
+          return false;
+        }
+        if (error && error.code === "ELOOP") {
+          throw new SessionGuardMigrationError(
+            "miso_session_guard_migration_intent_invalid",
+            "Miso session guard migration intent is invalid",
+          );
+        }
+        throw new SessionGuardMigrationError(
+          "miso_session_guard_migration_intent_unavailable",
+          "Miso session guard migration intent is unavailable",
+        );
       }
-      const parsed = JSON.parse(fs.readFileSync(intentPath, "utf8"));
-      if (!isExactMigrationIntent(parsed)) {
-        throw new Error("invalid migration intent");
+      try {
+        const directoryStat = fs.lstatSync(intentDirectory);
+        const intentStat = fs.fstatSync(fd);
+        if (
+          directoryStat.isSymbolicLink() ||
+          !directoryStat.isDirectory() ||
+          !intentStat.isFile()
+        ) {
+          throw new Error("migration intent is not a file");
+        }
+        const parsed = JSON.parse(fs.readFileSync(fd, "utf8"));
+        if (!isExactMigrationIntent(parsed)) {
+          throw new Error("invalid migration intent");
+        }
+        return true;
+      } catch (_error) {
+        throw new SessionGuardMigrationError(
+          "miso_session_guard_migration_intent_invalid",
+          "Miso session guard migration intent is invalid",
+        );
       }
-      return true;
-    } catch (_error) {
-      throw new SessionGuardMigrationError(
-        "miso_session_guard_migration_intent_invalid",
-        "Miso session guard migration intent is invalid",
-      );
+    } finally {
+      if (fd !== null) {
+        try {
+          fs.closeSync(fd);
+        } catch (_error) {
+          // Nothing to recover: the descriptor is only used for this read.
+        }
+      }
     }
   };
 

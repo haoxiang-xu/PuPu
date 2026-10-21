@@ -890,7 +890,6 @@ class MemoryV2Curator:
                 attempt_id=attempt,
             )
         except Exception as exc:
-            capture = None
             isolation_code = self._safe_error_code(
                 exc,
                 "source_capture_unavailable",

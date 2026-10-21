@@ -3609,9 +3609,11 @@ class MemoryV2Store:
             "events.owner_chat_id=?",
             "events.store_seq>?",
             "events.deleted_at_ms IS NULL",
-            "EXISTS(SELECT 1 FROM sessions WHERE sessions.session_key=events.session_key "
-            "AND sessions.current_generation_id=events.generation_id "
-            "AND sessions.deleted_at_ms IS NULL)",
+            (
+                "EXISTS(SELECT 1 FROM sessions WHERE sessions.session_key=events.session_key "
+                "AND sessions.current_generation_id=events.generation_id "
+                "AND sessions.deleted_at_ms IS NULL)"
+            ),
         ]
         params: list[Any] = [owner, cursor]
         if session:
@@ -3628,10 +3630,12 @@ class MemoryV2Store:
                     "events.store_seq=?",
                     "events.event_id=?",
                     "events.deleted_at_ms IS NULL",
-                    "EXISTS(SELECT 1 FROM sessions "
-                    "WHERE sessions.session_key=events.session_key "
-                    "AND sessions.current_generation_id=events.generation_id "
-                    "AND sessions.deleted_at_ms IS NULL)",
+                    (
+                        "EXISTS(SELECT 1 FROM sessions "
+                        "WHERE sessions.session_key=events.session_key "
+                        "AND sessions.current_generation_id=events.generation_id "
+                        "AND sessions.deleted_at_ms IS NULL)"
+                    ),
                 ]
                 cursor_params: list[Any] = [
                     owner,

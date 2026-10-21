@@ -36,7 +36,6 @@ import { fileURLToPath } from "node:url";
 
 import {
   CELL_CATALOG,
-  CYCLE_POOL,
   buildCycleSchedule,
   buildEvidence,
   buildTextSse,
@@ -865,7 +864,8 @@ const cycleFailures = [];
 const handleSamples = [];
 let survivorsTotal = 0;
 let sentinelsTotal = 0;
-let protocol = { oversize: "NOT_RUN", bad_frame: "NOT_RUN", evidence_path: "sidecar-supervisor-probe.json" };
+// Assigned by every branch of the supervisor probe below (PASS/FAIL/NOT_RUN).
+let protocol;
 let exitCode = 1;
 
 const recordCell = (cell, run) => {

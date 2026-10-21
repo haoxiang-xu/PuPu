@@ -112,7 +112,7 @@ const getBar = (overlay) => {
   if (!overlay) return null;
   if (typeof overlay.querySelector !== "function") return null;
   return overlay.querySelector(`#${BAR_ID}`) || overlay.querySelector("[data-boot-bar]");
-}
+};
 
 const clampPct = (pct) => {
   const num = Number(pct);
