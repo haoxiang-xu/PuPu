@@ -16,6 +16,7 @@ const MODEL_OPTIONS = [
   { value: "anthropic:claude-sonnet-5", label: "anthropic:claude-sonnet-5" },
   { value: "gemini:gemini-3.7-flash", label: "gemini:gemini-3.7-flash" },
   { value: "gemini:gemini-3.8-flash", label: "gemini:gemini-3.8-flash" },
+  { value: "gemini:gemini-4-argon", label: "gemini:gemini-4-argon" },
   { value: "gemini:gemini-3.5-flash-lite", label: "gemini:gemini-3.5-flash-lite" },
   { value: "gemini:gemini-3.5-flash", label: "gemini:gemini-3.5-flash" },
   { value: "gemini:gemini-3.1-pro-preview", label: "gemini:gemini-3.1-pro-preview" },

@@ -1,0 +1,81 @@
+.................................F...................................... [ 79%]
+...................                                                      [100%]
+=================================== FAILURES ===================================
+___ ModelsCatalogRouteTests.test_memory_projection_paginates_scroll_results ____
+
+self = <test_models_catalog_route.ModelsCatalogRouteTests testMethod=test_memory_projection_paginates_scroll_results>
+
+    def test_memory_projection_paginates_scroll_results(self) -> None:
+        point_one = types.SimpleNamespace(
+            id="p1",
+            vector=[1.0, 0.0, 0.0],
+            payload={
+                "text": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "hi"},
+                ],
+                "turn_start_index": 0,
+                "turn_end_index": 1,
+            },
+        )
+        point_two = types.SimpleNamespace(
+            id="p2",
+            vector=[0.0, 1.0, 0.0],
+            payload={
+                "conversation": [
+                    {"role": "user", "content": [{"type": "text", "text": "next"}]},
+                ],
+                "turn_start_index": 2,
+                "turn_end_index": 3,
+            },
+        )
+
+        class FakeClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def scroll(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return [point_one], "offset-1"
+                if len(self.calls) == 2:
+                    return [point_two], None
+                return [], None
+
+        fake_client = FakeClient()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=lambda: "/tmp/memory",
+            _normalize_data_dir=lambda value: value,
+            _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get("/memory/projection?session_id=chat-1")
+
+>       self.assertEqual(response.status_code, 200)
+E       AssertionError: 500 != 200
+
+unchain_runtime/server/tests/test_models_catalog_route.py:535: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    route_projection:route_projection.py:458 [route_projection] vector projection failed
+Traceback (most recent call last):
+  File "/Users/red/Desktop/GITRepo/pupu-411/unchain_runtime/server/route_projection.py", line 452, in memory_projection
+    return jsonify(_build_vector_payload(scroll_result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/red/Desktop/GITRepo/pupu-411/unchain_runtime/server/route_projection.py", line 398, in _build_vector_payload
+    coords, variance = _project_vectors(vector_rows)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/red/Desktop/GITRepo/pupu-411/unchain_runtime/server/route_projection.py", line 348, in _project_vectors
+    import numpy as np
+  File "/Users/red/Desktop/GITRepo/pupu-411/.venv/lib/python3.12/site-packages/numpy/__init__.py", line 109, in <module>
+    from numpy.__config__ import show_config
+  File "/Users/red/Desktop/GITRepo/pupu-411/.venv/lib/python3.12/site-packages/numpy/__config__.py", line 4, in <module>
+    from numpy._core._multiarray_umath import (
+  File "/Users/red/Desktop/GITRepo/pupu-411/.venv/lib/python3.12/site-packages/numpy/_core/__init__.py", line 24, in <module>
+    from . import multiarray
+  File "/Users/red/Desktop/GITRepo/pupu-411/.venv/lib/python3.12/site-packages/numpy/_core/multiarray.py", line 11, in <module>
+    from . import _multiarray_umath, overrides
+ImportError: cannot load module more than once per process
+=========================== short test summary info ============================
+FAILED unchain_runtime/server/tests/test_models_catalog_route.py::ModelsCatalogRouteTests::test_memory_projection_paginates_scroll_results
+1 failed, 90 passed in 2.55s

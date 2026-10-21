@@ -1,0 +1,117 @@
+{
+  "catalog": {
+    "active": {
+      "capabilities": {
+        "computer_use": {
+          "mode": "unsupported",
+          "protocol": "",
+          "reason": "provider_disabled",
+          "stability": "stable",
+          "supported": false
+        },
+        "default_reasoning_effort": "medium",
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "input_source_types": {
+          "image": [
+            "url",
+            "base64"
+          ],
+          "pdf": [
+            "url",
+            "base64"
+          ]
+        },
+        "max_context_window_tokens": 1048576,
+        "reasoning_efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "model": "gemini-4-argon",
+      "model_id": "gemini:gemini-4-argon",
+      "provider": "gemini"
+    },
+    "embedding_providers": {},
+    "model_capabilities": {
+      "gemini:gemini-4-argon": {
+        "computer_use": {
+          "mode": "unsupported",
+          "protocol": "",
+          "reason": "provider_disabled",
+          "stability": "stable",
+          "supported": false
+        },
+        "default_reasoning_effort": "medium",
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "input_source_types": {
+          "image": [
+            "url",
+            "base64"
+          ],
+          "pdf": [
+            "url",
+            "base64"
+          ]
+        },
+        "max_context_window_tokens": 1048576,
+        "reasoning_efforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      }
+    },
+    "providers": {
+      "gemini": [
+        "gemini-4-argon"
+      ]
+    }
+  },
+  "payloads": {
+    "high": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "high"
+      }
+    },
+    "invalid": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "medium"
+      }
+    },
+    "low": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "low"
+      }
+    },
+    "max": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "medium"
+      }
+    },
+    "medium": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "medium"
+      }
+    },
+    "minimal": {
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_level": "medium"
+      }
+    }
+  }
+}

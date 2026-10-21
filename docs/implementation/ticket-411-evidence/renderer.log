@@ -1,0 +1,13 @@
+
+> PuPu@0.1.12 test
+> react-scripts test --watchAll=false --runInBand src/SERVICEs/gemini_argon_catalog.test.js src/SERVICEs/api.modelCatalog.test.js src/SERVICEs/reasoning_effort_prefs.test.js
+
+PASS src/SERVICEs/api.modelCatalog.test.js
+PASS src/SERVICEs/reasoning_effort_prefs.test.js
+PASS src/SERVICEs/gemini_argon_catalog.test.js
+
+Test Suites: 3 passed, 3 total
+Tests:       20 passed, 20 total
+Snapshots:   0 total
+Time:        1.379 s
+Ran all test suites matching /src\/SERVICEs\/gemini_argon_catalog.test.js|src\/SERVICEs\/api.modelCatalog.test.js|src\/SERVICEs\/reasoning_effort_prefs.test.js/i.

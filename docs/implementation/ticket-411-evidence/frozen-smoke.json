@@ -1,0 +1,20 @@
+{
+  "schema": "pupu.ticket411.frozen-development-smoke.v1",
+  "wheel_sha256": "3c574ff42197b212c7c3462d6cc423324c96c9b6ece4c03ba5e9d1cad34aa33e",
+  "binary_sha256": "9ca3a5f2ce31109eb2466231b8708f1ff3954d3bc34a95ea55d609fae81cd421",
+  "cold_boots": [
+    {
+      "cold_boot": 1,
+      "catalog_present": true,
+      "runtime_manifest_digest": "sha256:b163345c68666cc2dbe766a3a8e75da0246748def8fa9b1be75f446d9148da3f",
+      "runtime_import": "/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/_MEI00018600v3nuKH/unchain/runtime/runtime_protocol.py"
+    },
+    {
+      "cold_boot": 2,
+      "catalog_present": true,
+      "runtime_manifest_digest": "sha256:b163345c68666cc2dbe766a3a8e75da0246748def8fa9b1be75f446d9148da3f",
+      "runtime_import": "/var/folders/9w/tdd8py050sv_tdw7syymb1fw0000gn/T/_MEI000000e8N8rC6K/unchain/runtime/runtime_protocol.py"
+    }
+  ],
+  "qualification": "development smoke; signed Electron app and live provider not run"
+}

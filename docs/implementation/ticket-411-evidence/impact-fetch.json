@@ -1,0 +1,79 @@
+{
+  "target": {
+    "id": "Method:src/unchain/providers/gemini.py:GeminiModelIO._fetch_prepared#2",
+    "name": "_fetch_prepared",
+    "type": "Method",
+    "filePath": "src/unchain/providers/gemini.py"
+  },
+  "direction": "upstream",
+  "impactedCount": 1,
+  "risk": "LOW",
+  "riskSharedAxes": "LOW",
+  "riskScale": {
+    "comparableAcrossKinds": true,
+    "unusedAxes": []
+  },
+  "epistemic": "lower-bound",
+  "boundaries": [
+    "1 call site invoking `_fetch_prepared` was dropped at index time because the receiver's type could not be established (e.g. an unresolved constructor, factory or chained expression). Those callers are absent from this result — actual impact may be higher."
+  ],
+  "causes": {
+    "scopeExtractionFiles": 0,
+    "receiverTyping": 1,
+    "dispatchBoundary": 0,
+    "externalBoundary": 0,
+    "undecidedSatisfaction": 0,
+    "callableValueReferences": 0
+  },
+  "summary": {
+    "direct": 1,
+    "processes_affected": 1,
+    "modules_affected": 1
+  },
+  "byDepthCounts": {
+    "1": 1
+  },
+  "affected_processes": [
+    {
+      "name": "fetch_turn",
+      "type": "Function",
+      "filePath": "src/unchain/providers/gemini.py",
+      "affected_process_count": 2,
+      "total_hits": 2,
+      "earliest_broken_step": 1
+    }
+  ],
+  "affected_modules": [
+    {
+      "name": "Providers",
+      "hits": 1,
+      "impact": "direct"
+    }
+  ],
+  "byDepth": {
+    "1": [
+      {
+        "depth": 1,
+        "id": "Method:src/unchain/providers/gemini.py:GeminiModelIO.fetch_turn#1",
+        "name": "fetch_turn",
+        "filePath": "src/unchain/providers/gemini.py",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": [
+          {
+            "id": "proc_170_fetch_turn",
+            "label": "Fetch_turn → _resolve_model_key",
+            "processType": "intra_community",
+            "step": 1
+          },
+          {
+            "id": "proc_253_fetch_turn",
+            "label": "Fetch_turn → Values",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ]
+  }
+}
