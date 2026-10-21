@@ -58,8 +58,6 @@ _OWNER_OPTION = "_memory_v2_owner_chat_id"
 _ATTEMPT_OPTION = "_memory_v2_attempt_id"
 _SOURCE_ATTEMPT_OPTION = "_memory_v2_source_attempt_id"
 _HANDOFF_OPTION = "_memory_v2_handoff_messages"
-_HISTORY_OPTION = "_memory_v2_bootstrap_history"
-_CURRENT_USER_OPTION = "_memory_v2_current_user_message"
 _REQUESTED_OPTION = "_memory_v2_requested"
 # Internal-only proof set after the PuPu host has verified and constructed the
 # official Unchain active storage/module scope.  This is not a renderer flag;
@@ -118,17 +116,6 @@ _DURABLE_CONTEXT_REF_FIELDS = frozenset(
         "ref",
         "refs",
     }
-)
-_DURABLE_CONTEXT_REF_RE = re.compile(
-    r"^pupu://(?:"
-    r"artifact/[A-Za-z0-9._:-]{1,256}@[1-9][0-9]{0,18}|"
-    r"memory/[A-Za-z0-9._:-]{1,256}/[A-Za-z0-9._:-]{1,256}"
-    r"@[1-9][0-9]{0,18}|"
-    r"context/(?:"
-    r"event/[A-Za-z0-9._:-]{1,256}(?:/content)?|"
-    r"checkpoint/[A-Za-z0-9._:-]{1,256}(?:/event/[1-9][0-9]{0,18})?"
-    r")"
-    r")$"
 )
 _DURABLE_CONTEXT_REF_SCAN_RE = re.compile(
     r"pupu://(?:"
