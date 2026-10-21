@@ -43,7 +43,7 @@ function exercise(t) {
     ROOT: "/repo", path: path.posix, os: { tmpdir: () => "/tmp" },
     process: { platform: "win32", pid: 999, ppid: 998 },
     closeWindowsApplication: () => { throw new Error("unexpected shutdown before test runtime boundary"); },
-    setTimeout, clearTimeout, console: { error() {} },
+    setTimeout, clearTimeout, console: { error() {}, log() {} },
     fs: {
       mkdtempSync: () => "/tmp/restart-sequence",
       readFileSync(location) {
@@ -84,6 +84,7 @@ function exercise(t) {
         snapshot: { fingerprint: "snapshot" },
       };
     },
+    validateProductionAppUpdateFile: () => ({ sha256: `sha256:${"a".repeat(64)}` }),
     validateQualificationFixtureAppUpdate,
     buildQualificationFeed: () => events.push("feed"),
     startQualificationFeedServer: async () => ({ url: "http://127.0.0.1:38193", close: async () => {} }),

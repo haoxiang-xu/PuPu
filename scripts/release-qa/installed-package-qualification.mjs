@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import asar from "@electron/asar";
 import { verifyWindowsSidecarIdentity } from "./seal-windows-sidecar-identity.mjs";
 import { closeMacApplication } from "./macos-graceful-close.mjs";
+import { validateProductionAppUpdateFile } from "./production-app-update.mjs";
 
 import {
   readJson,
@@ -803,6 +804,14 @@ export async function runInstalledPackageQualification({ candidateDir, targetId 
       else if (format === "deb") installed = installLinuxDeb({ installerPath, tempRoot: formRoot });
       else throw new Error(`installed qualification has no installer for ${format}`);
       try {
+        if (targetId === "windows-x64") {
+          const updater = validateProductionAppUpdateFile({
+            appUpdatePath: path.join(path.dirname(installed.identity.asarPath), "app-update.yml"),
+          });
+          console.log(
+            `[release-qualification] validated installed Windows updater config ${updater.sha256}`,
+          );
+        }
         const lifecycle = await launchInstalledApplication({ installed, tempRoot: formRoot });
         packageForms.push({
           format,

@@ -141,6 +141,16 @@ jobs:
         working-directory: pupu
         run: npm ci
 
+      - name: Verify Windows production updater contract
+        if: inputs.target_id == 'windows-x64'
+        working-directory: pupu
+        shell: pwsh
+        run: |
+          node --test scripts/release-qa/production-app-update.test.mjs `
+            scripts/release-qa/production-app-update-integration.test.mjs `
+            scripts/release-qa/production-app-update-admission.test.mjs `
+            scripts/release-qa/windows-production-app-update-workflow.test.mjs
+
       - name: Verify native Windows installer sidecar cleanup
         if: inputs.target_id == 'windows-x64'
         working-directory: pupu
@@ -308,9 +318,22 @@ jobs:
           New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
           Move-Item -LiteralPath $source -Destination $destination
 
+      - name: Prepare production Windows updater binding
+        id: windows_app_update
+        if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.windows_payload.outcome == 'success'
+        working-directory: pupu
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $appUpdate = Join-Path $PWD ".release-qa\windows-unpacked\resources\app-update.yml"
+          node scripts/release-qa/production-app-update.mjs prepare `
+            --package-json package.json `
+            --app-update "$appUpdate"
+
       - name: Sign and verify the Windows release candidate payload
         id: windows_artifact_signing
-        if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.windows_payload.outcome == 'success'
+        if: env.QA_MODE == 'release-candidate' && inputs.signing_platform == 'windows' && steps.windows_app_update.outcome == 'success'
         uses: ./pupu/.github/actions/windows-artifact-signing
         with:
           working-directory: pupu
@@ -320,6 +343,7 @@ jobs:
           installer-path: ${{ github.workspace }}\pupu\dist\PuPu-${{ env.QA_VERSION }}-windows-x64-setup.exe
           evidence-output: windows-signing-evidence.v1.json
           evidence-schema: pupu.windows-release-candidate-signing.v1
+          app-update-contract: production
           package-version: ${{ env.QA_VERSION }}
           target-id: windows-x64
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}

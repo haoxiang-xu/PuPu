@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import test from "node:test";
@@ -13,6 +14,7 @@ import { validateQualificationFixtureAppUpdate } from "./validate-qualification-
 import { expectedTargetAssets, readReleaseArtifactContract } from "./release-artifact-manifest.mjs";
 import { createRestartObservationRecorder } from "./restart-observations.mjs";
 import { closeWindowsApplication } from "./installed-package-qualification.mjs";
+import { prepareProductionAppUpdate, validateProductionAppUpdateFile } from "./production-app-update.mjs";
 
 const artifactContract = readReleaseArtifactContract(fileURLToPath(new URL("../../docs/contracts/release/release-artifact-contract.v1.json", import.meta.url)));
 const updateServiceUrl = new URL("../../electron/main/services/update/service.js", import.meta.url);
@@ -292,6 +294,7 @@ function lifecycleHarness(options = {}) {
     },
     installMacDmg() { throw new Error("unexpected macOS installer"); },
     inspectResources() { if (relaunched && options.identityFailure) throw options.identityFailure; return identity; },
+    validateProductionAppUpdateFile: options.productionAppUpdateValidator || (() => ({ sha256: digest("8") })),
     readReleaseArtifactContract: () => artifactContract, expectedTargetAssets, readJson: () => manifest,
     validateReleaseAssetManifest() {}, verifyReleaseAssetDirectory() {},
     validateRestartUpdateFixtureEvidence: () => fixture,
@@ -804,4 +807,62 @@ test("accepted WM_CLOSE without actual exit still fails and cannot produce a pas
   assert.equal(f.writes.get("/evidence/failure.json").status, "failed");
   assert.ok(f.elapsedMs >= 60_000);
   assert.ok(f.killed.has(201));
+});
+
+for (const phase of ["initial", "post-update"]) {
+  for (const fault of ["missing", "provider", "owner", "repo", "releaseType", "cache", "missing-key", "extra-key", "duplicate-key", "malformed"]) {
+    test(`real updater validator blocks ${phase} ${fault} configuration in the restart runner`, async (t) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-updater-restart-contract-"));
+      t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+      const appUpdatePath = path.join(root, "app-update.yml");
+      prepareProductionAppUpdate({ appUpdatePath });
+      const valid = fs.readFileSync(appUpdatePath, "utf8");
+      const replacements = {
+        provider: valid.replace("provider: github", "provider: generic"),
+        owner: valid.replace("owner: haoxiang-xu", "owner: other"),
+        repo: valid.replace("repo: PuPu", "repo: Other"),
+        releaseType: valid.replace("releaseType: release", "releaseType: draft"),
+        cache: valid.replace("pupu-updater", "other-updater"),
+        "missing-key": valid.replace(/^releaseType:.*\n/m, ""),
+        "extra-key": `${valid}channel: beta\n`,
+        "duplicate-key": `${valid}provider: generic\n`,
+        malformed: "owner: [\n",
+      };
+      let validations = 0;
+      const failOn = phase === "initial" ? 1 : 2;
+      const f = lifecycleHarness({ productionAppUpdateValidator({ appUpdatePath: installedPath }) {
+        validations++;
+        assert.equal(path.win32.basename(installedPath), "app-update.yml");
+        assert.equal(path.win32.basename(path.win32.dirname(installedPath)), "resources");
+        if (validations === failOn) {
+          if (fault === "missing") fs.unlinkSync(appUpdatePath);
+          else fs.writeFileSync(appUpdatePath, replacements[fault]);
+        }
+        return validateProductionAppUpdateFile({ appUpdatePath });
+      } });
+      await assert.rejects(f.run(), /production updater config/);
+      assert.equal(validations, failOn);
+      assert.equal(f.installations.length, phase === "initial" ? 1 : 2);
+      if (phase === "initial") assert.equal(f.launches.length, 0);
+      const diagnostic = f.writes.get("/evidence/failure.json");
+      assert.equal(diagnostic.status, "failed");
+      assert.equal(diagnostic.stage, phase === "initial" ? "install-candidate" : "relaunched-identity");
+      assert.ok(f.removedPaths.includes("/qa/temp"));
+      assert.ok(!f.killed.has(777));
+    });
+  }
+}
+
+test("restart runner admits valid real updater files before and after the update", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pupu-updater-restart-contract-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const appUpdatePath = path.join(root, "app-update.yml");
+  prepareProductionAppUpdate({ appUpdatePath });
+  let validations = 0;
+  const f = lifecycleHarness({ productionAppUpdateValidator() {
+    validations++;
+    return validateProductionAppUpdateFile({ appUpdatePath });
+  } });
+  assert.equal((await f.run()).status, "passed");
+  assert.equal(validations, 2);
 });
