@@ -1,0 +1,34 @@
+Changes: 6 files, 25 symbols
+Affected processes: 1153
+Risk level: critical
+
+Changed symbols:
+  Variable ROOT → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Variable EVIDENCE → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Variable pair → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Variable binary → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Variable boots → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Function fetch → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Variable report → docs/implementation/ticket-411-evidence/check_frozen_pair.py
+  Section Ticket #411 — Gemini 4 Argon → docs/implementation/ticket-411.md
+  Section Goal and researched decisions → docs/implementation/ticket-411.md
+  Section Files, impact and invariants → docs/implementation/ticket-411.md
+  Section Boundary contracts and acceptance → docs/implementation/ticket-411.md
+  Section Slices and supervision → docs/implementation/ticket-411.md
+  Const MODEL_OPTIONS → src/COMPONENTs/agents/pages/recipes_page/detail_panel/agent_panel.js
+  Variable MODEL → unchain_runtime/server/tests/test_gemini_argon_contract.py
+  Variable MODEL_ID → unchain_runtime/server/tests/test_gemini_argon_contract.py
+... and 10 more
+
+Affected execution flows:
+  • RunInstalledPackageQualification → Exec (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • RunCell → Exec (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • RunCell → Exec (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → ReadUserAgent (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → ReadHeight (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → ReadWidth (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → Set (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → EmitLine (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → Replace (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+  • OnKey → SplitStreamingMarkdown (10 steps) — changed: MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS, MODEL_OPTIONS
+... and 1143 more

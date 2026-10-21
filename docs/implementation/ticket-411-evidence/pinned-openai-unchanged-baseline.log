@@ -1,0 +1,584 @@
+FF......FF..                                                             [100%]
+=================================== FAILURES ===================================
+_ test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-sol] _
+
+model = 'gpt-6-sol', effort = 'none'
+
+    @pytest.mark.parametrize("model", OPENAI_MODELS)
+    @pytest.mark.parametrize(
+        "effort", ["none", "low", "medium", "high", "xhigh", "max"]
+    )
+    def test_new_openai_models_prepare_exact_responses_payload_without_sampling(model, effort):
+        model_io = OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: None,
+            default_payloads=load_default_payloads(),
+            model_capabilities=load_model_capabilities(),
+        )
+        prepared = resolve_prepared_provider_request_payload(
+            model_io=model_io,
+            request=ModelTurnRequest(
+                messages=[{"role": "user", "content": "hello"}],
+                payload={
+                    "reasoning": {"effort": effort},
+                    "temperature": 0.1,
+                    "top_p": 0.2,
+                },
+            ),
+        )
+
+        assert prepared["provider"] == "openai"
+        assert prepared["request_model"] == model
+        payload = prepared["effective_payload"]
+        assert set(payload) == {
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+        }
+        assert payload == {
+            "instructions": "",
+            "max_output_tokens": 128_000,
+            "truncation": "auto",
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
+            "reasoning": {"effort": effort},
+        }
+        assert "temperature" not in payload
+        assert "top_p" not in payload
+        sdk_wire = {
+            "model": prepared["request_model"],
+            "input": prepared["messages"],
+            **deepcopy(payload),
+            "stream": True,
+        }
+        assert set(sdk_wire) == {
+            "model",
+            "input",
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+            "stream",
+        }
+        if effort == "max":
+            # This environment's OpenAI SDK Literal lags the official model docs.
+            assert sdk_wire["reasoning"]["effort"] == "max"
+        else:
+>           TypeAdapter(ResponseCreateParamsStreaming).validate_python(sdk_wire)
+
+tests/test_september_native_models.py:137:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = TypeAdapter(ResponseCreateParamsStreaming)
+object = {'model': 'gpt-6-sol', 'input': [{'content': 'hello', 'role': 'user'}], 'include': ['reasoning.encrypted_content'], 'instructions': '', ...}
+strict = None, extra = None, from_attributes = None, context = None
+experimental_allow_partial = False, by_alias = None, by_name = None
+
+    def validate_python(
+        self,
+        object: Any,
+        /,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        experimental_allow_partial: bool | Literal['off', 'on', 'trailing-strings'] = False,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> T:
+        """Validate a Python object against the model.
+
+        A [`ValidationError`][pydantic_core.ValidationError] reports the rejected locations and values.
+        If you record validations with [Logfire](../integrations/logfire.md), the complete object and trace
+        context are retained alongside the error — `TypeAdapter` validations are captured the same way as
+        model validations (see [Troubleshooting validation errors](../errors/troubleshooting.md)).
+
+        Args:
+            object: The Python object to validate against the model.
+            strict: Whether to strictly check types.
+            extra: Whether to ignore, allow, or forbid extra data during model validation.
+                See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.
+            from_attributes: Whether to extract data from object attributes.
+            context: Additional context to pass to the validator.
+            experimental_allow_partial: **Experimental** whether to enable
+                [partial validation](../concepts/experimental.md#partial-validation), e.g. to process streams.
+                * False / 'off': Default behavior, no partial validation.
+                * True / 'on': Enable partial validation.
+                * 'trailing-strings': Enable partial validation and allow trailing strings in the input.
+            by_alias: Whether to use the field's alias when validating against the provided input data.
+            by_name: Whether to use the field's name when validating against the provided input data.
+
+        !!! note
+            When using `TypeAdapter` with a Pydantic `dataclass`, the use of the `from_attributes`
+            argument is not supported.
+
+        Returns:
+            The validated object.
+        """
+        if by_alias is False and by_name is not True:
+            raise PydanticUserError(
+                'At least one of `by_alias` or `by_name` must be set to True.',
+                code='validate-by-alias-and-name-false',
+            )
+
+>       return self.validator.validate_python(
+            object,
+            strict=strict,
+            extra=extra,
+            from_attributes=from_attributes,
+            context=context,
+            allow_partial=experimental_allow_partial,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ResponseCreateParamsStreaming
+E       reasoning.effort
+E         Input should be 'minimal', 'low', 'medium' or 'high' [type=literal_error, input_value='none', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.14/v/literal_error
+
+../pupu-411/.venv/lib/python3.12/site-packages/pydantic/type_adapter.py:410: ValidationError
+_ test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-luna] _
+
+model = 'gpt-6-luna', effort = 'none'
+
+    @pytest.mark.parametrize("model", OPENAI_MODELS)
+    @pytest.mark.parametrize(
+        "effort", ["none", "low", "medium", "high", "xhigh", "max"]
+    )
+    def test_new_openai_models_prepare_exact_responses_payload_without_sampling(model, effort):
+        model_io = OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: None,
+            default_payloads=load_default_payloads(),
+            model_capabilities=load_model_capabilities(),
+        )
+        prepared = resolve_prepared_provider_request_payload(
+            model_io=model_io,
+            request=ModelTurnRequest(
+                messages=[{"role": "user", "content": "hello"}],
+                payload={
+                    "reasoning": {"effort": effort},
+                    "temperature": 0.1,
+                    "top_p": 0.2,
+                },
+            ),
+        )
+
+        assert prepared["provider"] == "openai"
+        assert prepared["request_model"] == model
+        payload = prepared["effective_payload"]
+        assert set(payload) == {
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+        }
+        assert payload == {
+            "instructions": "",
+            "max_output_tokens": 128_000,
+            "truncation": "auto",
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
+            "reasoning": {"effort": effort},
+        }
+        assert "temperature" not in payload
+        assert "top_p" not in payload
+        sdk_wire = {
+            "model": prepared["request_model"],
+            "input": prepared["messages"],
+            **deepcopy(payload),
+            "stream": True,
+        }
+        assert set(sdk_wire) == {
+            "model",
+            "input",
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+            "stream",
+        }
+        if effort == "max":
+            # This environment's OpenAI SDK Literal lags the official model docs.
+            assert sdk_wire["reasoning"]["effort"] == "max"
+        else:
+>           TypeAdapter(ResponseCreateParamsStreaming).validate_python(sdk_wire)
+
+tests/test_september_native_models.py:137:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = TypeAdapter(ResponseCreateParamsStreaming)
+object = {'model': 'gpt-6-luna', 'input': [{'content': 'hello', 'role': 'user'}], 'include': ['reasoning.encrypted_content'], 'instructions': '', ...}
+strict = None, extra = None, from_attributes = None, context = None
+experimental_allow_partial = False, by_alias = None, by_name = None
+
+    def validate_python(
+        self,
+        object: Any,
+        /,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        experimental_allow_partial: bool | Literal['off', 'on', 'trailing-strings'] = False,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> T:
+        """Validate a Python object against the model.
+
+        A [`ValidationError`][pydantic_core.ValidationError] reports the rejected locations and values.
+        If you record validations with [Logfire](../integrations/logfire.md), the complete object and trace
+        context are retained alongside the error — `TypeAdapter` validations are captured the same way as
+        model validations (see [Troubleshooting validation errors](../errors/troubleshooting.md)).
+
+        Args:
+            object: The Python object to validate against the model.
+            strict: Whether to strictly check types.
+            extra: Whether to ignore, allow, or forbid extra data during model validation.
+                See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.
+            from_attributes: Whether to extract data from object attributes.
+            context: Additional context to pass to the validator.
+            experimental_allow_partial: **Experimental** whether to enable
+                [partial validation](../concepts/experimental.md#partial-validation), e.g. to process streams.
+                * False / 'off': Default behavior, no partial validation.
+                * True / 'on': Enable partial validation.
+                * 'trailing-strings': Enable partial validation and allow trailing strings in the input.
+            by_alias: Whether to use the field's alias when validating against the provided input data.
+            by_name: Whether to use the field's name when validating against the provided input data.
+
+        !!! note
+            When using `TypeAdapter` with a Pydantic `dataclass`, the use of the `from_attributes`
+            argument is not supported.
+
+        Returns:
+            The validated object.
+        """
+        if by_alias is False and by_name is not True:
+            raise PydanticUserError(
+                'At least one of `by_alias` or `by_name` must be set to True.',
+                code='validate-by-alias-and-name-false',
+            )
+
+>       return self.validator.validate_python(
+            object,
+            strict=strict,
+            extra=extra,
+            from_attributes=from_attributes,
+            context=context,
+            allow_partial=experimental_allow_partial,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ResponseCreateParamsStreaming
+E       reasoning.effort
+E         Input should be 'minimal', 'low', 'medium' or 'high' [type=literal_error, input_value='none', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.14/v/literal_error
+
+../pupu-411/.venv/lib/python3.12/site-packages/pydantic/type_adapter.py:410: ValidationError
+_ test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-sol] _
+
+model = 'gpt-6-sol', effort = 'xhigh'
+
+    @pytest.mark.parametrize("model", OPENAI_MODELS)
+    @pytest.mark.parametrize(
+        "effort", ["none", "low", "medium", "high", "xhigh", "max"]
+    )
+    def test_new_openai_models_prepare_exact_responses_payload_without_sampling(model, effort):
+        model_io = OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: None,
+            default_payloads=load_default_payloads(),
+            model_capabilities=load_model_capabilities(),
+        )
+        prepared = resolve_prepared_provider_request_payload(
+            model_io=model_io,
+            request=ModelTurnRequest(
+                messages=[{"role": "user", "content": "hello"}],
+                payload={
+                    "reasoning": {"effort": effort},
+                    "temperature": 0.1,
+                    "top_p": 0.2,
+                },
+            ),
+        )
+
+        assert prepared["provider"] == "openai"
+        assert prepared["request_model"] == model
+        payload = prepared["effective_payload"]
+        assert set(payload) == {
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+        }
+        assert payload == {
+            "instructions": "",
+            "max_output_tokens": 128_000,
+            "truncation": "auto",
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
+            "reasoning": {"effort": effort},
+        }
+        assert "temperature" not in payload
+        assert "top_p" not in payload
+        sdk_wire = {
+            "model": prepared["request_model"],
+            "input": prepared["messages"],
+            **deepcopy(payload),
+            "stream": True,
+        }
+        assert set(sdk_wire) == {
+            "model",
+            "input",
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+            "stream",
+        }
+        if effort == "max":
+            # This environment's OpenAI SDK Literal lags the official model docs.
+            assert sdk_wire["reasoning"]["effort"] == "max"
+        else:
+>           TypeAdapter(ResponseCreateParamsStreaming).validate_python(sdk_wire)
+
+tests/test_september_native_models.py:137:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = TypeAdapter(ResponseCreateParamsStreaming)
+object = {'model': 'gpt-6-sol', 'input': [{'content': 'hello', 'role': 'user'}], 'include': ['reasoning.encrypted_content'], 'instructions': '', ...}
+strict = None, extra = None, from_attributes = None, context = None
+experimental_allow_partial = False, by_alias = None, by_name = None
+
+    def validate_python(
+        self,
+        object: Any,
+        /,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        experimental_allow_partial: bool | Literal['off', 'on', 'trailing-strings'] = False,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> T:
+        """Validate a Python object against the model.
+
+        A [`ValidationError`][pydantic_core.ValidationError] reports the rejected locations and values.
+        If you record validations with [Logfire](../integrations/logfire.md), the complete object and trace
+        context are retained alongside the error — `TypeAdapter` validations are captured the same way as
+        model validations (see [Troubleshooting validation errors](../errors/troubleshooting.md)).
+
+        Args:
+            object: The Python object to validate against the model.
+            strict: Whether to strictly check types.
+            extra: Whether to ignore, allow, or forbid extra data during model validation.
+                See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.
+            from_attributes: Whether to extract data from object attributes.
+            context: Additional context to pass to the validator.
+            experimental_allow_partial: **Experimental** whether to enable
+                [partial validation](../concepts/experimental.md#partial-validation), e.g. to process streams.
+                * False / 'off': Default behavior, no partial validation.
+                * True / 'on': Enable partial validation.
+                * 'trailing-strings': Enable partial validation and allow trailing strings in the input.
+            by_alias: Whether to use the field's alias when validating against the provided input data.
+            by_name: Whether to use the field's name when validating against the provided input data.
+
+        !!! note
+            When using `TypeAdapter` with a Pydantic `dataclass`, the use of the `from_attributes`
+            argument is not supported.
+
+        Returns:
+            The validated object.
+        """
+        if by_alias is False and by_name is not True:
+            raise PydanticUserError(
+                'At least one of `by_alias` or `by_name` must be set to True.',
+                code='validate-by-alias-and-name-false',
+            )
+
+>       return self.validator.validate_python(
+            object,
+            strict=strict,
+            extra=extra,
+            from_attributes=from_attributes,
+            context=context,
+            allow_partial=experimental_allow_partial,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ResponseCreateParamsStreaming
+E       reasoning.effort
+E         Input should be 'minimal', 'low', 'medium' or 'high' [type=literal_error, input_value='xhigh', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.14/v/literal_error
+
+../pupu-411/.venv/lib/python3.12/site-packages/pydantic/type_adapter.py:410: ValidationError
+_ test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-luna] _
+
+model = 'gpt-6-luna', effort = 'xhigh'
+
+    @pytest.mark.parametrize("model", OPENAI_MODELS)
+    @pytest.mark.parametrize(
+        "effort", ["none", "low", "medium", "high", "xhigh", "max"]
+    )
+    def test_new_openai_models_prepare_exact_responses_payload_without_sampling(model, effort):
+        model_io = OpenAIModelIO(
+            model=model,
+            api_key="test-key",
+            client_factory=lambda **_kwargs: None,
+            default_payloads=load_default_payloads(),
+            model_capabilities=load_model_capabilities(),
+        )
+        prepared = resolve_prepared_provider_request_payload(
+            model_io=model_io,
+            request=ModelTurnRequest(
+                messages=[{"role": "user", "content": "hello"}],
+                payload={
+                    "reasoning": {"effort": effort},
+                    "temperature": 0.1,
+                    "top_p": 0.2,
+                },
+            ),
+        )
+
+        assert prepared["provider"] == "openai"
+        assert prepared["request_model"] == model
+        payload = prepared["effective_payload"]
+        assert set(payload) == {
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+        }
+        assert payload == {
+            "instructions": "",
+            "max_output_tokens": 128_000,
+            "truncation": "auto",
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
+            "reasoning": {"effort": effort},
+        }
+        assert "temperature" not in payload
+        assert "top_p" not in payload
+        sdk_wire = {
+            "model": prepared["request_model"],
+            "input": prepared["messages"],
+            **deepcopy(payload),
+            "stream": True,
+        }
+        assert set(sdk_wire) == {
+            "model",
+            "input",
+            "instructions",
+            "max_output_tokens",
+            "truncation",
+            "store",
+            "include",
+            "reasoning",
+            "stream",
+        }
+        if effort == "max":
+            # This environment's OpenAI SDK Literal lags the official model docs.
+            assert sdk_wire["reasoning"]["effort"] == "max"
+        else:
+>           TypeAdapter(ResponseCreateParamsStreaming).validate_python(sdk_wire)
+
+tests/test_september_native_models.py:137:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = TypeAdapter(ResponseCreateParamsStreaming)
+object = {'model': 'gpt-6-luna', 'input': [{'content': 'hello', 'role': 'user'}], 'include': ['reasoning.encrypted_content'], 'instructions': '', ...}
+strict = None, extra = None, from_attributes = None, context = None
+experimental_allow_partial = False, by_alias = None, by_name = None
+
+    def validate_python(
+        self,
+        object: Any,
+        /,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        experimental_allow_partial: bool | Literal['off', 'on', 'trailing-strings'] = False,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> T:
+        """Validate a Python object against the model.
+
+        A [`ValidationError`][pydantic_core.ValidationError] reports the rejected locations and values.
+        If you record validations with [Logfire](../integrations/logfire.md), the complete object and trace
+        context are retained alongside the error — `TypeAdapter` validations are captured the same way as
+        model validations (see [Troubleshooting validation errors](../errors/troubleshooting.md)).
+
+        Args:
+            object: The Python object to validate against the model.
+            strict: Whether to strictly check types.
+            extra: Whether to ignore, allow, or forbid extra data during model validation.
+                See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.
+            from_attributes: Whether to extract data from object attributes.
+            context: Additional context to pass to the validator.
+            experimental_allow_partial: **Experimental** whether to enable
+                [partial validation](../concepts/experimental.md#partial-validation), e.g. to process streams.
+                * False / 'off': Default behavior, no partial validation.
+                * True / 'on': Enable partial validation.
+                * 'trailing-strings': Enable partial validation and allow trailing strings in the input.
+            by_alias: Whether to use the field's alias when validating against the provided input data.
+            by_name: Whether to use the field's name when validating against the provided input data.
+
+        !!! note
+            When using `TypeAdapter` with a Pydantic `dataclass`, the use of the `from_attributes`
+            argument is not supported.
+
+        Returns:
+            The validated object.
+        """
+        if by_alias is False and by_name is not True:
+            raise PydanticUserError(
+                'At least one of `by_alias` or `by_name` must be set to True.',
+                code='validate-by-alias-and-name-false',
+            )
+
+>       return self.validator.validate_python(
+            object,
+            strict=strict,
+            extra=extra,
+            from_attributes=from_attributes,
+            context=context,
+            allow_partial=experimental_allow_partial,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ResponseCreateParamsStreaming
+E       reasoning.effort
+E         Input should be 'minimal', 'low', 'medium' or 'high' [type=literal_error, input_value='xhigh', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.14/v/literal_error
+
+../pupu-411/.venv/lib/python3.12/site-packages/pydantic/type_adapter.py:410: ValidationError
+=========================== short test summary info ============================
+FAILED tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-sol]
+FAILED tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[none-gpt-6-luna]
+FAILED tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-sol]
+FAILED tests/test_september_native_models.py::test_new_openai_models_prepare_exact_responses_payload_without_sampling[xhigh-gpt-6-luna]
+4 failed, 8 passed, 11 deselected in 1.20s

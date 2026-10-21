@@ -1,0 +1,99 @@
+{
+  "schema": "pupu.ticket411.development-pair.v1",
+  "wheel": {
+    "path": "/Users/red/Desktop/GITRepo/pupu-411/.release-qa/ticket-411/unchain-0.2.0-py3-none-any.whl",
+    "sha256": "3c574ff42197b212c7c3462d6cc423324c96c9b6ece4c03ba5e9d1cad34aa33e"
+  },
+  "runtime_manifest": {
+    "manifest_digest": "sha256:b163345c68666cc2dbe766a3a8e75da0246748def8fa9b1be75f446d9148da3f",
+    "protocols": [
+      {
+        "features": [
+          "artifact_handoff",
+          "canonical_journal",
+          "chat_deletion_sqlite_scope_closure",
+          "context_compiler",
+          "context_content_paging_v1",
+          "context_content_read_recovery_v1",
+          "context_contribution_manifest_v1",
+          "durable_interaction_settlement_fence_v1",
+          "generation_rebase_live_interaction_cycles",
+          "graph_failure_terminals_v1",
+          "interaction_resolution_compat",
+          "long_term_promotion",
+          "memory_curator",
+          "memory_toolkit",
+          "memory_workspace",
+          "tool_output_management_v1"
+        ],
+        "id": "context_memory",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "cancel_pending",
+          "expected_interaction_id_cas",
+          "fresh_run_lineage",
+          "graph_interaction_lineage_preflight_v1",
+          "host_controlled_resume",
+          "interaction_resolution_atomic_acceptance_v1"
+        ],
+        "id": "durable_interaction",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "atomic_receipt_cas",
+          "auxiliary_calls",
+          "enforce_mode",
+          "graph_runs",
+          "memory_off",
+          "ollama_reasoning_preview_v1",
+          "provider_response_outcomes_v1",
+          "provider_uncertainty_diagnostics_v1",
+          "subagent_runs"
+        ],
+        "id": "provider_turn_ownership",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "canonical_metrics",
+          "completion_diagnostics_ref",
+          "context_composition_ref_v1",
+          "continuation_claim",
+          "immutable_pricing_snapshot",
+          "provider_call_set_union",
+          "provider_call_usage_v1",
+          "run_bundle_v1",
+          "run_bundle_v2"
+        ],
+        "id": "run_bundle",
+        "major": 1,
+        "minor": 0
+      },
+      {
+        "features": [
+          "active_skills_snapshot_v1",
+          "catalog_v1",
+          "skill_md_registry_v1",
+          "skill_tool_v1",
+          "toolkit_embedded_skills_v1",
+          "user_invocation_v1"
+        ],
+        "id": "skills",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "runtime": "unchain",
+    "schema": "unchain.runtime_protocol_manifest.v1"
+  },
+  "runtime_import": "/Users/red/Desktop/GITRepo/pupu-411/.venv/lib/python3.12/site-packages/unchain/__init__.py",
+  "source_base": "8cd825239a6d14b7fdee17b7912562c3810f2677",
+  "pupu_base": "b2700372578b0fa8837c173b2b44ae2acbfdf96b",
+  "provenance": "uncommitted development candidate; not release certification"
+}

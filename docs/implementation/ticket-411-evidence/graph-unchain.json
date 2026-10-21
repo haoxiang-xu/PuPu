@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "changed_count": 19,
+    "affected_count": 0,
+    "changed_files": 7,
+    "risk_level": "low"
+  },
+  "changed_symbols": [
+    {
+      "id": "Class:src/unchain/providers/gemini.py:GeminiModelIO",
+      "name": "GeminiModelIO",
+      "type": "Class",
+      "filePath": "src/unchain/providers/gemini.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Method:src/unchain/providers/gemini.py:GeminiModelIO._fetch_prepared#2",
+      "name": "_fetch_prepared",
+      "type": "Method",
+      "filePath": "src/unchain/providers/gemini.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:src/unchain/providers/gemini_config.py:ARGON_MODEL_ID",
+      "name": "ARGON_MODEL_ID",
+      "type": "Variable",
+      "filePath": "src/unchain/providers/gemini_config.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:src/unchain/providers/gemini_config.py:validate_gemini_model_config",
+      "name": "validate_gemini_model_config",
+      "type": "Function",
+      "filePath": "src/unchain/providers/gemini_config.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Variable:tests/test_gemini_argon.py:MODEL",
+      "name": "MODEL",
+      "type": "Variable",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_catalog_has_exact_synchronous_capabilities_and_defaults",
+      "name": "test_argon_catalog_has_exact_synchronous_capabilities_and_defaults",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_io",
+      "name": "_io",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_io.factory@42:4",
+      "name": "factory",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_io.factory@42:4.send@48:8",
+      "name": "send",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_toolkit",
+      "name": "_toolkit",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_toolkit.search@73:4",
+      "name": "search",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_direct_stream_projects_only_compatible_settings",
+      "name": "test_argon_direct_stream_projects_only_compatible_settings",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:_envelope",
+      "name": "_envelope",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_durable_wire_has_exact_projection_and_replay_identity",
+      "name": "test_argon_durable_wire_has_exact_projection_and_replay_identity",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_rejects_unsupported_limits_and_thinking_before_send",
+      "name": "test_argon_rejects_unsupported_limits_and_thinking_before_send",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_rejects_unsupported_limits_and_thinking_before_send.forbidden@152:4",
+      "name": "forbidden",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_forged_final_config_is_rejected_before_sdk_client",
+      "name": "test_argon_forged_final_config_is_rejected_before_sdk_client",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_argon_two_signed_function_cycles_then_second_normal_turn",
+      "name": "test_argon_two_signed_function_cycles_then_second_normal_turn",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    },
+    {
+      "id": "Function:tests/test_gemini_argon.py:test_existing_flash_configuration_is_unchanged",
+      "name": "test_existing_flash_configuration_is_unchanged",
+      "type": "Function",
+      "filePath": "tests/test_gemini_argon.py",
+      "change_type": "touched"
+    }
+  ],
+  "affected_processes": []
+}

@@ -1,0 +1,25 @@
+✔ release builds Unchain once and every test/package consumes the same bytes (12.545625ms)
+✔ active build and local QA paths contain no compatibility lock or dirty bypass (0.429ms)
+✔ every local package chain prepares or reuses one immutable artifact (0.239542ms)
+✔ active AI release review requires artifact and protocol continuity, never a SHA lock (0.163583ms)
+✔ all sidecar builders pin PyInstaller and freeze the private vault entries (0.249084ms)
+✔ deterministic tests stop well before the job limit and retain diagnostics (0.508291ms)
+✔ frontend preserves a failed command's exit and both log streams (143.4135ms)
+✔ electron preserves a failed command's exit and both log streams (118.50225ms)
+✔ python preserves a failed command's exit and both log streams (120.608875ms)
+✔ summary surfaces failures, cancellations and unrun tests without claiming success (3.053333ms)
+✔ execution identity rejects mutable branches, wrong version/SHA and malformed tools (1.031958ms)
+✔ toolchain CLI verifies real local Git checkout and independently resolved product tag (312.868042ms)
+✔ operator can freeze qualification tools without changing the product tag (0.79925ms)
+✔ every required macOS restart target has a producer and blocks receipt on failure (5.409ms)
+✔ tooling override is closed to qualification/stage/publish and survives status projection (0.687125ms)
+✔ frozen tools checkout and separate product/run provenance remain wired through promotion (7.827625ms)
+✔ macOS native restart lane signs only N-1, seals evidence, runs lifecycle, and fails closed (1.906875ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 442.097959
