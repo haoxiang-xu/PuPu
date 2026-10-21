@@ -1,6 +1,6 @@
 # Ticket #411 feature audit — 2026-10-20 (local date)
 
-Delivered-candidate identity: `sha256:2d8c67291fe4fefe44ec85f719f27f5a3ce967669dc9477bdcf8c93da421246c`.
+Delivered-candidate identity: `sha256:7744e70e429e5bebe9b6b2638159dd76db4a337f19d030d52bc1f1d2436082e6`.
 The exact runtime inputs and canonical digest recipe are in [candidate.json](candidate.json).
 One reused wheel and imported runtime manifest remain unchanged; see [pair.json](pair.json).
 Both freshly fetched remote dev bases are unchanged, with no integration delta.
@@ -49,3 +49,15 @@ Record the structured waiver on both #411 and Release #318.
 
 Overall: **PASS with explicit maintainer waiver**, bound to the digest above.
 Signed/notarized Electron release qualification remains a Release pipeline task.
+
+## Fresh CI-input revalidation — 2026-10-20 local
+
+The workflow source pin now matches companion Unchain #51, preserving every
+previous #389 fix. All 886 runtime inputs, archived wheel and frozen binary
+hashes were freshly checked and remain identical to the exercised real app.
+The new candidate binding includes release-qa.yml and the immutable source
+revision. Full i18n scan remains clean; 17 workflow schema, artifact continuity,
+test-exit handling and toolchain tests passed. See ci-pair-correction.md and
+ci-workflow-tests.log. No new app behavior, UI or model setting was introduced,
+so the previously observed real-app output and waiver apply to identical runtime
+bytes. Fresh current-head GitHub CI remains a separate pending merge gate.

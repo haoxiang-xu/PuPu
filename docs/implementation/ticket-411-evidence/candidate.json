@@ -1,5 +1,5 @@
 {
-  "candidate_digest": "sha256:2d8c67291fe4fefe44ec85f719f27f5a3ce967669dc9477bdcf8c93da421246c",
+  "candidate_digest": "sha256:7744e70e429e5bebe9b6b2638159dd76db4a337f19d030d52bc1f1d2436082e6",
   "canonical_encoding": "JSON sorted keys, compact separators, UTF-8 of binding",
   "binding": {
     "schema": "pupu.ticket411.candidate.v1",
@@ -3551,6 +3551,13 @@
     ],
     "unchain_wheel_sha256": "3c574ff42197b212c7c3462d6cc423324c96c9b6ece4c03ba5e9d1cad34aa33e",
     "frozen_sidecar_sha256": "9ca3a5f2ce31109eb2466231b8708f1ff3954d3bc34a95ea55d609fae81cd421",
-    "runtime_manifest_digest": "sha256:b163345c68666cc2dbe766a3a8e75da0246748def8fa9b1be75f446d9148da3f"
+    "runtime_manifest_digest": "sha256:b163345c68666cc2dbe766a3a8e75da0246748def8fa9b1be75f446d9148da3f",
+    "build_inputs": [
+      {
+        "path": ".github/workflows/release-qa.yml",
+        "sha256": "9894188b568b384d39dd4f0a1bd5e831014ce38a734738830d31da4db6d36fce"
+      }
+    ],
+    "unchain_source_revision": "4e9d8c3bb228874bd81e4d80ea1905d4aa71110c"
   }
 }

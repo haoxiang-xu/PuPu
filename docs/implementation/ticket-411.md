@@ -203,3 +203,10 @@ changed. Raw results are retained. Signed Electron release, paid/live Google API
 and feature acceptance audit were NOT_RUN. Development artifact smoke is not a
 release-provenance or active-rollout GO. Those delivery/acceptance steps remain
 for requested close and release qualification; the ticket remains In Progress.
+
+## CI pair correction at authorized merge monitoring
+
+See `ticket-411-evidence/ci-pair-correction.md`. BC-411-003 / AC-411-006
+now bind the CI default/fallback runtime source to companion Unchain PR #51.
+The initial mismatched-pair run failed correctly; new-head CI must pass before
+merging either PR. No runtime code or previously exercised wheel changed.

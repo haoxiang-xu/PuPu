@@ -87,3 +87,9 @@ byte comparison binds that wheel to the unchanged source.
 
 Committed test logs retain all output with trailing whitespace normalized.
 Original byte logs are preserved in the private local ticket archive.
+
+## CI source selection correction
+
+[Correction evidence](ci-pair-correction.md) records the wrong-runtime CI failure
+and scope-preserving workflow source pin correction. [candidate.json](candidate.json)
+now includes the CI build input; prior runtime bytes and wheel remain unchanged.
