@@ -146,7 +146,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$FROM_COMMIT"
           test "$(git -C ../fixture-unchain rev-parse HEAD)" = "$FROM_UNCHAIN_REVISION"
           test "$(node -p 'require("./package.json").version')" = "$FROM_VERSION"
-          npm ci
+          npm ci --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
 
       - name: Reproduce snapshot and prepare sole permitted fixture configuration difference

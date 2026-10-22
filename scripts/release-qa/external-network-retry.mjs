@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const MAX_CAPTURE_BYTES = 1024 * 1024;
+const MAX_STDOUT_BYTES = 16 * 1024 * 1024;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_DELAY_MS = 15_000;
 const PROFILES = new Set(["apple-ticket", "github-read", "git-read"]);
@@ -65,10 +66,21 @@ async function runStreamingCommand({ command, args }) {
       stdio: ["inherit", "pipe", "pipe"],
     });
     let output = "";
+    const stdoutChunks = [];
+    let stdoutBytes = 0;
+    let stdoutExceeded = false;
 
     child.stdout.on("data", (chunk) => {
-      process.stdout.write(chunk);
       output = appendTail(output, chunk);
+      if (stdoutExceeded) return;
+      stdoutBytes += chunk.length;
+      if (stdoutBytes > MAX_STDOUT_BYTES) {
+        stdoutExceeded = true;
+        stdoutChunks.length = 0;
+        child.kill();
+        return;
+      }
+      stdoutChunks.push(chunk);
     });
     child.stderr.on("data", (chunk) => {
       process.stderr.write(chunk);
@@ -79,7 +91,16 @@ async function runStreamingCommand({ command, args }) {
       process.stderr.write(`${message}\n`);
       resolve({ status: 1, output: appendTail(output, message) });
     });
-    child.on("close", (status) => resolve({ status: status ?? 1, output }));
+    child.on("close", (status) => {
+      if (stdoutExceeded) {
+        const message = "command stdout exceeded the 16 MiB retry buffer limit";
+        process.stderr.write(`${message}\n`);
+        resolve({ status: 1, output: message });
+        return;
+      }
+      if (status === 0) process.stdout.write(Buffer.concat(stdoutChunks));
+      resolve({ status: status ?? 1, output });
+    });
   });
 }
 

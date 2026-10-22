@@ -173,7 +173,7 @@ jobs:
       - name: Install immutable N-1 build dependencies
         working-directory: fixture-source
         run: |
-          npm ci
+          npm ci --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000
           python -m pip install --disable-pip-version-check --retries 5 --timeout 60 \
             -r unchain_runtime/server/requirements.txt
 
@@ -325,7 +325,7 @@ jobs:
           SIGNED_FIXTURE: ${{ steps.fixture_evidence.outputs.fixture }}
         run: |
           node scripts/release-qa/run-restart-update-qualification.mjs `
-            --candidate-dir "$env:GITHUB_WORKSPACE\candidate" `
+            --candidate-dir .release-qa/candidate `
             --fixture "$env:SIGNED_FIXTURE" `
             --fixture-evidence windows-restart-fixture.v1.json `
             --target windows-x64 `

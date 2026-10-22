@@ -60,7 +60,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          node scripts/release-qa/external-network-retry.mjs \
+          node release-tools/scripts/release-qa/external-network-retry.mjs \
             --profile github-read --cleanup-path release-assets -- \
             gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release-assets --clobber
 
@@ -68,7 +68,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          node scripts/release-qa/external-network-retry.mjs --profile git-read -- \
+          node release-tools/scripts/release-qa/external-network-retry.mjs --profile git-read -- \
             git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
           if [ -z "$TAG_COMMIT" ]; then
