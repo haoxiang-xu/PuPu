@@ -83,7 +83,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
               --tag "$RELEASE_TAG" \
@@ -97,7 +98,9 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest candidate/release-assets.v1.json \
@@ -160,7 +163,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           mkdir -p installed-reports
 

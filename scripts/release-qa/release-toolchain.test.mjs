@@ -141,7 +141,7 @@ test("macOS native restart lane signs only N-1, seals evidence, runs lifecycle, 
   assert.equal(steps[build].env.PUPU_REQUIRE_BUILD_FEATURE_SNAPSHOT, "1");
   assert.equal(steps[seal]["continue-on-error"], undefined);
   assert.match(steps[seal].run, /pupu.macos-restart-fixture-signing.v1/);
-  assert.match(steps[run].run, /--candidate-dir ..\/candidate/);
+  assert.match(steps[run].run, /--candidate-dir \.release-qa\/candidate/);
   assert.match(steps[run].run, /--diagnostics restart-update-diagnostics.json/);
   assert.equal(steps.at(-2).if, "always()");
   assert.equal(steps.at(-1).if, "always()");

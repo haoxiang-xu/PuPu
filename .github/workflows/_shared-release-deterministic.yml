@@ -86,8 +86,8 @@ jobs:
       - name: Install Python dependencies
         working-directory: pupu
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt pytest
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt pytest
 
       - name: Build one immutable Unchain wheel
         id: unchain_artifact

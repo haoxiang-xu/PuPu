@@ -41,7 +41,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/environments/release-qualification" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/environments/release-qualification" \
             | node scripts/release-qa/verify-github-environment.mjs --environment release-qualification
 
   candidate-preflight:
@@ -95,7 +96,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
               --tag "$RELEASE_TAG" \
@@ -109,7 +111,9 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest candidate/release-assets.v1.json \
@@ -124,13 +128,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LEGACY_TAG="$(node -p 'require("./docs/contracts/release/release-bootstrap-policy.v1.json").legacy_release.tag')"
-          git fetch --no-tags origin "refs/tags/$LEGACY_TAG:refs/tags/$LEGACY_TAG"
+          node scripts/release-qa/external-network-retry.mjs --profile git-read -- \
+            git fetch --no-tags origin "refs/tags/$LEGACY_TAG:refs/tags/$LEGACY_TAG"
           LEGACY_TAG_COMMIT="$(git rev-list -n 1 "$LEGACY_TAG")"
           if [ -z "$LEGACY_TAG_COMMIT" ]; then
             echo "::error title=Legacy tag missing::Could not resolve the frozen legacy source"
             exit 1
           fi
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$LEGACY_TAG" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$LEGACY_TAG" \
             | node scripts/release-qa/validate-legacy-release-gap.mjs \
               --policy docs/contracts/release/release-bootstrap-policy.v1.json \
               --legacy-tag-commit "$LEGACY_TAG_COMMIT" \
@@ -197,7 +203,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
 
       - name: Download all fresh-installed reports
