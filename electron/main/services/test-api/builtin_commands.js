@@ -5,6 +5,14 @@ const validateTextMessage = (body) => {
   return body && typeof body.text === "string" ? null : "body.text required";
 };
 
+// JSON.stringify output is not always a valid JS string literal: U+2028 and
+// U+2029 are legal inside JSON strings but terminate a JS line in older
+// engines, so escape them before splicing the value into executed code.
+const toJsStringLiteral = (value) =>
+  JSON.stringify(String(value))
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+
 const registerBuiltinCommands = ({
   registry,
   bridge,
@@ -265,7 +273,7 @@ const registerBuiltinCommands = ({
         });
       }
       const sel = ctx.query?.selector || "body";
-      const code = `document.querySelector(${JSON.stringify(sel)})?.outerHTML ?? null`;
+      const code = `document.querySelector(${toJsStringLiteral(sel)})?.outerHTML ?? null`;
       const html = await win.webContents.executeJavaScript(
         `(() => { return (${code}); })()`,
         true,

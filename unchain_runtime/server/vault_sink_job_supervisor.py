@@ -1437,13 +1437,12 @@ class _Win32Api:
 
             def close_for_cleanup(resource: Any) -> None:
                 nonlocal cleanup_error
-                if resource is None:
-                    return
-                try:
-                    resource.close()
-                except Exception as error:
-                    if cleanup_error is None:
-                        cleanup_error = error
+                if resource is not None:
+                    try:
+                        resource.close()
+                    except Exception as error:
+                        if cleanup_error is None:
+                            cleanup_error = error
 
             close_for_cleanup(thread)
             close_for_cleanup(attribute_list)
@@ -1701,8 +1700,7 @@ class _Win32Api:
         )
         if _handle_value(raw_snapshot) in {0, INVALID_HANDLE_VALUE}:
             raise VaultSinkSupervisorError("vault_worker_parent_unavailable")
-        snapshot = _OwnedHandle(raw_snapshot, close=self._close_handle)
-        try:
+        with _OwnedHandle(raw_snapshot, close=self._close_handle) as snapshot:
             entry = PROCESSENTRY32W()
             entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
             if not self._kernel32.Process32FirstW(
@@ -1719,8 +1717,6 @@ class _Win32Api:
                 ):
                     break
             raise VaultSinkSupervisorError("vault_worker_parent_unavailable")
-        finally:
-            snapshot.close()
 
     def open_verified_parent_chain(
         self,

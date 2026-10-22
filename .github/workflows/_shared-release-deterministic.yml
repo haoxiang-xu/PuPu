@@ -54,6 +54,10 @@ jobs:
             echo "::error title=Missing Unchain source ref::shared deterministic QA requires an explicit Unchain identity"
             exit 1
           fi
+          if ! [[ "$UNCHAIN_SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Unpinned Unchain source ref::shared deterministic QA checks out only a full 40-hex commit SHA, got '$UNCHAIN_SOURCE_REF'"
+            exit 1
+          fi
 
       - name: Checkout PuPu
         uses: actions/checkout@v4

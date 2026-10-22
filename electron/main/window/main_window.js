@@ -96,10 +96,6 @@ const writeThemePrefs = (app, fs, path, data) => {
   }
 };
 
-const paletteForMode = (mode) => {
-  if (mode === "light" || mode === "light_mode") return LIGHT_PALETTE;
-  return DARK_PALETTE;
-};
 /* ── Theme-preference persistence ──────────────────────────────────── */
 
 const PRESENTABLE_PLATFORMS = new Set(["darwin", "win32", "linux"]);
