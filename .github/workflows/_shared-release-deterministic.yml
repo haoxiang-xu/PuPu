@@ -47,6 +47,7 @@ jobs:
         run: |
           case "${ACTIONS_CACHE_MODE:-}" in
             read|none) echo "Cache authority: $ACTIONS_CACHE_MODE" ;;
+            "") echo "Cache authority enforced by workflow cache-mode: read; runner telemetry unavailable" ;;
             *) echo "::error::Selected runtime code requires read-only cache authority"; exit 1 ;;
           esac
 

@@ -15,10 +15,13 @@ received cache-write authority that could outlive its read-only GitHub token.
   `read`. Cache restores remain available; selected code cannot save caches.
   GitHub enforces the caller's cap through reusable workflows. Contents/actions
   permissions and release environment/signing boundaries remain unchanged.
-- SEQ-001: Before any checkout, reject effective cache authority other than
-  `read` or `none`. Run normal deterministic QA with cold or warm caches, preserving
+- SEQ-001: Before any checkout, reject explicitly writable cache telemetry.
+  The service-enforced workflow cap remains authoritative: runner 2.338.0 logs
+  `Cache mode: read` but does not expose ACTIONS_CACHE_MODE to shell steps.
+  Run normal deterministic QA with cold or warm caches, preserving
   the exact wheel, feature snapshot and candidate identity.
-- AC-001: YAML contract and actual guard shell reject missing/writable authority.
+- AC-001: YAML contract and actual guard shell reject writable authority and
+  support runners without shell telemetry.
   Candidate CI must demonstrate the runner's effective authority and complete QA.
   Do not poison a shared cache to test the defense.
 

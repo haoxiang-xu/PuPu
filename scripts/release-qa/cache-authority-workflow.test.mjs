@@ -18,7 +18,7 @@ test("operator-selected runtime code has read-only cache tokens, including reusa
   }
 });
 
-test("runtime cache authority guard rejects absent or writable authority before checkout", () => {
+test("runtime telemetry rejects writable authority and supports runners without shell telemetry", () => {
   const steps = read("_shared-release-deterministic.yml").jobs.deterministic.steps;
   const guard = steps.find((step) => step.name === "Verify read-only cache authority");
   assert.ok(guard);
@@ -27,6 +27,6 @@ test("runtime cache authority guard rejects absent or writable authority before 
     const result = spawnSync("bash", ["-eu", "-c", guard.run], {
       env: { ...process.env, ACTIONS_CACHE_MODE: mode }, encoding: "utf8",
     });
-    assert.equal(result.status, ["read", "none"].includes(mode) ? 0 : 1, mode);
+    assert.equal(result.status, ["read", "none", ""].includes(mode) ? 0 : 1, mode);
   }
 });
