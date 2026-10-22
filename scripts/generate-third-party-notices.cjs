@@ -27,6 +27,7 @@
 const path = require("path");
 const fs = require("fs");
 const { execSync, execFileSync } = require("child_process");
+const { curationNotices, RECEIPT_FILE } = require("./mcp-runtime-curation.cjs");
 
 const root = path.resolve(__dirname, "..");
 const OUT = path.join(root, "THIRD_PARTY_NOTICES.txt");
@@ -392,6 +393,22 @@ function collectBundledMcpRuntimes({
       text,
       sourceOffer,
     });
+
+    if (pinned.curation) {
+      try {
+        const receipt = loadJson(path.join(runtimeDir, spec.key, RECEIPT_FILE), `${spec.displayName} curation receipt`);
+        if (!receipt || JSON.stringify(receipt.sources) !== JSON.stringify(pinned.curation)) {
+          throw new Error("curation receipt does not match pins");
+        }
+        for (const item of curationNotices(spec.key, pinned.curation, manifest.target)) {
+          const texts = item.paths.map((licensePath) => loadLicense(licensePath, item.name));
+          if (texts.some((value) => !value)) continue;
+          entries.push({ id: `${item.name}@${item.version}`, license: item.license, publisher: "", source: item.url, text: texts.join("\n\n"), sourceOffer: "" });
+        }
+      } catch (error) {
+        failOrWarn(`${spec.displayName} curation attribution is invalid: ${error.message}`);
+      }
+    }
   }
 
   const bootstrap =

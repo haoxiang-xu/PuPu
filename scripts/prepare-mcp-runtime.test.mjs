@@ -409,7 +409,7 @@ test("versioned pins cover every supported target without dynamic URLs", async (
       );
     }
   }
-  assert.equal(pins.runtimes.python.version, "3.12.13+20260718");
+  assert.equal(pins.runtimes.python.version, "3.12.15+20261021");
   assert.equal(pins.runtimes.node.default_env.NODE_USE_ENV_PROXY, "1");
   assert.equal(pins.runtimes.uv.default_env.UV_PYTHON_DOWNLOADS, "never");
   assert.deepEqual(pins.runtimes.uv.runtime_env.UV_PYTHON, {

@@ -10,6 +10,7 @@ const { pipeline } = require("node:stream/promises");
 
 const extractZip = require("extract-zip");
 const tar = require("tar");
+const { validateCuration, stageCuration, verifyCuration } = require("./mcp-runtime-curation.cjs");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_PINS_PATH = path.join(
@@ -237,6 +238,7 @@ function validatePinsManifest(pins) {
     if (!isPlainObject(runtime)) {
       throw new Error(`Missing pinned runtime: ${runtimeName}`);
     }
+    validateCuration(runtimeName, runtime.curation);
     if (
       typeof runtime.version !== "string" ||
       !runtime.version ||
@@ -853,6 +855,7 @@ async function stageRuntime({
   const runtimeRoot = path.join(stageRoot, runtimeName);
   await fsp.rename(extractedRuntimeRoot, runtimeRoot);
   await fsp.rm(extractionRoot, { recursive: true, force: true });
+  await validateTreeLinks(runtimeRoot);
 
   for (const extraFile of runtime.additional_files || []) {
     const sourcePath = await ensureCachedSource(
@@ -869,6 +872,20 @@ async function stageRuntime({
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     await fsp.copyFile(sourcePath, destination);
   }
+
+  const curationRecord = await stageCuration({
+    runtimeRoot,
+    runtimeName,
+    runtime,
+    target,
+    cacheDir,
+    downloader,
+    ensureCachedSource,
+    extractArchive: extractor,
+    extractWheel: wheelExtractor,
+    sha256File,
+    sha256Tree,
+  });
 
   await applyPostStageRules({
     runtimeRoot,
@@ -909,6 +926,7 @@ async function stageRuntime({
     source_url: targetPin.url,
     archive_sha256: targetPin.sha256,
     staged_tree_sha256: await sha256Tree(runtimeRoot),
+    ...curationRecord,
     ...bootstrapRecord,
   };
 }
@@ -1002,11 +1020,13 @@ async function prepareMcpRuntime({
   }
   const safeOutputDir = assertSafeOutputDir(outputDir);
   const { pins, sha256: pinsSha256 } = await readPinsManifest(pinsPath);
-  const tempDir = path.join(
+  const tempParent = path.join(
     path.dirname(safeOutputDir),
     `.mcp_runtime.tmp-${process.pid}-${crypto.randomUUID()}`,
   );
+  const tempDir = path.join(tempParent, "mcp_runtime");
   await fsp.mkdir(path.dirname(safeOutputDir), { recursive: true });
+  await fsp.mkdir(tempParent);
   await fsp.mkdir(tempDir);
 
   try {
@@ -1044,10 +1064,14 @@ async function prepareMcpRuntime({
       "utf8",
     );
     await sealStagedTree(tempDir);
+    // Verify curation receipts and the complete new tree while the previous
+    // valid stage is still intact. A rejected candidate is never published.
+    await verifyMcpRuntime({ target, pinsPath, outputDir: tempDir });
     await replaceDirectoryAtomically(tempDir, safeOutputDir);
+    await fsp.rmdir(tempParent);
   } catch (error) {
-    await makeTreeDirectoriesWritable(tempDir).catch(() => {});
-    await fsp.rm(tempDir, { recursive: true, force: true });
+    await makeTreeDirectoriesWritable(tempParent).catch(() => {});
+    await fsp.rm(tempParent, { recursive: true, force: true });
     throw error;
   }
 
@@ -1111,6 +1135,15 @@ async function verifyMcpRuntime({
       target,
       targetPin
     );
+    await verifyCuration({
+      runtimeRoot: path.join(safeOutputDir, runtimeName),
+      runtimeName,
+      runtime,
+      target,
+      staged,
+      sha256File,
+      sha256Tree,
+    });
     if (!SHA256_RE.test(staged.staged_tree_sha256 || "")) {
       throw new Error(
         `Staged ${runtimeName}.staged_tree_sha256 is invalid`
