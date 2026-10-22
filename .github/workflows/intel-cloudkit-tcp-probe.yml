@@ -1,0 +1,42 @@
+name: Diagnostic - Intel Apple TCP A/B
+
+on:
+  push:
+    branches: [codex/intel-cloudkit-tcp-probe]
+    paths:
+      - .github/workflows/intel-cloudkit-tcp-probe.yml
+      - scripts/diagnostics/intel-cloudkit-tcp-probe*
+
+permissions:
+  contents: read
+
+jobs:
+  tcp-probe:
+    name: Intel CloudKit default versus TCP (diagnostic only)
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/diagnostics
+            .github/workflows
+
+      - name: Validate diagnostic verdict and isolation checks
+        run: node --test scripts/diagnostics/intel-cloudkit-tcp-probe.test.mjs
+
+      - name: Compare actual Apple ticket delivery on one Intel runner
+        run: node scripts/diagnostics/intel-cloudkit-tcp-probe.mjs
+
+      - name: Retain diagnostic logs only, never application bundles or packet captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: intel-cloudkit-tcp-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/pupu-intel-cloudkit-${{ github.run_id }}-${{ github.run_attempt }}/*.json
+            ${{ runner.temp }}/pupu-intel-cloudkit-${{ github.run_id }}-${{ github.run_attempt }}/*.log
+            ${{ runner.temp }}/pupu-intel-cloudkit-${{ github.run_id }}-${{ github.run_attempt }}/*.txt
