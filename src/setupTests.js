@@ -4,6 +4,12 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
+// Credential mirrors are session memory now. Each test models a fresh session.
+beforeEach(() => {
+  jest.requireActual('./SERVICEs/bridges/settings_storage_bridge').resetSessionBootstrapSnapshotForTests();
+  jest.requireActual('./SERVICEs/settings_secret_adapter').resetProviderSecretSessionForTests();
+});
+
 // This jsdom version predates Web Crypto. Match Chromium with Node's real
 // getRandomValues implementation so durable ID tests exercise secure entropy.
 // Leave unrelated crypto APIs to the suites that explicitly configure them.

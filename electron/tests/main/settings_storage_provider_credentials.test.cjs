@@ -16,6 +16,38 @@
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const vm = require("node:vm");
+const babel = require("@babel/core");
+
+// Exercise real renderer modules against the native producer, retaining only
+// the simulated browser disk across a renderer restart. No real credentials
+// or provider/model calls are involved.
+const loadCredentialRenderer = (api, localStorage) => {
+  const sourceRoot = path.resolve(__dirname, "../../../src/SERVICEs");
+  const modules = new Map();
+  const load = (filename) => {
+    if (modules.has(filename)) return modules.get(filename).exports;
+    const module = { exports: {} };
+    modules.set(filename, module);
+    const code = babel.transformSync(fs.readFileSync(filename, "utf8"), {
+      filename, babelrc: false, configFile: false,
+      presets: [[require.resolve("@babel/preset-env"), { targets: { node: "current" }, modules: "commonjs" }]],
+    }).code;
+    vm.runInNewContext(code, {
+      module, exports: module.exports, window: { settingsStorageAPI: api, localStorage }, console,
+      require: (specifier) => {
+        if (!specifier.startsWith(".")) throw new Error(`unexpected dependency: ${specifier}`);
+        return load(path.resolve(path.dirname(filename), `${specifier}.js`));
+      },
+    }, { filename });
+    return module.exports;
+  };
+  return {
+    adapter: load(path.join(sourceRoot, "settings_secret_adapter.js")),
+    persistence: load(path.join(sourceRoot, "provider_credential_persistence.js")),
+    migration: load(path.join(sourceRoot, "provider_secret_migration.js")),
+  };
+};
 
 // node:sqlite is unavailable under some runtimes, and jest 27's resolver
 // mangles `require("node:sqlite")`. process.getBuiltinModule bypasses it.
@@ -504,7 +536,7 @@ describeIfSqlite("provider credential store (sqlite)", () => {
     expect(rawCredentialRows().length).toBe(0);
   });
 
-  test("steady-state persist removes stale SQL authority when safeStorage is unavailable", () => {
+  test("unavailable safeStorage rejects rotation and retains prior ciphertext across restart", () => {
     const writer = startService({ safeStorage: makeFakeSafeStorage() });
     writer.setProviderCredential("provider", "openai", "sk-old");
     writer.close();
@@ -513,21 +545,18 @@ describeIfSqlite("provider credential store (sqlite)", () => {
       safeStorage: makeFakeSafeStorage({ available: false }),
       platform: "darwin",
     });
-    const result = degraded.persistProviderCredential(
+    expectThrowCode(() => degraded.persistProviderCredential(
       "provider",
       "openai",
       "sk-new-legacy-copy",
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      status: "legacy-only",
-      deletedStale: true,
-    });
-    expect(JSON.stringify(result)).not.toContain("sk-new-legacy-copy");
-    expect(rawCredentialRows()).toEqual([]);
+    ), "secret_storage_unavailable");
+    expect(rawCredentialRows()).toHaveLength(1);
+    degraded.close();
+    const recovered = startService({ safeStorage: makeFakeSafeStorage() });
+    expect(recovered.readDecryptedProviderSecret("provider", "openai")).toBe("sk-old");
   });
 
-  test("steady-state encrypt failure removes the previous ciphertext row", () => {
+  test("steady-state encrypt failure preserves the previous ciphertext row", () => {
     const safeStorage = makeFakeSafeStorage();
     const service = startService({ safeStorage });
     service.setProviderCredential("provider", "openai", "sk-old");
@@ -535,17 +564,26 @@ describeIfSqlite("provider credential store (sqlite)", () => {
       throw new Error("encrypt boom");
     };
 
-    const result = service.persistProviderCredential(
+    expectThrowCode(() => service.persistProviderCredential(
       "provider",
       "openai",
       "sk-new-legacy-copy",
+    ), "secret_storage_unavailable");
+    expect(rawCredentialRows()).toHaveLength(1);
+  });
+
+  test("failed decrypt verification rolls a rotation back to its previous ciphertext", () => {
+    const safeStorage = makeFakeSafeStorage();
+    const service = startService({ safeStorage });
+    service.persistProviderCredential("provider", "openai", "old-SENTINEL");
+    const before = rawCredentialRows();
+    safeStorage.decryptString = () => "wrong-SENTINEL";
+    const error = expectThrowCode(
+      () => service.persistProviderCredential("provider", "openai", "new-SENTINEL"),
+      "secret_roundtrip_failed",
     );
-    expect(result).toMatchObject({
-      ok: true,
-      status: "legacy-only",
-      deletedStale: true,
-    });
-    expect(rawCredentialRows()).toEqual([]);
+    expect(error.message).not.toContain("SENTINEL");
+    expect(rawCredentialRows()).toEqual(before);
   });
 
   test("first encrypt failure latches the session and restart backoff skips safeStorage", () => {
@@ -555,20 +593,16 @@ describeIfSqlite("provider credential store (sqlite)", () => {
       platform: "darwin",
     });
 
-    expect(
-      service.persistProviderCredential(
+    expectThrowCode(() => service.persistProviderCredential(
         "provider",
         "openai",
         "sk-first-failure",
-      ).status,
-    ).toBe("legacy-only");
-    expect(
-      service.persistProviderCredential(
+      ), "secret_storage_unavailable");
+    expectThrowCode(() => service.persistProviderCredential(
         "provider",
         "anthropic",
         "sk-must-not-retry",
-      ).status,
-    ).toBe("legacy-only");
+      ), "secret_storage_unavailable");
     expect(failingStorage.calls.encrypt).toBe(1);
     expect(service.getSecretStorageStatus()).toBe("unavailable");
     service.close();
@@ -592,11 +626,11 @@ describeIfSqlite("provider credential store (sqlite)", () => {
       safeStorage: makeFakeSafeStorage({ throwOnEncrypt: true }),
       platform: "darwin",
     });
-    failing.persistProviderCredential(
+    expectThrowCode(() => failing.persistProviderCredential(
       "provider",
       "openai",
       "sk-first-failure",
-    );
+    ), "secret_storage_unavailable");
     failing.close();
 
     const raw = openRawDb();
@@ -630,17 +664,120 @@ describeIfSqlite("provider credential store (sqlite)", () => {
     ).toBeUndefined();
   });
 
+  test.each(["openai", "custom.p"])("partial migration + clear + cold restart cannot resurrect %s", async (id) => {
+    let service = startService({ safeStorage: makeFakeSafeStorage() });
+    const data = new Map([["settings", JSON.stringify({ model_providers: {
+      openai_api_key: "OLD-SENTINEL", gemini_api_key: "OTHER-SENTINEL",
+      custom_provider_secrets: { p: "CUSTOM-SENTINEL" },
+    } })]]);
+    const localStorage = { getItem: (key) => data.get(key) || null, setItem: (key, value) => data.set(key, value) };
+    let failOther = true;
+    const api = {
+      bootstrap: () => service.getBootstrapSnapshot(),
+      migrateLegacy: () => {}, setNamespace: () => {}, deleteNamespace: () => {},
+      setProviderCredential: async (kind, ownerId, value) => {
+        if (failOther && ownerId === "gemini") throw new Error("[storage_io_error] simulated failure");
+        return service.persistProviderCredential(kind, ownerId, value);
+      },
+      deleteProviderCredential: async (kind, ownerId) => service.deleteProviderCredential(kind, ownerId),
+      migrateProviderCredentials: async (payload) => {
+        if (failOther && payload.credentials.gemini) throw new Error("[storage_io_error] simulated failure");
+        return service.migrateProviderCredentials(payload);
+      },
+    };
+    let renderer = loadCredentialRenderer(api, localStorage);
+    const migration = renderer.migration.maybeMigrateProviderSecrets();
+    let clear;
+    if (id === "openai") {
+      clear = renderer.persistence.persistOfficialProviderSecret("openai_api_key", "", () => renderer.adapter.writeProviderSecret("openai_api_key", ""));
+    } else {
+      clear = renderer.persistence.persistCustomProviderSecret("p", "", () => renderer.adapter.writeCustomProviderSecrets({}));
+    }
+    await migration;
+    expect((await clear).ok).toBe(true);
+    expect(service.getBootstrapSnapshot().clearedCredentials).toContain(id);
+    expect(localStorage.getItem("settings")).toContain("OTHER-SENTINEL");
+    service.close();
+    service = startService({ safeStorage: makeFakeSafeStorage() });
+    failOther = false;
+    renderer = loadCredentialRenderer(api, localStorage);
+    if (id === "openai") expect(renderer.adapter.readProviderSecret("openai_api_key")).toBe("");
+    else expect(renderer.adapter.readCustomProviderSecrets().p).toBeUndefined();
+    await renderer.migration.maybeMigrateProviderSecrets();
+    expect(service.hasProviderCredential(id.startsWith("custom.") ? "custom_provider" : "provider", id).present).toBe(false);
+    expect(service.hasProviderCredential("provider", "gemini").present).toBe(true);
+    expect(localStorage.getItem("settings")).not.toContain("SENTINEL");
+    expect(JSON.stringify(service.getBootstrapSnapshot())).not.toContain("SENTINEL");
+    service.persistProviderCredential(id.startsWith("custom.") ? "custom_provider" : "provider", id, "REPLACEMENT-SENTINEL");
+    expect(service.getBootstrapSnapshot().clearedCredentials).not.toContain(id);
+  });
+
+  test("old bulk migration also respects a durable deletion tombstone", () => {
+    const service = startService({ safeStorage: makeFakeSafeStorage() });
+    service.deleteProviderCredential("provider", "openai");
+    const result = service.migrateProviderCredentials({ migrationVersion: 1, credentials: { openai: "OLD-SENTINEL" } });
+    expect(result.migratedCount).toBe(0);
+    expect(service.hasProviderCredential("provider", "openai").present).toBe(false);
+  });
+
+  test("V2 verifies existing SQL authority without overwriting it with a stale mirror", () => {
+    const storage = makeFakeSafeStorage();
+    const service = startService({ safeStorage: storage });
+    service.persistProviderCredential("provider", "openai", "NEW-SENTINEL");
+    const before = rawCredentialRows();
+    const result = service.migrateProviderCredentials({ migrationVersion: 2, credentials: { openai: "OLD-SENTINEL" } });
+    expect(result).toEqual({ ok: true, status: "stored", kind: "provider", ownerId: "openai" });
+    expect(rawCredentialRows()).toEqual(before);
+    expect(service.readDecryptedProviderSecret("provider", "openai")).toBe("NEW-SENTINEL");
+  });
+
+  test("V2 decrypt failure preserves both the encrypted row and historical plaintext backup", async () => {
+    const storage = makeFakeSafeStorage();
+    const service = startService({ safeStorage: storage });
+    service.persistProviderCredential("provider", "openai", "SQL-SENTINEL");
+    const before = rawCredentialRows();
+    storage.decryptString = () => { throw new Error("keyring unavailable"); };
+    const data = new Map([["settings", JSON.stringify({ model_providers: { openai_api_key: "BACKUP-SENTINEL" } })]]);
+    const api = {
+      bootstrap: () => service.getBootstrapSnapshot(),
+      migrateLegacy: () => {}, setNamespace: () => {}, deleteNamespace: () => {},
+      setProviderCredential: async (...args) => service.persistProviderCredential(...args),
+      deleteProviderCredential: async (...args) => service.deleteProviderCredential(...args),
+      migrateProviderCredentials: async (payload) => service.migrateProviderCredentials(payload),
+    };
+    const renderer = loadCredentialRenderer(api, { getItem: (key) => data.get(key) || null, setItem: (key, value) => data.set(key, value) });
+    await renderer.migration.maybeMigrateProviderSecrets();
+    expect(rawCredentialRows()).toEqual(before);
+    expect(data.get("settings")).toContain("BACKUP-SENTINEL");
+  });
+
+  test.each([
+    { migrationVersion: 2, credentials: {} },
+    { migrationVersion: 2, credentials: { openai: "one", gemini: "two" } },
+    { migrationVersion: 2, credentials: { openai: "one" }, extra: true },
+    { migrationVersion: 2, credentials: { unknown: "one" } },
+    { migrationVersion: 2, credentials: { custom: { "bad slug": "one" } } },
+  ])("V2 rejects invalid closed cutover input before storing: %j", (payload) => {
+    const service = startService({ safeStorage: makeFakeSafeStorage() });
+    expect(() => service.migrateProviderCredentials(payload)).toThrow();
+    expect(rawCredentialRows()).toEqual([]);
+  });
+
   // ---- fail-closed reads ---------------------------------------------------
 
   test("read returns null (never throws) when decryption fails", () => {
-    const safeStorage = makeFakeSafeStorage({ throwOnDecrypt: true });
+    const safeStorage = makeFakeSafeStorage();
     const service = startService({ safeStorage });
     service.setProviderCredential("provider", "openai", "sk-will-corrupt");
+    safeStorage.decryptString = () => {
+      safeStorage.calls.decrypt += 1;
+      throw new Error("keyring unavailable");
+    };
     expect(service.readDecryptedProviderSecret("provider", "openai")).toBeNull();
     expect(service.readDecryptedProviderSecret("provider", "openai")).toBeNull();
     expect(service.getSecretStorageStatus()).toBe("unavailable");
     // The second read is blocked by the session latch; ciphertext is retained.
-    expect(safeStorage.calls.decrypt).toBe(1);
+    expect(safeStorage.calls.decrypt).toBe(2);
     expect(rawCredentialRows()).toHaveLength(1);
   });
 

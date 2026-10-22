@@ -1,26 +1,14 @@
-// Isolated read/write path for the three provider secret fields that stay in
-// localStorage["settings"] until Phase 4 (settings-sqlite-migration-plan §3.7):
-//
-//   model_providers.openai_api_key
-//   model_providers.anthropic_api_key
-//   model_providers.custom_provider_secrets
-//
-// These fields NEVER enter the settings repository memory snapshot, SQL, or
-// logs. This adapter is their only reader/writer: it operates directly on the
-// localStorage["settings"] root and touches nothing but these three fields —
-// every other root namespace and every other model_providers field is
-// preserved as-is.
-//
-// Failure semantics mirror the legacy model_providers storage helper: a
-// corrupt/unparseable root means reads return defaults and writes are refused
-// (never clobber a corrupt blob), and localStorage write errors are reported
-// via the boolean return value instead of throwing. Exception: legacy
-// custom_provider_store rebuilt a corrupt root from {} and saved anyway —
-// writeCustomProviderSecrets takes an opt-in { repairCorruptRoot: true } so
-// that call site keeps its legacy repair-and-clobber semantics.
+// Volatile credential mirror for synchronous renderer reads. Durable writes
+// go only through provider_credential_persistence's encrypted native bridge.
+// Import historical plaintext until a session edit or verified scrub owns it;
+// native acknowledgement. Never serialize a new credential into localStorage.
+
+import { getBootstrapClearedCredentials } from "./bridges/settings_storage_bridge";
 
 const SETTINGS_STORAGE_KEY = "settings";
 const MODEL_PROVIDERS_NAMESPACE = "model_providers";
+let sessionSecrets = Object.create(null);
+const sessionOwnedFields = new Set();
 
 export const PROVIDER_SECRET_FIELDS = Object.freeze([
   "openai_api_key",
@@ -70,29 +58,111 @@ const readRootForSecrets = () => {
   }
 };
 
+const captureLegacySecrets = (root) => {
+  const providers = root[MODEL_PROVIDERS_NAMESPACE];
+  const cleared = new Set(getBootstrapClearedCredentials());
+  for (const field of SENSITIVE_MODEL_PROVIDER_FIELDS) {
+    if (sessionOwnedFields.has(field)) continue;
+    if (isPlainObject(providers) && Object.prototype.hasOwnProperty.call(providers, field)) {
+      sessionSecrets[field] = JSON.parse(JSON.stringify(providers[field]));
+      if (field === CUSTOM_PROVIDER_SECRETS_FIELD && isPlainObject(sessionSecrets[field])) {
+        for (const slug of Object.keys(sessionSecrets[field])) {
+          if (cleared.has(`custom.${slug}`)) delete sessionSecrets[field][slug];
+        }
+      } else if (cleared.has(field.replace(/_api_key$/, ""))) {
+        sessionSecrets[field] = "";
+      }
+    } else {
+      delete sessionSecrets[field];
+    }
+  }
+};
+
+const hasLegacyCredential = (providers) => isPlainObject(providers) && (
+  PROVIDER_SECRET_FIELDS.some((field) => typeof providers[field] === "string" && providers[field].length > 0) ||
+  (isPlainObject(providers[CUSTOM_PROVIDER_SECRETS_FIELD]) &&
+    Object.values(providers[CUSTOM_PROVIDER_SECRETS_FIELD]).some((value) => typeof value === "string" && value.length > 0))
+);
+
+export const hasLegacyProviderCredential = (id) => {
+  const { root } = readRootForSecrets();
+  const providers = root[MODEL_PROVIDERS_NAMESPACE];
+  if (!isPlainObject(providers)) return false;
+  const value = id.startsWith("custom.")
+    ? providers[CUSTOM_PROVIDER_SECRETS_FIELD]?.[id.slice("custom.".length)]
+    : providers[`${id}_api_key`];
+  return typeof value === "string" && value.length > 0;
+};
+
+// Settings fallback writes cannot silently destroy an unacknowledged legacy
+// credential. Refuse the write until migration can safely remove that copy.
+// Even when the caller supplies a secret field, the returned root is redacted.
+export const settingsRootWithoutProviderSecrets = (root) => {
+  const { root: legacy } = readRootForSecrets();
+  captureLegacySecrets(legacy);
+  const legacyProviders = legacy[MODEL_PROVIDERS_NAMESPACE];
+  if (hasLegacyCredential(legacyProviders)) {
+    throw new Error("[provider_credential_migration_pending] secure credential migration must finish before rewriting legacy settings");
+  }
+  const next = { ...root };
+  if (isPlainObject(next[MODEL_PROVIDERS_NAMESPACE])) {
+    next[MODEL_PROVIDERS_NAMESPACE] = { ...next[MODEL_PROVIDERS_NAMESPACE] };
+    for (const field of SENSITIVE_MODEL_PROVIDER_FIELDS) delete next[MODEL_PROVIDERS_NAMESPACE][field];
+  }
+  return next;
+};
+
+// IDs are native acknowledgement metadata, never secret values. Preserve any
+// legacy field not acknowledged (including a failed migration) for next boot.
+export const removeMigratedLegacyProviderSecrets = (configuredIds) => {
+  const { root, writable } = readRootForSecrets();
+  if (!writable) return false;
+  captureLegacySecrets(root);
+  const providers = root[MODEL_PROVIDERS_NAMESPACE];
+  if (!isPlainObject(providers)) return true;
+  const confirmed = new Set(configuredIds);
+  for (const field of PROVIDER_SECRET_FIELDS) {
+    const value = providers[field];
+    if (typeof value !== "string" || !value || confirmed.has(field.replace(/_api_key$/, ""))) {
+      delete providers[field];
+    }
+  }
+  const custom = providers[CUSTOM_PROVIDER_SECRETS_FIELD];
+  if (isPlainObject(custom)) {
+    for (const slug of Object.keys(custom)) {
+      if (typeof custom[slug] !== "string" || !custom[slug] || confirmed.has(`custom.${slug}`)) delete custom[slug];
+    }
+    if (!Object.keys(custom).length) delete providers[CUSTOM_PROVIDER_SECRETS_FIELD];
+  } else {
+    delete providers[CUSTOM_PROVIDER_SECRETS_FIELD];
+  }
+  // Only write if every legacy credential has a confirmed durable owner. A
+  // partial acknowledgement cannot cause another plaintext reserialization.
+  if (SENSITIVE_MODEL_PROVIDER_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(providers, field))) return false;
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+    for (const field of SENSITIVE_MODEL_PROVIDER_FIELDS) sessionOwnedFields.add(field);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+};
+
 const writeSecretField = (field, value, options) => {
   const repairCorruptRoot = !!(options && options.repairCorruptRoot);
   const { root, writable, repairable } = readRootForSecrets();
   if (!writable && !(repairCorruptRoot && repairable)) return false;
-  const providers = isPlainObject(root[MODEL_PROVIDERS_NAMESPACE])
-    ? root[MODEL_PROVIDERS_NAMESPACE]
-    : {};
-  providers[field] = value;
-  root[MODEL_PROVIDERS_NAMESPACE] = providers;
-  try {
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
-    return true;
-  } catch (_error) {
-    // Quota/serialization failure — report, never throw (legacy parity).
-    return false;
-  }
+  captureLegacySecrets(root);
+  sessionSecrets[field] = value;
+  sessionOwnedFields.add(field);
+  return true;
 };
 
 export const readProviderSecret = (field) => {
   assertProviderSecretField(field);
   const { root } = readRootForSecrets();
-  const providers = root[MODEL_PROVIDERS_NAMESPACE];
-  const value = isPlainObject(providers) ? providers[field] : undefined;
+  captureLegacySecrets(root);
+  const value = sessionSecrets[field];
   return typeof value === "string" ? value : "";
 };
 
@@ -109,10 +179,8 @@ export const writeProviderSecret = (field, value) => {
 
 export const readCustomProviderSecrets = () => {
   const { root } = readRootForSecrets();
-  const providers = root[MODEL_PROVIDERS_NAMESPACE];
-  const value = isPlainObject(providers)
-    ? providers[CUSTOM_PROVIDER_SECRETS_FIELD]
-    : undefined;
+  captureLegacySecrets(root);
+  const value = sessionSecrets[CUSTOM_PROVIDER_SECRETS_FIELD];
   if (!isPlainObject(value)) return {};
   try {
     // Detached clone: callers must not be able to mutate stored data through
@@ -139,4 +207,9 @@ export const writeCustomProviderSecrets = (secrets, options) => {
   }
   if (!isPlainObject(normalized)) normalized = {};
   return writeSecretField(CUSTOM_PROVIDER_SECRETS_FIELD, normalized, options);
+};
+
+export const resetProviderSecretSessionForTests = () => {
+  sessionSecrets = Object.create(null);
+  sessionOwnedFields.clear();
 };

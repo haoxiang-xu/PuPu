@@ -14,6 +14,8 @@
  */
 
 import { readModelProviders, writeModelProviders } from "./storage";
+import { removeMigratedLegacyProviderSecrets, resetProviderSecretSessionForTests } from "../../../SERVICEs/settings_secret_adapter";
+import { resetSessionBootstrapSnapshotForTests } from "../../../SERVICEs/bridges/settings_storage_bridge";
 import {
   flushSettingsWrites,
   resetSettingsRepositoryForTests,
@@ -66,8 +68,7 @@ describe("readModelProviders / writeModelProviders — fallback characterization
 
     expect(readModelProviders().openai_api_key).toBe("sk-openai-test");
     expect(!!readModelProviders().openai_api_key).toBe(true);
-    // physical layout unchanged: key lives under settings.model_providers
-    expect(parseRoot().model_providers.openai_api_key).toBe("sk-openai-test");
+    expect(window.localStorage.getItem(SETTINGS_KEY) || "").not.toContain("sk-openai-test");
   });
 
   test("successive writes merge — other key fields and siblings survive", () => {
@@ -91,7 +92,7 @@ describe("readModelProviders / writeModelProviders — fallback characterization
 
     expect(readModelProviders().openai_api_key || "").toBe("");
     expect(!!readModelProviders().openai_api_key).toBe(false);
-    expect(parseRoot().model_providers.openai_api_key || "").toBe("");
+    expect(window.localStorage.getItem(SETTINGS_KEY)).toBeNull();
   });
 
   test("non-sensitive fields roundtrip alongside secrets", () => {
@@ -101,7 +102,7 @@ describe("readModelProviders / writeModelProviders — fallback characterization
     expect(stored.openai_api_key).toBe("sk-mixed");
     expect(stored.pull_hint_dismissed).toBe(true);
     const branch = parseRoot().model_providers;
-    expect(branch.openai_api_key).toBe("sk-mixed");
+    expect(branch.openai_api_key).toBeUndefined();
     expect(branch.pull_hint_dismissed).toBe(true);
   });
 
@@ -114,11 +115,12 @@ describe("readModelProviders / writeModelProviders — fallback characterization
       },
     });
 
+    expect(removeMigratedLegacyProviderSecrets(["openai", "custom.my-prov"])).toBe(true);
     writeModelProviders({ pull_hint_dismissed: true });
 
     const branch = parseRoot().model_providers;
-    expect(branch.openai_api_key).toBe("sk-keep");
-    expect(branch.custom_provider_secrets).toEqual({ "my-prov": "cp-secret" });
+    expect(branch.openai_api_key).toBeUndefined();
+    expect(branch.custom_provider_secrets).toBeUndefined();
     expect(branch.custom_providers).toEqual([{ id: "my-prov" }]);
     expect(branch.pull_hint_dismissed).toBe(true);
 
@@ -232,13 +234,8 @@ describe("SQL mode — secret split (T5 invariant)", () => {
     expect(serializedCalls).not.toContain("cp-secret");
     expect(serializedCalls).not.toContain("custom_provider_secrets");
 
-    // secrets landed in localStorage via the adapter (Phase 4 boundary)
-    const branch = parseRoot().model_providers;
-    expect(branch.openai_api_key).toBe("sk-secret-openai");
-    expect(branch.anthropic_api_key).toBe("sk-secret-ant");
-    expect(branch.custom_provider_secrets).toEqual({ slug: "cp-secret" });
-    // non-sensitive field did NOT get dual-written to localStorage (§5.5)
-    expect(branch.pull_hint_dismissed).toBeUndefined();
+    expect(parseRoot()).toEqual({});
+    expect(readModelProviders().openai_api_key).toBe("sk-secret-openai");
   });
 
   test("read merges repository namespace with adapter secrets (shape unchanged)", () => {
@@ -264,7 +261,7 @@ describe("SQL mode — secret split (T5 invariant)", () => {
     await flushSettingsWrites();
 
     expect(bridgeApi.setNamespace).not.toHaveBeenCalled();
-    expect(parseRoot().model_providers.openai_api_key).toBe("sk-only-secret");
+    expect(parseRoot()).toEqual({});
     expect(readModelProviders().openai_api_key).toBe("sk-only-secret");
   });
 
@@ -336,6 +333,8 @@ describe("SQL mode — secret split (T5 invariant)", () => {
     expect(readModelProviders().openai_api_key || "").toBe("");
 
     seedRoot({ model_providers: { openai_api_key: "sk-restored" } });
+    resetProviderSecretSessionForTests();
+    resetSessionBootstrapSnapshotForTests();
     resetSettingsRepositoryForTests();
     installBridge({
       bootstrap: jest.fn(() =>

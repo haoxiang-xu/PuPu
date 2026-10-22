@@ -320,16 +320,13 @@ describe("definition store CRUD", () => {
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("");
   });
 
-  test("setCustomProviderSecret on a corrupt settings root repairs the root and saves (legacy clobber parity)", () => {
+  test("a custom secret uses session memory without clobbering a corrupt root", () => {
     localStorage.setItem("settings", "{ not json");
     setCustomProviderSecret("sap-hyperspace", "hs-repaired-key");
     // legacy readSettingsRoot() returned {} for a corrupt blob and the write
     // persisted anyway — the secret must not be silently dropped
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-repaired-key");
-    expect(
-      JSON.parse(localStorage.getItem("settings")).model_providers
-        .custom_provider_secrets,
-    ).toEqual({ "sap-hyperspace": "hs-repaired-key" });
+    expect(localStorage.getItem("settings")).toBe("{ not json");
   });
 
   test("quit barrier blocks the custom secret before its lazy legacy write", async () => {
@@ -759,10 +756,7 @@ describe("SQL mode — definition/secret split (T5 invariant)", () => {
     expect(serialized).not.toContain("hs-sql-secret");
     expect(serialized).not.toContain("custom_provider_secrets");
 
-    // Secret lives only in the localStorage root (adapter path).
-    expect(parseLocalRoot().model_providers.custom_provider_secrets).toEqual({
-      "sap-hyperspace": "hs-sql-secret",
-    });
+    expect(parseLocalRoot()).toEqual({});
     // Merged view still works for callers.
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-sql-secret");
     expect(readCustomProviders()).toHaveLength(1);
@@ -779,9 +773,7 @@ describe("SQL mode — definition/secret split (T5 invariant)", () => {
 
     expect(readCustomProviders()).toEqual([]);
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("");
-    expect(
-      parseLocalRoot().model_providers.custom_provider_secrets,
-    ).toEqual({});
+    expect(parseLocalRoot()).toEqual({});
     const lastCall =
       bridgeApi.setNamespace.mock.calls[
         bridgeApi.setNamespace.mock.calls.length - 1
@@ -815,9 +807,7 @@ describe("SQL mode — definition/secret split (T5 invariant)", () => {
     expect(findCustomProvider("sap-hyperspace")).not.toBeNull();
     // …and the linked secret was NOT deleted
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-sql-secret");
-    expect(parseLocalRoot().model_providers.custom_provider_secrets).toEqual({
-      "sap-hyperspace": "hs-sql-secret",
-    });
+    expect(parseLocalRoot()).toEqual({});
   });
 
   test("credential delete failure keeps a durable disabled tombstone and legacy key", async () => {
@@ -849,9 +839,7 @@ describe("SQL mode — definition/secret split (T5 invariant)", () => {
       expect.objectContaining({ enabled: false }),
     );
     expect(getCustomProviderSecret("sap-hyperspace")).toBe("hs-sql-secret");
-    expect(
-      parseLocalRoot().model_providers.custom_provider_secrets,
-    ).toEqual({ "sap-hyperspace": "hs-sql-secret" });
+    expect(parseLocalRoot()).toEqual({});
     const lastDefinitionWrite =
       bridgeApi.setNamespace.mock.calls[
         bridgeApi.setNamespace.mock.calls.length - 1

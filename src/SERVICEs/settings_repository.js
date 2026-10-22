@@ -48,6 +48,7 @@ import {
   settingsStorageBridge,
   parseSettingsStorageErrorCode,
 } from "./bridges/settings_storage_bridge";
+import { settingsRootWithoutProviderSecrets } from "./settings_secret_adapter";
 // NOTE (plan §6-Phase5): a settings reset must ALSO drop the structured stores'
 // own SQL-mode in-memory mirrors (default toolkits, toolkit/tool auto-approve,
 // computer-use consent) — they are seeded once from the bootstrap snapshot and
@@ -564,7 +565,8 @@ const ensureInit = () => {
 // ---------------------------------------------------------------------------
 
 const writeLocalRoot = (root) => {
-  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+  const safeRoot = settingsRootWithoutProviderSecrets(root);
+  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(safeRoot));
 };
 
 // The repository never owns the three secret fields: incoming values are
@@ -1085,6 +1087,9 @@ export const resetSettings = async ({ beforeReset } = {}) => {
   // arrives after resetSettings() returns therefore waits for the already
   // accepted reset instead of destroying the renderer halfway through it.
   return enqueue(s, async () => {
+    // Reject before any reset side effect if legacy credentials cannot yet be
+    // safely stripped. A successful reset must not leave its old preferences.
+    settingsRootWithoutProviderSecrets({});
     if (beforeReset) {
       await beforeReset();
     }

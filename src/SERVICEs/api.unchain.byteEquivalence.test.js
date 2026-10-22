@@ -266,7 +266,11 @@ describe("renderer legacy assembly matches the main suite's inline field set", (
   test("custom provider → dedicated channel only (values), never api_key", async () => {
     seedCustomProvider();
     installStorageBridge({ secretStorageStatus: "unavailable" });
-    await setCustomProviderSecret("myslug", SENTINEL.custom);
+    // A historical key remains usable while secure migration is unavailable;
+    // a new failed native save must not pretend to persist a replacement.
+    const root = JSON.parse(window.localStorage.getItem(SETTINGS_KEY));
+    root.model_providers.custom_provider_secrets = { myslug: SENTINEL.custom };
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(root));
 
     const payload = driveV2({
       modelId: "custom.myslug:anthropic--claude-4.5-haiku",

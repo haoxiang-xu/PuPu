@@ -14,6 +14,7 @@ import {
   computeSettingsMigrationDigest,
   SETTINGS_MIGRATION_MARKER_KEY,
 } from "./settings_repository";
+import { removeMigratedLegacyProviderSecrets, readProviderSecret } from "./settings_secret_adapter";
 
 const SETTINGS_KEY = "settings";
 
@@ -277,30 +278,27 @@ describe("fallback mode — secret boundary", () => {
 
   test("writes preserve stored secrets and ignore injected ones", async () => {
     seedRoot(secretRoot());
+    expect(removeMigratedLegacyProviderSecrets(["openai", "anthropic", "custom.p"])).toBe(true);
     await replaceNamespace("model_providers", {
       custom_providers: [{ id: "q" }],
       openai_api_key: "sk-injected",
     });
     const providers = parseRoot().model_providers;
     expect(providers.custom_providers).toEqual([{ id: "q" }]);
-    expect(providers.openai_api_key).toBe("sk-openai");
-    expect(providers.anthropic_api_key).toBe("sk-anthropic");
-    expect(providers.custom_provider_secrets).toEqual({
-      p: { api_key: "sk-c" },
-    });
+    expect(providers.openai_api_key).toBeUndefined();
+    expect(providers.anthropic_api_key).toBeUndefined();
+    expect(providers.custom_provider_secrets).toBeUndefined();
+    expect(readProviderSecret("openai_api_key")).toBe("sk-openai");
   });
 
-  test("deleteNamespace keeps a residual object holding only the secrets", async () => {
+  test("deleteNamespace preserves session secrets without writing a plaintext residual", async () => {
     seedRoot(secretRoot());
+    expect(removeMigratedLegacyProviderSecrets(["openai", "anthropic", "custom.p"])).toBe(true);
     await deleteNamespace("model_providers");
     const providers = parseRoot().model_providers;
-    expect(providers).toEqual({
-      openai_api_key: "sk-openai",
-      anthropic_api_key: "sk-anthropic",
-      custom_provider_secrets: { p: { api_key: "sk-c" } },
-    });
-    // repository-visible view is empty (stripped residual)
-    expect(readNamespace("model_providers", "absent")).toEqual({});
+    expect(providers).toBeUndefined();
+    expect(readProviderSecret("openai_api_key")).toBe("sk-openai");
+    expect(readNamespace("model_providers", "absent")).toBe("absent");
   });
 
   test("replaceNamespace with a non-object model_providers value is rejected — secrets survive", async () => {
@@ -1296,6 +1294,7 @@ describe("resetSettings (Phase 5)", () => {
   test("fallback mode strips non-sensitive legacy but preserves secrets + §1.3 keys", async () => {
     // no bridge → fallback mode
     seedLegacyEverything();
+    expect(removeMigratedLegacyProviderSecrets(["openai", "anthropic", "custom.x"])).toBe(true);
 
     await resetSettings();
 
@@ -1303,11 +1302,8 @@ describe("resetSettings (Phase 5)", () => {
     const root = parseRoot();
     expect(root.app).toBeUndefined();
     expect(root.appearance).toBeUndefined();
-    expect(root.model_providers).toEqual({
-      openai_api_key: "sk-secret-openai",
-      anthropic_api_key: "sk-secret-anthropic",
-      custom_provider_secrets: { x: "hs-secret" },
-    });
+    expect(root.model_providers).toBeUndefined();
+    expect(readProviderSecret("openai_api_key")).toBe("sk-secret-openai");
     expectStandaloneCleared();
     expectTokenUsagePreserved();
     expectProtectedSurvived();
@@ -1323,6 +1319,7 @@ describe("resetSettings (Phase 5)", () => {
 
   test("fallback mode NEVER calls localStorage.clear()", async () => {
     seedLegacyEverything();
+    expect(removeMigratedLegacyProviderSecrets(["openai", "anthropic", "custom.x"])).toBe(true);
     const clearSpy = jest.spyOn(Storage.prototype, "clear");
     try {
       await resetSettings();
@@ -1360,6 +1357,7 @@ describe("resetSettings (Phase 5)", () => {
 
     // Seed dual-kept legacy localStorage (secret + protected + standalone).
     seedLegacyEverything();
+    expect(removeMigratedLegacyProviderSecrets(["openai", "anthropic", "custom.x"])).toBe(true);
 
     const result = await resetSettings();
     expect(result).toMatchObject({ ok: true, mode: "sql" });
@@ -1373,11 +1371,8 @@ describe("resetSettings (Phase 5)", () => {
     // Legacy localStorage was strip-cleared: secrets + §1.3 keys survive.
     const root = parseRoot();
     expect(root.app).toBeUndefined();
-    expect(root.model_providers).toEqual({
-      openai_api_key: "sk-secret-openai",
-      anthropic_api_key: "sk-secret-anthropic",
-      custom_provider_secrets: { x: "hs-secret" },
-    });
+    expect(root.model_providers).toBeUndefined();
+    expect(readProviderSecret("openai_api_key")).toBe("sk-secret-openai");
     expectStandaloneCleared();
     expectTokenUsagePreserved();
     expectProtectedSurvived();
