@@ -27,15 +27,17 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.1",
     "react-scripts": "5.0.1",
-    "react-showdown": "^2.3.1",
-    "react-spring": "^10.0.3",
-    "tar": "7.5.20",
+    "@react-spring/web": "10.0.3",
+    "dompurify": "3.4.17",
+    "markdown-it": "15.0.3",
+    "markdown-it-task-lists": "2.1.1",
+    "tar": "7.5.22",
     "three": "^0.183.0",
     "vanilla-tilt": "^1.8.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "postinstall": "node scripts/release-qa/patch-macos-keychain.cjs",
+    "postinstall": "node scripts/release-qa/patch-macos-keychain.cjs && node scripts/release-qa/patch-security-dependencies.cjs",
     "start": "npm run start:electron",
     "start:installed": "node ./scripts/start-installed.cjs",
     "start:web": "cross-env BROWSER=none HOST=127.0.0.1 PORT=2907 react-scripts start",
@@ -203,12 +205,25 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "concurrently": "^9.2.1",
-    "electron": "^40.6.0",
-    "electron-builder": "^26.8.1",
-    "extract-zip": "2.0.1"
+    "electron": "43.8.3",
+    "electron-builder": "26.15.3",
+    "@electron-internal/extract-zip": "1.0.6"
   },
   "overrides": {
-    "shell-quote": "1.9.0",
-    "websocket-driver": "0.7.5"
+    "shell-quote": "1.12.0",
+    "websocket-driver": "0.7.5",
+    "@svgr/webpack": "6.5.1",
+    "resolve-url-loader": "5.0.0",
+    "postcss-selector-parser": "7.1.7",
+    "serialize-javascript": "7.0.5",
+    "http-proxy-agent": "5.0.0",
+    "webpack-dev-server": "5.2.7",
+    "uuid": "11.1.1",
+    "underscore": "1.13.8",
+    "qs": "6.16.1",
+    "sprintf-js": "1.1.3"
+  },
+  "engines": {
+    "node": ">=24.22.1 <25"
   }
 }
