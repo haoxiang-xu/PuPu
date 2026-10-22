@@ -2,7 +2,7 @@ import {
   PROVIDER_SECRET_FIELDS, SENSITIVE_MODEL_PROVIDER_FIELDS,
   readProviderSecret, writeProviderSecret,
   readCustomProviderSecrets, writeCustomProviderSecrets,
-  settingsRootWithoutProviderSecrets, removeMigratedLegacyProviderSecrets,
+  settingsRootForPersistence, removeMigratedLegacyProviderSecrets,
   resetProviderSecretSessionForTests,
 } from "./settings_secret_adapter";
 
@@ -49,7 +49,7 @@ test("incomplete migration never reserializes plaintext or loses the last recove
   const before = localStorage.getItem("settings");
   const spy = jest.spyOn(Storage.prototype, "setItem");
   expect(removeMigratedLegacyProviderSecrets(["openai"])).toBe(false);
-  expect(() => settingsRootWithoutProviderSecrets({ app: { setup: true } })).toThrow(/migration_pending/);
+  expect(() => settingsRootForPersistence({ app: { setup: true } })).toThrow(/migration_pending/);
   expect(localStorage.getItem("settings")).toBe(before);
   expect(spy).not.toHaveBeenCalled();
   spy.mockRestore();
@@ -70,7 +70,7 @@ test("a newer session rotation or clear cannot be overwritten by legacy re-impor
 test("serializer rejects all four injected fields, preserving safe namespaces", () => {
   const unsafe = { ui: { open: true }, model_providers: { label: "p" } };
   for (const field of SENSITIVE_MODEL_PROVIDER_FIELDS) unsafe.model_providers[field] = "SENTINEL";
-  expect(settingsRootWithoutProviderSecrets(unsafe)).toEqual({ ui: { open: true }, model_providers: { label: "p" } });
+  expect(settingsRootForPersistence(unsafe)).toEqual({ ui: { open: true }, model_providers: { label: "p" } });
   expect(unsafe.model_providers.openai_api_key).toBe("SENTINEL");
 });
 

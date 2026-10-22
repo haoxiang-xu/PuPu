@@ -40,7 +40,7 @@ const assertProviderSecretField = (field) => {
 // read-only default so writes never destroy data we could not parse.
 // `repairable` is false only when localStorage itself is missing — a corrupt
 // root CAN be rebuilt from {} by a caller that opts into repair.
-const readRootForSecrets = () => {
+const readLocalSettingsState = () => {
   if (!hasLocalStorage()) return { root: {}, writable: false, repairable: false };
   let raw = null;
   try {
@@ -85,7 +85,7 @@ const hasLegacyCredential = (providers) => isPlainObject(providers) && (
 );
 
 export const hasLegacyProviderCredential = (id) => {
-  const { root } = readRootForSecrets();
+  const { root } = readLocalSettingsState();
   const providers = root[MODEL_PROVIDERS_NAMESPACE];
   if (!isPlainObject(providers)) return false;
   const value = id.startsWith("custom.")
@@ -97,8 +97,8 @@ export const hasLegacyProviderCredential = (id) => {
 // Settings fallback writes cannot silently destroy an unacknowledged legacy
 // credential. Refuse the write until migration can safely remove that copy.
 // Even when the caller supplies a secret field, the returned root is redacted.
-export const settingsRootWithoutProviderSecrets = (root) => {
-  const { root: legacy } = readRootForSecrets();
+export const settingsRootForPersistence = (root) => {
+  const { root: legacy } = readLocalSettingsState();
   captureLegacySecrets(legacy);
   const legacyProviders = legacy[MODEL_PROVIDERS_NAMESPACE];
   if (hasLegacyCredential(legacyProviders)) {
@@ -115,7 +115,7 @@ export const settingsRootWithoutProviderSecrets = (root) => {
 // IDs are native acknowledgement metadata, never secret values. Preserve any
 // legacy field not acknowledged (including a failed migration) for next boot.
 export const removeMigratedLegacyProviderSecrets = (configuredIds) => {
-  const { root, writable } = readRootForSecrets();
+  const { root, writable } = readLocalSettingsState();
   if (!writable) return false;
   captureLegacySecrets(root);
   const providers = root[MODEL_PROVIDERS_NAMESPACE];
@@ -150,7 +150,7 @@ export const removeMigratedLegacyProviderSecrets = (configuredIds) => {
 
 const writeSecretField = (field, value, options) => {
   const repairCorruptRoot = !!(options && options.repairCorruptRoot);
-  const { root, writable, repairable } = readRootForSecrets();
+  const { root, writable, repairable } = readLocalSettingsState();
   if (!writable && !(repairCorruptRoot && repairable)) return false;
   captureLegacySecrets(root);
   sessionSecrets[field] = value;
@@ -160,7 +160,7 @@ const writeSecretField = (field, value, options) => {
 
 export const readProviderSecret = (field) => {
   assertProviderSecretField(field);
-  const { root } = readRootForSecrets();
+  const { root } = readLocalSettingsState();
   captureLegacySecrets(root);
   const value = sessionSecrets[field];
   return typeof value === "string" ? value : "";
@@ -178,7 +178,7 @@ export const writeProviderSecret = (field, value) => {
 };
 
 export const readCustomProviderSecrets = () => {
-  const { root } = readRootForSecrets();
+  const { root } = readLocalSettingsState();
   captureLegacySecrets(root);
   const value = sessionSecrets[CUSTOM_PROVIDER_SECRETS_FIELD];
   if (!isPlainObject(value)) return {};
