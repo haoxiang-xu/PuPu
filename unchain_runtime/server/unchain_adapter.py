@@ -204,6 +204,7 @@ def _memory_v2_build_content_ref_authorizer(admission: Any):
             try:
                 _memory_v2_collect_disclosed_content_refs(diagnostics(), refs)
             except Exception:
+                # diagnostics are optional hints; a failing provider must not drop the refs collected so far
                 pass
         _memory_v2_collect_disclosed_content_refs(
             getattr(admission, "handoff_messages", ()) or (),
@@ -1803,6 +1804,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-event:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     if callable(mark_outcome):
         try:
@@ -1814,6 +1816,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-outcome:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     if callable(seal_task):
         try:
@@ -1825,6 +1828,7 @@ def _memory_v2_guard_reclaimed_execution(
                 operation_id=f"takeover-recovery-seal:{digest}",
             )
         except Exception:
+            # recovery bookkeeping is best-effort; the takeover outcome does not depend on it
             pass
     _execution_control_call(
         "mark_failed",
@@ -3468,6 +3472,7 @@ def _capability_file_candidates() -> List[Path]:
         if _res_dir is not None:
             candidates.append(_res_dir / "model_capabilities.json")
     except Exception:
+        # optional resource location; the packaged candidates below still apply
         pass
 
     current_file = Path(__file__).resolve()
@@ -4264,6 +4269,7 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
                 "encoding": "base64",
             }
     except Exception:
+        # an unreadable screenshot degrades to an empty payload, which callers treat as no image
         pass
     return {}
 
@@ -4905,6 +4911,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
         try:
             tool_func = getattr(cls, tool_name, None)
         except Exception:
+            # a descriptor that raises on access is treated as no tool
             pass
 
         if tool_func is not None:
@@ -5395,6 +5402,7 @@ def get_toolkit_metadata(
                 if found_class:
                     break
     except Exception:
+        # discovery is best-effort; found_class stays None and the caller falls back
         pass
 
     # Also check top-level unchain exports
@@ -5418,6 +5426,7 @@ def get_toolkit_metadata(
                     found_class = candidate
                     break
         except Exception:
+            # discovery is best-effort; found_class stays None and the caller falls back
             pass
 
     if found_class is None:
@@ -12069,6 +12078,7 @@ def stream_chat_events(
             try:
                 interject_channels.digest(event)
             except Exception:
+                # interjection bookkeeping must never break event delivery
                 pass
             delivered_event = dict(event)
             delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)
@@ -13051,6 +13061,7 @@ def resume_chat_interaction_events(
             try:
                 interject_channels.digest(event)
             except Exception:
+                # interjection bookkeeping must never break event delivery
                 pass
             delivered_event = dict(event)
             delivered_event.pop(_TOOL_CALL_DISPLAY_METADATA_KEY, None)

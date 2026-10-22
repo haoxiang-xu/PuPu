@@ -469,15 +469,17 @@ class PupuMemoryAgentWorkerModule:
             "attempt_id",
         )
         run_id = _identifier(identity.run_id, "run_id")
-        root_run_id = _identifier(identity.root_run_id, "root_run_id")
-        trigger_key = RootRunCompletion(
+        # Validate the root-run identity now so a malformed run fails before
+        # the kernel run is enqueued; neither value is needed afterwards.
+        _identifier(identity.root_run_id, "root_run_id")
+        RootRunCompletion(
             session_id=session_id,
             attempt_id=attempt_id,
             run_id=run_id,
             is_root_run=True,
             run_status=SourceRunStatus.COMPLETED,
             capture_status=RunCaptureStatus.COMPLETE,
-        ).trigger_key
+        )
 
         def process_after_enqueue(result: KernelRunResult) -> None:
             if not isinstance(result, KernelRunResult):

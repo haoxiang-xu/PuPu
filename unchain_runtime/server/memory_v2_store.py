@@ -91,16 +91,6 @@ _CHECKPOINT_EVENT_REF_RE = re.compile(
 _LEGACY_ENTRY_REF_RE = re.compile(r"^entry:([A-Za-z0-9._:-]+)@([1-9][0-9]*)$")
 _LEGACY_EVENT_REF_RE = re.compile(r"^event:([A-Za-z0-9._:-]+)$")
 _LEGACY_EVENT_CONTENT_REF_RE = re.compile(r"^event-content:([A-Za-z0-9._:-]+)$")
-_SENSITIVE_KEY_RE = re.compile(
-    r"(?:^|[_-])(password|passwd|secret|token|api[_-]?key|authorization|cookie|"
-    r"private[_-]?key|access[_-]?key)(?:$|[_-])",
-    re.IGNORECASE,
-)
-_BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{8,}", re.IGNORECASE)
-_SECRET_ASSIGNMENT_RE = re.compile(
-    r"\b(password|passwd|secret|token|api[_-]?key)\s*([:=])\s*([^\s,;]{4,})",
-    re.IGNORECASE,
-)
 _URL_CREDENTIAL_SEGMENT_RE = re.compile(
     r"^(?:auth|authorization|bearer|code|cookie|credential|jwt|key|passwd|"
     r"password|sas|secret|sig|signature|token)s?[0-9]*$"
@@ -134,10 +124,6 @@ _URL_CREDENTIAL_COMPOUNDS = frozenset(
     }
 )
 
-_TASK_CAPTURE_STATUSES = frozenset({"open", "sealed", "aborted"})
-_TASK_PROCESSING_STATUSES = frozenset(
-    {"blocked", "pending", "leased", "completed", "failed", "cancelled"}
-)
 _JOB_STATUSES = frozenset(
     {"pending", "leased", "completed", "failed", "cancelled"}
 )
@@ -1471,6 +1457,7 @@ class MemoryV2Store:
                 try:
                     connection.execute("ROLLBACK")
                 except sqlite3.Error:
+                    # rollback is best-effort; the commit error is re-raised below
                     pass
                 raise
             self._initialize_lexical_index(connection)
@@ -1503,6 +1490,7 @@ class MemoryV2Store:
             try:
                 connection.execute("ROLLBACK")
             except sqlite3.Error:
+                # rollback is best-effort; the degraded marker below records the failed commit
                 pass
             connection.execute(
                 "INSERT INTO meta(key, value) VALUES('lexical_backend', 'degraded') "
@@ -1516,6 +1504,7 @@ class MemoryV2Store:
         try:
             os.chmod(path, mode)
         except OSError:
+            # tightening permissions is best-effort on filesystems that do not support it
             pass
 
     def close(self) -> None:
@@ -1603,6 +1592,7 @@ class MemoryV2Store:
                 try:
                     connection.execute("ROLLBACK")
                 except sqlite3.Error:
+                    # rollback is best-effort; compensations run and the error is re-raised below
                     pass
                 with self._compensation_lock:
                     compensations = tuple(
@@ -2240,6 +2230,7 @@ class MemoryV2Store:
                 try:
                     private_temp.unlink()
                 except OSError:
+                    # temp cleanup is best-effort; the original error is re-raised below
                     pass
                 raise
         now_ms = self._clock()
@@ -2262,6 +2253,7 @@ class MemoryV2Store:
             try:
                 temp_path.unlink()
             except OSError:
+                # temp cleanup is best-effort; the original error is re-raised below
                 pass
             raise
         return StagedObject(
@@ -2492,6 +2484,7 @@ class MemoryV2Store:
                 temp_path.unlink()
                 self._fsync_directory(self.tmp_dir)
             except OSError:
+                # leftover staging temp cleanup is best-effort; the staging sweep reclaims it later
                 pass
         return {"object_id": object_id, "byte_size": staged.byte_size}
 
@@ -2514,6 +2507,7 @@ class MemoryV2Store:
                     (staged.staging_id,),
                 )
         except Exception:
+            # releasing the staging row is best-effort; the staging sweep reclaims it later
             pass
         path = self._staging_path(staged.staging_id)
         try:
@@ -2521,6 +2515,7 @@ class MemoryV2Store:
                 path.unlink()
                 self._fsync_directory(self.tmp_dir)
         except OSError:
+            # removing the staging file is best-effort; the staging sweep reclaims it later
             pass
 
     @staticmethod
@@ -2532,6 +2527,7 @@ class MemoryV2Store:
             descriptor = os.open(str(directory), os.O_RDONLY)
             os.fsync(descriptor)
         except OSError:
+            # directory fsync is best-effort (unsupported on some platforms and filesystems)
             pass
         finally:
             if descriptor is not None:
@@ -2567,6 +2563,7 @@ class MemoryV2Store:
                     try:
                         path.unlink()
                     except OSError:
+                        # best-effort sweep; a file that cannot be removed is retried on the next sweep
                         pass
                     continue
                 if _STAGING_FILE_RE.fullmatch(path.name) is None:
@@ -2576,6 +2573,7 @@ class MemoryV2Store:
                 try:
                     path.unlink()
                 except OSError:
+                    # best-effort sweep; a file that cannot be removed is retried on the next sweep
                     pass
             self._fsync_directory(self.tmp_dir)
 
@@ -2599,6 +2597,7 @@ class MemoryV2Store:
                         try:
                             path.unlink()
                         except OSError:
+                            # best-effort sweep; a file that cannot be removed is retried on the next sweep
                             pass
                         continue
                     if _OBJECT_ID_RE.fullmatch(path.name) is None:
@@ -2616,6 +2615,7 @@ class MemoryV2Store:
                         try:
                             path.unlink()
                         except OSError:
+                            # best-effort sweep; a file that cannot be removed is retried on the next sweep
                             pass
                 self._fsync_directory(self.objects_dir)
                 connection.execute(
@@ -2630,6 +2630,7 @@ class MemoryV2Store:
                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value"
                     )
             except Exception:
+                # recording the degraded marker is best-effort; recovery itself already finished
                 pass
         return None
 
