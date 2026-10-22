@@ -152,7 +152,7 @@ jobs:
         run: |
           case "$TARGET_ID" in
             macos-arm64) npm run build:electron:mac:release ;;
-            macos-x64) npm run build:electron:mac:intel:release ;;
+            macos-x64) node scripts/release-qa/macos-intel-tcp.mjs -- npm run build:electron:mac:intel:release ;;
             *) echo "unsupported macOS qualification target: $TARGET_ID" >&2; exit 1 ;;
           esac
 
@@ -164,7 +164,8 @@ jobs:
           UNCHAIN_REF: ${{ inputs.unchain_ref }}
         run: |
           evidence_file="macos-signing-qualification-${TARGET_ID}.v1.json"
-          node scripts/release-qa/macos-signing-evidence.mjs \
+          node scripts/release-qa/macos-intel-tcp.mjs -- \
+            node scripts/release-qa/macos-signing-evidence.mjs \
             --schema pupu.macos-signing-qualification.v1 \
             --target "$TARGET_ID" \
             --version "$PUPU_BUILD_VERSION" \

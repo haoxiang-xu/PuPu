@@ -251,7 +251,8 @@ jobs:
                 ;;
               macos-x64)
                 command="npm run build:electron:mac:intel:release with numeric native version $QA_BASE_VERSION"
-                node scripts/release-qa/macos-release-build-retry.mjs \
+                node scripts/release-qa/macos-intel-tcp.mjs -- \
+                  node scripts/release-qa/macos-release-build-retry.mjs \
                   --max-attempts 2 --delay-ms 30000 -- \
                   npm run build:electron:mac:intel:release -- \
                   --config.mac.bundleShortVersion="$QA_BASE_VERSION" \
@@ -389,7 +390,8 @@ jobs:
                 exit 1
               fi
               codesign --verify --deep --strict --verbose=4 "$APP_PATH"
-              node scripts/release-qa/external-network-retry.mjs \
+              node scripts/release-qa/macos-intel-tcp.mjs -- \
+                node scripts/release-qa/external-network-retry.mjs \
                 --profile apple-ticket --max-attempts 3 --delay-ms 15000 -- \
                 xcrun stapler validate "$APP_PATH"
               spctl --assess --type execute --verbose=4 "$APP_PATH"

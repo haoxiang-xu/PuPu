@@ -175,7 +175,7 @@ jobs:
           node ../pupu/scripts/release-qa/release-signing.mjs --platform macos
           case "$TARGET_ID" in
             macos-arm64) npm run build:electron:mac:release -- --config "$GITHUB_WORKSPACE/fixture-build-config.json" ;;
-            macos-x64) npm run build:electron:mac:intel:release -- --config "$GITHUB_WORKSPACE/fixture-build-config.json" ;;
+            macos-x64) node ../pupu/scripts/release-qa/macos-intel-tcp.mjs -- npm run build:electron:mac:intel:release -- --config "$GITHUB_WORKSPACE/fixture-build-config.json" ;;
             *) exit 1 ;;
           esac
 
@@ -184,7 +184,8 @@ jobs:
         env:
           FROM_UNCHAIN_REVISION: ${{ steps.fixture_unchain.outputs.unchain_revision }}
         run: |
-          node scripts/release-qa/macos-signing-evidence.mjs \
+          node scripts/release-qa/macos-intel-tcp.mjs -- \
+            node scripts/release-qa/macos-signing-evidence.mjs \
             --schema pupu.macos-restart-fixture-signing.v1 --target "$TARGET_ID" --version "$FROM_VERSION" \
             --source-ref "refs/tags/$FROM_TAG" --source-sha "$FROM_COMMIT" --expected-commit "$FROM_COMMIT" \
             --unchain-ref "$FROM_UNCHAIN_REVISION" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
