@@ -18,6 +18,25 @@ const PERMANENT_FAILURES = [
   /notarization.*(?:invalid|rejected)|ticket.*(?:invalid|rejected|not found)/i,
 ];
 
+// A macOS build includes nonfatal PyInstaller "not found" diagnostics and
+// successful signing lines with a keychain path. Only actual Apple/signing
+// failures may veto a later transport retry; read profiles keep their policy.
+const APPLE_PERMANENT_FAILURES = [
+  /\bHTTP(?: status code:)?\s*(?:400|401|403|404|409|410|422)\b/i,
+  /bad credentials|invalid credentials|authentication failed|permission denied|forbidden/i,
+  /invalid signature|not signed|certificate[^\r\n]*\b(?:invalid|expired|revoked)\b/i,
+  /\b(?:invalid|expired|revoked)\b[^\r\n]*\bcertificate\b/i,
+  /notari[sz]ation[^\r\n]*(?:invalid|rejected)/i,
+  /["']?status["']?\s*[:=]\s*["']?(?:invalid|rejected)\b/i,
+  /\b(?:ticket|record)\b[^\r\n]*(?:invalid|rejected|not found|could not be found|missing)/i,
+  /\b(?:missing|could not find)\b[^\r\n]*\b(?:ticket|signing identity)\b/i,
+  /\bkeychain\b(?!\s*=)[^\r\n]*\b(?:not found|could not be found|does not exist|locked|denied|unavailable)\b/i,
+  /(?:could not be found|cannot find|unable to (?:find|access|unlock))[^\r\n]*\bkeychain\b/i,
+  /user interaction is not allowed|errSecAuthFailed|errSecItemNotFound|errSecInternalComponent/i,
+  /\b(?:no|missing|invalid)\b[^\r\n]*\bidentity\b[^\r\n]*(?:sign|found)/i,
+  /(?:failed to staple|staple and validate action failed)[^\r\n]*\b65\b/i,
+];
+
 const TRANSIENT_FAILURES = [
   /NSURLErrorDomain Code=-(?:1001|1003|1004|1005|1009)\b/i,
   /\b(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH)\b/i,
@@ -41,7 +60,8 @@ const appendTail = (current, chunk) => {
 export function isRetryableExternalNetworkFailure(profile, output) {
   if (!PROFILES.has(profile)) throw new Error(`unsupported retry profile: ${profile}`);
   const text = String(output || "");
-  if (PERMANENT_FAILURES.some((pattern) => pattern.test(text))) return false;
+  const permanentFailures = profile === "apple-ticket" ? APPLE_PERMANENT_FAILURES : PERMANENT_FAILURES;
+  if (permanentFailures.some((pattern) => pattern.test(text))) return false;
   if (profile === "apple-ticket" && !APPLE_TICKET_CONTEXT.test(text)) return false;
   return TRANSIENT_FAILURES.some((pattern) => pattern.test(text));
 }

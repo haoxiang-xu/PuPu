@@ -116,6 +116,55 @@ test("classifies transient Apple ticket-delivery failures without retrying perma
   assert.equal(isRetryableExternalNetworkFailure("apple-ticket", "The ticket was rejected: invalid signature"), false);
 });
 
+test("Apple retry ignores build diagnostics but retains explicit permanent-error vetoes", () => {
+  const timeout = "Failed to notarize via notarytool: NSURLErrorDomain Code=-1001 The request timed out.";
+  for (const diagnostic of [
+    "WARNING: Hidden import pycparser.lextab not found!",
+    "WARNING: Library user32 required via ctypes not found",
+    "signing identity=Developer ID Application keychain=/tmp/build.keychain-db",
+    "keychain unlocked successfully",
+    "signing keychain=/tmp/locked.keychain-db",
+    "WARNING: Hidden import record_manager not found!",
+    "notarization identity found: Developer ID Application",
+  ]) {
+    assert.equal(isRetryableExternalNetworkFailure("apple-ticket", `${diagnostic}\n${timeout}`), true, diagnostic);
+  }
+  for (const failure of [
+    "HTTP status code: 401. Invalid credentials.",
+    "The specified item could not be found in the keychain.",
+    "The specified keychain could not be found.",
+    "User interaction is not allowed.",
+    "errSecAuthFailed",
+    "No identity found for signing.",
+    "Developer ID certificate has expired.",
+    "Invalid Developer ID certificate.",
+    "Expired signing certificate.",
+    "Revoked Developer ID Application certificate.",
+    "Invalid signature.",
+    "The binary is not signed with a valid Developer ID certificate.",
+    "status: Invalid",
+    '{"status":"Invalid"}',
+    "Notarization was rejected.",
+    "Ticket not found.",
+    "Record not found.",
+    "Failed to staple your application with code: 65",
+    "The staple and validate action failed! Error 65.",
+  ]) {
+    for (const output of [`${failure}\n${timeout}`, `${timeout}\n${failure}`]) {
+      assert.equal(isRetryableExternalNetworkFailure("apple-ticket", output), false, failure);
+    }
+  }
+  assert.equal(isRetryableExternalNetworkFailure("apple-ticket", "keychain=/tmp/build.keychain-db\ncompile failed"), false);
+});
+
+test("GitHub and git profiles keep their existing permanent-error precedence", () => {
+  for (const profile of ["github-read", "git-read"]) {
+    for (const failure of ["HTTP 404: Not Found", "authentication failed", "permission denied", "keychain error"]) {
+      assert.equal(isRetryableExternalNetworkFailure(profile, `${failure}\nHTTP 502: Bad Gateway`), false);
+    }
+  }
+});
+
 test("classifies transient GitHub reads without retrying permanent API responses", () => {
   assert.equal(isRetryableExternalNetworkFailure("github-read", "HTTP 502: Bad Gateway"), true);
   assert.equal(isRetryableExternalNetworkFailure("github-read", "read ECONNRESET"), true);
