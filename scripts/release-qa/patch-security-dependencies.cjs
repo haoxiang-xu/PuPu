@@ -83,30 +83,120 @@ function patchSource(source, patch) {
   return patched;
 }
 
+function assertFileIdentity(filename, fd) {
+  const opened = fs.fstatSync(fd, { bigint: true });
+  let current;
+  try { current = fs.lstatSync(filename, { bigint: true }); }
+  catch (cause) {
+    if (cause.code !== "ENOENT") throw cause;
+    const error = new Error(`Dependency patch file identity disappeared: ${filename}`, { cause });
+    error.code = "EPATCH_IDENTITY";
+    throw error;
+  }
+  if (!opened.isFile() || !current.isFile() || current.isSymbolicLink()) {
+    throw new Error(`Dependency patch requires a regular non-symbolic file: ${filename}`);
+  }
+  if (opened.dev !== current.dev || opened.ino !== current.ino) {
+    const error = new Error(`Dependency patch file identity changed: ${filename}`);
+    error.code = "EPATCH_IDENTITY";
+    throw error;
+  }
+}
+
+function openRegularFile(filename, access) {
+  // No truncation: validate the opened object before reading or changing bytes.
+  // NONBLOCK also avoids hanging on a substituted FIFO before fstat rejects it.
+  const fd = fs.openSync(filename, access | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
+  try {
+    assertFileIdentity(filename, fd);
+    return fd;
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function readRegularFile(filename) {
+  const fd = openRegularFile(filename, fs.constants.O_RDONLY);
+  try {
+    const source = fs.readFileSync(fd, "utf8");
+    assertFileIdentity(filename, fd);
+    return source;
+  } finally { fs.closeSync(fd); }
+}
+
+function writeCompleteFile(fd, source) {
+  const bytes = Buffer.from(source, "utf8");
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (!Number.isInteger(written) || written <= 0 || written > bytes.length - offset) {
+      throw new Error("Dependency patch write made no valid progress");
+    }
+    offset += written;
+  }
+  fs.ftruncateSync(fd, bytes.length);
+}
+
+function patchFile(filename, patch) {
+  const fd = openRegularFile(filename, fs.constants.O_RDWR);
+  try {
+    const source = fs.readFileSync(fd, "utf8");
+    assertFileIdentity(filename, fd);
+    const patched = patchSource(source, patch);
+    if (source !== patched) {
+      writeCompleteFile(fd, patched);
+      assertFileIdentity(filename, fd);
+    }
+  } finally { fs.closeSync(fd); }
+}
+
+function ensureGuardFile(filename) {
+  let fd;
+  try {
+    // A winning racer, including a symlink, must never be overwritten.
+    fd = fs.openSync(filename, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW || 0), 0o644);
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+    if (readRegularFile(filename) !== AST_GUARD) {
+      throw new Error("Unrecognized braces nesting guard; reinstall dependencies");
+    }
+    return;
+  }
+  try {
+    assertFileIdentity(filename, fd);
+    writeCompleteFile(fd, AST_GUARD);
+    assertFileIdentity(filename, fd);
+  } finally { fs.closeSync(fd); }
+}
+
 function installPatches(root = path.resolve(__dirname, "../..")) {
-  const packages = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8")).packages;
+  const packages = JSON.parse(readRegularFile(path.join(root, "package-lock.json"))).packages;
   const installedRoots = (name) => Object.keys(packages)
     .filter((key) => key === `node_modules/${name}` || key.endsWith(`/node_modules/${name}`))
     .map((key) => path.join(root, key));
+  const guardRoots = new Set();
   for (const patch of PATCHES) {
     for (const packageRoot of installedRoots(patch.packageName)) {
       const metadataPath = path.join(packageRoot, "package.json");
-      if (!fs.existsSync(metadataPath)) continue; // npm --omit=dev may omit tooling.
-      const version = JSON.parse(fs.readFileSync(metadataPath, "utf8")).version;
+      let metadata;
+      try { metadata = readRegularFile(metadataPath); }
+      catch (error) {
+        if (error.code !== "ENOENT") throw error;
+        // npm --omit=dev may omit the entire package, never half an install.
+        try { fs.lstatSync(packageRoot); }
+        catch (missing) { if (missing.code === "ENOENT") continue; throw missing; }
+        throw error;
+      }
+      const version = JSON.parse(metadata).version;
       if (version !== patch.version) throw new Error(`Review ${patch.packageName} ${version} before applying security patch`);
       const filename = path.join(packageRoot, patch.file);
-      const source = fs.readFileSync(filename, "utf8");
-      const patched = patchSource(source, patch);
-      if (source !== patched) fs.writeFileSync(filename, patched);
+      patchFile(filename, patch);
+      if (patch.packageName === "braces") guardRoots.add(packageRoot);
     }
   }
-  for (const packageRoot of installedRoots("braces")) {
-    const guardPath = path.join(packageRoot, "lib/pupu-depth-guard.js");
-    if (!fs.existsSync(path.dirname(guardPath))) continue;
-    if (fs.existsSync(guardPath) && fs.readFileSync(guardPath, "utf8") !== AST_GUARD) {
-      throw new Error("Unrecognized braces nesting guard; reinstall dependencies");
-    }
-    if (!fs.existsSync(guardPath)) fs.writeFileSync(guardPath, AST_GUARD);
+  for (const packageRoot of guardRoots) {
+    ensureGuardFile(path.join(packageRoot, "lib/pupu-depth-guard.js"));
   }
   console.log("[dependency-security] Bounded upstream security and compatibility patches verified");
 }
