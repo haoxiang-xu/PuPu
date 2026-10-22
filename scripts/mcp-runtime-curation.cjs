@@ -111,7 +111,7 @@ async function replaceDirectory(root, relative, source) {
   await fs.cp(source, destination, { recursive: true, force: false, errorOnExist: true });
 }
 
-async function stageNpmCuration({ runtimeRoot, curation, target, cacheDir, downloader, ensureCachedSource, extractArchive, work }) {
+async function stageNpmCuration({ runtimeRoot, curation, target, cacheDir, downloader, ensureCachedSource, extractArchive, sha256Tree, work }) {
   const { npm: npmPath } = runtimePaths(target);
   await assertPackage(await safePackagePath(runtimeRoot, npmPath), "npm", curation.npm.expected_base_version);
   // Extract both sources before replacing anything, including all hash checks.
@@ -137,7 +137,7 @@ async function stageNpmCuration({ runtimeRoot, curation, target, cacheDir, downl
   }
   if (!licenses.length) throw new Error("Curated npm license inventory is empty");
   await fs.writeFile(path.join(npmRoot, "PUPU-BUNDLED-LICENSES.txt"), licenses.join("\n\n---\n\n"));
-  return {};
+  return { npm_tree_sha256: await sha256Tree(npmRoot) };
 }
 
 function replaceExpected(text, before, after, label) {
@@ -360,7 +360,7 @@ async function verifyCuration({ runtimeRoot, runtimeName, runtime, target, stage
   const bytes = await fs.readFile(receiptPath);
   if (digest(bytes) !== staged.curation_sha256) throw new Error(`${runtimeName} curation receipt checksum mismatch`);
   const receipt = JSON.parse(bytes);
-  closedObject(receipt, runtimeName === "node" ? ["schema_version", "runtime", "sources"] : ["schema_version", "runtime", "sources", "pip_wheel_sha256", "vendor_tree_sha256"], "Runtime curation receipt");
+  closedObject(receipt, runtimeName === "node" ? ["schema_version", "runtime", "sources", "npm_tree_sha256"] : ["schema_version", "runtime", "sources", "pip_wheel_sha256", "vendor_tree_sha256"], "Runtime curation receipt");
   if (receipt.schema_version !== 1 || receipt.runtime !== runtimeName || JSON.stringify(receipt.sources) !== JSON.stringify(curation)) throw new Error(`${runtimeName} curation receipt does not match pins`);
   const paths = runtimePaths(target);
   if (runtimeName === "node") {
@@ -368,6 +368,9 @@ async function verifyCuration({ runtimeRoot, runtimeName, runtime, target, stage
     await assertPackage(npm, "npm", curation.npm.version);
     await assertPackage(await safePackagePath(npm, "node_modules/ip-address"), "ip-address", curation.ip_address.version);
     await fs.access(await safePackagePath(npm, "PUPU-BUNDLED-LICENSES.txt"));
+    // Windows signing can legitimately change node.exe, but never this curated
+    // JavaScript package subtree. Check it even when the outer checksum is off.
+    if (typeof receipt.npm_tree_sha256 !== "string" || !SHA256.test(receipt.npm_tree_sha256) || await sha256Tree(npm) !== receipt.npm_tree_sha256) throw new Error("Curated npm tree checksum mismatch");
   } else {
     const wheel = await safePackagePath(runtimeRoot, `${paths.lib}/ensurepip/_bundled/${curation.pip.archive}`);
     const vendor = await safePackagePath(runtimeRoot, `${paths.site}/pip/_vendor/urllib3`);

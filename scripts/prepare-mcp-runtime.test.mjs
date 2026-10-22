@@ -887,6 +887,93 @@ test("afterPack accepts Windows signing mutations without weakening staging veri
   );
 });
 
+test("Windows afterPack permits executable signing but rejects curated npm and ip-address changes", async () => {
+  const directory = await makeTempDir();
+  const { pins, pinsPath, payloads } = await writeFakePins(directory);
+  const runtime = pins.runtimes.node;
+  const nodePin = runtime.targets["win32-x64"];
+  nodePin.args_prefix = ["node/node_modules/npm/bin/npx-cli.js"];
+  nodePin.required_files = ["LICENSE", "bin/node", "node_modules/npm/bin/npm-cli.js", "node_modules/npm/bin/npx-cli.js"];
+  runtime.curation = { schema_version: 1 };
+  for (const [name, version, key, base] of [
+    ["npm", "11.21.1", "npm", "11.19.1"],
+    ["ip-address", "10.7.4", "ip_address", "10.7.2"],
+  ]) {
+    const sourceRoot = path.join(directory, `curation-${name}`);
+    const packageRoot = path.join(sourceRoot, "package");
+    await fs.mkdir(packageRoot, { recursive: true });
+    await fs.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name, version }));
+    await fs.writeFile(path.join(packageRoot, "LICENSE"), `${name} license`);
+    if (name === "npm") {
+      await fs.mkdir(path.join(packageRoot, "node_modules/ip-address"), { recursive: true });
+      await fs.writeFile(path.join(packageRoot, "node_modules/ip-address/package.json"), JSON.stringify({ name: "ip-address", version: "10.7.2" }));
+      await fs.mkdir(path.join(packageRoot, "bin"));
+      await fs.writeFile(path.join(packageRoot, "bin/npm-cli.js"), "// npm fixture\n");
+      await fs.writeFile(path.join(packageRoot, "bin/npx-cli.js"), "// npx fixture\n");
+    } else {
+      await fs.writeFile(path.join(packageRoot, "index.js"), "module.exports = {};\n");
+    }
+    const archive = `${name}-${version}.tgz`;
+    const archivePath = path.join(directory, archive);
+    await tar.c({ cwd: sourceRoot, file: archivePath, gzip: true }, ["package"]);
+    const bytes = await fs.readFile(archivePath);
+    const url = `https://example.test/${version}/${archive}`;
+    payloads.set(url, bytes);
+    runtime.curation[key] = { version, url, archive, sha256: sha256(bytes), expected_base_version: base };
+  }
+  await fs.writeFile(pinsPath, JSON.stringify(pins));
+  const resourcesDir = path.join(directory, "app-out/resources");
+  const outputDir = path.join(resourcesDir, "mcp_runtime");
+  const context = { electronPlatformName: "win32", arch: "x64", appOutDir: path.dirname(resourcesDir), packager: { getResourcesDir: () => resourcesDir } };
+  const mutate = async (relative, text) => {
+    const file = path.join(outputDir, relative);
+    await fs.chmod(file, (await fs.stat(file)).mode | 0o200);
+    await fs.appendFile(file, text);
+  };
+  const stage = async (options, tamper) => {
+    const manifest = await prepareMcpRuntime({
+      ...options, cacheDir: path.join(directory, "cache"), downloader: fakeDownloader(payloads), wheelExtractor: fakeWheelExtractor,
+      extractor: async (...args) => {
+        if (!args[3]) return extractArchive(...args);
+        await fakeExtractor(...args);
+        if (args[3].runtimeName === "node") {
+          const npm = path.join(args[1], args[3].pin.archive_root, "node_modules/npm");
+          await fs.mkdir(npm, { recursive: true });
+          await fs.writeFile(path.join(npm, "package.json"), JSON.stringify({ name: "npm", version: "11.19.1" }));
+        }
+      },
+    });
+    await mutate("node/bin/node", "signed executable trailer");
+    if (tamper) await mutate(`node/node_modules/npm/${tamper}`, "\n// unverified package change\n");
+    return manifest;
+  };
+  const executeFile = async (command, args) => ({ stdout: !args.includes("--version") ? "truststore._api\n" : command.includes(`${path.sep}node${path.sep}`) ? args.length === 1 ? "v1.0.0\n" : "11.21.1\n" : command.includes(`${path.sep}uv${path.sep}`) ? "uvx 0.1.0\n" : "Python 3.12.0\n", stderr: "" });
+  await verifyPackagedMcpRuntime(context, { pinsPath, requireNativeSmoke: false, executeFile, stageMcpRuntime: (options) => stage(options) });
+  for (const tamper of ["bin/npm-cli.js", "node_modules/ip-address/index.js"]) {
+    await assert.rejects(verifyPackagedMcpRuntime(context, { pinsPath, requireNativeSmoke: false, executeFile, stageMcpRuntime: (options) => stage(options, tamper) }), /Curated npm tree checksum mismatch/);
+  }
+  for (const digest of [undefined, "invalid digest", ["a".repeat(64)]]) {
+    await assert.rejects(verifyPackagedMcpRuntime(context, {
+      pinsPath, requireNativeSmoke: false, executeFile,
+      stageMcpRuntime: async (options) => {
+        const manifest = await stage(options);
+        const receiptPath = path.join(outputDir, "node/PUPU-CURATED-PACKAGES.json");
+        const receipt = JSON.parse(await fs.readFile(receiptPath, "utf8"));
+        if (digest === undefined) delete receipt.npm_tree_sha256;
+        else receipt.npm_tree_sha256 = digest;
+        const bytes = JSON.stringify(receipt);
+        await fs.chmod(receiptPath, (await fs.stat(receiptPath)).mode | 0o200);
+        await fs.writeFile(receiptPath, bytes);
+        manifest.runtimes.node.curation_sha256 = sha256(bytes);
+        const manifestPath = path.join(outputDir, "manifest.json");
+        await fs.chmod(manifestPath, (await fs.stat(manifestPath)).mode | 0o200);
+        await fs.writeFile(manifestPath, JSON.stringify(manifest));
+        return manifest;
+      },
+    }), /Runtime curation receipt|Curated npm tree checksum mismatch/);
+  }
+});
+
 test("afterPack unlocks only the verified macOS package copy for codesign", async () => {
   const directory = await makeTempDir();
   const { pinsPath, payloads } = await writeFakePins(directory);
