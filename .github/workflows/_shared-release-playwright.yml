@@ -105,8 +105,8 @@ jobs:
             echo "::error title=Missing deterministic Unchain artifact::Playwright requires the wheel and evidence emitted by Deterministic QA"
             exit 1
           fi
-          python -m pip install --upgrade pip
-          python -m pip install -r unchain_runtime/server/requirements.txt
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 --upgrade pip
+          python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
           python -m pip install --force-reinstall --no-deps "$WHEEL_PATH"
           node scripts/release-qa/verify-unchain-artifact.mjs \
             --artifact "$WHEEL_PATH" \

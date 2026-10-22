@@ -34,7 +34,10 @@ test("Windows signing qualification is an explicit, protected, non-publishing Ar
   assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_PATH: \$\{\{ github\.workspace \}\}\/.qualification-unchain/);
   assert.match(workflow, /UNCHAIN_ARTIFACT_SOURCE_REF: dev/);
   assert.match(workflow, /Install Python runtime dependencies for wheel manifest inspection/);
-  assert.match(workflow, /python -m pip install -r unchain_runtime\/server\/requirements\.txt/);
+  assert.match(
+    workflow,
+    /python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime\/server\/requirements\.txt/,
+  );
   assert.match(workflow, /Create controlled Memory V2 build snapshot/);
   assert.match(workflow, /write-build-feature-snapshot\.cjs/);
   assert.match(workflow, /--profile docs\/contracts\/memory-v2\/release-profile\.all\.v2\.json/);

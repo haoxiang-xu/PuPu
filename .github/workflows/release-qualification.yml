@@ -74,7 +74,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
               --tag "$RELEASE_TAG" \
@@ -88,7 +89,9 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest candidate/release-assets.v1.json \
@@ -104,7 +107,8 @@ jobs:
           FROM_TAG: ${{ inputs.from_tag }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          git fetch --no-tags origin "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
+          node scripts/release-qa/external-network-retry.mjs --profile git-read -- \
+            git fetch --no-tags origin "refs/tags/$FROM_TAG:refs/tags/$FROM_TAG"
           FROM_COMMIT="$(git rev-list -n 1 "$FROM_TAG")"
           FROM_PACKAGE_JSON="$RUNNER_TEMP/from-package.json"
           git show "$FROM_TAG:package.json" > "$FROM_PACKAGE_JSON"
@@ -217,7 +221,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
           mkdir -p installed-reports
 

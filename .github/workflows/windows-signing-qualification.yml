@@ -78,7 +78,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- `
+            gh api "repos/$env:GITHUB_REPOSITORY/environments/windows-signing-qualification" |
             node scripts/release-qa/verify-github-environment.mjs --environment windows-signing-qualification
 
       - name: Checkout Unchain source for the qualification build
@@ -101,7 +102,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Python runtime dependencies for wheel manifest inspection
-        run: python -m pip install -r unchain_runtime/server/requirements.txt
+        run: python -m pip install --disable-pip-version-check --retries 5 --timeout 60 -r unchain_runtime/server/requirements.txt
 
       - name: Install build dependencies
         run: npm ci

@@ -55,7 +55,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/environments/release-stage" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/environments/release-stage" \
             | node scripts/release-qa/verify-github-environment.mjs --environment release-stage
 
   stage-draft:
@@ -118,7 +119,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
           TAG_COMMIT: ${{ steps.tag.outputs.tag_commit }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$CANDIDATE_RUN_ID" \
               --tag "$RELEASE_TAG" \
@@ -131,9 +133,13 @@ jobs:
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
           QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-candidate --dir candidate
-          gh run download "$QUALIFICATION_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path qualification -- \
+            gh run download "$QUALIFICATION_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name pupu-release-qualification --dir qualification
 
       - name: Resolve and verify qualification Actions provenance
@@ -154,7 +160,8 @@ jobs:
             --release-commit "$TAG_COMMIT" \
             --tools-tag "$GITHUB_REF_NAME" \
             --tools-commit "$GITHUB_SHA")"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
+          node scripts/release-qa/external-network-retry.mjs --profile github-read -- \
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFICATION_RUN_ID" \
             | node scripts/release-qa/verify-actions-run-provenance.mjs \
               --run-id "$QUALIFICATION_RUN_ID" \
               --tag "$GITHUB_REF_NAME" \
@@ -234,7 +241,9 @@ jobs:
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
           QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
         run: |
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path draft-assets -- \
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir draft-assets --clobber
           node scripts/release-qa/verify-release-candidate.mjs \
             --manifest draft-assets/release-assets.v1.json \
             --asset-dir draft-assets \

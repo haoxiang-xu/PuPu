@@ -389,7 +389,9 @@ jobs:
                 exit 1
               fi
               codesign --verify --deep --strict --verbose=4 "$APP_PATH"
-              xcrun stapler validate "$APP_PATH"
+              node scripts/release-qa/external-network-retry.mjs \
+                --profile apple-ticket --max-attempts 3 --delay-ms 15000 -- \
+                xcrun stapler validate "$APP_PATH"
               spctl --assess --type execute --verbose=4 "$APP_PATH"
               ;;
             windows)

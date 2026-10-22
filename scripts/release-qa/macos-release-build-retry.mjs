@@ -5,19 +5,11 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
+import { isRetryableExternalNetworkFailure } from "./external-network-retry.mjs";
+
 const MAX_CAPTURE_BYTES = 1024 * 1024;
 const DEFAULT_MAX_ATTEMPTS = 2;
 const DEFAULT_DELAY_MS = 30_000;
-
-const NOTARIZATION_CONTEXT = /stapl|notari[sz]|apple-cloudkit|ticket-delivery/i;
-const TRANSIENT_FAILURES = [
-  /NSURLErrorDomain Code=-(?:1001|1003|1004|1005|1009)\b/i,
-  /network connection was lost/i,
-  /connection (?:reset|timed out)/i,
-  /could not connect to (?:the )?server/i,
-  /service unavailable/i,
-  /HTTP status code:\s*(?:429|5\d\d)\b/i,
-];
 
 const pause = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
 
@@ -27,8 +19,7 @@ const appendTail = (current, chunk) => {
 };
 
 export function isTransientMacNotarizationFailure(output) {
-  const text = String(output || "");
-  return NOTARIZATION_CONTEXT.test(text) && TRANSIENT_FAILURES.some((pattern) => pattern.test(text));
+  return isRetryableExternalNetworkFailure("apple-ticket", output);
 }
 
 async function runStreamingCommand({ command, args }) {

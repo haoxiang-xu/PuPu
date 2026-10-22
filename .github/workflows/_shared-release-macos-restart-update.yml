@@ -91,12 +91,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name pupu-release-candidate --dir ../candidate
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path .release-qa/candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name pupu-release-candidate --dir .release-qa/candidate
           node scripts/release-qa/verify-release-candidate.mjs \
-            --manifest ../candidate/release-assets.v1.json --asset-dir ../candidate/assets \
-            --qa-report ../candidate/release-qa-report.json --tag "$RELEASE_TAG" \
+            --manifest .release-qa/candidate/release-assets.v1.json --asset-dir .release-qa/candidate/assets \
+            --qa-report .release-qa/candidate/release-qa-report.json --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT" --candidate-run-id "$CANDIDATE_RUN_ID"
-          node scripts/release-qa/validate-update-fixture-source.mjs --candidate-dir ../candidate \
+          node scripts/release-qa/validate-update-fixture-source.mjs --candidate-dir .release-qa/candidate \
             --from-tag "$FROM_TAG" --from-version "$FROM_VERSION" --from-commit "$FROM_COMMIT"
 
       - name: Resolve N-1 Unchain revision from published manifest
@@ -104,7 +106,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" --pattern release-assets.v1.json --dir previous-release
+          node pupu/scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path previous-release -- \
+            gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" --pattern release-assets.v1.json --dir previous-release
           FROM_UNCHAIN_REVISION="$(node -e '
             const m = require("./previous-release/release-assets.v1.json");
             if (m.schema !== "pupu.release-assets.v1" || m.release?.tag !== process.env.FROM_TAG ||
@@ -198,7 +202,7 @@ jobs:
         working-directory: pupu
         run: |
           node scripts/release-qa/run-restart-update-qualification.mjs \
-            --candidate-dir ../candidate --fixture "../fixture-source/dist/PuPu-${FROM_VERSION}-${TARGET_ID}.dmg" \
+            --candidate-dir .release-qa/candidate --fixture "../fixture-source/dist/PuPu-${FROM_VERSION}-${TARGET_ID}.dmg" \
             --fixture-evidence macos-restart-fixture.v1.json --target "$TARGET_ID" --feed-port "$FEED_PORT" \
             --out restart-update-qualification.json --diagnostics restart-update-diagnostics.json \
             --server-log qualification-feed-server.v1.json

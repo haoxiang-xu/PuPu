@@ -104,12 +104,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name pupu-release-candidate --dir ../candidate
+          node scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path .release-qa/candidate -- \
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name pupu-release-candidate --dir .release-qa/candidate
           node scripts/release-qa/verify-release-candidate.mjs \
-            --manifest ../candidate/release-assets.v1.json \
-            --asset-dir ../candidate/assets \
-            --qa-report ../candidate/release-qa-report.json \
+            --manifest .release-qa/candidate/release-assets.v1.json \
+            --asset-dir .release-qa/candidate/assets \
+            --qa-report .release-qa/candidate/release-qa-report.json \
             --tag "$RELEASE_TAG" \
             --commit "$TAG_COMMIT" \
             --candidate-run-id "$CANDIDATE_RUN_ID"
@@ -120,8 +122,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p previous-release
-          gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" \
+          node pupu/scripts/release-qa/external-network-retry.mjs \
+            --profile github-read --cleanup-path previous-release -- \
+            gh release download "$FROM_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern release-assets.v1.json --dir previous-release
           FROM_UNCHAIN_REVISION="$(node -e '
             const fs = require("fs");
