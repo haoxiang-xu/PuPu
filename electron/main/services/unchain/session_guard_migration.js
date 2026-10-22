@@ -122,15 +122,18 @@ const createSessionGuardMigrationController = ({
     if (!hasReadableIntentStore()) {
       return false;
     }
-    // Open first and inspect the descriptor instead of checking the path and
-    // then reading it again: the file cannot be swapped between the two.
-    // O_NOFOLLOW makes a symlinked intent fail at open (ELOOP) on POSIX.
+    // Pin one descriptor, then prove it still names the same regular file.
+    // Windows lacks O_NOFOLLOW, so the post-open lstat must reject links and
+    // match the descriptor's identity before any content is read. O_NONBLOCK
+    // prevents a POSIX FIFO from blocking before fstat can reject it.
     let fd = null;
     try {
       try {
         fd = fs.openSync(
           intentPath,
-          (fs.constants?.O_RDONLY ?? 0) | (fs.constants?.O_NOFOLLOW ?? 0),
+          (fs.constants?.O_RDONLY ?? 0) |
+            (fs.constants?.O_NOFOLLOW ?? 0) |
+            (fs.constants?.O_NONBLOCK ?? 0),
         );
       } catch (error) {
         if (error && error.code === "ENOENT") {
@@ -149,13 +152,18 @@ const createSessionGuardMigrationController = ({
       }
       try {
         const directoryStat = fs.lstatSync(intentDirectory);
-        const intentStat = fs.fstatSync(fd);
+        const intentStat = fs.fstatSync(fd, { bigint: true });
+        const currentIntentStat = fs.lstatSync(intentPath, { bigint: true });
         if (
           directoryStat.isSymbolicLink() ||
           !directoryStat.isDirectory() ||
-          !intentStat.isFile()
+          !intentStat.isFile() ||
+          currentIntentStat.isSymbolicLink() ||
+          !currentIntentStat.isFile() ||
+          currentIntentStat.dev !== intentStat.dev ||
+          currentIntentStat.ino !== intentStat.ino
         ) {
-          throw new Error("migration intent is not a file");
+          throw new Error("migration intent is not the same regular file");
         }
         const parsed = JSON.parse(fs.readFileSync(fd, "utf8"));
         if (!isExactMigrationIntent(parsed)) {
